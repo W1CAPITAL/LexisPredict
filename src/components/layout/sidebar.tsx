@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -34,7 +33,8 @@ import {
   Moon,
   CheckCircle,
   Printer,
-  HelpCircle
+  HelpCircle,
+  PlayCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,6 @@ import { checkIfSuperAdmin } from '@/lib/supabase';
 import { useAppStore } from '@/store/use-app-store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { InstallAppButton } from '@/components/mobile/InstallAppButton';
-import { GuidedTour } from '@/components/onboarding/guided-tour';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -102,6 +101,7 @@ export function Sidebar() {
         { label: t.import, href: '/import', icon: Upload },
         { label: t.notes, href: '/notes', icon: StickyNote },
         { label: "Motor de OCR", href: '/tools/ocr', icon: Zap },
+        { label: "Treinamento Vídeo", href: '/onboarding', icon: PlayCircle },
       ]
     },
     {
@@ -216,7 +216,6 @@ export function Sidebar() {
 
   return (
     <>
-      <GuidedTour />
       <div className="lg:hidden fixed top-5 left-5 z-[100]">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
