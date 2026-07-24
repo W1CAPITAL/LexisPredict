@@ -1,8 +1,7 @@
-
 "use client";
 
 /**
- * @fileOverview Módulo de Onboarding Interativo v200.0 ELITE
+ * @fileOverview Módulo de Onboarding Interativo v201.0 ELITE
  * Conduz o usuário por TODAS as abas estratégicas do LexisPredict.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -32,11 +31,13 @@ import {
   ShieldAlert,
   Printer,
   Sparkles,
-  Clock
+  Clock,
+  PlayCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 interface TourStep {
   title: string;
@@ -250,14 +251,6 @@ export function GuidedTour() {
     setTutorialStep
   } = useAppStore();
 
-  // Hook useEffect movido para o topo
-  useEffect(() => {
-    if (isTutorialActive && TOUR_STEPS[tutorialStep]) {
-      router.push(TOUR_STEPS[tutorialStep].route);
-    }
-  }, [tutorialStep, isTutorialActive, router]);
-
-  // Hook useMemo movido para o topo para respeitar a ordem dos hooks
   const currentLevel = useMemo(() => {
     if (tutorialStep <= 3) return { label: "Nível 1", sub: "Primeiros Passos", color: "text-blue-500", bg: "bg-blue-500/10" };
     if (tutorialStep <= 12) return { label: "Nível 2", sub: "Automação Neural", color: "text-emerald-500", bg: "bg-emerald-500/10" };
@@ -265,7 +258,12 @@ export function GuidedTour() {
     return { label: "Nível 4", sub: "Especialista", color: "text-purple-500", bg: "bg-purple-500/10" };
   }, [tutorialStep]);
 
-  // Retorno antecipado APÓS todos os hooks serem declarados
+  useEffect(() => {
+    if (isTutorialActive && TOUR_STEPS[tutorialStep]) {
+      router.push(TOUR_STEPS[tutorialStep].route);
+    }
+  }, [tutorialStep, isTutorialActive, router]);
+
   if (!isTutorialActive) return null;
 
   const handleNext = () => {
@@ -334,9 +332,22 @@ export function GuidedTour() {
                 </div>
              </div>
 
-             <div className="bg-white border-2 border-black p-4 mt-8">
-                <p className="text-[8px] font-black uppercase opacity-40 mb-2">Métrica de Performance</p>
-                <p className="text-[10px] font-black uppercase tracking-tight">{step.metrica}</p>
+             <div className="space-y-4 mt-8">
+                <div className="bg-white border-2 border-black p-4">
+                  <p className="text-[8px] font-black uppercase opacity-40 mb-2">Métrica de Performance</p>
+                  <p className="text-[10px] font-black uppercase tracking-tight">{step.metrica}</p>
+                </div>
+
+                {/* BOTÃO DE VÍDEO NO TUTORIAL */}
+                <Button 
+                  asChild
+                  variant="outline"
+                  className="w-full h-12 border-2 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[9px] tracking-widest transition-all shadow-[4px_4px_0px_#00D1FF] hover:shadow-none"
+                >
+                  <Link href="/onboarding">
+                    <PlayCircle size={16} className="mr-2" /> Assistir Treinamento em Vídeo
+                  </Link>
+                </Button>
              </div>
           </div>
 
