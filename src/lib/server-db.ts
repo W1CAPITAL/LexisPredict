@@ -1,8 +1,10 @@
+
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
 import { LegalCase, CaseNote, formatDateToISO } from './case-logic';
 import { cookies } from 'next/headers';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v5100.0 ELITE)
@@ -72,6 +74,60 @@ export async function getEmpresaUsers(): Promise<UserProfile[]> {
     throw error;
   }
   return (data || []) as UserProfile[];
+}
+
+/**
+ * Provisionamento de Operador via Admin API (Exclusivo Superadmin)
+ */
+export async function createEmpresaUserAction(payload: any) {
+  const { isSuperAdmin, empresa_id } = await getUserContext();
+  
+  if (!isSuperAdmin) {
+    return { success: false, error: 'Autorização negada. Apenas Superadmins podem provisionar novos acessos.' };
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceKey) {
+    return { success: false, error: 'Infraestrutura de segurança não configurada corretamente.' };
+  }
+
+  // Cliente Administrativo Soberano
+  const adminClient = createSupabaseClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+
+  // 1. Criação no Auth Service (Sem deslogar o administrador atual)
+  const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+    email: payload.email.toLowerCase().trim(),
+    password: payload.password,
+    email_confirm: true,
+    user_metadata: { full_name: payload.nome.toUpperCase() }
+  });
+
+  if (authError) return { success: false, error: authError.message };
+
+  // 2. Criação do Perfil na Tabela Usuarios
+  const { error: dbError } = await adminClient
+    .from('usuarios')
+    .insert({
+      auth_user_id: authData.user.id,
+      empresa_id: empresa_id,
+      nome: payload.nome.trim().toUpperCase(),
+      email: payload.email.toLowerCase().trim(),
+      cargo: payload.cargo
+    });
+
+  if (dbError) {
+    // Rollback: remove o usuário auth se a gravação do perfil falhar
+    await adminClient.auth.admin.deleteUser(authData.user.id);
+    return { success: false, error: dbError.message };
+  }
+
+  await logAuditAction('TEAM_MEMBER_PROVISIONED', `Provisionou acesso para ${payload.email} como ${payload.cargo}`);
+
+  return { success: true };
 }
 
 export async function removeEmpresaUser(userId: string) {
