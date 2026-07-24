@@ -379,7 +379,6 @@ export async function getWhatsAppHistory(phone: string) {
   const { data, error } = await supabase
     .from('whatsapp_messages')
     .select('*')
-    .eq('instance_name', 'Lexis') // Filtro padrão da instância
     .eq('contact_number', searchPhone)
     .order('timestamp', { ascending: true });
 
