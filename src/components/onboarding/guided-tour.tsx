@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * @fileOverview Módulo de Onboarding Interativo v205.0 ELITE
+ * @fileOverview Módulo de Onboarding Interativo v210.0 ELITE
  * Conduz o usuário por TODAS as abas estratégicas com suporte a VÍDEO INTEGRADO.
+ * Globalizado para persistir em todas as rotas.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { 
   X, 
   ChevronRight, 
@@ -243,6 +244,7 @@ const TOUR_STEPS: TourStep[] = [
 
 export function GuidedTour() {
   const router = useRouter();
+  const pathname = usePathname();
   const { 
     isTutorialActive, 
     setTutorialActive, 
@@ -261,10 +263,12 @@ export function GuidedTour() {
   }, [tutorialStep]);
 
   useEffect(() => {
-    if (isTutorialActive && TOUR_STEPS[tutorialStep] && !showVideo) {
-      router.push(TOUR_STEPS[tutorialStep].route);
+    // Sincronia de rota inteligente: evita loops se o usuário já estiver na rota do passo
+    const currentStepRoute = TOUR_STEPS[tutorialStep]?.route;
+    if (isTutorialActive && currentStepRoute && !showVideo && pathname !== currentStepRoute) {
+      router.push(currentStepRoute);
     }
-  }, [tutorialStep, isTutorialActive, router, showVideo]);
+  }, [tutorialStep, isTutorialActive, router, showVideo, pathname]);
 
   if (!isTutorialActive) return null;
 
@@ -293,7 +297,7 @@ export function GuidedTour() {
   const step = TOUR_STEPS[tutorialStep];
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
       <div className="w-full max-w-5xl bg-white border-4 border-black shadow-[30px_30px_0px_rgba(0,0,0,0.1)] relative overflow-hidden flex flex-col h-[85vh]">
         
         {/* Progress Bar */}
