@@ -366,3 +366,26 @@ export async function deleteStoredNote(id: string): Promise<{ success: boolean }
   if (error) console.error("[DB] [DELETE FAIL]", error.message);
   return { success: !error };
 }
+
+// --- GESTÃO DE MENSAGENS WHATSAPP ---
+
+export async function getWhatsAppHistory(phone: string) {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return [];
+
+  const cleanPhone = phone.replace(/\D/g, '');
+  const searchPhone = (cleanPhone.length === 10 || cleanPhone.length === 11) ? `55${cleanPhone}` : cleanPhone;
+
+  const { data, error } = await supabase
+    .from('whatsapp_messages')
+    .select('*')
+    .eq('instance_name', 'Lexis') // Filtro padrão da instância
+    .eq('contact_number', searchPhone)
+    .order('timestamp', { ascending: true });
+
+  if (error) {
+    console.error('[DB] WhatsApp History Fail:', error.message);
+    return [];
+  }
+  return data;
+}
