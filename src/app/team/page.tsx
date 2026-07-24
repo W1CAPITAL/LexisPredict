@@ -1,14 +1,12 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
-  Users, 
   ShieldCheck, 
-  ShieldAlert, 
   Shield, 
   UserPlus, 
-  Trash2, 
   RefreshCcw, 
   Mail, 
   Copyright,
@@ -16,19 +14,15 @@ import {
   ChevronRight,
   Activity,
   Loader2,
-  Lock,
   UserCheck,
-  Smartphone,
   Crown,
   LayoutGrid,
   Trophy,
   Medal,
-  Star,
-  ShieldHalf,
   Eye
 } from 'lucide-react';
-import { getEmpresaUsers, removeEmpresaUser, logAuditAction, updateUserRole } from '@/lib/server-db';
-import { UserProfile, supabase, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
+import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
+import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
 import { useAuth } from '@/components/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -73,7 +67,8 @@ export default function TeamManagement() {
   const t = getTranslation(locale);
   
   const isSuperAdmin = checkIfSuperAdmin(profile);
-  const isAdmin = profile?.cargo === 'Administrador' || isSuperAdmin || profile?.cargo === 'Supervisor';
+  const isSupervisor = checkIfSupervisor(profile);
+  const isAdmin = profile?.cargo === 'Administrador' || isSuperAdmin || isSupervisor;
 
   const [userForm, setUserForm] = useState({
     nome: '',
@@ -105,35 +100,20 @@ export default function TeamManagement() {
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin || isSaving) return;
+    if (!isSuperAdmin || isSaving) return;
 
     setIsSaving(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userForm.email,
-        password: userForm.password,
-        options: { data: { full_name: userForm.nome } }
-      });
-
-      if (authError) throw authError;
-
-      const profilePayload = {
-        auth_user_id: authData.user?.id,
-        empresa_id: profile?.empresa_id,
-        nome: userForm.nome.toUpperCase(),
-        email: userForm.email.toLowerCase(),
-        cargo: userForm.cargo
-      };
-
-      const { error: insertError } = await supabase.from('usuarios').insert(profilePayload);
-      if (insertError) throw insertError;
-
-      await logAuditAction('TEAM_MEMBER_ADDED', `Adicionou ${userForm.email} como ${userForm.cargo}`);
+      const res = await createEmpresaUserAction(userForm);
       
-      toast({ title: "Operador Ativado", description: "O novo membro já pode acessar o gabinete." });
-      setIsNewClientOpen(false);
-      setUserForm({ nome: '', email: '', cargo: 'Operador', password: '' });
-      loadTeam();
+      if (res.success) {
+        toast({ title: "Operador Ativado", description: "O novo membro já pode acessar o gabinete." });
+        setIsNewClientOpen(false);
+        setUserForm({ nome: '', email: '', cargo: 'Operador', password: '' });
+        loadTeam();
+      } else {
+        throw new Error(res.error);
+      }
     } catch (err: any) {
       toast({ title: "Falha no Provisionamento", description: err.message, variant: "destructive" });
     } finally {
@@ -142,6 +122,7 @@ export default function TeamManagement() {
   };
 
   const handleChangeRole = async (userId: string, newRole: UserRole) => {
+    if (!isSuperAdmin) return;
     const res = await updateUserRole(userId, newRole);
     if (res.success) {
       toast({ title: "Cargo Atualizado" });
@@ -151,7 +132,8 @@ export default function TeamManagement() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = async (id: string) => {
+    if (!isSuperAdmin) return;
     const res = await removeEmpresaUser(id);
     if (res.success) {
       toast({ title: "Acesso Revogado" });
@@ -161,7 +143,6 @@ export default function TeamManagement() {
     }
   };
 
-  // Ranking / Hierarquia Logic
   const roleWeights: Record<string, number> = {
     'Superadmin': 5000,
     'Supervisor': 4000,
@@ -207,7 +188,7 @@ export default function TeamManagement() {
             </Tabs>
 
             <div className="flex items-center gap-3">
-               {isAdmin && (
+               {isSuperAdmin && (
                  <Button onClick={() => setIsNewUserOpen(true)} className="bg-black text-white font-black h-10 px-6 rounded-xl uppercase text-[10px] tracking-widest hover:bg-black/90 transition-all shadow-xl">
                    <UserPlus size={16} className="mr-2 text-primary" /> Novo Operador
                  </Button>
@@ -225,7 +206,7 @@ export default function TeamManagement() {
               {users.map((user) => {
                 const targetIsSuper = checkIfSuperAdmin(user);
                 const targetIsSupervisor = checkIfSupervisor(user);
-                const canManage = isSuperAdmin || (!targetIsSuper && !targetIsSupervisor) || (isSuperAdmin && targetIsSupervisor);
+                const canManage = isSuperAdmin && !targetIsSuper;
 
                 return (
                   <Card key={user.id} className="premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all overflow-hidden relative">
@@ -246,7 +227,7 @@ export default function TeamManagement() {
                           <RoleBadge role={user.cargo as any} t={t} isSuper={targetIsSuper} />
                         </div>
                       </div>
-                      {isAdmin && (
+                      {isSuperAdmin && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-secondary">
@@ -260,33 +241,29 @@ export default function TeamManagement() {
                                </DropdownMenuItem>
                             )}
                             
-                            {isSuperAdmin && (
-                              <DropdownMenuItem disabled={!canManage} onClick={() => handleChangeRole(user.id, 'Superadmin')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2 text-amber-600">
-                                 Tornar Superadmin
-                              </DropdownMenuItem>
+                            {canManage && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2 text-primary font-bold">
+                                   Tornar Supervisor
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
+                                   Tornar Administrador
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
+                                   Tornar Operador
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Visualizador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
+                                   Tornar Visualizador
+                                </DropdownMenuItem>
+                                <div className="h-px bg-border/50 my-2" />
+                                <DropdownMenuItem 
+                                  onClick={() => handleDelete(user.id)}
+                                  className="text-[9px] font-black uppercase cursor-pointer text-red-600 focus:bg-red-50 rounded-lg px-3 py-2"
+                                >
+                                  Revogar Acesso
+                                </DropdownMenuItem>
+                              </>
                             )}
-
-                            <DropdownMenuItem disabled={!canManage} onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2 text-primary font-bold">
-                               Tornar Supervisor
-                            </DropdownMenuItem>
-                            
-                            <DropdownMenuItem disabled={!canManage} onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                               Tornar Administrador
-                            </DropdownMenuItem>
-                            <DropdownMenuItem disabled={!canManage} onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                               Tornar Operador
-                            </DropdownMenuItem>
-                            <DropdownMenuItem disabled={!canManage} onClick={() => handleChangeRole(user.id, 'Visualizador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                               Tornar Visualizador
-                            </DropdownMenuItem>
-                            <div className="h-px bg-border/50 my-2" />
-                            <DropdownMenuItem 
-                              disabled={!canManage}
-                              onClick={() => handleDelete(user.id, user.nome)}
-                              className="text-[9px] font-black uppercase cursor-pointer text-red-600 focus:bg-red-50 rounded-lg px-3 py-2"
-                            >
-                              Revogar Acesso
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -410,7 +387,6 @@ export default function TeamManagement() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {isSuperAdmin && <SelectItem value="Superadmin" className="text-[10px] font-bold">SUPERADMIN</SelectItem>}
                         <SelectItem value="Supervisor" className="text-[10px] font-bold">SUPERVISOR (MASTER)</SelectItem>
                         <SelectItem value="Administrador" className="text-[10px] font-bold">ADMINISTRADOR</SelectItem>
                         <SelectItem value="Operador" className="text-[10px] font-bold">OPERADOR</SelectItem>
