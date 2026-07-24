@@ -2,12 +2,12 @@
 "use client";
 
 /**
- * @fileOverview Módulo de Onboarding Interativo v200.0 ELITE
- * Conduz o usuário por TODAS as abas estratégicas do LexisPredict sem perdas de progresso.
+ * @fileOverview Módulo de Onboarding Estratégico v500.0 ELITE
+ * Treinamento Prático: Ensina a rotina diária e o valor estratégico.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   X, 
@@ -19,7 +19,6 @@ import {
   Briefcase, 
   FileSearch, 
   Palette,
-  Sparkles,
   Users,
   FileText,
   FileSignature,
@@ -31,120 +30,248 @@ import {
   ScanText,
   BarChart3,
   ShieldAlert,
-  Printer
+  Printer,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  TrendingUp,
+  Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store/use-app-store';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 interface TourStep {
   title: string;
-  content: string;
+  level: string;
+  levelNum: number;
+  why: string;
+  routine: string[];
+  benefits: string[];
+  metrics?: string;
+  didYouKnow?: string;
+  nextMission: string;
+  time: string;
   icon: React.ReactNode;
   route: string;
 }
 
 const TOUR_STEPS: TourStep[] = [
   {
-    title: "Misson Control (Dashboard)",
-    content: "Seja bem-vindo ao LexisPredict Elite. Aqui você tem o controle total da sua carteira, o índice de risco global e o Briefing Neural processado por nossa IA.",
+    title: "Mission Control (Dashboard)",
+    level: "Nível 1: Primeiros Passos",
+    levelNum: 1,
+    why: "O Dashboard é o cérebro do seu gabinete. Sem ele, você perderia horas abrindo planilhas e sites de tribunais para saber quem precisa de atenção.",
+    routine: ["Verificar processos vencidos", "Conferir o Índice de Risco Global", "Ler o Briefing Neural da IA"],
+    benefits: ["Prioridade automática de casos", "Visão global em 5 segundos", "Identificação imediata de gargalos"],
+    metrics: "Com o Dashboard, a triagem matinal é reduzida de 40 minutos para 30 segundos.",
+    didYouKnow: "O Índice de Risco é calculado em tempo real com base na inércia dos prazos.",
+    nextMission: "Agora, vamos ver onde esses dados nascem.",
+    time: "30 segundos",
     icon: <Zap className="text-primary" />,
     route: "/"
   },
   {
-    title: "Fila de Atendimento",
-    content: "O sistema organiza automaticamente sua fila de contatos com base em prazos vencidos e urgências, permitindo que você bata suas metas diárias com precisão.",
-    icon: <Target className="text-red-500" />,
-    route: "/tarefas"
-  },
-  {
-    title: "Gestão de Carteira",
-    content: "Visualize toda a sua banca de processos com filtros dinâmicos por advogado. Controle a volumetria e a saúde jurídica de cada caso individualmente.",
+    title: "Gestão de Carteira (Processos)",
+    level: "Nível 1: Primeiros Passos",
+    levelNum: 1,
+    why: "Aqui é o coração da operação. É nesta tela que a equipe centraliza todos os clientes, eliminando de vez as planilhas soltas e o risco de perda de informações.",
+    routine: ["Cadastrar novos clientes", "Atualizar andamentos manuais", "Localizar processos via CNJ"],
+    benefits: ["Histórico unificado", "Pesquisa instantânea", "Isolamento por advogado"],
+    didYouKnow: "Um processo sem próxima data de retorno é um processo esquecido. Nunca deixe este campo vazio.",
+    nextMission: "Veja como o sistema organiza o seu dia de trabalho.",
+    time: "2 minutos",
     icon: <Briefcase className="text-blue-500" />,
     route: "/cases"
   },
   {
+    title: "Fila de Atendimento (Tarefas)",
+    level: "Nível 1: Primeiros Passos",
+    levelNum: 1,
+    why: "O sistema já filtrou quem precisa ser ouvido hoje. O foco aqui é produtividade máxima no contato com o cliente.",
+    routine: ["Realizar contatos da meta diária", "Registrar feedbacks de atendimento", "Bater a meta de contatos (Default: 25)"],
+    benefits: ["Fim da dúvida 'quem eu ligo agora?'", "Gestão de meta de produtividade", "Sincronia com o WhatsApp"],
+    metrics: "Operadores que usam a Fila de Tarefas aumentam em 3x o volume de atendimentos diários.",
+    nextMission: "Vamos ver quem está no comando com você.",
+    time: "1 minuto",
+    icon: <Target className="text-red-500" />,
+    route: "/tarefas"
+  },
+  {
     title: "Diretório de Equipe",
-    content: "Gerencie sua cadeia de comando. Promova membros, audite acessos e visualize o ranking de autoridade do seu gabinete.",
+    level: "Nível 1: Primeiros Passos",
+    levelNum: 1,
+    why: "Controle de autoridade e segurança. Garanta que cada membro tenha acesso apenas ao que sua função exige.",
+    routine: ["Verificar membros ativos", "Auditar cargos e permissões"],
+    benefits: ["Segurança de dados (P0)", "Ranking de autoridade", "Gestão multi-usuário"],
+    nextMission: "Nível 2: Vamos entrar na era da Automação.",
+    time: "1 minuto",
     icon: <Users className="text-purple-500" />,
     route: "/team"
   },
   {
-    title: "Auditoria 3D Elite",
-    content: "A ferramenta de triagem mais poderosa do mercado. Insira um CNJ para que a IA analise o histórico do DataJud e gere um parecer estratégico completo.",
+    title: "Auditoria 3D (Veredito)",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "A triagem manual no DataJud é lenta. A Auditoria 3D usa IA para ler o histórico e dar um parecer técnico pronto.",
+    routine: ["Inserir CNJ de casos críticos", "Analisar probabilidade de encerramento", "Copiar mensagens prontas para o cliente"],
+    benefits: ["Resumo jurídico instantâneo", "Elimina o 'juridiquês' para o cliente", "Identifica riscos processuais ocultos"],
+    metrics: "A IA reduz o tempo de análise técnica em até 90%.",
+    didYouKnow: "O sistema faz fallback automático entre Grok e DeepSeek para garantir resposta.",
+    nextMission: "Chega de redigitar dados de contratos.",
+    time: "2 minutos",
     icon: <FileSearch className="text-emerald-500" />,
     route: "/veredito"
   },
   {
     title: "Gerador de Procurações",
-    content: "Automatize a criação de procurações ad judicia. A IA extrai os dados do contrato e preenche a peça em segundos com selagem digital.",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "Gerar procurações manualmente causa erros de digitação e toma tempo. A IA extrai os dados do contrato por você.",
+    routine: ["Upload de contrato/PDF", "Conferir extração neural", "Selar e Exportar"],
+    benefits: ["Redução de erro humano", "Padronização da banca", "Velocidade na habilitação"],
+    metrics: "Preenchimento de dados reduzido de 10 minutos para 15 segundos.",
+    nextMission: "Também automatizamos a entrada nos autos.",
+    time: "2 minutos",
     icon: <FileText className="text-amber-500" />,
     route: "/documents"
   },
   {
     title: "Módulo de Habilitação",
-    content: "Gere peças de habilitação combinadas com procuração. Tudo o que você precisa para ingressar em um processo em um único clique.",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "Unifica o pedido de habilitação e a procuração em uma única peça técnica otimizada.",
+    routine: ["Gerar peça de entrada nos autos"],
+    benefits: ["Protocolo agilizado", "Conformidade com o CPC"],
+    nextMission: "Precisa passar o bastão? Use o próximo módulo.",
+    time: "1 minuto",
     icon: <FileSignature className="text-orange-500" />,
     route: "/habilitacao-peca"
   },
   {
     title: "Substabelecimento Digital",
-    content: "Transfira poderes de forma segura. Gere substabelecimentos sem reserva de poderes com conformidade técnica total.",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "Garante que a transmissão de poderes seja feita sem erros de nomes ou OABs.",
+    routine: ["Transferir casos entre advogados"],
+    benefits: ["Segurança jurídica na troca", "Peças sem reserva de poderes"],
+    nextMission: "Não esqueça de comunicar o juiz da troca.",
+    time: "1 minuto",
     icon: <Repeat className="text-indigo-500" />,
     route: "/substabelecimento"
   },
   {
     title: "Peça de Substabelecimento",
-    content: "Documentação específica para peticionamento de substabelecimento, garantindo a atualização correta do patrono nos autos.",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "Específica para peticionamento, garantindo que o novo patrono receba as intimações corretamente.",
+    routine: ["Gerar petição de troca de patrono"],
+    didYouKnow: "Esquecer de peticionar o substabelecimento pode causar nulidade por falta de intimação.",
+    nextMission: "Vamos falar com o cliente de forma profissional.",
+    time: "1 minuto",
     icon: <FileStack className="text-rose-500" />,
     route: "/substabelecimento-peca"
   },
   {
-    title: "Terminal WhatsApp",
-    content: "Comunicação direta e automatizada. Envie despachos gerados por IA via Evolution API e mantenha o histórico real sincronizado.",
+    title: "Terminal WhatsApp Hub",
+    level: "Nível 3: Produtividade",
+    levelNum: 3,
+    why: "Centraliza a comunicação. Você envia mensagens profissionais sem precisar digitar tudo do zero.",
+    routine: ["Enviar despachos da IA", "Usar Scripts de Gabinete", "Sincronizar histórico real"],
+    benefits: ["Histórico salvo no banco", "Mensagens padronizadas", "Envio via API Evolution"],
+    nextMission: "Hora de importar seu legado para o sistema.",
+    time: "2 minutos",
     icon: <MessageCircle className="text-emerald-600" />,
     route: "/whatsapp"
   },
   {
-    title: "Unidade de Ingestão",
-    content: "Importe seus dumps de dados ou planilhas CSV. O sistema corrige codificações e datas automaticamente para uma sincronia perfeita.",
+    title: "Unidade de Ingestão (Importação)",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "Mover dados de Excel para o sistema costuma ser um pesadelo. Nossa unidade corrige tudo automaticamente.",
+    routine: ["Subir planilhas de processos", "Colar Dumps de bancos"],
+    benefits: ["Saneamento automático de datas", "Deduplicação de protocolos", "Identificação de Tribunais"],
+    tips: "Certifique-se de que seu CSV tenha as colunas: Cliente, Protocolo e Status.",
+    nextMission: "Capture evidências do seu trabalho.",
+    time: "5 minutos",
     icon: <Upload className="text-blue-400" />,
     route: "/import"
   },
   {
-    title: "Livro de Evidências",
-    content: "Registre notas, fotos e andamentos estratégicos. Use a IA para auditar suas evidências e extrair pontos fortes e riscos operacionais.",
+    title: "Livro de Evidências (Notas)",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "Notas de papel somem. Aqui você guarda fotos, áudios transcritos e andamentos estratégicos para toda a equipe.",
+    routine: ["Registrar andamentos críticos", "Anexar prints de decisões"],
+    benefits: ["Auditoria IA de evidências", "Memória institucional", "Busca global de notas"],
+    nextMission: "Transforme fotos de processos em texto editável.",
+    time: "2 minutos",
     icon: <StickyNote className="text-yellow-500" />,
     route: "/notes"
   },
   {
     title: "Motor de OCR Soberano",
-    content: "Transcrição visual de alta precisão. Converta scans e fotos de documentos em texto editável utilizando processamento neural local.",
+    level: "Nível 2: Automação",
+    levelNum: 2,
+    why: "Evita o trabalho braçal de redigitar documentos que só existem em foto ou scan.",
+    routine: ["Processar fotos de petições", "Transcrever contratos digitalizados"],
+    benefits: ["Processamento local (Privacidade)", "Busca em documentos físicos"],
+    metrics: "Transforma 50 páginas de PDF em texto em menos de 1 minuto.",
+    nextMission: "Nível 3: Decisões baseadas em dados.",
+    time: "2 minutos",
     icon: <ScanText className="text-cyan-500" />,
     route: "/tools/ocr"
   },
   {
-    title: "Business Intelligence",
-    content: "Indicadores gráficos de volumetria por tribunal e performance de banca. Transforme dados em decisões executivas.",
+    title: "Business Intelligence (Analytics)",
+    level: "Nível 3: Produtividade",
+    levelNum: 3,
+    why: "Gestores de elite não trabalham no escuro. Veja a performance da banca e a concentração por tribunal.",
+    routine: ["Identificar gargalos por tribunal", "Verificar produtividade da banca"],
+    benefits: ["Visão executiva real", "Apoio para decisões de escala"],
+    didYouKnow: "Tribunais com alta taxa de 'Vencidos' podem indicar instabilidade sistêmica ou falta de braço na banca.",
+    nextMission: "Quem manda no tempo dos alertas?",
+    time: "1 minuto",
     icon: <BarChart3 className="text-pink-500" />,
     route: "/analytics"
   },
   {
     title: "Algoritmo de Urgência",
-    content: "Calibre a sensibilidade do motor de alertas. Defina os pesos matemáticos que determinam quando um processo deve ser priorizado.",
+    level: "Nível 3: Produtividade",
+    levelNum: 3,
+    why: "Cada empresa tem um ritmo. Aqui você define quando um prazo deve começar a 'gritar' na tela.",
+    routine: ["Calibrar limites de Alerta e Crítico"],
+    benefits: ["Personalização do motor neural", "Controle de compliance"],
+    nextMission: "Nível 4: Especialista e Master Report.",
+    time: "1 minuto",
     icon: <ShieldAlert className="text-red-600" />,
     route: "/urgency"
   },
   {
-    title: "Hardware Visual",
-    content: "Personalize a atmosfera do seu gabinete. Ajuste cores, opacidades, blurs e wallpapers para um ambiente de trabalho premium.",
-    icon: <Palette className="text-violet-500" />,
-    route: "/settings"
-  },
-  {
     title: "Omni Export Master",
-    content: "O Dossiê Omnipresente. Gere um único PDF contendo o 'print' técnico de absolutamente todas as abas do seu gabinete.",
+    level: "Nível 4: Especialista",
+    levelNum: 4,
+    why: "O Dossiê Supremo. Uma única função para 'congelar' o estado de todas as abas em um relatório PDF épico.",
+    routine: ["Gerar Dossiê Semanal para diretoria"],
+    benefits: ["Transparência total", "Documento para auditoria externa"],
+    nextMission: "Por fim, deixe o gabinete com a sua cara.",
+    time: "3 minutos",
     icon: <Printer className="text-slate-800" />,
     route: "/master-export"
+  },
+  {
+    title: "Hardware Visual & Configurações",
+    level: "Nível 4: Especialista",
+    levelNum: 4,
+    why: "O ambiente de trabalho impacta no foco. Personalize a atmosfera, cores e blurs do seu sistema.",
+    routine: ["Trocar atmosfera (Presets)", "Ajustar opacidades", "Subir Wallpaper da empresa"],
+    benefits: ["Redução de cansaço visual", "Identidade visual corporativa"],
+    nextMission: "Treinamento Concluído. Você agora é um Operador Elite.",
+    time: "2 minutos",
+    icon: <Palette className="text-violet-500" />,
+    route: "/settings"
   }
 ];
 
@@ -158,9 +285,12 @@ export function GuidedTour() {
     setTutorialStep
   } = useAppStore();
 
+  const [checklist, setChecklist] = useState<boolean[]>(new Array(4).fill(false));
+
   useEffect(() => {
     if (isTutorialActive && TOUR_STEPS[tutorialStep]) {
       router.push(TOUR_STEPS[tutorialStep].route);
+      setChecklist(new Array(4).fill(false));
     }
   }, [tutorialStep, isTutorialActive, router]);
 
@@ -188,10 +318,11 @@ export function GuidedTour() {
   };
 
   const step = TOUR_STEPS[tutorialStep];
+  const allChecked = checklist.every(c => c);
 
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
-      <div className="w-full max-w-xl bg-white border-4 border-black shadow-[20px_20px_0px_#000] relative overflow-hidden flex flex-col">
+      <div className="w-full max-w-2xl bg-white border-4 border-black shadow-[20px_20px_0px_#000] relative overflow-hidden flex flex-col max-h-[90vh]">
         {/* Barra de Progresso Real */}
         <div className="absolute top-0 left-0 right-0 h-2 bg-gray-100">
           <div 
@@ -207,56 +338,116 @@ export function GuidedTour() {
           <X size={24} />
         </button>
 
-        <div className="p-12 pt-16 space-y-8">
-          <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-black flex items-center justify-center text-white border-2 border-black shadow-lg">
-              {React.cloneElement(step.icon as React.ReactElement, { size: 32 })}
+        <ScrollArea className="flex-1">
+          <div className="p-8 lg:p-12 space-y-8">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-black flex items-center justify-center text-white border-2 border-black shadow-lg shrink-0">
+                {React.cloneElement(step.icon as React.ReactElement, { size: 32 })}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-3 mb-1">
+                   <Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase rounded-none">{step.level}</Badge>
+                   <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Módulo {tutorialStep + 1}/{TOUR_STEPS.length}</span>
+                </div>
+                <h2 className="text-2xl font-black uppercase tracking-tighter leading-tight truncate">{step.title}</h2>
+              </div>
             </div>
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-40 mb-1">Módulo {tutorialStep + 1} de {TOUR_STEPS.length}</p>
-              <h2 className="text-2xl font-black uppercase tracking-tighter leading-none">{step.title}</h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+               <div className="lg:col-span-7 space-y-8">
+                  <section className="space-y-3">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-black/40"><Info size={12}/> Por que existe?</h3>
+                    <p className="text-[13px] font-bold leading-relaxed text-black/80">{step.why}</p>
+                  </section>
+
+                  <section className="space-y-4 bg-secondary/20 p-6 border-l-4 border-primary">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-primary"><Clock size={12}/> Rotina (8h da Manhã)</h3>
+                    <ul className="space-y-2">
+                       {step.routine.map((r, i) => (
+                         <li key={i} className="text-[11px] font-black uppercase flex gap-3 text-black/70">
+                           <span className="text-primary">0{i+1}.</span> {r}
+                         </li>
+                       ))}
+                    </ul>
+                  </section>
+
+                  <section className="space-y-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-emerald-600"><TrendingUp size={12}/> Ganhos Reais</h3>
+                    <div className="flex flex-wrap gap-2">
+                       {step.benefits.map((b, i) => (
+                         <Badge key={i} variant="outline" className="border-black border-2 text-[8px] font-black uppercase rounded-none bg-white">{b}</Badge>
+                       ))}
+                    </div>
+                  </section>
+               </div>
+
+               <div className="lg:col-span-5 space-y-6">
+                  {step.metrics && (
+                    <div className="p-5 bg-black text-primary border-2 border-black space-y-2">
+                       <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">Impacto Mensurável</p>
+                       <p className="text-[11px] font-black uppercase leading-tight italic">"{step.metrics}"</p>
+                    </div>
+                  )}
+
+                  {step.didYouKnow && (
+                    <div className="p-5 bg-blue-50 border-2 border-blue-600 space-y-2">
+                       <p className="text-[9px] font-black text-blue-600 uppercase tracking-[0.2em]">Você Sabia?</p>
+                       <p className="text-[10px] font-bold text-blue-900 leading-relaxed uppercase">{step.didYouKnow}</p>
+                    </div>
+                  )}
+
+                  <div className="p-6 border-2 border-black space-y-4 bg-gray-50">
+                    <h3 className="text-[9px] font-black uppercase tracking-widest text-black/40">Checklist de Missão</h3>
+                    <div className="space-y-3">
+                       <CheckItem label="Entendi para que serve" checked={checklist[0]} onChange={() => { const n = [...checklist]; n[0] = !n[0]; setChecklist(n); }} />
+                       <CheckItem label="Sei quando usar" checked={checklist[1]} onChange={() => { const n = [...checklist]; n[1] = !n[1]; setChecklist(n); }} />
+                       <CheckItem label="Sei onde fica no menu" checked={checklist[2]} onChange={() => { const n = [...checklist]; n[2] = !n[2]; setChecklist(n); }} />
+                       <CheckItem label="Sei o resultado esperado" checked={checklist[3]} onChange={() => { const n = [...checklist]; n[3] = !n[3]; setChecklist(n); }} />
+                    </div>
+                  </div>
+               </div>
+            </div>
+
+            <div className="pt-8 border-t-2 border-black/5 flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-4">
+                 <Button variant="ghost" onClick={handlePrev} disabled={tutorialStep === 0} className="h-12 px-6 font-black uppercase text-[10px] border-2 border-transparent hover:border-black rounded-none disabled:opacity-20"><ChevronLeft size={18} className="mr-2" /> Anterior</Button>
+                 <span className="text-[9px] font-black uppercase text-black/40">⏱ Tempo de Estudo: {step.time}</span>
+              </div>
+              
+              <div className="flex gap-4 w-full sm:w-auto">
+                <Button variant="ghost" onClick={finishTour} className="flex-1 sm:flex-none h-12 px-6 font-black uppercase text-[10px] text-black/40 hover:text-black rounded-none">Sair do Treino</Button>
+                <Button 
+                  onClick={handleNext}
+                  disabled={!allChecked}
+                  className={cn(
+                    "flex-1 sm:flex-none h-12 px-10 font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#000] hover:shadow-none transition-all border-2 border-black",
+                    allChecked ? "bg-black text-white hover:bg-primary hover:text-black hover:border-primary" : "bg-gray-100 text-black/20 pointer-events-none"
+                  )}
+                >
+                  {tutorialStep === TOUR_STEPS.length - 1 ? "Finalizar Formação" : "Próxima Missão"} <ChevronRight size={18} className="ml-2" />
+                </Button>
+              </div>
             </div>
           </div>
+        </ScrollArea>
 
-          <div className="bg-[#f8f9fb] border-l-4 border-primary p-8">
-            <p className="text-sm font-bold uppercase leading-relaxed text-black/80 tracking-tight italic">
-              "{step.content}"
-            </p>
-          </div>
-
-          <div className="pt-8 flex items-center justify-between border-t-2 border-black/5">
-            <Button 
-              variant="ghost" 
-              onClick={handlePrev} 
-              disabled={tutorialStep === 0}
-              className="h-12 px-6 font-black uppercase text-[10px] border-2 border-transparent hover:border-black rounded-none transition-all disabled:opacity-20"
-            >
-              <ChevronLeft size={18} className="mr-2" /> Anterior
-            </Button>
-            
-            <div className="flex gap-4">
-              <Button 
-                variant="ghost" 
-                onClick={finishTour}
-                className="h-12 px-6 font-black uppercase text-[10px] text-black/40 hover:text-black rounded-none"
-              >
-                Pular
-              </Button>
-              <Button 
-                onClick={handleNext}
-                className="h-12 px-10 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#00D1FF] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"
-              >
-                {tutorialStep === TOUR_STEPS.length - 1 ? "Concluir Onboarding" : "Próximo Módulo"} <ChevronRight size={18} className="ml-2" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-black text-white p-4 flex items-center justify-center gap-3">
-          <ShieldCheck size={16} className="text-primary" />
-          <span className="text-[10px] font-black uppercase tracking-[0.3em]">Ambiente Certificado • W1 Capital</span>
+        <div className="bg-black text-white p-3 flex items-center justify-center gap-3">
+          <ShieldCheck size={14} className="text-primary" />
+          <span className="text-[9px] font-black uppercase tracking-[0.4em]">{step.nextMission}</span>
         </div>
       </div>
     </div>
   );
 }
+
+function CheckItem({ label, checked, onChange }: { label: string, checked: boolean, onChange: () => void }) {
+  return (
+    <button onClick={onChange} className="flex items-center gap-3 w-full text-left group">
+      <div className={cn("w-4 h-4 border-2 border-black flex items-center justify-center transition-all", checked ? "bg-emerald-500 border-emerald-500" : "bg-white")}>
+        {checked && <CheckCircle2 size={10} className="text-white" />}
+      </div>
+      <span className={cn("text-[10px] font-black uppercase transition-colors", checked ? "text-emerald-600" : "text-black/60 group-hover:text-black")}>{label}</span>
+    </button>
+  );
+}
+
