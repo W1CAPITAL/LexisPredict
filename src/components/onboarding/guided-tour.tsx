@@ -250,12 +250,22 @@ export function GuidedTour() {
     setTutorialStep
   } = useAppStore();
 
+  // Hook useEffect movido para o topo
   useEffect(() => {
     if (isTutorialActive && TOUR_STEPS[tutorialStep]) {
       router.push(TOUR_STEPS[tutorialStep].route);
     }
   }, [tutorialStep, isTutorialActive, router]);
 
+  // Hook useMemo movido para o topo para respeitar a ordem dos hooks
+  const currentLevel = useMemo(() => {
+    if (tutorialStep <= 3) return { label: "Nível 1", sub: "Primeiros Passos", color: "text-blue-500", bg: "bg-blue-500/10" };
+    if (tutorialStep <= 12) return { label: "Nível 2", sub: "Automação Neural", color: "text-emerald-500", bg: "bg-emerald-500/10" };
+    if (tutorialStep <= 14) return { label: "Nível 3", sub: "Produtividade", color: "text-orange-500", bg: "bg-orange-500/10" };
+    return { label: "Nível 4", sub: "Especialista", color: "text-purple-500", bg: "bg-purple-500/10" };
+  }, [tutorialStep]);
+
+  // Retorno antecipado APÓS todos os hooks serem declarados
   if (!isTutorialActive) return null;
 
   const handleNext = () => {
@@ -280,13 +290,6 @@ export function GuidedTour() {
   };
 
   const step = TOUR_STEPS[tutorialStep];
-  
-  const currentLevel = useMemo(() => {
-    if (tutorialStep <= 3) return { label: "Nível 1", sub: "Primeiros Passos", color: "text-blue-500", bg: "bg-blue-500/10" };
-    if (tutorialStep <= 12) return { label: "Nível 2", sub: "Automação Neural", color: "text-emerald-500", bg: "bg-emerald-500/10" };
-    if (tutorialStep <= 14) return { label: "Nível 3", sub: "Produtividade", color: "text-orange-500", bg: "bg-orange-500/10" };
-    return { label: "Nível 4", sub: "Especialista", color: "text-purple-500", bg: "bg-purple-500/10" };
-  }, [tutorialStep]);
 
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
