@@ -15,6 +15,8 @@ export async function getUserContext() {
   
   if (!userEmail) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false };
 
+  if (!supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false };
+
   const { data: profile } = await supabase
     .from('usuarios')
     .select('id, empresa_id, cargo, email, auth_user_id')
@@ -37,7 +39,7 @@ export async function getUserContext() {
 
 export async function logAuditAction(action: string, detail: string) {
   const { auth_id, email, empresa_id } = await getUserContext();
-  if (!auth_id) return;
+  if (!auth_id || !supabase) return;
 
   try {
     await supabase.from('audit_logs').insert({
@@ -57,7 +59,7 @@ export async function logAuditAction(action: string, detail: string) {
 
 export async function getEmpresaUsers(): Promise<UserProfile[]> {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return [];
+  if (!empresa_id || !supabase) return [];
 
   const { data, error } = await supabase
     .from('usuarios')
@@ -76,7 +78,7 @@ export async function removeEmpresaUser(userId: string) {
   const { empresa_id, isSuperAdmin, isSupervisor } = await getUserContext();
   const isAdmin = isSuperAdmin || isSupervisor;
 
-  if (!empresa_id || !isAdmin) return { success: false, error: 'Permissão insuficiente.' };
+  if (!empresa_id || !isAdmin || !supabase) return { success: false, error: 'Permissão insuficiente.' };
 
   const { error } = await supabase
     .from('usuarios')
@@ -92,7 +94,7 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
   const { empresa_id, isSuperAdmin, isSupervisor } = await getUserContext();
   const isAdmin = isSuperAdmin || isSupervisor;
 
-  if (!empresa_id || !isAdmin) return { success: false, error: 'Permissão insuficiente.' };
+  if (!empresa_id || !isAdmin || !supabase) return { success: false, error: 'Permissão insuficiente.' };
 
   const { error } = await supabase
     .from('usuarios')
@@ -108,7 +110,7 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
 
 export async function listAdvogadosBanca() {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return [];
+  if (!empresa_id || !supabase) return [];
 
   const { data, error } = await supabase
     .from('advogados_banca')
@@ -126,7 +128,7 @@ export async function listAdvogadosBanca() {
 
 export async function upsertAdvogadoBanca(adv: any) {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false, error: 'Sessão expirada' };
+  if (!empresa_id || !supabase) return { success: false, error: 'Sessão expirada' };
 
   const payload = {
     ...adv,
@@ -146,7 +148,7 @@ export async function upsertAdvogadoBanca(adv: any) {
 
 export async function desativarAdvogadoBanca(id: string) {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false };
+  if (!empresa_id || !supabase) return { success: false };
 
   const { error } = await supabase
     .from('advogados_banca')
@@ -160,7 +162,7 @@ export async function desativarAdvogadoBanca(id: string) {
 // --- GESTÃO DE PROCESSOS ---
 
 export async function getStoredCases(): Promise<LegalCase[]> {
-  if (!isSupabaseConfigured) return [];
+  if (!isSupabaseConfigured || !supabase) return [];
   const { empresa_id, auth_id, isSupervisor } = await getUserContext();
   if (!empresa_id || !auth_id) return [];
 
@@ -207,7 +209,7 @@ export async function getStoredCases(): Promise<LegalCase[]> {
 }
 
 export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: boolean; message: string }> {
-  if (!isSupabaseConfigured) return { success: false, message: "Erro de Configuração." };
+  if (!isSupabaseConfigured || !supabase) return { success: false, message: "Erro de Configuração." };
   const { auth_id, empresa_id } = await getUserContext();
   if (!empresa_id || !auth_id) return { success: false, message: "Sessão expirada." };
 
@@ -254,7 +256,7 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
 
 export async function getStoredNotes(): Promise<CaseNote[]> {
   const { auth_id, empresa_id, isSupervisor } = await getUserContext();
-  if (!empresa_id || !auth_id) return [];
+  if (!empresa_id || !auth_id || !supabase) return [];
 
   try {
     let allData: any[] = [];
@@ -313,7 +315,7 @@ export async function getStoredNotes(): Promise<CaseNote[]> {
 
 export async function saveSingleNote(note: Partial<CaseNote>): Promise<{ success: boolean; data?: any }> {
   const { auth_id, empresa_id } = await getUserContext();
-  if (!empresa_id || !auth_id) return { success: false };
+  if (!empresa_id || !auth_id || !supabase) return { success: false };
 
   console.log("[DB] [INSERT NOTE]", note.title);
   
@@ -336,7 +338,7 @@ export async function saveSingleNote(note: Partial<CaseNote>): Promise<{ success
 
 export async function updateStoredNote(id: string, updates: Partial<CaseNote>): Promise<{ success: boolean }> {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false };
+  if (!empresa_id || !supabase) return { success: false };
 
   console.log("[DB] [UPDATE NOTE]", id);
 
@@ -358,7 +360,7 @@ export async function updateStoredNote(id: string, updates: Partial<CaseNote>): 
 
 export async function deleteStoredNote(id: string): Promise<{ success: boolean }> {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false };
+  if (!empresa_id || !supabase) return { success: false };
 
   console.log("[DB] [DELETE NOTE]", id);
   const { error } = await supabase.from('notes').delete().eq('id', id).eq('empresa_id', empresa_id);
@@ -371,7 +373,7 @@ export async function deleteStoredNote(id: string): Promise<{ success: boolean }
 
 export async function getWhatsAppHistory(phone: string) {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return [];
+  if (!empresa_id || !supabase) return [];
 
   const cleanPhone = phone.replace(/\D/g, '');
   const searchPhone = (cleanPhone.length === 10 || cleanPhone.length === 11) ? `55${cleanPhone}` : cleanPhone;
