@@ -29,7 +29,7 @@ export default function OnboardingVideoPage() {
             </div>
             <div className="flex items-center gap-3 px-4 py-2 border-2 border-black bg-white shadow-[4px_4px_0px_#00D1FF]">
                <ShieldCheck size={16} className="text-primary" />
-               <span className="text-[9px] font-black uppercase tracking-widest">Protocolo Ashley@25472053</span>
+               <span className="text-[9px] font-black uppercase tracking-widest">Protocolo W1 CAPITAL - ESTAMOS AQUI POR VOCÊ!</span>
             </div>
           </div>
 
