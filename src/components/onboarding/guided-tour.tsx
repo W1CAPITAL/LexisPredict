@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * @fileOverview Módulo de Onboarding Interativo v201.0 ELITE
- * Conduz o usuário por TODAS as abas estratégicas do LexisPredict.
+ * @fileOverview Módulo de Onboarding Interativo v205.0 ELITE
+ * Conduz o usuário por TODAS as abas estratégicas com suporte a VÍDEO INTEGRADO.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   X, 
@@ -32,12 +32,12 @@ import {
   Printer,
   Sparkles,
   Clock,
-  PlayCircle
+  PlayCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 
 interface TourStep {
   title: string;
@@ -251,6 +251,8 @@ export function GuidedTour() {
     setTutorialStep
   } = useAppStore();
 
+  const [showVideo, setShowVideo] = useState(false);
+
   const currentLevel = useMemo(() => {
     if (tutorialStep <= 3) return { label: "Nível 1", sub: "Primeiros Passos", color: "text-blue-500", bg: "bg-blue-500/10" };
     if (tutorialStep <= 12) return { label: "Nível 2", sub: "Automação Neural", color: "text-emerald-500", bg: "bg-emerald-500/10" };
@@ -259,10 +261,10 @@ export function GuidedTour() {
   }, [tutorialStep]);
 
   useEffect(() => {
-    if (isTutorialActive && TOUR_STEPS[tutorialStep]) {
+    if (isTutorialActive && TOUR_STEPS[tutorialStep] && !showVideo) {
       router.push(TOUR_STEPS[tutorialStep].route);
     }
-  }, [tutorialStep, isTutorialActive, router]);
+  }, [tutorialStep, isTutorialActive, router, showVideo]);
 
   if (!isTutorialActive) return null;
 
@@ -284,6 +286,7 @@ export function GuidedTour() {
     setTutorialActive(false);
     setTutorialCompleted(true);
     setTutorialStep(0);
+    setShowVideo(false);
     router.push('/');
   };
 
@@ -311,104 +314,137 @@ export function GuidedTour() {
                   {currentLevel.label} • {currentLevel.sub}
                 </div>
                 
-                <div className="space-y-2">
-                   <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Missão {tutorialStep + 1} de {TOUR_STEPS.length}</p>
-                   <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">{step.title}</h2>
-                </div>
+                {!showVideo ? (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Missão {tutorialStep + 1} de {TOUR_STEPS.length}</p>
+                    <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">{step.title}</h2>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Vídeo Aula</p>
+                    <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">Treinamento Master</h2>
+                  </div>
+                )}
 
-                <div className="space-y-6 pt-4">
-                   <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-2"><Sparkles size={12}/> Por que existe?</p>
-                      <p className="text-xs font-bold uppercase text-black/70 leading-relaxed italic">"{step.porQue}"</p>
-                   </div>
-                   <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2"><Clock size={12}/> Rotina Diária (8h)</p>
-                      <p className="text-xs font-bold uppercase text-black/70 leading-relaxed">{step.rotina}</p>
-                   </div>
-                   <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest flex items-center gap-2"><Target size={12}/> Ganho Real</p>
-                      <p className="text-xs font-bold uppercase text-black/70 leading-relaxed">{step.ganho}</p>
-                   </div>
-                </div>
+                {!showVideo && (
+                  <div className="space-y-6 pt-4">
+                     <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-2"><Sparkles size={12}/> Por que existe?</p>
+                        <p className="text-xs font-bold uppercase text-black/70 leading-relaxed italic">"{step.porQue}"</p>
+                     </div>
+                     <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2"><Clock size={12}/> Rotina Diária (8h)</p>
+                        <p className="text-xs font-bold uppercase text-black/70 leading-relaxed">{step.rotina}</p>
+                     </div>
+                     <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest flex items-center gap-2"><Target size={12}/> Ganho Real</p>
+                        <p className="text-xs font-bold uppercase text-black/70 leading-relaxed">{step.ganho}</p>
+                     </div>
+                  </div>
+                )}
              </div>
 
              <div className="space-y-4 mt-8">
-                <div className="bg-white border-2 border-black p-4">
-                  <p className="text-[8px] font-black uppercase opacity-40 mb-2">Métrica de Performance</p>
-                  <p className="text-[10px] font-black uppercase tracking-tight">{step.metrica}</p>
-                </div>
+                {!showVideo && (
+                  <div className="bg-white border-2 border-black p-4">
+                    <p className="text-[8px] font-black uppercase opacity-40 mb-2">Métrica de Performance</p>
+                    <p className="text-[10px] font-black uppercase tracking-tight">{step.metrica}</p>
+                  </div>
+                )}
 
-                {/* BOTÃO DE VÍDEO NO TUTORIAL */}
-                <Button 
-                  asChild
-                  variant="outline"
-                  className="w-full h-12 border-2 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[9px] tracking-widest transition-all shadow-[4px_4px_0px_#00D1FF] hover:shadow-none"
-                >
-                  <Link href="/onboarding">
-                    <PlayCircle size={16} className="mr-2" /> Assistir Treinamento em Vídeo
-                  </Link>
-                </Button>
+                {showVideo ? (
+                  <Button 
+                    onClick={() => setShowVideo(false)}
+                    variant="outline"
+                    className="w-full h-12 border-2 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[9px] tracking-widest transition-all shadow-[4px_4px_0px_#00D1FF] hover:shadow-none"
+                  >
+                    <ArrowLeft size={16} className="mr-2" /> Voltar ao Guia
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => setShowVideo(true)}
+                    variant="outline"
+                    className="w-full h-12 border-2 border-black rounded-none bg-white text-black hover:bg-black hover:text-white font-black uppercase text-[9px] tracking-widest transition-all shadow-[4px_4px_0px_#000] hover:shadow-none"
+                  >
+                    <PlayCircle size={16} className="mr-2" /> Assistir Treinamento
+                  </Button>
+                )}
              </div>
           </div>
 
-          {/* Lado Direito: Explicação e Navegação */}
-          <div className="flex-1 flex flex-col bg-white overflow-y-auto">
-             <div className="p-16 flex-1 space-y-12">
-                <div className="flex items-center gap-8">
-                   <div className="w-24 h-24 bg-black flex items-center justify-center text-white border-4 border-black shadow-[10px_10px_0px_#00D1FF] shrink-0">
-                      {React.cloneElement(step.icon as React.ReactElement, { size: 48 })}
-                   </div>
-                   <p className="text-xl font-bold uppercase leading-relaxed tracking-tight text-black/80">
-                      {step.content}
-                   </p>
-                </div>
+          {/* Lado Direito: Explicação / Vídeo Player */}
+          <div className="flex-1 flex flex-col bg-white overflow-hidden">
+             {showVideo ? (
+               <div className="flex-1 bg-black flex items-center justify-center p-4">
+                  <video 
+                    controls 
+                    autoPlay 
+                    className="max-w-full max-h-full border-2 border-white/10 shadow-2xl"
+                    src="/Onboarding_LexisPredict.mp4"
+                  />
+               </div>
+             ) : (
+               <div className="flex-1 overflow-y-auto">
+                 <div className="p-16 space-y-12">
+                    <div className="flex items-center gap-8">
+                       <div className="w-24 h-24 bg-black flex items-center justify-center text-white border-4 border-black shadow-[10px_10px_0px_#00D1FF] shrink-0">
+                          {React.cloneElement(step.icon as React.ReactElement, { size: 48 })}
+                       </div>
+                       <p className="text-xl font-bold uppercase leading-relaxed tracking-tight text-black/80">
+                          {step.content}
+                       </p>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-8 pt-10">
-                   <div className="p-6 border-2 border-black bg-[#f3f2f2]">
-                      <p className="text-[9px] font-black uppercase opacity-40 mb-2">💡 Você Sabia?</p>
-                      <p className="text-[10px] font-bold uppercase leading-relaxed">
-                        Atrasar o acompanhamento desta tela pode gerar perda de prazo e responsabilidade civil direta. O LexisPredict mitiga esse risco automaticamente.
-                      </p>
-                   </div>
-                   <div className="p-6 border-2 border-black bg-black text-white shadow-[6px_6px_0px_#00D1FF]">
-                      <p className="text-[9px] font-black uppercase text-primary tracking-widest mb-2">⏱ Tempo Estimado</p>
-                      <p className="text-2xl font-black">{step.tempo}</p>
-                      <p className="text-[8px] font-bold uppercase opacity-60">Para leitura e execução inicial</p>
-                   </div>
-                </div>
-             </div>
+                    <div className="grid grid-cols-2 gap-8 pt-10">
+                       <div className="p-6 border-2 border-black bg-[#f3f2f2]">
+                          <p className="text-[9px] font-black uppercase opacity-40 mb-2">💡 Você Sabia?</p>
+                          <p className="text-[10px] font-bold uppercase leading-relaxed">
+                            Atrasar o acompanhamento desta tela pode gerar perda de prazo e responsabilidade civil direta. O LexisPredict mitiga esse risco automaticamente.
+                          </p>
+                       </div>
+                       <div className="p-6 border-2 border-black bg-black text-white shadow-[6px_6px_0px_#00D1FF]">
+                          <p className="text-[9px] font-black uppercase text-primary tracking-widest mb-2">⏱ Tempo Estimado</p>
+                          <p className="text-2xl font-black">{step.tempo}</p>
+                          <p className="text-[8px] font-bold uppercase opacity-60">Para leitura e execução inicial</p>
+                       </div>
+                    </div>
+                 </div>
+               </div>
+             )}
 
              {/* Footer Navegação */}
-             <div className="p-10 bg-[#f8f9fb] border-t-2 border-black flex items-center justify-between">
-                <Button 
-                  variant="ghost" 
-                  onClick={handlePrev} 
-                  disabled={tutorialStep === 0}
-                  className="h-12 px-6 font-black uppercase text-[10px] border-2 border-transparent hover:border-black rounded-none transition-all"
-                >
-                  <ChevronLeft size={18} className="mr-2" /> Aba Anterior
-                </Button>
-                
-                <div className="flex gap-4">
+             {!showVideo && (
+               <div className="p-10 bg-[#f8f9fb] border-t-2 border-black flex items-center justify-between shrink-0">
                   <Button 
                     variant="ghost" 
-                    onClick={finishTour}
-                    className="h-12 px-6 font-black uppercase text-[10px] text-black/40 hover:text-black rounded-none"
+                    onClick={handlePrev} 
+                    disabled={tutorialStep === 0}
+                    className="h-12 px-6 font-black uppercase text-[10px] border-2 border-transparent hover:border-black rounded-none transition-all"
                   >
-                    Encerrar Tutorial
+                    <ChevronLeft size={18} className="mr-2" /> Aba Anterior
                   </Button>
-                  <Button 
-                    onClick={handleNext}
-                    className="h-14 px-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-widest rounded-none shadow-[8px_8px_0px_#00D1FF] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"
-                  >
-                    {tutorialStep === TOUR_STEPS.length - 1 ? "Finalizar Formação" : "Próxima Missão"} <ChevronRight size={18} className="ml-2" />
-                  </Button>
-                </div>
-             </div>
+                  
+                  <div className="flex gap-4">
+                    <Button 
+                      variant="ghost" 
+                      onClick={finishTour}
+                      className="h-12 px-6 font-black uppercase text-[10px] text-black/40 hover:text-black rounded-none"
+                    >
+                      Encerrar Tutorial
+                    </Button>
+                    <Button 
+                      onClick={handleNext}
+                      className="h-14 px-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-widest rounded-none shadow-[8px_8px_0px_#00D1FF] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"
+                    >
+                      {tutorialStep === TOUR_STEPS.length - 1 ? "Finalizar Formação" : "Próxima Missão"} <ChevronRight size={18} className="ml-2" />
+                    </Button>
+                  </div>
+               </div>
+             )}
           </div>
         </div>
 
-        <div className="bg-black text-white p-4 flex items-center justify-center gap-3">
+        <div className="bg-black text-white p-4 flex items-center justify-center gap-3 shrink-0">
           <ShieldCheck size={16} className="text-primary" />
           <span className="text-[10px] font-black uppercase tracking-[0.3em]">Ambiente Certificado de Treinamento • W1 Capital Elite v25.0</span>
         </div>
