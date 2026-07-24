@@ -7,7 +7,7 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v5100.0 ELITE)
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v5200.0 ELITE)
  * Governança de Supervisor e Sincronia Ilimitada.
  */
 
