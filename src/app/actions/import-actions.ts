@@ -49,7 +49,6 @@ export async function importCsvAction(csvText: string) {
 
     const supabase = await createClient();
 
-    // 1. Pre-fetch de usuários da empresa para mapeamento de assistentes
     const { data: companyUsers } = await supabase
       .from('usuarios')
       .select('auth_user_id, nome')
@@ -80,11 +79,9 @@ export async function importCsvAction(csvText: string) {
         const isoPrazo = formatDateToISO(caso.proximoPrazo);
         const isoRetorno = formatDateToISO(caso.ultimoRetorno);
 
-        // Resolução de assistente (Isolamento de Carteira)
         const assistantKey = normalizeHeader(rawData['ASSISTENTE'] || rawData['ATENDENTE'] || '');
         const assistantName = String(rawData[assistantKey] || rawData['ASSISTENTE'] || rawData['ATENDENTE'] || '').trim().toUpperCase();
         
-        // Se encontrar o nome na empresa, atribui a ele. Senão, atribui a quem está importando.
         const resolvedCreatedBy = userLookup.get(assistantName) || auth_id;
 
         const dbRow = {
