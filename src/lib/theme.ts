@@ -40,62 +40,6 @@ export const AUTHORITY_PRESETS: ThemePreset[] = [
     }
   },
   {
-    id: 'executive-elite',
-    name: 'Executive Elite',
-    radius: 0,
-    colors: {
-      background: '#000000',
-      bgSecondary: '#0A0A0A',
-      foreground: '#D4AF37',
-      fontMuted: '#A68A2D',
-      primary: '#D4AF37',
-      accent: '#1A1A1A',
-      border: '#D4AF37'
-    }
-  },
-  {
-    id: 'obsidian-deep',
-    name: 'Obsidian Deep',
-    radius: 2,
-    colors: {
-      background: '#020617',
-      bgSecondary: '#0F172A',
-      foreground: '#F8FAFC',
-      fontMuted: '#94A3B8',
-      primary: '#38BDF8',
-      accent: '#1E293B',
-      border: '#334155'
-    }
-  },
-  {
-    id: 'cobalt-night',
-    name: 'Cobalt Night',
-    radius: 4,
-    colors: {
-      background: '#0B1120',
-      bgSecondary: '#1E293B',
-      foreground: '#E0E7FF',
-      fontMuted: '#818CF8',
-      primary: '#6366F1',
-      accent: '#312E81',
-      border: '#4338CA'
-    }
-  },
-  {
-    id: 'emerald-court',
-    name: 'Emerald Court',
-    radius: 0,
-    colors: {
-      background: '#022C22',
-      bgSecondary: '#064E3B',
-      foreground: '#ECFDF5',
-      fontMuted: '#34D399',
-      primary: '#10B981',
-      accent: '#065F46',
-      border: '#059669'
-    }
-  },
-  {
     id: 'white-prestige',
     name: 'White Prestige',
     radius: 8,
