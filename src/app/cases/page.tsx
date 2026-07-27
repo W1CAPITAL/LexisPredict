@@ -28,7 +28,8 @@ import {
   Eye,
   EyeOff,
   Sparkles,
-  User
+  User,
+  Calendar
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -100,20 +101,23 @@ const CaseRow = React.memo(({
       <td className="px-8 py-5">
         <div className="flex flex-col gap-2">
           <StatusBadge status={c.status} />
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
-            <CalendarDays size={12} className="opacity-40" />
-            <span>{c.proximoPrazo || 'Sem Prazo'}</span>
+          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-foreground">
+            <CalendarDays size={14} className="text-primary" />
+            <span>Prazo: {c.proximoPrazo || 'Sem Registro'}</span>
           </div>
         </div>
       </td>
       <td className="px-8 py-5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg border border-border/50 flex items-center justify-center bg-secondary/50 group-hover:bg-background transition-all">
-            <Clock className="w-4 h-4 text-muted-foreground/40" />
+            <UserCheck size={16} className="text-emerald-500" />
           </div>
-          <span className="text-[11px] text-foreground font-bold uppercase whitespace-nowrap">
-            {c.ultimoRetorno || 'S/ Registro'}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black text-muted-foreground uppercase leading-none mb-1">Retorno</span>
+            <span className="text-[11px] text-foreground font-bold uppercase whitespace-nowrap">
+              {c.ultimoRetorno || 'S/ Atendimento'}
+            </span>
+          </div>
         </div>
       </td>
       <td className="px-8 py-5 text-right">
@@ -376,7 +380,7 @@ function CasesContent() {
   }, [cases, deferredSearch, showClosed, lawyerFilter]);
 
   return (
-    <div className="flex h-screen bg-background font-sans text-foreground">
+    <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-20 border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40">
@@ -512,8 +516,8 @@ function CasesContent() {
                       <th className="px-8 py-5">Identificação</th>
                       <th className="px-8 py-5">Tribunal</th>
                       <th className="px-8 py-5">Advocacia</th>
-                      <th className="px-8 py-5">Vencimento</th>
-                      <th className="px-8 py-5">Telemetria</th>
+                      <th className="px-8 py-5">Prazo Final (Vencimento)</th>
+                      <th className="px-8 py-5">Último Atendimento</th>
                       <th className="px-8 py-5 text-right">Ações</th>
                     </tr>
                   </thead>
@@ -614,7 +618,7 @@ function CasesContent() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Próximo Prazo (Gabinete)</Label>
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Data de Vencimento (Próximo Prazo)</Label>
                     <Input 
                       value={formState.proximoPrazo} 
                       onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} 
@@ -623,7 +627,7 @@ function CasesContent() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Retorno / Atendimento</Label>
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Atendimento / Retorno</Label>
                     <Input 
                       value={formState.ultimoRetorno} 
                       onChange={e => setFormState({...formState, ultimoRetorno: e.target.value})} 
