@@ -4,7 +4,7 @@
  */
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   FileSearch, 
@@ -32,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { executarVereditoAI } from '@/ai/flows/veredito-ai-flow';
 import { perguntarIA } from '@/ai/flows/chat-ai-flow';
 import { sendWhatsAppAction } from '@/app/actions/whatsapp-actions';
+import { fetchRepoCases } from '@/app/actions/case-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from '@/components/ui/label';
@@ -46,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { ChanceEncerramentoCard } from '@/components/dashboard/chance-encerramento-card';
 import { analisarChanceEncerramento } from '@/lib/chance-encerramento-logic';
+import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 export default function VereditoPage() {
   const [cnj, setCnj] = useState('');
@@ -54,6 +56,7 @@ export default function VereditoPage() {
   const [model, setModel] = useState<string>('xai');
   const [apiError, setApiError] = useState<{ engine: string, message: string } | null>(null);
   const [sendingApi, setSendingApi] = useState(false);
+  const [repoCases, setRepoCases] = useState<any[]>([]);
   const isMounted = useRef(false);
   
   const [chatInput, setChatInput] = useState('');
@@ -67,6 +70,11 @@ export default function VereditoPage() {
     isMounted.current = true;
     const savedIA = localStorage.getItem('lexisPredict_preferred_ia') || 'xai';
     setModel(savedIA);
+    
+    fetchRepoCases().then(data => {
+      if (isMounted.current) setRepoCases(data || []);
+    });
+
     return () => { isMounted.current = false; };
   }, []);
 
@@ -88,12 +96,16 @@ export default function VereditoPage() {
     try {
       const data = await executarVereditoAI({ cnj, preferredModel: model });
       if (isMounted.current) {
-        if (data.error) {
+        if (data.error && !data.dataJudRaw) {
            setApiError({ engine: model, message: data.message || "CNJ não localizado ou erro de rede." });
            toast({ title: "Falha na Triagem", description: data.message, variant: "destructive" });
         } else {
            setResult(data);
-           toast({ title: "Auditoria 3D Concluída" });
+           if (data.error) {
+              toast({ title: "Aviso de Auditoria", description: data.message, variant: "warning" });
+           } else {
+              toast({ title: "Auditoria 3D Concluída" });
+           }
         }
       }
     } catch (error: any) {
@@ -175,11 +187,35 @@ export default function VereditoPage() {
     toast({ title: "Copiado para Área de Transferência" });
   };
 
-  // Cálculo de Chance Baseado no Resultado DataJud
-  const chanceAnalysis = result ? analisarChanceEncerramento({
-    situacao: result.dataJudRaw?.classe || '',
-    observacao: result.resumoTecnico || ''
-  }) : null;
+  const chanceAnalysis = useMemo(() => {
+    if (!result || !result.dataJudRaw) return null;
+
+    const processNumber = result.dataJudRaw.numeroProcesso;
+    const existingCase = repoCases.find(c => c.protocolo === processNumber);
+    const lawyerName = existingCase?.advogado;
+
+    let performanceRate = 0;
+    if (lawyerName) {
+      const lawyerCases = repoCases.filter(c => c.advogado === lawyerName);
+      const closedCases = lawyerCases.filter(c => isCasoEncerrado(c));
+      performanceRate = lawyerCases.length > 0 ? closedCases.length / lawyerCases.length : 0;
+    }
+
+    return analisarChanceEncerramento({
+      situacao: result.dataJudRaw.classe || '',
+      observacao: result.resumoTecnico || ''
+    }, lawyerName ? performanceRate : undefined);
+  }, [result, repoCases]);
+
+  const sortedMovimentos = useMemo(() => {
+    const movs = result?.dataJudRaw?.movimentos;
+    if (!Array.isArray(movs)) return [];
+    return [...movs].sort((a, b) => {
+      const dateA = new Date(a.dataHora || 0).getTime();
+      const dateB = new Date(b.dataHora || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [result]);
 
   return (
     <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10">
@@ -280,7 +316,7 @@ export default function VereditoPage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                               <div className="space-y-3">
-                                <Label className="text-[10px] font-black uppercase text-red-600">Análise de Risco (Cláusula 3.2)</Label>
+                                <Label className="text-[10px] font-black uppercase text-red-600">Análise de Risco</Label>
                                 <p className="text-[11px] text-black leading-relaxed border-l-4 border-black pl-5 font-black uppercase">{result.analiseRisco}</p>
                               </div>
                               <div className="space-y-3">
@@ -291,7 +327,6 @@ export default function VereditoPage() {
                           </CardContent>
                         </Card>
 
-                        {/* Nova Seção: Chance de Encerramento */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            {chanceAnalysis && (
                              <ChanceEncerramentoCard analysis={chanceAnalysis} />
@@ -379,7 +414,7 @@ export default function VereditoPage() {
                       </CardHeader>
                       <CardContent className="p-0 bg-white">
                          <div className="divide-y-2 divide-black/5 max-h-[600px] overflow-auto">
-                            {result.dataJudRaw?.movimentos?.length > 0 ? result.dataJudRaw.movimentos.slice(0, 30).map((m: any, i: number) => (
+                            {sortedMovimentos.length > 0 ? sortedMovimentos.map((m: any, i: number) => (
                                <div key={i} className="p-5 hover:bg-black group transition-all">
                                   <div className="flex items-center gap-3 mb-2">
                                      <Clock size={12} className="text-black/30 group-hover:text-white/40" />
@@ -390,9 +425,11 @@ export default function VereditoPage() {
                                   <p className="text-[11px] font-black text-black group-hover:text-white uppercase leading-tight tracking-tight">{m.nome}</p>
                                </div>
                             )) : (
-                              <div className="p-10 text-center space-y-4 opacity-20">
+                              <div className="p-10 text-center space-y-4 opacity-40">
                                  <Gavel size={32} className="mx-auto" />
-                                 <p className="text-[10px] font-black uppercase">Sem histórico cronológico.</p>
+                                 <p className="text-[10px] font-black uppercase">
+                                   {result.dataJudRaw?.message || "Sem histórico cronológico disponível."}
+                                 </p>
                               </div>
                             )}
                          </div>
