@@ -25,7 +25,9 @@ import {
   Download,
   Search,
   Users,
-  Loader2
+  Loader2,
+  Building2,
+  Gavel
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -119,6 +121,34 @@ export default function UnifiedReport() {
       .slice(0, 8)
       .map(([name, count]) => ({ name: name.split(' - ')[0], count }));
 
+    // Estatísticas por Escritório e Advogado
+    const offices: Record<string, any> = {};
+    const lawyers: Record<string, any> = {};
+
+    cases.forEach(c => {
+      const officeName = (c.escritorio || "Sem Escritório").trim().toUpperCase();
+      const lawyerName = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
+      const situacaoUpper = String(c.situacao || '').toUpperCase();
+      const isAtivo = !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(situacaoUpper);
+
+      if (!offices[officeName]) offices[officeName] = { name: officeName, total: 0, ativos: 0, vencidos: 0, hoje: 0, atencao: 0 };
+      if (!lawyers[lawyerName]) lawyers[lawyerName] = { name: lawyerName, total: 0, ativos: 0, vencidos: 0, hoje: 0, atencao: 0 };
+
+      offices[officeName].total++;
+      lawyers[lawyerName].total++;
+
+      if (isAtivo) {
+        offices[officeName].ativos++;
+        lawyers[lawyerName].ativos++;
+        if (c.status === 'Vencido') { offices[officeName].vencidos++; lawyers[lawyerName].vencidos++; }
+        if (c.status === 'É Hoje') { offices[officeName].hoje++; lawyers[lawyerName].hoje++; }
+        if (c.status === 'Atenção') { offices[officeName].atencao++; lawyers[lawyerName].atencao++; }
+      }
+    });
+
+    const sortedOffices = Object.values(offices).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total);
+    const sortedLawyers = Object.values(lawyers).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total);
+
     return {
       totalRepo, 
       activeTotal, 
@@ -132,6 +162,8 @@ export default function UnifiedReport() {
       riskLabel, 
       riskColor,
       chartData,
+      sortedOffices,
+      sortedLawyers,
       topTribunal: Object.entries(tribCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || 'TJSP'
     };
   }, [cases]);
@@ -229,12 +261,81 @@ export default function UnifiedReport() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <StatusPill label="Vencidos" count={metrics.countVencido} total={metrics.activeTotal} color="bg-red-600" />
-              <StatusPill label="Hoje" count={metrics.countHoje} total={metrics.activeTotal} color="bg-orange-500" />
+              <StatusPill label="Hoje" count={metrics.countHoje} total={metrics.activeTotal} color="bg-orange-50" />
               <StatusPill label="Atenção" count={metrics.countAtencao} total={metrics.activeTotal} color="bg-amber-400" />
               <StatusPill label="Saudáveis" count={metrics.countSaudavel} total={metrics.activeTotal} color="bg-green-600" />
               <StatusPill label="Sem Prazo" count={metrics.countSemPrazo} total={metrics.activeTotal} color="bg-slate-400" />
               <StatusPill label="Finalizados" count={metrics.countFinalizados} total={metrics.totalRepo} color="bg-slate-800" />
             </div>
+          </section>
+
+          {/* NOVAS SEÇÕES: ESCRITÓRIO E ADVOGADO */}
+          <section className="px-10 pb-12 space-y-12">
+             <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                   <Building2 size={18} className="text-primary" />
+                   <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Performance por Escritório / Unidade</h2>
+                </div>
+                <div className="border-2 border-black overflow-hidden">
+                   <table className="w-full text-left text-[9px] font-black uppercase">
+                      <thead className="bg-black text-white">
+                         <tr>
+                            <th className="p-3">Escritório</th>
+                            <th className="p-3 text-center">Total</th>
+                            <th className="p-3 text-center">Ativos</th>
+                            <th className="p-3 text-center text-red-400">Vencidos</th>
+                            <th className="p-3 text-center text-orange-400">Hoje</th>
+                            <th className="p-3 text-center">Atenção</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y-2 divide-black/5">
+                         {metrics.sortedOffices.map((off, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                               <td className="p-3">{off.name}</td>
+                               <td className="p-3 text-center tabular-nums">{off.total}</td>
+                               <td className="p-3 text-center tabular-nums">{off.ativos}</td>
+                               <td className={cn("p-3 text-center tabular-nums", off.vencidos > 0 && "text-red-600 bg-red-50")}>{off.vencidos}</td>
+                               <td className="p-3 text-center tabular-nums">{off.hoje}</td>
+                               <td className="p-3 text-center tabular-nums">{off.atencao}</td>
+                            </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
+
+             <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                   <Gavel size={18} className="text-primary" />
+                   <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Performance por Advogado Responsável</h2>
+                </div>
+                <div className="border-2 border-black overflow-hidden">
+                   <table className="w-full text-left text-[9px] font-black uppercase">
+                      <thead className="bg-black text-white">
+                         <tr>
+                            <th className="p-3">Advogado</th>
+                            <th className="p-3 text-center">Total</th>
+                            <th className="p-3 text-center">Ativos</th>
+                            <th className="p-3 text-center text-red-400">Vencidos</th>
+                            <th className="p-3 text-center text-orange-400">Hoje</th>
+                            <th className="p-3 text-center">Atenção</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y-2 divide-black/5">
+                         {metrics.sortedLawyers.map((adv, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                               <td className="p-3">{adv.name}</td>
+                               <td className="p-3 text-center tabular-nums">{adv.total}</td>
+                               <td className="p-3 text-center tabular-nums">{adv.ativos}</td>
+                               <td className={cn("p-3 text-center tabular-nums", adv.vencidos > 0 && "text-red-600 bg-red-50")}>{adv.vencidos}</td>
+                               <td className="p-3 text-center tabular-nums">{adv.hoje}</td>
+                               <td className="p-3 text-center tabular-nums">{adv.atencao}</td>
+                            </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
           </section>
 
           {iaInsights && (
