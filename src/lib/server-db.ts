@@ -93,12 +93,10 @@ export async function createEmpresaUserAction(payload: any) {
     return { success: false, error: 'Infraestrutura de segurança não configurada corretamente.' };
   }
 
-  // Cliente Administrativo Soberano
   const adminClient = createSupabaseClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 
-  // 1. Criação no Auth Service (Sem deslogar o administrador atual)
   const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
     email: payload.email.toLowerCase().trim(),
     password: payload.password,
@@ -108,7 +106,6 @@ export async function createEmpresaUserAction(payload: any) {
 
   if (authError) return { success: false, error: authError.message };
 
-  // 2. Criação do Perfil na Tabela Usuarios
   const { error: dbError } = await adminClient
     .from('usuarios')
     .insert({
@@ -120,7 +117,6 @@ export async function createEmpresaUserAction(payload: any) {
     });
 
   if (dbError) {
-    // Rollback: remove o usuário auth se a gravação do perfil falhar
     await adminClient.auth.admin.deleteUser(authData.user.id);
     return { success: false, error: dbError.message };
   }
