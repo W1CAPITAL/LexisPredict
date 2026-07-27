@@ -185,12 +185,12 @@ export default function TeamManagement() {
     const advRank = Object.values(advStats).map(s => ({
       name: s.name,
       result: calcularScoreAdvogado(s.cases)
-    })).sort((a, b) => b.result.score - a.score.score);
+    })).sort((a, b) => b.result.score - a.result.score);
 
     const assRank = Object.values(assStats).map(s => ({
       name: s.name,
       result: calcularScoreAssessor(s.cases)
-    })).sort((a, b) => b.result.score - a.score.score);
+    })).sort((a, b) => b.result.score - a.result.score);
 
     return { advRank, assRank };
   }, [cases]);
@@ -411,4 +411,3 @@ export default function TeamManagement() {
     </div>
   );
 }
-
