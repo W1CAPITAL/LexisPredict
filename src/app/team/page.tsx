@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Star,
-  Users
+  Users,
+  Zap
 } from 'lucide-react';
 import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
