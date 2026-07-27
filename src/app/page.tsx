@@ -1,4 +1,3 @@
-
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -7,6 +6,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { OfficeStats } from '@/components/dashboard/office-stats';
 import {
   ShieldAlert,
   RefreshCcw,
@@ -242,6 +242,8 @@ export default function Dashboard() {
                     </table>
                   </div>
                </section>
+
+               <OfficeStats cases={cases} />
             </div>
             <div className="xl:col-span-4 space-y-8">
                <section className="premium-card p-8 space-y-8">
