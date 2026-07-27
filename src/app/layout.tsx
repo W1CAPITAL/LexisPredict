@@ -16,7 +16,6 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'LexisPredict Elite SaaS',
   description: 'Gabinete Inteligente de Gestão Jurídica e Operações Forenses',
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
