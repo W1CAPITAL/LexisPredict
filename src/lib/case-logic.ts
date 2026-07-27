@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -150,7 +149,7 @@ export function extrairTribunal(protocolo: string): { tribunal: string; link: st
     const mapa: Record<string, string> = {
       '01': 'TJAC', '02': 'TJAL', '03': 'TJAP', '04': 'TJAM', '05': 'TJBA',
       '06': 'TJCE', '07': 'TJDF', '08': 'TJES', '09': 'TJGO', '10': 'TJMA',
-      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TJPA', '15': 'TJPB',
+      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TIPA', '15': 'TJPB',
       '16': 'TJPR', '17': 'TJPE', '18': 'TJPI', '19': 'TJRJ', '20': 'TJRN',
       '21': 'TJRS', '22': 'TJRO', '23': 'TJRR', '24': 'TJSC', '25': 'TJSE',
       '26': 'TJSP', '27': 'TJTO',
@@ -174,11 +173,20 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const cliente = fixEncoding(normalized.CLIENTE || raw.cliente || 'NÃO IDENTIFICADO').toUpperCase();
   const protocolo = (normalized.PROTOCOLO || raw.protocolo || '').trim();
   const advogado = fixEncoding(normalized.ADVOGADO || raw.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
-  const escritorio = fixEncoding(normalized.ESCRITORIO || normalized.ESCRITORIO || normalized.OFFICE || normalized.UNIDADE || raw.escritorio || '').trim().toUpperCase();
   
-  const situacao = (normalized.SITUACAO || normalized.SITUACAO || normalized.STATUS || raw.situacao || 'EM ANDAMENTO').toUpperCase();
+  // Mapeamento Cirúrgico do Escritório com aliases
+  const escritorio = fixEncoding(
+    normalized.ESCRITORIO ||
+    normalized.ESCRITORIO_RESPONSAVEL ||
+    normalized.UNIDADE ||
+    normalized.OFFICE ||
+    raw.escritorio ||
+    ''
+  ).trim().toUpperCase();
   
-  const proximoPrazoRaw = normalized.PROXIMO_RETORNO || normalized.PROXIMO_PRAZO || normalized.PROXIMO_PRAZO || raw.proximoPrazo || '';
+  const situacao = (normalized.SITUACAO || normalized.STATUS || raw.situacao || 'EM ANDAMENTO').toUpperCase();
+  
+  const proximoPrazoRaw = normalized.PROXIMO_RETORNO || normalized.PROXIMO_PRAZO || raw.proximoPrazo || '';
   const ultimoRetornoRaw = normalized.ULTIMO_RETORNO || normalized.RETORNO || raw.ultimoRetorno || '';
   
   const statusManual = normalized.STATUS_MANUAL || raw.statusManual || 'Automatico';
@@ -191,7 +199,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     cliente,
     protocolo,
     advogado,
-    escritorio,
+    escritorio: escritorio || '',
     situacao,
     proximoPrazo: proximoPrazoRaw, 
     ultimoRetorno: ultimoRetornoRaw,
