@@ -30,7 +30,8 @@ import {
   Sparkles, 
   User, 
   Calendar,
-  UserCheck
+  UserCheck,
+  Building2
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -162,6 +163,7 @@ function CasesContent() {
   const deferredSearch = useDeferredValue(search);
   
   const [lawyerFilter, setLawyerFilter] = useState('ALL');
+  const [officeFilter, setOfficeFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [showClosed, setShowClosed] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -179,6 +181,7 @@ function CasesContent() {
     cliente: '',
     protocolo: '',
     advogado: '',
+    escritorio: '',
     proximoPrazo: '',
     situacao: 'EM ANDAMENTO',
     ultimoRetorno: '',
@@ -279,6 +282,7 @@ function CasesContent() {
         CLIENTE: formState.cliente,
         PROTOCOLO: formState.protocolo,
         ADVOGADO: formState.advogado,
+        ESCRITORIO: formState.escritorio,
         'PRÓXIMO PRAZO': formState.proximoPrazo,
         SITUAÇÃO: formState.situacao,
         ULTIMO_RETORNO: formState.ultimoRetorno,
@@ -317,6 +321,7 @@ function CasesContent() {
       cliente: c.cliente,
       protocolo: c.protocolo,
       advogado: c.advogado,
+      escritorio: c.escritorio || '',
       proximoPrazo: c.proximoPrazo,
       situacao: c.situacao || 'EM ANDAMENTO',
       ultimoRetorno: c.ultimoRetorno || '',
@@ -334,6 +339,7 @@ function CasesContent() {
       cliente: '',
       protocolo: '',
       advogado: '',
+      escritorio: '',
       proximoPrazo: '',
       situacao: 'EM ANDAMENTO',
       ultimoRetorno: '',
@@ -359,6 +365,11 @@ function CasesContent() {
     return list;
   }, [cases]);
 
+  const offices = useMemo(() => {
+    const list = Array.from(new Set(cases.map(c => c.escritorio))).filter(Boolean).sort();
+    return list;
+  }, [cases]);
+
   const filtered = useMemo(() => {
     const searchLower = deferredSearch.toLowerCase();
     return cases.filter(c => {
@@ -366,15 +377,16 @@ function CasesContent() {
                             (c.protocolo || '').includes(deferredSearch);
       
       const matchesLawyer = lawyerFilter === 'ALL' || c.advogado === lawyerFilter;
+      const matchesOffice = officeFilter === 'ALL' || c.escritorio === officeFilter;
       
       const isEncerrado = isCasoEncerrado(c);
       
-      let pass = matchesSearch && matchesLawyer;
+      let pass = matchesSearch && matchesLawyer && matchesOffice;
       if (!showClosed && isEncerrado) pass = false;
       
       return pass;
     });
-  }, [cases, deferredSearch, showClosed, lawyerFilter]);
+  }, [cases, deferredSearch, showClosed, lawyerFilter, officeFilter]);
 
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
@@ -468,8 +480,8 @@ function CasesContent() {
 
         <div className="flex-1 flex flex-col p-8 overflow-hidden">
           <div className="premium-card flex-1 flex flex-col overflow-hidden border-none">
-            <div className="p-5 border-b border-border/30 flex items-center justify-between gap-6 shrink-0">
-              <div className="flex flex-1 items-center gap-4 max-w-2xl">
+            <div className="p-5 border-b border-border/30 flex flex-wrap items-center justify-between gap-6 shrink-0">
+              <div className="flex flex-1 items-center gap-4 min-w-[600px]">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input 
@@ -480,18 +492,35 @@ function CasesContent() {
                   />
                 </div>
                 
-                <div className="w-64">
+                <div className="w-48">
                   <Select value={lawyerFilter} onValueChange={setLawyerFilter}>
                     <SelectTrigger className="h-11 bg-secondary/30 border-none rounded-xl text-[10px] font-black uppercase">
                       <div className="flex items-center gap-2">
                         <User size={14} className="text-primary" />
-                        <SelectValue placeholder="FILTRAR ADVOGADO" />
+                        <SelectValue placeholder="ADVOGADO" />
                       </div>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL" className="text-[10px] font-black uppercase">TODOS OS ADVOGADOS</SelectItem>
+                      <SelectItem value="ALL" className="text-[10px] font-black uppercase">TODOS</SelectItem>
                       {lawyers.map(l => (
                         <SelectItem key={l} value={l} className="text-[10px] font-black uppercase">{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="w-48">
+                  <Select value={officeFilter} onValueChange={setOfficeFilter}>
+                    <SelectTrigger className="h-11 bg-secondary/30 border-none rounded-xl text-[10px] font-black uppercase">
+                      <div className="flex items-center gap-2">
+                        <Building2 size={14} className="text-primary" />
+                        <SelectValue placeholder="ESCRITÓRIO" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-[10px] font-black uppercase">TODOS</SelectItem>
+                      {offices.map(o => (
+                        <SelectItem key={o} value={o} className="text-[10px] font-black uppercase">{o}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -598,6 +627,17 @@ function CasesContent() {
                     />
                   </div>
                   <div className="grid gap-2">
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Escritório</Label>
+                    <Input 
+                      value={formState.escritorio} 
+                      onChange={e => setFormState({...formState, escritorio: e.target.value.toUpperCase()})} 
+                      className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" 
+                      placeholder="NOME DO ESCRITÓRIO" 
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
                     <Label className="uppercase text-[9px] font-black text-muted-foreground">Situação Operacional</Label>
                     <Select value={formState.situacao} onValueChange={val => setFormState({...formState, situacao: val})}>
                       <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]">
@@ -612,8 +652,6 @@ function CasesContent() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="uppercase text-[9px] font-black text-muted-foreground">Data de Vencimento (Próximo Prazo)</Label>
                     <Input 
@@ -623,6 +661,8 @@ function CasesContent() {
                       placeholder="DD/MM/AAAA" 
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Atendimento / Retorno</Label>
                     <Input 
@@ -632,19 +672,19 @@ function CasesContent() {
                       placeholder="DD/MM/AAAA" 
                     />
                   </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Controle de Status</Label>
-                  <Select value={formState.statusManual} onValueChange={val => setFormState({...formState, statusManual: val})}>
-                    <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Cálculo Automático (Prazo)</SelectItem>
-                      <SelectItem value="Caso Crítico" className="text-[10px] font-bold uppercase text-red-600">⚠ Caso Crítico (Manual)</SelectItem>
-                      <SelectItem value="Arquivado" className="text-[10px] font-bold uppercase">Arquivado</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="grid gap-2">
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Controle de Status</Label>
+                    <Select value={formState.statusManual} onValueChange={val => setFormState({...formState, statusManual: val})}>
+                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Cálculo Automático (Prazo)</SelectItem>
+                        <SelectItem value="Caso Crítico" className="text-[10px] font-bold uppercase text-red-600">⚠ Caso Crítico (Manual)</SelectItem>
+                        <SelectItem value="Arquivado" className="text-[10px] font-bold uppercase">Arquivado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label className="uppercase text-[9px] font-black text-muted-foreground">Observações Técnicas</Label>
