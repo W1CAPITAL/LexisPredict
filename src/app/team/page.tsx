@@ -1,36 +1,21 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   ShieldCheck, 
-  Shield, 
   UserPlus, 
   RefreshCcw, 
   Mail, 
   Copyright,
   MoreVertical,
-  ChevronRight,
-  Activity,
   Loader2,
-  UserCheck,
-  Crown,
-  LayoutGrid,
   Trophy,
-  Medal,
-  Eye,
-  TrendingUp,
-  TrendingDown,
-  AlertTriangle,
   CheckCircle2,
   Star,
   Users,
   Zap,
-  Printer,
-  Scale,
   Info,
-  FileText,
   Gavel,
   ClipboardList
 } from 'lucide-react';
@@ -45,7 +30,6 @@ import { cn } from '@/lib/utils';
 import { getTranslation, Locale } from '@/lib/i18n';
 import { fetchRepoCases } from '@/app/actions/case-actions';
 import { LegalCase } from '@/lib/case-logic';
-import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularScoreAdvogado, calcularScoreAssessor, ScoreResult } from '@/lib/score-engine';
 import {
   DropdownMenu,
@@ -58,17 +42,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -165,35 +141,40 @@ export default function TeamManagement() {
     }
   };
 
-  // --- LÓGICA DE PERFORMANCE DUAL ---
+  /**
+   * MOTOR DE PERFORMANCE v2.0 - VINCULAÇÃO POR USUÁRIO REAL
+   * Vincula processos ao usuário por ID (created_by) ou Token Match no nome.
+   */
   const performanceData = useMemo(() => {
-    const advStats: Record<string, { name: string, cases: LegalCase[] }> = {};
-    const assStats: Record<string, { name: string, cases: LegalCase[] }> = {};
+    if (!users.length) return { advRank: [], assRank: [] };
 
-    cases.forEach(c => {
-      // Agrupamento Advogado
-      const lawyer = (c.advogado || 'NÃO ATRIBUÍDO').trim().toUpperCase();
-      if (!advStats[lawyer]) advStats[lawyer] = { name: lawyer, cases: [] };
-      advStats[lawyer].cases.push(c);
+    const normalizeStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-      // Agrupamento Assessor
-      const assessor = (c.atendente || 'NÃO ATRIBUÍDO').trim().toUpperCase();
-      if (!assStats[assessor]) assStats[assessor] = { name: assessor, cases: [] };
-      assStats[assessor].cases.push(c);
-    });
+    const getAssignedCases = (user: UserProfile, isLawyer: boolean) => {
+      const userNorm = normalizeStr(user.nome);
+      return cases.filter(c => {
+        // Prioridade 1: Match por ID
+        if (c.created_by === user.auth_user_id) return true;
 
-    const advRank = Object.values(advStats).map(s => ({
-      name: s.name,
-      result: calcularScoreAdvogado(s.cases)
-    })).sort((a, b) => b.result.score - a.result.score);
+        // Prioridade 2: Match por Token (Ex: "ANDRESSA" em "ANDRESSA / MATHEUS")
+        const field = isLawyer ? (c.advogado || '') : (c.atendente || '');
+        const tokens = field.split(/[\/\,\s]+/).map(t => normalizeStr(t));
+        return tokens.some(t => t === userNorm || (userNorm.length > 3 && t.includes(userNorm)));
+      });
+    };
 
-    const assRank = Object.values(assStats).map(s => ({
-      name: s.name,
-      result: calcularScoreAssessor(s.cases)
-    })).sort((a, b) => b.result.score - a.result.score);
+    const advRank = users.map(user => ({
+      name: user.nome,
+      result: calcularScoreAdvogado(getAssignedCases(user, true))
+    })).filter(u => u.result.totalCasos > 0).sort((a, b) => b.result.score - a.result.score);
+
+    const assRank = users.map(user => ({
+      name: user.nome,
+      result: calcularScoreAssessor(getAssignedCases(user, false))
+    })).filter(u => u.result.totalCasos > 0).sort((a, b) => b.result.score - a.result.score);
 
     return { advRank, assRank };
-  }, [cases]);
+  }, [cases, users]);
 
   return (
     <div className="flex h-screen bg-[#f8f9fb] font-sans text-foreground overflow-hidden">
@@ -215,15 +196,8 @@ export default function TeamManagement() {
           <div className="flex items-center gap-6">
             <Tabs value={viewMode} onValueChange={(val) => setViewMode(val as any)} className="bg-secondary/20 p-1 rounded-xl">
               <TabsList className="bg-transparent h-9 border-none gap-1">
-                <TabsTrigger value="management" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
-                  <LayoutGrid size={12} className="mr-2"/> Gestão
-                </TabsTrigger>
-                <TabsTrigger value="hierarchy" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
-                  <Trophy size={12} className="mr-2"/> Hierarquia
-                </TabsTrigger>
-                <TabsTrigger value="performance" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
-                  <Zap size={12} className="mr-2"/> Performance
-                </TabsTrigger>
+                <TabsTrigger value="management" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Gestão</TabsTrigger>
+                <TabsTrigger value="performance" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Performance</TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -235,7 +209,7 @@ export default function TeamManagement() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full print:p-0 print:max-w-none">
+        <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full">
           {viewMode === 'management' && (
             <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500">
               {users.map((user) => (
@@ -262,7 +236,7 @@ export default function TeamManagement() {
                       </DropdownMenu>
                     )}
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent>
                     <div className="flex items-center gap-3 text-muted-foreground p-2.5 bg-secondary/30 rounded-lg">
                       <Mail size={12} />
                       <span className="text-[9px] font-mono lowercase truncate">{user.email}</span>
@@ -276,14 +250,10 @@ export default function TeamManagement() {
           {viewMode === 'performance' && (
             <section className="space-y-12 pb-20 animate-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                {/* RANKING OPERACIONAL (ASSESSORES) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center rounded-lg shadow-lg"><ClipboardList size={20}/></div>
-                      <div>
-                        <h3 className="text-lg font-black uppercase tracking-tighter">Performance Operacional</h3>
-                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Responsabilidade de Assessoria (Retornos e Cadastro)</p>
-                      </div>
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Performance Operacional</h3>
                    </div>
                    <div className="space-y-4">
                       {performanceData.assRank.map((s, i) => (
@@ -292,28 +262,22 @@ export default function TeamManagement() {
                               <span className="font-black text-black/20 text-xl">{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Casos Auditados</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Atendimentos Auditados</p>
                               </div>
                            </div>
-                           <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="flex flex-col items-end">
-                              <span className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score > 50 ? "text-blue-600" : "text-red-600")}>
-                                {s.result.score}
-                              </span>
-                              <span className="text-[7px] font-black uppercase opacity-40">Efficiency pts</span>
+                           <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
+                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : "text-blue-600")}>{s.result.score}</p>
+                              <p className="text-[7px] font-black uppercase opacity-40">Efficiency pts</p>
                            </button>
                         </div>
                       ))}
                    </div>
                 </div>
 
-                {/* RANKING JURÍDICO (ADVOGADOS) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-black text-primary flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
-                      <div>
-                        <h3 className="text-lg font-black uppercase tracking-tighter">Performance de Banca</h3>
-                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Responsabilidade Técnica (Petições e Mérito)</p>
-                      </div>
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Performance de Banca</h3>
                    </div>
                    <div className="space-y-4">
                       {performanceData.advRank.map((s, i) => (
@@ -322,43 +286,25 @@ export default function TeamManagement() {
                               <span className="font-black text-black/20 text-xl">{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Peças Auditadas</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Peças em Gestão</p>
                               </div>
                            </div>
-                           <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="flex flex-col items-end">
-                              <span className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score > 50 ? "text-primary" : "text-red-600")}>
-                                {s.result.score}
-                              </span>
-                              <span className="text-[7px] font-black uppercase opacity-40">Authority Score</span>
+                           <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
+                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : "text-primary")}>{s.result.score}</p>
+                              <p className="text-[7px] font-black uppercase opacity-40">Authority Score</p>
                            </button>
                         </div>
                       ))}
                    </div>
                 </div>
               </div>
-
-              {/* RODAPÉ EXPLICATIVO */}
-              <div className="bg-white border-2 border-black p-8 rounded-none flex items-start gap-6 shadow-[10px_10px_0px_rgba(0,0,0,0.05)]">
-                 <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center shrink-0"><Info size={24}/></div>
-                 <div className="space-y-2">
-                    <h4 className="font-black uppercase text-xs">Entendendo a Auditoria Dual</h4>
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground leading-relaxed">
-                       O score opercional (Assessor) foca na experiência do cliente e pontualidade de contato. O score de banca (Advogado) foca na integridade do processo judicial. Falhas causadas pelo cliente são automaticamente detectadas e expurgadas da média de performance para garantir justiça na avaliação da equipe.
-                    </p>
-                 </div>
-              </div>
             </section>
           )}
         </div>
 
-        {/* Modal de Auditoria Detalhada */}
         <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
            <DialogContent className="sm:max-w-[650px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
-              <DialogHeader>
-                 <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3">
-                    <Zap size={18} className="text-primary"/> Detalhes da Auditoria {selectedAudit?.label}
-                 </DialogTitle>
-              </DialogHeader>
+              <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Detalhes da Auditoria {selectedAudit?.label}</DialogTitle></DialogHeader>
               <div className="py-6 space-y-6">
                  <div className="flex justify-between items-center bg-secondary/20 p-4 border border-black/5">
                     <div>
@@ -366,39 +312,24 @@ export default function TeamManagement() {
                        <p className="text-sm font-black uppercase">{selectedAudit?.ignoradosCliente} Falhas Ignoradas</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-[8px] font-black uppercase opacity-40">Score de Rito</p>
+                       <p className="text-[8px] font-black uppercase opacity-40">Score Consolidado</p>
                        <p className="text-2xl font-black">{selectedAudit?.score}/100</p>
                     </div>
                  </div>
-
-                 <div className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Histórico de Penalidades Atribuíveis</Label>
-                    <ScrollArea className="h-[250px] border-2 border-black/5 p-4 bg-gray-50">
-                       <div className="space-y-3">
-                          {selectedAudit?.penalidades.map((p, idx) => (
-                             <div key={idx} className="p-4 bg-white border border-black/10 flex flex-col gap-2">
-                                <div className="flex justify-between items-start">
-                                   <div className="space-y-0.5">
-                                      <p className="text-[10px] font-black uppercase">{p.cliente}</p>
-                                      <p className="text-[8px] font-mono text-muted-foreground">{p.protocolo}</p>
-                                   </div>
-                                   <Badge variant="destructive" className="text-[8px] font-black">-{p.peso} pts</Badge>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                   <Badge className="bg-black text-white text-[7px] font-black uppercase px-1.5">{p.tipo}</Badge>
-                                   <p className="text-[9px] font-bold text-muted-foreground italic">"{p.motivo}..."</p>
-                                </div>
+                 <ScrollArea className="h-[300px]">
+                    <div className="space-y-3">
+                       {selectedAudit?.penalidades.map((p, idx) => (
+                          <div key={idx} className="p-4 bg-white border border-black/10 flex flex-col gap-2">
+                             <div className="flex justify-between">
+                                <p className="text-[10px] font-black uppercase">{p.cliente}</p>
+                                <Badge variant="destructive" className="text-[8px] font-black">-{p.peso} pts</Badge>
                              </div>
-                          ))}
-                          {selectedAudit?.penalidades.length === 0 && (
-                             <div className="py-12 text-center opacity-30">
-                                <CheckCircle2 size={32} className="mx-auto mb-3" />
-                                <p className="font-black uppercase text-[10px]">Nenhuma falha técnica atribuível.</p>
-                             </div>
-                          )}
-                       </div>
-                    </ScrollArea>
-                 </div>
+                             <p className="text-[9px] font-bold text-muted-foreground italic">"{p.motivo}..."</p>
+                          </div>
+                       ))}
+                       {selectedAudit?.penalidades.length === 0 && <p className="py-12 text-center opacity-30 uppercase font-black text-[10px]">Nenhuma falha técnica atribuível.</p>}
+                    </div>
+                 </ScrollArea>
               </div>
            </DialogContent>
         </Dialog>
