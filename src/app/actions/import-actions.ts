@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -25,7 +24,7 @@ function normalizeHeader(header: string): string {
 
 /**
  * Motor de Ingestão P0: Separa Situação da Planilha do Status de Prazo do App.
- * Agora com resolução automática de ASSISTENTE para isolamento de perfil.
+ * Agora com suporte total ao campo ESCRITÓRIO.
  */
 export async function importCsvAction(csvText: string) {
   try {
@@ -89,6 +88,7 @@ export async function importCsvAction(csvText: string) {
           created_by: resolvedCreatedBy,
           protocolo_ref: caso.protocolo,
           advogado: caso.advogado,
+          escritorio: caso.escritorio || null,
           status: caso.status,
           risco: caso.risco,
           tribunal: caso.tribunal,
