@@ -16,7 +16,10 @@ import {
   TrendingUp,
   BarChart3,
   PieChart as PieChartIcon,
-  Gavel
+  Gavel,
+  Building2,
+  Zap,
+  TrendingDown
 } from 'lucide-react';
 import { LegalCase } from '@/lib/case-logic';
 import { cn } from '@/lib/utils';
@@ -34,6 +37,7 @@ import {
   PieChart,
   Pie
 } from 'recharts';
+import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 export default function AnalyticsPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
@@ -58,20 +62,20 @@ export default function AnalyticsPage() {
     const total = cases.length;
     if (total === 0) return null;
 
-    const ativos = cases.filter(c => !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase()));
+    const ativos = cases.filter(c => !isCasoEncerrado(c));
     const totalAtivos = ativos.length;
     
     const statusCounts = {
-      vencidos: cases.filter(c => c.status === 'Vencido' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length,
-      hoje: cases.filter(c => c.status === 'É Hoje' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length,
-      atencao: cases.filter(c => c.status === 'Atenção' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length,
-      noPrazo: cases.filter(c => c.status === 'No Prazo' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length,
-      semPrazo: cases.filter(c => (c.status === 'Sem Prazo' || !c.proximoPrazo) && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length,
-      finalizados: cases.filter(c => ['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length
+      vencidos: cases.filter(c => c.status === 'Vencido' && !isCasoEncerrado(c)).length,
+      hoje: cases.filter(c => c.status === 'É Hoje' && !isCasoEncerrado(c)).length,
+      atencao: cases.filter(c => c.status === 'Atenção' && !isCasoEncerrado(c)).length,
+      noPrazo: cases.filter(c => c.status === 'No Prazo' && !isCasoEncerrado(c)).length,
+      finalizados: cases.filter(c => isCasoEncerrado(c)).length
     };
 
     const tribunalCounts: Record<string, number> = {};
     const lawyerCounts: Record<string, number> = {};
+    const officeStats: Record<string, any> = {};
 
     cases.forEach(c => {
       const trib = c.tribunal || "Outros";
@@ -79,6 +83,15 @@ export default function AnalyticsPage() {
 
       const lawyer = c.advogado || "NÃO ATRIBUÍDO";
       lawyerCounts[lawyer] = (lawyerCounts[lawyer] || 0) + 1;
+
+      const office = (c.escritorio || "Sem Escritório").trim().toUpperCase();
+      if (!officeStats[office]) {
+        officeStats[office] = { name: office, total: 0, vencidos: 0, encerrados: 0, healthy: 0 };
+      }
+      officeStats[office].total++;
+      if (isCasoEncerrado(c)) officeStats[office].encerrados++;
+      else if (c.status === 'Vencido') officeStats[office].vencidos++;
+      else officeStats[office].healthy++;
     });
 
     const topTribunals = Object.entries(tribunalCounts)
@@ -91,6 +104,12 @@ export default function AnalyticsPage() {
       .slice(0, 6)
       .map(([name, count]) => ({ name, count }));
 
+    const officePerformance = Object.values(officeStats).map(o => {
+      // Score de Higiene: Baixas valem mais, Vencidos penalizam severamente
+      const score = (o.encerrados * 15) + (o.healthy * 5) - (o.vencidos * 25);
+      return { ...o, score };
+    }).sort((a, b) => b.score - a.score);
+
     const pieData = [
       { name: 'Vencidos', value: statusCounts.vencidos, color: '#ef4444' },
       { name: 'Hoje', value: statusCounts.hoje, color: '#3b82f6' },
@@ -98,7 +117,7 @@ export default function AnalyticsPage() {
       { name: 'No Prazo', value: statusCounts.noPrazo, color: '#10b981' },
     ].filter(d => d.value > 0);
 
-    return { total, totalAtivos, statusCounts, topTribunals, topLawyers, pieData };
+    return { total, totalAtivos, statusCounts, topTribunals, topLawyers, officePerformance, pieData };
   }, [cases]);
 
   const handleExportPDF = () => window.print();
@@ -136,6 +155,72 @@ export default function AnalyticsPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            {/* OFFICE PERFORMANCE ANALYSIS - O QUE VOCÊ PROCURAVA */}
+            <div className="xl:col-span-12 premium-card p-8 bg-black text-white min-h-[400px] flex flex-col relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                 <Building2 size={200} />
+              </div>
+              <div className="flex items-center justify-between mb-10 relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-primary/20 rounded-lg text-primary">
+                    <Zap size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black uppercase tracking-tight">Ranking de Eficiência por Escritório</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Avaliação baseada em Resolutividade (Baixas) vs Inércia (Vencidos)</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-white/20 text-white font-black uppercase text-[10px] px-4 py-1.5 rounded-none">Auditoria Neural Ativa</Badge>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 relative z-10">
+                {/* Ranking List */}
+                <div className="lg:col-span-1 space-y-4">
+                  {metrics?.officePerformance.slice(0, 5).map((office, i) => (
+                    <div key={office.name} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                      <div className="flex items-center gap-4">
+                         <span className="text-primary font-black text-lg">#{i+1}</span>
+                         <div>
+                            <p className="text-[11px] font-black uppercase truncate max-w-[150px]">{office.name}</p>
+                            <p className="text-[9px] font-bold text-white/40 uppercase">{office.total} Casos Totais</p>
+                         </div>
+                      </div>
+                      <div className="text-right">
+                         <p className={cn("text-lg font-black tracking-tighter", office.score > 0 ? "text-emerald-400" : "text-red-400")}>
+                           {office.score > 0 ? `+${office.score}` : office.score}
+                         </p>
+                         <Badge className={cn(
+                           "text-[7px] font-black uppercase px-1.5 py-0 border-none",
+                           office.score > 50 ? "bg-emerald-500" : office.score > 0 ? "bg-blue-500" : "bg-red-500"
+                         )}>
+                           {office.score > 50 ? 'ELITE' : office.score > 0 ? 'ESTÁVEL' : 'CRÍTICO'}
+                         </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Performance Chart */}
+                <div className="lg:col-span-2 h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={metrics?.officePerformance.slice(0, 8)}>
+                      <XAxis dataKey="name" fontSize={9} fontWeight={900} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)'}} />
+                      <YAxis hide />
+                      <Tooltip 
+                        cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                        contentStyle={{backgroundColor: '#000', borderRadius: '0px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase'}}
+                      />
+                      <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
+                        {metrics?.officePerformance.map((entry, index) => (
+                          <Cell key={`cell-office-${index}`} fill={entry.score > 0 ? '#00D1FF' : '#ef4444'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
             {/* TRIBUNAL ANALYSIS */}
             <div className="xl:col-span-8 premium-card p-8 bg-white min-h-[400px] flex flex-col">
               <div className="flex items-center justify-between mb-10">
