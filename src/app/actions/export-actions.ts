@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Motor de Exportação Forense v100.0
+ * @fileOverview Motor de Exportação Forense v110.0
  * Gera planilhas CSV compatíveis com Excel a partir do repositório Supabase.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -16,12 +16,13 @@ export async function exportCasesToCSVAction() {
       return { success: false, error: 'Nenhum processo encontrado para exportar.' };
     }
 
-    // Cabeçalhos oficiais do Gabinete LexisPredict
+    // Cabeçalhos oficiais do Gabinete LexisPredict com coluna ESCRITORIO
     const headers = [
       'CLIENTE',
       'PROTOCOLO',
       'TELEFONE',
       'ADVOGADO',
+      'ESCRITORIO',
       'SITUAÇÃO',
       'STATUS',
       'RISCO',
@@ -38,6 +39,7 @@ export async function exportCasesToCSVAction() {
         c.protocolo || '',
         c.telefone || '',
         c.advogado || '',
+        c.escritorio || '',
         c.situacao || '',
         c.status || '',
         c.risco || '',
