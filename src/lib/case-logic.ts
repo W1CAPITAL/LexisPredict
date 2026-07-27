@@ -31,7 +31,7 @@ export interface LegalCase {
   protocolo: string;
   telefone?: string;
   advogado: string;
-  escritorio?: string;
+  escritorio: string;
   situacao: string;
   proximoPrazo: string;
   ultimoRetorno: string;
@@ -81,7 +81,6 @@ export function formatDateToISO(dateStr: string | null | undefined): string | nu
   const raw = String(dateStr).trim();
   if (raw === "" || raw === "-" || raw === "—" || raw === "0" || raw === "00/00/0000") return null;
   
-  // Se já for ISO, retorna
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
   const parts = raw.split(/[\/\-\.\s,]+/).filter(p => p.length > 0);
@@ -102,7 +101,6 @@ export function formatDateToISO(dateStr: string | null | undefined): string | nu
   const m = String(month).padStart(2, "0");
   const y = String(year);
 
-  // Validação mínima de range
   const yNum = parseInt(y);
   if (yNum < 1900 || yNum > 2100) return null;
 
@@ -137,26 +135,22 @@ export function calcularStatus(
   return "No Prazo";
 }
 
-/**
- * Extrai Tribunal do CNJ (ex: 8.26 -> TJSP)
- */
 export function extrairTribunal(protocolo: string): { tribunal: string; link: string; } {
   if (!protocolo) return { tribunal: "Outros", link: "" };
   const original = protocolo.trim();
   
-  // Padrão CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO
   const match = original.match(/\.(\d)\.(\d{2})\./);
   
   if (!match) return { tribunal: "Outros", link: `https://www.google.com/search?q=consulta+processo+judicial+${encodeURIComponent(original)}` };
 
-  const ramo = match[1]; // 8 = Justiça Estadual
+  const ramo = match[1]; 
   const cod = match[2];
 
   if (ramo === '8') {
     const mapa: Record<string, string> = {
       '01': 'TJAC', '02': 'TJAL', '03': 'TJAP', '04': 'TJAM', '05': 'TJBA',
       '06': 'TJCE', '07': 'TJDF', '08': 'TJES', '09': 'TJGO', '10': 'TJMA',
-      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TJPB', '15': 'TJPB',
+      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TJPA', '15': 'TJPB',
       '16': 'TJPR', '17': 'TJPE', '18': 'TJPI', '19': 'TJRJ', '20': 'TJRN',
       '21': 'TJRS', '22': 'TJRO', '23': 'TJRR', '24': 'TJSC', '25': 'TJSE',
       '26': 'TJSP', '27': 'TJTO',
@@ -173,23 +167,20 @@ export function extrairTribunal(protocolo: string): { tribunal: string; link: st
 export function processarCaso(raw: any, thresholds?: { alertLimit: number }): LegalCase {
   const normalized: any = {};
   Object.keys(raw).forEach(k => {
-    const cleanKey = k.toUpperCase().replace(/\s+/g, '_').trim();
+    const cleanKey = k.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_').trim();
     normalized[cleanKey] = raw[k];
   });
 
   const cliente = fixEncoding(normalized.CLIENTE || raw.cliente || 'NÃO IDENTIFICADO').toUpperCase();
   const protocolo = (normalized.PROTOCOLO || raw.protocolo || '').trim();
   const advogado = fixEncoding(normalized.ADVOGADO || raw.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
-  const escritorio = fixEncoding(normalized.ESCRITORIO || raw.escritorio || '').toUpperCase();
+  const escritorio = fixEncoding(normalized.ESCRITORIO || normalized.ESCRITORIO || normalized.OFFICE || normalized.UNIDADE || raw.escritorio || '').trim().toUpperCase();
   
-  // A "Situação" da planilha agora é isolada
-  const situacao = (normalized.SITUACAO || normalized.SITUAÇÃO || normalized.STATUS || raw.situacao || 'EM ANDAMENTO').toUpperCase();
+  const situacao = (normalized.SITUACAO || normalized.SITUACAO || normalized.STATUS || raw.situacao || 'EM ANDAMENTO').toUpperCase();
   
-  // Mapeamento resiliente para o próximo prazo
-  const proximoPrazoRaw = normalized.PROXIMO_RETORNO || normalized.PRÓXIMO_PRAZO || normalized.PROXIMO_PRAZO || raw.proximoPrazo || '';
+  const proximoPrazoRaw = normalized.PROXIMO_RETORNO || normalized.PROXIMO_PRAZO || normalized.PROXIMO_PRAZO || raw.proximoPrazo || '';
   const ultimoRetornoRaw = normalized.ULTIMO_RETORNO || normalized.RETORNO || raw.ultimoRetorno || '';
   
-  // Na importação, sempre usamos Automático para recalcular
   const statusManual = normalized.STATUS_MANUAL || raw.statusManual || 'Automatico';
 
   const tribunalData = extrairTribunal(protocolo);
