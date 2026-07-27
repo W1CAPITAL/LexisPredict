@@ -184,6 +184,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   // A "Situação" da planilha agora é isolada
   const situacao = (normalized.SITUACAO || normalized.SITUAÇÃO || normalized.STATUS || raw.situacao || 'EM ANDAMENTO').toUpperCase();
   
+  // Mapeamento resiliente para o próximo prazo
   const proximoPrazoRaw = normalized.PROXIMO_RETORNO || normalized.PRÓXIMO_PRAZO || normalized.PROXIMO_PRAZO || raw.proximoPrazo || '';
   const ultimoRetornoRaw = normalized.ULTIMO_RETORNO || normalized.RETORNO || raw.ultimoRetorno || '';
   
@@ -199,8 +200,8 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     protocolo,
     advogado,
     situacao,
-    proximoPrazo: formatDateToISO(proximoPrazoRaw) ? proximoPrazoRaw : '', // Mantém o formato exibição original se possível
-    ultimoRetorno: formatDateToISO(ultimoRetornoRaw) ? ultimoRetornoRaw : '',
+    proximoPrazo: proximoPrazoRaw, 
+    ultimoRetorno: ultimoRetornoRaw,
     status: (statusManual === 'Automatico') ? statusCalculado : statusManual,
     risco: (statusCalculado === 'Vencido' || statusManual === 'Caso Crítico') ? "Crítico" : "Normal",
     diasFaltando: calcularDiasFaltando(formatDateToISO(proximoPrazoRaw)),
