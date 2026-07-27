@@ -98,7 +98,12 @@ const CaseRow = React.memo(({
         </div>
       </td>
       <td className="px-8 py-5 text-[11px] text-foreground font-bold uppercase">
-        {c.advogado}
+        <div className="flex flex-col gap-1">
+           <span>{c.advogado}</span>
+           {c.escritorio && (
+             <span className="text-[8px] text-muted-foreground font-black uppercase tracking-widest">{c.escritorio}</span>
+           )}
+        </div>
       </td>
       <td className="px-8 py-5">
         <div className="flex flex-col gap-2">
@@ -163,7 +168,7 @@ function CasesContent() {
   const deferredSearch = useDeferredValue(search);
   
   const [lawyerFilter, setLawyerFilter] = useState('ALL');
-  const [officeFilter, setOfficeFilter] = useState('ALL');
+  const [officeFilter, setOfficeFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [showClosed, setShowClosed] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -181,7 +186,6 @@ function CasesContent() {
     cliente: '',
     protocolo: '',
     advogado: '',
-    escritorio: '',
     proximoPrazo: '',
     situacao: 'EM ANDAMENTO',
     ultimoRetorno: '',
@@ -282,7 +286,6 @@ function CasesContent() {
         CLIENTE: formState.cliente,
         PROTOCOLO: formState.protocolo,
         ADVOGADO: formState.advogado,
-        ESCRITORIO: formState.escritorio,
         'PRÓXIMO PRAZO': formState.proximoPrazo,
         SITUAÇÃO: formState.situacao,
         ULTIMO_RETORNO: formState.ultimoRetorno,
@@ -321,7 +324,6 @@ function CasesContent() {
       cliente: c.cliente,
       protocolo: c.protocolo,
       advogado: c.advogado,
-      escritorio: c.escritorio || '',
       proximoPrazo: c.proximoPrazo,
       situacao: c.situacao || 'EM ANDAMENTO',
       ultimoRetorno: c.ultimoRetorno || '',
@@ -339,7 +341,6 @@ function CasesContent() {
       cliente: '',
       protocolo: '',
       advogado: '',
-      escritorio: '',
       proximoPrazo: '',
       situacao: 'EM ANDAMENTO',
       ultimoRetorno: '',
@@ -377,7 +378,7 @@ function CasesContent() {
                             (c.protocolo || '').includes(deferredSearch);
       
       const matchesLawyer = lawyerFilter === 'ALL' || c.advogado === lawyerFilter;
-      const matchesOffice = officeFilter === 'ALL' || c.escritorio === officeFilter;
+      const matchesOffice = officeFilter === 'all' || c.escritorio === officeFilter;
       
       const isEncerrado = isCasoEncerrado(c);
       
@@ -480,8 +481,8 @@ function CasesContent() {
 
         <div className="flex-1 flex flex-col p-8 overflow-hidden">
           <div className="premium-card flex-1 flex flex-col overflow-hidden border-none">
-            <div className="p-5 border-b border-border/30 flex flex-wrap items-center justify-between gap-6 shrink-0">
-              <div className="flex flex-1 items-center gap-4 min-w-[600px]">
+            <div className="p-5 border-b border-border/30 flex items-center justify-between gap-6 shrink-0">
+              <div className="flex flex-1 items-center gap-4 max-w-4xl">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input 
@@ -501,7 +502,7 @@ function CasesContent() {
                       </div>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL" className="text-[10px] font-black uppercase">TODOS</SelectItem>
+                      <SelectItem value="ALL" className="text-[10px] font-black uppercase">TODOS ADVOGADOS</SelectItem>
                       {lawyers.map(l => (
                         <SelectItem key={l} value={l} className="text-[10px] font-black uppercase">{l}</SelectItem>
                       ))}
@@ -518,7 +519,7 @@ function CasesContent() {
                       </div>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL" className="text-[10px] font-black uppercase">TODOS</SelectItem>
+                      <SelectItem value="all" className="text-[10px] font-black uppercase">TODOS ESCRITÓRIOS</SelectItem>
                       {offices.map(o => (
                         <SelectItem key={o} value={o} className="text-[10px] font-black uppercase">{o}</SelectItem>
                       ))}
@@ -575,7 +576,6 @@ function CasesContent() {
           </div>
         </div>
 
-        {/* MODAL DE GESTÃO DE REGISTRO */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl max-h-[90vh] overflow-y-auto">
             <form onSubmit={handleSaveCase}>
@@ -627,17 +627,6 @@ function CasesContent() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Escritório</Label>
-                    <Input 
-                      value={formState.escritorio} 
-                      onChange={e => setFormState({...formState, escritorio: e.target.value.toUpperCase()})} 
-                      className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" 
-                      placeholder="NOME DO ESCRITÓRIO" 
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
                     <Label className="uppercase text-[9px] font-black text-muted-foreground">Situação Operacional</Label>
                     <Select value={formState.situacao} onValueChange={val => setFormState({...formState, situacao: val})}>
                       <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]">
@@ -652,6 +641,8 @@ function CasesContent() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="uppercase text-[9px] font-black text-muted-foreground">Data de Vencimento (Próximo Prazo)</Label>
                     <Input 
@@ -661,8 +652,6 @@ function CasesContent() {
                       placeholder="DD/MM/AAAA" 
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Atendimento / Retorno</Label>
                     <Input 
@@ -672,19 +661,19 @@ function CasesContent() {
                       placeholder="DD/MM/AAAA" 
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Controle de Status</Label>
-                    <Select value={formState.statusManual} onValueChange={val => setFormState({...formState, statusManual: val})}>
-                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Cálculo Automático (Prazo)</SelectItem>
-                        <SelectItem value="Caso Crítico" className="text-[10px] font-bold uppercase text-red-600">⚠ Caso Crítico (Manual)</SelectItem>
-                        <SelectItem value="Arquivado" className="text-[10px] font-bold uppercase">Arquivado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Controle de Status</Label>
+                  <Select value={formState.statusManual} onValueChange={val => setFormState({...formState, statusManual: val})}>
+                    <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Cálculo Automático (Prazo)</SelectItem>
+                      <SelectItem value="Caso Crítico" className="text-[10px] font-bold uppercase text-red-600">⚠ Caso Crítico (Manual)</SelectItem>
+                      <SelectItem value="Arquivado" className="text-[10px] font-bold uppercase">Arquivado</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label className="uppercase text-[9px] font-black text-muted-foreground">Observações Técnicas</Label>
