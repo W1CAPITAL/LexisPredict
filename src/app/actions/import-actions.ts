@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -174,7 +173,7 @@ export async function importCsvAction(csvText: string) {
       console.error('[Import DB Error]', error);
       return { 
         success: false, 
-        imported: 0,
+        imported: 0, 
         skipped: records.length,
         skipReasons: [{ reason: 'ERRO_BANCO_DADOS', count: records.length }],
         message: 'Falha na gravação dos dados no repositório.' 
@@ -197,8 +196,8 @@ export async function importCsvAction(csvText: string) {
     console.error('[Import Critical]', err);
     return { 
       success: false, 
-      imported: 0,
-      skipped: 0,
+      imported: 0, 
+      skipped: 0, 
       skipReasons: [],
       message: 'Erro crítico no processamento neural da planilha.' 
     };
