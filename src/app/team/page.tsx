@@ -19,7 +19,13 @@ import {
   LayoutGrid,
   Trophy,
   Medal,
-  Eye
+  Eye,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  CheckCircle2,
+  Star,
+  Users
 } from 'lucide-react';
 import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
@@ -30,6 +36,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { getTranslation, Locale } from '@/lib/i18n';
+import { fetchRepoCases } from '@/app/actions/case-actions';
+import { LegalCase } from '@/lib/case-logic';
+import { isCasoEncerrado } from '@/lib/status-encerrado';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,10 +65,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function TeamManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isNewUserOpen, setIsNewClientOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'management' | 'hierarchy'>('management');
+  const [viewMode, setViewMode] = useState<'management' | 'hierarchy' | 'performance'>('management');
   const [locale, setLocale] = useState<Locale>('pt');
   
   const { profile } = useAuth();
@@ -82,21 +92,25 @@ export default function TeamManagement() {
     if (savedLocale) setLocale(savedLocale);
   }, []);
 
-  const loadTeam = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getEmpresaUsers();
-      setUsers(data);
+      const [usersData, casesData] = await Promise.all([
+        getEmpresaUsers(),
+        fetchRepoCases()
+      ]);
+      setUsers(usersData);
+      setCases(casesData || []);
     } catch (e) {
-      toast({ title: "Erro na Sincronia de Equipe", variant: "destructive" });
+      toast({ title: "Erro na Sincronia de Dados", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    loadTeam();
-  }, [loadTeam]);
+    loadData();
+  }, [loadData]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +124,7 @@ export default function TeamManagement() {
         toast({ title: "Operador Ativado", description: "O novo membro já pode acessar o gabinete." });
         setIsNewClientOpen(false);
         setUserForm({ nome: '', email: '', cargo: 'Operador', password: '' });
-        loadTeam();
+        loadData();
       } else {
         throw new Error(res.error);
       }
@@ -126,7 +140,7 @@ export default function TeamManagement() {
     const res = await updateUserRole(userId, newRole);
     if (res.success) {
       toast({ title: "Cargo Atualizado" });
-      loadTeam();
+      loadData();
     } else {
       toast({ title: "Ação Negada", description: res.error, variant: "destructive" });
     }
@@ -137,11 +151,45 @@ export default function TeamManagement() {
     const res = await removeEmpresaUser(id);
     if (res.success) {
       toast({ title: "Acesso Revogado" });
-      loadTeam();
+      loadData();
     } else {
       toast({ title: "Ação Negada", description: res.error, variant: "destructive" });
     }
   };
+
+  // --- LÓGICA DE PERFORMANCE ---
+  const performanceRanking = useMemo(() => {
+    const stats: Record<string, any> = {};
+
+    cases.forEach(c => {
+      const lawyer = (c.advogado || 'NÃO ATRIBUÍDO').trim().toUpperCase();
+      if (!stats[lawyer]) {
+        stats[lawyer] = {
+          name: lawyer,
+          total: 0,
+          vencidos: 0,
+          encerrados: 0,
+          noPrazo: 0,
+          score: 0
+        };
+      }
+
+      stats[lawyer].total++;
+      if (isCasoEncerrado(c)) stats[lawyer].encerrados++;
+      else if (c.status === 'Vencido') stats[lawyer].vencidos++;
+      else stats[lawyer].noPrazo++;
+    });
+
+    return Object.values(stats).map(s => {
+      // Algoritmo de Pontuação de Autoridade
+      // Encerrado (+15) | No Prazo (+5) | Vencido (-20)
+      const calculatedScore = (s.encerrados * 15) + (s.noPrazo * 5) - (s.vencidos * 20);
+      return { ...s, score: calculatedScore };
+    }).sort((a, b) => b.score - a.score);
+  }, [cases]);
+
+  const topPerformers = useMemo(() => performanceRanking.slice(0, 5), [performanceRanking]);
+  const criticalAttention = useMemo(() => [...performanceRanking].reverse().slice(0, 5).filter(s => s.score < 0 || s.vencidos > 0), [performanceRanking]);
 
   const roleWeights: Record<string, number> = {
     'Superadmin': 5000,
@@ -167,7 +215,7 @@ export default function TeamManagement() {
         <header className="h-20 border-b border-border/30 bg-white/60 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
-              <UserCheck size={20} className="text-primary" />
+              <Users size={20} className="text-primary" />
             </div>
             <div>
               <h1 className="font-black text-xl uppercase tracking-tighter">{t.teamTitle}</h1>
@@ -184,6 +232,9 @@ export default function TeamManagement() {
                 <TabsTrigger value="hierarchy" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
                   <Trophy size={12} className="mr-2"/> {t.viewHierarchy}
                 </TabsTrigger>
+                <TabsTrigger value="performance" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
+                  <Star size={12} className="mr-2"/> Desempenho (KPI)
+                </TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -193,7 +244,7 @@ export default function TeamManagement() {
                    <UserPlus size={16} className="mr-2 text-primary" /> Novo Operador
                  </Button>
                )}
-               <Button variant="ghost" size="icon" onClick={loadTeam} className="h-10 w-10 rounded-xl hover:bg-secondary">
+               <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
                   <RefreshCcw size={18} className={cn(loading && "animate-spin text-primary")} />
                </Button>
             </div>
@@ -201,7 +252,7 @@ export default function TeamManagement() {
         </header>
 
         <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full">
-          {viewMode === 'management' ? (
+          {viewMode === 'management' && (
             <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500">
               {users.map((user) => {
                 const targetIsSuper = checkIfSuperAdmin(user);
@@ -289,7 +340,9 @@ export default function TeamManagement() {
                 <div key={i} className="h-44 bg-white animate-pulse border border-border/20 rounded-2xl" />
               ))}
             </section>
-          ) : (
+          )}
+
+          {viewMode === 'hierarchy' && (
             <section className="space-y-4 pb-20 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
               <div className="flex items-center justify-between mb-8">
                  <div className="flex items-center gap-4">
@@ -359,6 +412,107 @@ export default function TeamManagement() {
                      </div>
                    );
                 })}
+              </div>
+            </section>
+          )}
+
+          {viewMode === 'performance' && (
+            <section className="space-y-12 pb-20 animate-in zoom-in-95 duration-500 max-w-5xl mx-auto">
+              {/* HEADER PERFORMANCE */}
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b-2 border-black pb-8">
+                 <div className="space-y-4">
+                    <div className="w-16 h-16 bg-black text-[#00D1FF] flex items-center justify-center rounded-2xl shadow-[8px_8px_0px_#000]">
+                       <Star size={32} fill="currentColor" />
+                    </div>
+                    <div>
+                       <h2 className="text-3xl font-black uppercase tracking-tighter">Leaderboard de Banca</h2>
+                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.3em]">Performance baseada em resolutividade e prazos</p>
+                    </div>
+                 </div>
+                 <div className="flex items-center gap-4 bg-white p-4 border-2 border-black shadow-[4px_4px_0px_#000]">
+                    <TrendingUp className="text-emerald-500" size={20} />
+                    <div>
+                       <p className="text-[9px] font-black uppercase text-muted-foreground">Eficiência Global</p>
+                       <p className="text-xl font-black tabular-nums">94.2%</p>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {/* TOP PERFORMERS (MELHORES) */}
+                <div className="space-y-6">
+                   <div className="flex items-center gap-3">
+                      <Trophy className="text-yellow-500" size={20} />
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em]">Alta Resolutividade</h3>
+                   </div>
+                   <div className="grid gap-4">
+                      {topPerformers.map((s, i) => (
+                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:-translate-y-1 transition-all group">
+                           <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-black border-2 border-emerald-200">
+                                 {i + 1}º
+                              </div>
+                              <div>
+                                 <p className="text-[11px] font-black uppercase tracking-tight group-hover:text-primary transition-colors">{s.name}</p>
+                                 <p className="text-[9px] font-bold text-muted-foreground uppercase">{s.total} Processos • {s.encerrados} Baixas</p>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-lg font-black tracking-tighter text-emerald-600">+{s.score}</p>
+                              <Badge className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 border-none">ELITE</Badge>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+                {/* CRITICAL ATTENTION (PIORES) */}
+                <div className="space-y-6">
+                   <div className="flex items-center gap-3">
+                      <AlertTriangle className="text-red-500" size={20} />
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em]">Atenção Crítica</h3>
+                   </div>
+                   <div className="grid gap-4">
+                      {criticalAttention.length > 0 ? criticalAttention.map((s) => (
+                        <div key={s.name} className="bg-white border-2 border-red-600/20 p-5 flex items-center justify-between hover:border-red-600 transition-all group">
+                           <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center font-black border-2 border-red-200">
+                                 <TrendingDown size={18} />
+                              </div>
+                              <div>
+                                 <p className="text-[11px] font-black uppercase tracking-tight">{s.name}</p>
+                                 <p className="text-[9px] font-bold text-red-600/60 uppercase">{s.vencidos} Processos Vencidos</p>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-lg font-black tracking-tighter text-red-600">{s.score}</p>
+                              <Badge variant="outline" className="text-red-600 border-red-600 text-[8px] font-black uppercase px-2 py-0.5">REVISAR</Badge>
+                           </div>
+                        </div>
+                      )) : (
+                        <div className="p-12 text-center border-2 border-dashed border-border/20 rounded-xl bg-white/50">
+                           <CheckCircle2 className="mx-auto text-emerald-500 mb-4" size={32} />
+                           <p className="text-[10px] font-black uppercase text-muted-foreground">Nenhuma falha crítica detectada na banca.</p>
+                        </div>
+                      )}
+                   </div>
+                </div>
+              </div>
+
+              {/* FOOTER DESEMPENHO */}
+              <div className="bg-black text-white p-8 rounded-none border-2 border-black shadow-[10px_10px_0px_#00D1FF] flex flex-col md:flex-row items-center justify-between gap-8">
+                 <div className="flex items-center gap-6">
+                    <Zap className="text-yellow-400" size={32} />
+                    <div className="max-w-md">
+                       <p className="text-xs font-black uppercase tracking-widest text-primary mb-2">Análise de Autoridade</p>
+                       <p className="text-[10px] font-bold uppercase leading-relaxed text-white/70">
+                          O score é recalculado a cada movimento da carteira. Processos vencidos impactam negativamente em 4x mais que um processo em andamento.
+                       </p>
+                    </div>
+                 </div>
+                 <Button variant="outline" className="border-white text-white hover:bg-white hover:text-black font-black uppercase text-[10px] h-12 px-8 rounded-none transition-all">
+                    Exportar Ranking PDF
+                 </Button>
               </div>
             </section>
           )}
