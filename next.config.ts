@@ -1,20 +1,20 @@
-import type { NextConfig } from 'next';
+import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
   },
+  serverExternalPackages: ['tesseract.js', 'pdfjs-dist', 'pdf-parse'],
   experimental: {
-    // Mantido como no seu projeto estável (Next 15.1.11)
-    serverComponentsExternalPackages: ['tesseract.js', 'pdfjs-dist', 'pdf-parse'],
     serverActions: {
       bodySizeLimit: '10mb',
     },
   },
-  async headers() {
+  headers: async () => {
     return [
       {
         source: '/:path*',
@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
-          },
+          }
         ],
       },
     ];
