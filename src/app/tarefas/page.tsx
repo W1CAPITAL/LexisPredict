@@ -36,7 +36,9 @@ import {
   PlayCircle,
   Sparkles,
   Gavel,
-  User
+  User,
+  Building2,
+  Filter
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -79,6 +81,7 @@ interface TaskGroup {
   protocoloReferencia: string;
   telefone: string;
   advogado: string;
+  escritorio?: string;
   cases: LegalCase[];
 }
 
@@ -86,6 +89,7 @@ export default function TarefasPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [officeFilter, setOfficeFilter] = useState('ALL');
   const [dailyMeta, setDailyMeta] = useState(25);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
   const [showBacklog, setShowBacklog] = useState(false);
@@ -146,6 +150,11 @@ export default function TarefasPage() {
     loadData();
   }, [loadData]);
 
+  const offices = useMemo(() => {
+    const list = Array.from(new Set(cases.map(c => c.escritorio))).filter(Boolean).sort();
+    return list;
+  }, [cases]);
+
   const taskData = useMemo(() => {
     const groups: Record<string, TaskGroup> = {};
     const contactedSet = new Set(contatadosHoje);
@@ -154,6 +163,9 @@ export default function TarefasPage() {
 
     activeCases.forEach(c => {
       if (c.status !== 'Vencido' && c.status !== 'É Hoje') return;
+      
+      // Filtro de Escritório (Independente)
+      if (officeFilter !== 'ALL' && c.escritorio !== officeFilter) return;
 
       const nome = c.cliente || 'NÃO IDENTIFICADO';
       if (!groups[nome]) {
@@ -166,6 +178,7 @@ export default function TarefasPage() {
           protocoloReferencia: c.protocolo,
           telefone: c.telefone || '',
           advogado: c.advogado || 'NÃO ATRIBUÍDO',
+          escritorio: c.escritorio,
           cases: []
         };
       }
@@ -203,7 +216,7 @@ export default function TarefasPage() {
       completed: done,
       totalPendingCount: pending.length
     };
-  }, [cases, search, contatadosHoje, dailyMeta]);
+  }, [cases, search, officeFilter, contatadosHoje, dailyMeta]);
 
   const openAttendance = (group: TaskGroup) => {
     setActiveGroup(group);
@@ -303,7 +316,40 @@ export default function TarefasPage() {
             </section>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white border border-border/40 p-4 rounded-2xl shadow-sm">
+               <div className="flex flex-1 items-center gap-4 w-full max-w-2xl">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                    <Input 
+                      placeholder="Pesquisar cliente na fila..." 
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-11 h-11 bg-secondary/30 border-none rounded-xl text-xs font-bold uppercase focus-visible:ring-primary/20"
+                    />
+                  </div>
+                  <div className="w-64">
+                    <Select value={officeFilter} onValueChange={setOfficeFilter}>
+                      <SelectTrigger className="h-11 bg-secondary/30 border-none rounded-xl text-[10px] font-black uppercase">
+                        <div className="flex items-center gap-2">
+                          <Building2 size={14} className="text-primary" />
+                          <SelectValue placeholder="ESCRITÓRIO" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL" className="text-[10px] font-black uppercase">TODOS OS ESCRITÓRIOS</SelectItem>
+                        {offices.map(o => (
+                          <SelectItem key={o} value={o} className="text-[10px] font-black uppercase">{o}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+               </div>
+               <Badge variant="secondary" className="bg-secondary/50 border-none font-black text-[9px] uppercase px-4 h-11 flex items-center gap-2">
+                 <Filter size={14} className="text-primary" /> {taskData.totalPendingCount} Pendentes
+               </Badge>
+            </div>
+
             <div className="flex items-center gap-3">
               <Target size={18} className="text-primary" />
               <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Foco Prioritário do Dia</h2>
@@ -422,9 +468,17 @@ function TaskCard({ group, isFocus = false, onMarkContacted }: { group: TaskGrou
       <div className="space-y-1 flex-1">
         <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate">{group.cliente}</h3>
         <p className="text-[9px] font-bold text-muted-foreground uppercase">Ref: {group.protocoloReferencia}</p>
-        <div className="flex items-center gap-1.5 mt-2 text-primary font-black uppercase text-[8px] tracking-widest bg-primary/5 px-2 py-1 rounded-md w-fit">
-          <Gavel size={10} />
-          {group.advogado}
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+           <div className="flex items-center gap-1.5 text-primary font-black uppercase text-[8px] tracking-widest bg-primary/5 px-2 py-1 rounded-md w-fit">
+             <Gavel size={10} />
+             {group.advogado}
+           </div>
+           {group.escritorio && (
+             <div className="flex items-center gap-1.5 text-slate-500 font-black uppercase text-[8px] tracking-widest bg-slate-100 px-2 py-1 rounded-md w-fit">
+               <Building2 size={10} />
+               {group.escritorio}
+             </div>
+           )}
         </div>
       </div>
       <div className="mt-8 pt-6 border-t border-border/30 flex items-center justify-between">
