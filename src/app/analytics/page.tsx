@@ -40,6 +40,9 @@ import {
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
+const CHART_TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 as const };
+const CHART_TICK_LIGHT = { fill: 'rgba(255,255,255,0.55)', fontSize: 9, fontWeight: 900 as const };
+
 export default function AnalyticsPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,7 +211,7 @@ export default function AnalyticsPage() {
                 <div className="lg:col-span-2 h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={metrics?.officePerformance.slice(0, 8)}>
-                      <XAxis dataKey="name" fontSize={9} fontWeight={900} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)'}} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_TICK_LIGHT} />
                       <YAxis hide />
                       <Tooltip 
                         cursor={{fill: 'rgba(255,255,255,0.05)'}}
@@ -228,22 +231,19 @@ export default function AnalyticsPage() {
 
             {/* TRIBUNAL ANALYSIS */}
             <div className="xl:col-span-8 premium-card p-8 bg-white min-h-[400px] flex flex-col border-none">
-              <div className="flex items-center justify-between mb-10">
-                <div className="flex items-center gap-3">
-                  <Scale size={18} className="text-muted-foreground" />
-                  <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Volumetria por Tribunal</h3>
-                </div>
-                <Badge variant="secondary" className="bg-secondary/50 border-none text-[10px] font-black uppercase px-3 py-1 rounded-full">Top 6 Instâncias</Badge>
+              <div className="flex items-center gap-3 mb-10">
+                <Scale size={18} className="text-muted-foreground" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Volumetria por Tribunal</h3>
               </div>
               <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={metrics?.topTribunals || []}>
-                    <XAxis dataKey="name" fontSize={10} fontWeight={900} axisLine={false} tickLine={false} tick={{fill: '#000'}} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_TICK_DARK} />
                     <YAxis hide />
                     <Tooltip 
                       cursor={{fill: '#f1f5f9'}}
-                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#000'}}
-                      itemStyle={{color: '#000'}}
+                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#0a0a0a'}}
+                      itemStyle={{color: '#0a0a0a'}}
                     />
                     <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
                       {metrics?.topTribunals.map((entry, index) => (
@@ -277,8 +277,8 @@ export default function AnalyticsPage() {
                       ))}
                     </Pie>
                     <Tooltip 
-                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#000'}}
-                      itemStyle={{color: '#000'}}
+                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#0a0a0a'}}
+                      itemStyle={{color: '#0a0a0a'}}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -295,12 +295,9 @@ export default function AnalyticsPage() {
 
             {/* LAWYER PERFORMANCE */}
             <div className="xl:col-span-12 premium-card p-8 bg-white min-h-[400px] flex flex-col border-none">
-              <div className="flex items-center justify-between mb-10">
-                <div className="flex items-center gap-3">
-                  <Gavel size={18} className="text-muted-foreground" />
-                  <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição por Advogado</h3>
-                </div>
-                <Badge variant="secondary" className="bg-secondary/50 border-none text-[10px] font-black uppercase px-3 py-1 rounded-full">Top 6 Banca</Badge>
+              <div className="flex items-center gap-3 mb-10">
+                <Gavel size={18} className="text-muted-foreground" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição por Advogado</h3>
               </div>
               <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
@@ -309,17 +306,15 @@ export default function AnalyticsPage() {
                     <YAxis 
                       dataKey="name" 
                       type="category" 
-                      fontSize={10} 
-                      fontWeight={900} 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#000'}} 
+                      tick={CHART_TICK_DARK} 
                       width={150}
                     />
                     <Tooltip 
                       cursor={{fill: '#f1f5f9'}}
-                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#000'}}
-                      itemStyle={{color: '#000'}}
+                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#0a0a0a'}}
+                      itemStyle={{color: '#0a0a0a'}}
                     />
                     <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={30}>
                       {metrics?.topLawyers.map((entry, index) => (
