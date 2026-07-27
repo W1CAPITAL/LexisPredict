@@ -1,3 +1,4 @@
+
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -260,16 +261,30 @@ export default function Dashboard() {
                <section className="premium-card p-8 h-[440px] flex flex-col">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-10">Status da Carteira</h3>
                   <div className="flex-1 min-h-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={metrics.statusData} innerRadius={70} outerRadius={100} paddingAngle={8} dataKey="value" stroke="none">
-                          {metrics.statusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', textTransform: 'uppercase', fontSize: '10px', fontWeight: '900', backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--foreground))' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {metrics.statusData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={metrics.statusData} innerRadius={70} outerRadius={100} paddingAngle={8} dataKey="value" stroke="none">
+                            {metrics.statusData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              borderRadius: '12px', 
+                              border: '1px solid #e2e8f0', 
+                              textTransform: 'uppercase', 
+                              fontSize: '10px', 
+                              fontWeight: '900', 
+                              backgroundColor: '#ffffff', 
+                              color: '#0a0a0a' 
+                            }} 
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados operacionais</p>
+                    )}
                   </div>
                </section>
                <section className="bg-primary text-primary-foreground p-8 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden group">
