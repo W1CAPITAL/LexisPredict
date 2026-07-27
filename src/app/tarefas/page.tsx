@@ -458,7 +458,7 @@ function TaskCard({ group, isFocus = false, onMarkContacted }: { group: TaskGrou
           ) : (
             <Badge className="bg-blue-50 text-blue-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Prazo Hoje</Badge>
           )}
-          <div className="text-[8px] font-black text-primary/60 uppercase tracking-widest flex items-center gap-1"><Sparkles size={8}/> Prob. {prob}%</div>
+          <div className="text-[8px] font-black text-primary/60 uppercase tracking-widest flex items-center gap-1" title="Estimativa automática — não é garantia"><Sparkles size={8}/> Prob. {prob}%</div>
         </div>
       </div>
       <div className="space-y-1 flex-1">
