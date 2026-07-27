@@ -92,7 +92,7 @@ const CaseRow = React.memo(({
           <Badge variant="outline" className="bg-card border-border/50 font-black text-[9px] text-muted-foreground uppercase rounded-md h-7 px-3 w-fit">
             {c.tribunal}
           </Badge>
-          <div className="flex items-center gap-1 text-[8px] font-black text-primary/60 uppercase tracking-tighter" title="Estimativa heurística automática">
+          <div className="flex items-center gap-1 text-[8px] font-black text-primary/60 uppercase tracking-tighter" title="Estimativa automática — não é garantia">
             <Sparkles size={10} /> Prob. Encerramento: {prob}%
           </div>
         </div>
