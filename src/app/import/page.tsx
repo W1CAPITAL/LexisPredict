@@ -13,8 +13,11 @@ import {
   Eye, 
   Loader2,
   Copyright,
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
+import { mapCsvRowToCanonical, sanitizeDateCell, sanitizeProtocolo } from '@/lib/csv-import-engine';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +36,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+/**
+ * Utilitário de Parsing Robusto para Preview
+ */
 function parseCsvRow(row: string, separator: string): string[] {
   const result: string[] = [];
   let current = '';
@@ -66,15 +72,10 @@ export default function ImportPage() {
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
   const [textInput, setTextInput] = useState('');
   const [rawCsvText, setRawCsvText] = useState('');
-  const [stats, setStats] = useState({ total: 0, critical: 0, tribunals: 0 });
+  const [stats, setStats] = useState({ total: 0, valid: 0, skipped: 0, critical: 0, tribunals: 0 });
 
   const { isOperador } = useAdmin();
   const { toast } = useToast();
-
-  const getThresholds = useCallback(() => {
-    const saved = localStorage.getItem('lexisPredict_urgency_alert');
-    return { alertLimit: saved ? parseInt(saved) : 3 };
-  }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -112,8 +113,9 @@ export default function ImportPage() {
   };
 
   const processRawText = async (text: string) => {
-    const separator = text.includes(';') ? ';' : ',';
-    const thresholds = getThresholds();
+    // Detecção de separador
+    const firstLine = text.split('\n')[0] || '';
+    const separator = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
     
     const lines: string[] = [];
     let currentLine = '';
@@ -131,8 +133,8 @@ export default function ImportPage() {
 
     const filteredLines = lines.filter(l => l.trim().length > 0);
     
-    if (filteredLines.length < 1) {
-      toast({ title: "Entrada Vazia", variant: "destructive" });
+    if (filteredLines.length < 2) {
+      toast({ title: "Entrada Inválida", description: "O arquivo deve conter ao menos cabeçalho e um registro.", variant: "destructive" });
       setParsing(false);
       return;
     }
@@ -140,6 +142,10 @@ export default function ImportPage() {
     const parsedCases: LegalCase[] = [];
     const totalRows = filteredLines.length;
     const rawHeaders = parseCsvRow(filteredLines[0], separator);
+    let valid = 0;
+    let skipped = 0;
+
+    const alertLimit = parseInt(localStorage.getItem('lexisPredict_urgency_alert') || '3');
 
     for (let i = 1; i < filteredLines.length; i++) {
       let rowData: any = {};
@@ -149,13 +155,25 @@ export default function ImportPage() {
         rowData[h] = fields[index] || '';
       });
 
-      if (Object.keys(rowData).length > 0) {
+      // Aplicação do Motor Canônico
+      const canonical = mapCsvRowToCanonical(rowData);
+      const cleanProtocolo = sanitizeProtocolo(canonical.protocolo);
+
+      if (cleanProtocolo && cleanProtocolo.length >= 8) {
         try {
-          const processed = processarCaso(rowData, thresholds);
+          const processed = processarCaso({
+            ...canonical,
+            protocolo: cleanProtocolo,
+            statusManual: 'Automatico'
+          }, { alertLimit });
+          
           parsedCases.push(processed);
+          valid++;
         } catch (e) {
-          console.warn(`Erro ao processar linha ${i}:`, e);
+          skipped++;
         }
+      } else {
+        skipped++;
       }
       
       if (i % 50 === 0) {
@@ -166,7 +184,9 @@ export default function ImportPage() {
 
     setPreview(parsedCases);
     setStats({
-      total: parsedCases.length,
+      total: totalRows - 1,
+      valid,
+      skipped,
       critical: parsedCases.filter(c => c.risco === 'Crítico').length,
       tribunals: new Set(parsedCases.map(c => c.tribunal)).size
     });
@@ -176,7 +196,7 @@ export default function ImportPage() {
 
   const commitToStorage = async () => {
     if (!isOperador) {
-       toast({ title: "Acesso Negado", description: "Permissão insuficiente.", variant: "destructive" });
+       toast({ title: "Acesso Negado", description: "Permissão insuficiente para alterar o repositório.", variant: "destructive" });
        return;
     }
     if (!rawCsvText) return;
@@ -185,11 +205,12 @@ export default function ImportPage() {
     try {
       const result = await importCsvAction(rawCsvText);
       if (result.success) {
-        toast({ title: "Sincronia Concluída", description: result.message });
-        setPreview([]);
-        setRawCsvText('');
-        setTextInput('');
-        setStep('upload');
+        toast({ 
+          title: "Sincronia Concluída", 
+          description: result.message,
+          variant: "default"
+        });
+        resetImport();
       } else {
         toast({ title: "Falha na Gravação", description: result.error, variant: "destructive" });
       }
@@ -215,8 +236,8 @@ export default function ImportPage() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-8 shrink-0 z-40">
           <div className="flex items-center gap-4">
-            <h1 className="font-black text-xl text-black uppercase hover:bg-black hover:text-white px-2 py-1 transition-all rounded-sm cursor-default">Ingestão de Dados</h1>
-            <Badge variant="outline" className="border-black text-black font-black uppercase text-[10px]">Cloud Repository</Badge>
+            <h1 className="font-black text-xl text-black uppercase hover:bg-black hover:text-white px-2 py-1 transition-all rounded-sm cursor-default">Ingestão SaaS Pro</h1>
+            <Badge variant="outline" className="border-black text-black font-black uppercase text-[10px]">Neural Mapping v2.0</Badge>
           </div>
           <div className="flex items-center gap-4">
              {step === 'preview' && (
@@ -238,7 +259,7 @@ export default function ImportPage() {
                <div className="text-center space-y-4 mb-8">
                   <h2 className="text-3xl font-black uppercase tracking-tighter">Unidade de Migração</h2>
                   <p className="text-black/60 max-w-2xl mx-auto text-sm font-black uppercase leading-relaxed">
-                    Carregue seu dump de banco ou cole o texto do CSV. O sistema detectará automaticamente o formato e corrigirá erros de codificação e datas.
+                    Carregue seu dump de banco ou cole o texto do CSV. O sistema detectará automaticamente o formato, mapeará as colunas de assessoria e corrigirá erros de datas sujas.
                   </p>
                </div>
 
@@ -291,15 +312,15 @@ export default function ImportPage() {
           ) : (
             <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <StatItem label="Total Detectado" value={stats.total} />
-                  <StatItem label="Tribunais Únicos" value={stats.tribunals} />
-                  <StatItem label="Alertas Críticos" value={stats.critical} color="text-red-600" />
-                  <StatItem label="Status Dados" value="SANEADOS" color="text-green-600" />
+                  <StatItem label="Total Linhas" value={stats.total} icon={<Database size={14}/>} />
+                  <StatItem label="Processáveis" value={stats.valid} color="text-green-600" icon={<CheckCircle2 size={14}/>} />
+                  <StatItem label="Ignorados" value={stats.skipped} color="text-red-600" icon={<AlertCircle size={14}/>} />
+                  <StatItem label="Tribunais" value={stats.tribunals} />
                </div>
 
                <div className="bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] overflow-hidden">
                   <div className="bg-black text-white p-4 flex items-center justify-between">
-                     <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Eye size={16} /> Preview de Higiene (Lote {stats.total})</h3>
+                     <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Eye size={16} /> Preview de Higiene (Exibindo {preview.length} válidos)</h3>
                      <Badge variant="outline" className="text-white border-white font-black text-[9px] uppercase">Isolamento por Operador Ativo</Badge>
                   </div>
                   <div className="max-h-[500px] overflow-auto bg-[#fafafa]">
@@ -350,10 +371,13 @@ export default function ImportPage() {
   );
 }
 
-function StatItem({ label, value, color = "text-black" }: { label: string, value: string | number, color?: string }) {
+function StatItem({ label, value, color = "text-black", icon }: { label: string, value: string | number, color?: string, icon?: React.ReactNode }) {
   return (
     <div className="bg-white border-2 border-black p-5 shadow-[4px_4px_0px_#000]">
-       <p className="text-[9px] font-black text-black/40 uppercase mb-1 tracking-widest">{label}</p>
+       <div className="flex items-center justify-between mb-1">
+          <p className="text-[9px] font-black text-black/40 uppercase tracking-widest">{label}</p>
+          {icon}
+       </div>
        <p className={cn("text-2xl font-black uppercase", color)}>{value}</p>
     </div>
   );
