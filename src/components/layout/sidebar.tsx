@@ -41,7 +41,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/auth/auth-provider';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { getTranslation, Locale } from '@/lib/i18n';
-import { checkIfSuperAdmin } from '@/lib/supabase';
+import { checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
 import { useAppStore } from '@/store/use-app-store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { InstallAppButton } from '@/components/mobile/InstallAppButton';
@@ -58,7 +58,8 @@ export function Sidebar() {
   const t = getTranslation(locale);
   
   const isSuperAdmin = checkIfSuperAdmin(profile);
-  const isAdmin = profile?.cargo === 'Administrador' || isSuperAdmin;
+  const isSupervisor = checkIfSupervisor(profile);
+  const isAdmin = profile?.cargo === 'Administrador' || isSuperAdmin || isSupervisor;
 
   useEffect(() => {
     const savedLocale = localStorage.getItem('lexisPredict_locale') as Locale;
