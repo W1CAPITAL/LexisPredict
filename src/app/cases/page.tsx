@@ -19,17 +19,18 @@ import {
   Clock, 
   Copyright, 
   MessageCircle, 
-  Zap,
-  Loader2,
-  CalendarDays,
-  Filter,
-  Download,
-  ShieldAlert,
-  Eye,
-  EyeOff,
-  Sparkles,
-  User,
-  Calendar
+  Zap, 
+  Loader2, 
+  CalendarDays, 
+  Filter, 
+  Download, 
+  ShieldAlert, 
+  Eye, 
+  EyeOff, 
+  Sparkles, 
+  User, 
+  Calendar,
+  UserCheck
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -123,30 +124,26 @@ const CaseRow = React.memo(({
       <td className="px-8 py-5 text-right">
         <div className="flex items-center justify-end gap-2">
           {isOperador && (
-            <Button title="Registrar Atendimento Hoje" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onLogReturn(c.protocolo); }} className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 h-9 w-9 rounded-lg">
+            <button title="Registrar Atendimento Hoje" onClick={(e) => { e.stopPropagation(); onLogReturn(c.protocolo); }} className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
               <CheckCircle2 size={18} />
-            </Button>
+            </button>
           )}
           {c.telefone && (
-             <Button title="WhatsApp" variant="ghost" size="icon" asChild className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-all h-9 w-9 rounded-lg">
-               <a href={formatWhatsAppLink(c.telefone)} target="_blank" rel="noopener noreferrer">
-                 <MessageCircle size={18} />
-               </a>
-             </Button>
+             <a href={formatWhatsAppLink(c.telefone)} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-all h-9 w-9 flex items-center justify-center rounded-lg">
+               <MessageCircle size={18} />
+             </a>
           )}
-          <Button title="Tribunal" variant="ghost" size="icon" asChild className="text-muted-foreground hover:bg-secondary h-9 w-9 rounded-lg">
-            <a href={c.linkConsulta} target="_blank" rel="noopener noreferrer">
-              <ExternalLink size={18} />
-            </a>
-          </Button>
+          <a href={c.linkConsulta} target="_blank" rel="noopener noreferrer" title="Tribunal" className="text-muted-foreground hover:bg-secondary h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
+            <ExternalLink size={18} />
+          </a>
           {isOperador && (
             <>
-              <Button title="Editar" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onEdit(c); }} className="text-muted-foreground hover:bg-secondary h-9 w-9 rounded-lg">
+              <button title="Editar" onClick={(e) => { e.stopPropagation(); onEdit(c); }} className="text-muted-foreground hover:bg-secondary h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
                 <Edit2 size={18} />
-              </Button>
-              <Button title="Excluir" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className="text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 h-9 w-9 rounded-lg">
+              </button>
+              <button title="Excluir" onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className="text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
                 <Trash2 size={18} />
-              </Button>
+              </button>
             </>
           )}
         </div>
