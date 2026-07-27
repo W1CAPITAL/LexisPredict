@@ -25,6 +25,7 @@ import { LegalCase } from '@/lib/case-logic';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases } from '@/app/actions/case-actions';
 import { 
   ResponsiveContainer, 
@@ -43,6 +44,7 @@ export default function AnalyticsPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
@@ -105,7 +107,6 @@ export default function AnalyticsPage() {
       .map(([name, count]) => ({ name, count }));
 
     const officePerformance = Object.values(officeStats).map(o => {
-      // Score de Higiene: Baixas valem mais, Vencidos penalizam severamente
       const score = (o.encerrados * 15) + (o.healthy * 5) - (o.vencidos * 25);
       return { ...o, score };
     }).sort((a, b) => b.score - a.score);
@@ -120,7 +121,10 @@ export default function AnalyticsPage() {
     return { total, totalAtivos, statusCounts, topTribunals, topLawyers, officePerformance, pieData };
   }, [cases]);
 
-  const handleExportPDF = () => window.print();
+  const handleExportPDF = () => {
+    toast({ title: "Preparando Dossiê", description: "Otimizando visualização para exportação..." });
+    setTimeout(() => window.print(), 500);
+  };
 
   if (!mounted) return null;
 
@@ -155,38 +159,38 @@ export default function AnalyticsPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-            {/* OFFICE PERFORMANCE ANALYSIS - O QUE VOCÊ PROCURAVA */}
-            <div className="xl:col-span-12 premium-card p-8 bg-black text-white min-h-[400px] flex flex-col relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+            {/* OFFICE PERFORMANCE ANALYSIS */}
+            <div className="xl:col-span-12 premium-card p-8 bg-black text-white min-h-[400px] flex flex-col relative overflow-hidden print:bg-white print:text-black print:border-black">
+              <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none print:hidden">
                  <Building2 size={200} />
               </div>
               <div className="flex items-center justify-between mb-10 relative z-10">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 bg-primary/20 rounded-lg text-primary">
+                  <div className="p-2 bg-primary/20 rounded-lg text-primary print:text-black">
                     <Zap size={20} />
                   </div>
                   <div>
                     <h3 className="text-lg font-black uppercase tracking-tight">Ranking de Eficiência por Escritório</h3>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Avaliação baseada em Resolutividade (Baixas) vs Inércia (Vencidos)</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 print:text-black/40">Avaliação baseada em Resolutividade (Baixas) vs Inércia (Vencidos)</p>
                   </div>
                 </div>
-                <Badge variant="outline" className="border-white/20 text-white font-black uppercase text-[10px] px-4 py-1.5 rounded-none">Auditoria Neural Ativa</Badge>
+                <Badge variant="outline" className="border-white/20 text-white font-black uppercase text-[10px] px-4 py-1.5 rounded-none print:border-black print:text-black">Auditoria Neural Ativa</Badge>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 relative z-10">
                 {/* Ranking List */}
                 <div className="lg:col-span-1 space-y-4">
                   {metrics?.officePerformance.slice(0, 5).map((office, i) => (
-                    <div key={office.name} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                    <div key={office.name} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors print:border-black print:bg-transparent">
                       <div className="flex items-center gap-4">
-                         <span className="text-primary font-black text-lg">#{i+1}</span>
+                         <span className="text-primary font-black text-lg print:text-black">#{i+1}</span>
                          <div>
                             <p className="text-[11px] font-black uppercase truncate max-w-[150px]">{office.name}</p>
-                            <p className="text-[9px] font-bold text-white/40 uppercase">{office.total} Casos Totais</p>
+                            <p className="text-[9px] font-bold text-white/40 uppercase print:text-black/40">{office.total} Casos Totais</p>
                          </div>
                       </div>
                       <div className="text-right">
-                         <p className={cn("text-lg font-black tracking-tighter", office.score > 0 ? "text-emerald-400" : "text-red-400")}>
+                         <p className={cn("text-lg font-black tracking-tighter", office.score > 0 ? "text-emerald-400 print:text-emerald-600" : "text-red-400 print:text-red-600")}>
                            {office.score > 0 ? `+${office.score}` : office.score}
                          </p>
                          <Badge className={cn(
@@ -208,7 +212,8 @@ export default function AnalyticsPage() {
                       <YAxis hide />
                       <Tooltip 
                         cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                        contentStyle={{backgroundColor: '#000', borderRadius: '0px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase'}}
+                        contentStyle={{backgroundColor: '#000', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#fff'}}
+                        itemStyle={{color: '#00D1FF'}}
                       />
                       <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
                         {metrics?.officePerformance.map((entry, index) => (
@@ -222,7 +227,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* TRIBUNAL ANALYSIS */}
-            <div className="xl:col-span-8 premium-card p-8 bg-white min-h-[400px] flex flex-col">
+            <div className="xl:col-span-8 premium-card p-8 bg-white min-h-[400px] flex flex-col border-none">
               <div className="flex items-center justify-between mb-10">
                 <div className="flex items-center gap-3">
                   <Scale size={18} className="text-muted-foreground" />
@@ -233,11 +238,12 @@ export default function AnalyticsPage() {
               <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={metrics?.topTribunals || []}>
-                    <XAxis dataKey="name" fontSize={10} fontWeight={900} axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
+                    <XAxis dataKey="name" fontSize={10} fontWeight={900} axisLine={false} tickLine={false} tick={{fill: '#000'}} />
                     <YAxis hide />
                     <Tooltip 
                       cursor={{fill: '#f1f5f9'}}
-                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase'}}
+                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#000'}}
+                      itemStyle={{color: '#000'}}
                     />
                     <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
                       {metrics?.topTribunals.map((entry, index) => (
@@ -250,7 +256,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* STATUS DISTRIBUTION */}
-            <div className="xl:col-span-4 premium-card p-8 bg-white h-[400px] flex flex-col">
+            <div className="xl:col-span-4 premium-card p-8 bg-white h-[400px] flex flex-col border-none">
               <div className="flex items-center gap-3 mb-10">
                 <PieChartIcon size={18} className="text-muted-foreground" />
                 <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Higiene da Carteira</h3>
@@ -271,7 +277,8 @@ export default function AnalyticsPage() {
                       ))}
                     </Pie>
                     <Tooltip 
-                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase'}}
+                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#000'}}
+                      itemStyle={{color: '#000'}}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -287,7 +294,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* LAWYER PERFORMANCE */}
-            <div className="xl:col-span-12 premium-card p-8 bg-white min-h-[400px] flex flex-col">
+            <div className="xl:col-span-12 premium-card p-8 bg-white min-h-[400px] flex flex-col border-none">
               <div className="flex items-center justify-between mb-10">
                 <div className="flex items-center gap-3">
                   <Gavel size={18} className="text-muted-foreground" />
@@ -306,12 +313,13 @@ export default function AnalyticsPage() {
                       fontWeight={900} 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fill: '#64748b'}} 
+                      tick={{fill: '#000'}} 
                       width={150}
                     />
                     <Tooltip 
                       cursor={{fill: '#f1f5f9'}}
-                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase'}}
+                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#000'}}
+                      itemStyle={{color: '#000'}}
                     />
                     <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={30}>
                       {metrics?.topLawyers.map((entry, index) => (
