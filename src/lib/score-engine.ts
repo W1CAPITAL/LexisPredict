@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SCORE DUPLO v2.0 - ASSESSOR vs ADVOGADO
+ * MOTOR DE SCORE DUPLO v2.1 - ASSESSOR vs ADVOGADO (COM SCORE NEGATIVO)
  */
 
 import { LegalCase } from "./case-logic";
@@ -32,7 +32,7 @@ const regexCliente = /(cliente.*nao.*resp|cliente.*sumiu|sem.*retorno.*cliente|n
 
 /**
  * SCORE ADVOGADO: Foco Técnico/Jurídico
- * Penaliza apenas erros de peça, forma e resultados de mérito.
+ * Penaliza erros de peça, forma e resultados de mérito.
  */
 export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
   const result: ScoreResult = {
@@ -59,7 +59,7 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
     }
 
     if (regexFormal.test(text)) {
-      const p = isClientFault ? 12 : 25; // Falha mista reduz o peso
+      const p = isClientFault ? 12 : 25; 
       penaltySum += p;
       result.penalidades.push({
         protocolo: c.protocolo,
@@ -91,7 +91,8 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
     }
   });
 
-  result.score = Math.max(0, 100 - penaltySum);
+  // Nota pode ser negativa conforme solicitado (ex: -100)
+  result.score = 100 - penaltySum;
   return result;
 }
 
@@ -121,7 +122,6 @@ export function calcularScoreAssessor(casos: LegalCase[]): ScoreResult {
       result.ignoradosCliente++;
     }
 
-    // Atraso de retorno ao cliente é responsabilidade exclusiva do assessor
     if (c.status === 'Vencido' && !isClientFault) {
       const p = 15;
       penaltySum += p;
@@ -155,6 +155,7 @@ export function calcularScoreAssessor(casos: LegalCase[]): ScoreResult {
     }
   });
 
-  result.score = Math.max(0, 100 - penaltySum);
+  // Nota pode ser negativa conforme solicitado (ex: -100)
+  result.score = 100 - penaltySum;
   return result;
 }
