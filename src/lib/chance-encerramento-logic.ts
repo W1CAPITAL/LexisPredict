@@ -1,5 +1,5 @@
 /**
- * @fileOverview Motor de Análise Qualitativa de Encerramento v100.0
+ * @fileOverview Motor de Análise Qualitativa de Encerramento v111.0
  * Realiza o diagnóstico heurístico da fase processual para estimar a proximidade do fim do litígio.
  * @copyright 2026 W1 Capital / Davi Alves Figueredo
  */
@@ -13,7 +13,7 @@ export interface ChanceAnalysis {
   factors: { label: string; positive: boolean }[];
 }
 
-export function analisarChanceEncerramento(c: any): ChanceAnalysis {
+export function analisarChanceEncerramento(c: any, lawyerPerformanceRate?: number): ChanceAnalysis {
   const text = `${c.situacao || ''} ${c.status || ''} ${c.observacao || ''} ${c.statusManual || ''}`.toUpperCase();
   const factors: { label: string; positive: boolean }[] = [];
   
@@ -29,7 +29,7 @@ export function analisarChanceEncerramento(c: any): ChanceAnalysis {
     };
   }
 
-  // 2. Fatores Positivos (Aumentam a chance)
+  // 2. Fatores Processuais Positivos (Existentes)
   if (text.includes('CUMPRIMENTO DE SENTENÇA')) {
     score += 30;
     factors.push({ label: 'Fase de cumprimento de sentença', positive: true });
@@ -51,7 +51,27 @@ export function analisarChanceEncerramento(c: any): ChanceAnalysis {
     factors.push({ label: 'Trânsito em julgado identificado', positive: true });
   }
 
-  // 3. Fatores Negativos (Diminuem a chance ou indicam início)
+  // 3. Fatores Processuais Positivos (Novos)
+  
+  // CONCLUSO / fase de decisão
+  if (/(CONCLUSO|CONCLUSOS PARA JULGAMENTO|CONCLUSOS PARA DECISÃO|CONCLUSOS PARA DECISAO|PARA JULGAMENTO)/.test(text)) {
+    score += 20;
+    factors.push({ label: 'Processo concluso para decisão/julgamento', positive: true });
+  }
+
+  // Mérito sem recurso explícito no mesmo texto reforça desfecho
+  if (/(IMPROCEDENTE|PROCEDENTE|PARCIALMENTE PROCEDENTE)/.test(text) && !/(RECURSO|APELAÇÃO|APELACAO|AGRAVO)/.test(text)) {
+    score += 15;
+    factors.push({ label: 'Decisão de mérito sem recurso indicado', positive: true });
+  }
+
+  // Cliente sumiu / custas / abandono → risco de extinção (moderado)
+  if (/(NÃO PAGOU AS CUSTAS|NAO PAGOU AS CUSTAS|CLIENTE SE NEGOU|SEM RETORNO DO CLIENTE|ABANDONO DE CAUSA|FALTA DE REGULARIZAÇÃO|FALTA DE REGULARIZACAO)/.test(text)) {
+    score += 12;
+    factors.push({ label: 'Indício de inércia do cliente ou custas pendentes (risco de extinção)', positive: true });
+  }
+
+  // 4. Fatores Negativos
   if (text.includes('CONTESTAÇÃO') || text.includes('CONTESTACAO')) {
     score -= 15;
     factors.push({ label: 'Ainda em fase de contestação', positive: false });
@@ -69,7 +89,7 @@ export function analisarChanceEncerramento(c: any): ChanceAnalysis {
     factors.push({ label: 'Processo em estágio inicial de distribuição', positive: false });
   }
 
-  // 4. Classificação Final
+  // 5. Classificação Final
   if (score >= 60) {
     return {
       level: 'Muito Alta',
@@ -81,7 +101,7 @@ export function analisarChanceEncerramento(c: any): ChanceAnalysis {
     return {
       level: 'Alta',
       color: 'bg-blue-600',
-      explanation: 'Processo em fase avançada, com decisões de mérito já proferidas e pouca margem para novas instruções.',
+      explanation: 'Processo em fase avançada, com decisões de mérito já proferidas ou concluso para sentença.',
       factors
     };
   } else if (score >= 0) {
