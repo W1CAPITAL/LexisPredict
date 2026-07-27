@@ -4,6 +4,7 @@
  */
 
 import { startOfDay, differenceInCalendarDays, parseISO } from 'date-fns';
+import { sanitizeDateCell } from './csv-import-engine';
 
 /**
  * LÓGICA JURÍDICA PURA — STATUS, RISCO, TRIBUNAL CNJ
@@ -26,6 +27,7 @@ export type RiskLevel = "Crítico" | "Atenção" | "Normal";
 export interface LegalCase {
   id: string;
   db_id?: string;
+  created_by?: string;
   cliente: string;
   protocolo: string;
   telefone?: string;
@@ -149,7 +151,7 @@ export function extrairTribunal(protocolo: string): { tribunal: string; link: st
     const mapa: Record<string, string> = {
       '01': 'TJAC', '02': 'TJAL', '03': 'TJAP', '04': 'TJAM', '05': 'TJBA',
       '06': 'TJCE', '07': 'TJDF', '08': 'TJES', '09': 'TJGO', '10': 'TJMA',
-      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TIPA', '15': 'TJPB',
+      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TJPA', '15': 'TJPB',
       '16': 'TJPR', '17': 'TJPE', '18': 'TJPI', '19': 'TJRJ', '20': 'TJRN',
       '21': 'TJRS', '22': 'TJRO', '23': 'TJRR', '24': 'TJSC', '25': 'TJSE',
       '26': 'TJSP', '27': 'TJTO',
@@ -164,42 +166,47 @@ export function extrairTribunal(protocolo: string): { tribunal: string; link: st
 }
 
 export function processarCaso(raw: any, thresholds?: { alertLimit: number }): LegalCase {
-  const normalized: any = {};
-  Object.keys(raw).forEach(k => {
-    const cleanKey = k.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_').trim();
-    normalized[cleanKey] = raw[k];
-  });
+  // Se já for um objeto canônico vindo do motor de importação, as chaves estarão em minúsculo
+  const isCanonical = raw.protocolo !== undefined && raw.cliente !== undefined;
+  
+  let data: any = {};
+  if (!isCanonical) {
+    Object.keys(raw).forEach(k => {
+      const cleanKey = k.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_').trim();
+      data[cleanKey] = raw[k];
+    });
+  } else {
+    data = raw;
+  }
 
-  const cliente = fixEncoding(normalized.CLIENTE || raw.cliente || 'NÃO IDENTIFICADO').toUpperCase();
-  const protocolo = (normalized.PROTOCOLO || raw.protocolo || '').trim();
-  const advogado = fixEncoding(normalized.ADVOGADO || raw.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
+  const cliente = fixEncoding(data.CLIENTE || data.cliente || 'NÃO IDENTIFICADO').toUpperCase();
+  const protocolo = (data.PROTOCOLO || data.protocolo || '').trim();
+  const advogado = fixEncoding(data.ADVOGADO || data.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
+  const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
+  const situacao = (data.SITUACAO || data.situacao || data.STATUS || 'EM ANDAMENTO').toUpperCase();
   
-  // Mapeamento Cirúrgico do Escritório com aliases
-  const escritorio = fixEncoding(
-    normalized.ESCRITORIO ||
-    normalized.ESCRITORIO_RESPONSAVEL ||
-    normalized.UNIDADE ||
-    normalized.OFFICE ||
-    raw.escritorio ||
-    ''
-  ).trim().toUpperCase();
+  const proximoPrazoRaw = sanitizeDateCell(data.PROXIMO_RETORNO || data.PROXIMO_PRAZO || data.proximoPrazo || '');
+  const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || '');
   
-  const situacao = (normalized.SITUACAO || normalized.STATUS || raw.situacao || 'EM ANDAMENTO').toUpperCase();
-  
-  const proximoPrazoRaw = normalized.PROXIMO_RETORNO || normalized.PROXIMO_PRAZO || raw.proximoPrazo || '';
-  const ultimoRetornoRaw = normalized.ULTIMO_RETORNO || normalized.RETORNO || raw.ultimoRetorno || '';
-  
-  const statusManual = normalized.STATUS_MANUAL || raw.statusManual || 'Automatico';
+  const statusManual = data.STATUS_MANUAL || data.statusManual || 'Automatico';
 
   const tribunalData = extrairTribunal(protocolo);
-  const statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit);
+  const statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3);
+
+  // Unificação de Observações + Produtos
+  let observacao = fixEncoding(data.OBSERVACAO || data.OBSERVACOES || data.observacao || '');
+  const produtos = data.PRODUTOS || data.produtos || '';
+  if (produtos && !observacao.includes(produtos)) {
+    observacao = `[PRODUTO: ${produtos}] ${observacao}`.trim();
+  }
 
   return {
     id: raw.id || crypto.randomUUID(),
+    created_by: data.created_by,
     cliente,
     protocolo,
     advogado,
-    escritorio: escritorio || '',
+    escritorio,
     situacao,
     proximoPrazo: proximoPrazoRaw, 
     ultimoRetorno: ultimoRetornoRaw,
@@ -209,7 +216,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     statusManual,
     tribunal: tribunalData.tribunal,
     linkConsulta: tribunalData.link,
-    observacao: fixEncoding(normalized.OBSERVACAO || normalized.OBSERVACOES || raw.observacao || ''),
-    telefone: (normalized.TELEFONE || raw.telefone || '').replace(/\D/g, '')
+    observacao,
+    telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, '')
   };
 }
