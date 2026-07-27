@@ -28,7 +28,9 @@ import {
   Users,
   Zap,
   Printer,
-  Scale
+  Scale,
+  Info,
+  FileText
 } from 'lucide-react';
 import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
@@ -42,6 +44,7 @@ import { getTranslation, Locale } from '@/lib/i18n';
 import { fetchRepoCases } from '@/app/actions/case-actions';
 import { LegalCase } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { calcularScoreAdvogado, LawyerScoreResult } from '@/lib/score-advogado';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +68,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function TeamManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -74,6 +78,10 @@ export default function TeamManagement() {
   const [isNewUserOpen, setIsNewClientOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'management' | 'hierarchy' | 'performance'>('management');
   const [locale, setLocale] = useState<Locale>('pt');
+  
+  // Auditoria de Score
+  const [selectedAudit, setSelectedAudit] = useState<LawyerScoreResult | null>(null);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -173,23 +181,32 @@ export default function TeamManagement() {
       if (!stats[lawyer]) {
         stats[lawyer] = {
           name: lawyer,
+          cases: [],
           total: 0,
           vencidos: 0,
           encerrados: 0,
           noPrazo: 0,
-          score: 0
+          productivityScore: 0
         };
       }
 
-      stats[lawyer].total++;
-      if (isCasoEncerrado(c)) stats[lawyer].encerrados++;
-      else if (c.status === 'Vencido') stats[lawyer].vencidos++;
-      else stats[lawyer].noPrazo++;
+      const s = stats[lawyer];
+      s.cases.push(c);
+      s.total++;
+      if (isCasoEncerrado(c)) s.encerrados++;
+      else if (c.status === 'Vencido') s.vencidos++;
+      else s.noPrazo++;
     });
 
     return Object.values(stats).map(s => {
-      const calculatedScore = (s.encerrados * 15) + (s.noPrazo * 5) - (s.vencidos * 20);
-      return { ...s, score: calculatedScore };
+      const calculatedProductivity = (s.encerrados * 15) + (s.noPrazo * 5) - (s.vencidos * 20);
+      const authorityAudit = calcularScoreAdvogado(s.cases);
+      
+      return { 
+        ...s, 
+        score: calculatedProductivity, 
+        authority: authorityAudit 
+      };
     }).sort((a, b) => b.score - a.score);
   }, [cases]);
 
@@ -448,7 +465,7 @@ export default function TeamManagement() {
                     </div>
                     <div>
                        <h2 className="text-3xl font-black uppercase tracking-tighter">Leaderboard de Banca</h2>
-                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.3em]">Performance baseada em resolutividade e prazos</p>
+                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.3em]">Performance baseada em resolutividade e ritos técnicos</p>
                     </div>
                  </div>
                  <div className="flex items-center gap-4 bg-white p-4 border-2 border-black shadow-[4px_4px_0px_#000] print:shadow-none">
@@ -465,23 +482,43 @@ export default function TeamManagement() {
                 <div className="space-y-6">
                    <div className="flex items-center gap-3">
                       <Trophy className="text-yellow-500" size={20} />
-                      <h3 className="text-xs font-black uppercase tracking-[0.2em]">Alta Resolutividade</h3>
+                      <h3 className="text-xs font-black uppercase tracking-widest">Alta Resolutividade & Autoridade</h3>
                    </div>
                    <div className="grid gap-4">
                       {topPerformers.map((s, i) => (
-                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:-translate-y-1 transition-all group print:shadow-none print:translate-0">
-                           <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-black border-2 border-emerald-200">
-                                 {i + 1}º
+                        <div key={s.name} className="bg-white border-2 border-black p-5 flex flex-col gap-4 shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:-translate-y-1 transition-all group print:shadow-none print:translate-0">
+                           <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-black border-2 border-emerald-200">
+                                    {i + 1}º
+                                 </div>
+                                 <div>
+                                    <p className="text-[11px] font-black uppercase tracking-tight group-hover:text-primary transition-colors">{s.name}</p>
+                                    <p className="text-[9px] font-bold text-muted-foreground uppercase">{s.total} Processos • {s.encerrados} Baixas</p>
+                                 </div>
                               </div>
-                              <div>
-                                 <p className="text-[11px] font-black uppercase tracking-tight group-hover:text-primary transition-colors">{s.name}</p>
-                                 <p className="text-[9px] font-bold text-muted-foreground uppercase">{s.total} Processos • {s.encerrados} Baixas</p>
+                              <div className="text-right">
+                                 <p className="text-lg font-black tracking-tighter text-emerald-600">+{s.score}</p>
+                                 <Badge className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 border-none">ELITE</Badge>
                               </div>
                            </div>
-                           <div className="text-right">
-                              <p className="text-lg font-black tracking-tighter text-emerald-600">+{s.score}</p>
-                              <Badge className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 border-none">ELITE</Badge>
+                           
+                           {/* Novo Indicador de Authority Score */}
+                           <div className="pt-3 border-t border-black/5 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Zap size={14} className="text-[#00D1FF]" />
+                                <span className="text-[9px] font-black uppercase text-black/40">Authority Score (Higiene):</span>
+                              </div>
+                              <button 
+                                onClick={() => { setSelectedAudit(s.authority); setIsAuditModalOpen(true); }}
+                                className="flex items-center gap-2 group/btn"
+                              >
+                                <span className={cn(
+                                  "text-xs font-black",
+                                  s.authority.score > 80 ? "text-emerald-600" : s.authority.score > 50 ? "text-blue-600" : "text-red-600"
+                                )}>{s.authority.score}/100</span>
+                                <Info size={12} className="text-black/20 group-hover/btn:text-primary transition-colors" />
+                              </button>
                            </div>
                         </div>
                       ))}
@@ -492,23 +529,39 @@ export default function TeamManagement() {
                 <div className="space-y-6">
                    <div className="flex items-center gap-3">
                       <AlertTriangle className="text-red-500" size={20} />
-                      <h3 className="text-xs font-black uppercase tracking-[0.2em]">Atenção Crítica</h3>
+                      <h3 className="text-xs font-black uppercase tracking-widest">Atenção Crítica (Falhas Banca)</h3>
                    </div>
                    <div className="grid gap-4">
                       {criticalAttention.length > 0 ? criticalAttention.map((s) => (
-                        <div key={s.name} className="bg-white border-2 border-red-600/20 p-5 flex items-center justify-between hover:border-red-600 transition-all group print:translate-0">
-                           <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center font-black border-2 border-red-200">
-                                 <TrendingDown size={18} />
+                        <div key={s.name} className="bg-white border-2 border-red-600/20 p-5 flex flex-col gap-4 hover:border-red-600 transition-all group print:translate-0">
+                           <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center font-black border-2 border-red-200">
+                                    <TrendingDown size={18} />
+                                 </div>
+                                 <div>
+                                    <p className="text-[11px] font-black uppercase tracking-tight">{s.name}</p>
+                                    <p className="text-[9px] font-bold text-red-600/60 uppercase">{s.vencidos} Vencidos • {s.authority.falhasFormaisGraves} Falhas Técnicas</p>
+                                 </div>
                               </div>
-                              <div>
-                                 <p className="text-[11px] font-black uppercase tracking-tight">{s.name}</p>
-                                 <p className="text-[9px] font-bold text-red-600/60 uppercase">{s.vencidos} Processos Vencidos</p>
+                              <div className="text-right">
+                                 <p className="text-lg font-black tracking-tighter text-red-600">{s.score}</p>
+                                 <Badge variant="outline" className="text-red-600 border-red-600 text-[8px] font-black uppercase px-2 py-0.5">REVISAR</Badge>
                               </div>
                            </div>
-                           <div className="text-right">
-                              <p className="text-lg font-black tracking-tighter text-red-600">{s.score}</p>
-                              <Badge variant="outline" className="text-red-600 border-red-600 text-[8px] font-black uppercase px-2 py-0.5">REVISAR</Badge>
+
+                           <div className="pt-3 border-t border-black/5 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Zap size={14} className="text-red-500" />
+                                <span className="text-[9px] font-black uppercase text-black/40">Higiene de Banca:</span>
+                              </div>
+                              <button 
+                                onClick={() => { setSelectedAudit(s.authority); setIsAuditModalOpen(true); }}
+                                className="flex items-center gap-2 group/btn"
+                              >
+                                <span className="text-xs font-black text-red-600">{s.authority.score}/100</span>
+                                <Info size={12} className="text-black/20 group-hover/btn:text-primary transition-colors" />
+                              </button>
                            </div>
                         </div>
                       )) : (
@@ -526,9 +579,9 @@ export default function TeamManagement() {
                  <div className="flex items-center gap-6">
                     <Zap className="text-yellow-400 print:text-black" size={32} />
                     <div className="max-w-md">
-                       <p className="text-xs font-black uppercase tracking-widest text-primary mb-2 print:text-black">Análise de Autoridade</p>
+                       <p className="text-xs font-black uppercase tracking-widest text-primary mb-2 print:text-black">Protocolo de Autoridade Técnica</p>
                        <p className="text-[10px] font-bold uppercase leading-relaxed text-white/70 print:text-black/60">
-                          O score é recalculado a cada movimento da carteira. Processos vencidos impactam negativamente em 4x mais que um processo em andamento.
+                          O Authority Score avalia puramente a conformidade formal (selos, emendas, distribuições) e isola o que é falha do cliente. Processos extintos por erro de peça penalizam a banca em 25 pontos.
                        </p>
                     </div>
                  </div>
@@ -538,13 +591,61 @@ export default function TeamManagement() {
                     onClick={handleExportPDF}
                     className="border-white text-white hover:bg-white hover:text-black font-black uppercase text-[10px] h-12 px-8 rounded-none transition-all"
                    >
-                    <Printer size={16} className="mr-2" /> Exportar Ranking PDF
+                    <Printer size={16} className="mr-2" /> Exportar Auditoria PDF
                    </Button>
                  </div>
               </div>
             </section>
           )}
         </div>
+
+        {/* Modal de Auditoria de Score */}
+        <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
+           <DialogContent className="sm:max-w-[700px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
+              <DialogHeader>
+                 <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3">
+                    <Zap size={18} className="text-primary"/> Detalhamento de Higiene Operacional
+                 </DialogTitle>
+              </DialogHeader>
+              <div className="py-6 space-y-8">
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <AuditMetric label="Score Final" value={`${selectedAudit?.score}/100`} />
+                    <AuditMetric label="Falhas Graves" value={selectedAudit?.falhasFormaisGraves || 0} color="text-red-600" />
+                    <AuditMetric label="Casos Mistos" value={selectedAudit?.casosMistos || 0} color="text-orange-500" />
+                    <AuditMetric label="F. Cliente (Ignoradas)" value={selectedAudit?.falhasClienteIgnoradas || 0} color="text-emerald-600" />
+                 </div>
+
+                 <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase text-black/40 tracking-widest">Registros Auditados (Onde houve perda de pontos)</Label>
+                    <ScrollArea className="h-[300px] border-2 border-black/5 p-4 bg-gray-50">
+                       <div className="space-y-3">
+                          {selectedAudit?.detalhes.map((d, i) => (
+                             <div key={i} className="p-4 bg-white border border-black/10 flex flex-col gap-2">
+                                <div className="flex justify-between items-start">
+                                   <div className="space-y-0.5">
+                                      <p className="text-[11px] font-black uppercase">{d.cliente}</p>
+                                      <p className="text-[9px] font-mono text-black/40">{d.protocolo}</p>
+                                   </div>
+                                   <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[8px] font-black">-{d.peso} pts</Badge>
+                                </div>
+                                <div className="flex items-center gap-3 mt-1">
+                                   <Badge className="bg-black text-white text-[8px] font-black uppercase px-2">{d.tipoFalha}</Badge>
+                                   <p className="text-[10px] font-bold text-black/60 italic">"{d.trecho}..."</p>
+                                </div>
+                             </div>
+                          ))}
+                          {selectedAudit?.detalhes.length === 0 && (
+                             <div className="py-20 text-center opacity-20">
+                                <CheckCircle2 size={32} className="mx-auto mb-4" />
+                                <p className="font-black uppercase text-xs">Nenhuma falha técnica registrada.</p>
+                             </div>
+                          )}
+                       </div>
+                    </ScrollArea>
+                 </div>
+              </div>
+           </DialogContent>
+        </Dialog>
 
         <Dialog open={isNewUserOpen} onOpenChange={setIsNewClientOpen}>
           <DialogContent className="sm:max-w-[450px] rounded-2xl border-none shadow-2xl">
@@ -625,5 +726,14 @@ function RoleBadge({ role, t, isSuper }: { role: UserRole, t: any, isSuper: bool
     <Badge variant="outline" className={cn("px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] rounded-md", styles[isSuper ? 'Superadmin' : role] || styles.Visualizador)}>
       {label}
     </Badge>
+  );
+}
+
+function AuditMetric({ label, value, color = "text-black" }: { label: string, value: string | number, color?: string }) {
+  return (
+    <div className="p-4 bg-[#f8f9fb] border-2 border-black/5 flex flex-col items-center justify-center text-center">
+       <p className="text-[8px] font-black uppercase text-black/40 mb-1">{label}</p>
+       <p className={cn("text-xl font-black tabular-nums", color)}>{value}</p>
+    </div>
   );
 }
