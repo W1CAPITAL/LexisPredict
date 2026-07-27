@@ -40,9 +40,8 @@ import {
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
-// CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT
+// CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT - TODAS AS LETRAS EM PRETO
 const TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 as const };
-const TICK_LIGHT = { fill: 'rgba(255,255,255,0.55)', fontSize: 9, fontWeight: 900 as const };
 const TOOLTIP_LIGHT = {
   backgroundColor: '#ffffff',
   borderRadius: '12px',
@@ -52,15 +51,6 @@ const TOOLTIP_LIGHT = {
   fontWeight: 900,
   textTransform: 'uppercase' as const,
   color: '#0a0a0a',
-};
-const TOOLTIP_DARK = {
-  backgroundColor: '#000000',
-  borderRadius: '4px',
-  border: '1px solid rgba(255,255,255,0.1)',
-  fontSize: '10px',
-  fontWeight: 900,
-  textTransform: 'uppercase' as const,
-  color: '#ffffff',
 };
 
 export default function AnalyticsPage() {
@@ -152,7 +142,7 @@ export default function AnalyticsPage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-[#f8f9fb] font-sans text-foreground">
+    <div className="flex h-screen bg-[#f8f9fb] font-sans text-black">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-20 border-b border-border/50 bg-white/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40 print:hidden">
@@ -160,10 +150,10 @@ export default function AnalyticsPage() {
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
               <BarChart3 size={20} className="text-primary" />
             </div>
-            <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Business Intelligence</h1>
+            <h1 className="font-black text-xl text-black uppercase tracking-tight">Business Intelligence</h1>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={handleExportPDF} className="premium-card h-10 px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none">
+            <Button variant="outline" size="sm" onClick={handleExportPDF} className="premium-card h-10 px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none text-black">
               <FileDown size={14} className="mr-2" /> Exportar Dados
             </Button>
             <Button variant="ghost" size="icon" onClick={() => window.location.reload()} className="h-10 w-10 rounded-xl hover:bg-secondary">
@@ -182,42 +172,42 @@ export default function AnalyticsPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-            {/* OFFICE PERFORMANCE ANALYSIS */}
-            <div className="xl:col-span-12 premium-card p-8 bg-black text-white min-h-[400px] flex flex-col relative overflow-hidden print:bg-white print:text-black print:border-black">
+            {/* OFFICE PERFORMANCE ANALYSIS - CONVERTIDO PARA LETRAS PRETAS */}
+            <div className="xl:col-span-12 premium-card p-8 bg-white text-black min-h-[400px] flex flex-col relative overflow-hidden border-2 border-black">
               <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none print:hidden">
-                 <Building2 size={200} />
+                 <Building2 size={200} className="text-black" />
               </div>
               <div className="flex items-center justify-between mb-10 relative z-10">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 bg-primary/20 rounded-lg text-primary print:text-black">
+                  <div className="p-2 bg-black text-white rounded-lg">
                     <Zap size={20} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black uppercase tracking-tight">Ranking de Eficiência por Escritório</h3>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 print:text-black/40">Avaliação baseada em Resolutividade (Baixas) vs Inércia (Vencidos)</p>
+                    <h3 className="text-lg font-black uppercase tracking-tight text-black">Ranking de Eficiência por Escritório</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-black/40">Avaliação baseada em Resolutividade (Baixas) vs Inércia (Vencidos)</p>
                   </div>
                 </div>
-                <Badge variant="outline" className="border-white/20 text-white font-black uppercase text-[10px] px-4 py-1.5 rounded-none print:border-black print:text-black">Auditoria Neural Ativa</Badge>
+                <Badge variant="outline" className="border-black text-black font-black uppercase text-[10px] px-4 py-1.5 rounded-none">Auditoria Neural Ativa</Badge>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 relative z-10">
                 <div className="lg:col-span-1 space-y-4">
                   {metrics?.officePerformance.slice(0, 5).map((office, i) => (
-                    <div key={office.name} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors print:border-black print:bg-transparent">
+                    <div key={office.name} className="flex items-center justify-between p-4 bg-[#f8f9fb] border border-black/10 hover:border-black transition-colors">
                       <div className="flex items-center gap-4">
-                         <span className="text-primary font-black text-lg print:text-black">#{i+1}</span>
+                         <span className="text-black font-black text-lg">#{i+1}</span>
                          <div>
-                            <p className="text-[11px] font-black uppercase truncate max-w-[150px]">{office.name}</p>
-                            <p className="text-[9px] font-bold text-white/40 uppercase print:text-black/40">{office.total} Casos Totais</p>
+                            <p className="text-[11px] font-black uppercase truncate max-w-[150px] text-black">{office.name}</p>
+                            <p className="text-[9px] font-bold text-black/40 uppercase">{office.total} Casos Totais</p>
                          </div>
                       </div>
                       <div className="text-right">
-                         <p className={cn("text-lg font-black tracking-tighter", office.score > 0 ? "text-emerald-400 print:text-emerald-600" : "text-red-400 print:text-red-600")}>
+                         <p className={cn("text-lg font-black tracking-tighter", office.score > 0 ? "text-emerald-600" : "text-red-600")}>
                            {office.score > 0 ? `+${office.score}` : office.score}
                          </p>
-                         <Badge className={cn(
-                           "text-[7px] font-black uppercase px-1.5 py-0 border-none",
-                           office.score > 50 ? "bg-emerald-500" : office.score > 0 ? "bg-blue-500" : "bg-red-500"
+                         <Badge variant="outline" className={cn(
+                           "text-[7px] font-black uppercase px-1.5 py-0 border-black text-black",
+                           office.score > 50 ? "bg-emerald-50" : office.score > 0 ? "bg-blue-50" : "bg-red-50"
                          )}>
                            {office.score > 50 ? 'ELITE' : office.score > 0 ? 'ESTÁVEL' : 'CRÍTICO'}
                          </Badge>
@@ -225,7 +215,7 @@ export default function AnalyticsPage() {
                     </div>
                   ))}
                   {(!metrics?.officePerformance || metrics.officePerformance.length === 0) && (
-                    <p className="text-[10px] font-black uppercase text-white/20 text-center py-10">Sem dados para o período</p>
+                    <p className="text-[10px] font-black uppercase text-black/20 text-center py-10">Sem dados para o período</p>
                   )}
                 </div>
 
@@ -233,12 +223,11 @@ export default function AnalyticsPage() {
                   {metrics?.officePerformance && metrics.officePerformance.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={metrics.officePerformance.slice(0, 8)}>
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={TICK_LIGHT} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={TICK_DARK} />
                         <YAxis hide />
                         <Tooltip 
-                          cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                          contentStyle={TOOLTIP_DARK}
-                          itemStyle={{color: '#00D1FF'}}
+                          cursor={{fill: 'rgba(0,0,0,0.05)'}}
+                          contentStyle={TOOLTIP_LIGHT}
                         />
                         <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
                           {metrics.officePerformance.map((entry, index) => (
@@ -248,8 +237,8 @@ export default function AnalyticsPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center border-2 border-dashed border-white/10 opacity-20">
-                      <p className="text-[10px] font-black uppercase text-white">Gráfico de Performance indisponível</p>
+                    <div className="h-full flex items-center justify-center border-2 border-dashed border-black/10 opacity-20">
+                      <p className="text-[10px] font-black uppercase text-black">Gráfico de Performance indisponível</p>
                     </div>
                   )}
                 </div>
@@ -259,8 +248,8 @@ export default function AnalyticsPage() {
             {/* TRIBUNAL ANALYSIS */}
             <div className="xl:col-span-8 premium-card p-8 bg-white min-h-[400px] flex flex-col border-none">
               <div className="flex items-center gap-3 mb-10">
-                <Scale size={18} className="text-muted-foreground" />
-                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Volumetria por Tribunal</h3>
+                <Scale size={18} className="text-black/40" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-black/40">Volumetria por Tribunal</h3>
               </div>
               <div className="flex-1 h-[300px]">
                 {metrics?.topTribunals && metrics.topTribunals.length > 0 ? (
@@ -281,7 +270,7 @@ export default function AnalyticsPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados para o período</p>
+                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-black/30">Sem dados para o período</p>
                 )}
               </div>
             </div>
@@ -289,8 +278,8 @@ export default function AnalyticsPage() {
             {/* STATUS DISTRIBUTION */}
             <div className="xl:col-span-4 premium-card p-8 bg-white h-[400px] flex flex-col border-none">
               <div className="flex items-center gap-3 mb-10">
-                <PieChartIcon size={18} className="text-muted-foreground" />
-                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Higiene da Carteira</h3>
+                <PieChartIcon size={18} className="text-black/40" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-black/40">Higiene da Carteira</h3>
               </div>
               <div className="flex-1 h-[250px]">
                 {metrics?.pieData && metrics.pieData.length > 0 ? (
@@ -312,14 +301,14 @@ export default function AnalyticsPage() {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados para o período</p>
+                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-black/30">Sem dados para o período</p>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4 mt-6">
                 {metrics?.pieData.map((item) => (
                   <div key={item.name} className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-[9px] font-black uppercase text-muted-foreground truncate">{item.name}</span>
+                    <span className="text-[9px] font-black uppercase text-black/60 truncate">{item.name}</span>
                   </div>
                 ))}
               </div>
@@ -328,8 +317,8 @@ export default function AnalyticsPage() {
             {/* LAWYER PERFORMANCE */}
             <div className="xl:col-span-12 premium-card p-8 bg-white min-h-[400px] flex flex-col border-none">
               <div className="flex items-center gap-3 mb-10">
-                <Gavel size={18} className="text-muted-foreground" />
-                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição por Advogado</h3>
+                <Gavel size={18} className="text-black/40" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-black/40">Distribuição por Advogado</h3>
               </div>
               <div className="flex-1 h-[350px]">
                 {metrics?.topLawyers && metrics.topLawyers.length > 0 ? (
@@ -357,16 +346,16 @@ export default function AnalyticsPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados para o período</p>
+                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-black/30">Sem dados para o período</p>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        <footer className="h-10 border-t border-border/50 bg-white flex items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.2em] shrink-0 print:hidden">
+        <footer className="h-10 border-t border-border/50 bg-white flex items-center justify-center gap-6 text-[10px] text-black/40 font-black uppercase tracking-[0.2em] shrink-0 print:hidden">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
-          <span className="text-foreground">Relatório Analítico • FUNDADOR DAVI ALVES FIGUEREDO</span>
+          <span className="text-black">Relatório Analítico • FUNDADOR DAVI ALVES FIGUEREDO</span>
         </footer>
       </main>
     </div>
@@ -375,21 +364,21 @@ export default function AnalyticsPage() {
 
 function MetricCard({ label, value, icon, color }: { label: string, value: number, icon: React.ReactNode, color: string }) {
   const styles: Record<string, string> = {
-    blue: "text-blue-600 bg-blue-50",
-    emerald: "text-emerald-600 bg-emerald-50",
-    red: "text-red-600 bg-red-50",
-    orange: "text-orange-600 bg-orange-50"
+    blue: "text-black bg-blue-50 border-blue-100",
+    emerald: "text-black bg-emerald-50 border-emerald-100",
+    red: "text-black bg-red-50 border-red-100",
+    orange: "text-black bg-orange-50 border-orange-100"
   };
 
   return (
-    <div className="premium-card p-6 flex flex-col justify-between group hover:bg-black transition-all">
+    <div className="premium-card p-6 flex flex-col justify-between group hover:border-black transition-all bg-white border-2 border-transparent">
       <div className="flex justify-between items-start">
         <div className="space-y-1">
-          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest group-hover:text-white/60">{label}</p>
-          <h3 className="text-3xl font-black tracking-tighter text-foreground tabular-nums group-hover:text-white">{value}</h3>
+          <p className="text-[9px] font-black text-black/40 uppercase tracking-widest">{label}</p>
+          <h3 className="text-3xl font-black tracking-tighter text-black tabular-nums">{value}</h3>
         </div>
-        <div className={cn("p-2.5 rounded-lg group-hover:bg-white/10 group-hover:text-white transition-colors", styles[color])}>
-          {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+        <div className={cn("p-2.5 rounded-lg border transition-colors", styles[color])}>
+          {React.cloneElement(icon as React.ReactElement, { size: 18, className: "text-black" })}
         </div>
       </div>
     </div>
