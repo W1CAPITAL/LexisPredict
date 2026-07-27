@@ -40,8 +40,28 @@ import {
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
-const CHART_TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 as const };
-const CHART_TICK_LIGHT = { fill: 'rgba(255,255,255,0.55)', fontSize: 9, fontWeight: 900 as const };
+// CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT
+const TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 as const };
+const TICK_LIGHT = { fill: 'rgba(255,255,255,0.55)', fontSize: 9, fontWeight: 900 as const };
+const TOOLTIP_LIGHT = {
+  backgroundColor: '#ffffff',
+  borderRadius: '12px',
+  border: '1px solid #e2e8f0',
+  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+  fontSize: '10px',
+  fontWeight: 900,
+  textTransform: 'uppercase' as const,
+  color: '#0a0a0a',
+};
+const TOOLTIP_DARK = {
+  backgroundColor: '#000000',
+  borderRadius: '4px',
+  border: '1px solid rgba(255,255,255,0.1)',
+  fontSize: '10px',
+  fontWeight: 900,
+  textTransform: 'uppercase' as const,
+  color: '#ffffff',
+};
 
 export default function AnalyticsPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
@@ -181,7 +201,6 @@ export default function AnalyticsPage() {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 relative z-10">
-                {/* Ranking List */}
                 <div className="lg:col-span-1 space-y-4">
                   {metrics?.officePerformance.slice(0, 5).map((office, i) => (
                     <div key={office.name} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors print:border-black print:bg-transparent">
@@ -205,26 +224,34 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                   ))}
+                  {(!metrics?.officePerformance || metrics.officePerformance.length === 0) && (
+                    <p className="text-[10px] font-black uppercase text-white/20 text-center py-10">Sem dados para o período</p>
+                  )}
                 </div>
 
-                {/* Performance Chart */}
                 <div className="lg:col-span-2 h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={metrics?.officePerformance.slice(0, 8)}>
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_TICK_LIGHT} />
-                      <YAxis hide />
-                      <Tooltip 
-                        cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                        contentStyle={{backgroundColor: '#000', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#fff'}}
-                        itemStyle={{color: '#00D1FF'}}
-                      />
-                      <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
-                        {metrics?.officePerformance.map((entry, index) => (
-                          <Cell key={`cell-office-${index}`} fill={entry.score > 0 ? '#00D1FF' : '#ef4444'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {metrics?.officePerformance && metrics.officePerformance.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metrics.officePerformance.slice(0, 8)}>
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={TICK_LIGHT} />
+                        <YAxis hide />
+                        <Tooltip 
+                          cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                          contentStyle={TOOLTIP_DARK}
+                          itemStyle={{color: '#00D1FF'}}
+                        />
+                        <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
+                          {metrics.officePerformance.map((entry, index) => (
+                            <Cell key={`cell-office-${index}`} fill={entry.score > 0 ? '#00D1FF' : '#ef4444'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center border-2 border-dashed border-white/10 opacity-20">
+                      <p className="text-[10px] font-black uppercase text-white">Gráfico de Performance indisponível</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -235,23 +262,27 @@ export default function AnalyticsPage() {
                 <Scale size={18} className="text-muted-foreground" />
                 <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Volumetria por Tribunal</h3>
               </div>
-              <div className="flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metrics?.topTribunals || []}>
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_TICK_DARK} />
-                    <YAxis hide />
-                    <Tooltip 
-                      cursor={{fill: '#f1f5f9'}}
-                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#0a0a0a'}}
-                      itemStyle={{color: '#0a0a0a'}}
-                    />
-                    <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
-                      {metrics?.topTribunals.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? '#000' : '#cbd5e1'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex-1 h-[300px]">
+                {metrics?.topTribunals && metrics.topTribunals.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={metrics.topTribunals}>
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={TICK_DARK} />
+                      <YAxis hide />
+                      <Tooltip 
+                        cursor={{fill: '#f1f5f9'}}
+                        contentStyle={TOOLTIP_LIGHT}
+                        itemStyle={{color: '#0a0a0a'}}
+                      />
+                      <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
+                        {metrics.topTribunals.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={index === 0 ? '#000' : '#cbd5e1'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados para o período</p>
+                )}
               </div>
             </div>
 
@@ -261,27 +292,28 @@ export default function AnalyticsPage() {
                 <PieChartIcon size={18} className="text-muted-foreground" />
                 <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Higiene da Carteira</h3>
               </div>
-              <div className="flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={metrics?.pieData || []}
-                      innerRadius={80}
-                      outerRadius={110}
-                      paddingAngle={8}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {metrics?.pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#0a0a0a'}}
-                      itemStyle={{color: '#0a0a0a'}}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="flex-1 h-[250px]">
+                {metrics?.pieData && metrics.pieData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={metrics.pieData}
+                        innerRadius={80}
+                        outerRadius={110}
+                        paddingAngle={8}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {metrics.pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={TOOLTIP_LIGHT} itemStyle={{color: '#0a0a0a'}} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados para o período</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4 mt-6">
                 {metrics?.pieData.map((item) => (
@@ -299,30 +331,34 @@ export default function AnalyticsPage() {
                 <Gavel size={18} className="text-muted-foreground" />
                 <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição por Advogado</h3>
               </div>
-              <div className="flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metrics?.topLawyers || []} layout="vertical" margin={{ left: 50, right: 30 }}>
-                    <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={CHART_TICK_DARK} 
-                      width={150}
-                    />
-                    <Tooltip 
-                      cursor={{fill: '#f1f5f9'}}
-                      contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#0a0a0a'}}
-                      itemStyle={{color: '#0a0a0a'}}
-                    />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={30}>
-                      {metrics?.topLawyers.map((entry, index) => (
-                        <Cell key={`cell-lawyer-${index}`} fill={index === 0 ? '#00D1FF' : '#000'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex-1 h-[350px]">
+                {metrics?.topLawyers && metrics.topLawyers.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={metrics.topLawyers} layout="vertical" margin={{ left: 50, right: 30 }}>
+                      <XAxis type="number" hide />
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={TICK_DARK} 
+                        width={150}
+                      />
+                      <Tooltip 
+                        cursor={{fill: '#f1f5f9'}}
+                        contentStyle={TOOLTIP_LIGHT}
+                        itemStyle={{color: '#0a0a0a'}}
+                      />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={30}>
+                        {metrics.topLawyers.map((entry, index) => (
+                          <Cell key={`cell-lawyer-${index}`} fill={index === 0 ? '#00D1FF' : '#000'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados para o período</p>
+                )}
               </div>
             </div>
           </div>
