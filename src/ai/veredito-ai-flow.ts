@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -53,7 +54,6 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
   if (!key) return null;
   
   try {
-    const isXAI = url.includes('x.ai');
     const messages = [
       { role: 'system', content: SYSTEM_INSTRUCTIONS },
       { role: 'user', content: `DADOS DO PROCESSO:\n${context}` }
@@ -88,7 +88,6 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
     
     if (!content) return null;
     
-    // Limpeza de JSON robusta
     let clean = content.replace(/```json/gi, '').replace(/```/g, '').trim();
     return JSON.parse(clean);
   } catch (e) {
@@ -108,41 +107,44 @@ export const vereditoAIFlow = ai.defineFlow(
     // 1. Coleta DataJud
     const dataJudData = await fetchDataJud(cnj);
     
-    // Caso A e B: Erro ou retorno inconsistente
+    // CASO A: Erro crítico de conexão ou Timeout
     if (!dataJudData || dataJudData.error) {
+       const isTimeout = dataJudData?.message?.includes("Tempo esgotado");
        return { 
-         resumoTecnico: "Erro na coleta de dados oficiais.",
-         analiseRisco: "Não foi possível acessar o DataJud.",
-         proximosPassos: "Tente novamente em instantes.",
+         resumoTecnico: isTimeout ? "Tempo esgotado na triagem do tribunal." : "Falha na coleta de dados oficiais.",
+         analiseRisco: "Triagem técnica interrompida por instabilidade na rede nacional.",
+         proximosPassos: isTimeout ? "O tribunal demorou a responder. Tente realizar a busca novamente em instantes." : (dataJudData?.message || "Tente novamente ou verifique se o número CNJ possui 20 dígitos."),
          mensagemCliente: "",
          success: false, 
          error: true, 
-         message: dataJudData?.message || "Falha na triagem do tribunal." 
-       };
-    }
-
-    // Caso C: Processo não localizado na base nacional
-    if (dataJudData.movimentos?.length === 0) {
-       return {
-         resumoTecnico: "Atenção: Processo sem histórico no DataJud.",
-         analiseRisco: "Inexistência de dados cronológicos na base unificada nacional.",
-         proximosPassos: "Certifique-se de que o CNJ está correto e que o processo não corre em segredo de justiça.",
-         mensagemCliente: "Setor Processual: No momento, não localizamos atualizações recentes para este protocolo no sistema unificado do CNJ.",
-         success: true,
+         message: dataJudData?.message || "Falha na triagem do tribunal.",
          dataJudRaw: dataJudData
        };
     }
 
+    // CASO B: Processo não localizado na base nacional
+    if (!dataJudData.movimentos || dataJudData.movimentos.length === 0) {
+       return {
+         resumoTecnico: "Atenção: Processo sem histórico cronológico detectado.",
+         analiseRisco: "Inexistência de dados na base unificada nacional.",
+         proximosPassos: "Confirme se o CNJ está correto e se o processo não corre em segredo de justiça absoluto.",
+         mensagemCliente: "Setor Processual: No momento, não localizamos atualizações recentes para este protocolo no sistema unificado.",
+         success: true,
+         error: false,
+         message: dataJudData.message || "Processo não localizado.",
+         dataJudRaw: dataJudData
+       };
+    }
+
+    // CASO C: Sucesso com dados reais
     const context = JSON.stringify(dataJudData);
     
-    // 2. Orquestração Neural Multi-Engine
     const engines = [
       { id: 'xai', url: 'https://api.x.ai/v1/responses', key: API_KEYS.XAI, model: 'grok-4.5' },
       { id: 'airforce', url: 'https://api.airforce/v1/chat/completions', key: API_KEYS.AIRFORCE, model: 'deepseek-v3' },
       { id: 'groq', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
     ];
 
-    // Priorizar motor escolhido
     const prioritized = [...engines];
     const idx = prioritized.findIndex(e => e.id === preferredModel);
     if (idx > -1) {
@@ -157,6 +159,7 @@ export const vereditoAIFlow = ai.defineFlow(
         return {
           ...result,
           success: true,
+          error: false,
           dataJudRaw: dataJudData
         };
       }
@@ -165,11 +168,12 @@ export const vereditoAIFlow = ai.defineFlow(
     return {
       resumoTecnico: "Falha na análise neural profunda.",
       analiseRisco: "Motores em recalibração.",
-      proximosPassos: "Tente novamente em instantes.",
+      proximosPassos: "Tente alternar o motor de IA ou tente novamente em instantes.",
       mensagemCliente: "",
       success: false,
       error: true,
-      message: "Limite de processamento neural atingido."
+      message: "Limite de processamento neural atingido ou falha na resposta da IA.",
+      dataJudRaw: dataJudData
     };
   }
 );
