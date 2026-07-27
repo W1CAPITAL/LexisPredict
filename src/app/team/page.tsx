@@ -142,8 +142,8 @@ export default function TeamManagement() {
   };
 
   /**
-   * MOTOR DE PERFORMANCE v2.0 - VINCULAÇÃO POR USUÁRIO REAL
-   * Vincula processos ao usuário por ID (created_by) ou Token Match no nome.
+   * MOTOR DE PERFORMANCE v2.1 - VINCULAÇÃO REAL DE MEMBROS
+   * Agora suportando notas negativas ilimitadas.
    */
   const performanceData = useMemo(() => {
     if (!users.length) return { advRank: [], assRank: [] };
@@ -153,10 +153,7 @@ export default function TeamManagement() {
     const getAssignedCases = (user: UserProfile, isLawyer: boolean) => {
       const userNorm = normalizeStr(user.nome);
       return cases.filter(c => {
-        // Prioridade 1: Match por ID
         if (c.created_by === user.auth_user_id) return true;
-
-        // Prioridade 2: Match por Token (Ex: "ANDRESSA" em "ANDRESSA / MATHEUS")
         const field = isLawyer ? (c.advogado || '') : (c.atendente || '');
         const tokens = field.split(/[\/\,\s]+/).map(t => normalizeStr(t));
         return tokens.some(t => t === userNorm || (userNorm.length > 3 && t.includes(userNorm)));
@@ -166,12 +163,12 @@ export default function TeamManagement() {
     const advRank = users.map(user => ({
       name: user.nome,
       result: calcularScoreAdvogado(getAssignedCases(user, true))
-    })).filter(u => u.result.totalCasos > 0).sort((a, b) => b.result.score - a.result.score);
+    })).filter(u => u.result.totalCasos > 0).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
     const assRank = users.map(user => ({
       name: user.nome,
       result: calcularScoreAssessor(getAssignedCases(user, false))
-    })).filter(u => u.result.totalCasos > 0).sort((a, b) => b.result.score - a.result.score);
+    })).filter(u => u.result.totalCasos > 0).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
     return { advRank, assRank };
   }, [cases, users]);
@@ -250,6 +247,7 @@ export default function TeamManagement() {
           {viewMode === 'performance' && (
             <section className="space-y-12 pb-20 animate-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {/* Performance Operacional (Assessor) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center rounded-lg shadow-lg"><ClipboardList size={20}/></div>
@@ -266,7 +264,9 @@ export default function TeamManagement() {
                               </div>
                            </div>
                            <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
-                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : "text-blue-600")}>{s.result.score}</p>
+                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score <= 0 ? "text-red-600" : "text-blue-600")}>
+                                {s.result.score}
+                              </p>
                               <p className="text-[7px] font-black uppercase opacity-40">Efficiency pts</p>
                            </button>
                         </div>
@@ -274,6 +274,7 @@ export default function TeamManagement() {
                    </div>
                 </div>
 
+                {/* Performance de Banca (Advogado) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-black text-primary flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
@@ -290,7 +291,9 @@ export default function TeamManagement() {
                               </div>
                            </div>
                            <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
-                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : "text-primary")}>{s.result.score}</p>
+                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score <= 0 ? "text-red-600" : "text-primary")}>
+                                {s.result.score}
+                              </p>
                               <p className="text-[7px] font-black uppercase opacity-40">Authority Score</p>
                            </button>
                         </div>
@@ -313,7 +316,9 @@ export default function TeamManagement() {
                     </div>
                     <div className="text-right">
                        <p className="text-[8px] font-black uppercase opacity-40">Score Consolidado</p>
-                       <p className="text-2xl font-black">{selectedAudit?.score}/100</p>
+                       <p className={cn("text-2xl font-black", (selectedAudit?.score ?? 0) <= 0 ? "text-red-600" : "text-black")}>
+                         {selectedAudit?.score}/100
+                       </p>
                     </div>
                  </div>
                  <ScrollArea className="h-[300px]">
