@@ -250,6 +250,7 @@ export async function getStoredCases(): Promise<LegalCase[]> {
     return allData.map(item => ({
       ...(item.dados as LegalCase),
       db_id: item.id.toString(),
+      created_by: item.created_by,
       escritorio: item.escritorio || (item.dados as any).escritorio || '',
       proximoPrazo: item.proximo_retorno || (item.dados as any).proximoPrazo || '',
       ultimoRetorno: item.ultimo_retorno || (item.dados as any).ultimoRetorno || '',
@@ -274,7 +275,7 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
       const isoRetorno = formatDateToISO(c.ultimoRetorno);
       return { 
         empresa_id: empresa_id, 
-        created_by: auth_id,
+        created_by: c.created_by || auth_id,
         protocolo_ref: c.protocolo,
         advogado: c.advogado || 'NÃO ATRIBUÍDO',
         escritorio: c.escritorio || null,
