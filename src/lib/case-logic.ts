@@ -156,7 +156,7 @@ export function extrairTribunal(protocolo: string): { tribunal: string; link: st
     const mapa: Record<string, string> = {
       '01': 'TJAC', '02': 'TJAL', '03': 'TJAP', '04': 'TJAM', '05': 'TJBA',
       '06': 'TJCE', '07': 'TJDF', '08': 'TJES', '09': 'TJGO', '10': 'TJMA',
-      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TJPA', '15': 'TJPB',
+      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TJPB', '15': 'TJPB',
       '16': 'TJPR', '17': 'TJPE', '18': 'TJPI', '19': 'TJRJ', '20': 'TJRN',
       '21': 'TJRS', '22': 'TJRO', '23': 'TJRR', '24': 'TJSC', '25': 'TJSE',
       '26': 'TJSP', '27': 'TJTO',
@@ -180,6 +180,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const cliente = fixEncoding(normalized.CLIENTE || raw.cliente || 'NÃO IDENTIFICADO').toUpperCase();
   const protocolo = (normalized.PROTOCOLO || raw.protocolo || '').trim();
   const advogado = fixEncoding(normalized.ADVOGADO || raw.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
+  const escritorio = fixEncoding(normalized.ESCRITORIO || raw.escritorio || '').toUpperCase();
   
   // A "Situação" da planilha agora é isolada
   const situacao = (normalized.SITUACAO || normalized.SITUAÇÃO || normalized.STATUS || raw.situacao || 'EM ANDAMENTO').toUpperCase();
@@ -199,6 +200,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     cliente,
     protocolo,
     advogado,
+    escritorio,
     situacao,
     proximoPrazo: proximoPrazoRaw, 
     ultimoRetorno: ultimoRetornoRaw,
