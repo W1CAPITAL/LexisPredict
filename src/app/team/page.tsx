@@ -26,7 +26,9 @@ import {
   CheckCircle2,
   Star,
   Users,
-  Zap
+  Zap,
+  Printer,
+  Scale
 } from 'lucide-react';
 import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
@@ -158,6 +160,10 @@ export default function TeamManagement() {
     }
   };
 
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   // --- LÓGICA DE PERFORMANCE ---
   const performanceRanking = useMemo(() => {
     const stats: Record<string, any> = {};
@@ -182,8 +188,6 @@ export default function TeamManagement() {
     });
 
     return Object.values(stats).map(s => {
-      // Algoritmo de Pontuação de Autoridade
-      // Encerrado (+15) | No Prazo (+5) | Vencido (-20)
       const calculatedScore = (s.encerrados * 15) + (s.noPrazo * 5) - (s.vencidos * 20);
       return { ...s, score: calculatedScore };
     }).sort((a, b) => b.score - a.score);
@@ -211,9 +215,11 @@ export default function TeamManagement() {
 
   return (
     <div className="flex h-screen bg-[#f8f9fb] font-sans text-foreground overflow-hidden">
-      <Sidebar />
+      <div className="print:hidden">
+        <Sidebar />
+      </div>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 border-b border-border/30 bg-white/60 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-40">
+        <header className="h-20 border-b border-border/30 bg-white/60 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-40 print:hidden">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
               <Users size={20} className="text-primary" />
@@ -252,16 +258,33 @@ export default function TeamManagement() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full">
+        {/* PRINT ONLY HEADER */}
+        <div className="hidden print:block p-10 border-b-4 border-black mb-10">
+           <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 bg-black flex items-center justify-center text-primary"><Scale size={32}/></div>
+                 <div>
+                    <h1 className="text-2xl font-black uppercase tracking-tighter">LexisPredict Elite</h1>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Auditoria de Desempenho de Banca</p>
+                 </div>
+              </div>
+              <div className="text-right">
+                 <p className="text-xs font-black uppercase">Relatório Gerado em</p>
+                 <p className="text-lg font-black">{new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
+           </div>
+        </div>
+
+        <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full print:p-0 print:max-w-none">
           {viewMode === 'management' && (
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500">
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500 print:grid-cols-2">
               {users.map((user) => {
                 const targetIsSuper = checkIfSuperAdmin(user);
                 const targetIsSupervisor = checkIfSupervisor(user);
                 const canManage = isSuperAdmin && !targetIsSuper;
 
                 return (
-                  <Card key={user.id} className="premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all overflow-hidden relative">
+                  <Card key={user.id} className="premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all overflow-hidden relative print:shadow-none print:border-black">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                       <div className="flex items-center gap-4">
                         <div className={cn(
@@ -280,44 +303,46 @@ export default function TeamManagement() {
                         </div>
                       </div>
                       {isSuperAdmin && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-secondary">
-                              <MoreVertical size={16} className="text-muted-foreground" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-white border-border/50 rounded-xl shadow-2xl min-w-[160px] p-2">
-                            {!canManage && (
-                               <DropdownMenuItem disabled className="text-[8px] font-black uppercase text-red-500 text-center bg-red-50">
-                                 Autoridade Protegida
-                               </DropdownMenuItem>
-                            )}
-                            
-                            {canManage && (
-                              <>
-                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2 text-primary font-bold">
-                                   Tornar Supervisor
+                        <div className="print:hidden">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-secondary">
+                                <MoreVertical size={16} className="text-muted-foreground" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white border-border/50 rounded-xl shadow-2xl min-w-[160px] p-2">
+                              {!canManage && (
+                                <DropdownMenuItem disabled className="text-[8px] font-black uppercase text-red-500 text-center bg-red-50">
+                                  Autoridade Protegida
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                                   Tornar Administrador
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                                   Tornar Operador
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Visualizador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                                   Tornar Visualizador
-                                </DropdownMenuItem>
-                                <div className="h-px bg-border/50 my-2" />
-                                <DropdownMenuItem 
-                                  onClick={() => handleDelete(user.id)}
-                                  className="text-[9px] font-black uppercase cursor-pointer text-red-600 focus:bg-red-50 rounded-lg px-3 py-2"
-                                >
-                                  Revogar Acesso
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              )}
+                              
+                              {canManage && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2 text-primary font-bold">
+                                    Tornar Supervisor
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
+                                    Tornar Administrador
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
+                                    Tornar Operador
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Visualizador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
+                                    Tornar Visualizador
+                                  </DropdownMenuItem>
+                                  <div className="h-px bg-border/50 my-2" />
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDelete(user.id)}
+                                    className="text-[9px] font-black uppercase cursor-pointer text-red-600 focus:bg-red-50 rounded-lg px-3 py-2"
+                                  >
+                                    Revogar Acesso
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       )}
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -327,7 +352,7 @@ export default function TeamManagement() {
                       </div>
                       <div className="flex justify-between items-center pt-2">
                         <div className="flex items-center gap-2">
-                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse print:animate-none" />
                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Sessão Ativa</span>
                         </div>
                         <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">P0 SECURITY</span>
@@ -336,16 +361,12 @@ export default function TeamManagement() {
                   </Card>
                 );
               })}
-
-              {loading && Array.from({length: 3}).map((_, i) => (
-                <div key={i} className="h-44 bg-white animate-pulse border border-border/20 rounded-2xl" />
-              ))}
             </section>
           )}
 
           {viewMode === 'hierarchy' && (
-            <section className="space-y-4 pb-20 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-8">
+            <section className="space-y-4 pb-20 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto print:max-w-none">
+              <div className="flex items-center justify-between mb-8 print:hidden">
                  <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-black text-primary flex items-center justify-center rounded-2xl shadow-2xl">
                        <Trophy size={28} />
@@ -367,7 +388,7 @@ export default function TeamManagement() {
                    return (
                      <div key={user.id} className={cn(
                        "flex items-center justify-between p-5 bg-white border-2 border-border/40 rounded-2xl hover:border-black transition-all group",
-                       (isSuper || isSupervisor) && "border-black shadow-[6px_6px_0px_rgba(0,0,0,0.1)]"
+                       (isSuper || isSupervisor) && "border-black shadow-[6px_6px_0px_rgba(0,0,0,0.1)] print:shadow-none"
                      )}>
                         <div className="flex items-center gap-6">
                            <div className={cn(
@@ -406,7 +427,7 @@ export default function TeamManagement() {
                                 Ativo no Núcleo
                               </Badge>
                            </div>
-                           <div className="w-8 h-8 rounded-full border-2 border-border/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                           <div className="w-8 h-8 rounded-full border-2 border-border/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
                               <ChevronRight size={14} className="text-muted-foreground" />
                            </div>
                         </div>
@@ -418,11 +439,11 @@ export default function TeamManagement() {
           )}
 
           {viewMode === 'performance' && (
-            <section className="space-y-12 pb-20 animate-in zoom-in-95 duration-500 max-w-5xl mx-auto">
+            <section className="space-y-12 pb-20 animate-in zoom-in-95 duration-500 max-w-5xl mx-auto print:max-w-none">
               {/* HEADER PERFORMANCE */}
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b-2 border-black pb-8">
                  <div className="space-y-4">
-                    <div className="w-16 h-16 bg-black text-[#00D1FF] flex items-center justify-center rounded-2xl shadow-[8px_8px_0px_#000]">
+                    <div className="w-16 h-16 bg-black text-[#00D1FF] flex items-center justify-center rounded-2xl shadow-[8px_8px_0px_#000] print:shadow-none">
                        <Star size={32} fill="currentColor" />
                     </div>
                     <div>
@@ -430,7 +451,7 @@ export default function TeamManagement() {
                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.3em]">Performance baseada em resolutividade e prazos</p>
                     </div>
                  </div>
-                 <div className="flex items-center gap-4 bg-white p-4 border-2 border-black shadow-[4px_4px_0px_#000]">
+                 <div className="flex items-center gap-4 bg-white p-4 border-2 border-black shadow-[4px_4px_0px_#000] print:shadow-none">
                     <TrendingUp className="text-emerald-500" size={20} />
                     <div>
                        <p className="text-[9px] font-black uppercase text-muted-foreground">Eficiência Global</p>
@@ -439,7 +460,7 @@ export default function TeamManagement() {
                  </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 print:grid-cols-2">
                 {/* TOP PERFORMERS (MELHORES) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3">
@@ -448,7 +469,7 @@ export default function TeamManagement() {
                    </div>
                    <div className="grid gap-4">
                       {topPerformers.map((s, i) => (
-                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:-translate-y-1 transition-all group">
+                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:-translate-y-1 transition-all group print:shadow-none print:translate-0">
                            <div className="flex items-center gap-4">
                               <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-black border-2 border-emerald-200">
                                  {i + 1}º
@@ -475,7 +496,7 @@ export default function TeamManagement() {
                    </div>
                    <div className="grid gap-4">
                       {criticalAttention.length > 0 ? criticalAttention.map((s) => (
-                        <div key={s.name} className="bg-white border-2 border-red-600/20 p-5 flex items-center justify-between hover:border-red-600 transition-all group">
+                        <div key={s.name} className="bg-white border-2 border-red-600/20 p-5 flex items-center justify-between hover:border-red-600 transition-all group print:translate-0">
                            <div className="flex items-center gap-4">
                               <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center font-black border-2 border-red-200">
                                  <TrendingDown size={18} />
@@ -501,19 +522,25 @@ export default function TeamManagement() {
               </div>
 
               {/* FOOTER DESEMPENHO */}
-              <div className="bg-black text-white p-8 rounded-none border-2 border-black shadow-[10px_10px_0px_#00D1FF] flex flex-col md:flex-row items-center justify-between gap-8">
+              <div className="bg-black text-white p-8 rounded-none border-2 border-black shadow-[10px_10px_0px_#00D1FF] flex flex-col md:flex-row items-center justify-between gap-8 print:shadow-none print:border-black print:text-black print:bg-white">
                  <div className="flex items-center gap-6">
-                    <Zap className="text-yellow-400" size={32} />
+                    <Zap className="text-yellow-400 print:text-black" size={32} />
                     <div className="max-w-md">
-                       <p className="text-xs font-black uppercase tracking-widest text-primary mb-2">Análise de Autoridade</p>
-                       <p className="text-[10px] font-bold uppercase leading-relaxed text-white/70">
+                       <p className="text-xs font-black uppercase tracking-widest text-primary mb-2 print:text-black">Análise de Autoridade</p>
+                       <p className="text-[10px] font-bold uppercase leading-relaxed text-white/70 print:text-black/60">
                           O score é recalculado a cada movimento da carteira. Processos vencidos impactam negativamente em 4x mais que um processo em andamento.
                        </p>
                     </div>
                  </div>
-                 <Button variant="outline" className="border-white text-white hover:bg-white hover:text-black font-black uppercase text-[10px] h-12 px-8 rounded-none transition-all">
-                    Exportar Ranking PDF
-                 </Button>
+                 <div className="print:hidden">
+                   <Button 
+                    variant="outline" 
+                    onClick={handleExportPDF}
+                    className="border-white text-white hover:bg-white hover:text-black font-black uppercase text-[10px] h-12 px-8 rounded-none transition-all"
+                   >
+                    <Printer size={16} className="mr-2" /> Exportar Ranking PDF
+                   </Button>
+                 </div>
               </div>
             </section>
           )}
@@ -564,11 +591,18 @@ export default function TeamManagement() {
           </DialogContent>
         </Dialog>
 
-        <footer className="h-10 border-t border-border/30 bg-white flex items-center justify-center gap-6 text-[9px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
+        <footer className="h-10 border-t border-border/30 bg-white flex items-center justify-center gap-6 text-[9px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0 print:hidden">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Advanced Management • Davi Alves Figueredo</span>
         </footer>
       </main>
+
+      <style jsx global>{`
+        @media print {
+          body { background: white !important; color: black !important; -webkit-print-color-adjust: exact; }
+          @page { size: A4; margin: 10mm; }
+        }
+      `}</style>
     </div>
   );
 }
