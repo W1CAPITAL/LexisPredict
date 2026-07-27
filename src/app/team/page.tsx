@@ -30,7 +30,9 @@ import {
   Printer,
   Scale,
   Info,
-  FileText
+  FileText,
+  Gavel,
+  ClipboardList
 } from 'lucide-react';
 import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
@@ -44,7 +46,7 @@ import { getTranslation, Locale } from '@/lib/i18n';
 import { fetchRepoCases } from '@/app/actions/case-actions';
 import { LegalCase } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
-import { calcularScoreAdvogado, LawyerScoreResult } from '@/lib/score-advogado';
+import { calcularScoreAdvogado, calcularScoreAssessor, ScoreResult } from '@/lib/score-engine';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,7 +82,7 @@ export default function TeamManagement() {
   const [locale, setLocale] = useState<Locale>('pt');
   
   // Auditoria de Score
-  const [selectedAudit, setSelectedAudit] = useState<LawyerScoreResult | null>(null);
+  const [selectedAudit, setSelectedAudit] = useState<ScoreResult | null>(null);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   
   const { profile } = useAuth();
@@ -89,7 +91,6 @@ export default function TeamManagement() {
   
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
-  const isAdmin = profile?.cargo === 'Administrador' || isSuperAdmin || isSupervisor;
 
   const [userForm, setUserForm] = useState({
     nome: '',
@@ -130,9 +131,8 @@ export default function TeamManagement() {
     setIsSaving(true);
     try {
       const res = await createEmpresaUserAction(userForm);
-      
       if (res.success) {
-        toast({ title: "Operador Ativado", description: "O novo membro já pode acessar o gabinete." });
+        toast({ title: "Operador Ativado" });
         setIsNewClientOpen(false);
         setUserForm({ nome: '', email: '', cargo: 'Operador', password: '' });
         loadData();
@@ -152,83 +152,48 @@ export default function TeamManagement() {
     if (res.success) {
       toast({ title: "Cargo Atualizado" });
       loadData();
-    } else {
-      toast({ title: "Ação Negada", description: res.error, variant: "destructive" });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!isSuperAdmin) return;
+    if (!confirm('Deseja revogar o acesso deste usuário permanentemente?')) return;
     const res = await removeEmpresaUser(id);
     if (res.success) {
       toast({ title: "Acesso Revogado" });
       loadData();
-    } else {
-      toast({ title: "Ação Negada", description: res.error, variant: "destructive" });
     }
   };
 
-  const handleExportPDF = () => {
-    window.print();
-  };
-
-  // --- LÓGICA DE PERFORMANCE ---
-  const performanceRanking = useMemo(() => {
-    const stats: Record<string, any> = {};
+  // --- LÓGICA DE PERFORMANCE DUAL ---
+  const performanceData = useMemo(() => {
+    const advStats: Record<string, { name: string, cases: LegalCase[] }> = {};
+    const assStats: Record<string, { name: string, cases: LegalCase[] }> = {};
 
     cases.forEach(c => {
+      // Agrupamento Advogado
       const lawyer = (c.advogado || 'NÃO ATRIBUÍDO').trim().toUpperCase();
-      if (!stats[lawyer]) {
-        stats[lawyer] = {
-          name: lawyer,
-          cases: [],
-          total: 0,
-          vencidos: 0,
-          encerrados: 0,
-          noPrazo: 0,
-          productivityScore: 0
-        };
-      }
+      if (!advStats[lawyer]) advStats[lawyer] = { name: lawyer, cases: [] };
+      advStats[lawyer].cases.push(c);
 
-      const s = stats[lawyer];
-      s.cases.push(c);
-      s.total++;
-      if (isCasoEncerrado(c)) s.encerrados++;
-      else if (c.status === 'Vencido') s.vencidos++;
-      else s.noPrazo++;
+      // Agrupamento Assessor
+      const assessor = (c.atendente || 'NÃO ATRIBUÍDO').trim().toUpperCase();
+      if (!assStats[assessor]) assStats[assessor] = { name: assessor, cases: [] };
+      assStats[assessor].cases.push(c);
     });
 
-    return Object.values(stats).map(s => {
-      const calculatedProductivity = (s.encerrados * 15) + (s.noPrazo * 5) - (s.vencidos * 20);
-      const authorityAudit = calcularScoreAdvogado(s.cases);
-      
-      return { 
-        ...s, 
-        score: calculatedProductivity, 
-        authority: authorityAudit 
-      };
-    }).sort((a, b) => b.score - a.score);
+    const advRank = Object.values(advStats).map(s => ({
+      name: s.name,
+      result: calcularScoreAdvogado(s.cases)
+    })).sort((a, b) => b.result.score - a.score.score);
+
+    const assRank = Object.values(assStats).map(s => ({
+      name: s.name,
+      result: calcularScoreAssessor(s.cases)
+    })).sort((a, b) => b.result.score - a.score.score);
+
+    return { advRank, assRank };
   }, [cases]);
-
-  const topPerformers = useMemo(() => performanceRanking.slice(0, 5), [performanceRanking]);
-  const criticalAttention = useMemo(() => [...performanceRanking].reverse().slice(0, 5).filter(s => s.score < 0 || s.vencidos > 0), [performanceRanking]);
-
-  const roleWeights: Record<string, number> = {
-    'Superadmin': 5000,
-    'Supervisor': 4000,
-    'Administrador': 3000,
-    'Operador': 2000,
-    'Visualizador': 1000
-  };
-
-  const rankedUsers = useMemo(() => {
-    return [...users].sort((a, b) => {
-      const weightA = roleWeights[a.cargo] || 0;
-      const weightB = roleWeights[b.cargo] || 0;
-      if (weightA !== weightB) return weightB - weightA;
-      return a.nome.localeCompare(b.nome);
-    });
-  }, [users]);
 
   return (
     <div className="flex h-screen bg-[#f8f9fb] font-sans text-foreground overflow-hidden">
@@ -243,7 +208,7 @@ export default function TeamManagement() {
             </div>
             <div>
               <h1 className="font-black text-xl uppercase tracking-tighter">{t.teamTitle}</h1>
-              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mt-0.5">INSTÂNCIA: {profile?.empresa_id?.split('-')[0] || "GABINETE"} • NÍVEL {isSuperAdmin ? 'MESTRE' : 'ADMIN'}</p>
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mt-0.5">Autoridade de Gabinete</p>
             </div>
           </div>
 
@@ -251,393 +216,184 @@ export default function TeamManagement() {
             <Tabs value={viewMode} onValueChange={(val) => setViewMode(val as any)} className="bg-secondary/20 p-1 rounded-xl">
               <TabsList className="bg-transparent h-9 border-none gap-1">
                 <TabsTrigger value="management" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
-                  <LayoutGrid size={12} className="mr-2"/> {t.viewManagement}
+                  <LayoutGrid size={12} className="mr-2"/> Gestão
                 </TabsTrigger>
                 <TabsTrigger value="hierarchy" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
-                  <Trophy size={12} className="mr-2"/> {t.viewHierarchy}
+                  <Trophy size={12} className="mr-2"/> Hierarquia
                 </TabsTrigger>
                 <TabsTrigger value="performance" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">
-                  <Star size={12} className="mr-2"/> Desempenho (KPI)
+                  <Zap size={12} className="mr-2"/> Performance
                 </TabsTrigger>
               </TabsList>
             </Tabs>
 
-            <div className="flex items-center gap-3">
-               {isSuperAdmin && (
-                 <Button onClick={() => setIsNewUserOpen(true)} className="bg-black text-white font-black h-10 px-6 rounded-xl uppercase text-[10px] tracking-widest hover:bg-black/90 transition-all shadow-xl">
-                   <UserPlus size={16} className="mr-2 text-primary" /> Novo Operador
-                 </Button>
-               )}
-               <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
-                  <RefreshCcw size={18} className={cn(loading && "animate-spin text-primary")} />
-               </Button>
-            </div>
+            {isSuperAdmin && (
+              <Button onClick={() => setIsNewUserOpen(true)} className="bg-black text-white font-black h-10 px-6 rounded-xl uppercase text-[10px] tracking-widest shadow-xl">
+                <UserPlus size={16} className="mr-2 text-primary" /> Novo Membro
+              </Button>
+            )}
           </div>
         </header>
 
-        {/* PRINT ONLY HEADER */}
-        <div className="hidden print:block p-10 border-b-4 border-black mb-10">
-           <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 bg-black flex items-center justify-center text-primary"><Scale size={32}/></div>
-                 <div>
-                    <h1 className="text-2xl font-black uppercase tracking-tighter">LexisPredict Elite</h1>
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Auditoria de Desempenho de Banca</p>
-                 </div>
-              </div>
-              <div className="text-right">
-                 <p className="text-xs font-black uppercase">Relatório Gerado em</p>
-                 <p className="text-lg font-black">{new Date().toLocaleDateString('pt-BR')}</p>
-              </div>
-           </div>
-        </div>
-
         <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full print:p-0 print:max-w-none">
           {viewMode === 'management' && (
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500 print:grid-cols-2">
-              {users.map((user) => {
-                const targetIsSuper = checkIfSuperAdmin(user);
-                const targetIsSupervisor = checkIfSupervisor(user);
-                const canManage = isSuperAdmin && !targetIsSuper;
-
-                return (
-                  <Card key={user.id} className="premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all overflow-hidden relative print:shadow-none print:border-black">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "w-12 h-12 rounded-xl flex items-center justify-center border transition-all",
-                          targetIsSuper ? "bg-black text-[#FFD700] border-[#FFD700] shadow-[0_0_15px_rgba(255,215,0,0.3)]" : 
-                          targetIsSupervisor ? "bg-primary/20 text-primary border-primary" :
-                          user.cargo === 'Administrador' ? "bg-black text-primary border-black shadow-lg" : "bg-[#f8f9fb] border-border/50 text-muted-foreground"
-                        )}>
-                          {targetIsSuper ? <Crown size={24} /> : 
-                           targetIsSupervisor ? <Eye size={24} /> :
-                           user.cargo === 'Administrador' ? <ShieldCheck size={24} /> : user.cargo === 'Operador' ? <Shield size={24} /> : <Activity size={24} />}
-                        </div>
-                        <div className="flex flex-col">
-                          <p className="text-[12px] font-black uppercase tracking-tight truncate max-w-[150px]">{user.nome}</p>
-                          <RoleBadge role={user.cargo as any} t={t} isSuper={targetIsSuper} />
-                        </div>
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500">
+              {users.map((user) => (
+                <Card key={user.id} className="premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center font-black text-xs">
+                        {user.nome.substring(0, 2)}
                       </div>
-                      {isSuperAdmin && (
-                        <div className="print:hidden">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-secondary">
-                                <MoreVertical size={16} className="text-muted-foreground" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="bg-white border-border/50 rounded-xl shadow-2xl min-w-[160px] p-2">
-                              {!canManage && (
-                                <DropdownMenuItem disabled className="text-[8px] font-black uppercase text-red-500 text-center bg-red-50">
-                                  Autoridade Protegida
-                                </DropdownMenuItem>
-                              )}
-                              
-                              {canManage && (
-                                <>
-                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2 text-primary font-bold">
-                                    Tornar Supervisor
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                                    Tornar Administrador
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                                    Tornar Operador
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Visualizador')} className="text-[9px] font-black uppercase cursor-pointer hover:bg-secondary rounded-lg px-3 py-2">
-                                    Tornar Visualizador
-                                  </DropdownMenuItem>
-                                  <div className="h-px bg-border/50 my-2" />
-                                  <DropdownMenuItem 
-                                    onClick={() => handleDelete(user.id)}
-                                    className="text-[9px] font-black uppercase cursor-pointer text-red-600 focus:bg-red-50 rounded-lg px-3 py-2"
-                                  >
-                                    Revogar Acesso
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      )}
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center gap-3 text-muted-foreground p-3 bg-[#f8f9fb] rounded-xl border border-border/20">
-                        <Mail size={14} className="shrink-0 text-primary" />
-                        <span className="text-[10px] font-mono lowercase truncate">{user.email}</span>
+                      <div className="flex flex-col">
+                        <p className="text-[12px] font-black uppercase truncate max-w-[150px]">{user.nome}</p>
+                        <Badge variant="outline" className="text-[7px] font-black uppercase h-5">{user.cargo}</Badge>
                       </div>
-                      <div className="flex justify-between items-center pt-2">
-                        <div className="flex items-center gap-2">
-                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse print:animate-none" />
-                           <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Sessão Ativa</span>
-                        </div>
-                        <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">P0 SECURITY</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </section>
-          )}
-
-          {viewMode === 'hierarchy' && (
-            <section className="space-y-4 pb-20 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto print:max-w-none">
-              <div className="flex items-center justify-between mb-8 print:hidden">
-                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-black text-primary flex items-center justify-center rounded-2xl shadow-2xl">
-                       <Trophy size={28} />
                     </div>
-                    <div>
-                       <h2 className="text-xl font-black uppercase tracking-tight">Cadeia de Comando</h2>
-                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Hierarchy Ranking • Gabinete W1</p>
+                    {isSuperAdmin && !checkIfSuperAdmin(user) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical size={16} /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="p-2 min-w-[140px]">
+                           <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer">Tornar Supervisor</DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer">Tornar Admin</DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer">Tornar Operador</DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => handleDelete(user.id)} className="text-[9px] font-black uppercase cursor-pointer text-red-600">Revogar Acesso</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-3 text-muted-foreground p-2.5 bg-secondary/30 rounded-lg">
+                      <Mail size={12} />
+                      <span className="text-[9px] font-mono lowercase truncate">{user.email}</span>
                     </div>
-                 </div>
-                 <Badge variant="outline" className="bg-white border-black border-2 text-black font-black uppercase text-[10px] px-6 h-10">Elite Authority Status</Badge>
-              </div>
-
-              <div className="space-y-3">
-                {rankedUsers.map((user, index) => {
-                   const isSuper = checkIfSuperAdmin(user);
-                   const isSupervisor = checkIfSupervisor(user);
-                   const rank = index + 1;
-                   
-                   return (
-                     <div key={user.id} className={cn(
-                       "flex items-center justify-between p-5 bg-white border-2 border-border/40 rounded-2xl hover:border-black transition-all group",
-                       (isSuper || isSupervisor) && "border-black shadow-[6px_6px_0px_rgba(0,0,0,0.1)] print:shadow-none"
-                     )}>
-                        <div className="flex items-center gap-6">
-                           <div className={cn(
-                             "w-10 h-10 rounded-full flex items-center justify-center font-black text-sm",
-                             rank === 1 ? "bg-black text-[#FFD700]" : rank === 2 ? "bg-gray-100 text-gray-700" : "bg-[#f8f9fb] text-muted-foreground"
-                           )}>
-                              {rank === 1 ? <Medal size={20} /> : `#${rank}`}
-                           </div>
-                           
-                           <div className="flex items-center gap-4">
-                              <div className={cn(
-                                "w-12 h-12 rounded-xl flex items-center justify-center transition-all",
-                                isSuper ? "bg-black text-[#FFD700]" : 
-                                isSupervisor ? "bg-primary text-white" : "bg-secondary/50 text-muted-foreground"
-                              )}>
-                                 {isSuper ? <Crown size={20} /> : isSupervisor ? <Eye size={20} /> : <UserCheck size={20} />}
-                              </div>
-                              <div>
-                                 <p className="font-black text-sm uppercase tracking-tight leading-none mb-1.5">{user.nome}</p>
-                                 <div className="flex items-center gap-2">
-                                    <RoleBadge role={user.cargo as any} t={t} isSuper={isSuper} />
-                                    <span className="text-[8px] font-black text-muted-foreground uppercase opacity-40">• Authority Score: {roleWeights[user.cargo] || 0}</span>
-                                 </div>
-                              </div>
-                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-10">
-                           <div className="hidden sm:flex flex-col items-end">
-                              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 opacity-60">Status de Perfil</p>
-                              <Badge className={cn(
-                                "bg-emerald-50 text-emerald-700 border-none text-[8px] font-black uppercase px-3",
-                                isSuper && "bg-black text-[#FFD700]",
-                                isSupervisor && "bg-primary text-white"
-                              )}>
-                                Ativo no Núcleo
-                              </Badge>
-                           </div>
-                           <div className="w-8 h-8 rounded-full border-2 border-border/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
-                              <ChevronRight size={14} className="text-muted-foreground" />
-                           </div>
-                        </div>
-                     </div>
-                   );
-                })}
-              </div>
+                  </CardContent>
+                </Card>
+              ))}
             </section>
           )}
 
           {viewMode === 'performance' && (
-            <section className="space-y-12 pb-20 animate-in zoom-in-95 duration-500 max-w-5xl mx-auto print:max-w-none">
-              {/* HEADER PERFORMANCE */}
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b-2 border-black pb-8">
-                 <div className="space-y-4">
-                    <div className="w-16 h-16 bg-black text-[#00D1FF] flex items-center justify-center rounded-2xl shadow-[8px_8px_0px_#000] print:shadow-none">
-                       <Star size={32} fill="currentColor" />
-                    </div>
-                    <div>
-                       <h2 className="text-3xl font-black uppercase tracking-tighter">Leaderboard de Banca</h2>
-                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.3em]">Performance baseada em resolutividade e ritos técnicos</p>
-                    </div>
-                 </div>
-                 <div className="flex items-center gap-4 bg-white p-4 border-2 border-black shadow-[4px_4px_0px_#000] print:shadow-none">
-                    <TrendingUp className="text-emerald-500" size={20} />
-                    <div>
-                       <p className="text-[9px] font-black uppercase text-muted-foreground">Eficiência Global</p>
-                       <p className="text-xl font-black tabular-nums">94.2%</p>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 print:grid-cols-2">
-                {/* TOP PERFORMERS (MELHORES) */}
+            <section className="space-y-12 pb-20 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {/* RANKING OPERACIONAL (ASSESSORES) */}
                 <div className="space-y-6">
-                   <div className="flex items-center gap-3">
-                      <Trophy className="text-yellow-500" size={20} />
-                      <h3 className="text-xs font-black uppercase tracking-widest">Alta Resolutividade & Autoridade</h3>
+                   <div className="flex items-center gap-3 border-b-2 border-black pb-4">
+                      <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center rounded-lg shadow-lg"><ClipboardList size={20}/></div>
+                      <div>
+                        <h3 className="text-lg font-black uppercase tracking-tighter">Performance Operacional</h3>
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Responsabilidade de Assessoria (Retornos e Cadastro)</p>
+                      </div>
                    </div>
-                   <div className="grid gap-4">
-                      {topPerformers.map((s, i) => (
-                        <div key={s.name} className="bg-white border-2 border-black p-5 flex flex-col gap-4 shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:-translate-y-1 transition-all group print:shadow-none print:translate-0">
-                           <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-black border-2 border-emerald-200">
-                                    {i + 1}º
-                                 </div>
-                                 <div>
-                                    <p className="text-[11px] font-black uppercase tracking-tight group-hover:text-primary transition-colors">{s.name}</p>
-                                    <p className="text-[9px] font-bold text-muted-foreground uppercase">{s.total} Processos • {s.encerrados} Baixas</p>
-                                 </div>
-                              </div>
-                              <div className="text-right">
-                                 <p className="text-lg font-black tracking-tighter text-emerald-600">+{s.score}</p>
-                                 <Badge className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 border-none">ELITE</Badge>
+                   <div className="space-y-4">
+                      {performanceData.assRank.map((s, i) => (
+                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between group hover:translate-x-1 transition-all">
+                           <div className="flex items-center gap-4">
+                              <span className="font-black text-black/20 text-xl">{i + 1}º</span>
+                              <div>
+                                 <p className="text-[11px] font-black uppercase">{s.name}</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Casos Auditados</p>
                               </div>
                            </div>
-                           
-                           {/* Novo Indicador de Authority Score */}
-                           <div className="pt-3 border-t border-black/5 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Zap size={14} className="text-[#00D1FF]" />
-                                <span className="text-[9px] font-black uppercase text-black/40">Authority Score (Higiene):</span>
-                              </div>
-                              <button 
-                                onClick={() => { setSelectedAudit(s.authority); setIsAuditModalOpen(true); }}
-                                className="flex items-center gap-2 group/btn"
-                              >
-                                <span className={cn(
-                                  "text-xs font-black",
-                                  s.authority.score > 80 ? "text-emerald-600" : s.authority.score > 50 ? "text-blue-600" : "text-red-600"
-                                )}>{s.authority.score}/100</span>
-                                <Info size={12} className="text-black/20 group-hover/btn:text-primary transition-colors" />
-                              </button>
-                           </div>
+                           <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="flex flex-col items-end">
+                              <span className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score > 50 ? "text-blue-600" : "text-red-600")}>
+                                {s.result.score}
+                              </span>
+                              <span className="text-[7px] font-black uppercase opacity-40">Efficiency pts</span>
+                           </button>
                         </div>
                       ))}
                    </div>
                 </div>
 
-                {/* CRITICAL ATTENTION (PIORES) */}
+                {/* RANKING JURÍDICO (ADVOGADOS) */}
                 <div className="space-y-6">
-                   <div className="flex items-center gap-3">
-                      <AlertTriangle className="text-red-500" size={20} />
-                      <h3 className="text-xs font-black uppercase tracking-widest">Atenção Crítica (Falhas Banca)</h3>
+                   <div className="flex items-center gap-3 border-b-2 border-black pb-4">
+                      <div className="w-10 h-10 bg-black text-primary flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
+                      <div>
+                        <h3 className="text-lg font-black uppercase tracking-tighter">Performance de Banca</h3>
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Responsabilidade Técnica (Petições e Mérito)</p>
+                      </div>
                    </div>
-                   <div className="grid gap-4">
-                      {criticalAttention.length > 0 ? criticalAttention.map((s) => (
-                        <div key={s.name} className="bg-white border-2 border-red-600/20 p-5 flex flex-col gap-4 hover:border-red-600 transition-all group print:translate-0">
-                           <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center font-black border-2 border-red-200">
-                                    <TrendingDown size={18} />
-                                 </div>
-                                 <div>
-                                    <p className="text-[11px] font-black uppercase tracking-tight">{s.name}</p>
-                                    <p className="text-[9px] font-bold text-red-600/60 uppercase">{s.vencidos} Vencidos • {s.authority.falhasFormaisGraves} Falhas Técnicas</p>
-                                 </div>
-                              </div>
-                              <div className="text-right">
-                                 <p className="text-lg font-black tracking-tighter text-red-600">{s.score}</p>
-                                 <Badge variant="outline" className="text-red-600 border-red-600 text-[8px] font-black uppercase px-2 py-0.5">REVISAR</Badge>
+                   <div className="space-y-4">
+                      {performanceData.advRank.map((s, i) => (
+                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between group hover:translate-x-1 transition-all">
+                           <div className="flex items-center gap-4">
+                              <span className="font-black text-black/20 text-xl">{i + 1}º</span>
+                              <div>
+                                 <p className="text-[11px] font-black uppercase">{s.name}</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Peças Auditadas</p>
                               </div>
                            </div>
-
-                           <div className="pt-3 border-t border-black/5 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Zap size={14} className="text-red-500" />
-                                <span className="text-[9px] font-black uppercase text-black/40">Higiene de Banca:</span>
-                              </div>
-                              <button 
-                                onClick={() => { setSelectedAudit(s.authority); setIsAuditModalOpen(true); }}
-                                className="flex items-center gap-2 group/btn"
-                              >
-                                <span className="text-xs font-black text-red-600">{s.authority.score}/100</span>
-                                <Info size={12} className="text-black/20 group-hover/btn:text-primary transition-colors" />
-                              </button>
-                           </div>
+                           <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="flex flex-col items-end">
+                              <span className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score > 50 ? "text-primary" : "text-red-600")}>
+                                {s.result.score}
+                              </span>
+                              <span className="text-[7px] font-black uppercase opacity-40">Authority Score</span>
+                           </button>
                         </div>
-                      )) : (
-                        <div className="p-12 text-center border-2 border-dashed border-border/20 rounded-xl bg-white/50">
-                           <CheckCircle2 className="mx-auto text-emerald-500 mb-4" size={32} />
-                           <p className="text-[10px] font-black uppercase text-muted-foreground">Nenhuma falha crítica detectada na banca.</p>
-                        </div>
-                      )}
+                      ))}
                    </div>
                 </div>
               </div>
 
-              {/* FOOTER DESEMPENHO */}
-              <div className="bg-black text-white p-8 rounded-none border-2 border-black shadow-[10px_10px_0px_#00D1FF] flex flex-col md:flex-row items-center justify-between gap-8 print:shadow-none print:border-black print:text-black print:bg-white">
-                 <div className="flex items-center gap-6">
-                    <Zap className="text-yellow-400 print:text-black" size={32} />
-                    <div className="max-w-md">
-                       <p className="text-xs font-black uppercase tracking-widest text-primary mb-2 print:text-black">Protocolo de Autoridade Técnica</p>
-                       <p className="text-[10px] font-bold uppercase leading-relaxed text-white/70 print:text-black/60">
-                          O Authority Score avalia puramente a conformidade formal (selos, emendas, distribuições) e isola o que é falha do cliente. Processos extintos por erro de peça penalizam a banca em 25 pontos.
-                       </p>
-                    </div>
-                 </div>
-                 <div className="print:hidden">
-                   <Button 
-                    variant="outline" 
-                    onClick={handleExportPDF}
-                    className="border-white text-white hover:bg-white hover:text-black font-black uppercase text-[10px] h-12 px-8 rounded-none transition-all"
-                   >
-                    <Printer size={16} className="mr-2" /> Exportar Auditoria PDF
-                   </Button>
+              {/* RODAPÉ EXPLICATIVO */}
+              <div className="bg-white border-2 border-black p-8 rounded-none flex items-start gap-6 shadow-[10px_10px_0px_rgba(0,0,0,0.05)]">
+                 <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center shrink-0"><Info size={24}/></div>
+                 <div className="space-y-2">
+                    <h4 className="font-black uppercase text-xs">Entendendo a Auditoria Dual</h4>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground leading-relaxed">
+                       O score opercional (Assessor) foca na experiência do cliente e pontualidade de contato. O score de banca (Advogado) foca na integridade do processo judicial. Falhas causadas pelo cliente são automaticamente detectadas e expurgadas da média de performance para garantir justiça na avaliação da equipe.
+                    </p>
                  </div>
               </div>
             </section>
           )}
         </div>
 
-        {/* Modal de Auditoria de Score */}
+        {/* Modal de Auditoria Detalhada */}
         <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
-           <DialogContent className="sm:max-w-[700px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
+           <DialogContent className="sm:max-w-[650px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
               <DialogHeader>
                  <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3">
-                    <Zap size={18} className="text-primary"/> Detalhamento de Higiene Operacional
+                    <Zap size={18} className="text-primary"/> Detalhes da Auditoria {selectedAudit?.label}
                  </DialogTitle>
               </DialogHeader>
-              <div className="py-6 space-y-8">
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <AuditMetric label="Score Final" value={`${selectedAudit?.score}/100`} />
-                    <AuditMetric label="Falhas Graves" value={selectedAudit?.falhasFormaisGraves || 0} color="text-red-600" />
-                    <AuditMetric label="Casos Mistos" value={selectedAudit?.casosMistos || 0} color="text-orange-500" />
-                    <AuditMetric label="F. Cliente (Ignoradas)" value={selectedAudit?.falhasClienteIgnoradas || 0} color="text-emerald-600" />
+              <div className="py-6 space-y-6">
+                 <div className="flex justify-between items-center bg-secondary/20 p-4 border border-black/5">
+                    <div>
+                       <p className="text-[8px] font-black uppercase opacity-40">Fator de Proteção (Cliente)</p>
+                       <p className="text-sm font-black uppercase">{selectedAudit?.ignoradosCliente} Falhas Ignoradas</p>
+                    </div>
+                    <div className="text-right">
+                       <p className="text-[8px] font-black uppercase opacity-40">Score de Rito</p>
+                       <p className="text-2xl font-black">{selectedAudit?.score}/100</p>
+                    </div>
                  </div>
 
                  <div className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase text-black/40 tracking-widest">Registros Auditados (Onde houve perda de pontos)</Label>
-                    <ScrollArea className="h-[300px] border-2 border-black/5 p-4 bg-gray-50">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Histórico de Penalidades Atribuíveis</Label>
+                    <ScrollArea className="h-[250px] border-2 border-black/5 p-4 bg-gray-50">
                        <div className="space-y-3">
-                          {selectedAudit?.detalhes.map((d, i) => (
-                             <div key={i} className="p-4 bg-white border border-black/10 flex flex-col gap-2">
+                          {selectedAudit?.penalidades.map((p, idx) => (
+                             <div key={idx} className="p-4 bg-white border border-black/10 flex flex-col gap-2">
                                 <div className="flex justify-between items-start">
                                    <div className="space-y-0.5">
-                                      <p className="text-[11px] font-black uppercase">{d.cliente}</p>
-                                      <p className="text-[9px] font-mono text-black/40">{d.protocolo}</p>
+                                      <p className="text-[10px] font-black uppercase">{p.cliente}</p>
+                                      <p className="text-[8px] font-mono text-muted-foreground">{p.protocolo}</p>
                                    </div>
-                                   <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[8px] font-black">-{d.peso} pts</Badge>
+                                   <Badge variant="destructive" className="text-[8px] font-black">-{p.peso} pts</Badge>
                                 </div>
-                                <div className="flex items-center gap-3 mt-1">
-                                   <Badge className="bg-black text-white text-[8px] font-black uppercase px-2">{d.tipoFalha}</Badge>
-                                   <p className="text-[10px] font-bold text-black/60 italic">"{d.trecho}..."</p>
+                                <div className="flex items-center gap-2">
+                                   <Badge className="bg-black text-white text-[7px] font-black uppercase px-1.5">{p.tipo}</Badge>
+                                   <p className="text-[9px] font-bold text-muted-foreground italic">"{p.motivo}..."</p>
                                 </div>
                              </div>
                           ))}
-                          {selectedAudit?.detalhes.length === 0 && (
-                             <div className="py-20 text-center opacity-20">
-                                <CheckCircle2 size={32} className="mx-auto mb-4" />
-                                <p className="font-black uppercase text-xs">Nenhuma falha técnica registrada.</p>
+                          {selectedAudit?.penalidades.length === 0 && (
+                             <div className="py-12 text-center opacity-30">
+                                <CheckCircle2 size={32} className="mx-auto mb-3" />
+                                <p className="font-black uppercase text-[10px]">Nenhuma falha técnica atribuível.</p>
                              </div>
                           )}
                        </div>
@@ -647,93 +403,12 @@ export default function TeamManagement() {
            </DialogContent>
         </Dialog>
 
-        <Dialog open={isNewUserOpen} onOpenChange={setIsNewClientOpen}>
-          <DialogContent className="sm:max-w-[450px] rounded-2xl border-none shadow-2xl">
-            <form onSubmit={handleAddUser}>
-              <DialogHeader className="p-6 bg-secondary/20 border-b">
-                <DialogTitle className="font-black uppercase tracking-tight">Ativar Novo Operador</DialogTitle>
-              </DialogHeader>
-              <div className="p-6 space-y-4">
-                <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black">Nome Completo</Label>
-                  <Input value={userForm.nome} onChange={e => setUserForm({...userForm, nome: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" required />
-                </div>
-                <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black">E-mail Corporativo</Label>
-                  <Input type="email" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value.toLowerCase()})} className="rounded-xl h-11 bg-secondary/30 border-none font-mono" required />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black">Cargo / Permissão</Label>
-                    <Select value={userForm.cargo} onValueChange={val => setUserForm({...userForm, cargo: val as UserRole})}>
-                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Supervisor" className="text-[10px] font-bold">SUPERVISOR (MASTER)</SelectItem>
-                        <SelectItem value="Administrador" className="text-[10px] font-bold">ADMINISTRADOR</SelectItem>
-                        <SelectItem value="Operador" className="text-[10px] font-bold">OPERADOR</SelectItem>
-                        <SelectItem value="Visualizador" className="text-[10px] font-bold">VISUALIZADOR</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black">Senha Provisória</Label>
-                    <Input type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none" required />
-                  </div>
-                </div>
-              </div>
-              <DialogFooter className="p-6 pt-0">
-                <Button type="submit" disabled={isSaving} className="w-full h-12 bg-black text-white rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl">
-                  {isSaving ? <Loader2 className="animate-spin" /> : "Provisionar Acesso"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
         <footer className="h-10 border-t border-border/30 bg-white flex items-center justify-center gap-6 text-[9px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0 print:hidden">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
-          <span>Advanced Management • Davi Alves Figueredo</span>
+          <span>Governança de Equipe • FUNDADOR DAVI ALVES FIGUEREDO</span>
         </footer>
       </main>
-
-      <style jsx global>{`
-        @media print {
-          body { background: white !important; color: black !important; -webkit-print-color-adjust: exact; }
-          @page { size: A4; margin: 10mm; }
-        }
-      `}</style>
     </div>
   );
 }
 
-function RoleBadge({ role, t, isSuper }: { role: UserRole, t: any, isSuper: boolean }) {
-  const styles: Record<string, string> = {
-    'Superadmin': "text-[#FFD700] border-[#FFD700]/40 bg-black shadow-[0_0_10px_rgba(255,215,0,0.2)]",
-    'Supervisor': "text-primary border-primary bg-primary/10 shadow-sm",
-    'Administrador': "text-primary border-primary/20 bg-black shadow-sm",
-    'Operador': "text-blue-500 border-blue-500/20 bg-blue-50",
-    'Visualizador': "text-muted-foreground border-border bg-secondary/50",
-  };
-
-  const label = isSuper ? t.roleSuperAdmin : 
-                role === 'Supervisor' ? t.roleSupervisor :
-                role === 'Administrador' ? t.roleAdmin : 
-                role === 'Operador' ? t.roleOperator : t.roleViewer;
-
-  return (
-    <Badge variant="outline" className={cn("px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] rounded-md", styles[isSuper ? 'Superadmin' : role] || styles.Visualizador)}>
-      {label}
-    </Badge>
-  );
-}
-
-function AuditMetric({ label, value, color = "text-black" }: { label: string, value: string | number, color?: string }) {
-  return (
-    <div className="p-4 bg-[#f8f9fb] border-2 border-black/5 flex flex-col items-center justify-center text-center">
-       <p className="text-[8px] font-black uppercase text-black/40 mb-1">{label}</p>
-       <p className={cn("text-xl font-black tabular-nums", color)}>{value}</p>
-    </div>
-  );
-}
