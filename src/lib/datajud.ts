@@ -1,5 +1,7 @@
+
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v2800.0
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v2900.0 ELITE
+ * Otimizado com Retries, Query Match e Timeouts robustos.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -13,14 +15,15 @@ export const COURT_ALIASES: Record<string, string> = {
   "4.04": "trf4", "4.05": "trf5", "4.06": "trf6"
 };
 
-const PUBLIC_KEY_FALLBACK = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
+const DATAJUD_API_KEY = process.env.DATAJUD_API_KEY || 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 
-export async function fetchDataJud(cnj: string) {
-  const envKey = process.env.DATAJUD_API_KEY;
-  const apiKey = envKey && envKey !== 'undefined' ? envKey : PUBLIC_KEY_FALLBACK;
-  const usingFallback = apiKey === PUBLIC_KEY_FALLBACK;
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
+export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
+  
   if (cnjLimpo.length !== 20) {
     return { 
       numeroProcesso: cnj, 
@@ -34,46 +37,52 @@ export async function fetchDataJud(cnj: string) {
   let alias = COURT_ALIASES[aliasPart];
   
   if (!alias) {
-    console.warn(`[DataJud] Tribunal ${aliasPart} desconhecido. Usando fallback tjsp.`);
+    console.warn(`[DataJud] Tribunal ${aliasPart} não mapeado. Fallback TJSP.`);
     alias = "tjsp";
   }
 
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
+  const startTime = Date.now();
 
   try {
-    console.log(`[DataJud] Consultando tribunal: ${alias.toUpperCase()} | CNJ: ${cnjLimpo} | Auth: ${usingFallback ? 'Public Fallback' : 'Environment'}`);
-
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `APIKey ${apiKey}`,
+        'Authorization': `APIKey ${DATAJUD_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        query: { term: { "numeroProcesso.keyword": cnjLimpo } }
+        size: 1,
+        query: {
+          match: {
+            "numeroProcesso": cnjLimpo
+          }
+        }
       }),
-      signal: AbortSignal.timeout(15000)
+      // Aumentado para 45s conforme rito de infraestrutura
+      signal: AbortSignal.timeout(45000)
     });
 
+    const duration = Date.now() - startTime;
+
     if (!response.ok) {
-      console.error(`[DataJud] Erro HTTP ${response.status} no tribunal ${alias}`);
-      return { 
-        numeroProcesso: cnj, 
-        movimentos: [], 
-        error: true, 
-        message: `Tribunal ${alias.toUpperCase()} temporariamente indisponível (Erro ${response.status}).` 
-      };
+      if (response.status === 401 || response.status === 403) {
+        return { error: true, movimentos: [], message: "Falha de autenticação no DataJud. Verifique a chave da API." };
+      }
+      throw new Error(`HTTP_${response.status}`);
     }
 
     const data = await response.json();
     const source = data.hits?.hits?.[0]?._source;
 
+    console.log(`[DataJud] ${alias.toUpperCase()} | ${cnjLimpo} | Hits: ${data.hits?.total?.value || 0} | ${duration}ms`);
+
     if (!source) {
       return { 
-        numeroProcesso: cnj, 
+        numeroProcesso: cnjLimpo, 
         movimentos: [], 
         error: false, 
-        message: "Processo não localizado no DataJud." 
+        message: "Processo não localizado no sistema unificado do DataJud." 
       };
     }
 
@@ -81,17 +90,25 @@ export async function fetchDataJud(cnj: string) {
       numeroProcesso: source.numeroProcesso || cnjLimpo,
       classe: source.classe?.nome || 'N/A',
       tribunal: source.tribunal || alias.toUpperCase(),
-      movimentos: source.movimentos || [],
+      movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
+      dataAjuizamento: source.dataAjuizamento || null,
       error: false
     };
   } catch (e: any) {
-    const isTimeout = e.name === 'TimeoutError' || e.message?.includes('timeout');
-    console.error("[DataJud] Erro Crítico:", e.message);
+    const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
+    
+    if (isTimeout && attempt < 2) {
+      console.warn(`[DataJud] Timeout na tentativa 1 para ${cnjLimpo}. Retrying...`);
+      await sleep(1000);
+      return fetchDataJud(cnj, attempt + 1);
+    }
+
+    console.error(`[DataJud] Falha Crítica: ${e.message} | Attempt: ${attempt}`);
     return { 
-      numeroProcesso: cnj, 
+      numeroProcesso: cnjLimpo, 
       movimentos: [], 
       error: true, 
-      message: isTimeout ? "Tempo esgotado na consulta ao tribunal." : "Falha na conexão com o CNJ." 
+      message: isTimeout ? "Tempo esgotado na consulta ao CNJ. Tente novamente em instantes." : "Falha na comunicação com o tribunal." 
     };
   }
 }
