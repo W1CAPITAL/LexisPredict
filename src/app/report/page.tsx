@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -27,7 +28,8 @@ import {
   Users,
   Loader2,
   Building2,
-  Gavel
+  Gavel,
+  CheckCircle
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -46,8 +48,7 @@ import {
   Cell
 } from 'recharts';
 import { Input } from "@/components/ui/input";
-
-type ReportStyle = 'classic' | 'omni';
+import { isCasoEncerrado } from "@/lib/status-encerrado";
 
 export default function UnifiedReport() {
   const [cases, setCases] = useState<LegalCase[]>([]);
@@ -55,8 +56,6 @@ export default function UnifiedReport() {
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [reportStyle, setReportStyle] = useState<ReportStyle>('classic');
-  const [omniSearch, setOmniSearch] = useState('');
   
   const { profile, loading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -89,16 +88,21 @@ export default function UnifiedReport() {
 
   const metrics = useMemo(() => {
     const totalRepo = cases.length;
-    const ativos = cases.filter(c => !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase()));
+    const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
     
-    const countVencido = cases.filter(c => c.status === 'Vencido' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length;
-    const countHoje = cases.filter(c => c.status === 'É Hoje' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length;
-    const countAtencao = cases.filter(c => c.status === 'Atenção' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length;
-    const countSaudavel = cases.filter(c => c.status === 'No Prazo' && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length;
-    const countSemPrazo = cases.filter(c => (c.status === 'Sem Prazo' || !c.proximoPrazo) && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase())).length;
+    const countVencido = ativos.filter(c => c.status === 'Vencido').length;
+    const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
+    const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
+    const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
+    const countSemPrazo = ativos.filter(c => !c.proximoPrazo).length;
     
-    const countFinalizados = cases.filter(c => ['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase()) || c.status === 'Arquivado' || c.status === 'Encerrado').length;
+    // Métricas DataJud baseadas nos ativos
+    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
+    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal).length;
+
+    const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
+    const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
 
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -121,15 +125,13 @@ export default function UnifiedReport() {
       .slice(0, 8)
       .map(([name, count]) => ({ name: name.split(' - ')[0], count }));
 
-    // Estatísticas por Escritório e Advogado
     const offices: Record<string, any> = {};
     const lawyers: Record<string, any> = {};
 
     cases.forEach(c => {
       const officeName = (c.escritorio || "Sem Escritório").trim().toUpperCase();
       const lawyerName = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
-      const situacaoUpper = String(c.situacao || '').toUpperCase();
-      const isAtivo = !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(situacaoUpper);
+      const isAtivo = !isCasoEncerrado(c);
 
       if (!offices[officeName]) offices[officeName] = { name: officeName, total: 0, ativos: 0, vencidos: 0, hoje: 0, atencao: 0 };
       if (!lawyers[lawyerName]) lawyers[lawyerName] = { name: lawyerName, total: 0, ativos: 0, vencidos: 0, hoje: 0, atencao: 0 };
@@ -146,9 +148,6 @@ export default function UnifiedReport() {
       }
     });
 
-    const sortedOffices = Object.values(offices).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total);
-    const sortedLawyers = Object.values(lawyers).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total);
-
     return {
       totalRepo, 
       activeTotal, 
@@ -157,20 +156,20 @@ export default function UnifiedReport() {
       countAtencao, 
       countSaudavel, 
       countSemPrazo, 
-      countFinalizados, 
       riskScore, 
       riskLabel, 
       riskColor,
       chartData,
-      sortedOffices,
-      sortedLawyers,
-      topTribunal: Object.entries(tribCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || 'TJSP'
+      sortedOffices: Object.values(offices).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total),
+      sortedLawyers: Object.values(lawyers).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total),
+      countNovoAndamento, rateAndamento,
+      countEncerradoTribunal, rateEncerrado
     };
   }, [cases]);
 
   const prioritaryCases = useMemo(() => {
     return cases
-      .filter(c => ["Vencido", "É Hoje", "Atenção"].includes(c.status) && !['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO'].includes(String(c.situacao).toUpperCase()))
+      .filter(c => ["Vencido", "É Hoje", "Atenção"].includes(c.status) && !isCasoEncerrado(c))
       .sort((a, b) => (a.diasFaltando || 0) - (b.diasFaltando || 0))
       .slice(0, 50);
   }, [cases]);
@@ -197,7 +196,6 @@ export default function UnifiedReport() {
             <div className="h-6 w-px bg-black/10 hidden sm:block" />
             <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">White Prestige v8.5</Badge>
           </div>
-          
           <Button onClick={handleExportPDF} className="bg-black hover:bg-black/90 text-white font-black uppercase text-[10px] tracking-widest h-11 px-7 rounded-none transition-all shadow-[4px_4px_0px_#00D1FF] hover:shadow-none">
             <Printer size={14} className="mr-2" /> Imprimir Dossiê Padrão
           </Button>
@@ -229,6 +227,28 @@ export default function UnifiedReport() {
           </header>
 
           <section className="px-10 py-10 bg-[#f8f9fb]">
+             <div className="mb-10 p-8 border-4 border-black bg-black text-white shadow-[10px_10px_0px_#00D1FF]">
+                <h3 className="text-xs font-black uppercase tracking-[0.4em] mb-6 flex items-center gap-3"><Zap className="text-primary" size={14}/> Telemetria Forense (DataJud)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                   <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase opacity-60">Andamentos Judiciais não atendidos</p>
+                      <div className="flex items-baseline gap-4">
+                         <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento} de {metrics.activeTotal}</span>
+                         <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
+                      </div>
+                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de vigilância: processos com movimentos novos após o último contato.</p>
+                   </div>
+                   <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase opacity-60">Baixas identificadas no Tribunal</p>
+                      <div className="flex items-baseline gap-4">
+                         <span className="text-4xl font-black tabular-nums">{metrics.countEncerradoTribunal} de {metrics.activeTotal}</span>
+                         <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
+                      </div>
+                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.</p>
+                   </div>
+                </div>
+             </div>
+
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 md:col-span-4 bg-white border-2 border-black p-7 flex flex-col justify-between min-h-[220px] shadow-[6px_6px_0px_#000]">
                 <div>
@@ -265,11 +285,10 @@ export default function UnifiedReport() {
               <StatusPill label="Atenção" count={metrics.countAtencao} total={metrics.activeTotal} color="bg-amber-400" />
               <StatusPill label="Saudáveis" count={metrics.countSaudavel} total={metrics.activeTotal} color="bg-green-600" />
               <StatusPill label="Sem Prazo" count={metrics.countSemPrazo} total={metrics.activeTotal} color="bg-slate-400" />
-              <StatusPill label="Finalizados" count={metrics.countFinalizados} total={metrics.totalRepo} color="bg-slate-800" />
+              <StatusPill label="Ativos Totais" count={metrics.activeTotal} total={metrics.totalRepo} color="bg-black" />
             </div>
           </section>
 
-          {/* NOVAS SEÇÕES: ESCRITÓRIO E ADVOGADO */}
           <section className="px-10 pb-12 space-y-12">
              <div className="space-y-6">
                 <div className="flex items-center gap-3">
@@ -364,57 +383,6 @@ export default function UnifiedReport() {
               </div>
             </section>
           )}
-
-          <section className="px-10 pb-12">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-5 bg-red-600" />
-                <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Triagem de Prioridade Máxima</h2>
-              </div>
-            </div>
-            <div className="border-2 border-black overflow-hidden">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-black text-white">
-                    <th className="px-5 py-3.5 text-[9px] font-black tracking-[0.2em] uppercase border-b border-black">Cliente / Tribunal</th>
-                    <th className="px-5 py-3.5 text-[9px] font-black tracking-[0.2em] uppercase border-b border-black">Protocolo</th>
-                    <th className="px-5 py-3.5 text-[9px] font-black tracking-[0.2em] uppercase border-b border-black">Prazo</th>
-                    <th className="px-5 py-3.5 text-[9px] font-black tracking-[0.2em] uppercase border-b border-black text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white">
-                  {prioritaryCases.map((c, i) => (
-                    <tr key={i} className="border-b-2 border-black/5 hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-4">
-                        <p className="text-xs font-black text-black leading-tight uppercase">{c.cliente}</p>
-                        <p className="text-[9px] text-black/40 tracking-widest uppercase mt-1 font-bold">{c.tribunal || "Outros"}</p>
-                      </td>
-                      <td className="px-5 py-4"><p className="text-[10px] font-mono text-black/60 font-bold">{c.protocolo}</p></td>
-                      <td className="px-5 py-4">
-                         <p className="text-[10px] font-black text-black/80 uppercase">{c.proximoPrazo}</p>
-                         <p className={cn(
-                            "text-[8px] font-black uppercase mt-1",
-                            (c.diasFaltando || 0) < 0 ? "text-red-600" : "text-black/40"
-                          )}>
-                            {(c.diasFaltando || 0) < 0 ? `${Math.abs(c.diasFaltando || 0)}d atraso` : (c.diasFaltando === 0 ? "Vence Hoje" : `Faltam ${c.diasFaltando} dias`)}
-                         </p>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <span className={cn(
-                          "inline-block px-2.5 py-1 text-[8px] font-black tracking-wider uppercase border-2",
-                          c.status === 'Vencido' ? "bg-red-50 text-red-600 border-red-600" : 
-                          c.status === 'É Hoje' ? "bg-orange-50 text-orange-600 border-orange-600" : 
-                          "bg-amber-50 text-amber-600 border-amber-600"
-                        )}>
-                          {c.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
 
           <footer className="px-10 py-10 border-t-2 border-black">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
