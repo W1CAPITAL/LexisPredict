@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -32,7 +31,9 @@ import {
   Calendar,
   UserCheck,
   Building2,
-  AlertCircle
+  AlertCircle,
+  FileSearch,
+  History
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -49,7 +50,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
 import { exportCasesToCSVAction } from '@/app/actions/export-actions';
 import { format } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
@@ -65,13 +66,15 @@ const CaseRow = React.memo(({
   isOperador, 
   onLogReturn, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onScan
 }: { 
   c: LegalCase, 
   isOperador: boolean, 
   onLogReturn: (p: string) => void, 
   onEdit: (c: LegalCase) => void, 
-  onDelete: (id: string) => void
+  onDelete: (id: string) => void,
+  onScan: (c: LegalCase) => void
 }) => {
   const prob = calcularProbabilidadeEncerramento({
     status: c.status,
@@ -79,6 +82,8 @@ const CaseRow = React.memo(({
     observacao: c.observacao,
     diasVencidos: c.diasFaltando && c.diasFaltando < 0 ? Math.abs(c.diasFaltando) : 0
   });
+
+  const [loading, setLoading] = useState(false);
 
   return (
     <tr className="hover:bg-secondary/30 transition-all border-b border-border/50 group">
@@ -137,6 +142,18 @@ const CaseRow = React.memo(({
       </td>
       <td className="px-8 py-5 text-right">
         <div className="flex items-center justify-end gap-2">
+          <button 
+            title="Andamentos DataJud" 
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              await onScan(c);
+              setLoading(false);
+            }} 
+            className="text-primary hover:bg-primary/10 h-9 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
+          </button>
           {isOperador && (
             <button title="Registrar Atendimento Hoje" onClick={(e) => { e.stopPropagation(); onLogReturn(c.protocolo); }} className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
               <CheckCircle2 size={18} />
@@ -184,11 +201,15 @@ function CasesContent() {
   const [showClosed, setShowClosed] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
+  
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
+
   const [mounted, setMounted] = useState(false);
-  const { isAdmin, isOperador } = useAdmin();
+  const { isOperador } = useAdmin();
   const { toast } = useToast();
 
   const [formState, setFormState] = useState({
@@ -218,24 +239,36 @@ function CasesContent() {
   const handleDataJudScan = async () => {
     if (!isOperador || isScanning) return;
     setIsScanning(true);
-    toast({ title: "Iniciando Varredura DataJud", description: "Auditando processos ativos da empresa..." });
+    toast({ title: "Iniciando Varredura Estratégica", description: "Auditando lote de processos prioritários..." });
     
     try {
       const res = await runDataJudScanAction();
       if (res && res.success) {
-        toast({ title: "Sincronia Concluída", description: res.message });
+        toast({ title: "Lote Auditado", description: res.message });
         await loadData();
       } else {
-        toast({ 
-          title: "Erro na Varredura", 
-          description: res?.error || "O servidor não retornou uma resposta válida. Tente reduzir o lote.", 
-          variant: "destructive" 
-        });
+        toast({ title: "Erro na Varredura", description: res?.error || "Falha técnica.", variant: "destructive" });
       }
     } catch (err: any) {
-      toast({ title: "Falha de Conexão", description: "Tempo de resposta excedido ou erro de rede.", variant: "destructive" });
+      toast({ title: "Falha de Conexão", variant: "destructive" });
     } finally {
       setIsScanning(false);
+    }
+  };
+
+  const handleSingleScan = async (caseItem: LegalCase) => {
+    try {
+      const res = await scanSingleCaseAction(caseItem.protocolo);
+      if (res.success && res.case) {
+        setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
+        setIsHistoryModalOpen(true);
+        // Atualizar lista local sem refresh
+        setCases(prev => prev.map(c => c.protocolo === caseItem.protocolo ? res.case! : c));
+      } else {
+        toast({ title: "Andamento não localizado", description: res.error, variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Erro na consulta", variant: "destructive" });
     }
   };
 
@@ -278,7 +311,6 @@ function CasesContent() {
         statusManual: formState.statusManual,
         OBSERVACAO: formState.observacao,
         TELEFONE: formState.telefone,
-        // Preservar dados de auditoria
         datajud_ultimo_movimento: editingCase?.datajud_ultimo_movimento,
         tem_atualizacao_pos_retorno: editingCase?.tem_atualizacao_pos_retorno
       }, { alertLimit: savedThreshold ? parseInt(savedThreshold) : 3 });
@@ -300,8 +332,6 @@ function CasesContent() {
   const handleLogReturn = useCallback(async (protocolo: string) => {
     if (!isOperador) return;
     const today = format(new Date(), 'dd/MM/yyyy');
-    
-    // Ao registrar retorno, limpamos a flag de atualização pendente do tribunal
     const updated = cases.map(c => c.protocolo === protocolo ? { 
       ...c, 
       ultimoRetorno: today,
@@ -312,11 +342,6 @@ function CasesContent() {
     await syncRepoCases(updated);
     toast({ title: "Atendimento Registrado" });
   }, [cases, isOperador, toast]);
-
-  const lawyers = useMemo(() => {
-    const list = Array.from(new Set(cases.map(c => c.advogado))).filter(Boolean).sort();
-    return list;
-  }, [cases]);
 
   const offices = useMemo(() => {
     const list = Array.from(new Set(cases.map(c => c.escritorio))).filter(Boolean).sort();
@@ -329,18 +354,16 @@ function CasesContent() {
       const matchesSearch = (c.cliente || '').toLowerCase().includes(searchLower) || 
                             (c.protocolo || '').includes(deferredSearch);
       
-      const matchesLawyer = lawyerFilter === 'ALL' || c.advogado === lawyerFilter;
       const matchesOffice = officeFilter === 'all' || c.escritorio === officeFilter;
       const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && c.tem_atualizacao_pos_retorno);
       
       const isEncerrado = isCasoEncerrado(c);
-      
-      let pass = matchesSearch && matchesLawyer && matchesOffice && matchesQuick;
+      let pass = matchesSearch && matchesOffice && matchesQuick;
       if (!showClosed && isEncerrado) pass = false;
       
       return pass;
     });
-  }, [cases, deferredSearch, showClosed, lawyerFilter, officeFilter, quickFilter]);
+  }, [cases, deferredSearch, showClosed, officeFilter, quickFilter]);
 
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
@@ -465,6 +488,7 @@ function CasesContent() {
                       c={c} 
                       isOperador={isOperador} 
                       onLogReturn={handleLogReturn} 
+                      onScan={handleSingleScan}
                       onEdit={(caseItem) => {
                         setEditingCase(caseItem);
                         setFormState({
@@ -500,6 +524,60 @@ function CasesContent() {
             </div>
           </div>
         </div>
+
+        {/* Modal de Cronologia DataJud */}
+        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+          <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+            <DialogHeader className="p-6 bg-black text-white">
+              <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                    <History size={28} />
+                 </div>
+                 <div>
+                    <DialogTitle className="font-black uppercase tracking-tight text-xl">Cronologia do Tribunal</DialogTitle>
+                    <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                 </div>
+              </div>
+            </DialogHeader>
+            <div className="p-0">
+               <div className="p-6 bg-secondary/20 border-b flex items-center justify-between">
+                  <div className="space-y-1">
+                     <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
+                     <p className="text-sm font-black uppercase">{historyResult?.case.cliente}</p>
+                  </div>
+                  {historyResult?.case.tem_atualizacao_pos_retorno && (
+                    <Badge variant="destructive" className="font-black uppercase text-[10px] px-4 py-2 animate-bounce">Ação Requerida: Novo Movimento</Badge>
+                  )}
+               </div>
+               <ScrollArea className="h-[450px] bg-white">
+                  <div className="p-6 space-y-6">
+                    {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
+                      [...historyResult.movimentos].sort((a,b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()).map((m, i) => (
+                        <div key={i} className="flex gap-6 relative group">
+                           {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
+                           <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
+                              <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                           </div>
+                           <div className="flex-1 pt-1 space-y-1 pb-6">
+                              <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                              <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
+                           </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-20 text-center space-y-4 opacity-40">
+                         <FileSearch size={48} className="mx-auto" />
+                         <p className="text-xs font-black uppercase">Nenhuma movimentação pública detalhada para este protocolo.</p>
+                      </div>
+                    )}
+                  </div>
+               </ScrollArea>
+            </div>
+            <DialogFooter className="p-4 bg-secondary/10 border-t">
+               <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl">
