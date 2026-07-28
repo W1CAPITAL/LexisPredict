@@ -10,13 +10,21 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
  * Governança de Supervisor e Sincronia Ilimitada.
  */
 
+const ROLE_WEIGHTS: Record<UserRole, number> = {
+  'Superadmin': 100,
+  'Supervisor': 80,
+  'Administrador': 60,
+  'Operador': 40,
+  'Visualizador': 20
+};
+
 export async function getUserContext() {
   const cookieStore = await cookies();
   const userEmail = cookieStore.get('lexis_user_email')?.value;
   
-  if (!userEmail) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false };
+  if (!userEmail) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, weight: 0 };
 
-  if (!supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false };
+  if (!supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, weight: 0 };
 
   const { data: profile } = await supabase
     .from('usuarios')
@@ -24,17 +32,18 @@ export async function getUserContext() {
     .eq('email', userEmail.toLowerCase().trim())
     .maybeSingle();
     
-  const cargo = profile?.cargo as UserRole;
+  const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
 
   return { 
     auth_id: profile?.auth_user_id || null,
     empresa_id: profile?.empresa_id || null, 
-    cargo: cargo || 'Operador',
+    cargo: cargo,
     email: profile?.email || null,
     isSuperAdmin,
-    isSupervisor
+    isSupervisor,
+    weight: ROLE_WEIGHTS[cargo] || 0
   };
 }
 
@@ -126,10 +135,24 @@ export async function createEmpresaUserAction(payload: any) {
 }
 
 export async function removeEmpresaUser(userId: string) {
-  const { empresa_id, isSuperAdmin, isSupervisor } = await getUserContext();
-  const isAdmin = isSuperAdmin || isSupervisor;
+  const { empresa_id, weight, auth_id } = await getUserContext();
+  
+  if (!empresa_id || !supabase) return { success: false, error: 'Sessão inválida.' };
 
-  if (!empresa_id || !isAdmin || !supabase) return { success: false, error: 'Permissão insuficiente.' };
+  // Buscar cargo do alvo para checar hierarquia
+  const { data: targetUser } = await supabase
+    .from('usuarios')
+    .select('cargo, auth_user_id')
+    .eq('id', userId)
+    .single();
+
+  if (!targetUser) return { success: false, error: 'Usuário não localizado.' };
+  
+  const targetWeight = ROLE_WEIGHTS[targetUser.cargo as UserRole] || 0;
+
+  if (weight <= targetWeight && targetUser.auth_user_id !== auth_id) {
+    return { success: false, error: 'Permissão insuficiente para remover este nível de autoridade.' };
+  }
 
   const { error } = await supabase
     .from('usuarios')
@@ -142,10 +165,30 @@ export async function removeEmpresaUser(userId: string) {
 }
 
 export async function updateUserRole(userId: string, newRole: UserRole) {
-  const { empresa_id, isSuperAdmin, isSupervisor } = await getUserContext();
-  const isAdmin = isSuperAdmin || isSupervisor;
+  const { empresa_id, weight, auth_id } = await getUserContext();
 
-  if (!empresa_id || !isAdmin || !supabase) return { success: false, error: 'Permissão insuficiente.' };
+  if (!empresa_id || !supabase) return { success: false, error: 'Sessão inválida.' };
+
+  // Buscar cargo do alvo
+  const { data: targetUser } = await supabase
+    .from('usuarios')
+    .select('cargo, auth_user_id')
+    .eq('id', userId)
+    .single();
+
+  if (!targetUser) return { success: false, error: 'Usuário não localizado.' };
+
+  const targetWeight = ROLE_WEIGHTS[targetUser.cargo as UserRole] || 0;
+  const newRoleWeight = ROLE_WEIGHTS[newRole] || 0;
+
+  // Trava de Hierarquia: Não pode mexer em quem é igual/superior, nem promover alguém ao seu nível/acima
+  if (weight <= targetWeight && targetUser.auth_user_id !== auth_id) {
+    return { success: false, error: 'Você não tem autoridade sobre este cargo.' };
+  }
+
+  if (newRoleWeight >= weight && weight < 100) { // Só superadmin (100) pode promover ao topo
+    return { success: false, error: 'Você não pode promover alguém a um cargo igual ou superior ao seu.' };
+  }
 
   const { error } = await supabase
     .from('usuarios')
@@ -154,6 +197,9 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
     .eq('empresa_id', empresa_id);
 
   if (error) return { success: false, error: error.message };
+  
+  await logAuditAction('ROLE_UPDATED', `Alterou cargo do usuário ID ${userId} para ${newRole}`);
+  
   return { success: true };
 }
 
