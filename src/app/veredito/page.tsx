@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -22,7 +23,8 @@ import {
   AlertCircle,
   Gavel,
   ShieldCheck,
-  Target
+  Target,
+  Cpu
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -96,8 +98,8 @@ export default function VereditoPage() {
     try {
       const data = await executarVereditoAI({ cnj, preferredModel: model });
       if (isMounted.current) {
-        if (data.error && !data.dataJudRaw) {
-           setApiError({ engine: model, message: data.message || "CNJ não localizado ou erro de rede." });
+        if (!data.success && !data.dataJudRaw) {
+           setApiError({ engine: model, message: data.message || "CNJ não localizado ou erro de configuração de chaves." });
            toast({ title: "Falha na Triagem", description: data.message, variant: "destructive" });
         } else {
            setResult(data);
@@ -242,7 +244,7 @@ export default function VereditoPage() {
                   <SelectValue placeholder="Motor Neural" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-2 border-black rounded-none">
-                  <SelectItem value="xai" className="font-black uppercase text-[10px]">xAI Grok 4.5 Elite</SelectItem>
+                  <SelectItem value="xai" className="font-black uppercase text-[10px]">xAI Grok Elite</SelectItem>
                   <SelectItem value="airforce" className="font-black uppercase text-[10px]">Airforce DeepSeek</SelectItem>
                   <SelectItem value="groq" className="font-black uppercase text-[10px]">Groq Llama 3.3</SelectItem>
                 </SelectContent>
@@ -262,7 +264,7 @@ export default function VereditoPage() {
               <div className="max-w-2xl mx-auto py-20 text-center space-y-8">
                 {apiError && (
                   <Alert variant="destructive" className="border-2 border-red-600 bg-red-50 rounded-none shadow-[6px_6px_0px_#000] text-left">
-                    <AlertCircle className="h-5 w-5" />
+                    <AlertCircle className="h-5 v-5" />
                     <AlertTitle className="font-black uppercase text-xs">Erro de Triagem</AlertTitle>
                     <AlertDescription className="mt-2 space-y-3">
                       <p className="text-[10px] font-bold uppercase">{apiError.message}</p>
@@ -294,6 +296,16 @@ export default function VereditoPage() {
             {result && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
                 <div className="lg:col-span-2 space-y-6">
+                  <div className="flex items-center justify-between bg-black text-white px-6 py-3 rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF]">
+                     <div className="flex items-center gap-3">
+                        <Cpu size={16} className="text-primary" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Motor Processual: {result.engineUsed || "N/A"}</span>
+                     </div>
+                     {result.isDeterministic && (
+                       <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">MODO SEGURANÇA LOCAL</Badge>
+                     )}
+                  </div>
+
                   <Tabs defaultValue="details" className="w-full">
                     <TabsList className="bg-gray-200 p-1 h-12 w-full justify-start rounded-none mb-0 border-2 border-black border-b-0">
                       <TabsTrigger value="details" className="data-[state=active]:bg-black data-[state=active]:text-white font-black text-xs px-8 h-10 uppercase rounded-none">Parecer de Gabinete</TabsTrigger>
