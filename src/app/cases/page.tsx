@@ -268,12 +268,18 @@ function CasesContent() {
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);
-        // Atualizar store global instantaneamente
+        // Atualizar store global instantaneamente para refletir badges
         if (res.casePatch) {
           updateCaseByProtocolo(caseItem.protocolo, res.casePatch);
+        } else if (res.case) {
+          updateCase(res.case.id || '', res.case);
         }
       } else {
-        toast({ title: "Andamento não localizado", description: res.error, variant: "destructive" });
+        toast({ 
+          title: "Auditoria Indisponível", 
+          description: res.message || "Tribunal não retornou andamentos para este CNJ.", 
+          variant: "destructive" 
+        });
       }
     } catch (e) {
       toast({ title: "Erro na consulta", variant: "destructive" });
