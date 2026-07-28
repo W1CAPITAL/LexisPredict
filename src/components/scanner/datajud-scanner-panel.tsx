@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   RefreshCcw,
   PlayCircle,
-  Clock
+  Clock,
+  ArrowRightCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -33,8 +34,8 @@ import { fetchRepoCases } from '@/app/actions/case-actions';
 
 export function DataJudScannerPanel() {
   const { 
-    status, total, done, alerts, closed, errors, logs, queue, currentIndex,
-    isMinimized, toggleMinimize, startScan, pauseScan, resumeScan, cancelScan, resetScan, loadProgress 
+    status, total, done, alerts, closed, errors, logs, queue, currentIndex, isAuthPaused,
+    isMinimized, toggleMinimize, startScan, pauseScan, resumeScan, resumeInterruptedScan, cancelScan, resetScan, loadProgress 
   } = useDataJudScanStore();
   
   const { cases, setCases } = useAppStore();
@@ -45,6 +46,7 @@ export function DataJudScannerPanel() {
     loadProgress();
   }, [loadProgress]);
 
+  // Sincroniza a carteira se necessário antes de montar a fila
   useEffect(() => {
     if (!isMinimized && cases.length === 0 && !loadingCases) {
       setLoadingCases(true);
@@ -72,7 +74,7 @@ export function DataJudScannerPanel() {
     }
 
     if (currentCases.length === 0) {
-      toast({ title: "Carteira Vazia", description: "Não localizamos processos para auditar.", variant: "destructive" });
+      toast({ title: "Carteira Vazia", description: "Não localizamos processos ativos no seu perfil.", variant: "destructive" });
       return;
     }
 
@@ -109,7 +111,7 @@ export function DataJudScannerPanel() {
       return;
     }
 
-    toast({ title: "Scanner Iniciado", description: `${finalQueue.length} processos na fila.` });
+    toast({ title: "Iniciando Varredura", description: `${finalQueue.length} registros em triagem neural.` });
     startScan(finalQueue, scope);
   };
 
@@ -146,20 +148,30 @@ export function DataJudScannerPanel() {
       <div className="p-6 space-y-6">
         {status === 'idle' ? (
           <div className="space-y-4">
-            <p className="text-[9px] font-black uppercase text-black/40 tracking-widest">Selecione o modo de varredura</p>
+            <p className="text-[9px] font-black uppercase text-black/40 tracking-widest">Configuração de Varredura</p>
+            
             <div className="grid grid-cols-1 gap-2">
-              <Button onClick={() => handleStart('resume')} disabled={loadingCases} className="h-12 bg-emerald-600 text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                <PlayCircle size={16} className="mr-3" /> Retomar (Pular já auditados)
+              {queue.length > 0 && currentIndex < queue.length && (
+                <Button onClick={resumeInterruptedScan} className="h-14 bg-emerald-600 text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all mb-4 animate-pulse">
+                  <ArrowRightCircle size={18} className="mr-3" /> Continuar Fila Salva ({done} / {total})
+                </Button>
+              )}
+
+              <Button onClick={() => handleStart('resume')} disabled={loadingCases} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
+                <PlayCircle size={16} className="mr-3 text-primary" /> Retomar (Pular já auditados)
               </Button>
-              <Button onClick={() => handleStart('critical')} disabled={loadingCases} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                <AlertCircle size={16} className="mr-3 text-primary" /> Começar do Início (Fila Crítica)
+              
+              <Button onClick={() => handleStart('critical')} disabled={loadingCases} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
+                <AlertCircle size={16} className="mr-3 text-red-600" /> Fila Crítica
               </Button>
+              
               <Button onClick={() => handleStart('full')} disabled={loadingCases} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                <RefreshCcw size={16} className="mr-3 text-red-600" /> Reauditar Tudo (Lento)
+                <RefreshCcw size={16} className="mr-3 text-slate-400" /> Carteira Total
               </Button>
             </div>
+            
             {queue.length > 0 && (
-               <Button onClick={resetScan} variant="ghost" className="w-full text-[9px] font-black uppercase text-red-600 hover:bg-red-50">Limpar progresso salvo</Button>
+               <Button onClick={resetScan} variant="ghost" className="w-full text-[9px] font-black uppercase text-red-600 hover:bg-red-50">Limpar progresso do dia</Button>
             )}
           </div>
         ) : (
@@ -167,11 +179,18 @@ export function DataJudScannerPanel() {
             <div className="space-y-3">
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-[9px] font-black uppercase text-black/40">Progresso Global</p>
+                  <p className="text-[9px] font-black uppercase text-black/40">Progresso do Lote</p>
                   <p className="text-xl font-black tabular-nums">{done} / {total}</p>
                 </div>
-                <Badge className={cn("font-black uppercase text-[8px] rounded-none px-2", status === 'running' ? "bg-emerald-500" : status === 'done' ? "bg-primary" : "bg-orange-500")}>
-                  {status === 'running' ? 'Auditando' : status === 'paused' ? 'Sessão Expirada' : status.toUpperCase()}
+                <Badge className={cn(
+                  "font-black uppercase text-[8px] rounded-none px-2", 
+                  status === 'running' ? "bg-emerald-500" : 
+                  status === 'done' ? "bg-primary" : 
+                  isAuthPaused ? "bg-red-600 animate-pulse" : "bg-orange-500"
+                )}>
+                  {status === 'running' ? 'Triagem Ativa' : 
+                   status === 'done' ? 'Auditado' : 
+                   isAuthPaused ? 'Sessão Expirada' : 'Pausado'}
                 </Badge>
               </div>
               <Progress value={(done / (total || 1)) * 100} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
@@ -179,7 +198,7 @@ export function DataJudScannerPanel() {
 
             <div className="grid grid-cols-3 gap-2">
               <div className="p-2 border-2 border-black bg-emerald-50 text-center">
-                <p className="text-[7px] font-black uppercase text-emerald-800/40">Encerrados</p>
+                <p className="text-[7px] font-black uppercase text-emerald-800/40">Baixas</p>
                 <p className="text-sm font-black text-emerald-600 tabular-nums">{closed}</p>
               </div>
               <div className="p-2 border-2 border-black bg-blue-50 text-center">
@@ -210,17 +229,17 @@ export function DataJudScannerPanel() {
 
             <div className="flex gap-2">
               {status === 'running' ? (
-                <Button variant="outline" onClick={pauseScan} className="flex-1 border-2 border-black rounded-none font-black text-[9px] uppercase"><Pause size={12} className="mr-2" /> Pausar</Button>
+                <Button variant="outline" onClick={pauseScan} className="flex-1 border-2 border-black rounded-none font-black text-[9px] uppercase"><Pause size={12} className="mr-2" /> Pausar Fila</Button>
               ) : status === 'paused' ? (
-                <Button onClick={resumeScan} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase"><Play size={12} className="mr-2" /> Retomar</Button>
+                <Button onClick={resumeScan} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase"><Play size={12} className="mr-2" /> Retomar Auditoria</Button>
               ) : null}
               
               {(status === 'running' || status === 'paused') && (
-                <Button variant="ghost" onClick={cancelScan} className="h-10 w-10 border-2 border-black rounded-none text-red-600 hover:bg-red-50"><Square size={12} fill="currentColor" /></Button>
+                <Button variant="ghost" onClick={cancelScan} title="Cancelar e Descartar Fila" className="h-10 w-10 border-2 border-black rounded-none text-red-600 hover:bg-red-50"><Square size={12} fill="currentColor" /></Button>
               )}
 
               {status === 'done' && (
-                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">Concluir e Fechar</Button>
+                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">Concluir Operação</Button>
               )}
             </div>
           </div>
