@@ -52,7 +52,8 @@ export function DataJudScannerPanel() {
     startScan(queue);
   };
 
-  if (status === 'idle' && isMinimized) return null;
+  // Se estiver minimizado e não estiver rodando, não mostra nada
+  if (isMinimized && status === 'idle') return null;
 
   // Botão flutuante quando minimizado e rodando
   if (isMinimized && status !== 'idle') {
@@ -65,7 +66,7 @@ export function DataJudScannerPanel() {
           <div className="relative">
             <Zap className={cn("text-primary", status === 'running' && "animate-pulse")} />
             <span className="absolute -top-4 -right-4 bg-primary text-black text-[9px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-black">
-              {Math.round((done / total) * 100)}%
+              {Math.round((done / (total || 1)) * 100)}%
             </span>
           </div>
         </Button>
@@ -75,8 +76,7 @@ export function DataJudScannerPanel() {
 
   return (
     <div className={cn(
-      "fixed bottom-6 right-6 z-[200] w-96 bg-white border-2 border-black shadow-[12px_12px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4",
-      status === 'idle' && "hidden"
+      "fixed bottom-6 right-6 z-[200] w-96 bg-white border-2 border-black shadow-[12px_12px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4"
     )}>
       {/* Header */}
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black">
@@ -137,7 +137,7 @@ export function DataJudScannerPanel() {
                   {status === 'running' ? 'Processando' : status.toUpperCase()}
                 </Badge>
               </div>
-              <Progress value={(done / total) * 100} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
+              <Progress value={(done / (total || 1)) * 100} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
             </div>
 
             {/* Stats */}
