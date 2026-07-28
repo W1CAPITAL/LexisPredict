@@ -24,7 +24,9 @@ import {
   Gavel,
   ShieldCheck,
   Target,
-  Cpu
+  Cpu,
+  Info,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -296,6 +298,16 @@ export default function VereditoPage() {
             {result && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
                 <div className="lg:col-span-2 space-y-6">
+                  {/* Aviso de Transparência DataJud vs PJe */}
+                  <Alert className="border-2 border-amber-500 bg-amber-50 rounded-none shadow-[4px_4px_0px_#f59e0b]">
+                    <Info className="h-5 w-5 text-amber-600" />
+                    <AlertTitle className="text-[10px] font-black uppercase tracking-widest text-amber-800">Protocolo de Integridade de Fonte</AlertTitle>
+                    <AlertDescription className="text-[10px] font-bold uppercase text-amber-700 leading-relaxed mt-1">
+                      Fonte: DataJud (CNJ). Esta base pode estar atrasada ou incompleta em relação ao site oficial do tribunal. 
+                      Custas, cancelamentos e petições de hoje podem não aparecer aqui. Use para triagem rápida; confira o tribunal para a verdade operacional final.
+                    </AlertDescription>
+                  </Alert>
+
                   <div className="flex items-center justify-between bg-black text-white px-6 py-3 rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF]">
                      <div className="flex items-center gap-3">
                         <Cpu size={16} className="text-primary" />
@@ -419,10 +431,13 @@ export default function VereditoPage() {
 
                 <div className="space-y-6">
                    <Card className="bg-white border-2 border-black shadow-none rounded-none overflow-hidden">
-                      <CardHeader className="bg-black text-white py-4">
+                      <CardHeader className="bg-black text-white py-4 flex flex-row items-center justify-between">
                          <CardTitle className="text-[10px] font-black uppercase flex items-center gap-2 tracking-widest">
                             <History size={16} /> Cronologia DataJud
                          </CardTitle>
+                         <Button variant="ghost" asChild className="h-7 px-2 text-[8px] font-black text-primary border border-primary/20 rounded-none">
+                           <a href={result.dataJudRaw?.linkConsulta} target="_blank" rel="noopener noreferrer">VER NO TRIBUNAL <ExternalLink size={8} className="ml-1" /></a>
+                         </Button>
                       </CardHeader>
                       <CardContent className="p-0 bg-white">
                          <div className="divide-y-2 divide-black/5 max-h-[600px] overflow-auto">
