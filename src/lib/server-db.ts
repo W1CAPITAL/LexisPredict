@@ -1,10 +1,10 @@
+
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
 import { LegalCase, CaseNote, formatDateToISO, processarCaso } from './case-logic';
 import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { detectarAtualizacaoPosRetorno } from './datajud-sync';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v5200.0 ELITE)
@@ -18,6 +18,17 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Operador': 40,
   'Visualizador': 20
 };
+
+/**
+ * Retorna um cliente Supabase com privilégios administrativos (Service Role).
+ * UTILIZAR APENAS EM CONTEXTO DE CRON OU OPERAÇÕES DE INFRAESTRUTURA.
+ */
+export async function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Configuração de Admin (Service Role) ausente.");
+  return createSupabaseClient(url, key);
+}
 
 export async function getUserContext() {
   const cookieStore = await cookies();
@@ -48,30 +59,23 @@ export async function getUserContext() {
   };
 }
 
-export async function logAuditAction(action: string, detail: string) {
-  const { auth_id, email, empresa_id } = await getUserContext();
-  if (!auth_id || !supabase) return;
-
-  try {
-    await supabase.from('audit_logs').insert({
-      user_id: auth_id,
-      user_email: email,
-      empresa_id: empresa_id,
-      action: action,
-      detail: detail,
-      timestamp: new Date().toISOString()
-    });
-  } catch (e) {
-    console.warn('[Audit] Falha ao registrar log.');
-  }
-}
-
 // --- GESTÃO DE PROCESSOS ---
 
 export async function getStoredCases(): Promise<LegalCase[]> {
-  if (!isSupabaseConfigured || !supabase) return [];
-  const { empresa_id, auth_id, isSupervisor } = await getUserContext();
-  if (!empresa_id || !auth_id) return [];
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return [];
+  return getStoredCasesForEmpresa(empresa_id);
+}
+
+/**
+ * Busca processos de uma empresa específica.
+ * Se for modo admin, ignora permissões de usuário e usa Service Role.
+ */
+export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = false): Promise<LegalCase[]> {
+  if (!isSupabaseConfigured) return [];
+  
+  const client = isAdmin ? await getSupabaseAdmin() : supabase;
+  if (!client) return [];
 
   try {
     let allData: any[] = [];
@@ -80,16 +84,19 @@ export async function getStoredCases(): Promise<LegalCase[]> {
     let hasMore = true;
 
     while (hasMore) {
-      let query = supabase
+      let query = client
         .from('processos')
         .select('*')
-        .eq('empresa_id', empresa_id)
+        .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      // Regra de Ouro: Supervisor enxerga tudo da empresa. Operador enxerga apenas o que criou.
-      if (!isSupervisor && !checkIfSuperAdmin({ cargo: (await getUserContext()).cargo })) {
-        query = query.eq('created_by', auth_id);
+      // No modo não-admin (UI), aplicamos restrição de Operador se não for Supervisor
+      if (!isAdmin) {
+        const { auth_id, isSupervisor, isSuperAdmin } = await getUserContext();
+        if (!isSupervisor && !isSuperAdmin) {
+          query = query.eq('created_by', auth_id);
+        }
       }
 
       const { data, error } = await query;
@@ -104,21 +111,19 @@ export async function getStoredCases(): Promise<LegalCase[]> {
       }
     }
     
-    return allData.map(item => {
-      return processarCaso({
-        ...(item.dados as any),
-        id: item.id.toString(),
-        db_id: item.id.toString(),
-        created_by: item.created_by,
-        escritorio: item.escritorio || (item.dados as any).escritorio || '',
-        proximoPrazo: item.proximo_retorno || (item.dados as any).proximoPrazo || '',
-        ultimoRetorno: item.ultimo_retorno || (item.dados as any).ultimoRetorno || '',
-        datajud_ultimo_movimento: item.datajud_ultimo_movimento,
-        datajud_ultimo_nome: item.datajud_ultimo_nome,
-        datajud_consultado_em: item.datajud_consultado_em,
-        tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno
-      });
-    });
+    return allData.map(item => processarCaso({
+      ...(item.dados as any),
+      id: item.id.toString(),
+      db_id: item.id.toString(),
+      created_by: item.created_by,
+      escritorio: item.escritorio || (item.dados as any).escritorio || '',
+      proximoPrazo: item.proximo_retorno || (item.dados as any).proximoPrazo || '',
+      ultimoRetorno: item.ultimo_retorno || (item.dados as any).ultimoRetorno || '',
+      datajud_ultimo_movimento: item.datajud_ultimo_movimento,
+      datajud_ultimo_nome: item.datajud_ultimo_nome,
+      datajud_consultado_em: item.datajud_consultado_em,
+      tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno
+    }));
   } catch (error) {
     console.error('[DB] Fetch Fail:', error);
     return [];
@@ -126,9 +131,14 @@ export async function getStoredCases(): Promise<LegalCase[]> {
 }
 
 export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: boolean; message: string }> {
-  if (!isSupabaseConfigured || !supabase) return { success: false, message: "Erro de Configuração." };
-  const { auth_id, empresa_id } = await getUserContext();
-  if (!empresa_id || !auth_id) return { success: false, message: "Sessão expirada." };
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, message: "Sessão expirada." };
+  return saveStoredCasesForEmpresa(cases, empresa_id);
+}
+
+export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
+  const client = isAdmin ? await getSupabaseAdmin() : supabase;
+  if (!client) return { success: false, message: "Erro de Configuração." };
 
   try {
     const uniqueMap = new Map();
@@ -138,8 +148,6 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
       const isoPrazo = formatDateToISO(c.proximoPrazo);
       const isoRetorno = formatDateToISO(c.ultimoRetorno);
       
-      // Auto-limpeza do alerta: se o usuário deu um retorno novo hoje, 
-      // a data de retorno provavelmente empata ou vence o último movimento do DataJud.
       let finalTemAtualizacao = c.tem_atualizacao_pos_retorno ?? false;
       if (finalTemAtualizacao && c.datajud_ultimo_movimento && isoRetorno) {
         if (new Date(isoRetorno).getTime() >= new Date(c.datajud_ultimo_movimento).getTime()) {
@@ -148,8 +156,8 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
       }
 
       return { 
-        empresa_id: empresa_id, 
-        created_by: c.created_by || auth_id,
+        empresa_id: empresaId, 
+        created_by: c.created_by,
         protocolo_ref: c.protocolo,
         advogado: c.advogado || 'NÃO ATRIBUÍDO',
         escritorio: c.escritorio || null,
@@ -171,7 +179,7 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
     const chunkSize = 50;
     for (let i = 0; i < payload.length; i += chunkSize) {
       const chunk = payload.slice(i, i + chunkSize);
-      const { error: upsertError } = await supabase
+      const { error: upsertError } = await client
         .from('processos')
         .upsert(chunk, { onConflict: 'protocolo_ref, empresa_id' });
       if (upsertError) throw upsertError;
@@ -182,6 +190,14 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
     console.error("[DB Sync Fail]", error.message);
     return { success: false, message: error.message };
   }
+}
+
+// --- GESTÃO DE EMPRESAS (SISTEMA) ---
+
+export async function listAllEmpresasSystem() {
+  const admin = await getSupabaseAdmin();
+  const { data } = await admin.from('empresas').select('id, nome');
+  return data || [];
 }
 
 // --- GESTÃO DE NOTAS E EVIDÊNCIAS ---
@@ -240,7 +256,7 @@ export async function deleteStoredNote(id: string): Promise<{ success: boolean }
   return { success: !error };
 }
 
-// --- GESTÃO DE EQUIPE (MANTIDAS) ---
+// --- GESTÃO DE EQUIPE ---
 
 export async function getEmpresaUsers(): Promise<UserProfile[]> {
   const { empresa_id } = await getUserContext();
@@ -257,12 +273,7 @@ export async function createEmpresaUserAction(userData: any) {
   const { isSuperAdmin, empresa_id } = await getUserContext();
   if (!isSuperAdmin || !empresa_id) return { success: false, error: 'Permissão insuficiente.' };
 
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  if (!serviceKey || !url) return { success: false, error: 'Erro de configuração do servidor.' };
-
-  const adminClient = createSupabaseClient(url, serviceKey);
+  const adminClient = await getSupabaseAdmin();
 
   try {
     const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
@@ -306,7 +317,6 @@ export async function removeEmpresaUser(id: string) {
 export async function updateUserRole(userId: string, newRole: UserRole) {
   const { empresa_id, isSuperAdmin, weight } = await getUserContext();
   
-  // Validação de Hierarquia
   const targetWeight = ROLE_WEIGHTS[newRole] || 0;
   if (!isSuperAdmin && weight <= targetWeight) {
     return { success: false, error: 'Autoridade insuficiente para atribuir este cargo.' };
@@ -352,6 +362,6 @@ export async function upsertAdvogadoBanca(adv: any) {
 export async function desativarAdvogadoBanca(id: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };
-  const { error } = await supabase.from('advogados_banca').update({ ativo: false }).eq('id', id).eq('empresa_id', empresa_id);
+  const { error = null } = await supabase.from('advogados_banca').update({ ativo: false }).eq('id', id).eq('empresa_id', empresa_id);
   return { success: !error };
 }
