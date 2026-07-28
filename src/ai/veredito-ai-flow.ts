@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview REDIRECIONAMENTO DE FLUXO v260.0
  * Este arquivo foi desativado para evitar conflitos de registro no Genkit.
