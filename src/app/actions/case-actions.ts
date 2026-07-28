@@ -1,6 +1,6 @@
 'use server';
 
-import { getStoredCasesForEmpresa, saveStoredCasesForEmpresa, getUserContext, getStoredNotes } from '@/lib/server-db';
+import { getStoredCasesForEmpresa, saveStoredCasesForEmpresa, getUserContext, getStoredNotes, getEmpresaUsers } from '@/lib/server-db';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
@@ -24,6 +24,29 @@ export async function syncRepoCases(cases: LegalCase[]) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false, message: "Sessão expirada." };
   return await saveStoredCasesForEmpresa(cases, empresa_id);
+}
+
+/**
+ * Motor de Performance Global da Empresa
+ * Bypassa as restrições de visibilidade individual para compor o ranking.
+ * @copyright 2026 Davi Alves Figueredo
+ */
+export async function fetchTeamPerformanceAction() {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) return { users: [], cases: [] };
+
+    // Acesso administrativo (isSystemMode = true) apenas para o cálculo de scores da mesma empresa
+    const [users, cases] = await Promise.all([
+      getEmpresaUsers(),
+      getStoredCasesForEmpresa(empresa_id, true)
+    ]);
+
+    return { users, cases };
+  } catch (error) {
+    console.error("[Performance Action Fail]", error);
+    return { users: [], cases: [] };
+  }
 }
 
 /**
@@ -93,9 +116,6 @@ export async function runDataJudScanAction(targetEmpresaId?: string) {
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
     
     // 2. Priorização Inteligente
-    // - Nunca consultados
-    // - Com alerta ativo (revalidar)
-    // - Ordem por data de consulta mais antiga
     const prioritized = [...activeCases].sort((a, b) => {
       if (!a.datajud_consultado_em && b.datajud_consultado_em) return -1;
       if (a.datajud_consultado_em && !b.datajud_consultado_em) return 1;
@@ -114,7 +134,7 @@ export async function runDataJudScanAction(targetEmpresaId?: string) {
     const results: LegalCase[] = [];
 
     for (const c of batch) {
-      await new Promise(r => setTimeout(r, 400)); // Delay cortesia
+      await new Promise(r => setTimeout(r, 400)); 
 
       try {
         const dataJud = await fetchDataJud(c.protocolo);
