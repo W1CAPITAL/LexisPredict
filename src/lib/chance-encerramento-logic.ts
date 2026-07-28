@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Motor de Análise Qualitativa de Encerramento v112.0
+ * @fileOverview Motor de Análise Qualitativa de Encerramento v115.0
  * Realiza o diagnóstico heurístico da fase processual para estimar a proximidade do fim do litígio.
  * @copyright 2026 W1 Capital / Davi Alves Figueredo
  */
@@ -53,6 +53,17 @@ export function analisarChanceEncerramento(c: any, lawyerPerformanceRate?: numbe
     factors.push({ label: 'Aguardando decisão final do juízo', positive: true });
   }
 
+  // --- NOVOS FATORES OPERACIONAIS (v72.0) ---
+  if (text.includes('MULTA') || text.includes('CUSTAS PROCESSUAIS')) {
+    score += 20;
+    factors.push({ label: 'Fase de apuração de multas/custas finais', positive: true });
+  }
+  if (text.includes('TRATADO P/GILMAR') || text.includes('GILMAR')) {
+    score += 40;
+    factors.push({ label: 'Protocolo de encerramento Gilmar ativo', positive: true });
+  }
+  // ------------------------------------------
+
   // 3. Fatores Negativos (Atrasam o encerramento)
   if (text.includes('CONTESTAÇÃO') || text.includes('CONTESTACAO')) {
     score -= 15;
@@ -79,7 +90,7 @@ export function analisarChanceEncerramento(c: any, lawyerPerformanceRate?: numbe
     return {
       level: 'Alta',
       color: 'bg-blue-600',
-      explanation: 'Processo em fase avançada de mérito ou aguardando decisão final.',
+      explanation: 'Processo em fase avançada de mérito ou liquidação final.',
       factors
     };
   } else if (score >= 0) {
