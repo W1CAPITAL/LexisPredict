@@ -621,13 +621,23 @@ function CasesContent() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Status Especial (Sobreescrever Motor)</Label>
+                    <Select value={formState.statusManual} onValueChange={val => setFormState({...formState, statusManual: val})}>
+                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Automático (Por Prazos)</SelectItem>
+                        <SelectItem value="Caso Crítico" className="text-[10px] font-bold uppercase text-red-600 font-black">⚠ CASO CRÍTICO</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
                     <Label className="uppercase text-[9px] font-black text-muted-foreground">Vencimento</Label>
                     <Input value={formState.proximoPrazo} onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
                   </div>
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Retorno</Label>
-                    <Input value={formState.ultimoRetorno} onChange={e => setFormState({...formState, ultimoRetorno: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
-                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Retorno</Label>
+                  <Input value={formState.ultimoRetorno} onChange={e => setFormState({...formState, ultimoRetorno: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
                 </div>
                 <div className="grid gap-2">
                   <Label className="uppercase text-[9px] font-black text-muted-foreground">Notas</Label>
@@ -653,6 +663,7 @@ function StatusBadge({ status }: { status: any }) {
     'É Hoje': "bg-blue-50 text-blue-700 border-blue-100 animate-pulse",
     'Atenção': "bg-orange-50 text-orange-700 border-orange-100",
     'No Prazo': "bg-emerald-50 text-emerald-700 border-emerald-100",
+    'Caso Crítico': "bg-red-600 text-white border-none animate-pulse font-black",
   };
   return (
     <Badge variant="outline" className={cn("px-3 py-1 text-[10px] font-black uppercase rounded-lg border-none", styles[status] || "bg-secondary text-muted-foreground")}>
