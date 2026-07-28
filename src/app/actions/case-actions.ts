@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -14,7 +13,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/lib/datajud-sync';
 
 /**
- * @fileOverview Actions de Processos v95.0 ELITE - Auditoria de Encerramento
+ * @fileOverview Actions de Processos v100.0 ELITE - Auditoria de Encerramento e Flags
  */
 
 export async function fetchRepoCases() {
@@ -35,6 +34,7 @@ export async function syncRepoCases(cases: LegalCase[]) {
 
 /**
  * AUDITORIA UNITÁRIA PARA SCANNER GLOBAL
+ * Retorna status detalhado sem recalibrar status operacional.
  */
 export async function scanOneDataJudAction(protocolo: string) {
   try {
@@ -64,15 +64,23 @@ export async function scanOneDataJudAction(protocolo: string) {
       
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
-      let msg = "Sem novidade após o último retorno";
-      if (enc.encerrado) msg = `ENCERRADO NO TRIBUNAL: ${enc.motivo}`;
-      else if (check.alerta) msg = "Novo andamento identificado";
+      let msg = "Sem novidade";
+      let tipo = 'sem_novidade';
+      if (enc.encerrado) {
+        msg = `ENCERRADO/ARQUIVADO NO TRIBUNAL — ${protocolo} — ${enc.motivo}`;
+        tipo = 'encerrado';
+      } else if (check.alerta) {
+        msg = `NOVO ANDAMENTO — ${protocolo} — ${check.nomeUltimo}`;
+        tipo = 'novo_andamento';
+      }
       
       return { 
         success: true, 
         protocolo, 
+        tipo,
         alerta: check.alerta, 
         encerrado: enc.encerrado,
+        motivo: enc.motivo,
         message: msg
       };
     }
@@ -80,11 +88,12 @@ export async function scanOneDataJudAction(protocolo: string) {
     return { 
       success: false, 
       protocolo, 
-      message: dataJud?.message || "Erro no tribunal",
+      tipo: 'erro',
+      message: `Falha — ${protocolo} — ${dataJud?.message || "Erro no tribunal"}`,
       error: true 
     };
   } catch (e: any) {
-    return { success: false, protocolo, message: "Falha técnica", error: true };
+    return { success: false, protocolo, tipo: 'erro', message: `Falha técnica — ${protocolo}`, error: true };
   }
 }
 
