@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -68,10 +69,9 @@ export default function TeamManagement() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isNewUserOpen, setIsNewClientOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'management' | 'hierarchy' | 'performance'>('management');
+  const [viewMode, setViewMode] = useState<'management' | 'performance'>('management');
   const [locale, setLocale] = useState<Locale>('pt');
   
-  // Auditoria de Score
   const [selectedAudit, setSelectedAudit] = useState<ScoreResult | null>(null);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   
@@ -163,38 +163,40 @@ export default function TeamManagement() {
   };
 
   const canManageUser = (target: UserProfile) => {
-    if (target.auth_user_id === profile?.auth_user_id) return false; // Não gere a si mesmo aqui
+    if (target.auth_user_id === profile?.auth_user_id) return false;
     const targetWeight = ROLE_WEIGHTS[target.cargo as UserRole] || 0;
     return currentUserWeight > targetWeight;
   };
 
-  /**
-   * MOTOR DE PERFORMANCE v2.1 - VINCULAÇÃO REAL DE MEMBROS
-   */
   const performanceData = useMemo(() => {
-    if (!users.length) return { advRank: [], assRank: [] };
+    if (cases.length === 0) return { advRank: [], assRank: [] };
 
     const normalizeStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    const getAssignedCases = (user: UserProfile, isLawyer: boolean) => {
+    // RANKING OPERACIONAL: Baseado em USUÁRIOS REAIS (Assessoria)
+    const assRank = users.map(user => {
       const userNorm = normalizeStr(user.nome);
-      return cases.filter(c => {
+      const userCases = cases.filter(c => {
         if (c.created_by === user.auth_user_id) return true;
-        const field = isLawyer ? (c.advogado || '') : (c.atendente || '');
-        const tokens = field.split(/[\/\,\s]+/).map(t => normalizeStr(t));
-        return tokens.some(t => t === userNorm || (userNorm.length > 3 && t.includes(userNorm)));
+        const atendente = normalizeStr(c.atendente || '');
+        return atendente.includes(userNorm);
       });
-    };
+      return {
+        name: user.nome,
+        result: calcularScoreAssessor(userCases)
+      };
+    }).filter(u => u.result.totalCasos > 0).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
-    const advRank = users.map(user => ({
-      name: user.nome,
-      result: calcularScoreAdvogado(getAssignedCases(user, true))
-    })).filter(u => u.result.totalCasos > 0).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
-
-    const assRank = users.map(user => ({
-      name: user.nome,
-      result: calcularScoreAssessor(getAssignedCases(user, false))
-    })).filter(u => u.result.totalCasos > 0).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
+    // RANKING DE BANCA: Baseado nos ADVOGADOS (Strings do Processo)
+    const uniqueLawyers = Array.from(new Set(cases.map(c => (c.advogado || '').trim()))).filter(n => n && n !== 'NÃO ATRIBUÍDO' && n !== 'SEGREDO DE JUSTIÇA');
+    
+    const advRank = uniqueLawyers.map(lawyerName => {
+      const lawyerCases = cases.filter(c => c.advogado === lawyerName);
+      return {
+        name: lawyerName.toUpperCase(),
+        result: calcularScoreAdvogado(lawyerCases)
+      };
+    }).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
     return { advRank, assRank };
   }, [cases, users]);
@@ -271,25 +273,25 @@ export default function TeamManagement() {
                              
                              {currentUserWeight > ROLE_WEIGHTS['Supervisor'] && (
                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer gap-2">
-                                  <Shield size={12} className="text-blue-600" /> Promover a Supervisor
+                                  <Shield size={12} className="text-blue-600" /> Supervisor
                                </DropdownMenuItem>
                              )}
                              
                              {currentUserWeight > ROLE_WEIGHTS['Administrador'] && (
                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer gap-2">
-                                  <ArrowUp size={12} className="text-emerald-600" /> Tornar Administrador
+                                  <ArrowUp size={12} className="text-emerald-600" /> Administrador
                                </DropdownMenuItem>
                              )}
 
                              {currentUserWeight > ROLE_WEIGHTS['Operador'] && (
                                <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer gap-2">
-                                  <ArrowDown size={12} className="text-orange-600" /> Tornar Operador
+                                  <ArrowDown size={12} className="text-orange-600" /> Operador
                                </DropdownMenuItem>
                              )}
 
                              <DropdownMenuSeparator className="bg-black/5" />
                              <DropdownMenuItem onClick={() => handleDelete(user.id)} className="text-[9px] font-black uppercase cursor-pointer text-red-600 gap-2">
-                                <Trash2 size={12} /> Revogar Acesso Global
+                                <Trash2 size={12} /> Revogar Acesso
                              </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -310,11 +312,11 @@ export default function TeamManagement() {
           {viewMode === 'performance' && (
             <section className="space-y-12 pb-20 animate-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                {/* Performance Operacional (Assessor) */}
+                {/* Performance Operacional (USUÁRIOS) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center rounded-lg shadow-lg"><ClipboardList size={20}/></div>
-                      <h3 className="text-lg font-black uppercase tracking-tighter">Performance Operacional</h3>
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Ranking Operacional (Membros)</h3>
                    </div>
                    <div className="space-y-4">
                       {performanceData.assRank.map((s, i) => (
@@ -323,25 +325,26 @@ export default function TeamManagement() {
                               <span className="font-black text-black/20 text-xl">{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Atendimentos Auditados</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Atendimentos</p>
                               </div>
                            </div>
                            <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
-                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score <= 0 ? "text-red-600" : "text-blue-600")}>
+                              <p className={cn("text-xl font-black tabular-nums", s.result.score < 50 ? "text-red-600" : "text-emerald-600")}>
                                 {s.result.score}
                               </p>
-                              <p className="text-[7px] font-black uppercase opacity-40">Efficiency pts</p>
+                              <p className="text-[7px] font-black uppercase opacity-40">Eficiência</p>
                            </button>
                         </div>
                       ))}
+                      {performanceData.assRank.length === 0 && <p className="text-center py-10 opacity-30 font-black uppercase text-[10px]">Aguardando dados...</p>}
                    </div>
                 </div>
 
-                {/* Performance de Banca (Advogado) */}
+                {/* Performance de Banca (ADVOGADOS) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-black text-primary flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
-                      <h3 className="text-lg font-black uppercase tracking-tighter">Performance de Banca</h3>
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Ranking de Banca (Patronos)</h3>
                    </div>
                    <div className="space-y-4">
                       {performanceData.advRank.map((s, i) => (
@@ -350,17 +353,18 @@ export default function TeamManagement() {
                               <span className="font-black text-black/20 text-xl">{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Peças em Gestão</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Peças Auditadas</p>
                               </div>
                            </div>
                            <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
-                              <p className={cn("text-xl font-black tabular-nums", s.result.score > 80 ? "text-emerald-600" : s.result.score <= 0 ? "text-red-600" : "text-primary")}>
+                              <p className={cn("text-xl font-black tabular-nums", s.result.score < 50 ? "text-red-600" : "text-primary")}>
                                 {s.result.score}
                               </p>
-                              <p className="text-[7px] font-black uppercase opacity-40">Authority Score</p>
+                              <p className="text-[7px] font-black uppercase opacity-40">Authority</p>
                            </button>
                         </div>
                       ))}
+                      {performanceData.advRank.length === 0 && <p className="text-center py-10 opacity-30 font-black uppercase text-[10px]">Aguardando dados...</p>}
                    </div>
                 </div>
               </div>
@@ -370,11 +374,11 @@ export default function TeamManagement() {
 
         <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
            <DialogContent className="sm:max-w-[650px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
-              <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Detalhes da Auditoria {selectedAudit?.label}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Auditoria de Desempenho {selectedAudit?.label}</DialogTitle></DialogHeader>
               <div className="py-6 space-y-6">
                  <div className="flex justify-between items-center bg-secondary/20 p-4 border border-black/5">
                     <div>
-                       <p className="text-[8px] font-black uppercase opacity-40">Fator de Proteção (Cliente)</p>
+                       <p className="text-[8px] font-black uppercase opacity-40">Proteção de Equipe (Cliente)</p>
                        <p className="text-sm font-black uppercase">{selectedAudit?.ignoradosCliente} Falhas Ignoradas</p>
                     </div>
                     <div className="text-right">
@@ -393,6 +397,7 @@ export default function TeamManagement() {
                                 <Badge variant="destructive" className="text-[8px] font-black">-{p.peso} pts</Badge>
                              </div>
                              <p className="text-[9px] font-bold text-muted-foreground italic">"{p.motivo}..."</p>
+                             <p className="text-[7px] font-mono opacity-40">{p.protocolo}</p>
                           </div>
                        ))}
                        {selectedAudit?.penalidades.length === 0 && <p className="py-12 text-center opacity-30 uppercase font-black text-[10px]">Nenhuma falha técnica atribuível.</p>}
