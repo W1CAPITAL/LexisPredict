@@ -27,7 +27,8 @@ import {
   History,
   Building2,
   AlertCircle,
-  FileSearch
+  FileSearch,
+  FileDown
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -395,6 +396,57 @@ function CasesContent() {
     });
   }, [cases, deferredSearch, showClosed, officeFilter, quickFilter]);
 
+  const handleExportCSV = useCallback(() => {
+    if (filtered.length === 0) {
+      toast({ title: "Lista vazia", description: "Não há dados filtrados para exportar.", variant: "destructive" });
+      return;
+    }
+
+    const headers = [
+      'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
+      'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
+      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'PROB_ENCERRAMENTO'
+    ];
+
+    const rows = filtered.map(c => {
+      const prob = calcularProbabilidadeEncerramento({
+        status: c.status,
+        situacao: c.situacao,
+        observacao: c.observacao,
+        diasVencidos: c.diasFaltando && c.diasFaltando < 0 ? Math.abs(c.diasFaltando) : 0
+      });
+
+      return [
+        c.cliente,
+        c.protocolo,
+        c.tribunal,
+        c.advogado,
+        c.escritorio || '',
+        c.status,
+        c.proximoPrazo || '',
+        c.ultimoRetorno || '',
+        (c.observacao || '').replace(/\n/g, ' '),
+        c.telefone || '',
+        c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
+        c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
+        `${prob}%`
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().split('T')[0];
+    link.setAttribute("href", url);
+    link.setAttribute("download", `processos_lexis_${date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({ title: "Exportação Concluída", description: `${filtered.length} registros processados.` });
+  }, [filtered, toast]);
+
   if (!mounted) return null;
 
   return (
@@ -430,6 +482,15 @@ function CasesContent() {
                 Varredura DataJud
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5"
+            >
+              <FileDown size={16} className="mr-2 text-primary" />
+              Exportar Planilha
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 
