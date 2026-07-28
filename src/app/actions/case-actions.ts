@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -13,7 +14,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/lib/datajud-sync';
 
 /**
- * @fileOverview Actions de Processos v101.0 ELITE - Auditoria de Encerramento e Flags
+ * @fileOverview Actions de Processos v102.0 ELITE - Auditoria em Tempo Real
  */
 
 export async function fetchRepoCases() {
@@ -55,7 +56,7 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * AUDITORIA UNITÁRIA PARA SCANNER GLOBAL
- * Retorna status detalhado sem recalibrar status operacional.
+ * Retorna status detalhado e patch para sincronia em tempo real.
  */
 export async function scanOneDataJudAction(protocolo: string) {
   try {
@@ -72,8 +73,7 @@ export async function scanOneDataJudAction(protocolo: string) {
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
       const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
       
-      const updatedCase: LegalCase = {
-        ...target,
+      const patch = {
         datajud_ultimo_movimento: check.dataUltimo,
         datajud_ultimo_nome: check.nomeUltimo,
         datajud_consultado_em: new Date().toISOString(),
@@ -82,13 +82,15 @@ export async function scanOneDataJudAction(protocolo: string) {
         datajud_encerrado_motivo: enc.motivo,
         tribunal: dataJud.tribunal || target.tribunal
       };
+
+      const updatedCase: LegalCase = { ...target, ...patch };
       
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
       let msg = "Sem novidade";
       let tipo = 'sem_novidade';
       if (enc.encerrado) {
-        msg = `ENCERRADO/ARQUIVADO NO TRIBUNAL — ${protocolo} — ${enc.motivo}`;
+        msg = `ENCERRADO NO TRIBUNAL — ${protocolo} — ${enc.motivo}`;
         tipo = 'encerrado';
       } else if (check.alerta) {
         msg = `NOVO ANDAMENTO — ${protocolo} — ${check.nomeUltimo}`;
@@ -102,7 +104,8 @@ export async function scanOneDataJudAction(protocolo: string) {
         alerta: check.alerta, 
         encerrado: enc.encerrado,
         motivo: enc.motivo,
-        message: msg
+        message: msg,
+        casePatch: patch
       };
     }
     
@@ -136,8 +139,7 @@ export async function scanSingleCaseAction(protocolo: string) {
         const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
         const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
 
-        const updatedCase: LegalCase = {
-          ...target,
+        const patch = {
           datajud_ultimo_movimento: check.dataUltimo,
           datajud_ultimo_nome: check.nomeUltimo,
           datajud_consultado_em: new Date().toISOString(),
@@ -146,6 +148,8 @@ export async function scanSingleCaseAction(protocolo: string) {
           datajud_encerrado_motivo: enc.motivo,
           tribunal: dataJud.tribunal || target.tribunal
         };
+
+        const updatedCase: LegalCase = { ...target, ...patch };
         
         await saveStoredCasesForEmpresa([updatedCase], empresa_id);
 
@@ -157,7 +161,8 @@ export async function scanSingleCaseAction(protocolo: string) {
           success: true, 
           case: updatedCase, 
           movimentos: dataJud.movimentos,
-          message: msg
+          message: msg,
+          casePatch: patch
         };
       }
     }
