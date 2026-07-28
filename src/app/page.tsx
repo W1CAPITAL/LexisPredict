@@ -87,7 +87,7 @@ export default function Dashboard() {
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
-    const vencidos = ativos.filter(c => c.status === 'Vencido').length;
+    const vencidos = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const venceHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const atencao = ativos.filter(c => c.status === 'Atenção').length;
     const noPrazo = ativos.filter(c => c.status === 'No Prazo').length;
@@ -245,8 +245,12 @@ export default function Dashboard() {
                       </thead>
                       <tbody className="divide-y divide-border/20">
                         {cases
-                          .filter(c => ['Vencido', 'É Hoje', 'Atenção'].includes(c.status) && !isCasoEncerrado(c))
-                          .sort((a, b) => (a.diasFaltando || 0) - (b.diasFaltando || 0))
+                          .filter(c => ['Vencido', 'É Hoje', 'Atenção', 'Caso Crítico'].includes(c.status) && !isCasoEncerrado(c))
+                          .sort((a, b) => {
+                            if (a.status === 'Caso Crítico' && b.status !== 'Caso Crítico') return -1;
+                            if (a.status !== 'Caso Crítico' && b.status === 'Caso Crítico') return 1;
+                            return (a.diasFaltando || 0) - (b.diasFaltando || 0);
+                          })
                           .slice(0, 8)
                           .map((c) => (
                             <tr key={c.id} className="hover:bg-secondary/20 transition-colors group">
@@ -262,6 +266,7 @@ export default function Dashboard() {
                               <td className="px-8 py-5 text-right">
                                 <span className={cn(
                                   "text-[10px] font-black uppercase px-3 py-1 rounded-full",
+                                  c.status === 'Caso Crítico' ? "bg-red-600 text-white animate-pulse" :
                                   c.status === 'Vencido' ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :
                                   c.status === 'É Hoje' ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" :
                                   "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400"
