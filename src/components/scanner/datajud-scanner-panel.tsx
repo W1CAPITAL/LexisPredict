@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -11,13 +12,11 @@ import {
   Pause, 
   Square, 
   ChevronDown, 
-  ChevronUp, 
   Loader2, 
   AlertCircle, 
   CheckCircle2, 
   History,
   ShieldCheck,
-  Search,
   Gavel,
   AlertTriangle
 } from 'lucide-react';
@@ -40,7 +39,7 @@ export function DataJudScannerPanel() {
   const [loadingCases, setLoadingCases] = useState(false);
   const { toast } = useToast();
 
-  // Sincronia de segurança
+  // Sincronia de segurança: Carrega a carteira se o store estiver vazio ao abrir o painel
   useEffect(() => {
     if (!isMinimized && cases.length === 0 && !loadingCases) {
       setLoadingCases(true);
@@ -51,13 +50,29 @@ export function DataJudScannerPanel() {
     }
   }, [isMinimized, cases.length, loadingCases, setCases]);
 
-  const handleStart = () => {
-    if (cases.length === 0) {
-      toast({ title: "Aguarde", description: "Sincronizando carteira do servidor...", variant: "destructive" });
+  const handleStart = async () => {
+    let currentCases = cases;
+    
+    // Garantir que temos dados antes de montar a fila
+    if (currentCases.length === 0) {
+      setLoadingCases(true);
+      try {
+        const data = await fetchRepoCases();
+        if (data) {
+          setCases(data);
+          currentCases = data;
+        }
+      } finally {
+        setLoadingCases(false);
+      }
+    }
+
+    if (currentCases.length === 0) {
+      toast({ title: "Carteira Vazia", description: "Não localizamos processos para auditar.", variant: "destructive" });
       return;
     }
 
-    const targetCases = cases.filter(c => !isCasoEncerrado(c));
+    const targetCases = currentCases.filter(c => !isCasoEncerrado(c));
     let queue: string[] = [];
     
     if (scope === 'critical') {
