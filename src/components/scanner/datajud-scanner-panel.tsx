@@ -22,7 +22,8 @@ import {
   RefreshCcw,
   PlayCircle,
   Clock,
-  ArrowRightCircle
+  ArrowRightCircle,
+  Copy
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -113,6 +114,13 @@ export function DataJudScannerPanel() {
 
     toast({ title: "Iniciando Varredura", description: `${finalQueue.length} registros em triagem neural.` });
     startScan(finalQueue, scope);
+  };
+
+  const handleCopyLogs = () => {
+    if (logs.length === 0) return;
+    const text = logs.map(l => `[${l.protocolo}] ${l.message}`).join('\n');
+    navigator.clipboard.writeText(text);
+    toast({ title: "Log Copiado", description: "O histórico da varredura está na área de transferência." });
   };
 
   if (isMinimized && status === 'idle') return null;
@@ -212,7 +220,12 @@ export function DataJudScannerPanel() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><History size={10}/> Telemetria Forense</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><History size={10}/> Telemetria Forense</p>
+                <Button variant="ghost" size="sm" onClick={handleCopyLogs} className="h-6 px-2 text-[8px] font-black uppercase hover:bg-black hover:text-white transition-all">
+                  <Copy size={10} className="mr-1" /> Copiar Log
+                </Button>
+              </div>
               <ScrollArea className="h-32 border-2 border-black bg-[#fafafa]">
                 <div className="p-2 space-y-1">
                   {logs.map((log, i) => (
