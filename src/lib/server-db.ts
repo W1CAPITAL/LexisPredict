@@ -2,7 +2,7 @@
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
-import { LegalCase, CaseNote, formatDateToISO, processarCaso } from './case-logic';
+import { LegalCase, formatDateToISO, processarCaso } from './case-logic';
 import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
@@ -123,6 +123,7 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
   if (!client) return { success: false, message: "Erro de Configuração." };
 
   try {
+    const { auth_id } = await getUserContext();
     const uniqueMap = new Map();
     cases.forEach(c => { if (c && c.protocolo) uniqueMap.set(c.protocolo, c); });
     
@@ -132,7 +133,7 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
       
       return { 
         empresa_id: empresaId, 
-        created_by: c.created_by,
+        created_by: c.created_by || auth_id, // Preserva autoria ou define o criador atual
         protocolo_ref: c.protocolo,
         advogado: c.advogado || 'NÃO ATRIBUÍDO',
         escritorio: c.escritorio || null,
@@ -164,7 +165,8 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
 
     return { success: true, message: "Sincronia concluída." };
   } catch (error: any) {
-    return { success: false, message: error.message };
+    console.error("[DB SAVE ERROR]", error.message);
+    return { success: false, message: error.message || "Erro desconhecido no repositório." };
   }
 }
 
@@ -174,7 +176,7 @@ export async function listAllEmpresasSystem() {
   return data || [];
 }
 
-export async function getStoredNotes(): Promise<CaseNote[]> {
+export async function getStoredNotes(): Promise<any[]> {
   const { auth_id, empresa_id, isSupervisor } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
   const hasFullAccess = isSupervisor === true;
@@ -204,7 +206,7 @@ export async function getStoredNotes(): Promise<CaseNote[]> {
   } catch (error) { return []; }
 }
 
-export async function saveSingleNote(note: Partial<CaseNote>): Promise<{ success: boolean; data?: any }> {
+export async function saveSingleNote(note: any): Promise<{ success: boolean; data?: any }> {
   const { auth_id, empresa_id } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return { success: false };
   const dbNote = { title: note.title || 'Nota', content: note.imageUrl ? JSON.stringify({ text: note.content, imageUrl: note.imageUrl }) : note.content, empresa_id: empresa_id, created_by: auth_id };
@@ -213,7 +215,7 @@ export async function saveSingleNote(note: Partial<CaseNote>): Promise<{ success
   return { success: true, data };
 }
 
-export async function updateStoredNote(id: string, updates: Partial<CaseNote>): Promise<{ success: boolean }> {
+export async function updateStoredNote(id: string, updates: any): Promise<{ success: boolean }> {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };
   const dbUpdates: any = {};
