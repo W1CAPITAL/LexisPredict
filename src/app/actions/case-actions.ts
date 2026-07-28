@@ -13,7 +13,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/lib/datajud-sync';
 
 /**
- * @fileOverview Actions de Processos v100.0 ELITE - Auditoria de Encerramento e Flags
+ * @fileOverview Actions de Processos v101.0 ELITE - Auditoria de Encerramento e Flags
  */
 
 export async function fetchRepoCases() {
@@ -30,6 +30,27 @@ export async function syncRepoCases(cases: LegalCase[]) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false, message: "Sessão expirada." };
   return await saveStoredCasesForEmpresa(cases, empresa_id);
+}
+
+/**
+ * BUSCA DE PERFORMANCE PARA RANKING (Bypass RLS)
+ * Retorna todos os usuários e processos da empresa para o Leaderboard.
+ */
+export async function fetchTeamPerformanceAction() {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) return { users: [], cases: [] };
+
+    const [users, cases] = await Promise.all([
+      getEmpresaUsers(),
+      getStoredCasesForEmpresa(empresa_id, true) // true = isAdmin mode (Bypass RLS para Ranking)
+    ]);
+
+    return { users, cases };
+  } catch (e: any) {
+    console.error("[Performance Action Fail]", e.message);
+    return { users: [], cases: [] };
+  }
 }
 
 /**
