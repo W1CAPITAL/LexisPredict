@@ -1,8 +1,8 @@
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.5
- * Otimizado com RETOMAR, Persistência Local e Blindagem de Sessão.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v1.6
+ * Otimizado com CONTINUIDADE PÓS-REFRESH e Blindagem de Sessão.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -23,6 +23,7 @@ interface DataJudScanState {
   status: ScanStatus;
   scope: ScanScope;
   isMinimized: boolean;
+  isAuthPaused: boolean;
   queue: string[];
   currentIndex: number;
   total: number;
@@ -37,6 +38,7 @@ interface DataJudScanState {
   startScan: (protocolos: string[], scope: ScanScope) => void;
   pauseScan: () => void;
   resumeScan: () => void;
+  resumeInterruptedScan: () => void;
   cancelScan: () => void;
   resetScan: () => void;
   processNext: () => Promise<void>;
@@ -47,8 +49,9 @@ const STORAGE_KEY = 'lexis_datajud_scan_v1';
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
-  scope: 'critical',
+  scope: 'resume',
   isMinimized: true,
+  isAuthPaused: false,
   queue: [],
   currentIndex: 0,
   total: 0,
@@ -66,7 +69,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     if (saved) {
       try {
         const data = JSON.parse(saved);
-        // Só carrega se for do dia atual (opcional)
         set({ 
           queue: data.queue || [], 
           currentIndex: data.currentIndex || 0,
@@ -74,7 +76,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           done: data.done || 0,
           alerts: data.alerts || 0,
           closed: data.closed || 0,
-          scope: data.scope || 'resume'
+          scope: data.scope || 'resume',
+          // Manter em idle após o load para o usuário escolher o que fazer
+          status: 'idle'
         });
       } catch (e) {}
     }
@@ -84,6 +88,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     set({
       status: 'running',
       isMinimized: false,
+      isAuthPaused: false,
       scope,
       queue: protocolos,
       total: protocolos.length,
@@ -101,11 +106,19 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     get().processNext();
   },
 
-  pauseScan: () => set({ status: 'paused' }),
+  pauseScan: () => set({ status: 'paused', isAuthPaused: false }),
 
   resumeScan: () => {
-    set({ status: 'running', isMinimized: false });
+    set({ status: 'running', isMinimized: false, isAuthPaused: false });
     get().processNext();
+  },
+
+  resumeInterruptedScan: () => {
+    const { queue, currentIndex } = get();
+    if (queue.length > 0 && currentIndex < queue.length) {
+      set({ status: 'running', isMinimized: false, isAuthPaused: false });
+      get().processNext();
+    }
   },
 
   cancelScan: () => {
@@ -122,7 +135,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       closed: 0,
       errors: 0,
       logs: [],
-      queue: []
+      queue: [],
+      isAuthPaused: false
     });
     localStorage.removeItem(STORAGE_KEY);
   },
@@ -144,12 +158,17 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const result = await scanOneDataJudAction(protocolo);
 
       if (result.success && result.casePatch) {
-        useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
+        // Tenta atualizar o store global em tempo real
+        try {
+          useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
+        } catch (e) {
+          console.warn("[Scanner] Falha ao atualizar UI em tempo real", e);
+        }
       }
 
       // Se for erro de autenticação crítico, pausar a fila
       if (!result.success && result.isAuthError) {
-        set({ status: 'paused' });
+        set({ status: 'paused', isAuthPaused: true });
         set((state) => ({
            logs: [{
              protocolo: 'AUTH_CRITICAL',
@@ -177,7 +196,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       set(newState);
 
-      // Persistir progresso
+      // Persistir progresso atômico
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         queue: queue,
         currentIndex: newState.currentIndex,
@@ -197,15 +216,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         logs: [{
           protocolo,
           status: 'error',
-          message: "Erro inesperado de comunicação"
+          message: "Falha na rede ou timeout do CNJ"
         }, ...state.logs].slice(0, 30)
       }));
     }
 
-    // Recursão controlada (450ms)
+    // Recursão controlada para estabilidade (500ms)
     const nextState = get();
     if (nextState.status === 'running' && nextState.currentIndex < nextState.queue.length) {
-      setTimeout(() => get().processNext(), 450);
+      setTimeout(() => get().processNext(), 500);
     } else if (nextState.currentIndex >= nextState.queue.length) {
       set({ status: 'done' });
       localStorage.removeItem(STORAGE_KEY);
