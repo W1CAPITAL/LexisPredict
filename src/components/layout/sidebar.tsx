@@ -1,8 +1,10 @@
-"use client";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -136,7 +138,7 @@ export function Sidebar() {
       <div className="flex-1 py-8 px-4 space-y-8 overflow-y-auto text-black">
         <div className="px-3">
           <Button 
-            onClick={() => useDataJudScanStore.getState().resetScan()} 
+            onClick={() => toggleMinimize()} 
             className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black border-2 border-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all gap-3"
           >
             <Zap className={cn("w-4 h-4 text-primary", status === 'running' && "animate-pulse")} />
