@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -393,24 +392,45 @@ export default function TeamManagement() {
                     </div>
                     <div className="text-right">
                        <p className="text-[8px] font-black uppercase opacity-40">Total Líquido</p>
-                       <p className={cn("text-3xl font-black", (selectedAudit?.score ?? 0) < 0 ? "text-red-600" : "text-black")}>
+                       <p className={cn("text-3xl font-black", (selectedAudit?.score ?? 0) < 0 ? "text-red-600" : "text-emerald-600")}>
                          {formatInfiniteScore(selectedAudit?.score || 0)}
                        </p>
                     </div>
                  </div>
-                 <ScrollArea className="h-[300px]">
+                 <ScrollArea className="h-[400px]">
                     <div className="space-y-3">
-                       {selectedAudit?.penalidades.map((p, idx) => (
-                          <div key={idx} className="p-4 bg-white border border-black/10 flex flex-col gap-2">
-                             <div className="flex justify-between">
-                                <p className="text-[10px] font-black uppercase">{p.cliente}</p>
-                                <Badge variant="destructive" className="text-[8px] font-black">{formatInfiniteScore(p.peso)} pts</Badge>
+                       {selectedAudit?.pontos.map((p, idx) => (
+                          <div key={idx} className={cn(
+                            "p-4 bg-white border flex flex-col gap-2 transition-all",
+                            p.peso > 0 ? "border-emerald-200 bg-emerald-50/20" : "border-red-200 bg-red-50/20"
+                          )}>
+                             <div className="flex justify-between items-start">
+                                <div>
+                                   <p className="text-[10px] font-black uppercase">{p.cliente}</p>
+                                   <p className="text-[9px] font-black uppercase opacity-60">{p.tipo}</p>
+                                </div>
+                                <Badge 
+                                  variant="outline" 
+                                  className={cn(
+                                    "text-[9px] font-black uppercase rounded-none border-2",
+                                    p.peso > 0 ? "border-emerald-600 text-emerald-700 bg-white" : "border-red-600 text-red-700 bg-white"
+                                  )}
+                                >
+                                   {p.peso > 0 ? `+${formatInfiniteScore(p.peso)}` : formatInfiniteScore(p.peso)} pts
+                                </Badge>
                              </div>
-                             <p className="text-[9px] font-bold text-muted-foreground italic">"{p.motivo}"</p>
-                             <p className="text-[7px] font-mono opacity-40">{p.protocolo}</p>
+                             <p className={cn(
+                               "text-[10px] font-bold uppercase leading-tight italic",
+                               p.peso > 0 ? "text-emerald-800" : "text-red-800"
+                             )}>
+                               "{p.motivo}"
+                             </p>
+                             <p className="text-[7px] font-mono opacity-40 uppercase tracking-widest">{p.protocolo}</p>
                           </div>
                        ))}
-                       {selectedAudit?.penalidades.length === 0 && <p className="py-12 text-center opacity-30 uppercase font-black text-[10px]">Nenhum registro de penalidade localizado.</p>}
+                       {selectedAudit?.pontos && selectedAudit.pontos.length === 0 && (
+                         <p className="py-12 text-center opacity-30 uppercase font-black text-[10px]">Nenhum registro de movimentação de pontos.</p>
+                       )}
                     </div>
                  </ScrollArea>
               </div>
