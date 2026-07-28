@@ -161,7 +161,7 @@ export default function TarefasPage() {
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
 
     activeCases.forEach(c => {
-      if (c.status !== 'Vencido' && c.status !== 'É Hoje') return;
+      if (c.status !== 'Vencido' && c.status !== 'É Hoje' && c.status !== 'Caso Crítico') return;
 
       const nome = c.cliente || 'NÃO IDENTIFICADO';
       if (!groups[nome]) {
@@ -182,9 +182,9 @@ export default function TarefasPage() {
       groups[nome].totalAtivos++;
       groups[nome].cases.push(c);
       
-      if (c.status === 'Vencido') {
+      if (c.status === 'Vencido' || c.status === 'Caso Crítico') {
         groups[nome].vencidos++;
-        const atraso = c.diasFaltando ? Math.abs(c.diasFaltando) : 0;
+        const atraso = c.status === 'Caso Crítico' ? 999 : (c.diasFaltando ? Math.abs(c.diasFaltando) : 0);
         if (atraso > groups[nome].diasAtrasoMax) {
           groups[nome].diasAtrasoMax = atraso;
         }
@@ -446,14 +446,18 @@ function TaskCard({ group, isFocus = false, onMarkContacted }: { group: TaskGrou
     diasVencidos: group.diasAtrasoMax
   });
 
+  const isCritical = group.cases.some(c => c.status === 'Caso Crítico');
+
   return (
-    <div className={cn("premium-card p-6 bg-white flex flex-col transition-all group", isFocus && "border-l-4 border-l-primary")}>
+    <div className={cn("premium-card p-6 bg-white flex flex-col transition-all group", isFocus && "border-l-4 border-l-primary", isCritical && "border-l-red-600 bg-red-50/10")}>
       <div className="flex justify-between items-start mb-6">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
+        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 group-hover:text-white transition-all", isCritical ? "bg-red-600 text-white animate-pulse" : "group-hover:bg-primary")}>
           <Phone size={24} />
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
-          {group.diasAtrasoMax > 0 ? (
+          {isCritical ? (
+            <Badge className="bg-red-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-bounce">URGÊNCIA MÁXIMA</Badge>
+          ) : group.diasAtrasoMax > 0 ? (
             <Badge className="bg-red-50 text-red-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Atrasado há {group.diasAtrasoMax} dia(s)</Badge>
           ) : (
             <Badge className="bg-blue-50 text-blue-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Prazo Hoje</Badge>
