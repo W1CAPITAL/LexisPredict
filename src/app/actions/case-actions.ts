@@ -14,7 +14,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/lib/datajud-sync';
 
 /**
- * @fileOverview Actions de Processos v125.0 ELITE - Estabilização de Build e Auditoria
+ * @fileOverview Actions de Processos v150.0 ELITE - Estabilização de Auditoria Unitária e Scanner
  */
 
 export async function fetchRepoCases() {
@@ -71,7 +71,7 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * AUDITORIA UNITÁRIA PARA SCANNER GLOBAL
- * Grava APENAS os flags de auditoria, preservando status e prazos manuais.
+ * Otimizada para retorno de 'patch' visando performance em lotes.
  */
 export async function scanOneDataJudAction(protocolo: string) {
   try {
@@ -148,10 +148,60 @@ export async function scanOneDataJudAction(protocolo: string) {
 }
 
 /**
- * Consulta pontual de um único processo para UI (Modal)
+ * CONSULTA PONTUAL E DETALHADA (Para Modal de Histórico)
+ * Retorna o objeto do caso completo e a lista de movimentos.
  */
 export async function scanSingleCaseAction(protocolo: string) {
-  return await scanOneDataJudAction(protocolo);
+  try {
+    const { empresa_id, auth_id } = await getUserContext();
+    if (!empresa_id || !auth_id) {
+       return { success: false, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada — faça login." };
+    }
+
+    const cases = await getStoredCasesForEmpresa(empresa_id);
+    const target = cases.find(c => c.protocolo === protocolo);
+    if (!target) return { success: false, error: "NOT_FOUND", message: "Processo não localizado no repositório." };
+
+    const dataJud = await fetchDataJud(protocolo);
+    
+    if (dataJud && !dataJud.error && dataJud.movimentos) {
+      const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
+      const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
+      
+      const patch = {
+        datajud_ultimo_movimento: check.dataUltimo,
+        datajud_ultimo_nome: check.nomeUltimo,
+        datajud_consultado_em: new Date().toISOString(),
+        tem_atualizacao_pos_retorno: check.alerta,
+        datajud_encerrado_tribunal: enc.encerrado,
+        datajud_encerrado_motivo: enc.motivo,
+        tribunal: dataJud.tribunal || target.tribunal
+      };
+
+      const updatedCase: LegalCase = { ...target, ...patch };
+      await saveStoredCasesForEmpresa([updatedCase], empresa_id);
+      
+      let msg = "Auditoria concluída: Sem novidades.";
+      if (enc.encerrado) msg = `IDENTIFICADO ENCERRAMENTO: ${enc.motivo}`;
+      else if (check.alerta) msg = "ALERTA: Novo andamento identificado no tribunal!";
+      
+      return { 
+        success: true, 
+        case: updatedCase, 
+        movimentos: dataJud.movimentos,
+        casePatch: patch, // Retrocompatibilidade para hooks reativos
+        message: msg
+      };
+    }
+    
+    return { 
+      success: false, 
+      error: "TRIBUNAL_OFFLINE", 
+      message: dataJud?.message || "O tribunal não retornou dados para este CNJ." 
+    };
+  } catch (e: any) {
+    return { success: false, error: "ERRO_TECNICO", message: e.message || "Falha na comunicação forense." };
+  }
 }
 
 /**
