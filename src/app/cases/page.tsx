@@ -49,7 +49,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, syncRepoCases, deleteAllCasesAction, recalibrateCasesAction, runDataJudScanAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction } from '@/app/actions/case-actions';
 import { exportCasesToCSVAction } from '@/app/actions/export-actions';
 import { format } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
@@ -222,12 +222,18 @@ function CasesContent() {
     
     try {
       const res = await runDataJudScanAction();
-      if (res.success) {
+      if (res && res.success) {
         toast({ title: "Sincronia Concluída", description: res.message });
         await loadData();
       } else {
-        toast({ title: "Erro na Varredura", description: res.error, variant: "destructive" });
+        toast({ 
+          title: "Erro na Varredura", 
+          description: res?.error || "O servidor não retornou uma resposta válida. Tente reduzir o lote.", 
+          variant: "destructive" 
+        });
       }
+    } catch (err: any) {
+      toast({ title: "Falha de Conexão", description: "Tempo de resposta excedido ou erro de rede.", variant: "destructive" });
     } finally {
       setIsScanning(false);
     }
@@ -241,7 +247,7 @@ function CasesContent() {
       const savedThreshold = localStorage.getItem('lexisPredict_urgency_alert');
       const alertLimit = savedThreshold ? parseInt(savedThreshold) : 3;
       const result = await recalibrateCasesAction(alertLimit);
-      if (result.success) {
+      if (result && result.success) {
         toast({ title: "Recalibração Concluída", description: result.message });
         await loadData();
       }
