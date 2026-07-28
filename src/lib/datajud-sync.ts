@@ -1,5 +1,5 @@
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.1
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.2
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
