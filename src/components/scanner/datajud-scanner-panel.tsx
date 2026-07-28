@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -18,7 +17,9 @@ import {
   CheckCircle2, 
   History,
   ShieldCheck,
-  Search
+  Search,
+  Gavel,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -30,7 +31,7 @@ import { fetchRepoCases } from '@/app/actions/case-actions';
 
 export function DataJudScannerPanel() {
   const { 
-    status, total, done, alerts, errors, logs, 
+    status, total, done, alerts, closed, errors, logs, 
     isMinimized, toggleMinimize, startScan, pauseScan, resumeScan, cancelScan, resetScan 
   } = useDataJudScanStore();
   
@@ -39,7 +40,7 @@ export function DataJudScannerPanel() {
   const [loadingCases, setLoadingCases] = useState(false);
   const { toast } = useToast();
 
-  // Sincronia de segurança: Garantir que temos os casos carregados para montar a fila
+  // Sincronia de segurança
   useEffect(() => {
     if (!isMinimized && cases.length === 0 && !loadingCases) {
       setLoadingCases(true);
@@ -61,7 +62,7 @@ export function DataJudScannerPanel() {
     
     if (scope === 'critical') {
       queue = targetCases
-        .filter(c => c.status === 'Vencido' || c.status === 'Sem Prazo' || c.status === 'Caso Crítico' || c.status === 'É Hoje')
+        .filter(c => ['Vencido', 'Sem Prazo', 'Caso Crítico', 'É Hoje'].includes(c.status))
         .map(c => c.protocolo);
     } else {
       queue = targetCases.map(c => c.protocolo);
@@ -70,7 +71,7 @@ export function DataJudScannerPanel() {
     if (queue.length === 0) {
       toast({ 
         title: "Escopo Limpo", 
-        description: `Nenhum processo identificado para o filtro: ${scope === 'critical' ? 'Fila Crítica' : 'Todos Ativos'}.`,
+        description: `Nenhum processo identificado para o filtro selecionado.`,
         variant: "destructive" 
       });
       return;
@@ -147,7 +148,7 @@ export function DataJudScannerPanel() {
               className="w-full h-12 bg-black text-white font-black uppercase text-[10px] shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all"
             >
               {loadingCases ? <Loader2 className="animate-spin mr-2" /> : <Play size={14} className="mr-2" />}
-              {loadingCases ? "Lendo Carteira..." : "Iniciar Auditoria Manual"}
+              {loadingCases ? "Sincronizando Dados..." : "Iniciar Auditoria Manual"}
             </Button>
           </div>
         ) : (
@@ -162,34 +163,40 @@ export function DataJudScannerPanel() {
                   "font-black uppercase text-[8px] rounded-none px-2",
                   status === 'running' ? "bg-emerald-500" : status === 'done' ? "bg-primary" : "bg-orange-500"
                 )}>
-                  {status === 'running' ? 'Processando' : status.toUpperCase()}
+                  {status === 'running' ? 'Auditando' : status.toUpperCase()}
                 </Badge>
               </div>
               <Progress value={(done / (total || 1)) * 100} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 border-2 border-black bg-emerald-50">
-                <p className="text-[8px] font-black uppercase text-emerald-800/40">Alertas Novos</p>
-                <p className="text-lg font-black text-emerald-600 tabular-nums">{alerts}</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="p-2 border-2 border-black bg-emerald-50 text-center">
+                <p className="text-[7px] font-black uppercase text-emerald-800/40">Encerrados</p>
+                <p className="text-sm font-black text-emerald-600 tabular-nums">{closed}</p>
               </div>
-              <div className="p-3 border-2 border-black bg-red-50">
-                <p className="text-[8px] font-black uppercase text-red-800/40">Falhas / Timeouts</p>
-                <p className="text-lg font-black text-red-600 tabular-nums">{errors}</p>
+              <div className="p-2 border-2 border-black bg-blue-50 text-center">
+                <p className="text-[7px] font-black uppercase text-blue-800/40">Alertas</p>
+                <p className="text-sm font-black text-blue-600 tabular-nums">{alerts}</p>
+              </div>
+              <div className="p-2 border-2 border-black bg-red-50 text-center">
+                <p className="text-[7px] font-black uppercase text-red-800/40">Falhas</p>
+                <p className="text-sm font-black text-red-600 tabular-nums">{errors}</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><History size={10}/> Telemetria Recente</p>
+              <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><History size={10}/> Telemetria Forense</p>
               <ScrollArea className="h-32 border-2 border-black bg-[#fafafa]">
                 <div className="p-2 space-y-1">
                   {logs.map((log, i) => (
-                    <div key={i} className="flex items-center gap-2 text-[9px] font-bold uppercase leading-none p-1 border-b border-black/5">
-                      {log.status === 'success' && <CheckCircle2 size={10} className="text-emerald-500 shrink-0" />}
-                      {log.status === 'warning' && <AlertCircle size={10} className="text-orange-500 shrink-0" />}
-                      {log.status === 'error' && <X size={10} className="text-red-500 shrink-0" />}
-                      <span className="text-black/30 font-mono shrink-0">{log.protocolo.slice(-6)}:</span>
-                      <span className="truncate">{log.message}</span>
+                    <div key={i} className={cn(
+                      "flex items-start gap-2 text-[9px] font-bold uppercase leading-tight p-2 border-b border-black/5",
+                      log.encerrado ? "bg-red-50" : log.alerta ? "bg-blue-50" : ""
+                    )}>
+                      {log.encerrado ? <Gavel size={10} className="text-red-600 shrink-0 mt-0.5" /> : 
+                       log.alerta ? <AlertTriangle size={10} className="text-blue-600 shrink-0 mt-0.5" /> : 
+                       <CheckCircle2 size={10} className="text-emerald-500 shrink-0 mt-0.5" />}
+                      <span className="break-all">{log.message}</span>
                     </div>
                   ))}
                   {logs.length === 0 && <p className="p-4 text-center text-[8px] font-black uppercase opacity-20">Aguardando dados...</p>}
