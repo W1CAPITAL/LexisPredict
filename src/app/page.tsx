@@ -24,7 +24,9 @@ import {
   ArrowRight,
   History,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Gavel,
+  CheckCircle2
 } from 'lucide-react';
 import { LegalCase } from '@/lib/case-logic';
 import { cn } from '@/lib/utils';
@@ -92,8 +94,12 @@ export default function Dashboard() {
     const atencao = ativos.filter(c => c.status === 'Atenção').length;
     const noPrazo = ativos.filter(c => c.status === 'No Prazo').length;
     
-    // Alertas DataJud
+    // Alertas DataJud baseados em ativos
     const updatedInCourt = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
+    const closedInCourt = ativos.filter(c => c.datajud_encerrado_tribunal).length;
+
+    const rateUpdated = activeTotal > 0 ? Math.round((updatedInCourt / activeTotal) * 100) : 0;
+    const rateClosed = activeTotal > 0 ? Math.round((closedInCourt / activeTotal) * 100) : 0;
    
     const riskSum = (vencidos * 1.0) + (venceHoje * 0.8) + (atencao * 0.5) + (noPrazo * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -111,7 +117,8 @@ export default function Dashboard() {
     return { 
       activeTotal, vencidos, venceHoje, atencao, noPrazo, 
       riskScore, statusData, pctHoje, pctVencidos, pctAtencao,
-      updatedInCourt
+      updatedInCourt, updatedInCourtRate: rateUpdated,
+      closedInCourt, closedInCourtRate: rateClosed
     };
   }, [cases, t]);
 
@@ -152,25 +159,27 @@ export default function Dashboard() {
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard title={t.statusHoje} value={loading ? "..." : metrics.venceHoje} icon={<Clock />} color={metrics.venceHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
             <StatCard title={t.statusVencido} value={loading ? "..." : metrics.vencidos} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
-            <StatCard title="Movimento Tribunal" value={loading ? "..." : metrics.updatedInCourt} icon={<Activity />} color={metrics.updatedInCourt > 0 ? "warning" : "success"} />
-            <StatCard title={t.activeDemands} value={loading ? "..." : metrics.activeTotal} icon={<History />} color="accent" />
+            <StatCard title="Novos Andamentos" value={loading ? "..." : metrics.updatedInCourt} icon={<Activity />} color={metrics.updatedInCourt > 0 ? "warning" : "success"} trend={`${metrics.updatedInCourtRate}%`} trendUp={true} />
+            <StatCard title="Encerrados Tribunal" value={loading ? "..." : metrics.closedInCourt} icon={<Gavel />} color={metrics.closedInCourt > 0 ? "success" : "primary"} trend={`${metrics.closedInCourtRate}%`} trendUp={true} />
           </section>
           
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
-               {metrics.updatedInCourt > 0 && (
+               {(metrics.updatedInCourt > 0 || metrics.closedInCourt > 0) && (
                  <section className="bg-amber-50 border-2 border-amber-200 p-6 rounded-2xl flex items-center justify-between">
                     <div className="flex items-center gap-4">
                        <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl">
                           <Zap size={24} />
                        </div>
                        <div>
-                          <h3 className="font-black uppercase text-sm">Alerta de Vigilância</h3>
-                          <p className="text-[10px] font-bold uppercase text-amber-700/60">Identificamos {metrics.updatedInCourt} processos com novos andamentos judiciais após seu último retorno.</p>
+                          <h3 className="font-black uppercase text-sm">Alerta de Vigilância DataJud</h3>
+                          <p className="text-[10px] font-bold uppercase text-amber-700/60">
+                            {metrics.updatedInCourt} processos com novos movimentos e {metrics.closedInCourt} identificados como encerrados na base do CNJ.
+                          </p>
                        </div>
                     </div>
                     <Button asChild variant="outline" className="border-amber-200 text-amber-700 font-black uppercase text-[10px] h-10 px-6 rounded-xl hover:bg-amber-100">
-                       <Link href="/cases?filter=updated">Ver Atualizações</Link>
+                       <Link href="/cases?filter=updated">Ver Auditoria</Link>
                     </Button>
                  </section>
                )}
