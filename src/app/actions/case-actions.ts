@@ -7,7 +7,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno } from '@/lib/datajud-sync';
 
 /**
- * @fileOverview Actions de Processos v3.0
+ * @fileOverview Actions de Processos v55.0 ELITE
  */
 
 export async function fetchRepoCases() {
@@ -27,8 +27,9 @@ export async function syncRepoCases(cases: LegalCase[]) {
 }
 
 /**
- * Motor de Varredura DataJud v2.0 ELITE
+ * Motor de Varredura DataJud v55.0 ELITE
  * Suporta modo UI (contexto usuário) e modo CRON (targetEmpresaId).
+ * Lotes otimizados para evitar timeouts e respeitar rate-limit do CNJ.
  */
 export async function runDataJudScanAction(targetEmpresaId?: string) {
   try {
@@ -44,41 +45,48 @@ export async function runDataJudScanAction(targetEmpresaId?: string) {
       empresa_id = ctx.empresa_id;
     }
 
-    // Busca os casos utilizando o cliente adequado (User ou Admin)
     const cases = await getStoredCasesForEmpresa(empresa_id, isSystemMode);
-    if (!cases || cases.length === 0) return { success: true, scanned: 0, updated: 0 };
+    if (!cases || cases.length === 0) return { success: true, scanned: 0, updated: 0, message: "Nenhum processo para auditar." };
 
+    // Filtrar apenas processos ativos para economizar recursos e rate-limit
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
+    if (activeCases.length === 0) return { success: true, scanned: 0, updated: 0, message: "Todos os processos constam como encerrados." };
     
-    // Limite de lote por execução para proteção de infraestrutura
-    const batchSize = isSystemMode ? 50 : 20;
+    // Configuração de Lote (10 para UI para garantir feedback, 20 para Cron)
+    const batchSize = isSystemMode ? 20 : 10;
     const batch = activeCases.slice(0, batchSize);
     
     let updatedCount = 0;
     const results: LegalCase[] = [];
 
     for (const c of batch) {
-      // Delay de cortesia para a API do CNJ
-      await new Promise(r => setTimeout(r, 400));
+      // Delay de cortesia (Rate Limit Protection)
+      await new Promise(r => setTimeout(r, 500));
 
-      const dataJud = await fetchDataJud(c.protocolo);
-      
-      if (dataJud && !dataJud.error && dataJud.movimentos) {
-        const check = detectarAtualizacaoPosRetorno(c.ultimoRetorno, dataJud.movimentos);
+      try {
+        const dataJud = await fetchDataJud(c.protocolo);
         
-        const updatedCase: LegalCase = {
-          ...c,
-          datajud_ultimo_movimento: check.dataUltimo,
-          datajud_ultimo_nome: check.nomeUltimo,
-          datajud_consultado_em: new Date().toISOString(),
-          tem_atualizacao_pos_retorno: check.alerta
-        };
-        
-        results.push(updatedCase);
-        if (check.alerta) updatedCount++;
+        if (dataJud && !dataJud.error && dataJud.movimentos) {
+          const check = detectarAtualizacaoPosRetorno(c.ultimoRetorno, dataJud.movimentos);
+          
+          const updatedCase: LegalCase = {
+            ...c,
+            datajud_ultimo_movimento: check.dataUltimo,
+            datajud_ultimo_nome: check.nomeUltimo,
+            datajud_consultado_em: new Date().toISOString(),
+            tem_atualizacao_pos_retorno: check.alerta
+          };
+          
+          results.push(updatedCase);
+          if (check.alerta) updatedCount++;
+        }
+      } catch (innerError) {
+        console.warn(`[Varredura] Falha individual no CNJ ${c.protocolo}:`, innerError);
+        continue; // Continua para o próximo do lote
       }
     }
 
+    // Persistência em Massa do Lote Auditado
     if (results.length > 0) {
       await saveStoredCasesForEmpresa(results, empresa_id, isSystemMode);
     }
@@ -87,11 +95,11 @@ export async function runDataJudScanAction(targetEmpresaId?: string) {
       success: true, 
       scanned: results.length,
       updated: updatedCount,
-      message: `Varredura concluída. ${results.length} processos auditados para a empresa.`
+      message: `Varredura parcial concluída: ${results.length} processos auditados. ${updatedCount} alertas de movimentação identificados.`
     };
   } catch (e: any) {
     console.error("[Varredura Action Fail]", e.message);
-    return { success: false, error: e.message };
+    return { success: false, error: e.message || "Falha técnica na infraestrutura de varredura." };
   }
 }
 
@@ -104,16 +112,17 @@ export async function recalibrateCasesAction(alertLimit: number = 3) {
     if (!empresa_id) return { success: false, error: "Sessão expirada." };
     
     const cases = await getStoredCasesForEmpresa(empresa_id);
-    if (!cases || cases.length === 0) return { success: true, count: 0 };
+    if (!cases || cases.length === 0) return { success: true, count: 0, message: "Sem processos para recalibrar." };
     
     const updatedCases = cases.map(c => {
       if (isCasoEncerrado(c)) return c;
       return processarCaso({ ...c, statusManual: 'Automatico' }, { alertLimit });
     });
     
-    const res = await saveStoredCasesForEmpresa(updatedCases, empresa_id);
-    return { success: true, count: updatedCases.length, message: res.message };
+    await saveStoredCasesForEmpresa(updatedCases, empresa_id);
+    return { success: true, count: updatedCases.length, message: "Urgências recalculadas com sucesso." };
   } catch (e: any) {
-    return { success: false, error: e.message };
+    console.error("[Recalibração Fail]", e.message);
+    return { success: false, error: e.message || "Erro ao processar recalibração." };
   }
 }
