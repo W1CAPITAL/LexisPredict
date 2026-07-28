@@ -14,6 +14,8 @@ const API_KEYS = {
   GROQ: process.env.GROQ_API_KEY
 };
 
+const XAI_MODEL = process.env.XAI_MODEL || 'grok-2-1212';
+
 const SYSTEM_INSTRUCTIONS = `Você é o Veredito AI Elite v6.0. 
 Sua missão é realizar uma Auditoria Técnica 3D de dados processuais e retornar um parecer jurídico rigoroso em JSON.
 
@@ -83,8 +85,8 @@ function gerarParecerDeterministico(data: any) {
   let steps = "Continuar acompanhando publicações oficiais no diário e prazos do tribunal.";
   let statusFim = "Processo em andamento regular.";
 
-  // Regras de Precedência Crítica
-  if (allText.includes('TRÂNSITO EM JULGADO') || allText.includes('TRANSITO EM JULGADO') || allText.includes('BAIXA DEFINITIVA') || allText.includes('ARQUIVADO DEFINITIVAMENTE')) {
+  // Regras de Precedência Crítica (Pattern Matching Ampliado)
+  if (allText.includes('TRÂNSITO EM JULGADO') || allText.includes('TRANSITO EM JULGADO') || allText.includes('BAIXA DEFINITIVA') || allText.includes('ARQUIVADO DEFINITIVAMENTE') || allText.includes('DEFINITIVO')) {
     resumo += " PROCESSO FINALIZADO. Identificado trânsito em julgado ou baixa definitiva.";
     risco = "Nenhum risco processual ativo (Feito encerrado).";
     steps = "Realizar o arquivamento interno no sistema LexisPredict e conferir eventuais custas pendentes.";
@@ -94,7 +96,7 @@ function gerarParecerDeterministico(data: any) {
     risco = "Risco de descumprimento de parcelas se houver cronograma de pagamento.";
     steps = "Acompanhar a quitação das obrigações e o arquivamento do feito.";
     statusFim = "Processo em fase de encerramento por acordo.";
-  } else if (allText.includes('IMPROCEDENTE')) {
+  } else if (allText.includes('IMPROCEDENTE') || allText.includes('IMPROCEDÊNCIA') || allText.includes('IMPROCEDENCIA')) {
     resumo += " Sentença de improcedência prolatada em primeiro grau.";
     risco = "ALTO. Risco de sucumbência e encerramento desfavorável.";
     steps = "Avaliar fundamentos da sentença para interposição de Recurso de Apelação.";
@@ -138,7 +140,6 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
       max_tokens: 2000
     };
 
-    // Especialização para xAI (Grok)
     if (url.includes('x.ai')) {
       body.response_format = { type: 'json_object' };
     }
@@ -154,8 +155,8 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
     });
     
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error(`[AI FAIL] ${model} Status ${res.status}:`, err);
+      const errText = await res.text();
+      console.error(`[AI FAIL] ${model} HTTP ${res.status}:`, errText);
       return null;
     }
 
@@ -176,13 +177,25 @@ export const vereditoAIFlow = ai.defineFlow(
   },
   async input => {
     const { cnj, preferredModel = 'xai' } = input;
+    
+    if (!API_KEYS.XAI && !API_KEYS.GROQ && !API_KEYS.AIRFORCE) {
+       return { 
+         resumoTecnico: "Nenhuma API key configurada no servidor (XAI_API_KEY/GROQ_API_KEY).",
+         analiseRisco: "Motores offline.",
+         proximosPassos: "Configure as variáveis de ambiente.",
+         mensagemCliente: "",
+         success: false, 
+         error: true 
+       };
+    }
+
     const dataJudData = await fetchDataJud(cnj);
     
     if (!dataJudData || dataJudData.error) {
        return { 
          resumoTecnico: "Falha na conexão com o tribunal.",
-         analiseRisco: "Sistema indisponível.",
-         proximosPassos: "Tente novamente.",
+         analiseRisco: "Sistema unificado indisponível.",
+         proximosPassos: "Tente novamente em instantes.",
          mensagemCliente: "",
          success: false, 
          error: true, 
@@ -191,7 +204,7 @@ export const vereditoAIFlow = ai.defineFlow(
        };
     }
 
-    // Preparação de Contexto (Obrigatório para evitar alucinação)
+    // Preparação de Contexto
     const movementsContext = dataJudData.movimentos
       .sort((a: any, b: any) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime())
       .slice(0, 20)
@@ -207,7 +220,7 @@ export const vereditoAIFlow = ai.defineFlow(
     `;
     
     const engines = [
-      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-4.5' },
+      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: XAI_MODEL },
       { id: 'airforce', url: 'https://api.airforce/v1/chat/completions', key: API_KEYS.AIRFORCE, model: 'deepseek-v3' },
       { id: 'groq', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
     ];
