@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
@@ -7,7 +6,7 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v5200.0 ELITE)
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v5500.0 ELITE)
  * Governança de Supervisor e Sincronia Ilimitada com Varredura DataJud.
  */
 
@@ -136,6 +135,10 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
   return saveStoredCasesForEmpresa(cases, empresa_id);
 }
 
+/**
+ * Salva ou atualiza processos.
+ * Regra de Auto-Limpeza: Se novo retorno >= datajud_ultimo_movimento, limpa o alerta.
+ */
 export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
   const client = isAdmin ? await getSupabaseAdmin() : supabase;
   if (!client) return { success: false, message: "Erro de Configuração." };
@@ -148,9 +151,14 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
       const isoPrazo = formatDateToISO(c.proximoPrazo);
       const isoRetorno = formatDateToISO(c.ultimoRetorno);
       
+      // Lógica de Limpeza Automática do Alerta
       let finalTemAtualizacao = c.tem_atualizacao_pos_retorno ?? false;
       if (finalTemAtualizacao && c.datajud_ultimo_movimento && isoRetorno) {
-        if (new Date(isoRetorno).getTime() >= new Date(c.datajud_ultimo_movimento).getTime()) {
+        // Normalizamos para comparação de timestamps
+        const dataRetornoTs = new Date(isoRetorno).getTime();
+        const dataMovimentoTs = new Date(c.datajud_ultimo_movimento).getTime();
+        
+        if (dataRetornoTs >= dataMovimentoTs) {
           finalTemAtualizacao = false;
         }
       }
