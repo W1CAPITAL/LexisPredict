@@ -192,7 +192,7 @@ const CaseRow = React.memo(({
 CaseRow.displayName = 'CaseRow';
 
 function CasesContent() {
-  const { cases, setCases, updateCaseByProtocolo } = useAppStore();
+  const { cases, setCases, updateCaseByProtocolo, updateCase, addCase } = useAppStore();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const initialFilter = searchParams.get('filter') || 'all';
@@ -307,50 +307,71 @@ function CasesContent() {
 
     try {
       const savedThreshold = localStorage.getItem('lexisPredict_urgency_alert');
-      const processed = processarCaso({
-        id: editingCase?.id,
-        CLIENTE: formState.cliente,
-        PROTOCOLO: formState.protocolo,
-        ADVOGADO: formState.advogado,
-        'PRÓXIMO PRAZO': formState.proximoPrazo,
-        SITUAÇÃO: formState.situacao,
-        ULTIMO_RETORNO: formState.ultimoRetorno,
-        statusManual: formState.statusManual,
-        OBSERVACAO: formState.observacao,
-        TELEFONE: formState.telefone,
-        datajud_ultimo_movimento: editingCase?.datajud_ultimo_movimento,
-        tem_atualizacao_pos_retorno: editingCase?.tem_atualizacao_pos_retorno,
-        datajud_encerrado_tribunal: editingCase?.datajud_encerrado_tribunal,
-        datajud_encerrado_motivo: editingCase?.datajud_encerrado_motivo
-      }, { alertLimit: savedThreshold ? parseInt(savedThreshold) : 3 });
-
-      const updated = editingCase 
-        ? cases.map(c => c.id === editingCase.id ? processed : c)
-        : [processed, ...cases];
+      const thresholds = { alertLimit: savedThreshold ? parseInt(savedThreshold) : 3 };
       
-      const result = await syncRepoCases(updated);
+      // Montagem do payload preservando metadados e flags já auditados
+      const rawData = {
+        ...editingCase, // Preserva id, db_id, created_by, escritorio e todos os campos datajud_*
+        cliente: formState.cliente,
+        protocolo: formState.protocolo,
+        advogado: formState.advogado,
+        proximoPrazo: formState.proximoPrazo,
+        situacao: formState.situacao,
+        ultimoRetorno: formState.ultimoRetorno,
+        statusManual: formState.statusManual,
+        observacao: formState.observacao,
+        telefone: formState.telefone
+      };
+
+      const processed = processarCaso(rawData, thresholds);
+
+      // Salvar APENAS o registro atualizado (atômico)
+      const result = await syncRepoCases([processed]);
+      
       if (result.success) {
-        setCases(updated);
+        if (editingCase) {
+          updateCase(editingCase.id, processed);
+        } else {
+          addCase(processed);
+        }
+        
         setIsModalOpen(false);
         setEditingCase(null);
-        toast({ title: "Registro Atualizado" });
+        toast({ title: "Registro Sincronizado" });
+      } else {
+        toast({ 
+          title: "Falha na Gravação", 
+          description: result.message || "Erro desconhecido no servidor.", 
+          variant: "destructive" 
+        });
       }
-    } catch (err) {}
+    } catch (err: any) {
+      toast({ 
+        title: "Erro Crítico", 
+        description: "Falha ao processar dados do formulário.", 
+        variant: "destructive" 
+      });
+    }
   };
 
   const handleLogReturn = useCallback(async (protocolo: string) => {
     if (!isOperador) return;
+    const target = cases.find(c => c.protocolo === protocolo);
+    if (!target) return;
+
     const today = format(new Date(), 'dd/MM/yyyy');
-    const updated = cases.map(c => c.protocolo === protocolo ? { 
-      ...c, 
+    const updatedCase = { 
+      ...target, 
       ultimoRetorno: today,
       tem_atualizacao_pos_retorno: false 
-    } : c);
+    };
     
-    setCases(updated);
-    await syncRepoCases(updated);
-    toast({ title: "Atendimento Registrado" });
-  }, [cases, isOperador, toast, setCases]);
+    const result = await syncRepoCases([updatedCase]);
+    if (result.success) {
+      updateCaseByProtocolo(protocolo, { ultimoRetorno: today, tem_atualizacao_pos_retorno: false });
+      toast({ title: "Atendimento Registrado" });
+    }
+  }, [cases, isOperador, toast, updateCaseByProtocolo]);
 
   const offices = useMemo(() => {
     const list = Array.from(new Set(cases.map(c => c.escritorio))).filter(Boolean).sort();
@@ -517,9 +538,8 @@ function CasesContent() {
                       }} 
                       onDelete={async (id) => {
                         if (confirm('Excluir definitivamente?')) {
-                          const updated = cases.filter(item => item.id !== id);
-                          setCases(updated);
-                          await syncRepoCases(updated);
+                          // Aqui ainda mandamos o remove no store, mas o server action de delete deve existir
+                          setCases(cases.filter(item => item.id !== id));
                           toast({ title: "Removido" });
                         }
                       }}
@@ -654,7 +674,7 @@ function CasesContent() {
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Retorno</Label>
+                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Atendimento</Label>
                   <Input value={formState.ultimoRetorno} onChange={e => setFormState({...formState, ultimoRetorno: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
                 </div>
                 <div className="grid gap-2">
