@@ -236,6 +236,7 @@ function CasesContent() {
   const handleBatchUpdateStatus = async () => {
     if (!isOperador || cases.length === 0 || isUpdating) return;
     setIsUpdating(true);
+    toast({ title: "Recalibrando Gabinete", description: "Reprocessando urgências e prazos..." });
     try {
       const savedThreshold = localStorage.getItem('lexisPredict_urgency_alert');
       const alertLimit = savedThreshold ? parseInt(savedThreshold) : 3;
@@ -344,6 +345,18 @@ function CasesContent() {
             <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Processos do Gabinete</h1>
           </div>
           <div className="flex items-center gap-3">
+            {isOperador && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBatchUpdateStatus}
+                disabled={isUpdating || loading}
+                className="h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5"
+              >
+                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCcw size={16} className="mr-2 text-primary" />}
+                Recalibrar Prazos
+              </Button>
+            )}
             {isOperador && (
               <Button
                 variant="outline"
