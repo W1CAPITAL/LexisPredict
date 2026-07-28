@@ -5,39 +5,66 @@
  */
 
 export function calcularProbabilidadeEncerramento(input: {
-  status?: string; 
-  situacao?: string; 
-  observacao?: string; 
+  status?: string;
+  situacao?: string;
+  observacao?: string;
   diasVencidos?: number | null;
 }): number {
   const text = `${input.status || ''} ${input.situacao || ''} ${input.observacao || ''}`.toLowerCase();
-  
-  // Condição de parada: Já encerrado
-  if (/(encerrado|arquivado|extinto|baixa definitiva|arquivamento definitivo)/.test(text)) return 100;
-  
-  let score = 5; // Base mínima de probabilidade operacional
 
-  // Padrões de Desistência ou Acordo próximo
-  if (/(desistência|desistencia).*(homolog|arquiv)/.test(text)) score += 45;
-  
-  // Padrões de Finalização Financeira
-  if (/(cumprimento de sentença|alvará|alvara|levantamento)/.test(text)) score += 22;
-  
-  // Padrões de Sentença Prolatada
-  if (/(improcedente|procedente|sentença|sentenca)/.test(text)) score += 12;
-  
-  // Padrões de Recursos (diminuem velocidade mas indicam fase avançada)
-  if (/(recurso|apelação|apelacao|agravo)/.test(text)) score += 5;
-  
-  // Padrões de Movimentação de Gabinete
-  if (/(conclusos|réplica|replica|contestação|contestacao|em andamento)/.test(text)) score += 4;
+  // Já finalizado no gabinete
+  if (/(encerrado|arquivado|extinto|baixa definitiva|arquivamento definitivo|cancelada distribuição)/.test(text)) {
+    return 100;
+  }
 
-  // Ponderação por Tempo (Inércia Crítica)
+  let score = 5; // base operacional mínima
+
+  // Acordo / desistência em via de homologação ou arquivamento
+  if (/(desistência|desistencia).*(homolog|arquiv)/.test(text) || /\bacordo\b/.test(text)) {
+    score += 40;
+  }
+
+  // Fase executiva / pagamento
+  if (/(cumprimento de sentença|alvará|alvara|levantamento)/.test(text)) {
+    score += 22;
+  }
+
+  // Mérito decidido
+  if (/(improcedente|procedente|parcialmente procedente|sentença|sentenca)/.test(text)) {
+    score += 12;
+  }
+
+  // Concluso para decisão / julgamento (peso real)
+  if (/(concluso|conclusos para julgamento|conclusos para decisão|conclusos para decisao|para julgamento)/.test(text)) {
+    score += 18;
+  }
+
+  // Inércia do cliente / custas → risco moderado de extinção
+  if (/(não pagou as custas|nao pagou as custas|cliente se negou|sem retorno do cliente|abandono de causa|falta de regularização|falta de regularizacao)/.test(text)) {
+    score += 12;
+  }
+
+  // Recurso pendente ATRASA o fim (não soma positivo)
+  if (/(recurso|apelação|apelacao|agravo)/.test(text)) {
+    score -= 8;
+  }
+
+  // Contestação / início ainda longe do fim
+  if (/(contestação|contestacao)/.test(text)) {
+    score -= 6;
+  }
+
+  // Distribuição recente / fase muito inicial
+  if (/(distribuído|distribuido)/.test(text) && !/(redistrib)/.test(text)) {
+    score -= 10;
+  }
+
+  // Tempo vencido: peso BAIXO (não dominar o score)
   const d = input.diasVencidos ?? 0;
-  if (d > 60) score += 15;
-  else if (d > 30) score += 10;
-  else if (d > 14) score += 6;
-  else if (d > 0) score += 3;
+  if (d > 60) score += 8;
+  else if (d > 30) score += 5;
+  else if (d > 14) score += 3;
+  else if (d > 0) score += 1;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }

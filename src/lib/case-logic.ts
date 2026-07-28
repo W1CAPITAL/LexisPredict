@@ -51,6 +51,12 @@ export interface LegalCase {
   atendente?: string;
   parecerIA?: string;
   riscoIA?: string;
+  
+  // Auditoria DataJud
+  datajud_ultimo_movimento?: string | null;
+  datajud_ultimo_nome?: string | null;
+  datajud_consultado_em?: string | null;
+  tem_atualizacao_pos_retorno?: boolean;
 }
 
 export type CaseNote = {
@@ -68,7 +74,7 @@ export function fixEncoding(text: string): string {
     return text
       .replace(/Ã‡/g, 'Ç').replace(/Ã§/g, 'ç')
       .replace(/Ã£/g, 'ã').replace(/Ã¡/g, 'á')
-      .replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
+      .replace(/Ã©/g, 'é').replace(/Ã\u00ad/g, 'í')
       .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú')
       .replace(/Âº/g, 'º').replace(/Âª/g, 'ª').replace(/Â/g, ''); 
   } catch (e) { return text; }
@@ -166,7 +172,6 @@ export function extrairTribunal(protocolo: string): { tribunal: string; link: st
 }
 
 export function processarCaso(raw: any, thresholds?: { alertLimit: number }): LegalCase {
-  // Se já for um objeto canônico vindo do motor de importação, as chaves estarão em minúsculo
   const isCanonical = raw.protocolo !== undefined && raw.cliente !== undefined;
   
   let data: any = {};
@@ -193,7 +198,6 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const tribunalData = extrairTribunal(protocolo);
   const statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3);
 
-  // Unificação de Observações + Produtos
   let observacao = fixEncoding(data.OBSERVACAO || data.OBSERVACOES || data.observacao || '');
   const produtos = data.PRODUTOS || data.produtos || '';
   if (produtos && !observacao.includes(produtos)) {
@@ -217,6 +221,12 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     tribunal: tribunalData.tribunal,
     linkConsulta: tribunalData.link,
     observacao,
-    telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, '')
+    telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, ''),
+    
+    // Preservar dados de auditoria se estiverem presentes
+    datajud_ultimo_movimento: data.datajud_ultimo_movimento,
+    datajud_ultimo_nome: data.datajud_ultimo_nome,
+    datajud_consultado_em: data.datajud_consultado_em,
+    tem_atualizacao_pos_retorno: data.tem_atualizacao_pos_retorno
   };
 }

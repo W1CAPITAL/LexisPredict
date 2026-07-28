@@ -23,7 +23,8 @@ import {
   Target,
   ArrowRight,
   History,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 import { LegalCase } from '@/lib/case-logic';
 import { cn } from '@/lib/utils';
@@ -90,6 +91,9 @@ export default function Dashboard() {
     const venceHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const atencao = ativos.filter(c => c.status === 'Atenção').length;
     const noPrazo = ativos.filter(c => c.status === 'No Prazo').length;
+    
+    // Alertas DataJud
+    const updatedInCourt = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
    
     const riskSum = (vencidos * 1.0) + (venceHoje * 0.8) + (atencao * 0.5) + (noPrazo * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -104,7 +108,11 @@ export default function Dashboard() {
       { name: t.statusPrazo, value: noPrazo, color: '#10b981' }
     ].filter(d => d.value > 0);
 
-    return { activeTotal, vencidos, venceHoje, atencao, noPrazo, riskScore, statusData, pctHoje, pctVencidos, pctAtencao };
+    return { 
+      activeTotal, vencidos, venceHoje, atencao, noPrazo, 
+      riskScore, statusData, pctHoje, pctVencidos, pctAtencao,
+      updatedInCourt
+    };
   }, [cases, t]);
 
   if (!mounted) return null;
@@ -122,6 +130,11 @@ export default function Dashboard() {
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Gabinete Estratégico • W1 Capital</p>
           </div>
           <div className="flex items-center gap-4">
+            {metrics.updatedInCourt > 0 && (
+              <Badge variant="destructive" className="animate-pulse h-8 px-4 rounded-xl font-black uppercase text-[10px] flex items-center gap-2">
+                <AlertCircle size={14} /> {metrics.updatedInCourt} Atualizações no Tribunal
+              </Badge>
+            )}
             <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-secondary/50 px-3">
               {t.activeTelemetry}: {sync.lastSync ? new Date(sync.lastSync).toLocaleTimeString() : '...'}
             </Badge>
@@ -139,11 +152,29 @@ export default function Dashboard() {
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard title={t.statusHoje} value={loading ? "..." : metrics.venceHoje} icon={<Clock />} color={metrics.venceHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
             <StatCard title={t.statusVencido} value={loading ? "..." : metrics.vencidos} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
-            <StatCard title={t.statusAtencao} value={loading ? "..." : metrics.atencao} icon={<Calendar />} color="warning" trend={`${metrics.pctAtencao}%`} trendUp={false} />
+            <StatCard title="Movimento Tribunal" value={loading ? "..." : metrics.updatedInCourt} icon={<Activity />} color={metrics.updatedInCourt > 0 ? "warning" : "success"} />
             <StatCard title={t.activeDemands} value={loading ? "..." : metrics.activeTotal} icon={<History />} color="accent" />
           </section>
+          
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
+               {metrics.updatedInCourt > 0 && (
+                 <section className="bg-amber-50 border-2 border-amber-200 p-6 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl">
+                          <Zap size={24} />
+                       </div>
+                       <div>
+                          <h3 className="font-black uppercase text-sm">Alerta de Vigilância</h3>
+                          <p className="text-[10px] font-bold uppercase text-amber-700/60">Identificamos {metrics.updatedInCourt} processos com novos andamentos judiciais após seu último retorno.</p>
+                       </div>
+                    </div>
+                    <Button asChild variant="outline" className="border-amber-200 text-amber-700 font-black uppercase text-[10px] h-10 px-6 rounded-xl hover:bg-amber-100">
+                       <Link href="/cases?filter=updated">Ver Atualizações</Link>
+                    </Button>
+                 </section>
+               )}
+
                <section className="premium-card p-8 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:scale-110 transition-transform pointer-events-none">
                     <Sparkles size={140} />
@@ -192,6 +223,7 @@ export default function Dashboard() {
                     </div>
                   )}
                </section>
+               
                <section className="premium-card overflow-hidden">
                   <div className="px-8 py-6 border-b border-border/30 flex items-center justify-between bg-secondary/10">
                      <div className="flex items-center gap-3">

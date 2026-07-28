@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Button } from '@/components/ui/button';
-import { Play, ArrowLeft, ShieldCheck, Copyright } from 'lucide-react';
+import { Play, ArrowLeft, Copyright } from 'lucide-react';
 import Link from 'next/link';
 
 export default function OnboardingVideoPage() {
@@ -26,10 +26,6 @@ export default function OnboardingVideoPage() {
                 <h1 className="text-3xl font-black uppercase tracking-tighter leading-none">Mestre em LexisPredict</h1>
                 <p className="text-[10px] font-black uppercase text-black/40 tracking-widest mt-1">Formação Estratégica de Operador Elite</p>
               </div>
-            </div>
-            <div className="flex items-center gap-3 px-4 py-2 border-2 border-black bg-white shadow-[4px_4px_0px_#00D1FF]">
-               <ShieldCheck size={16} className="text-primary" />
-               <span className="text-[9px] font-black uppercase tracking-widest">Protocolo W1 CAPITAL - ESTAMOS AQUI POR VOCÊ!</span>
             </div>
           </div>
 
