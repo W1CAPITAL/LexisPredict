@@ -6,8 +6,9 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v5500.0 ELITE)
- * Governança de Supervisor e Sincronia Ilimitada com Varredura DataJud.
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v60.0 ELITE)
+ * Governança de Visibilidade: Apenas Supervisor possui visão master.
+ * Superadmin e outros cargos enxergam apenas seus próprios casos.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -22,7 +23,7 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
  * Retorna um cliente Supabase com privilégios administrativos (Service Role).
  * UTILIZAR APENAS EM CONTEXTO DE CRON OU OPERAÇÕES DE INFRAESTRUTURA.
  */
-export async function getSupabaseAdmin() {
+async function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Configuração de Admin (Service Role) ausente.");
@@ -68,7 +69,7 @@ export async function getStoredCases(): Promise<LegalCase[]> {
 
 /**
  * Busca processos de uma empresa específica.
- * Se for modo admin, ignora permissões de usuário e usa Service Role.
+ * REGRA v60.0: Apenas Supervisor tem visão total (isSystemMode ou isSupervisor).
  */
 export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = false): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
@@ -90,10 +91,15 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      // No modo não-admin (UI), aplicamos restrição de Operador se não for Supervisor
+      // No modo não-admin (UI), aplicamos a restrição de visibilidade
       if (!isAdmin) {
-        const { auth_id, isSupervisor, isSuperAdmin } = await getUserContext();
-        if (!isSupervisor && !isSuperAdmin) {
+        const { auth_id, isSupervisor } = await getUserContext();
+        
+        // APENAS o Supervisor tem visão master da empresa.
+        // Superadmin, Administrador e Operadores veem apenas seus próprios registros.
+        const hasFullAccess = isSupervisor === true;
+        
+        if (!hasFullAccess && auth_id) {
           query = query.eq('created_by', auth_id);
         }
       }
@@ -135,10 +141,6 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
   return saveStoredCasesForEmpresa(cases, empresa_id);
 }
 
-/**
- * Salva ou atualiza processos.
- * Regra de Auto-Limpeza: Se novo retorno >= datajud_ultimo_movimento, limpa o alerta.
- */
 export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
   const client = isAdmin ? await getSupabaseAdmin() : supabase;
   if (!client) return { success: false, message: "Erro de Configuração." };
@@ -151,13 +153,10 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
       const isoPrazo = formatDateToISO(c.proximoPrazo);
       const isoRetorno = formatDateToISO(c.ultimoRetorno);
       
-      // Lógica de Limpeza Automática do Alerta
       let finalTemAtualizacao = c.tem_atualizacao_pos_retorno ?? false;
       if (finalTemAtualizacao && c.datajud_ultimo_movimento && isoRetorno) {
-        // Normalizamos para comparação de timestamps
         const dataRetornoTs = new Date(isoRetorno).getTime();
         const dataMovimentoTs = new Date(c.datajud_ultimo_movimento).getTime();
-        
         if (dataRetornoTs >= dataMovimentoTs) {
           finalTemAtualizacao = false;
         }
@@ -213,6 +212,10 @@ export async function listAllEmpresasSystem() {
 export async function getStoredNotes(): Promise<CaseNote[]> {
   const { auth_id, empresa_id, isSupervisor } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
+  
+  // REGRA v60.0: Apenas Supervisor tem visão total de evidências da empresa
+  const hasFullAccess = isSupervisor === true;
+
   try {
     let allData: any[] = [];
     let page = 0;
@@ -220,7 +223,7 @@ export async function getStoredNotes(): Promise<CaseNote[]> {
     let hasMore = true;
     while (hasMore) {
       let query = supabase.from('notes').select('*').eq('empresa_id', empresa_id).order('created_at', { ascending: false }).range(page * pageSize, (page + 1) * pageSize - 1);
-      if (!isSupervisor) query = query.eq('created_by', auth_id);
+      if (!hasFullAccess) query = query.eq('created_by', auth_id);
       const { data, error } = await query;
       if (error) throw error;
       if (data && data.length > 0) {
