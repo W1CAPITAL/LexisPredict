@@ -17,7 +17,11 @@ import {
   Zap,
   Info,
   Gavel,
-  ClipboardList
+  ClipboardList,
+  Shield,
+  ArrowUp,
+  ArrowDown,
+  Trash2
 } from 'lucide-react';
 import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
@@ -36,6 +40,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -47,6 +53,14 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from '@/components/ui/scroll-area';
+
+const ROLE_WEIGHTS: Record<UserRole, number> = {
+  'Superadmin': 100,
+  'Supervisor': 80,
+  'Administrador': 60,
+  'Operador': 40,
+  'Visualizador': 20
+};
 
 export default function TeamManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -65,6 +79,11 @@ export default function TeamManagement() {
   const { toast } = useToast();
   const t = getTranslation(locale);
   
+  const currentUserWeight = useMemo(() => {
+    if (!profile?.cargo) return 0;
+    return ROLE_WEIGHTS[profile.cargo as UserRole] || 0;
+  }, [profile]);
+
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
 
@@ -123,27 +142,34 @@ export default function TeamManagement() {
   };
 
   const handleChangeRole = async (userId: string, newRole: UserRole) => {
-    if (!isSuperAdmin) return;
     const res = await updateUserRole(userId, newRole);
     if (res.success) {
       toast({ title: "Cargo Atualizado" });
       loadData();
+    } else {
+      toast({ title: "Ação Negada", description: res.error, variant: "destructive" });
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!isSuperAdmin) return;
     if (!confirm('Deseja revogar o acesso deste usuário permanentemente?')) return;
     const res = await removeEmpresaUser(id);
     if (res.success) {
       toast({ title: "Acesso Revogado" });
       loadData();
+    } else {
+      toast({ title: "Falha na Exclusão", description: res.error, variant: "destructive" });
     }
+  };
+
+  const canManageUser = (target: UserProfile) => {
+    if (target.auth_user_id === profile?.auth_user_id) return false; // Não gere a si mesmo aqui
+    const targetWeight = ROLE_WEIGHTS[target.cargo as UserRole] || 0;
+    return currentUserWeight > targetWeight;
   };
 
   /**
    * MOTOR DE PERFORMANCE v2.1 - VINCULAÇÃO REAL DE MEMBROS
-   * Agora suportando notas negativas ilimitadas.
    */
   const performanceData = useMemo(() => {
     if (!users.length) return { advRank: [], assRank: [] };
@@ -209,38 +235,75 @@ export default function TeamManagement() {
         <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full">
           {viewMode === 'management' && (
             <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500">
-              {users.map((user) => (
-                <Card key={user.id} className="premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center font-black text-xs">
-                        {user.nome.substring(0, 2)}
+              {users.map((user) => {
+                const canManage = canManageUser(user);
+                return (
+                  <Card key={user.id} className={cn(
+                    "premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all",
+                    user.auth_user_id === profile?.auth_user_id && "border-primary/40 bg-primary/[0.02]"
+                  )}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center font-black text-xs">
+                          {user.nome.substring(0, 2)}
+                        </div>
+                        <div className="flex flex-col">
+                          <p className="text-[12px] font-black uppercase truncate max-w-[150px]">
+                            {user.nome} {user.auth_user_id === profile?.auth_user_id && <span className="text-[8px] text-primary ml-1">(VOCÊ)</span>}
+                          </p>
+                          <Badge variant="outline" className={cn(
+                            "text-[7px] font-black uppercase h-5",
+                            user.cargo === 'Superadmin' ? "bg-black text-white" : 
+                            user.cargo === 'Supervisor' ? "bg-blue-600 text-white" : "text-black"
+                          )}>
+                            {user.cargo}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <p className="text-[12px] font-black uppercase truncate max-w-[150px]">{user.nome}</p>
-                        <Badge variant="outline" className="text-[7px] font-black uppercase h-5">{user.cargo}</Badge>
+                      
+                      {canManage && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><MoreVertical size={16} /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="p-2 min-w-[180px] rounded-none border-2 border-black shadow-[6px_6px_0px_#000]">
+                             <DropdownMenuLabel className="text-[8px] font-black uppercase opacity-40 px-2 pb-1">Alterar Autoridade</DropdownMenuLabel>
+                             
+                             {currentUserWeight > ROLE_WEIGHTS['Supervisor'] && (
+                               <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer gap-2">
+                                  <Shield size={12} className="text-blue-600" /> Promover a Supervisor
+                               </DropdownMenuItem>
+                             )}
+                             
+                             {currentUserWeight > ROLE_WEIGHTS['Administrador'] && (
+                               <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer gap-2">
+                                  <ArrowUp size={12} className="text-emerald-600" /> Tornar Administrador
+                               </DropdownMenuItem>
+                             )}
+
+                             {currentUserWeight > ROLE_WEIGHTS['Operador'] && (
+                               <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer gap-2">
+                                  <ArrowDown size={12} className="text-orange-600" /> Tornar Operador
+                               </DropdownMenuItem>
+                             )}
+
+                             <DropdownMenuSeparator className="bg-black/5" />
+                             <DropdownMenuItem onClick={() => handleDelete(user.id)} className="text-[9px] font-black uppercase cursor-pointer text-red-600 gap-2">
+                                <Trash2 size={12} /> Revogar Acesso Global
+                             </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-3 text-muted-foreground p-2.5 bg-secondary/30 rounded-lg">
+                        <Mail size={12} />
+                        <span className="text-[9px] font-mono lowercase truncate">{user.email}</span>
                       </div>
-                    </div>
-                    {isSuperAdmin && !checkIfSuperAdmin(user) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical size={16} /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="p-2 min-w-[140px]">
-                           <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Supervisor')} className="text-[9px] font-black uppercase cursor-pointer">Tornar Supervisor</DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Administrador')} className="text-[9px] font-black uppercase cursor-pointer">Tornar Admin</DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'Operador')} className="text-[9px] font-black uppercase cursor-pointer">Tornar Operador</DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => handleDelete(user.id)} className="text-[9px] font-black uppercase cursor-pointer text-red-600">Revogar Acesso</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-3 text-muted-foreground p-2.5 bg-secondary/30 rounded-lg">
-                      <Mail size={12} />
-                      <span className="text-[9px] font-mono lowercase truncate">{user.email}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </section>
           )}
 
