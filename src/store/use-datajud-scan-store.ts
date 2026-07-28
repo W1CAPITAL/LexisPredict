@@ -1,7 +1,8 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.2
- * Otimizado com tratamento de fila robusto e sincronização de progresso.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v1.3
+ * Otimizado com tratamento de fila robusto e sincronização de progresso real-time.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -111,14 +112,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       // Auditoria unitária no servidor
       const result = await scanOneDataJudAction(protocolo);
 
-      if (result.success) {
-        // Sincronizar UI local instantaneamente via AppStore
-        useAppStore.getState().updateCase(protocolo, {
-          tem_atualizacao_pos_retorno: result.alerta,
-          datajud_encerrado_tribunal: result.encerrado,
-          datajud_encerrado_motivo: result.motivo,
-          datajud_consultado_em: new Date().toISOString()
-        });
+      if (result.success && result.casePatch) {
+        // Sincronizar UI local instantaneamente via AppStore usando o protocolo
+        useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
       }
 
       set((state) => ({
@@ -126,7 +122,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         done: state.done + 1,
         alerts: result.alerta ? state.alerts + 1 : state.alerts,
         closed: result.encerrado ? state.closed + 1 : state.closed,
-        errors: result.success ? state.errors : state.errors + 1,
+        errors: (result as any).error ? state.errors + 1 : state.errors,
         logs: [{
           protocolo: protocolo,
           status: result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error',
