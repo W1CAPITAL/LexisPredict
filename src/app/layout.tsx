@@ -1,8 +1,10 @@
+
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { GuidedTour } from '@/components/onboarding/guided-tour';
+import { DataJudScannerPanel } from '@/components/scanner/datajud-scanner-panel';
 import Script from 'next/script';
 
 export const viewport: Viewport = {
@@ -105,6 +107,7 @@ export default function RootLayout({
           <div className="relative z-10 min-h-screen">
             <GuidedTour />
             {children}
+            <DataJudScannerPanel />
           </div>
           <Toaster />
         </AuthProvider>
