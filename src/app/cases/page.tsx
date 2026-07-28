@@ -33,7 +33,8 @@ import {
   Building2,
   AlertCircle,
   FileSearch,
-  History
+  History,
+  Gavel
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -51,7 +52,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
-import { exportCasesToCSVAction } from '@/app/actions/export-actions';
 import { format } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -89,9 +89,14 @@ const CaseRow = React.memo(({
     <tr className="hover:bg-secondary/30 transition-all border-b border-border/50 group">
       <td className="px-8 py-5">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground font-black text-[13px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
-            {c.tem_atualizacao_pos_retorno && (
+            {c.datajud_encerrado_tribunal && (
+              <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">
+                Encerrado Tribunal
+              </Badge>
+            )}
+            {c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal && (
               <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">
                 Novo Andamento
               </Badge>
@@ -312,7 +317,9 @@ function CasesContent() {
         OBSERVACAO: formState.observacao,
         TELEFONE: formState.telefone,
         datajud_ultimo_movimento: editingCase?.datajud_ultimo_movimento,
-        tem_atualizacao_pos_retorno: editingCase?.tem_atualizacao_pos_retorno
+        tem_atualizacao_pos_retorno: editingCase?.tem_atualizacao_pos_retorno,
+        datajud_encerrado_tribunal: editingCase?.datajud_encerrado_tribunal,
+        datajud_encerrado_motivo: editingCase?.datajud_encerrado_motivo
       }, { alertLimit: savedThreshold ? parseInt(savedThreshold) : 3 });
 
       const updated = editingCase 
@@ -545,9 +552,14 @@ function CasesContent() {
                      <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
                      <p className="text-sm font-black uppercase">{historyResult?.case.cliente}</p>
                   </div>
-                  {historyResult?.case.tem_atualizacao_pos_retorno && (
-                    <Badge variant="destructive" className="font-black uppercase text-[10px] px-4 py-2 animate-bounce">Ação Requerida: Novo Movimento</Badge>
-                  )}
+                  <div className="flex flex-col items-end gap-2">
+                    {historyResult?.case.datajud_encerrado_tribunal && (
+                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
+                    )}
+                    {historyResult?.case.tem_atualizacao_pos_retorno && !historyResult?.case.datajud_encerrado_tribunal && (
+                      <Badge variant="destructive" className="font-black uppercase text-[10px] px-4 py-2 animate-bounce">Ação Requerida: Novo Movimento</Badge>
+                    )}
+                  </div>
                </div>
                <ScrollArea className="h-[450px] bg-white">
                   <div className="p-6 space-y-6">

@@ -57,6 +57,8 @@ export interface LegalCase {
   datajud_ultimo_nome?: string | null;
   datajud_consultado_em?: string | null;
   tem_atualizacao_pos_retorno?: boolean;
+  datajud_encerrado_tribunal?: boolean;
+  datajud_encerrado_motivo?: string | null;
 }
 
 export type CaseNote = {
@@ -227,6 +229,8 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     datajud_ultimo_movimento: data.datajud_ultimo_movimento,
     datajud_ultimo_nome: data.datajud_ultimo_nome,
     datajud_consultado_em: data.datajud_consultado_em,
-    tem_atualizacao_pos_retorno: data.tem_atualizacao_pos_retorno
+    tem_atualizacao_pos_retorno: data.tem_atualizacao_pos_retorno,
+    datajud_encerrado_tribunal: data.datajud_encerrado_tribunal,
+    datajud_encerrado_motivo: data.datajud_encerrado_motivo
   };
 }

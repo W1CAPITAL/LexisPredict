@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -38,14 +37,16 @@ import {
   Gavel,
   User,
   Building2,
-  Filter
+  Filter,
+  FileSearch,
+  History
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { fetchRepoCases, syncRepoCases } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, scanSingleCaseAction } from '@/app/actions/case-actions';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/hooks/use-toast';
@@ -104,6 +105,10 @@ export default function TarefasPage() {
     applyToAll: true
   });
 
+  // DataJud State
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
+
   const { toast } = useToast();
 
   const getTodayKey = () => {
@@ -148,6 +153,22 @@ export default function TarefasPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleSingleScan = async (protocolo: string) => {
+    try {
+      const res = await scanSingleCaseAction(protocolo);
+      if (res.success && res.case) {
+        setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
+        setIsHistoryModalOpen(true);
+        // Atualizar lista local
+        setCases(prev => prev.map(c => c.protocolo === protocolo ? res.case! : c));
+      } else {
+        toast({ title: "Andamento não localizado", description: res.error, variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Erro na consulta", variant: "destructive" });
+    }
+  };
 
   const offices = useMemo(() => {
     const list = Array.from(new Set(cases.map(c => c.escritorio))).filter(Boolean).sort();
@@ -317,7 +338,7 @@ export default function TarefasPage() {
           )}
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white border border-border/50 p-6 rounded-2xl shadow-sm">
-             <div className="relative flex-1 w-full max-w-xl">
+             <div className="relative flex-1 w-full max-xl">
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                <Input 
                  placeholder="Pesquisar por cliente na fila..." 
@@ -352,7 +373,7 @@ export default function TarefasPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.map((group) => (
-                <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => openAttendance(group)} />
+                <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => openAttendance(group)} onScan={handleSingleScan} />
               ))}
               {taskData.focus.length === 0 && !loading && (
                 <div className="col-span-full py-20 flex items-center justify-center">
@@ -376,7 +397,7 @@ export default function TarefasPage() {
                 {showBacklog && (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6 animate-in slide-in-from-top-2">
                     {taskData.backlog.map((group) => (
-                      <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendance(group)} />
+                      <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendance(group)} onScan={handleSingleScan} />
                     ))}
                   </div>
                 )}
@@ -384,6 +405,65 @@ export default function TarefasPage() {
             )}
           </div>
         </div>
+
+        {/* Modal de Cronologia DataJud */}
+        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+          <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+            <DialogHeader className="p-6 bg-black text-white">
+              <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                    <History size={28} />
+                 </div>
+                 <div>
+                    <DialogTitle className="font-black uppercase tracking-tight text-xl">Cronologia do Tribunal</DialogTitle>
+                    <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                 </div>
+              </div>
+            </DialogHeader>
+            <div className="p-0">
+               <div className="p-6 bg-secondary/20 border-b flex items-center justify-between">
+                  <div className="space-y-1">
+                     <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
+                     <p className="text-sm font-black uppercase">{historyResult?.case.cliente}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    {historyResult?.case.datajud_encerrado_tribunal && (
+                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
+                    )}
+                    {historyResult?.case.tem_atualizacao_pos_retorno && !historyResult?.case.datajud_encerrado_tribunal && (
+                      <Badge variant="destructive" className="font-black uppercase text-[10px] px-4 py-2 animate-bounce">Ação Requerida: Novo Movimento</Badge>
+                    )}
+                  </div>
+               </div>
+               <ScrollArea className="h-[450px] bg-white">
+                  <div className="p-6 space-y-6">
+                    {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
+                      [...historyResult.movimentos].sort((a,b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()).map((m, i) => (
+                        <div key={i} className="flex gap-6 relative group">
+                           {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
+                           <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
+                              <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                           </div>
+                           <div className="flex-1 pt-1 space-y-1 pb-6">
+                              <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                              <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
+                           </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-20 text-center space-y-4 opacity-40">
+                         <FileSearch size={48} className="mx-auto" />
+                         <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada para este protocolo.</p>
+                      </div>
+                    )}
+                  </div>
+               </ScrollArea>
+            </div>
+            <DialogFooter className="p-4 bg-secondary/10 border-t">
+               <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
           <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl overflow-hidden p-0">
@@ -439,7 +519,19 @@ export default function TarefasPage() {
   );
 }
 
-function TaskCard({ group, isFocus = false, onMarkContacted }: { group: TaskGroup, isFocus?: boolean, onMarkContacted: () => void }) {
+function TaskCard({ 
+  group, 
+  isFocus = false, 
+  onMarkContacted,
+  onScan 
+}: { 
+  group: TaskGroup, 
+  isFocus?: boolean, 
+  onMarkContacted: () => void,
+  onScan: (protocolo: string) => void
+}) {
+  const [isScanning, setIsScanning] = useState(false);
+  
   const prob = calcularProbabilidadeEncerramento({
     status: group.vencidos > 0 ? "Vencido" : "No Prazo",
     situacao: "EM ANDAMENTO",
@@ -447,6 +539,8 @@ function TaskCard({ group, isFocus = false, onMarkContacted }: { group: TaskGrou
   });
 
   const isCritical = group.cases.some(c => c.status === 'Caso Crítico');
+  const isClosedCourt = group.cases.some(c => c.datajud_encerrado_tribunal);
+  const hasUpdate = group.cases.some(c => c.tem_atualizacao_pos_retorno);
 
   return (
     <div className={cn("premium-card p-6 bg-white flex flex-col transition-all group", isFocus && "border-l-4 border-l-primary", isCritical && "border-l-red-600 bg-red-50/10")}>
@@ -455,12 +549,17 @@ function TaskCard({ group, isFocus = false, onMarkContacted }: { group: TaskGrou
           <Phone size={24} />
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
-          {isCritical ? (
+          {isClosedCourt ? (
+            <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">ENCERRADO TRIBUNAL</Badge>
+          ) : isCritical ? (
             <Badge className="bg-red-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-bounce">URGÊNCIA MÁXIMA</Badge>
           ) : group.diasAtrasoMax > 0 ? (
             <Badge className="bg-red-50 text-red-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Atrasado há {group.diasAtrasoMax} dia(s)</Badge>
           ) : (
             <Badge className="bg-blue-50 text-blue-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Prazo Hoje</Badge>
+          )}
+          {hasUpdate && !isClosedCourt && (
+            <Badge variant="destructive" className="text-[7px] font-black uppercase px-2 py-0 h-4 animate-pulse">Andamento Novo</Badge>
           )}
           <div className="text-[8px] font-black text-primary/60 uppercase tracking-widest flex items-center gap-1" title="Estimativa automática — não é garantia"><Sparkles size={8}/> Prob. {prob}%</div>
         </div>
@@ -484,6 +583,20 @@ function TaskCard({ group, isFocus = false, onMarkContacted }: { group: TaskGrou
       </div>
       <div className="mt-8 pt-6 border-t border-border/30 flex items-center justify-between">
         <div className="flex items-center gap-2">
+           <Button 
+              title="Andamentos DataJud" 
+              variant="ghost" 
+              size="icon" 
+              disabled={isScanning}
+              onClick={async () => {
+                setIsScanning(true);
+                await onScan(group.protocoloReferencia);
+                setIsScanning(false);
+              }}
+              className="h-9 w-9 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+           >
+             {isScanning ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
+           </Button>
            <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-lg text-emerald-600 hover:bg-emerald-50"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
            <Button title="Registrar Atendimento" variant="ghost" size="icon" onClick={onMarkContacted} className="h-9 w-9 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"><UserCheck size={18} /></Button>
         </div>
