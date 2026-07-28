@@ -1,11 +1,11 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.1
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v1.2
  * Otimizado com tratamento de fila robusto e sincronização de progresso.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
+import { useAppStore } from '@/store/use-app-store';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 
@@ -14,6 +14,7 @@ interface ScanLog {
   status: 'success' | 'error' | 'warning';
   message: string;
   alerta?: boolean;
+  encerrado?: boolean;
 }
 
 interface DataJudScanState {
@@ -24,6 +25,7 @@ interface DataJudScanState {
   total: number;
   done: number;
   alerts: number;
+  closed: number;
   errors: number;
   logs: ScanLog[];
   
@@ -45,6 +47,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   total: 0,
   done: 0,
   alerts: 0,
+  closed: 0,
   errors: 0,
   logs: [],
 
@@ -59,6 +62,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       currentIndex: 0,
       done: 0,
       alerts: 0,
+      closed: 0,
       errors: 0,
       logs: [{
         protocolo: 'SISTEMA',
@@ -84,6 +88,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     currentIndex: 0,
     done: 0,
     alerts: 0,
+    closed: 0,
     errors: 0,
     logs: [],
     queue: []
@@ -106,17 +111,29 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       // Auditoria unitária no servidor
       const result = await scanOneDataJudAction(protocolo);
 
+      if (result.success) {
+        // Sincronizar UI local instantaneamente via AppStore
+        useAppStore.getState().updateCase(protocolo, {
+          tem_atualizacao_pos_retorno: result.alerta,
+          datajud_encerrado_tribunal: result.encerrado,
+          datajud_encerrado_motivo: result.motivo,
+          datajud_consultado_em: new Date().toISOString()
+        });
+      }
+
       set((state) => ({
         currentIndex: state.currentIndex + 1,
         done: state.done + 1,
         alerts: result.alerta ? state.alerts + 1 : state.alerts,
+        closed: result.encerrado ? state.closed + 1 : state.closed,
         errors: result.success ? state.errors : state.errors + 1,
         logs: [{
           protocolo: protocolo,
-          status: result.success ? (result.alerta ? 'warning' : 'success') : 'error',
-          message: result.message || (result.success ? "Auditado com sucesso" : "Falha na consulta"),
-          alerta: result.alerta
-        }, ...state.logs].slice(0, 25)
+          status: result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error',
+          message: result.message || "Auditado",
+          alerta: result.alerta,
+          encerrado: result.encerrado
+        }, ...state.logs].slice(0, 30)
       }));
     } catch (e: any) {
       set((state) => ({
@@ -126,8 +143,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         logs: [{
           protocolo,
           status: 'error',
-          message: e.message || "Erro inesperado no servidor"
-        }, ...state.logs].slice(0, 25)
+          message: e.message || "Erro inesperado"
+        }, ...state.logs].slice(0, 30)
       }));
     }
 
