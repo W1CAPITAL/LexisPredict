@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
@@ -25,37 +25,63 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
+import { fetchRepoCases } from '@/app/actions/case-actions';
 
 export function DataJudScannerPanel() {
   const { 
-    status, currentIndex, total, done, alerts, errors, logs, 
+    status, total, done, alerts, errors, logs, 
     isMinimized, toggleMinimize, startScan, pauseScan, resumeScan, cancelScan, resetScan 
   } = useDataJudScanStore();
   
-  const { cases } = useAppStore();
+  const { cases, setCases } = useAppStore();
   const [scope, setScope] = useState<'critical' | 'all'>('critical');
+  const [loadingCases, setLoadingCases] = useState(false);
+  const { toast } = useToast();
+
+  // Sincronia de segurança: Garantir que temos os casos carregados para montar a fila
+  useEffect(() => {
+    if (!isMinimized && cases.length === 0 && !loadingCases) {
+      setLoadingCases(true);
+      fetchRepoCases().then(data => {
+        if (data) setCases(data);
+        setLoadingCases(false);
+      }).catch(() => setLoadingCases(false));
+    }
+  }, [isMinimized, cases.length, loadingCases, setCases]);
 
   const handleStart = () => {
+    if (cases.length === 0) {
+      toast({ title: "Aguarde", description: "Sincronizando carteira do servidor...", variant: "destructive" });
+      return;
+    }
+
     const targetCases = cases.filter(c => !isCasoEncerrado(c));
     let queue: string[] = [];
     
     if (scope === 'critical') {
-      // Vencidos ou Sem Prazo
       queue = targetCases
-        .filter(c => c.status === 'Vencido' || c.status === 'Sem Prazo' || c.status === 'Caso Crítico')
+        .filter(c => c.status === 'Vencido' || c.status === 'Sem Prazo' || c.status === 'Caso Crítico' || c.status === 'É Hoje')
         .map(c => c.protocolo);
     } else {
       queue = targetCases.map(c => c.protocolo);
     }
 
-    if (queue.length === 0) return;
+    if (queue.length === 0) {
+      toast({ 
+        title: "Escopo Limpo", 
+        description: `Nenhum processo identificado para o filtro: ${scope === 'critical' ? 'Fila Crítica' : 'Todos Ativos'}.`,
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    toast({ title: "Scanner Iniciado", description: `Processando fila de ${queue.length} registros.` });
     startScan(queue);
   };
 
-  // Se estiver minimizado e não estiver rodando, não mostra nada
   if (isMinimized && status === 'idle') return null;
 
-  // Botão flutuante quando minimizado e rodando
   if (isMinimized && status !== 'idle') {
     return (
       <div className="fixed bottom-6 right-6 z-[200] animate-in slide-in-from-bottom-4">
@@ -78,7 +104,6 @@ export function DataJudScannerPanel() {
     <div className={cn(
       "fixed bottom-6 right-6 z-[200] w-96 bg-white border-2 border-black shadow-[12px_12px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4"
     )}>
-      {/* Header */}
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", status === 'running' && "animate-pulse")} />
@@ -94,7 +119,6 @@ export function DataJudScannerPanel() {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-6 space-y-6">
         {status === 'idle' ? (
           <div className="space-y-6">
@@ -104,26 +128,30 @@ export function DataJudScannerPanel() {
                 <Button 
                   variant={scope === 'critical' ? 'default' : 'outline'} 
                   onClick={() => setScope('critical')}
-                  className="h-10 text-[9px] font-black uppercase rounded-none border-2 border-black"
+                  className={cn("h-10 text-[9px] font-black uppercase rounded-none border-2 border-black transition-all", scope === 'critical' ? "bg-black text-white" : "bg-white text-black")}
                 >
                   Fila Crítica
                 </Button>
                 <Button 
                   variant={scope === 'all' ? 'default' : 'outline'} 
                   onClick={() => setScope('all')}
-                  className="h-10 text-[9px] font-black uppercase rounded-none border-2 border-black"
+                  className={cn("h-10 text-[9px] font-black uppercase rounded-none border-2 border-black transition-all", scope === 'all' ? "bg-black text-white" : "bg-white text-black")}
                 >
                   Carteira Total
                 </Button>
               </div>
             </div>
-            <Button onClick={handleStart} className="w-full h-12 bg-black text-white font-black uppercase text-[10px] shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
-              Iniciar Auditoria Manual
+            <Button 
+              onClick={handleStart} 
+              disabled={loadingCases}
+              className="w-full h-12 bg-black text-white font-black uppercase text-[10px] shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all"
+            >
+              {loadingCases ? <Loader2 className="animate-spin mr-2" /> : <Play size={14} className="mr-2" />}
+              {loadingCases ? "Lendo Carteira..." : "Iniciar Auditoria Manual"}
             </Button>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Progress Section */}
             <div className="space-y-3">
               <div className="flex justify-between items-end">
                 <div>
@@ -132,7 +160,7 @@ export function DataJudScannerPanel() {
                 </div>
                 <Badge className={cn(
                   "font-black uppercase text-[8px] rounded-none px-2",
-                  status === 'running' ? "bg-emerald-500" : "bg-orange-500"
+                  status === 'running' ? "bg-emerald-500" : status === 'done' ? "bg-primary" : "bg-orange-500"
                 )}>
                   {status === 'running' ? 'Processando' : status.toUpperCase()}
                 </Badge>
@@ -140,7 +168,6 @@ export function DataJudScannerPanel() {
               <Progress value={(done / (total || 1)) * 100} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
             </div>
 
-            {/* Stats */}
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 border-2 border-black bg-emerald-50">
                 <p className="text-[8px] font-black uppercase text-emerald-800/40">Alertas Novos</p>
@@ -152,7 +179,6 @@ export function DataJudScannerPanel() {
               </div>
             </div>
 
-            {/* Logs Area */}
             <div className="space-y-2">
               <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><History size={10}/> Telemetria Recente</p>
               <ScrollArea className="h-32 border-2 border-black bg-[#fafafa]">
@@ -166,11 +192,11 @@ export function DataJudScannerPanel() {
                       <span className="truncate">{log.message}</span>
                     </div>
                   ))}
+                  {logs.length === 0 && <p className="p-4 text-center text-[8px] font-black uppercase opacity-20">Aguardando dados...</p>}
                 </div>
               </ScrollArea>
             </div>
 
-            {/* Controls */}
             <div className="flex gap-2">
               {status === 'running' ? (
                 <Button variant="outline" onClick={pauseScan} className="flex-1 border-2 border-black rounded-none font-black text-[9px] uppercase">
@@ -183,13 +209,13 @@ export function DataJudScannerPanel() {
               ) : null}
               
               {(status === 'running' || status === 'paused') && (
-                <Button variant="ghost" onClick={cancelScan} className="h-10 w-10 border-2 border-black rounded-none text-red-600">
+                <Button variant="ghost" onClick={cancelScan} className="h-10 w-10 border-2 border-black rounded-none text-red-600 hover:bg-red-50">
                   <Square size={12} fill="currentColor" />
                 </Button>
               )}
 
               {status === 'done' && (
-                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase">
+                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">
                   Concluir e Fechar
                 </Button>
               )}
@@ -198,7 +224,6 @@ export function DataJudScannerPanel() {
         )}
       </div>
 
-      {/* Footer Signature */}
       <div className="bg-[#f8f9fb] border-t-2 border-black p-3 text-center flex items-center justify-center gap-2">
         <ShieldCheck size={12} className="text-primary" />
         <span className="text-[8px] font-black uppercase text-black/30 tracking-widest">Scanner Certificado W1 Capital</span>
