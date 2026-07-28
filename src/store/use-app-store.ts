@@ -78,6 +78,7 @@ interface AppState {
   setCases: (cases: LegalCase[]) => void;
   addCase: (item: LegalCase) => void;
   updateCase: (id: string, updates: Partial<LegalCase>) => void;
+  updateCaseByProtocolo: (protocolo: string, patch: Partial<LegalCase>) => void;
   removeCase: (id: string) => void;
   
   setNotes: (notes: CaseNote[]) => void;
@@ -177,6 +178,9 @@ export const useAppStore = create<AppState>()(
       addCase: (item) => set((state) => ({ cases: dedupe([item, ...state.cases]) })),
       updateCase: (id, updates) => set((state) => ({
         cases: state.cases.map(c => c.id === id ? { ...c, ...updates } : c)
+      })),
+      updateCaseByProtocolo: (protocolo, patch) => set((state) => ({
+        cases: state.cases.map(c => c.protocolo === protocolo ? { ...c, ...patch } : c)
       })),
       removeCase: (id) => set((state) => ({
         cases: state.cases.filter(c => c.id !== id)
