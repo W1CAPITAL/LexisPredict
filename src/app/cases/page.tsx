@@ -1,10 +1,11 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, Suspense, useDeferredValue, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense, useDeferredValue } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Search, 
@@ -16,26 +17,17 @@ import {
   Edit2, 
   CheckCircle2, 
   Clock, 
-  Copyright, 
   MessageCircle, 
   Zap, 
   Loader2, 
   CalendarDays, 
-  Filter, 
-  Download, 
-  ShieldAlert, 
   Eye, 
   EyeOff, 
   Sparkles, 
-  User, 
-  Calendar,
-  UserCheck,
+  History,
   Building2,
   AlertCircle,
-  FileSearch,
-  History,
-  Gavel,
-  AlertTriangle
+  FileSearch
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -144,7 +136,7 @@ const CaseRow = React.memo(({
       <td className="px-8 py-5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg border border-border/50 flex items-center justify-center bg-secondary/50 group-hover:bg-background transition-all">
-            <UserCheck size={16} className="text-emerald-500" />
+            <CheckCircle2 size={16} className="text-emerald-500" />
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] font-black text-muted-foreground uppercase leading-none mb-1">Retorno</span>
@@ -200,7 +192,7 @@ const CaseRow = React.memo(({
 CaseRow.displayName = 'CaseRow';
 
 function CasesContent() {
-  const { cases, setCases } = useAppStore();
+  const { cases, setCases, updateCaseByProtocolo } = useAppStore();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const initialFilter = searchParams.get('filter') || 'all';
@@ -208,7 +200,6 @@ function CasesContent() {
   const [search, setSearch] = useState(initialSearch);
   const deferredSearch = useDeferredValue(search);
   
-  const [lawyerFilter, setLawyerFilter] = useState('ALL');
   const [officeFilter, setOfficeFilter] = useState('all');
   const [quickFilter, setQuickFilter] = useState(initialFilter);
   const [loading, setLoading] = useState(true);
@@ -276,8 +267,10 @@ function CasesContent() {
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);
-        // Atualizar lista local
-        setCases(cases.map(c => c.protocolo === caseItem.protocolo ? res.case! : c));
+        // Atualizar store global instantaneamente
+        if (res.casePatch) {
+          updateCaseByProtocolo(caseItem.protocolo, res.casePatch);
+        }
       } else {
         toast({ title: "Andamento não localizado", description: res.error, variant: "destructive" });
       }
@@ -380,6 +373,8 @@ function CasesContent() {
       return pass;
     });
   }, [cases, deferredSearch, showClosed, officeFilter, quickFilter]);
+
+  if (!mounted) return null;
 
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
@@ -542,63 +537,65 @@ function CasesContent() {
         </div>
 
         {/* Modal de Cronologia DataJud */}
-        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
-            <DialogHeader className="p-6 bg-black text-white">
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
-                    <History size={28} />
+        <Suspense fallback={null}>
+          <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+            <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+              <DialogHeader className="p-6 bg-black text-white">
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                      <History size={28} />
+                   </div>
+                   <div>
+                      <DialogTitle className="font-black uppercase tracking-tight text-xl">Cronologia do Tribunal</DialogTitle>
+                      <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                   </div>
+                </div>
+              </DialogHeader>
+              <div className="p-0">
+                 <div className="p-6 bg-secondary/20 border-b flex items-center justify-between">
+                    <div className="space-y-1">
+                       <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
+                       <p className="text-sm font-black uppercase">{historyResult?.case.cliente}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {historyResult?.case.datajud_encerrado_tribunal && (
+                        <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
+                      )}
+                      {historyResult?.case.tem_atualizacao_pos_retorno && !historyResult?.case.datajud_encerrado_tribunal && (
+                        <Badge variant="destructive" className="font-black uppercase text-[10px] px-4 py-2 animate-bounce">Ação Requerida: Novo Movimento</Badge>
+                      )}
+                    </div>
                  </div>
-                 <div>
-                    <DialogTitle className="font-black uppercase tracking-tight text-xl">Cronologia do Tribunal</DialogTitle>
-                    <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
-                 </div>
-              </div>
-            </DialogHeader>
-            <div className="p-0">
-               <div className="p-6 bg-secondary/20 border-b flex items-center justify-between">
-                  <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
-                     <p className="text-sm font-black uppercase">{historyResult?.case.cliente}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {historyResult?.case.datajud_encerrado_tribunal && (
-                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
-                    )}
-                    {historyResult?.case.tem_atualizacao_pos_retorno && !historyResult?.case.datajud_encerrado_tribunal && (
-                      <Badge variant="destructive" className="font-black uppercase text-[10px] px-4 py-2 animate-bounce">Ação Requerida: Novo Movimento</Badge>
-                    )}
-                  </div>
-               </div>
-               <ScrollArea className="h-[450px] bg-white">
-                  <div className="p-6 space-y-6">
-                    {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                      [...historyResult.movimentos].sort((a,b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()).map((m, i) => (
-                        <div key={i} className="flex gap-6 relative group">
-                           {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
-                           <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
-                              <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
-                           </div>
-                           <div className="flex-1 pt-1 space-y-1 pb-6">
-                              <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
-                              <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
-                           </div>
+                 <ScrollArea className="h-[450px] bg-white">
+                    <div className="p-6 space-y-6">
+                      {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
+                        [...historyResult.movimentos].sort((a,b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()).map((m, i) => (
+                          <div key={i} className="flex gap-6 relative group">
+                             {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
+                             <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
+                                <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                             </div>
+                             <div className="flex-1 pt-1 space-y-1 pb-6">
+                                <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                                <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
+                             </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-20 text-center space-y-4 opacity-40">
+                           <FileSearch size={48} className="mx-auto" />
+                           <p className="text-xs font-black uppercase">Nenhuma movimentação pública detalhada para este protocolo.</p>
                         </div>
-                      ))
-                    ) : (
-                      <div className="py-20 text-center space-y-4 opacity-40">
-                         <FileSearch size={48} className="mx-auto" />
-                         <p className="text-xs font-black uppercase">Nenhuma movimentação pública detalhada para este protocolo.</p>
-                      </div>
-                    )}
-                  </div>
-               </ScrollArea>
-            </div>
-            <DialogFooter className="p-4 bg-secondary/10 border-t">
-               <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                      )}
+                    </div>
+                 </ScrollArea>
+              </div>
+              <DialogFooter className="p-4 bg-secondary/10 border-t">
+                 <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </Suspense>
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl">
