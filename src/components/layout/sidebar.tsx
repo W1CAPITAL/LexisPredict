@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -43,6 +44,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescri
 import { getTranslation, Locale } from '@/lib/i18n';
 import { checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
 import { useAppStore } from '@/store/use-app-store';
+import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { InstallAppButton } from '@/components/mobile/InstallAppButton';
 
@@ -54,6 +56,7 @@ export function Sidebar() {
   const [locale, setLocale] = useState<Locale>('pt');
   const { profile, signOut } = useAuth();
   const { isDarkMode, setDarkMode, setTutorialActive } = useAppStore();
+  const { status, toggleMinimize } = useDataJudScanStore();
   
   const t = getTranslation(locale);
   
@@ -132,7 +135,17 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="flex-1 py-8 px-4 space-y-8 overflow-y-auto">
+      <div className="flex-1 py-8 px-4 space-y-8 overflow-y-auto text-black">
+        <div className="px-3">
+          <Button 
+            onClick={() => useDataJudScanStore.getState().resetScan()} 
+            className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black border-2 border-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all gap-3"
+          >
+            <Zap className={cn("w-4 h-4 text-primary", status === 'running' && "animate-pulse")} />
+            {!collapsed && "DataJud Scanner"}
+          </Button>
+        </div>
+
         {navGroups.map((group) => (
           <div key={group.title} className="space-y-1.5">
             {!collapsed && (
