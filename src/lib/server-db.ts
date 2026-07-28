@@ -8,7 +8,7 @@ import { detectarAtualizacaoPosRetorno } from './datajud-sync';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v5200.0 ELITE)
- * Governança de Supervisor e Sincronia Ilimitada.
+ * Governança de Supervisor e Sincronia Ilimitada com Varredura DataJud.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -87,7 +87,8 @@ export async function getStoredCases(): Promise<LegalCase[]> {
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      if (!isSupervisor) {
+      // Regra de Ouro: Supervisor enxerga tudo da empresa. Operador enxerga apenas o que criou.
+      if (!isSupervisor && !checkIfSuperAdmin({ cargo: (await getUserContext()).cargo })) {
         query = query.eq('created_by', auth_id);
       }
 
@@ -104,7 +105,7 @@ export async function getStoredCases(): Promise<LegalCase[]> {
     }
     
     return allData.map(item => {
-      const caseData = processarCaso({
+      return processarCaso({
         ...(item.dados as any),
         id: item.id.toString(),
         db_id: item.id.toString(),
@@ -117,7 +118,6 @@ export async function getStoredCases(): Promise<LegalCase[]> {
         datajud_consultado_em: item.datajud_consultado_em,
         tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno
       });
-      return caseData;
     });
   } catch (error) {
     console.error('[DB] Fetch Fail:', error);
@@ -184,7 +184,8 @@ export async function saveStoredCases(cases: LegalCase[]): Promise<{ success: bo
   }
 }
 
-// ... restante das funções omitidas por brevidade ...
+// --- GESTÃO DE NOTAS E EVIDÊNCIAS ---
+
 export async function getStoredNotes(): Promise<CaseNote[]> {
   const { auth_id, empresa_id, isSupervisor } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
@@ -212,14 +213,16 @@ export async function getStoredNotes(): Promise<CaseNote[]> {
     });
   } catch (error) { return []; }
 }
+
 export async function saveSingleNote(note: Partial<CaseNote>): Promise<{ success: boolean; data?: any }> {
   const { auth_id, empresa_id } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return { success: false };
-  const dbNote = { id: note.id || undefined, title: note.title || 'Nota', content: note.imageUrl ? JSON.stringify({ text: note.content, imageUrl: note.imageUrl }) : note.content, empresa_id: empresa_id, created_by: auth_id };
+  const dbNote = { title: note.title || 'Nota', content: note.imageUrl ? JSON.stringify({ text: note.content, imageUrl: note.imageUrl }) : note.content, empresa_id: empresa_id, created_by: auth_id };
   const { data, error } = await supabase.from('notes').insert(dbNote).select().single();
   if (error) return { success: false };
   return { success: true, data };
 }
+
 export async function updateStoredNote(id: string, updates: Partial<CaseNote>): Promise<{ success: boolean }> {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };
@@ -229,12 +232,97 @@ export async function updateStoredNote(id: string, updates: Partial<CaseNote>): 
   const { error } = await supabase.from('notes').update(dbUpdates).eq('id', id).eq('empresa_id', empresa_id);
   return { success: !error };
 }
+
 export async function deleteStoredNote(id: string): Promise<{ success: boolean }> {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };
   const { error } = await supabase.from('notes').delete().eq('id', id).eq('empresa_id', empresa_id);
   return { success: !error };
 }
+
+// --- GESTÃO DE EQUIPE (MANTIDAS) ---
+
+export async function getEmpresaUsers(): Promise<UserProfile[]> {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id || !supabase) return [];
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('empresa_id', empresa_id)
+    .order('nome', { ascending: true });
+  return (data as UserProfile[]) || [];
+}
+
+export async function createEmpresaUserAction(userData: any) {
+  const { isSuperAdmin, empresa_id } = await getUserContext();
+  if (!isSuperAdmin || !empresa_id) return { success: false, error: 'Permissão insuficiente.' };
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!serviceKey || !url) return { success: false, error: 'Erro de configuração do servidor.' };
+
+  const adminClient = createSupabaseClient(url, serviceKey);
+
+  try {
+    const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
+      email: userData.email,
+      password: userData.password,
+      email_confirm: true,
+      user_metadata: { full_name: userData.nome }
+    });
+
+    if (authError) throw authError;
+
+    const { error: profileError } = await adminClient.from('usuarios').insert({
+      auth_user_id: authUser.user.id,
+      empresa_id: empresa_id,
+      nome: userData.nome.toUpperCase(),
+      email: userData.email.toLowerCase(),
+      cargo: userData.cargo || 'Operador'
+    });
+
+    if (profileError) throw profileError;
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function removeEmpresaUser(id: string) {
+  const { empresa_id, isSuperAdmin, isSupervisor } = await getUserContext();
+  if (!isSuperAdmin && !isSupervisor) return { success: false, error: 'Permissão insuficiente.' };
+  
+  const { error } = await supabase
+    .from('usuarios')
+    .delete()
+    .eq('id', id)
+    .eq('empresa_id', empresa_id);
+    
+  return { success: !error, error: error?.message };
+}
+
+export async function updateUserRole(userId: string, newRole: UserRole) {
+  const { empresa_id, isSuperAdmin, weight } = await getUserContext();
+  
+  // Validação de Hierarquia
+  const targetWeight = ROLE_WEIGHTS[newRole] || 0;
+  if (!isSuperAdmin && weight <= targetWeight) {
+    return { success: false, error: 'Autoridade insuficiente para atribuir este cargo.' };
+  }
+
+  const { error } = await supabase
+    .from('usuarios')
+    .update({ cargo: newRole })
+    .eq('id', userId)
+    .eq('empresa_id', empresa_id);
+    
+  return { success: !error, error: error?.message };
+}
+
+// --- UTILITÁRIOS ---
+
 export async function getWhatsAppHistory(phone: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return [];
@@ -244,12 +332,14 @@ export async function getWhatsAppHistory(phone: string) {
   if (error) return [];
   return data;
 }
+
 export async function listAdvogadosBanca() {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return [];
   const { data, error } = await supabase.from('advogados_banca').select('*').eq('empresa_id', empresa_id).eq('ativo', true).order('nome', { ascending: true });
   return data || [];
 }
+
 export async function upsertAdvogadoBanca(adv: any) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false, error: 'Sessão expirada' };
@@ -258,6 +348,7 @@ export async function upsertAdvogadoBanca(adv: any) {
   if (error) return { success: false, error: error.message };
   return { success: true, data };
 }
+
 export async function desativarAdvogadoBanca(id: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };
