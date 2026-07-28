@@ -206,50 +206,6 @@ Equipes multi-operador com supervisão
 
 Status do Projeto
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ÁreaStatusPlataformaEm produçãoMulti-tenantEstávelGestão processualEstávelImportação CSVEstávelDocumentos / peçasEstávelEquipe + KPI de operadores/advogadosAtivoIAAtiva (evolução contínua)DataJud / alertasAtivoDashboardEstável
 
 Diferenciais
