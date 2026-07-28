@@ -14,15 +14,17 @@ const API_KEYS = {
   GROQ: process.env.GROQ_API_KEY
 };
 
-const SYSTEM_INSTRUCTIONS = `Você é o Veredito AI Elite v5.0. 
-Sua missão é realizar uma Auditoria 3D de dados processuais e retornar um parecer rigoroso em JSON.
+const SYSTEM_INSTRUCTIONS = `Você é o Veredito AI Elite v6.0. 
+Sua missão é realizar uma Auditoria Técnica 3D de dados processuais e retornar um parecer jurídico rigoroso em JSON.
 
 REGRAS DE PARECER:
-1. Resumo Técnico: Máximo 6 linhas focadas no status atual.
-2. Análise de Risco: Identifique vulnerabilidades imediatas.
-3. Próximos Passos: Defina a estratégia operacional para o advogado.
-4. Mensagem Cliente: Redija um texto profissional para WhatsApp, assinado pelo Setor Processual.
-5. Conclusão de Encerramento: Uma análise narrativa (máximo 3 linhas) justificando se o processo está perto do fim ou não, baseada na fase processual.
+1. Resumo Técnico: Máximo 6 linhas focadas no status atual. Seja específico sobre a fase (Ex: Recursal, Executiva, Conclusos).
+2. Análise de Risco: Identifique vulnerabilidades (Ex: prazos, sucumbência, revelia).
+3. Próximos Passos: Defina a estratégia operacional clara para o advogado.
+4. Mensagem Cliente: Redija um texto profissional e empático para WhatsApp, assinado pelo Setor Processual.
+5. Conclusão de Encerramento: Uma análise narrativa (máximo 3 linhas) justificando a probabilidade de fim do processo.
+
+IMPORTANTE: Se houver "Trânsito em Julgado", "Baixa Definitiva" ou "Arquivamento", o processo está ENCERRADO. Nunca diga que está em instrução nestes casos.
 
 FORMATO JSON OBRIGATÓRIO:
 { 
@@ -48,12 +50,10 @@ const VereditoOutputSchema = z.object({
   dataJudRaw: z.any().optional(),
   error: z.boolean().optional(),
   message: z.string().optional(),
-  isDeterministic: z.boolean().optional()
+  isDeterministic: z.boolean().optional(),
+  engineUsed: z.string().optional()
 });
 
-/**
- * Limpeza profunda de resposta JSON para lidar com motores instáveis
- */
 function cleanJsonResponse(text: string): any {
   if (!text) return null;
   try {
@@ -70,52 +70,52 @@ function cleanJsonResponse(text: string): any {
 }
 
 /**
- * Motor de Fallback Determinístico: Gera parecer a partir dos dados se a IA falhar
+ * Motor Determinístico Avançado (Fallback de Segurança)
  */
 function gerarParecerDeterministico(data: any) {
   const movs = data.movimentos || [];
   const sortedMovs = [...movs].sort((a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime());
-  const lastMov = sortedMovs[0]?.nome || "Sem andamento recente";
-  const tribunal = data.tribunal || "Tribunal";
-  const classe = data.classe || "Ação";
+  const lastMov = (sortedMovs[0]?.nome || "Sem andamento recente").toUpperCase();
+  const allText = sortedMovs.slice(0, 15).map((m: any) => m.nome).join(' ').toUpperCase();
   
+  let resumo = `Parecer gerado via triagem técnica local. Tribunal: ${data.tribunal}. Classe: ${data.classe}.`;
   let risco = "Monitoramento operacional de rotina mantido.";
-  let steps = "Continuar acompanhando publicações oficiais e prazos do tribunal.";
-  let statusFim = "Processo em fase de instrução/andamento regular.";
+  let steps = "Continuar acompanhando publicações oficiais no diário e prazos do tribunal.";
+  let statusFim = "Processo em andamento regular.";
 
-  const text = sortedMovs.slice(0, 8).map((m: any) => m.nome).join(' ').toUpperCase();
-  
-  if (text.includes('IMPROCEDENTE') || text.includes('IMPROCEDENCIA')) {
-    risco = "Decisão de improcedência identificada. Risco de sucumbência.";
-    steps = "Avaliar fundamentos da sentença para Recurso de Apelação.";
-    statusFim = "Processo atingiu fase de mérito desfavorável em 1º grau.";
-  } else if (text.includes('PROCEDENTE') || text.includes('PROCEDENCIA')) {
-    risco = "Resultado favorável de mérito.";
-    steps = "Aguardar trânsito em julgado ou fase de cumprimento.";
-    statusFim = "Processo em fase avançada com vitória de mérito.";
-  } else if (text.includes('EXTINTO') || text.includes('INDEFERIDO') || text.includes('EXTINCAO')) {
-    risco = "Extinção prematura do feito ou indeferimento detectado.";
-    steps = "Analisar motivo da extinção para sanar vícios ou recorrer.";
-    statusFim = "Processo encerrado ou interrompido.";
-  } else if (text.includes('SENTENÇA') || text.includes('SENTENCA')) {
-    risco = "Sentença prolatada. Atenção aos prazos recursais.";
-    steps = "Leitura técnica da sentença e contato imediato com o cliente.";
-    statusFim = "Fase decisória de primeiro grau atingida.";
-  } else if (text.includes('EMENDA')) {
-    risco = "Necessidade de regularização da petição inicial.";
-    steps = "Protocolar emenda atendendo aos requisitos do juiz.";
-    statusFim = "Fase inicial de saneamento.";
-  } else if (text.includes('ACORDO') || text.includes('HOMOLOG')) {
-    risco = "Negociação ou acordo em andamento/homologado.";
-    steps = "Verificar termos do acordo e quitação de parcelas.";
-    statusFim = "Processo em vias de encerramento por composição.";
+  // Regras de Precedência Crítica
+  if (allText.includes('TRÂNSITO EM JULGADO') || allText.includes('TRANSITO EM JULGADO') || allText.includes('BAIXA DEFINITIVA') || allText.includes('ARQUIVADO DEFINITIVAMENTE')) {
+    resumo += " PROCESSO FINALIZADO. Identificado trânsito em julgado ou baixa definitiva.";
+    risco = "Nenhum risco processual ativo (Feito encerrado).";
+    steps = "Realizar o arquivamento interno no sistema LexisPredict e conferir eventuais custas pendentes.";
+    statusFim = "Processo encerrado com trânsito em julgado.";
+  } else if (allText.includes('ACORDO') || allText.includes('HOMOLOGAÇÃO DE ACORDO') || allText.includes('HOMOLOGACAO')) {
+    resumo += " Composição amigável identificada entre as partes.";
+    risco = "Risco de descumprimento de parcelas se houver cronograma de pagamento.";
+    steps = "Acompanhar a quitação das obrigações e o arquivamento do feito.";
+    statusFim = "Processo em fase de encerramento por acordo.";
+  } else if (allText.includes('IMPROCEDENTE')) {
+    resumo += " Sentença de improcedência prolatada em primeiro grau.";
+    risco = "ALTO. Risco de sucumbência e encerramento desfavorável.";
+    steps = "Avaliar fundamentos da sentença para interposição de Recurso de Apelação.";
+    statusFim = "Decisão desfavorável de mérito atiginda.";
+  } else if (allText.includes('PROCEDENTE')) {
+    resumo += " Sentença de procedência identificada.";
+    risco = "Risco de recurso pela parte contrária (Banco).";
+    steps = "Aguardar prazo recursal ou iniciar fase de cumprimento de sentença.";
+    statusFim = "Vitória de mérito atingida em primeiro grau.";
+  } else if (allText.includes('CONCLUSOS PARA SENTENÇA') || allText.includes('PARA JULGAMENTO')) {
+    resumo += " Processo aguardando decisão final do magistrado.";
+    risco = "Expectativa de julgamento iminente.";
+    steps = "Acompanhar diariamente a publicação da sentença.";
+    statusFim = "Fase decisória de mérito atingida.";
   }
 
   return {
-    resumoTecnico: `[MODO SEGURO] Parecer gerado via triagem local. Tribunal: ${tribunal}. Classe: ${classe}. Último andamento registrado: "${lastMov}".`,
+    resumoTecnico: `[MODO TÉCNICO LOCAL] ${resumo}`,
     analiseRisco: risco,
     proximosPassos: steps,
-    mensagemCliente: `Setor Processual: Olá! Informamos que seu processo teve uma nova movimentação intitulada "${lastMov}". Nossa equipe técnica já está realizando a conferência.`,
+    mensagemCliente: `Setor Processual: Olá! Informamos que seu processo teve uma nova atualização intitulada "${lastMov}". Nossa equipe já está realizando a conferência técnica.`,
     conclusaoEncerramento: statusFim,
     success: true,
     isDeterministic: true
@@ -128,55 +128,42 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
   try {
     const messages = [
       { role: 'system', content: SYSTEM_INSTRUCTIONS },
-      { role: 'user', content: `DADOS DO PROCESSO:\n${context}` }
+      { role: 'user', content: `DADOS DO PROCESSO PARA AUDITORIA:\n${context}` }
     ];
 
-    const isResponsesEndpoint = url.endsWith('/responses');
-    
     const body: any = { 
       model,
-      temperature: isResponsesEndpoint ? undefined : 0.1,
-      max_tokens: 2048
+      messages,
+      temperature: 0.2,
+      max_tokens: 2000
     };
 
-    if (isResponsesEndpoint) {
-      body.input = messages;
-      if (model === 'grok-4.5') body.reasoning_effort = "high";
-    } else {
-      body.messages = messages;
-      if (url.includes('x.ai')) {
-        body.response_format = { type: 'json_object' };
-      }
+    // Especialização para xAI (Grok)
+    if (url.includes('x.ai')) {
+      body.response_format = { type: 'json_object' };
     }
 
     const res = await fetch(url, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${key}`, 
-        'Content-Type': 'application/json',
-        'User-Agent': 'LexisPredict-Elite/1.1'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(45000)
     });
     
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      console.error(`[AI Engine Fail] ${model}: ${res.status}`, errData);
+      const err = await res.json().catch(() => ({}));
+      console.error(`[AI FAIL] ${model} Status ${res.status}:`, err);
       return null;
     }
 
     const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content || 
-                    data?.output?.message?.content || 
-                    (Array.isArray(data?.output) ? data?.output?.[0]?.text : null) ||
-                    data?.message?.content;
-    
-    if (!content) return null;
-    
-    return cleanJsonResponse(content);
+    const content = data?.choices?.[0]?.message?.content;
+    return content ? cleanJsonResponse(content) : null;
   } catch (e: any) {
-    console.error(`[AI Engine Error] ${model}: ${e.message}`);
+    console.error(`[AI ERROR] ${model}: ${e.message}`);
     return null;
   }
 }
@@ -189,51 +176,35 @@ export const vereditoAIFlow = ai.defineFlow(
   },
   async input => {
     const { cnj, preferredModel = 'xai' } = input;
-    
-    // 1. Coleta DataJud (Fonte de Verdade)
     const dataJudData = await fetchDataJud(cnj);
     
     if (!dataJudData || dataJudData.error) {
        return { 
-         resumoTecnico: "Falha técnica na triagem nacional.",
-         analiseRisco: "Instabilidade nos servidores do tribunal ou rede indisponível.",
-         proximosPassos: dataJudData?.message || "Tente realizar a busca novamente em alguns instantes.",
+         resumoTecnico: "Falha na conexão com o tribunal.",
+         analiseRisco: "Sistema indisponível.",
+         proximosPassos: "Tente novamente.",
          mensagemCliente: "",
          success: false, 
          error: true, 
-         message: dataJudData?.message || "Falha na triagem do tribunal.",
+         message: dataJudData?.message || "Erro de rede no DataJud.",
          dataJudRaw: dataJudData
        };
     }
 
-    if (!dataJudData.movimentos || dataJudData.movimentos.length === 0) {
-       return {
-         resumoTecnico: "Protocolo localizado, porém sem histórico cronológico na base unificada.",
-         analiseRisco: "Processo pode estar sob segredo de justiça absoluto ou recém-distribuído.",
-         proximosPassos: "Confirme o número CNJ. Se correto, o processo pode ainda não ter movimentos públicos indexados.",
-         mensagemCliente: "Setor Processual: No momento, não localizamos atualizações públicas para este protocolo no sistema nacional.",
-         success: true,
-         error: false,
-         message: dataJudData.message || "Processo sem movimentos.",
-         dataJudRaw: dataJudData
-       };
-    }
-
-    // 2. Preparação de Contexto Compacto (Redução de Custo e Erro)
-    const sortedMovs = [...dataJudData.movimentos]
-      .sort((a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime())
+    // Preparação de Contexto (Obrigatório para evitar alucinação)
+    const movementsContext = dataJudData.movimentos
+      .sort((a: any, b: any) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime())
       .slice(0, 20)
-      .map(m => ({
-        d: m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D',
-        n: m.nome
-      }));
+      .map((m: any) => `- ${m.dataHora ? new Date(m.dataHora).toLocaleDateString() : 'S/D'}: ${m.nome}`)
+      .join('\n');
 
-    const compactContext = JSON.stringify({
-      n: dataJudData.numeroProcesso,
-      c: dataJudData.classe,
-      t: dataJudData.tribunal,
-      m: sortedMovs
-    });
+    const compactContext = `
+      NÚMERO: ${dataJudData.numeroProcesso}
+      TRIBUNAL: ${dataJudData.tribunal}
+      CLASSE: ${dataJudData.classe}
+      CRONOLOGIA RECENTE:
+      ${movementsContext}
+    `;
     
     const engines = [
       { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-4.5' },
@@ -248,26 +219,28 @@ export const vereditoAIFlow = ai.defineFlow(
       prioritized.unshift(fav);
     }
 
-    // 3. Orquestração Neural com Fallback
+    // 1. Tentativa via IA Real
     for (const engine of prioritized) {
       if (!engine.key) continue;
       const result = await callEngineWithRetry(engine.url, engine.key, engine.model, compactContext);
-      if (result && result.resumoTecnico) {
+      if (result) {
         return {
           ...result,
           success: true,
           error: false,
           dataJudRaw: dataJudData,
-          isDeterministic: false
+          isDeterministic: false,
+          engineUsed: engine.id.toUpperCase()
         };
       }
     }
 
-    // 4. Última Instância: Fallback Deterministico Soberano
+    // 2. Fallback Determinístico (Se IA falhar mas houver dados)
     const deterministicResult = gerarParecerDeterministico(dataJudData);
     return {
       ...deterministicResult,
-      dataJudRaw: dataJudData
+      dataJudRaw: dataJudData,
+      engineUsed: "DETERMINISTIC_CORE"
     };
   }
 );
