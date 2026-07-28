@@ -38,7 +38,7 @@ interface DataJudScanState {
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
-  isMinimized: false,
+  isMinimized: true, // Começa minimizado (escondido) por padrão
   queue: [],
   currentIndex: 0,
   total: 0,
