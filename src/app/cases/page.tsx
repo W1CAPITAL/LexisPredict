@@ -34,7 +34,8 @@ import {
   AlertCircle,
   FileSearch,
   History,
-  Gavel
+  Gavel,
+  AlertTriangle
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -60,6 +61,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
+import { useAppStore } from '@/store/use-app-store';
 
 const CaseRow = React.memo(({ 
   c, 
@@ -92,12 +94,19 @@ const CaseRow = React.memo(({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground font-black text-[13px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
             {c.datajud_encerrado_tribunal && (
-              <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">
+              <Badge 
+                title={c.datajud_encerrado_motivo || "Encerrado no Tribunal"}
+                className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse"
+              >
                 Encerrado Tribunal
               </Badge>
             )}
             {c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal && (
-              <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">
+              <Badge 
+                title={c.datajud_ultimo_nome || "Novo andamento identificado"}
+                variant="destructive" 
+                className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse"
+              >
                 Novo Andamento
               </Badge>
             )}
@@ -191,7 +200,7 @@ const CaseRow = React.memo(({
 CaseRow.displayName = 'CaseRow';
 
 function CasesContent() {
-  const [cases, setCases] = useState<LegalCase[]>([]);
+  const { cases, setCases } = useAppStore();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const initialFilter = searchParams.get('filter') || 'all';
@@ -239,7 +248,7 @@ function CasesContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setCases]);
 
   const handleDataJudScan = async () => {
     if (!isOperador || isScanning) return;
@@ -267,8 +276,8 @@ function CasesContent() {
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);
-        // Atualizar lista local sem refresh
-        setCases(prev => prev.map(c => c.protocolo === caseItem.protocolo ? res.case! : c));
+        // Atualizar lista local
+        setCases(cases.map(c => c.protocolo === caseItem.protocolo ? res.case! : c));
       } else {
         toast({ title: "Andamento não localizado", description: res.error, variant: "destructive" });
       }
@@ -348,7 +357,7 @@ function CasesContent() {
     setCases(updated);
     await syncRepoCases(updated);
     toast({ title: "Atendimento Registrado" });
-  }, [cases, isOperador, toast]);
+  }, [cases, isOperador, toast, setCases]);
 
   const offices = useMemo(() => {
     const list = Array.from(new Set(cases.map(c => c.escritorio))).filter(Boolean).sort();
@@ -362,7 +371,7 @@ function CasesContent() {
                             (c.protocolo || '').includes(deferredSearch);
       
       const matchesOffice = officeFilter === 'all' || c.escritorio === officeFilter;
-      const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && c.tem_atualizacao_pos_retorno);
+      const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && (c.tem_atualizacao_pos_retorno || c.datajud_encerrado_tribunal));
       
       const isEncerrado = isCasoEncerrado(c);
       let pass = matchesSearch && matchesOffice && matchesQuick;
@@ -452,7 +461,7 @@ function CasesContent() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all" className="text-[10px] font-black uppercase">TODOS PROCESSOS</SelectItem>
-                      <SelectItem value="updated" className="text-[10px] font-black uppercase text-red-600">⚠ ATUALIZADOS TRIBUNAL</SelectItem>
+                      <SelectItem value="updated" className="text-[10px] font-black uppercase text-red-600">⚠ AUDITORIA TRIBUNAL</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
