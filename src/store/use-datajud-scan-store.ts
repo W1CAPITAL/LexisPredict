@@ -1,14 +1,15 @@
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.3
- * Otimizado com tratamento de fila robusto e sincronização de progresso real-time.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v1.5
+ * Otimizado com RETOMAR, Persistência Local e Blindagem de Sessão.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
 import { useAppStore } from '@/store/use-app-store';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
+export type ScanScope = 'resume' | 'critical' | 'full';
 
 interface ScanLog {
   protocolo: string;
@@ -20,6 +21,7 @@ interface ScanLog {
 
 interface DataJudScanState {
   status: ScanStatus;
+  scope: ScanScope;
   isMinimized: boolean;
   queue: string[];
   currentIndex: number;
@@ -32,16 +34,20 @@ interface DataJudScanState {
   
   // Actions
   toggleMinimize: () => void;
-  startScan: (protocolos: string[]) => void;
+  startScan: (protocolos: string[], scope: ScanScope) => void;
   pauseScan: () => void;
   resumeScan: () => void;
   cancelScan: () => void;
   resetScan: () => void;
   processNext: () => Promise<void>;
+  loadProgress: () => void;
 }
+
+const STORAGE_KEY = 'lexis_datajud_scan_v1';
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
+  scope: 'critical',
   isMinimized: true,
   queue: [],
   currentIndex: 0,
@@ -54,10 +60,31 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
   toggleMinimize: () => set((state) => ({ isMinimized: !state.isMinimized })),
 
-  startScan: (protocolos) => {
+  loadProgress: () => {
+    if (typeof localStorage === 'undefined') return;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        // Só carrega se for do dia atual (opcional)
+        set({ 
+          queue: data.queue || [], 
+          currentIndex: data.currentIndex || 0,
+          total: data.total || 0,
+          done: data.done || 0,
+          alerts: data.alerts || 0,
+          closed: data.closed || 0,
+          scope: data.scope || 'resume'
+        });
+      } catch (e) {}
+    }
+  },
+
+  startScan: (protocolos, scope) => {
     set({
       status: 'running',
       isMinimized: false,
+      scope,
       queue: protocolos,
       total: protocolos.length,
       currentIndex: 0,
@@ -68,40 +95,45 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       logs: [{
         protocolo: 'SISTEMA',
         status: 'success',
-        message: `Fila montada: ${protocolos.length} processos.`
+        message: `Fila iniciada: ${protocolos.length} processos (${scope.toUpperCase()}).`
       }]
     });
-    // Disparo inicial da recursão
     get().processNext();
   },
 
   pauseScan: () => set({ status: 'paused' }),
 
   resumeScan: () => {
-    set({ status: 'running' });
+    set({ status: 'running', isMinimized: false });
     get().processNext();
   },
 
-  cancelScan: () => set({ status: 'cancelled', queue: [] }),
+  cancelScan: () => {
+    set({ status: 'cancelled', queue: [] });
+    localStorage.removeItem(STORAGE_KEY);
+  },
 
-  resetScan: () => set({
-    status: 'idle',
-    currentIndex: 0,
-    done: 0,
-    alerts: 0,
-    closed: 0,
-    errors: 0,
-    logs: [],
-    queue: []
-  }),
+  resetScan: () => {
+    set({
+      status: 'idle',
+      currentIndex: 0,
+      done: 0,
+      alerts: 0,
+      closed: 0,
+      errors: 0,
+      logs: [],
+      queue: []
+    });
+    localStorage.removeItem(STORAGE_KEY);
+  },
 
   processNext: async () => {
     const { status, queue, currentIndex } = get();
 
-    // Condição de parada: Fila vazia, fim do índice ou cancelamento
     if (status !== 'running' || currentIndex >= queue.length) {
       if (currentIndex >= queue.length && queue.length > 0 && status === 'running') {
         set({ status: 'done' });
+        localStorage.removeItem(STORAGE_KEY);
       }
       return;
     }
@@ -109,28 +141,54 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     const protocolo = queue[currentIndex];
 
     try {
-      // Auditoria unitária no servidor
       const result = await scanOneDataJudAction(protocolo);
 
       if (result.success && result.casePatch) {
-        // Sincronizar UI local instantaneamente via AppStore usando o protocolo
         useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
       }
 
-      set((state) => ({
-        currentIndex: state.currentIndex + 1,
-        done: state.done + 1,
-        alerts: result.alerta ? state.alerts + 1 : state.alerts,
-        closed: result.encerrado ? state.closed + 1 : state.closed,
-        errors: (result as any).error ? state.errors + 1 : state.errors,
+      // Se for erro de autenticação crítico, pausar a fila
+      if (!result.success && result.isAuthError) {
+        set({ status: 'paused' });
+        set((state) => ({
+           logs: [{
+             protocolo: 'AUTH_CRITICAL',
+             status: 'error',
+             message: result.message
+           }, ...state.logs].slice(0, 30)
+        }));
+        return;
+      }
+
+      const newState = {
+        currentIndex: currentIndex + 1,
+        done: get().done + 1,
+        alerts: result.alerta ? get().alerts + 1 : get().alerts,
+        closed: result.encerrado ? get().closed + 1 : get().closed,
+        errors: (!result.success && !result.isAuthError) ? get().errors + 1 : get().errors,
         logs: [{
           protocolo: protocolo,
           status: result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error',
           message: result.message || "Auditado",
           alerta: result.alerta,
           encerrado: result.encerrado
-        }, ...state.logs].slice(0, 30)
+        }, ...get().logs].slice(0, 30)
+      };
+
+      set(newState);
+
+      // Persistir progresso
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        queue: queue,
+        currentIndex: newState.currentIndex,
+        total: get().total,
+        done: newState.done,
+        alerts: newState.alerts,
+        closed: newState.closed,
+        scope: get().scope,
+        updatedAt: new Date().toISOString()
       }));
+
     } catch (e: any) {
       set((state) => ({
         currentIndex: state.currentIndex + 1,
@@ -139,17 +197,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         logs: [{
           protocolo,
           status: 'error',
-          message: e.message || "Erro inesperado"
+          message: "Erro inesperado de comunicação"
         }, ...state.logs].slice(0, 30)
       }));
     }
 
-    // Recursão controlada com delay para evitar rate-limit (450ms)
+    // Recursão controlada (450ms)
     const nextState = get();
     if (nextState.status === 'running' && nextState.currentIndex < nextState.queue.length) {
       setTimeout(() => get().processNext(), 450);
     } else if (nextState.currentIndex >= nextState.queue.length) {
       set({ status: 'done' });
+      localStorage.removeItem(STORAGE_KEY);
     }
   }
 }));
