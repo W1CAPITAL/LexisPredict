@@ -22,7 +22,9 @@ import {
   Shield,
   ArrowUp,
   ArrowDown,
-  Trash2
+  Trash2,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 import { getEmpresaUsers, removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
@@ -173,7 +175,7 @@ export default function TeamManagement() {
 
     const normalizeStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    // RANKING OPERACIONAL: Baseado em USUÁRIOS REAIS (Assessoria)
+    // RANKING OPERACIONAL: Baseado em USUÁRIOS REAIS
     const assRank = users.map(user => {
       const userNorm = normalizeStr(user.nome);
       const userCases = cases.filter(c => {
@@ -187,7 +189,7 @@ export default function TeamManagement() {
       };
     }).filter(u => u.result.totalCasos > 0).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
-    // RANKING DE BANCA: Baseado nos ADVOGADOS (Strings do Processo)
+    // RANKING DE BANCA: Baseado nos ADVOGADOS (Strings)
     const uniqueLawyers = Array.from(new Set(cases.map(c => (c.advogado || '').trim()))).filter(n => n && n !== 'NÃO ATRIBUÍDO' && n !== 'SEGREDO DE JUSTIÇA');
     
     const advRank = uniqueLawyers.map(lawyerName => {
@@ -200,6 +202,10 @@ export default function TeamManagement() {
 
     return { advRank, assRank };
   }, [cases, users]);
+
+  const formatInfiniteScore = (num: number) => {
+    return new Intl.NumberFormat('pt-BR').format(num);
+  };
 
   return (
     <div className="flex h-screen bg-[#f8f9fb] font-sans text-foreground overflow-hidden">
@@ -312,11 +318,11 @@ export default function TeamManagement() {
           {viewMode === 'performance' && (
             <section className="space-y-12 pb-20 animate-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                {/* Performance Operacional (USUÁRIOS) */}
+                {/* Ranking Operacional (Membros) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center rounded-lg shadow-lg"><ClipboardList size={20}/></div>
-                      <h3 className="text-lg font-black uppercase tracking-tighter">Ranking Operacional (Membros)</h3>
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Ranking Operacional</h3>
                    </div>
                    <div className="space-y-4">
                       {performanceData.assRank.map((s, i) => (
@@ -325,26 +331,28 @@ export default function TeamManagement() {
                               <span className="font-black text-black/20 text-xl">{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Atendimentos</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Casos Auditados</p>
                               </div>
                            </div>
                            <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
-                              <p className={cn("text-xl font-black tabular-nums", s.result.score < 50 ? "text-red-600" : "text-emerald-600")}>
-                                {s.result.score}
-                              </p>
-                              <p className="text-[7px] font-black uppercase opacity-40">Eficiência</p>
+                              <div className="flex items-center justify-end gap-2">
+                                 <p className={cn("text-2xl font-black tabular-nums", s.result.score < 0 ? "text-red-600" : "text-emerald-600")}>
+                                   {formatInfiniteScore(s.result.score)}
+                                 </p>
+                                 {s.result.score > 0 ? <TrendingUp size={16} className="text-emerald-500"/> : <TrendingDown size={16} className="text-red-500"/>}
+                              </div>
+                              <p className="text-[7px] font-black uppercase opacity-40">Efficiency Index</p>
                            </button>
                         </div>
                       ))}
-                      {performanceData.assRank.length === 0 && <p className="text-center py-10 opacity-30 font-black uppercase text-[10px]">Aguardando dados...</p>}
                    </div>
                 </div>
 
-                {/* Performance de Banca (ADVOGADOS) */}
+                {/* Ranking de Banca (Advogados) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-black text-primary flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
-                      <h3 className="text-lg font-black uppercase tracking-tighter">Ranking de Banca (Patronos)</h3>
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Ranking de Banca</h3>
                    </div>
                    <div className="space-y-4">
                       {performanceData.advRank.map((s, i) => (
@@ -353,18 +361,20 @@ export default function TeamManagement() {
                               <span className="font-black text-black/20 text-xl">{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Peças Auditadas</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Peças na Carteira</p>
                               </div>
                            </div>
                            <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
-                              <p className={cn("text-xl font-black tabular-nums", s.result.score < 50 ? "text-red-600" : "text-primary")}>
-                                {s.result.score}
-                              </p>
-                              <p className="text-[7px] font-black uppercase opacity-40">Authority</p>
+                              <div className="flex items-center justify-end gap-2">
+                                 <p className={cn("text-2xl font-black tabular-nums", s.result.score < 0 ? "text-red-600" : "text-primary")}>
+                                   {formatInfiniteScore(s.result.score)}
+                                 </p>
+                                 {s.result.score > 0 ? <TrendingUp size={16} className="text-primary"/> : <TrendingDown size={16} className="text-red-500"/>}
+                              </div>
+                              <p className="text-[7px] font-black uppercase opacity-40">Authority Score</p>
                            </button>
                         </div>
                       ))}
-                      {performanceData.advRank.length === 0 && <p className="text-center py-10 opacity-30 font-black uppercase text-[10px]">Aguardando dados...</p>}
                    </div>
                 </div>
               </div>
@@ -374,17 +384,17 @@ export default function TeamManagement() {
 
         <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
            <DialogContent className="sm:max-w-[650px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
-              <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Auditoria de Desempenho {selectedAudit?.label}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Detalhes do Score Acumulado</DialogTitle></DialogHeader>
               <div className="py-6 space-y-6">
                  <div className="flex justify-between items-center bg-secondary/20 p-4 border border-black/5">
                     <div>
                        <p className="text-[8px] font-black uppercase opacity-40">Proteção de Equipe (Cliente)</p>
-                       <p className="text-sm font-black uppercase">{selectedAudit?.ignoradosCliente} Falhas Ignoradas</p>
+                       <p className="text-sm font-black uppercase">{selectedAudit?.ignoradosCliente} Falhas Excluídas</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-[8px] font-black uppercase opacity-40">Score Consolidado</p>
-                       <p className={cn("text-2xl font-black", (selectedAudit?.score ?? 0) <= 0 ? "text-red-600" : "text-black")}>
-                         {selectedAudit?.score}/100
+                       <p className="text-[8px] font-black uppercase opacity-40">Total Líquido</p>
+                       <p className={cn("text-3xl font-black", (selectedAudit?.score ?? 0) < 0 ? "text-red-600" : "text-black")}>
+                         {formatInfiniteScore(selectedAudit?.score || 0)}
                        </p>
                     </div>
                  </div>
@@ -394,13 +404,13 @@ export default function TeamManagement() {
                           <div key={idx} className="p-4 bg-white border border-black/10 flex flex-col gap-2">
                              <div className="flex justify-between">
                                 <p className="text-[10px] font-black uppercase">{p.cliente}</p>
-                                <Badge variant="destructive" className="text-[8px] font-black">-{p.peso} pts</Badge>
+                                <Badge variant="destructive" className="text-[8px] font-black">{formatInfiniteScore(p.peso)} pts</Badge>
                              </div>
-                             <p className="text-[9px] font-bold text-muted-foreground italic">"{p.motivo}..."</p>
+                             <p className="text-[9px] font-bold text-muted-foreground italic">"{p.motivo}"</p>
                              <p className="text-[7px] font-mono opacity-40">{p.protocolo}</p>
                           </div>
                        ))}
-                       {selectedAudit?.penalidades.length === 0 && <p className="py-12 text-center opacity-30 uppercase font-black text-[10px]">Nenhuma falha técnica atribuível.</p>}
+                       {selectedAudit?.penalidades.length === 0 && <p className="py-12 text-center opacity-30 uppercase font-black text-[10px]">Nenhum registro de penalidade localizado.</p>}
                     </div>
                  </ScrollArea>
               </div>
