@@ -100,9 +100,11 @@ export default function UnifiedReport() {
     // Métricas DataJud baseadas nos ativos
     const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
     const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal).length;
+    const countBA = ativos.filter(c => c.indicio_busca_apreensao).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
+    const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
 
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -163,7 +165,8 @@ export default function UnifiedReport() {
       sortedOffices: Object.values(offices).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total),
       sortedLawyers: Object.values(lawyers).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total),
       countNovoAndamento, rateAndamento,
-      countEncerradoTribunal, rateEncerrado
+      countEncerradoTribunal, rateEncerrado,
+      countBA, rateBA
     };
   }, [cases]);
 
@@ -229,7 +232,7 @@ export default function UnifiedReport() {
           <section className="px-10 py-10 bg-[#f8f9fb]">
              <div className="mb-10 p-8 border-4 border-black bg-black text-white shadow-[10px_10px_0px_#00D1FF]">
                 <h3 className="text-xs font-black uppercase tracking-[0.4em] mb-6 flex items-center gap-3"><Zap className="text-primary" size={14}/> Telemetria Forense (DataJud)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Andamentos Judiciais não atendidos</p>
                       <div className="flex items-baseline gap-4">
@@ -245,6 +248,14 @@ export default function UnifiedReport() {
                          <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
                       </div>
                       <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.</p>
+                   </div>
+                   <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase opacity-60">Busca e Apreensão Detectada</p>
+                      <div className="flex items-baseline gap-4">
+                         <span className="text-4xl font-black tabular-nums">{metrics.countBA} de {metrics.activeTotal}</span>
+                         <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
+                      </div>
+                      <p className="text-[8px] font-bold uppercase italic opacity-40">Indícios de Busca e Apreensão detectados via auditoria CNJ (protocolo do processo).</p>
                    </div>
                 </div>
              </div>
