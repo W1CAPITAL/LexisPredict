@@ -103,6 +103,14 @@ export default function Dashboard() {
    
     const riskSum = (vencidos * 1.0) + (venceHoje * 0.8) + (atencao * 0.5) + (noPrazo * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
+
+    let riskLabel = "BAIXO";
+    let riskColor = "text-emerald-600";
+    if (riskScore > 80) { riskLabel = "CRÍTICO"; riskColor = "text-red-600"; }
+    else if (riskScore > 60) { riskLabel = "ALTO"; riskColor = "text-orange-600"; }
+    else if (riskScore > 40) { riskLabel = "ELEVADO"; riskColor = "text-yellow-600"; }
+    else if (riskScore > 20) { riskLabel = "MODERADO"; riskColor = "text-amber-600"; }
+
     const pctHoje = activeTotal > 0 ? Math.round((venceHoje / activeTotal) * 100) : 0;
     const pctVencidos = activeTotal > 0 ? Math.round((vencidos / activeTotal) * 100) : 0;
     const pctAtencao = activeTotal > 0 ? Math.round((atencao / activeTotal) * 100) : 0;
@@ -116,7 +124,7 @@ export default function Dashboard() {
 
     return { 
       activeTotal, vencidos, venceHoje, atencao, noPrazo, 
-      riskScore, statusData, pctHoje, pctVencidos, pctAtencao,
+      riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos, pctAtencao,
       updatedInCourt, updatedInCourtRate: rateUpdated,
       closedInCourt, closedInCourtRate: rateClosed
     };
@@ -320,9 +328,12 @@ export default function Dashboard() {
                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{t.riskIndex}</p>
                        <h4 className="text-5xl font-black tracking-tighter leading-none">{metrics.riskScore}%</h4>
                      </div>
+                     <Badge variant="outline" className={cn("border-2 font-black uppercase text-[10px] px-3 py-1", metrics.riskColor, metrics.riskColor.replace('text', 'border'))}>
+                        {metrics.riskLabel}
+                     </Badge>
                   </div>
                   <div className="h-3 w-full bg-secondary rounded-full overflow-hidden shadow-inner">
-                    <div className={cn("h-full transition-all duration-1000", metrics.riskScore > 60 ? "bg-red-500" : metrics.riskScore > 30 ? "bg-orange-500" : "bg-emerald-500")} style={{ width: `${metrics.riskScore}%` }} />
+                    <div className={cn("h-full transition-all duration-1000", metrics.riskColor.replace('text', 'bg'))} style={{ width: `${metrics.riskScore}%` }} />
                   </div>
                </section>
                <section className="premium-card p-8 h-[440px] flex flex-col">
