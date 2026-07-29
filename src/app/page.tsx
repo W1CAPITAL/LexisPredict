@@ -165,24 +165,46 @@ export default function Dashboard() {
           
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
-               {(metrics.updatedInCourt > 0 || metrics.closedInCourt > 0) && (
-                 <section className="bg-amber-50 border-2 border-amber-200 p-6 rounded-2xl flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl">
-                          <Zap size={24} />
-                       </div>
-                       <div>
-                          <h3 className="font-black uppercase text-sm">Alerta de Vigilância DataJud</h3>
-                          <p className="text-[10px] font-bold uppercase text-amber-700/60">
-                            {metrics.updatedInCourt} processos com novos movimentos e {metrics.closedInCourt} identificados como encerrados na base do CNJ.
-                          </p>
-                       </div>
-                    </div>
-                    <Button asChild variant="outline" className="border-amber-200 text-amber-700 font-black uppercase text-[10px] h-10 px-6 rounded-xl hover:bg-amber-100">
-                       <Link href="/cases?filter=updated">Ver Auditoria</Link>
+               {/* BLOCO DE TELEMETRIA DATAJUD (ESTILO RELATÓRIO) */}
+               <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] mb-8 group transition-all">
+                  <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
+                    <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
+                       <Zap className="text-primary animate-pulse" size={16}/> Telemetria Forense (DataJud)
+                    </h3>
+                    <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Auditoria Ativa</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                     <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Andamentos Judiciais não atendidos</p>
+                        <div className="flex items-baseline gap-4">
+                           <span className="text-4xl font-black tabular-nums tracking-tighter">
+                             {metrics.updatedInCourt} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                           </span>
+                           <span className="text-xl font-black text-primary tabular-nums">({metrics.updatedInCourtRate}%)</span>
+                        </div>
+                        <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
+                          Métrica de vigilância: processos com movimentos novos após o último contato.
+                        </p>
+                     </div>
+                     <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Baixas identificadas no Tribunal</p>
+                        <div className="flex items-baseline gap-4">
+                           <span className="text-4xl font-black tabular-nums tracking-tighter">
+                             {metrics.closedInCourt} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                           </span>
+                           <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.closedInCourtRate}%)</span>
+                        </div>
+                        <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
+                          Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.
+                        </p>
+                     </div>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-white/5 flex justify-end">
+                    <Button asChild variant="ghost" className="h-8 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
+                       <Link href="/cases?filter=updated">Auditar Processos <ArrowRight size={12} className="ml-2" /></Link>
                     </Button>
-                 </section>
-               )}
+                  </div>
+               </section>
 
                <section className="premium-card p-8 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:scale-110 transition-transform pointer-events-none">
@@ -248,7 +270,6 @@ export default function Dashboard() {
                       <thead className="bg-card border-b border-border/30">
                         <tr className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
                           <th className="px-8 py-4">Tribunal</th>
-                          <th className="px-8 py-4">Titular</th>
                           <th className="px-8 py-4 text-right">Status</th>
                         </tr>
                       </thead>
