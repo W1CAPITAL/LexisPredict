@@ -97,9 +97,11 @@ export default function Dashboard() {
     // Alertas DataJud baseados em ativos
     const updatedInCourt = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
     const closedInCourt = ativos.filter(c => c.datajud_encerrado_tribunal).length;
+    const baInCourt = ativos.filter(c => c.indicio_busca_apreensao).length;
 
     const rateUpdated = activeTotal > 0 ? Math.round((updatedInCourt / activeTotal) * 100) : 0;
     const rateClosed = activeTotal > 0 ? Math.round((closedInCourt / activeTotal) * 100) : 0;
+    const rateBA = activeTotal > 0 ? Math.round((baInCourt / activeTotal) * 100) : 0;
    
     const riskSum = (vencidos * 1.0) + (venceHoje * 0.8) + (atencao * 0.5) + (noPrazo * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -126,7 +128,8 @@ export default function Dashboard() {
       activeTotal, vencidos, venceHoje, atencao, noPrazo, 
       riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos, pctAtencao,
       updatedInCourt, updatedInCourtRate: rateUpdated,
-      closedInCourt, closedInCourtRate: rateClosed
+      closedInCourt, closedInCourtRate: rateClosed,
+      baInCourt, baInCourtRate: rateBA
     };
   }, [cases, t]);
 
@@ -181,7 +184,7 @@ export default function Dashboard() {
                     </h3>
                     <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Auditoria Ativa</Badge>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                      <div className="space-y-3">
                         <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Andamentos Judiciais não atendidos</p>
                         <div className="flex items-baseline gap-4">
@@ -204,6 +207,18 @@ export default function Dashboard() {
                         </div>
                         <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
                           Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.
+                        </p>
+                     </div>
+                     <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Indícios de Busca e Apreensão</p>
+                        <div className="flex items-baseline gap-4">
+                           <span className="text-4xl font-black tabular-nums tracking-tighter">
+                             {metrics.baInCourt} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                           </span>
+                           <span className="text-xl font-black text-red-400 tabular-nums">({metrics.baInCourtRate}%)</span>
+                        </div>
+                        <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
+                          Riscos possessórios detectados via análise neural de movimentos e processos relacionados.
                         </p>
                      </div>
                   </div>
