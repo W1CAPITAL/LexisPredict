@@ -221,10 +221,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       }));
     }
 
-    // Recursão controlada para estabilidade (500ms)
+    // Recursão controlada para estabilidade (1.5 segundos entre chamadas)
     const nextState = get();
     if (nextState.status === 'running' && nextState.currentIndex < nextState.queue.length) {
-      setTimeout(() => get().processNext(), 500);
+      setTimeout(() => get().processNext(), 1500);
     } else if (nextState.currentIndex >= nextState.queue.length) {
       set({ status: 'done' });
       localStorage.removeItem(STORAGE_KEY);
