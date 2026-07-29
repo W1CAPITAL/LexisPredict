@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -28,7 +27,8 @@ import {
   Building2,
   AlertCircle,
   FileSearch,
-  FileDown
+  FileDown,
+  ShieldAlert
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -86,6 +86,19 @@ const CaseRow = React.memo(({
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground font-black text-[13px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
+            
+            {c.indicio_busca_apreensao && (
+              <Badge 
+                title={`${c.busca_apreensao_motivo} (Confiança: ${c.busca_apreensao_confianca})`}
+                className={cn(
+                  "h-5 px-2 rounded-md font-black uppercase text-[8px] animate-bounce border-2",
+                  c.busca_apreensao_confianca === 'alta' ? "bg-red-600 text-white border-red-800" : "bg-amber-500 text-black border-amber-700"
+                )}
+              >
+                <ShieldAlert size={10} className="mr-1" /> BUSCA E APREENSÃO
+              </Badge>
+            )}
+
             {c.datajud_encerrado_tribunal && (
               <Badge 
                 title={c.datajud_encerrado_motivo || "Encerrado no Tribunal"}
@@ -94,6 +107,7 @@ const CaseRow = React.memo(({
                 Encerrado Tribunal
               </Badge>
             )}
+
             {c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal && (
               <Badge 
                 title={c.datajud_ultimo_nome || "Novo andamento identificado"}
@@ -268,7 +282,6 @@ function CasesContent() {
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);
-        // Atualizar store global instantaneamente para refletir badges
         if (res.casePatch) {
           updateCaseByProtocolo(caseItem.protocolo, res.casePatch);
         } else if (res.case) {
@@ -316,9 +329,8 @@ function CasesContent() {
       const savedThreshold = localStorage.getItem('lexisPredict_urgency_alert');
       const thresholds = { alertLimit: savedThreshold ? parseInt(savedThreshold) : 3 };
       
-      // Montagem do payload preservando metadados e flags já auditados
       const rawData = {
-        ...editingCase, // Preserva id, db_id, created_by, escritorio e todos os campos datajud_*
+        ...editingCase,
         cliente: formState.cliente,
         protocolo: formState.protocolo,
         advogado: formState.advogado,
@@ -331,8 +343,6 @@ function CasesContent() {
       };
 
       const processed = processarCaso(rawData, thresholds);
-
-      // Salvar APENAS o registro atualizado (atômico)
       const result = await syncRepoCases([processed]);
       
       if (result.success) {
@@ -392,7 +402,7 @@ function CasesContent() {
                             (c.protocolo || '').includes(deferredSearch);
       
       const matchesOffice = officeFilter === 'all' || c.escritorio === officeFilter;
-      const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && (c.tem_atualizacao_pos_retorno || c.datajud_encerrado_tribunal));
+      const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && (c.tem_atualizacao_pos_retorno || c.datajud_encerrado_tribunal || c.indicio_busca_apreensao));
       
       const isEncerrado = isCasoEncerrado(c);
       let pass = matchesSearch && matchesOffice && matchesQuick;
@@ -411,7 +421,7 @@ function CasesContent() {
     const headers = [
       'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
       'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
-      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'PROB_ENCERRAMENTO'
+      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'PROB_ENCERRAMENTO'
     ];
 
     const rows = filtered.map(c => {
@@ -435,6 +445,7 @@ function CasesContent() {
         c.telefone || '',
         c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
         c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
+        c.indicio_busca_apreensao ? 'SIM' : 'NÃO',
         `${prob}%`
       ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
     });
@@ -605,7 +616,6 @@ function CasesContent() {
                       }} 
                       onDelete={async (id) => {
                         if (confirm('Excluir definitivamente?')) {
-                          // Aqui ainda mandamos o remove no store, mas o server action de delete deve existir
                           setCases(cases.filter(item => item.id !== id));
                           toast({ title: "Removido" });
                         }
@@ -623,7 +633,6 @@ function CasesContent() {
           </div>
         </div>
 
-        {/* Modal de Cronologia DataJud */}
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
             <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
@@ -645,6 +654,9 @@ function CasesContent() {
                        <p className="text-sm font-black uppercase">{historyResult?.case.cliente}</p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
+                      {historyResult?.case.indicio_busca_apreensao && (
+                        <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício Busca e Apreensão</Badge>
+                      )}
                       {historyResult?.case.datajud_encerrado_tribunal && (
                         <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
                       )}
