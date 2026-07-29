@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -14,7 +15,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/li
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v200.0 ELITE - Auditoria Blindada de Encerramento
+ * @fileOverview Actions de Processos v210.0 ELITE - Sincronia com Telemetria e Retries
  */
 
 export async function fetchRepoCases() {
@@ -64,7 +65,7 @@ export async function scanOneDataJudAction(protocolo: string) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id || !auth_id) {
-       return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada — faça login" };
+       return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada" };
     }
 
     const cases = await getStoredCasesForEmpresa(empresa_id);
@@ -72,6 +73,7 @@ export async function scanOneDataJudAction(protocolo: string) {
     if (!target) return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
 
     const dataJud = await fetchDataJud(protocolo);
+    const attempts = dataJud?.attempts || 1;
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
@@ -95,18 +97,17 @@ export async function scanOneDataJudAction(protocolo: string) {
       const updatedCase: LegalCase = { ...target, ...patch };
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
-      let msg = "Auditado";
+      let msg = attempts > 1 ? `Auditado (Recuperado na T${attempts})` : "Auditado";
       let tipo = 'sem_novidade';
       
-      // PRIORIDADE DE MENSAGEM: ENCERRAMENTO > BUSCA E APREENSÃO > NOVO ANDAMENTO
       if (enc.encerrado) {
-        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
+        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}${attempts > 1 ? ` (T${attempts})` : ''}`;
         tipo = 'encerrado';
       } else if (ba.indicio && ba.confianca === 'alta') {
-        msg = `⚠ ALERTA BUSCA E APREENSÃO DETECTADA`;
+        msg = `⚠ ALERTA BUSCA E APREENSÃO DETECTADA${attempts > 1 ? ` (T${attempts})` : ''}`;
         tipo = 'novo_andamento';
       } else if (check.alerta) {
-        msg = `NOVO ANDAMENTO — ${check.nomeUltimo}`;
+        msg = `NOVO ANDAMENTO — ${check.nomeUltimo}${attempts > 1 ? ` (T${attempts})` : ''}`;
         tipo = 'novo_andamento';
       }
       
@@ -117,14 +118,22 @@ export async function scanOneDataJudAction(protocolo: string) {
         alerta: check.alerta || ba.indicio, 
         encerrado: enc.encerrado,
         message: msg,
-        casePatch: patch
+        casePatch: patch,
+        attempts
       };
     }
     
-    return { success: false, protocolo, tipo: 'erro', message: `Falha — ${dataJud?.message || "Erro no tribunal"}`, error: true };
+    return { 
+      success: false, 
+      protocolo, 
+      tipo: 'erro', 
+      message: `Falha Final — ${dataJud?.message || "Erro no tribunal"}`, 
+      error: true, 
+      isAuthError: dataJud?.isAuthError,
+      attempts
+    };
   } catch (e: any) {
-    const isAuthError = e.message?.includes('400') || e.message?.includes('401') || e.message?.includes('refresh_token');
-    return { success: false, protocolo, tipo: 'erro', message: isAuthError ? "Sessão expirada" : `Falha técnica`, error: true, isAuthError };
+    return { success: false, protocolo, tipo: 'erro', message: `Falha técnica`, error: true };
   }
 }
 
