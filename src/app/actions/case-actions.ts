@@ -204,6 +204,8 @@ export async function clearDataJudAuditAction() {
       datajud_encerrado_tribunal: false,
       datajud_encerrado_motivo: null,
       datajud_consultado_em: null,
+      datajud_ultimo_movimento: null,
+      datajud_ultimo_nome: null,
       indicio_busca_apreensao: false,
       busca_apreensao_confianca: null,
       busca_apreensao_motivo: null,
