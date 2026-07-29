@@ -61,7 +61,7 @@ export async function fetchTeamPerformanceAction() {
   }
 }
 
-export async function scanOneDataJudAction(protocolo: string) {
+export async function scanOneDataJudAction(protocolo: string, noRetry = false) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id || !auth_id) {
@@ -72,7 +72,8 @@ export async function scanOneDataJudAction(protocolo: string) {
     const target = cases.find(c => c.protocolo === protocolo);
     if (!target) return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
 
-    const dataJud = await fetchDataJud(protocolo);
+    // fetchDataJud agora aceita o parâmetro noRetry para pular esperas em casos de baixa prioridade
+    const dataJud = await fetchDataJud(protocolo, 1, noRetry);
     const attempts = dataJud?.attempts || 1;
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
@@ -127,7 +128,7 @@ export async function scanOneDataJudAction(protocolo: string) {
       success: false, 
       protocolo, 
       tipo: 'erro', 
-      message: `Falha Final — ${dataJud?.message || "Erro no tribunal"}`, 
+      message: dataJud?.message || "Erro no tribunal", 
       error: true, 
       isAuthError: dataJud?.isAuthError,
       attempts
