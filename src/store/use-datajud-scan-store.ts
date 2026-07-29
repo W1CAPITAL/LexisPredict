@@ -1,8 +1,8 @@
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.7
- * Otimizado com RETRIES, BACKOFF e LOGS INFINITOS PERSISTENTES.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v1.8
+ * Otimizado com RETRIES, BACKOFF, LOGS INFINITOS e DUPLA PASSAGEM DE RECUPERAÇÃO.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -18,6 +18,7 @@ interface ScanLog {
   alerta?: boolean;
   encerrado?: boolean;
   attempts?: number;
+  isPass2?: boolean;
 }
 
 interface DataJudScanState {
@@ -25,7 +26,9 @@ interface DataJudScanState {
   scope: ScanScope;
   isMinimized: boolean;
   isAuthPaused: boolean;
+  isSecondPass: boolean;
   queue: string[];
+  failedQueue: string[];
   currentIndex: number;
   total: number;
   done: number;
@@ -53,7 +56,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   scope: 'resume',
   isMinimized: true,
   isAuthPaused: false,
+  isSecondPass: false,
   queue: [],
+  failedQueue: [],
   currentIndex: 0,
   total: 0,
   done: 0,
@@ -72,6 +77,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const data = JSON.parse(saved);
         set({ 
           queue: data.queue || [], 
+          failedQueue: data.failedQueue || [],
+          isSecondPass: data.isSecondPass || false,
           currentIndex: data.currentIndex || 0,
           total: data.total || 0,
           done: data.done || 0,
@@ -91,8 +98,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       status: 'running',
       isMinimized: false,
       isAuthPaused: false,
-      scope,
+      isSecondPass: false,
       queue: protocolos,
+      failedQueue: [],
       total: protocolos.length,
       currentIndex: 0,
       done: 0,
@@ -124,7 +132,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   cancelScan: () => {
-    set({ status: 'cancelled', queue: [] });
+    set({ status: 'cancelled', queue: [], failedQueue: [] });
     localStorage.removeItem(STORAGE_KEY);
   },
 
@@ -138,16 +146,41 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       errors: 0,
       logs: [],
       queue: [],
+      failedQueue: [],
+      isSecondPass: false,
       isAuthPaused: false
     });
     localStorage.removeItem(STORAGE_KEY);
   },
 
   processNext: async () => {
-    const { status, queue, currentIndex } = get();
+    const { status, queue, currentIndex, isSecondPass } = get();
 
+    // Verificação de fim de fila e transição para Passagem 2
     if (status !== 'running' || currentIndex >= queue.length) {
       if (currentIndex >= queue.length && queue.length > 0 && status === 'running') {
+        const { failedQueue } = get();
+        
+        if (failedQueue.length > 0 && !isSecondPass) {
+          // Transição Automática para 2ª Passagem
+          const pass2Logs = [{
+            protocolo: 'SISTEMA',
+            status: 'warning',
+            message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas técnicos.`
+          }, ...get().logs];
+
+          set({
+            queue: failedQueue,
+            failedQueue: [],
+            currentIndex: 0,
+            isSecondPass: true,
+            logs: pass2Logs
+          });
+          
+          setTimeout(() => get().processNext(), 1500);
+          return;
+        }
+
         set({ status: 'done' });
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -166,6 +199,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         } catch (e) {}
       }
 
+      // Pausa apenas em erro de autenticação (sessão expirada)
       if (!result.success && result.isAuthError) {
         set({ status: 'paused', isAuthPaused: true });
         set((state) => ({
@@ -181,26 +215,56 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const newLogs = [{
         protocolo: protocolo,
         status: result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error',
-        message: result.message || "Auditado",
+        message: (isSecondPass ? "[P2] " : "") + (result.message || "Auditado"),
         alerta: result.alerta,
         encerrado: result.encerrado,
-        attempts: result.attempts
+        attempts: result.attempts,
+        isPass2: isSecondPass
       }, ...get().logs];
+
+      // Lógica de Contadores com Suporte a Recuperação em Passagem 2
+      let nextErrors = get().errors;
+      let nextAlerts = get().alerts;
+      let nextClosed = get().closed;
+      let nextDone = get().done;
+      const nextFailedQueue = [...get().failedQueue];
+
+      if (!isSecondPass) {
+        nextDone++;
+        if (!result.success) {
+          nextErrors++;
+          nextFailedQueue.push(protocolo); // Coleta para reprocessamento
+        } else {
+          if (result.alerta) nextAlerts++;
+          if (result.encerrado) nextClosed++;
+        }
+      } else {
+        // Na Passagem 2, sucesso recupera erro da Passagem 1
+        if (result.success) {
+          nextErrors = Math.max(0, nextErrors - 1);
+          if (result.alerta) nextAlerts++;
+          if (result.encerrado) nextClosed++;
+        }
+        // Falha na Passagem 2 permanece como erro (não faz nada)
+      }
 
       const newState = {
         currentIndex: currentIndex + 1,
-        done: get().done + 1,
-        alerts: result.alerta ? get().alerts + 1 : get().alerts,
-        closed: result.encerrado ? get().closed + 1 : get().closed,
-        errors: (!result.success && !result.isAuthError) ? get().errors + 1 : get().errors,
+        done: nextDone,
+        alerts: nextAlerts,
+        closed: nextClosed,
+        errors: nextErrors,
+        failedQueue: nextFailedQueue,
         logs: newLogs
       };
 
       set(newState);
 
-      // Persistir progresso com logs infinitos
+      // Persistir progresso total
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         queue: queue,
+        failedQueue: nextFailedQueue,
+        isSecondPass: isSecondPass,
         currentIndex: newState.currentIndex,
         total: get().total,
         done: newState.done,
@@ -213,10 +277,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       }));
 
     } catch (e: any) {
+      // Erro de infraestrutura não para o lote
+      const nextFailedQueue = [...get().failedQueue];
+      if (!isSecondPass) nextFailedQueue.push(protocolo);
+
       set((state) => ({
         currentIndex: state.currentIndex + 1,
-        done: state.done + 1,
-        errors: state.errors + 1,
+        done: isSecondPass ? state.done : state.done + 1,
+        errors: isSecondPass ? state.errors : state.errors + 1,
+        failedQueue: nextFailedQueue,
         logs: [{
           protocolo,
           status: 'error',
@@ -226,12 +295,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     }
 
     const nextState = get();
-    if (nextState.status === 'running' && nextState.currentIndex < nextState.queue.length) {
-      // Intervalo de 1.5s entre protocolos diferentes para não sobrecarregar a API
+    if (nextState.status === 'running') {
+      // Intervalo de segurança 1.5s
       setTimeout(() => get().processNext(), 1500);
-    } else if (nextState.currentIndex >= nextState.queue.length) {
-      set({ status: 'done' });
-      // Mantemos o progresso no localStorage para permitir o "reset" manual do operador
     }
   }
 }));
