@@ -91,7 +91,7 @@ export default function UnifiedReport() {
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
     
-    const countVencido = ativos.filter(c => c.status === 'Vencido').length;
+    const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
@@ -142,7 +142,7 @@ export default function UnifiedReport() {
       if (isAtivo) {
         offices[officeName].ativos++;
         lawyers[lawyerName].ativos++;
-        if (c.status === 'Vencido') { offices[officeName].vencidos++; lawyers[lawyerName].vencidos++; }
+        if (c.status === 'Vencido' || c.status === 'Caso Crítico') { offices[officeName].vencidos++; lawyers[lawyerName].vencidos++; }
         if (c.status === 'É Hoje') { offices[officeName].hoje++; lawyers[lawyerName].hoje++; }
         if (c.status === 'Atenção') { offices[officeName].atencao++; lawyers[lawyerName].atencao++; }
       }
@@ -169,7 +169,7 @@ export default function UnifiedReport() {
 
   const prioritaryCases = useMemo(() => {
     return cases
-      .filter(c => ["Vencido", "É Hoje", "Atenção"].includes(c.status) && !isCasoEncerrado(c))
+      .filter(c => ["Vencido", "É Hoje", "Atenção", "Caso Crítico"].includes(c.status) && !isCasoEncerrado(c))
       .sort((a, b) => (a.diasFaltando || 0) - (b.diasFaltando || 0))
       .slice(0, 50);
   }, [cases]);
@@ -434,6 +434,7 @@ function KpiCard({ icon, label, value, accent, highlight = false }: { icon: Reac
 
 function StatusPill({ label, count, total, color }: { label: string; count: number; total: number; color: string; }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const isTotalBase = label === "Ativos Totais";
   return (
     <div className="bg-white border-2 border-black p-4 shadow-[3px_3px_0px_#000]">
       <div className="flex items-center justify-between mb-3">
@@ -443,7 +444,9 @@ function StatusPill({ label, count, total, color }: { label: string; count: numb
       <div className="h-2 w-full bg-gray-100 border border-black overflow-hidden">
         <div className={cn("h-full", color)} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-[8px] font-black text-black/30 mt-2 tabular-nums">{pct}% DA CARTEIRA</p>
+      <p className="text-[8px] font-black text-black/30 mt-2 tabular-nums">
+        {pct}% {isTotalBase ? "DA CARTEIRA TOTAL" : "DA CARTEIRA ATIVA"}
+      </p>
     </div>
   );
 }
