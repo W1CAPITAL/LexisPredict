@@ -29,24 +29,33 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     'TRANSITO EM JULGADO', 'TRÂNSITO EM JULGADO',
     'CANCELAMENTO DA DISTRIBUICAO', 'CANCELAMENTO DA DISTRIBUIÇÃO', 'CANCELADA A DISTRIBUIÇÃO',
     'SEM RESOLUÇÃO DO MÉRITO', 'SEM RESOLUCAO DO MERITO',
-    'HOMOLOGAÇÃO DE DESISTÊNCIA', 'HOMOLOGACAO DE DESISTENCIA'
+    'HOMOLOGAÇÃO DE DESISTÊNCIA', 'HOMOLOGACAO DE DESISTENCIA',
+    'ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVAMENTO', 'PROCESSO BAIXADO'
   ];
 
   for (const mov of recentMovs) {
+    const nomeRaw = (mov.nome || "").toUpperCase().trim();
     const texto = `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
     
+    // Regra para DEFINITIVO: Isolado (comum em arquivamento) ou acompanhado de ritos de baixa
+    const hasDefinitivoContext = (texto.includes('DEFINITIVO') && (texto.includes('ARQUIV') || texto.includes('BAIXA') || texto.includes('BAIXADO') || texto.includes('EXTINTO')));
+    const isDefinitivoIsolated = nomeRaw === 'DEFINITIVO';
+    const isDefinitivoReal = hasDefinitivoContext || isDefinitivoIsolated;
+
     // Verificação de match por palavra-chave
     const match = keywords.find(k => texto.includes(k));
     
-    if (match) {
-      // Regra especial: Baixa Provisória sozinha não encerra, precisa de Arquiv/Extinto
+    if (isDefinitivoReal || match) {
+      const motivoReal = isDefinitivoReal ? 'DEFINITIVO / ARQUIVAMENTO' : match!;
+      
+      // Regra especial: Baixa Provisória sozinha não encerra, precisa de Arquiv/Extinto/Definitivo
       if (texto.includes('PROVISÓRIA') || texto.includes('PROVISORIA')) {
-        if (texto.includes('ARQUIV') || texto.includes('EXTINTO')) {
-          return { encerrado: true, motivo: match };
+        if (texto.includes('ARQUIV') || texto.includes('EXTINTO') || texto.includes('DEFINITIVO')) {
+          return { encerrado: true, motivo: motivoReal };
         }
         continue;
       }
-      return { encerrado: true, motivo: match };
+      return { encerrado: true, motivo: motivoReal };
     }
   }
 
