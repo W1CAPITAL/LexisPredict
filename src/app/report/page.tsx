@@ -97,7 +97,7 @@ export default function UnifiedReport() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => !c.proximoPrazo).length;
     
-    // Métricas DataJud baseadas nos ativos
+    // Métricas DataJud baseadas nos ativos (Mesmo rito do Dashboard)
     const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
     const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => c.indicio_busca_apreensao).length;
@@ -236,7 +236,7 @@ export default function UnifiedReport() {
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Andamentos Judiciais não atendidos</p>
                       <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento} de {metrics.activeTotal}</span>
+                         <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
                          <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
                       </div>
                       <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de vigilância: processos com movimentos novos após o último contato.</p>
@@ -244,7 +244,7 @@ export default function UnifiedReport() {
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Baixas identificadas no Tribunal</p>
                       <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countEncerradoTribunal} de {metrics.activeTotal}</span>
+                         <span className="text-4xl font-black tabular-nums">{metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
                          <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
                       </div>
                       <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.</p>
@@ -252,7 +252,7 @@ export default function UnifiedReport() {
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Busca e Apreensão Detectada</p>
                       <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countBA} de {metrics.activeTotal}</span>
+                         <span className="text-4xl font-black tabular-nums">{metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
                          <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
                       </div>
                       <p className="text-[8px] font-bold uppercase italic opacity-40">Indícios de Busca e Apreensão detectados via auditoria CNJ (protocolo do processo).</p>
