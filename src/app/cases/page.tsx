@@ -150,16 +150,37 @@ const CaseRow = React.memo(({
         </div>
       </td>
       <td className="px-8 py-5">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg border border-border/50 flex items-center justify-center bg-secondary/50 group-hover:bg-background transition-all">
-            <CheckCircle2 size={16} className="text-emerald-500" />
+        <div className="flex flex-col gap-4">
+          {/* Retorno Manual */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg border border-border/50 flex items-center justify-center bg-secondary/50 group-hover:bg-background transition-all">
+              <CheckCircle2 size={16} className="text-emerald-500" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[9px] font-black text-muted-foreground uppercase leading-none mb-1 tracking-widest">Retorno</span>
+              <span className="text-[11px] text-foreground font-bold uppercase whitespace-nowrap">
+                {c.ultimoRetorno || 'S/ Atendimento'}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black text-muted-foreground uppercase leading-none mb-1">Retorno</span>
-            <span className="text-[11px] text-foreground font-bold uppercase whitespace-nowrap">
-              {c.ultimoRetorno || 'S/ Atendimento'}
-            </span>
-          </div>
+
+          {/* Última Movimentação DataJud (Visível) */}
+          {c.datajud_ultimo_nome && (
+            <div className="flex items-center gap-3 pl-0.5">
+              <div className="w-7 h-7 rounded-lg border border-border/30 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-all">
+                <History size={14} className="text-primary/60" />
+              </div>
+              <div className="flex flex-col max-w-[180px]">
+                <span className="text-[8px] font-black text-primary/60 uppercase leading-none mb-1 tracking-widest">Mov. Tribunal</span>
+                <span className="text-[10px] text-foreground font-black uppercase truncate leading-tight" title={c.datajud_ultimo_nome}>
+                  {c.datajud_ultimo_nome}
+                </span>
+                <span className="text-[8px] font-mono text-muted-foreground/60 mt-0.5">
+                  {c.datajud_ultimo_movimento ? format(new Date(c.datajud_ultimo_movimento), 'dd/MM/yyyy') : 'S/ Data'}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </td>
       <td className="px-8 py-5 text-right">
@@ -422,7 +443,8 @@ function CasesContent() {
     const headers = [
       'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
       'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
-      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'PROB_ENCERRAMENTO'
+      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'PROB_ENCERRAMENTO',
+      'DATAJUD_ULTIMO_MOV', 'DATAJUD_DATA_MOV'
     ];
 
     const rows = filtered.map(c => {
@@ -447,7 +469,9 @@ function CasesContent() {
         c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
         c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
         c.indicio_busca_apreensao ? 'SIM' : 'NÃO',
-        `${prob}%`
+        `${prob}%`,
+        c.datajud_ultimo_nome || '',
+        c.datajud_ultimo_movimento ? format(new Date(c.datajud_ultimo_movimento), 'dd/MM/yyyy') : ''
       ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
     });
 
@@ -588,7 +612,7 @@ function CasesContent() {
                     <th className="px-8 py-5">Tribunal</th>
                     <th className="px-8 py-5">Advocacia</th>
                     <th className="px-8 py-5">Prazo Final</th>
-                    <th className="px-8 py-5">Último Atendimento</th>
+                    <th className="px-8 py-5">Contatos & Tribunal</th>
                     <th className="px-8 py-5 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -669,7 +693,11 @@ function CasesContent() {
                  <ScrollArea className="h-[450px] bg-white">
                     <div className="p-6 space-y-6">
                       {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                        [...historyResult.movimentos].sort((a,b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()).map((m, i) => (
+                        [...historyResult.movimentos].sort((a,b) => {
+                          const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
+                          const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
+                          return dateB - dateA;
+                        }).map((m, i) => (
                           <div key={i} className="flex gap-6 relative group">
                              {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
                              <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
