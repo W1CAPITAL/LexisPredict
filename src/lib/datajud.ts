@@ -1,7 +1,7 @@
 
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v2950.0 ELITE
- * Otimizado com Retries de Backoff Exponencial, Query Match e Timeouts robustos.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v3000.0 ELITE
+ * Otimizado com timeouts curtos (18s) e retry ágil para máxima fluidez de lote.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -42,7 +42,6 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
   }
 
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
-  const startTime = Date.now();
 
   try {
     const response = await fetch(url, {
@@ -59,7 +58,8 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
           }
         }
       }),
-      signal: AbortSignal.timeout(45000)
+      // Timeout reduzido para 18s para acelerar a fila em casos de falha crônica do tribunal
+      signal: AbortSignal.timeout(18000)
     });
 
     if (!response.ok) {
@@ -102,10 +102,11 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
     const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
     const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
 
-    if (isRetryable && attempt < 3) {
-      // Backoff Exponencial: 1s, 2s, 4s... com jitter
-      const waitTime = Math.pow(2, attempt - 1) * 1000 + (Math.random() * 300);
-      console.warn(`[DataJud] Falha na tentativa ${attempt} para ${cnjLimpo}. Retentando em ${Math.round(waitTime)}ms...`);
+    // Rito de Retry Agressivo: Máximo 2 tentativas totais para não travar o lote FULL
+    if (isRetryable && attempt < 2) {
+      // Backoff curto: 1s fixo + jitter leve
+      const waitTime = 1000 + (Math.random() * 300);
+      console.warn(`[DataJud] Falha T${attempt}. Retentando em ${Math.round(waitTime)}ms...`);
       await sleep(waitTime);
       return fetchDataJud(cnj, attempt + 1);
     }
