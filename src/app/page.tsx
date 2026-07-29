@@ -29,7 +29,9 @@ import {
   PieChart as PieChartIcon,
   Layers,
   Briefcase,
-  AlertTriangle
+  AlertTriangle,
+  History,
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -62,14 +64,6 @@ export default function Dashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    setMounted(true);
-    loadInsights();
-    const handleStorageUpdate = () => loadInsights();
-    window.addEventListener('lexis-insights-updated', handleStorageUpdate);
-    return () => window.removeEventListener('lexis-insights-updated', handleStorageUpdate);
-  }, [loadInsights]);
-
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -84,20 +78,27 @@ export default function Dashboard() {
   }, [setCases, updateLastSync]);
 
   useEffect(() => {
-    if (mounted && cases.length === 0) loadData();
-  }, [mounted, cases.length, loadData]);
+    setMounted(true);
+    loadInsights();
+    loadData(); // FORÇA REFRESH AO ENTRAR - ALINHAMENTO v270.0
+
+    const handleStorageUpdate = () => loadInsights();
+    window.addEventListener('lexis-insights-updated', handleStorageUpdate);
+    return () => window.removeEventListener('lexis-insights-updated', handleStorageUpdate);
+  }, [loadInsights, loadData]);
 
   const metrics = useMemo(() => {
     const totalRepo = cases.length;
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
-    // Categorias de Status dos Ativos (Soma deve ser == activeTotal)
+    // Categorias de Status dos Ativos (UNIFICAÇÃO DE MÉTRICAS v270.0)
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
-    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo' || !c.proximoPrazo).length;
+    // Sem Prazo estrito: apenas os que o motor classificou como Sem Prazo (Alinhado ao Dossiê)
+    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
     // Alertas DataJud baseados em ativos
     const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
@@ -108,7 +109,7 @@ export default function Dashboard() {
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
     const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
    
-    // Índice de Risco Global
+    // Índice de Risco Global (Baseado nos Ativos)
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
 
@@ -144,6 +145,19 @@ export default function Dashboard() {
       countBA, rateBA
     };
   }, [cases, t]);
+
+  const priorityQueue = useMemo(() => {
+    const criticalStatus = ['Caso Crítico', 'Vencido', 'É Hoje', 'Atenção'];
+    return cases
+      .filter(c => !isCasoEncerrado(c) && criticalStatus.includes(c.status))
+      .sort((a, b) => {
+        const order: Record<string, number> = { 'Caso Crítico': 0, 'Vencido': 1, 'É Hoje': 2, 'Atenção': 3 };
+        const diff = (order[a.status] ?? 99) - (order[b.status] ?? 99);
+        if (diff !== 0) return diff;
+        return (a.diasFaltando || 0) - (b.diasFaltando || 0); // Desempate por maior atraso
+      })
+      .slice(0, 6);
+  }, [cases]);
 
   if (!mounted) return null;
 
@@ -191,7 +205,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
                {/* TELEMETRIA DATAJUD */}
-               <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] mb-8 group transition-all">
+               <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] group transition-all">
                   <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
                     <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
                        <Zap className="text-primary animate-pulse" size={16}/> Telemetria Forense (DataJud)
@@ -240,6 +254,66 @@ export default function Dashboard() {
                     <Button asChild variant="ghost" className="h-8 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
                        <Link href="/cases?filter=updated">Auditar Processos <ArrowRight size={12} className="ml-2" /></Link>
                     </Button>
+                  </div>
+               </section>
+
+               {/* FILA DE PRIORIDADE (RESTAURADA v280.0) */}
+               <section className="premium-card overflow-hidden">
+                  <div className="bg-[#f8f9fb] px-8 py-5 border-b border-border/30 flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                        <Target size={18} className="text-primary" />
+                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Fila Prioritária de Contato</h3>
+                     </div>
+                     <Button asChild variant="ghost" className="h-8 text-[9px] font-black uppercase tracking-widest hover:text-primary">
+                        <Link href="/tarefas">Ver Fila Completa <ArrowRight size={12} className="ml-2"/></Link>
+                     </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                     <table className="w-full text-left">
+                        <thead className="bg-white border-b border-border/20">
+                           <tr className="text-[9px] font-black uppercase text-muted-foreground/60 tracking-widest">
+                              <th className="px-8 py-3">Cliente / Protocolo</th>
+                              <th className="px-8 py-3">Status</th>
+                              <th className="px-8 py-3">Último Movimento</th>
+                              <th className="px-8 py-3 text-right">Ação</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/10">
+                           {priorityQueue.map((c) => (
+                              <tr key={c.id} className="hover:bg-secondary/10 group transition-colors">
+                                 <td className="px-8 py-4">
+                                    <div className="flex flex-col">
+                                       <span className="text-[11px] font-black uppercase group-hover:text-primary transition-colors">{c.cliente}</span>
+                                       <span className="text-[8px] font-mono opacity-40">{c.protocolo}</span>
+                                    </div>
+                                 </td>
+                                 <td className="px-8 py-4">
+                                    <Badge variant="outline" className={cn(
+                                       "text-[8px] font-black uppercase px-2 py-0 border-none",
+                                       c.status === 'Caso Crítico' ? "bg-red-600 text-white animate-pulse" : 
+                                       c.status === 'Vencido' ? "bg-red-50 text-red-600" :
+                                       c.status === 'É Hoje' ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"
+                                    )}>
+                                       {c.status}
+                                    </Badge>
+                                 </td>
+                                 <td className="px-8 py-4">
+                                    <div className="flex items-center gap-2 max-w-[200px]">
+                                       <History size={12} className="text-muted-foreground/40 shrink-0" />
+                                       <span className="text-[9px] font-bold uppercase truncate opacity-60">
+                                          {c.datajud_ultimo_nome || "Sem histórico"}
+                                       </span>
+                                    </div>
+                                 </td>
+                                 <td className="px-8 py-4 text-right">
+                                    <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-lg group-hover:bg-primary group-hover:text-white transition-all">
+                                       <Link href={`/cases?search=${c.protocolo}`}><ExternalLink size={14}/></Link>
+                                    </Button>
+                                 </td>
+                              </tr>
+                           ))}
+                        </tbody>
+                     </table>
                   </div>
                </section>
 
@@ -293,63 +367,6 @@ export default function Dashboard() {
                   )}
                </section>
                
-               {/* FILA PRIORITÁRIA */}
-               <section className="premium-card overflow-hidden">
-                  <div className="px-8 py-6 border-b border-border/30 flex items-center justify-between bg-secondary/10">
-                     <div className="flex items-center gap-3">
-                       <Target size={18} className="text-red-500" />
-                       <h3 className="text-[11px] font-black uppercase tracking-[0.25em]">{t.priorityQueue}</h3>
-                     </div>
-                     <Link href="/tarefas" className="text-[10px] font-black uppercase text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors">
-                       Ver Fila <ArrowRight size={14} />
-                     </Link>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="bg-card border-b border-border/30">
-                        <tr className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
-                          <th className="px-8 py-4">Tribunal</th>
-                          <th className="px-8 py-4 text-right">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/20">
-                        {cases
-                          .filter(c => ['Vencido', 'É Hoje', 'Atenção', 'Caso Crítico'].includes(c.status) && !isCasoEncerrado(c))
-                          .sort((a, b) => {
-                            if (a.status === 'Caso Crítico' && b.status !== 'Caso Crítico') return -1;
-                            if (a.status !== 'Caso Crítico' && b.status === 'Caso Crítico') return 1;
-                            return (a.diasFaltando || 0) - (b.diasFaltando || 0);
-                          })
-                          .slice(0, 8)
-                          .map((c) => (
-                            <tr key={c.id} className="hover:bg-secondary/20 transition-colors group">
-                              <td className="px-8 py-5">
-                                <Badge variant="outline" className="text-[9px] font-black uppercase border-border/50 rounded-lg h-7 px-3 bg-background">{c.tribunal}</Badge>
-                              </td>
-                              <td className="px-8 py-5">
-                                <div className="flex flex-col">
-                                  <span className="font-bold uppercase text-[12px] text-foreground group-hover:text-primary transition-colors">{c.cliente}</span>
-                                  <span className="text-[9px] font-mono text-muted-foreground mt-0.5">{c.protocolo}</span>
-                                </div>
-                              </td>
-                              <td className="px-8 py-5 text-right">
-                                <span className={cn(
-                                  "text-[10px] font-black uppercase px-3 py-1 rounded-full",
-                                  c.status === 'Caso Crítico' ? "bg-red-600 text-white animate-pulse" :
-                                  c.status === 'Vencido' ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :
-                                  c.status === 'É Hoje' ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" :
-                                  "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400"
-                                )}>
-                                  {c.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-               </section>
-
                <OfficeStats cases={cases} />
             </div>
 
@@ -370,7 +387,7 @@ export default function Dashboard() {
                   </div>
                </section>
 
-               {/* DOSSIÊ OPERACIONAL (RESTAURADO) */}
+               {/* DOSSIÊ OPERACIONAL (UNIFICADO v270.0) */}
                <section className="space-y-4">
                   <div className="flex items-center gap-3 mb-2 px-2">
                     <Layers size={16} className="text-primary" />
@@ -387,7 +404,7 @@ export default function Dashboard() {
                   </div>
                </section>
 
-               {/* DISTRIBUIÇÃO OPERACIONAL (RESTAURADO) */}
+               {/* DISTRIBUIÇÃO OPERACIONAL */}
                <section className="premium-card p-8">
                   <div className="flex items-center gap-3 mb-8">
                     <PieChartIcon size={16} className="text-primary" />
@@ -395,7 +412,7 @@ export default function Dashboard() {
                   </div>
                   <div className="space-y-6">
                     <StatusPillDashboard label="Vencidos" count={metrics.countVencido} total={metrics.activeTotal} color="bg-red-500" />
-                    <StatusPillDashboard label="Vencem Hoje" count={metrics.countHoje} total={metrics.activeTotal} color="bg-blue-500" />
+                    <StatusPillDashboard label="Hoje" count={metrics.countHoje} total={metrics.activeTotal} color="bg-blue-500" />
                     <StatusPillDashboard label="Atenção" count={metrics.countAtencao} total={metrics.activeTotal} color="bg-orange-500" />
                     <StatusPillDashboard label="Saudáveis" count={metrics.countSaudavel} total={metrics.activeTotal} color="bg-emerald-500" />
                     <StatusPillDashboard label="Sem Prazo" count={metrics.countSemPrazo} total={metrics.activeTotal} color="bg-slate-400" />
