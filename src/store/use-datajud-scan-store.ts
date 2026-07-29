@@ -1,8 +1,8 @@
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.6
- * Otimizado com CONTINUIDADE PÓS-REFRESH e Blindagem de Sessão.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v1.7
+ * Otimizado com RETRIES, BACKOFF e LOGS INFINITOS PERSISTENTES.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -17,6 +17,7 @@ interface ScanLog {
   message: string;
   alerta?: boolean;
   encerrado?: boolean;
+  attempts?: number;
 }
 
 interface DataJudScanState {
@@ -76,8 +77,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           done: data.done || 0,
           alerts: data.alerts || 0,
           closed: data.closed || 0,
+          errors: data.errors || 0,
+          logs: data.logs || [],
           scope: data.scope || 'resume',
-          // Manter em idle após o load para o usuário escolher o que fazer
           status: 'idle'
         });
       } catch (e) {}
@@ -155,29 +157,35 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     const protocolo = queue[currentIndex];
 
     try {
+      // O retry com backoff acontece DENTRO desta action via fetchDataJud
       const result = await scanOneDataJudAction(protocolo);
 
       if (result.success && result.casePatch) {
-        // Tenta atualizar o store global em tempo real
         try {
           useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
-        } catch (e) {
-          console.warn("[Scanner] Falha ao atualizar UI em tempo real", e);
-        }
+        } catch (e) {}
       }
 
-      // Se for erro de autenticação crítico, pausar a fila
       if (!result.success && result.isAuthError) {
         set({ status: 'paused', isAuthPaused: true });
         set((state) => ({
            logs: [{
-             protocolo: 'AUTH_CRITICAL',
+             protocolo: 'SISTEMA',
              status: 'error',
-             message: result.message
-           }, ...state.logs].slice(0, 30)
+             message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
+           }, ...state.logs]
         }));
         return;
       }
+
+      const newLogs = [{
+        protocolo: protocolo,
+        status: result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error',
+        message: result.message || "Auditado",
+        alerta: result.alerta,
+        encerrado: result.encerrado,
+        attempts: result.attempts
+      }, ...get().logs];
 
       const newState = {
         currentIndex: currentIndex + 1,
@@ -185,18 +193,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         alerts: result.alerta ? get().alerts + 1 : get().alerts,
         closed: result.encerrado ? get().closed + 1 : get().closed,
         errors: (!result.success && !result.isAuthError) ? get().errors + 1 : get().errors,
-        logs: [{
-          protocolo: protocolo,
-          status: result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error',
-          message: result.message || "Auditado",
-          alerta: result.alerta,
-          encerrado: result.encerrado
-        }, ...get().logs].slice(0, 30)
+        logs: newLogs
       };
 
       set(newState);
 
-      // Persistir progresso atômico
+      // Persistir progresso com logs infinitos
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         queue: queue,
         currentIndex: newState.currentIndex,
@@ -204,6 +206,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         done: newState.done,
         alerts: newState.alerts,
         closed: newState.closed,
+        errors: newState.errors,
+        logs: newLogs,
         scope: get().scope,
         updatedAt: new Date().toISOString()
       }));
@@ -216,18 +220,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         logs: [{
           protocolo,
           status: 'error',
-          message: "Falha na rede ou timeout do CNJ"
-        }, ...state.logs].slice(0, 30)
+          message: "ERRO DE INFRAESTRUTURA."
+        }, ...state.logs]
       }));
     }
 
-    // Recursão controlada para estabilidade (1.5 segundos entre chamadas)
     const nextState = get();
     if (nextState.status === 'running' && nextState.currentIndex < nextState.queue.length) {
+      // Intervalo de 1.5s entre protocolos diferentes para não sobrecarregar a API
       setTimeout(() => get().processNext(), 1500);
     } else if (nextState.currentIndex >= nextState.queue.length) {
       set({ status: 'done' });
-      localStorage.removeItem(STORAGE_KEY);
+      // Mantemos o progresso no localStorage para permitir o "reset" manual do operador
     }
   }
 }));
