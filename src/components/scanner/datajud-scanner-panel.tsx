@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -92,6 +93,7 @@ export function DataJudScannerPanel() {
             if (c.datajud_encerrado_tribunal) return false;
             if (c.tem_atualizacao_pos_retorno) return false;
             const lastAudit = c.datajud_consultado_em ? new Date(c.datajud_consultado_em).getTime() : 0;
+            // Pular consultados nas últimas 24 horas para poupar API
             if (now - lastAudit < oneDay) return false;
             return true;
          })
