@@ -10,7 +10,7 @@ import { LegalCase } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Building2, TrendingUp, TrendingDown, CheckCircle2, Zap } from 'lucide-react';
+import { Building2, TrendingDown, Zap } from 'lucide-react';
 
 interface OfficeStatsProps {
   cases: LegalCase[];
@@ -29,7 +29,13 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
       score: number;
     }> = {};
 
+    // DEDUPE LOCAL PARA SEGURANÇA (Evita dezenas de milhares de registros fantasmas)
+    const uniqueMap = new Map<string, LegalCase>();
     cases.forEach(c => {
+      if (c && c.protocolo) uniqueMap.set(c.protocolo, c);
+    });
+
+    uniqueMap.forEach(c => {
       const officeName = (c.escritorio || "Sem Escritório").trim().toUpperCase();
       
       if (!groups[officeName]) {
@@ -51,7 +57,8 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
         group.encerrados++;
       } else {
         group.ativos++;
-        if (c.status === 'Vencido') {
+        // Status Vencido deve incluir Caso Crítico para bater com os cards
+        if (c.status === 'Vencido' || c.status === 'Caso Crítico') {
           group.vencidos++;
         } else if (['É Hoje', 'Atenção'].includes(c.status)) {
           group.alerta++;
@@ -138,7 +145,7 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
                       "text-xs font-black tabular-nums",
                       office.score > 0 ? "text-emerald-600" : "text-red-600"
                     )}>
-                      {office.score > 0 ? `+${office.score}` : office.score}
+                      {office.score > 0 ? `+${new Intl.NumberFormat('pt-BR').format(office.score)}` : new Intl.NumberFormat('pt-BR').format(office.score)}
                     </span>
                     <span className="text-[7px] font-bold text-muted-foreground uppercase">Authority Points</span>
                   </div>
