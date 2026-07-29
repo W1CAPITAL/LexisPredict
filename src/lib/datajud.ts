@@ -21,7 +21,7 @@ async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
+export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   
   if (cnjLimpo.length !== 20) {
@@ -102,20 +102,20 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
     const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
     const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
 
-    // Rito de Retry Agressivo: Máximo 2 tentativas totais para não travar o lote FULL
-    if (isRetryable && attempt < 2) {
-      // Backoff curto: 1s fixo + jitter leve
+    // Rito de Retry: Máximo 2 tentativas totais (1 inicial + 1 retry).
+    // Casos "Sem Prazo" não realizam retry para poupar tempo de lote.
+    if (isRetryable && attempt < 2 && !noRetry) {
       const waitTime = 1000 + (Math.random() * 300);
       console.warn(`[DataJud] Falha T${attempt}. Retentando em ${Math.round(waitTime)}ms...`);
       await sleep(waitTime);
-      return fetchDataJud(cnj, attempt + 1);
+      return fetchDataJud(cnj, attempt + 1, noRetry);
     }
 
     return { 
       numeroProcesso: cnjLimpo, 
       movimentos: [], 
       error: true, 
-      message: isTimeout ? "Tempo esgotado após retries." : "Falha na comunicação definitiva.",
+      message: isTimeout ? "Tempo esgotado." : "Falha na comunicação.",
       attempts: attempt
     };
   }
