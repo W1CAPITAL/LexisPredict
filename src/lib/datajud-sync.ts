@@ -45,8 +45,8 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     // Verificação de match por palavra-chave
     const match = keywords.find(k => texto.includes(k));
     
-    if (isDefinitivoReal || match) {
-      const motivoReal = isDefinitivoReal ? 'DEFINITIVO / ARQUIVAMENTO' : match!;
+    if (isDefinitivoReal || match || nomeRaw === 'BAIXA DEFINITIVA') {
+      const motivoReal = isDefinitivoReal ? 'DEFINITIVO / ARQUIVAMENTO' : (match || nomeRaw);
       
       // Regra especial: Baixa Provisória sozinha não encerra, precisa de Arquiv/Extinto/Definitivo
       if (texto.includes('PROVISÓRIA') || texto.includes('PROVISORIA')) {
