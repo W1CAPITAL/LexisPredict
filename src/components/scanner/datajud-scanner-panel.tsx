@@ -23,7 +23,8 @@ import {
   PlayCircle,
   Clock,
   ArrowRightCircle,
-  Copy
+  Copy,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -31,7 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases } from '@/app/actions/case-actions';
+import { fetchRepoCases, clearDataJudAuditAction } from '@/app/actions/case-actions';
 
 export function DataJudScannerPanel() {
   const { 
@@ -41,6 +42,7 @@ export function DataJudScannerPanel() {
   
   const { cases, setCases } = useAppStore();
   const [loadingCases, setLoadingCases] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -123,6 +125,44 @@ export function DataJudScannerPanel() {
     toast({ title: "Log Copiado", description: "O histórico da varredura está na área de transferência." });
   };
 
+  const handleClearAudit = async () => {
+    if (!confirm("Zera flags de novo andamento, encerrado no tribunal e busca e apreensão. Não altera status, prazo nem retorno. Continuar?")) return;
+    
+    setIsClearing(true);
+    try {
+      const res = await clearDataJudAuditAction();
+      if (res.success) {
+        // Clear localStorage
+        localStorage.removeItem('lexis_datajud_scan_v1');
+        
+        // Update memory store
+        const clearedCases = cases.map(c => ({
+          ...c,
+          tem_atualizacao_pos_retorno: false,
+          datajud_encerrado_tribunal: false,
+          datajud_encerrado_motivo: null,
+          datajud_consultado_em: null,
+          indicio_busca_apreensao: false,
+          busca_apreensao_confianca: null,
+          busca_apreensao_motivo: null,
+          busca_apreensao_consultado_em: null
+        }));
+        setCases(clearedCases);
+        
+        // Reset scan UI state
+        resetScan();
+        
+        toast({ title: "Auditoria Zerada", description: "Todos os sinalizadores foram removidos com sucesso." });
+      } else {
+        toast({ title: "Falha na Limpeza", description: "Erro ao comunicar com o repositório.", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Erro Crítico", variant: "destructive" });
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   if (isMinimized && status === 'idle') return null;
 
   if (isMinimized && status !== 'idle') {
@@ -165,22 +205,34 @@ export function DataJudScannerPanel() {
                 </Button>
               )}
 
-              <Button onClick={() => handleStart('resume')} disabled={loadingCases} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
+              <Button onClick={() => handleStart('resume')} disabled={loadingCases || isClearing} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
                 <PlayCircle size={16} className="mr-3 text-primary" /> Retomar (Pular já auditados)
               </Button>
               
-              <Button onClick={() => handleStart('critical')} disabled={loadingCases} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
+              <Button onClick={() => handleStart('critical')} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
                 <AlertCircle size={16} className="mr-3 text-red-600" /> Fila Crítica
               </Button>
               
-              <Button onClick={() => handleStart('full')} disabled={loadingCases} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
+              <Button onClick={() => handleStart('full')} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
                 <RefreshCcw size={16} className="mr-3 text-slate-400" /> Carteira Total
               </Button>
+
+              <div className="pt-4 border-t border-black/10 mt-2 space-y-2">
+                <Button 
+                  onClick={handleClearAudit} 
+                  disabled={isClearing || loadingCases} 
+                  variant="outline" 
+                  className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none hover:bg-red-50 hover:border-red-600 transition-all"
+                >
+                  {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />}
+                  Limpar Auditoria DataJud
+                </Button>
+                
+                {queue.length > 0 && (
+                   <Button onClick={resetScan} variant="ghost" className="w-full h-8 text-[8px] font-black uppercase text-black/40 hover:text-black">Limpar progresso da fila</Button>
+                )}
+              </div>
             </div>
-            
-            {queue.length > 0 && (
-               <Button onClick={resetScan} variant="ghost" className="w-full text-[9px] font-black uppercase text-red-600 hover:bg-red-50">Limpar progresso do dia</Button>
-            )}
           </div>
         ) : (
           <div className="space-y-6">
