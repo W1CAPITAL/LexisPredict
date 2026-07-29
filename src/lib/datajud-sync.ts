@@ -1,5 +1,5 @@
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.2
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.3
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -17,15 +17,17 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     return { encerrado: false, motivo: null };
   }
 
-  // Analisar os 5 movimentos mais recentes (dataHora DESC)
+  // Janela de auditoria expandida: Analisar os 15 movimentos mais recentes (dataHora DESC)
+  // Alguns ritos de extinção são seguidos por várias certidões/expedições de rotina.
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
   
-  const recentMovs = sorted.slice(0, 5);
+  const recentMovs = sorted.slice(0, 15);
 
   const keywords = [
     'ARQUIV', 'BAIXA DEFINITIVA', 'BAIXADO', 'EXTINTO', 'EXTINCAO', 'EXTINÇÃO',
+    'EXTINTO O PROCESSO', 'ABANDONO DA CAUSA', 'ABANDONO PELO AUTOR', 'EXTINTO POR ABANDONO',
     'TRANSITO EM JULGADO', 'TRÂNSITO EM JULGADO',
     'CANCELAMENTO DA DISTRIBUICAO', 'CANCELAMENTO DA DISTRIBUIÇÃO', 'CANCELADA A DISTRIBUIÇÃO',
     'SEM RESOLUÇÃO DO MÉRITO', 'SEM RESOLUCAO DO MERITO',
@@ -74,7 +76,7 @@ export function detectarAtualizacaoPosRetorno(
     return { alerta: false, dataUltimo: null, nomeUltimo: null };
   }
 
-  // Obter movimento mais recente
+  // Obter movimento mais recente (Sempre o #1 da lista cronológica)
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
