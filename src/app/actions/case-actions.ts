@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -12,9 +11,10 @@ import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/lib/datajud-sync';
+import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v150.0 ELITE - Estabilização de Auditoria Unitária e Scanner
+ * @fileOverview Actions de Processos v170.0 ELITE - Auditoria de Busca e Apreensão Integrada
  */
 
 export async function fetchRepoCases() {
@@ -33,9 +33,6 @@ export async function syncRepoCases(cases: LegalCase[]) {
   return await saveStoredCasesForEmpresa(cases, empresa_id);
 }
 
-/**
- * RECALIBRAGEM DE PRAZOS (MANTIDO CONFORME REQUISITOS)
- */
 export async function recalibrateCasesAction(alertLimit: number = 3) {
   try {
     const { empresa_id } = await getUserContext();
@@ -49,35 +46,25 @@ export async function recalibrateCasesAction(alertLimit: number = 3) {
   }
 }
 
-/**
- * BUSCA DE PERFORMANCE PARA RANKING (Bypass RLS)
- */
 export async function fetchTeamPerformanceAction() {
   try {
     const { empresa_id } = await getUserContext();
     if (!empresa_id) return { users: [], cases: [] };
-
     const [users, cases] = await Promise.all([
       getEmpresaUsers(),
-      getStoredCasesForEmpresa(empresa_id, true) // true = isAdmin mode (Bypass RLS)
+      getStoredCasesForEmpresa(empresa_id, true)
     ]);
-
     return { users, cases };
   } catch (e: any) {
-    console.error("[Performance Action Fail]", e.message);
     return { users: [], cases: [] };
   }
 }
 
-/**
- * AUDITORIA UNITÁRIA PARA SCANNER GLOBAL
- * Otimizada para retorno de 'patch' visando performance em lotes.
- */
 export async function scanOneDataJudAction(protocolo: string) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id || !auth_id) {
-       return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada — faça login e use RETOMAR" };
+       return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada — faça login" };
     }
 
     const cases = await getStoredCasesForEmpresa(empresa_id);
@@ -89,6 +76,7 @@ export async function scanOneDataJudAction(protocolo: string) {
     if (dataJud && !dataJud.error && dataJud.movimentos) {
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
       const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
+      const ba = analisarBuscaApreensao(dataJud);
       
       const patch = {
         datajud_ultimo_movimento: check.dataUltimo,
@@ -97,19 +85,24 @@ export async function scanOneDataJudAction(protocolo: string) {
         tem_atualizacao_pos_retorno: check.alerta,
         datajud_encerrado_tribunal: enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
+        indicio_busca_apreensao: ba.indicio,
+        busca_apreensao_confianca: ba.confianca,
+        busca_apreensao_motivo: ba.motivo,
+        busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      // Atualizar SOMENTE flags no objeto original
       const updatedCase: LegalCase = { ...target, ...patch };
-      
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
-      let msg = "Sem novidade";
+      let msg = "Auditado";
       let tipo = 'sem_novidade';
       if (enc.encerrado) {
         msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
         tipo = 'encerrado';
+      } else if (ba.indicio && ba.confianca === 'alta') {
+        msg = `⚠ ALERTA BUSCA E APREENSÃO DETECTADA`;
+        tipo = 'novo_andamento';
       } else if (check.alerta) {
         msg = `NOVO ANDAMENTO — ${check.nomeUltimo}`;
         tipo = 'novo_andamento';
@@ -119,54 +112,35 @@ export async function scanOneDataJudAction(protocolo: string) {
         success: true, 
         protocolo, 
         tipo,
-        alerta: check.alerta, 
+        alerta: check.alerta || ba.indicio, 
         encerrado: enc.encerrado,
-        motivo: enc.motivo,
         message: msg,
         casePatch: patch
       };
     }
     
-    return { 
-      success: false, 
-      protocolo, 
-      tipo: 'erro',
-      message: `Falha — ${dataJud?.message || "Erro no tribunal"}`,
-      error: true 
-    };
+    return { success: false, protocolo, tipo: 'erro', message: `Falha — ${dataJud?.message || "Erro no tribunal"}`, error: true };
   } catch (e: any) {
     const isAuthError = e.message?.includes('400') || e.message?.includes('401') || e.message?.includes('refresh_token');
-    return { 
-      success: false, 
-      protocolo, 
-      tipo: 'erro', 
-      message: isAuthError ? "Sessão expirada — faça login e use RETOMAR" : `Falha técnica`,
-      error: true,
-      isAuthError
-    };
+    return { success: false, protocolo, tipo: 'erro', message: isAuthError ? "Sessão expirada" : `Falha técnica`, error: true, isAuthError };
   }
 }
 
-/**
- * CONSULTA PONTUAL E DETALHADA (Para Modal de Histórico)
- * Retorna o objeto do caso completo e a lista de movimentos.
- */
 export async function scanSingleCaseAction(protocolo: string) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
-    if (!empresa_id || !auth_id) {
-       return { success: false, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada — faça login." };
-    }
+    if (!empresa_id || !auth_id) return { success: false, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada." };
 
     const cases = await getStoredCasesForEmpresa(empresa_id);
     const target = cases.find(c => c.protocolo === protocolo);
-    if (!target) return { success: false, error: "NOT_FOUND", message: "Processo não localizado no repositório." };
+    if (!target) return { success: false, error: "NOT_FOUND", message: "Não localizado." };
 
     const dataJud = await fetchDataJud(protocolo);
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
       const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
+      const ba = analisarBuscaApreensao(dataJud);
       
       const patch = {
         datajud_ultimo_movimento: check.dataUltimo,
@@ -175,67 +149,69 @@ export async function scanSingleCaseAction(protocolo: string) {
         tem_atualizacao_pos_retorno: check.alerta,
         datajud_encerrado_tribunal: enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
+        indicio_busca_apreensao: ba.indicio,
+        busca_apreensao_confianca: ba.confianca,
+        busca_apreensao_motivo: ba.motivo,
+        busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
         tribunal: dataJud.tribunal || target.tribunal
       };
 
       const updatedCase: LegalCase = { ...target, ...patch };
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
-      let msg = "Auditoria concluída: Sem novidades.";
-      if (enc.encerrado) msg = `IDENTIFICADO ENCERRAMENTO: ${enc.motivo}`;
-      else if (check.alerta) msg = "ALERTA: Novo andamento identificado no tribunal!";
+      let msg = "Auditoria concluída.";
+      if (enc.encerrado) msg = `ENCERRAMENTO: ${enc.motivo}`;
+      else if (ba.indicio) msg = `ALERTA: Indício de Busca e Apreensão (${ba.confianca})`;
+      else if (check.alerta) msg = "ALERTA: Novo andamento identificado!";
       
-      return { 
-        success: true, 
-        case: updatedCase, 
-        movimentos: dataJud.movimentos,
-        casePatch: patch, // Retrocompatibilidade para hooks reativos
-        message: msg
-      };
+      return { success: true, case: updatedCase, movimentos: dataJud.movimentos, casePatch: patch, message: msg };
     }
-    
-    return { 
-      success: false, 
-      error: "TRIBUNAL_OFFLINE", 
-      message: dataJud?.message || "O tribunal não retornou dados para este CNJ." 
-    };
+    return { success: false, error: "TRIBUNAL_OFFLINE", message: dataJud?.message || "Sem dados." };
   } catch (e: any) {
-    return { success: false, error: "ERRO_TECNICO", message: e.message || "Falha na comunicação forense." };
+    return { success: false, error: "ERRO_TECNICO", message: e.message };
   }
 }
 
-/**
- * Motor de Varredura em Lote (Cron / Legado)
- */
 export async function runDataJudScanAction(targetEmpresaId?: string) {
   try {
-    let empresa_id: string;
-    if (targetEmpresaId) {
-      empresa_id = targetEmpresaId;
-    } else {
-      const ctx = await getUserContext();
-      if (!ctx.empresa_id) return { success: false, error: "Sessão expirada." };
-      empresa_id = ctx.empresa_id;
-    }
+    const ctx = await getUserContext();
+    const empresa_id = targetEmpresaId || ctx.empresa_id;
+    if (!empresa_id) return { success: false, error: "Sessão expirada." };
 
     const cases = await getStoredCasesForEmpresa(empresa_id);
     if (!cases || cases.length === 0) return { success: true, scanned: 0, updated: 0, message: "Nenhum processo." };
 
     const batch = cases.filter(c => !isCasoEncerrado(c)).slice(0, 30);
     let updatedCount = 0;
-
     for (const c of batch) {
       await scanOneDataJudAction(c.protocolo);
       updatedCount++;
     }
-
-    return { 
-      success: true, 
-      scanned: batch.length,
-      updated: updatedCount,
-      message: `Auditados ${batch.length} registros.`
-    };
+    return { success: true, scanned: batch.length, updated: updatedCount, message: `Auditados ${batch.length} registros.` };
   } catch (e: any) {
     return { success: false, error: "Falha na varredura." };
+  }
+}
+
+export async function clearDataJudAuditAction() {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) return { success: false };
+    const cases = await getStoredCasesForEmpresa(empresa_id);
+    const updated = cases.map(c => ({
+      ...c,
+      tem_atualizacao_pos_retorno: false,
+      datajud_encerrado_tribunal: false,
+      datajud_encerrado_motivo: null,
+      datajud_consultado_em: null,
+      indicio_busca_apreensao: false,
+      busca_apreensao_confianca: null,
+      busca_apreensao_motivo: null,
+      busca_apreensao_consultado_em: null
+    }));
+    await saveStoredCasesForEmpresa(updated, empresa_id);
+    return { success: true };
+  } catch (e) {
+    return { success: false };
   }
 }
