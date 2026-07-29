@@ -14,7 +14,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/li
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v170.0 ELITE - Auditoria de Busca e Apreensão Integrada
+ * @fileOverview Actions de Processos v200.0 ELITE - Auditoria Blindada de Encerramento
  */
 
 export async function fetchRepoCases() {
@@ -97,6 +97,8 @@ export async function scanOneDataJudAction(protocolo: string) {
       
       let msg = "Auditado";
       let tipo = 'sem_novidade';
+      
+      // PRIORIDADE DE MENSAGEM: ENCERRAMENTO > BUSCA E APREENSÃO > NOVO ANDAMENTO
       if (enc.encerrado) {
         msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
         tipo = 'encerrado';
@@ -159,12 +161,22 @@ export async function scanSingleCaseAction(protocolo: string) {
       const updatedCase: LegalCase = { ...target, ...patch };
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
-      let msg = "Auditoria concluída.";
-      if (enc.encerrado) msg = `ENCERRAMENTO: ${enc.motivo}`;
-      else if (ba.indicio) msg = `ALERTA: Indício de Busca e Apreensão (${ba.confianca})`;
-      else if (check.alerta) msg = "ALERTA: Novo andamento identificado!";
+      let msg = "Sem atualizações após o último retorno.";
+      if (enc.encerrado) {
+        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
+      } else if (check.alerta) {
+        msg = "Novo andamento identificado!";
+      } else if (ba.indicio) {
+        msg = `ALERTA: Indício de Busca e Apreensão (${ba.confianca})`;
+      }
       
-      return { success: true, case: updatedCase, movimentos: dataJud.movimentos, casePatch: patch, message: msg };
+      return { 
+        success: true, 
+        case: updatedCase, 
+        movimentos: dataJud.movimentos || [], 
+        casePatch: patch, 
+        message: msg 
+      };
     }
     return { success: false, error: "TRIBUNAL_OFFLINE", message: dataJud?.message || "Sem dados." };
   } catch (e: any) {
