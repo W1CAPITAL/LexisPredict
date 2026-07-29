@@ -22,13 +22,15 @@ import {
   LayoutDashboard,
   Target,
   ArrowRight,
-  History,
   Activity,
   AlertCircle,
   Gavel,
-  CheckCircle2
+  CheckCircle2,
+  PieChart as PieChartIcon,
+  Layers,
+  Briefcase,
+  AlertTriangle
 } from 'lucide-react';
-import { LegalCase } from '@/lib/case-logic';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -86,24 +88,28 @@ export default function Dashboard() {
   }, [mounted, cases.length, loadData]);
 
   const metrics = useMemo(() => {
+    const totalRepo = cases.length;
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
-    const vencidos = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
-    const venceHoje = ativos.filter(c => c.status === 'É Hoje').length;
-    const atencao = ativos.filter(c => c.status === 'Atenção').length;
-    const noPrazo = ativos.filter(c => c.status === 'No Prazo').length;
+    // Categorias de Status dos Ativos (Soma deve ser == activeTotal)
+    const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
+    const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
+    const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
+    const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
+    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo' || !c.proximoPrazo).length;
     
     // Alertas DataJud baseados em ativos
-    const updatedInCourt = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
-    const closedInCourt = ativos.filter(c => c.datajud_encerrado_tribunal).length;
-    const baInCourt = ativos.filter(c => c.indicio_busca_apreensao).length;
+    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
+    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal).length;
+    const countBA = ativos.filter(c => c.indicio_busca_apreensao).length;
 
-    const rateUpdated = activeTotal > 0 ? Math.round((updatedInCourt / activeTotal) * 100) : 0;
-    const rateClosed = activeTotal > 0 ? Math.round((closedInCourt / activeTotal) * 100) : 0;
-    const rateBA = activeTotal > 0 ? Math.round((baInCourt / activeTotal) * 100) : 0;
+    const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
+    const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
+    const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
    
-    const riskSum = (vencidos * 1.0) + (venceHoje * 0.8) + (atencao * 0.5) + (noPrazo * 0.1);
+    // Índice de Risco Global
+    const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
 
     let riskLabel = "BAIXO";
@@ -113,23 +119,29 @@ export default function Dashboard() {
     else if (riskScore > 40) { riskLabel = "ELEVADO"; riskColor = "text-yellow-600"; }
     else if (riskScore > 20) { riskLabel = "MODERADO"; riskColor = "text-amber-600"; }
 
-    const pctHoje = activeTotal > 0 ? Math.round((venceHoje / activeTotal) * 100) : 0;
-    const pctVencidos = activeTotal > 0 ? Math.round((vencidos / activeTotal) * 100) : 0;
-    const pctAtencao = activeTotal > 0 ? Math.round((atencao / activeTotal) * 100) : 0;
+    const pctHoje = activeTotal > 0 ? Math.round((countHoje / activeTotal) * 100) : 0;
+    const pctVencidos = activeTotal > 0 ? Math.round((countVencido / activeTotal) * 100) : 0;
 
     const statusData = [
-      { name: t.statusCritico, value: vencidos, color: '#ef4444' },
-      { name: t.statusHoje, value: venceHoje, color: '#3b82f6' },
-      { name: t.statusAtencao, value: atencao, color: '#f97316' },
-      { name: t.statusPrazo, value: noPrazo, color: '#10b981' }
+      { name: t.statusCritico, value: countVencido, color: '#ef4444' },
+      { name: t.statusHoje, value: countHoje, color: '#3b82f6' },
+      { name: t.statusAtencao, value: countAtencao, color: '#f97316' },
+      { name: t.statusPrazo, value: countSaudavel, color: '#10b981' },
+      { name: t.statusSemPrazo, value: countSemPrazo, color: '#94a3b8' }
     ].filter(d => d.value > 0);
 
     return { 
-      activeTotal, vencidos, venceHoje, atencao, noPrazo, 
-      riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos, pctAtencao,
-      updatedInCourt, updatedInCourtRate: rateUpdated,
-      closedInCourt, closedInCourtRate: rateClosed,
-      baInCourt, baInCourtRate: rateBA
+      totalRepo,
+      activeTotal, 
+      countVencido, 
+      countHoje, 
+      countAtencao, 
+      countSaudavel, 
+      countSemPrazo,
+      riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos,
+      countNovoAndamento, rateAndamento,
+      countEncerradoTribunal, rateEncerrado,
+      countBA, rateBA
     };
   }, [cases, t]);
 
@@ -148,9 +160,9 @@ export default function Dashboard() {
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Gabinete Estratégico • W1 Capital</p>
           </div>
           <div className="flex items-center gap-4">
-            {metrics.updatedInCourt > 0 && (
+            {metrics.countNovoAndamento > 0 && (
               <Badge variant="destructive" className="animate-pulse h-8 px-4 rounded-xl font-black uppercase text-[10px] flex items-center gap-2">
-                <AlertCircle size={14} /> {metrics.updatedInCourt} Atualizações no Tribunal
+                <AlertCircle size={14} /> {metrics.countNovoAndamento} Atualizações no Tribunal
               </Badge>
             )}
             <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-secondary/50 px-3">
@@ -166,17 +178,19 @@ export default function Dashboard() {
             </Button>
           </div>
         </header>
+
         <div className="flex-1 overflow-auto p-10 space-y-10 max-w-[1600px] mx-auto w-full">
+          {/* TOP KPI CARDS */}
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title={t.statusHoje} value={loading ? "..." : metrics.venceHoje} icon={<Clock />} color={metrics.venceHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
-            <StatCard title={t.statusVencido} value={loading ? "..." : metrics.vencidos} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
-            <StatCard title="Novos Andamentos" value={loading ? "..." : metrics.updatedInCourt} icon={<Activity />} color={metrics.updatedInCourt > 0 ? "warning" : "success"} trend={`${metrics.updatedInCourtRate}%`} trendUp={true} />
-            <StatCard title="Encerrados Tribunal" value={loading ? "..." : metrics.closedInCourt} icon={<Gavel />} color={metrics.closedInCourt > 0 ? "success" : "primary"} trend={`${metrics.closedInCourtRate}%`} trendUp={true} />
+            <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
+            <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
+            <StatCard title="Novos Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} trend={`${metrics.rateAndamento}%`} trendUp={true} />
+            <StatCard title="Encerrados Tribunal" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color={metrics.countEncerradoTribunal > 0 ? "success" : "primary"} trend={`${metrics.rateEncerrado}%`} trendUp={true} />
           </section>
           
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
-               {/* BLOCO DE TELEMETRIA DATAJUD (ESTILO RELATÓRIO) */}
+               {/* TELEMETRIA DATAJUD */}
                <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] mb-8 group transition-all">
                   <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
                     <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
@@ -189,9 +203,9 @@ export default function Dashboard() {
                         <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Andamentos Judiciais não atendidos</p>
                         <div className="flex items-baseline gap-4">
                            <span className="text-4xl font-black tabular-nums tracking-tighter">
-                             {metrics.updatedInCourt} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                             {metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
                            </span>
-                           <span className="text-xl font-black text-primary tabular-nums">({metrics.updatedInCourtRate}%)</span>
+                           <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
                         </div>
                         <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
                           Métrica de vigilância: processos com movimentos novos após o último contato.
@@ -201,9 +215,9 @@ export default function Dashboard() {
                         <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Baixas identificadas no Tribunal</p>
                         <div className="flex items-baseline gap-4">
                            <span className="text-4xl font-black tabular-nums tracking-tighter">
-                             {metrics.closedInCourt} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                             {metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
                            </span>
-                           <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.closedInCourtRate}%)</span>
+                           <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
                         </div>
                         <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
                           Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.
@@ -213,9 +227,9 @@ export default function Dashboard() {
                         <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Indícios de Busca e Apreensão</p>
                         <div className="flex items-baseline gap-4">
                            <span className="text-4xl font-black tabular-nums tracking-tighter">
-                             {metrics.baInCourt} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                             {metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
                            </span>
-                           <span className="text-xl font-black text-red-400 tabular-nums">({metrics.baInCourtRate}%)</span>
+                           <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
                         </div>
                         <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
                           Riscos possessórios detectados via análise neural de movimentos e processos relacionados.
@@ -229,6 +243,7 @@ export default function Dashboard() {
                   </div>
                </section>
 
+               {/* BRIEFING IA */}
                <section className="premium-card p-8 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:scale-110 transition-transform pointer-events-none">
                     <Sparkles size={140} />
@@ -278,6 +293,7 @@ export default function Dashboard() {
                   )}
                </section>
                
+               {/* FILA PRIORITÁRIA */}
                <section className="premium-card overflow-hidden">
                   <div className="px-8 py-6 border-b border-border/30 flex items-center justify-between bg-secondary/10">
                      <div className="flex items-center gap-3">
@@ -336,7 +352,9 @@ export default function Dashboard() {
 
                <OfficeStats cases={cases} />
             </div>
+
             <div className="xl:col-span-4 space-y-8">
+               {/* ÍNDICE DE RISCO */}
                <section className="premium-card p-8 space-y-8">
                   <div className="flex justify-between items-end">
                      <div className="space-y-1">
@@ -351,8 +369,45 @@ export default function Dashboard() {
                     <div className={cn("h-full transition-all duration-1000", metrics.riskColor.replace('text', 'bg'))} style={{ width: `${metrics.riskScore}%` }} />
                   </div>
                </section>
-               <section className="premium-card p-8 h-[440px] flex flex-col">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-10">Status da Carteira</h3>
+
+               {/* DOSSIÊ OPERACIONAL (RESTAURADO) */}
+               <section className="space-y-4">
+                  <div className="flex items-center gap-3 mb-2 px-2">
+                    <Layers size={16} className="text-primary" />
+                    <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Dossiê Operacional</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <DashboardKpiMini label="Ativos em Gestão" value={metrics.activeTotal} icon={<Activity size={12}/>} color="text-blue-600" />
+                    <DashboardKpiMini label="Processos Vencidos" value={metrics.countVencido} icon={<AlertTriangle size={12}/>} color="text-red-600" />
+                    <DashboardKpiMini label="Casos Saudáveis" value={metrics.countSaudavel} icon={<CheckCircle2 size={12}/>} color="text-emerald-600" />
+                    <DashboardKpiMini label="Vencem Hoje" value={metrics.countHoje} icon={<Clock size={12}/>} color="text-orange-600" />
+                    <div className="col-span-2">
+                      <DashboardKpiMini label="Carteira Total (Escopo)" value={metrics.totalRepo} icon={<Briefcase size={12}/>} color="text-slate-500" />
+                    </div>
+                  </div>
+               </section>
+
+               {/* DISTRIBUIÇÃO OPERACIONAL (RESTAURADO) */}
+               <section className="premium-card p-8">
+                  <div className="flex items-center gap-3 mb-8">
+                    <PieChartIcon size={16} className="text-primary" />
+                    <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição da Carteira</h3>
+                  </div>
+                  <div className="space-y-6">
+                    <StatusPillDashboard label="Vencidos" count={metrics.countVencido} total={metrics.activeTotal} color="bg-red-500" />
+                    <StatusPillDashboard label="Vencem Hoje" count={metrics.countHoje} total={metrics.activeTotal} color="bg-blue-500" />
+                    <StatusPillDashboard label="Atenção" count={metrics.countAtencao} total={metrics.activeTotal} color="bg-orange-500" />
+                    <StatusPillDashboard label="Saudáveis" count={metrics.countSaudavel} total={metrics.activeTotal} color="bg-emerald-500" />
+                    <StatusPillDashboard label="Sem Prazo" count={metrics.countSemPrazo} total={metrics.activeTotal} color="bg-slate-400" />
+                    <div className="pt-4 border-t border-border/30">
+                      <StatusPillDashboard label="Ativos Totais" count={metrics.activeTotal} total={metrics.totalRepo} color="bg-black" isTotalBase />
+                    </div>
+                  </div>
+               </section>
+
+               {/* GRÁFICO DE STATUS */}
+               <section className="premium-card p-8 h-[380px] flex flex-col">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-10">Proporção de Ativos</h3>
                   <div className="flex-1 min-h-0">
                     {metrics.statusData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
@@ -380,6 +435,8 @@ export default function Dashboard() {
                     )}
                   </div>
                </section>
+
+               {/* BOTÃO RELATÓRIO */}
                <section className="bg-primary text-primary-foreground p-8 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform">
                     <Activity size={80} />
@@ -400,6 +457,38 @@ export default function Dashboard() {
           <span>Advanced Monitoring • Davi Alves Figueredo</span>
         </footer>
       </main>
+    </div>
+  );
+}
+
+function DashboardKpiMini({ label, value, icon, color }: { label: string, value: number, icon: React.ReactNode, color: string }) {
+  return (
+    <div className="bg-white border border-border/40 p-4 rounded-xl shadow-sm space-y-3">
+       <div className={cn("w-6 h-6 rounded-md flex items-center justify-center bg-secondary/50", color)}>
+          {icon}
+       </div>
+       <div className="space-y-0.5">
+          <p className="text-xl font-black tabular-nums tracking-tighter">{value}</p>
+          <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest truncate">{label}</p>
+       </div>
+    </div>
+  );
+}
+
+function StatusPillDashboard({ label, count, total, color, isTotalBase = false }: { label: string; count: number; total: number; color: string; isTotalBase?: boolean; }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] font-black tracking-wide text-muted-foreground uppercase">{label}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black tabular-nums">{count}</span>
+          <span className="text-[8px] font-bold text-muted-foreground opacity-40">({pct}%)</span>
+        </div>
+      </div>
+      <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+        <div className={cn("h-full transition-all duration-1000", color)} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
