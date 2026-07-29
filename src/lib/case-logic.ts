@@ -59,6 +59,12 @@ export interface LegalCase {
   tem_atualizacao_pos_retorno?: boolean;
   datajud_encerrado_tribunal?: boolean;
   datajud_encerrado_motivo?: string | null;
+
+  // Auditoria Busca e Apreensão (BA)
+  indicio_busca_apreensao?: boolean;
+  busca_apreensao_confianca?: 'alta' | 'media' | 'baixa' | null;
+  busca_apreensao_motivo?: string | null;
+  busca_apreensao_consultado_em?: string | null;
 }
 
 export type CaseNote = {
@@ -231,6 +237,12 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     datajud_consultado_em: data.datajud_consultado_em,
     tem_atualizacao_pos_retorno: data.tem_atualizacao_pos_retorno,
     datajud_encerrado_tribunal: data.datajud_encerrado_tribunal,
-    datajud_encerrado_motivo: data.datajud_encerrado_motivo
+    datajud_encerrado_motivo: data.datajud_encerrado_motivo,
+
+    // Auditoria BA
+    indicio_busca_apreensao: data.indicio_busca_apreensao,
+    busca_apreensao_confianca: data.busca_apreensao_confianca,
+    busca_apreensao_motivo: data.busca_apreensao_motivo,
+    busca_apreensao_consultado_em: data.busca_apreensao_consultado_em
   };
 }
