@@ -156,17 +156,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   processNext: async () => {
     const { status, queue, currentIndex, isSecondPass } = get();
 
-    // Verificação de fim de fila e transição para Passagem 2
     if (status !== 'running' || currentIndex >= queue.length) {
       if (currentIndex >= queue.length && queue.length > 0 && status === 'running') {
         const { failedQueue } = get();
         
         if (failedQueue.length > 0 && !isSecondPass) {
-          // Transição Automática para 2ª Passagem
           const pass2Logs = [{
             protocolo: 'SISTEMA',
             status: 'warning',
-            message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas técnicos.`
+            message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticos.`
           }, ...get().logs];
 
           set({
@@ -188,10 +186,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     }
 
     const protocolo = queue[currentIndex];
+    
+    // Identificação de prioridade: casos "Sem Prazo" não realizam retry e não contam como erro de lote
+    const targetCase = useAppStore.getState().cases.find(c => c.protocolo === protocolo);
+    const isSemPrazo = targetCase?.status === 'Sem Prazo';
 
     try {
-      // O retry com backoff acontece DENTRO desta action via fetchDataJud
-      const result = await scanOneDataJudAction(protocolo);
+      const result = await scanOneDataJudAction(protocolo, isSemPrazo);
 
       if (result.success && result.casePatch) {
         try {
@@ -199,7 +200,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         } catch (e) {}
       }
 
-      // Pausa apenas em erro de autenticação (sessão expirada)
       if (!result.success && result.isAuthError) {
         set({ status: 'paused', isAuthPaused: true });
         set((state) => ({
@@ -212,17 +212,23 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         return;
       }
 
+      // Mensageria Neutra para processos "Sem Prazo" que falharem (evita ruído operacional)
+      const displayMessage = (!result.success && isSemPrazo) 
+        ? "Sem Prazo — Tribunal indisponível (Ignorado)" 
+        : (result.message || "Auditado");
+      
+      const logStatus = result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : (isSemPrazo ? 'success' : 'error');
+
       const newLogs = [{
         protocolo: protocolo,
-        status: result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error',
-        message: (isSecondPass ? "[P2] " : "") + (result.message || "Auditado"),
+        status: logStatus,
+        message: (isSecondPass ? "[P2] " : "") + displayMessage,
         alerta: result.alerta,
         encerrado: result.encerrado,
         attempts: result.attempts,
         isPass2: isSecondPass
       }, ...get().logs];
 
-      // Lógica de Contadores com Suporte a Recuperação em Passagem 2
       let nextErrors = get().errors;
       let nextAlerts = get().alerts;
       let nextClosed = get().closed;
@@ -232,20 +238,21 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       if (!isSecondPass) {
         nextDone++;
         if (!result.success) {
-          nextErrors++;
-          nextFailedQueue.push(protocolo); // Coleta para reprocessamento
+          // Apenas processos COM PRAZO incrementam o contador de erros e entram na fila de reprocessamento
+          if (!isSemPrazo) {
+            nextErrors++;
+            nextFailedQueue.push(protocolo);
+          }
         } else {
           if (result.alerta) nextAlerts++;
           if (result.encerrado) nextClosed++;
         }
       } else {
-        // Na Passagem 2, sucesso recupera erro da Passagem 1
         if (result.success) {
           nextErrors = Math.max(0, nextErrors - 1);
           if (result.alerta) nextAlerts++;
           if (result.encerrado) nextClosed++;
         }
-        // Falha na Passagem 2 permanece como erro (não faz nada)
       }
 
       const newState = {
@@ -260,7 +267,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       set(newState);
 
-      // Persistir progresso total
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         queue: queue,
         failedQueue: nextFailedQueue,
@@ -277,26 +283,24 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       }));
 
     } catch (e: any) {
-      // Erro de infraestrutura não para o lote
       const nextFailedQueue = [...get().failedQueue];
-      if (!isSecondPass) nextFailedQueue.push(protocolo);
+      if (!isSecondPass && !isSemPrazo) nextFailedQueue.push(protocolo);
 
       set((state) => ({
         currentIndex: state.currentIndex + 1,
         done: isSecondPass ? state.done : state.done + 1,
-        errors: isSecondPass ? state.errors : state.errors + 1,
+        errors: (isSecondPass || isSemPrazo) ? state.errors : state.errors + 1,
         failedQueue: nextFailedQueue,
         logs: [{
           protocolo,
-          status: 'error',
-          message: "ERRO DE INFRAESTRUTURA."
+          status: isSemPrazo ? 'success' : 'error',
+          message: isSemPrazo ? "Sem Prazo — Falha de infraestrutura (Ignorada)" : "ERRO DE INFRAESTRUTURA."
         }, ...state.logs]
       }));
     }
 
     const nextState = get();
     if (nextState.status === 'running') {
-      // Intervalo de segurança 1.5s
       setTimeout(() => get().processNext(), 1500);
     }
   }
