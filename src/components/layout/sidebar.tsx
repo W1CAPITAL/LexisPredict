@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -35,7 +34,8 @@ import {
   CheckCircle,
   Printer,
   HelpCircle,
-  PlayCircle
+  PlayCircle,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -105,6 +105,7 @@ export function Sidebar() {
         { label: t.import, href: '/import', icon: Upload },
         { label: t.notes, href: '/notes', icon: StickyNote },
         { label: "Motor de OCR", href: '/tools/ocr', icon: Zap },
+        { label: t.scannerMni, href: '/scanner-monitor', icon: Activity },
         { label: "Treinamento Vídeo", href: '/onboarding', icon: PlayCircle },
       ]
     },
