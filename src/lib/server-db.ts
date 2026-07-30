@@ -189,13 +189,13 @@ export async function getScanStatusMetrics(empresaId: string) {
     .eq('empresa_id', empresaId)
     .eq('datajud_encerrado_tribunal', true);
 
-  // Recupera as últimas 5 atividades da nuvem para o log da UI
+  // Recupera as últimas 10 atividades da nuvem para o log da UI (Sincronia v47)
   const { data: recent } = await admin
     .from('processos')
-    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, datajud_ultimo_nome')
+    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, datajud_ultimo_nome, datajud_consultado_em')
     .eq('empresa_id', empresaId)
     .order('datajud_consultado_em', { ascending: false })
-    .limit(5);
+    .limit(10);
 
   return {
     total: total || 0,
@@ -207,6 +207,7 @@ export async function getScanStatusMetrics(empresaId: string) {
       protocolo: r.protocolo_ref,
       message: r.datajud_encerrado_tribunal ? 'BAIXA NO TRIBUNAL' : r.tem_atualizacao_pos_retorno ? 'NOVA MOVIMENTAÇÃO' : 'Monitoramento Regular',
       success: true,
+      latency: 0,
       type: r.datajud_encerrado_tribunal ? 'closed' : r.tem_atualizacao_pos_retorno ? 'update' : 'ok',
       engine: 'Nuvem'
     })) || []
