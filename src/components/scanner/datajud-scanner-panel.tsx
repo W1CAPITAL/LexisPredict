@@ -79,7 +79,6 @@ export function DataJudScannerPanel() {
     }
 
     // 1. FILTRAGEM DE HIGIENE E ESCOPO v410.0
-    // Ignora textos internos (placeholders) e processos já encerrados definitivamente
     const filteredCases = currentCases.filter(c => isCNJ(c.protocolo) && !isCasoEncerrado(c));
     
     // DEDUPLICAÇÃO DE FILA
@@ -91,6 +90,7 @@ export function DataJudScannerPanel() {
 
     if (scope === 'resume') {
        // MODO INTELIGENTE: Pula processos que já possuem dados recentes ou alertas ativos
+       // Foca apenas nos registros "vazios"
        finalQueue = uniqueCases
          .filter(c => !c.datajud_ultimo_nome && !c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal)
          .map(c => c.protocolo);
@@ -100,12 +100,9 @@ export function DataJudScannerPanel() {
     }
 
     if (finalQueue.length === 0) {
-      toast({ title: "Escopo Limpo", description: "Nenhum processo pendente localizado com os critérios atuais.", variant: "destructive" });
+      toast({ title: "Escopo Limpo", description: "Todos os processos filtrados já possuem dados ou são inválidos.", variant: "destructive" });
       return;
     }
-
-    const ignoredCount = currentCases.length - finalQueue.length;
-    console.log(`[Scanner] Lote validado: ${finalQueue.length} registros. Ignorados: ${ignoredCount} (Inválidos/Encerrados/Atualizados).`);
 
     toast({ title: "Iniciando Varredura", description: `${finalQueue.length} registros em triagem neural.` });
     startScan(finalQueue, scope);
@@ -122,7 +119,7 @@ export function DataJudScannerPanel() {
     if (logs.length === 0) return;
     const text = logs.map(l => `[${l.protocolo}] ${l.message}`).join('\n');
     navigator.clipboard.writeText(text);
-    toast({ title: "Log Copiado", description: "Histórico na área de transferência." });
+    toast({ title: "Log Copiado" });
   };
 
   const handleClearAudit = async () => {
@@ -183,7 +180,7 @@ export function DataJudScannerPanel() {
               )}
 
               <Button onClick={() => handleStart('resume')} disabled={loadingCases || isClearing} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                <PlayCircle size={16} className="mr-3 text-primary" /> Retomar Auditoria (Inteligente)
+                <PlayCircle size={16} className="mr-3 text-primary" /> Retomar Auditoria (Smart Skip)
               </Button>
               
               <Button onClick={handleRestartFull} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#22c55e] hover:shadow-none transition-all bg-emerald-50/30">
@@ -192,7 +189,7 @@ export function DataJudScannerPanel() {
 
               <div className="pt-4 border-t border-black/10 mt-2">
                  <p className="text-[8px] font-bold text-black/30 uppercase leading-relaxed mb-4 italic">
-                    O modo Inteligente pula registros que já possuem movimentações identificadas ou flags de alerta ativas.
+                    O modo Smart Skip pula registros que já possuem movimentações identificadas ou alertas de novos andamentos.
                  </p>
                 <Button onClick={handleClearAudit} disabled={isClearing || loadingCases} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none hover:bg-red-50 hover:border-red-600 transition-all">
                   {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />} Limpar Alertas de Auditoria
