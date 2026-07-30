@@ -15,7 +15,6 @@ import {
   Copyright,
   TrendingUp,
   Clock,
-  Calendar,
   Zap,
   TrendingDown,
   Sparkles,
@@ -24,12 +23,12 @@ import {
   ArrowRight,
   Activity,
   AlertCircle,
+  AlertTriangle,
   Gavel,
   CheckCircle2,
   PieChart as PieChartIcon,
   Layers,
   Briefcase,
-  AlertTriangle,
   History,
   ExternalLink
 } from 'lucide-react';
@@ -80,7 +79,7 @@ export default function Dashboard() {
   useEffect(() => {
     setMounted(true);
     loadInsights();
-    loadData(); // FORÇA REFRESH AO ENTRAR - ALINHAMENTO v270.0
+    loadData();
 
     const handleStorageUpdate = () => loadInsights();
     window.addEventListener('lexis-insights-updated', handleStorageUpdate);
@@ -92,24 +91,23 @@ export default function Dashboard() {
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
-    // Categorias de Status dos Ativos (UNIFICAÇÃO DE MÉTRICAS v270.0)
+    // Categorias de Status dos Ativos (SINCRONIZAÇÃO v340.0)
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
-    // Sem Prazo estrito: apenas os que o motor classificou como Sem Prazo (Alinhado ao Dossiê)
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // Alertas DataJud baseados em ativos
-    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
-    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal).length;
-    const countBA = ativos.filter(c => c.indicio_busca_apreensao).length;
+    // Alertas DataJud baseados em ativos com cast rigoroso
+    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno === true).length;
+    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal === true).length;
+    const countBA = ativos.filter(c => c.indicio_busca_apreensao === true).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
     const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
    
-    // Índice de Risco Global (Baseado nos Ativos)
+    // Índice de Risco Global
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
 
@@ -154,7 +152,7 @@ export default function Dashboard() {
         const order: Record<string, number> = { 'Caso Crítico': 0, 'Vencido': 1, 'É Hoje': 2, 'Atenção': 3 };
         const diff = (order[a.status] ?? 99) - (order[b.status] ?? 99);
         if (diff !== 0) return diff;
-        return (a.diasFaltando || 0) - (b.diasFaltando || 0); // Desempate por maior atraso
+        return (a.diasFaltando || 0) - (b.diasFaltando || 0);
       })
       .slice(0, 6);
   }, [cases]);
@@ -204,7 +202,7 @@ export default function Dashboard() {
           
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
-               {/* TELEMETRIA DATAJUD */}
+               {/* TELEMETRIA DATAJUD - BLOCO ÚNICO SINCRO */}
                <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] group transition-all">
                   <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
                     <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
@@ -257,7 +255,7 @@ export default function Dashboard() {
                   </div>
                </section>
 
-               {/* FILA DE PRIORIDADE (RESTAURADA v280.0) */}
+               {/* FILA DE PRIORIDADE */}
                <section className="premium-card overflow-hidden">
                   <div className="bg-[#f8f9fb] px-8 py-5 border-b border-border/30 flex items-center justify-between">
                      <div className="flex items-center gap-3">
@@ -387,7 +385,7 @@ export default function Dashboard() {
                   </div>
                </section>
 
-               {/* DOSSIÊ OPERACIONAL (UNIFICADO v270.0) */}
+               {/* DOSSIÊ OPERACIONAL */}
                <section className="space-y-4">
                   <div className="flex items-center gap-3 mb-2 px-2">
                     <Layers size={16} className="text-primary" />
