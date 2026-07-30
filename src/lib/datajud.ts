@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v450.0 ELITE
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v451.0 ELITE
  * Otimizado com Fast Mode para scanner em lote e Standard Mode para vereditos pontuais.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
@@ -49,8 +49,8 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   const isFast = options.fast === true;
-  const timeoutMs = isFast ? 30000 : 60000;
-  const maxAttempts = 3;
+  const timeoutMs = isFast ? 25000 : 60000;
+  const maxAttempts = isFast ? 2 : 3; // Menos tentativas em modo lote para evitar timeout do servidor
 
   try {
     const response = await fetch(url, {
@@ -115,9 +115,10 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
 
     if (isRetryable && attempt < maxAttempts) {
-      const delays = [0, 5000, 30000, 120000];
+      // Delays mais curtos em modo fast para não travar o worker
+      const delays = isFast ? [0, 2000, 5000] : [0, 5000, 30000, 120000];
       const waitTime = delays[attempt] || 5000;
-      await sleep(waitTime + (Math.random() * 1000));
+      await sleep(waitTime + (Math.random() * 500));
       return fetchDataJud(cnj, attempt + 1, options);
     }
 
