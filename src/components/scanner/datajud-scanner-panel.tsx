@@ -40,6 +40,10 @@ import { fetchRepoCases, clearDataJudAuditAction, runCloudWorkerAction } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
+/**
+ * Painel de Controle de Auditoria DataJud v6.7
+ * Sincronizado com Protocolo de Estabilidade v15.0
+ */
 export function DataJudScannerPanel() {
   const { 
     status, total, done, alerts, closed, errors, logs, queue, currentIndex, courtHealthMap,
@@ -61,7 +65,7 @@ export function DataJudScannerPanel() {
     loadProgress();
   }, [loadProgress]);
 
-  // Heartbeat do Motor de Nuvem (Efeito de Loop)
+  // Heartbeat do Motor de Nuvem (Efeito de Loop Assíncrono)
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
@@ -71,18 +75,17 @@ export function DataJudScannerPanel() {
         setIsCloudLoading(true);
         
         try {
-          setCloudStats(prev => ({ ...prev, batches: prev.batches + 1 }));
-          
           const res = await runCloudWorkerAction();
           if (res && res.success) {
              setCloudStats(prev => ({ 
                ...prev,
                success: prev.success + (res.successCount || 0), 
+               batches: prev.batches + 1,
                estimate: res.remainingEstimate || 0
              }));
           }
         } catch (e) {
-          console.warn("[Cloud Heartbeat] Falha de comunicação.");
+          console.warn("[Cloud Heartbeat] Falha de pulso.");
         } finally {
           setIsCloudLoading(false);
           if (isCloudActive) {
@@ -164,11 +167,11 @@ export function DataJudScannerPanel() {
   }
 
   return (
-    <div className={cn("fixed bottom-6 right-6 z-[200] w-[420px] bg-white border-2 border-black shadow-[12px_12px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col max-h-[90vh]")}>
+    <div className={cn("fixed bottom-6 right-6 z-[200] w-[420px] bg-white border-2 border-black shadow-[20px_20px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col max-h-[90vh]")}>
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black shrink-0">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", (status === 'running' || isCloudLoading) && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v6.5</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v6.7</h3>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -178,11 +181,12 @@ export function DataJudScannerPanel() {
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-8">
+          {/* MOTOR DE NUVEM */}
           <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-4">
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                    <CloudLightning className={cn("text-primary", isCloudActive && "animate-pulse")} size={16} />
-                   <Label className="text-[10px] font-black uppercase">Motor de Nuvem (Servidor)</Label>
+                   <Label className="text-[10px] font-black uppercase">Auditoria em Nuvem 24h</Label>
                 </div>
                 <Switch checked={isCloudActive} onCheckedChange={(val) => {
                   setIsCloudActive(val);
@@ -194,9 +198,9 @@ export function DataJudScannerPanel() {
                <div className="space-y-4 animate-in fade-in">
                   <div className="flex justify-between items-center text-[9px] font-black uppercase opacity-60">
                      {isCloudLoading ? (
-                       <span className="flex items-center gap-2"><Loader2 className="animate-spin text-primary" size={10} /> Processando Lote no Servidor...</span>
+                       <span className="flex items-center gap-2"><Loader2 className="animate-spin text-primary" size={10} /> Processando Lote...</span>
                      ) : (
-                       <span className="flex items-center gap-2"><Clock size={10} className="text-emerald-500 animate-pulse" /> Aguardando Próximo Pulso...</span>
+                       <span className="flex items-center gap-2"><Clock size={10} className="text-emerald-500 animate-pulse" /> Sincronia Estável</span>
                      )}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -215,10 +219,11 @@ export function DataJudScannerPanel() {
                   </div>
                </div>
              ) : (
-               <p className="text-[9px] font-bold uppercase text-black/30">Auditoria 24h em background desativada.</p>
+               <p className="text-[9px] font-bold uppercase text-black/30">O sistema está auditando lotes residuais no servidor enquanto esta aba permanecer aberta.</p>
              )}
           </section>
 
+          {/* MOTOR MANUAL */}
           <section className="space-y-6">
             <div className="flex items-center gap-2">
                <Activity size={16} className="text-black/40" />
@@ -228,19 +233,15 @@ export function DataJudScannerPanel() {
             {status === 'idle' ? (
               <div className="grid grid-cols-1 gap-3">
                 {queue.length > 0 && currentIndex < queue.length && (
-                  <Button onClick={resumeInterruptedScan} className="h-14 bg-emerald-600 text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none animate-pulse">
+                  <Button onClick={resumeInterruptedScan} className="h-14 bg-emerald-600 text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none">
                     <ArrowRightCircle size={18} className="mr-3" /> Retomar Auditoria (Smart Skip)
                   </Button>
                 )}
 
                 <Button onClick={() => handleStart('resume')} disabled={loadingCases} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none">
-                  <PlayCircle size={16} className="mr-3 text-primary" /> Iniciar Varredura Inteligente
+                  <PlayCircle size={16} className="mr-3 text-primary" /> Varredura Inteligente
                 </Button>
                 
-                <Button onClick={() => handleStart('full')} disabled={loadingCases} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#22c55e] hover:shadow-none">
-                  <RotateCcw size={16} className="mr-3 text-emerald-600" /> Varredura Completa do Lote
-                </Button>
-
                 <div className="pt-4 border-t border-black/10">
                   <Button onClick={async () => { if(confirm('Resetar todas as assinaturas?')) { setIsClearing(true); await clearDataJudAuditAction(); setIsClearing(false); resetScan(); } }} disabled={isClearing} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none">
                     <Trash2 size={14} className="mr-2" /> Limpar Histórico de Sincronia
@@ -255,7 +256,7 @@ export function DataJudScannerPanel() {
                       <p className="text-[9px] font-black uppercase text-black/40">Progresso Manual</p>
                       <p className="text-xl font-black tabular-nums">{done} / {total}</p>
                     </div>
-                    <Badge className={cn("font-black uppercase text-[8px] rounded-none px-2", status === 'running' ? "bg-emerald-50" : "bg-primary")}>
+                    <Badge className={cn("font-black uppercase text-[8px] rounded-none px-2", status === 'running' ? "bg-emerald-50 text-emerald-600" : "bg-primary")}>
                       {status === 'running' ? 'Auditando...' : 'Concluído'}
                     </Badge>
                   </div>
@@ -284,32 +285,23 @@ export function DataJudScannerPanel() {
                     <Button onClick={resumeScan} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase"><Play size={12} className="mr-2" /> Retomar</Button>
                   ) : null}
                   
-                  {(status === 'running' || status === 'paused') && (
-                    <Button variant="ghost" onClick={cancelScan} title="Cancelar" className="h-10 w-10 border-2 border-black rounded-none text-red-600"><Square size={12} fill="currentColor" /></Button>
-                  )}
-
                   {status === 'done' && (
-                    <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">Finalizar Sessão</Button>
+                    <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase">Finalizar Sessão</Button>
                   )}
                 </div>
               </div>
             )}
           </section>
 
+          {/* TELEMETRIA DE CONEXÃO */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Activity size={10} /> Status de Conexão Tribunais</p>
-              <div className="flex gap-2">
-                 <Badge className="bg-emerald-500 text-white border-none text-[7px] font-black">{healthStats.online} OK</Badge>
-                 <Badge className="bg-orange-500 text-white border-none text-[7px] font-black">{healthStats.slow} LENTOS</Badge>
-              </div>
-            </div>
+            <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Activity size={10} /> Status de Conexão Tribunais</p>
             <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-2">
               {Object.values(courtHealthMap).sort((a,b) => b.successRate - a.successRate).map(h => (
                 <div key={h.id} className="flex flex-col p-2 bg-[#f8f9fb] border border-black/5">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-[8px] font-black uppercase">{h.id}</span>
-                    <span className={cn("w-1.5 h-1.5 rounded-full", h.status === 'online' ? "bg-emerald-50" : h.status === 'slow' ? "bg-orange-500" : "bg-red-500")} />
+                    <span className={cn("w-1.5 h-1.5 rounded-full", h.status === 'online' ? "bg-emerald-500" : h.status === 'slow' ? "bg-orange-500" : "bg-red-500")} />
                   </div>
                   <div className="flex justify-between items-center text-[7px] font-bold text-black/40">
                     <span>{Math.round(h.avgLatency)}ms</span>
@@ -320,6 +312,7 @@ export function DataJudScannerPanel() {
             </div>
           </section>
 
+          {/* LOGS RECENTES */}
           {logs.length > 0 && (
             <section className="space-y-2">
               <Label className="text-[9px] font-black uppercase text-black/40 tracking-widest">Logs de Atividade Recente</Label>
@@ -336,7 +329,6 @@ export function DataJudScannerPanel() {
                         <p className="font-mono text-[8px] truncate">{log.protocolo}</p>
                         <p className="text-[7px] opacity-60 truncate">{log.message}</p>
                       </div>
-                      {log.latency && <span className="text-[7px] font-black text-black/20 shrink-0 mt-0.5">{log.latency}ms</span>}
                     </div>
                   ))}
                 </div>
