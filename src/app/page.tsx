@@ -1,4 +1,3 @@
-
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -91,17 +90,17 @@ export default function Dashboard() {
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
-    // Categorias de Status dos Ativos (SINCRONIZAÇÃO v340.0)
+    // Categorias de Status dos Ativos (SINCRONIZAÇÃO v350.0 - UM ÚNICO MOTOR)
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // Alertas DataJud baseados em ativos com cast rigoroso
-    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno === true).length;
-    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal === true).length;
-    const countBA = ativos.filter(c => c.indicio_busca_apreensao === true).length;
+    // Alertas DataJud baseados em ativos com cast de verdade absoluta (!!)
+    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno).length;
+    const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
+    const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
@@ -202,7 +201,7 @@ export default function Dashboard() {
           
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
-               {/* TELEMETRIA DATAJUD - BLOCO ÚNICO SINCRO */}
+               {/* TELEMETRIA DATAJUD - BLOCO ÚNICO SINCRO v350.0 */}
                <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] group transition-all">
                   <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
                     <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
