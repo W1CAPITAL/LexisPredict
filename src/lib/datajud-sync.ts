@@ -1,5 +1,6 @@
+
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.8
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.9
  * Agora com hashing de integridade para detectar mudanças reais de conteúdo.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -8,21 +9,22 @@ import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns
 
 /**
  * Gera uma assinatura (hash) do estado atual das movimentações.
- * Usado para detectar mudanças mesmo que as datas não mudem (ex: correção de texto).
+ * Focado nos 3 movimentos mais recentes para detectar mudanças reais de texto.
  */
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
   
-  // Analisamos os 10 movimentos mais recentes para compor o hash de integridade
+  // Ordenar decrescente por data para pegar os mais recentes
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  const signature = sorted.slice(0, 10)
-    .map(m => `${m.dataHora || ''}|${m.nome || ''}|${m.codigo || ''}`)
+  // Compor a string base com os 3 movimentos mais novos
+  const signature = sorted.slice(0, 3)
+    .map(m => `${m.dataHora || ''}|${m.nome || ''}`)
     .join('##');
 
-  // Retorno de hash simplificado via base64
+  // Retorno de hash simplificado via base64 para o banco
   try {
     if (typeof btoa !== 'undefined') {
       return btoa(unescape(encodeURIComponent(signature))).substring(0, 32);
