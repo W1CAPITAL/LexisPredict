@@ -1,4 +1,4 @@
-# ⚖️ LexisPredict Elite
+# ⚖️ LexisPredict Elite 
 
 ### Enterprise Legal Operations Platform
 
