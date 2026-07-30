@@ -44,7 +44,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
   // Configuração de Performance baseada no Modo (Lote vs Pontual)
   const isFast = options.fast === true;
-  const timeoutMs = isFast ? 18000 : 45000;
+  const timeoutMs = isFast ? 28000 : 45000;
   const maxAttempts = isFast ? 2 : 3;
 
   try {
