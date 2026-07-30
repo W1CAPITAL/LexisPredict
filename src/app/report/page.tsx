@@ -6,7 +6,7 @@
  * @license Proprietary - All rights reserved.
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { LegalCase, CaseNote } from "@/lib/case-logic";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +43,11 @@ import { useAppStore } from "@/store/use-app-store";
 import { useSearchParams } from "next/navigation";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 
-export default function UnifiedReport() {
+/**
+ * Componente Interno para processamento do Relatório
+ * Necessário para isolar o uso de useSearchParams() dentro de um Suspense boundary.
+ */
+function ReportContent() {
   const { setCases } = useAppStore();
   const searchParams = useSearchParams();
   const sourceParam = searchParams.get('source');
@@ -297,6 +301,7 @@ export default function UnifiedReport() {
   );
 }
 
+// Componentes Auxiliares
 function SectionTitle({ icon: Icon, title }: any) {
   return (
     <div className="flex items-center gap-4 border-b-4 border-black pb-4">
@@ -336,5 +341,22 @@ function MiniStat({ label, value, color = "text-white/60" }: any) {
        <span className="text-[7px] font-black uppercase opacity-40 mb-1">{label}</span>
        <span className={cn("text-lg font-black tabular-nums", color)}>{value}</span>
     </div>
+  );
+}
+
+/**
+ * Componente Principal com Suspense Boundary
+ * Evita o erro de build: useSearchParams() should be wrapped in a suspense boundary
+ */
+export default function UnifiedReport() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-6">
+        <Loader2 className="w-12 h-12 text-black animate-spin" />
+        <p className="font-black tracking-[0.4em] text-[10px] text-black uppercase">Iniciando Motor de Relatórios...</p>
+      </div>
+    }>
+      <ReportContent />
+    </Suspense>
   );
 }
