@@ -71,13 +71,15 @@ export function DataJudScannerPanel() {
       const executeCloudBatch = async () => {
         if (!isCloudActive) return;
         setIsCloudLoading(true);
+        // Incrementar ciclos IMEDIATAMENTE para dar feedback de que o gatilho foi enviado
+        setCloudStats(prev => ({ ...prev, batches: prev.batches + 1 }));
+
         try {
           const res = await runCloudWorkerAction();
-          // Mesmo se processed for 0, incrementamos ciclos para dar feedback visual de pulso
           if (res && res.success) {
              setCloudStats(prev => ({ 
+               ...prev,
                success: prev.success + (res.successCount || 0), 
-               batches: prev.batches + 1,
                estimate: res.remainingEstimate || 0
              }));
           }
@@ -85,9 +87,9 @@ export function DataJudScannerPanel() {
           console.warn("[Cloud Heartbeat] Falha de comunicação.");
         } finally {
           setIsCloudLoading(false);
-          // Agenda o próximo pulso para 20 segundos
+          // Agenda o próximo pulso para 45 segundos para evitar estouro de timeout
           if (isCloudActive) {
-            timer = setTimeout(executeCloudBatch, 20000);
+            timer = setTimeout(executeCloudBatch, 45000);
           }
         }
       };
@@ -168,7 +170,7 @@ export function DataJudScannerPanel() {
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", status === 'running' && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v6.0</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v6.1</h3>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -213,7 +215,7 @@ export function DataJudScannerPanel() {
                    </div>
                 </div>
                 <p className="text-[8px] font-bold uppercase text-black/40 italic leading-tight">
-                  O sistema está auditando lotes residuais no servidor enquanto esta aba permanecer aberta.
+                  Sincronia automática servidor-tribunal ativa enquanto esta aba estiver aberta.
                 </p>
              </div>
            ) : (
@@ -277,7 +279,7 @@ export function DataJudScannerPanel() {
                   <p className="text-[9px] font-black uppercase text-black/40">Progresso do Lote</p>
                   <p className="text-xl font-black tabular-nums">{done} / {total}</p>
                 </div>
-                <Badge className={cn("font-black uppercase text-[8px] rounded-none px-2", status === 'running' ? "bg-emerald-500" : "bg-primary")}>
+                <Badge className={cn("font-black uppercase text-[8px] rounded-none px-2", status === 'running' ? "bg-emerald-50" : "bg-primary")}>
                   {status === 'running' ? 'Processando' : 'Concluído'}
                 </Badge>
               </div>
