@@ -90,11 +90,12 @@ export default function UnifiedReport() {
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
-    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo' || !c.proximoPrazo || c.proximoPrazo === '').length;
+    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
-    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal).length;
-    const countBA = ativos.filter(c => c.indicio_busca_apreensao).length;
+    // Alertas DataJud baseados em ativos com cast booleano rigoroso
+    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno === true).length;
+    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal === true).length;
+    const countBA = ativos.filter(c => c.indicio_busca_apreensao === true).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
@@ -391,7 +392,7 @@ export default function UnifiedReport() {
                   <p className="text-xs text-black font-black uppercase">Relatório Executivo Operacional</p>
                 </div>
               </div>
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-black bg-white shadow-[4px_4px_0px_#000]">
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-black bg-white shadow-[4px_4px_0px_#00D1FF]">
                 <ShieldCheck size={13} className="text-black" />
                 <span className="text-[9px] font-black tracking-[0.2em] uppercase text-black">Auditado por Davi Alves Figueredo</span>
               </div>
@@ -420,7 +421,7 @@ export default function UnifiedReport() {
 
 function KpiCard({ icon, label, value, accent, highlight = false }: { icon: React.ReactNode; label: string; value: number; accent: string; highlight?: boolean; }) {
   return (
-    <div className={cn("bg-white border-2 p-5 flex flex-col justify-between min-h-[140px] shadow-[4px_4px_0px_#000]", highlight ? "border-red-600" : "border-black")}>
+    <div className={cn("bg-white border-2 p-5 flex flex-col justify-between min-h-[140px] shadow-[4px_4px_0px_#00D1FF]", highlight ? "border-red-600" : "border-black")}>
       <div className={cn("mb-4", accent)}>{icon}</div>
       <div>
         <p className="text-3xl font-black tracking-tighter text-black tabular-nums">{value}</p>
@@ -434,7 +435,7 @@ function StatusPill({ label, count, total, color }: { label: string; count: numb
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   const isTotalBase = label === "Ativos Totais";
   return (
-    <div className="bg-white border-2 border-black p-4 shadow-[3px_3px_0px_#000]">
+    <div className="bg-white border-2 border-black p-4 shadow-[3px_3px_0px_#00D1FF]">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[9px] font-black tracking-wide text-black/40 uppercase">{label}</span>
         <span className="text-xl font-black text-black tabular-nums">{count}</span>
