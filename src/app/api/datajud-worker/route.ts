@@ -1,7 +1,6 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.3
- * Realiza varredura incremental de processos em background (servidor).
+ * @fileOverview Worker de Auditoria Automática DataJud v1.4
  * Otimizado para rito industrial de merge e preservação de dados humanos.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -18,7 +17,7 @@ import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 export const dynamic = 'force-dynamic';
 
-// Configurações de Carga Industrial (Reduzido para 10 para evitar timeout de servidor)
+// Configuração de Lote Estratégico (Pequeno para garantir resposta rápida ao navegador)
 const BATCH_SIZE = 10; 
 const CONCURRENCY = 2;
 
@@ -27,26 +26,31 @@ export async function POST(request: Request) {
   const workerSecret = process.env.DATAJUD_WORKER_SECRET;
 
   if (!workerSecret || authHeader !== `Bearer ${workerSecret}`) {
-    console.error("[DataJud Worker] Acesso Negado: Token Inválido");
     return new Response('Unauthorized', { status: 401 });
   }
 
-  console.log(`[DataJud Worker] Lote Recebido em ${new Date().toLocaleTimeString()} - Iniciando Auditoria...`);
+  console.log(`[DataJud Worker] Lote Iniciado: ${new Date().toLocaleTimeString()}`);
 
   try {
     const start = Date.now();
     
-    // 2. Seleção de Fila por Prioridade de Carência
+    // 2. Seleção de Fila por Carência
     const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
 
     if (casesToAudit.length === 0) {
-      return NextResponse.json({ success: true, processed: 0, message: "Sem processos pendentes." });
+      return NextResponse.json({ 
+        success: true, 
+        processed: 0, 
+        successCount: 0, 
+        message: "Fila de carência limpa.",
+        remainingEstimate: 0 
+      });
     }
 
     let successCount = 0;
     let failedCount = 0;
 
-    // 3. Processamento com Pool de Concorrência
+    // 3. Processamento Paralelo Limitado
     for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
       const chunk = casesToAudit.slice(i, i + CONCURRENCY);
       await Promise.all(chunk.map(async (caseItem) => {
@@ -55,7 +59,7 @@ export async function POST(request: Request) {
       }));
     }
 
-    // 4. Estimativa de Trabalho Restante
+    // 4. Estimativa de Trabalho Restante (Query Rápida)
     const admin = await getSupabaseAdmin();
     const { count } = await admin
       .from('processos')
@@ -63,8 +67,7 @@ export async function POST(request: Request) {
       .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO","IMOVEL","IMÓVEL")');
 
     const duration = Date.now() - start;
-    console.log(`[DataJud Worker] Ciclo Concluído: ${successCount} sucessos em ${duration}ms. Restante: ~${count}`);
-
+    
     return NextResponse.json({ 
       success: true,
       processed: casesToAudit.length, 
@@ -92,8 +95,9 @@ async function auditSingleProcess(c: any): Promise<boolean> {
     const ba = analisarBuscaApreensao(dataJud);
     const newHash = gerarHashAuditoria(movimentos);
 
+    // O alerta de novidade só deve ser limpo se o processo for baixado.
+    // Caso contrário, se já houver novidade (true), mantemos true até o operador ler.
     let novoStatusNovidade = c.tem_atualizacao_pos_retorno || !!upd.alerta || newHash !== c.datajud_hash;
-    
     if (enc.encerrado) novoStatusNovidade = false;
 
     const patch: any = {
