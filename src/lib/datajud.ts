@@ -1,6 +1,6 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v500.0 ELITE
- * Otimizado com Latência Real, Transparência de Endpoints e Null-Safety.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v460.0 ELITE
+ * Otimizado com Paridade de Timeout entre Scanner e Veredito.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -14,57 +14,68 @@ export const COURT_ALIASES: Record<string, string> = {
   "4.04": "trf4", "4.05": "trf5", "4.06": "trf6"
 };
 
+const DATAJUD_API_KEY = process.env.DATAJUD_API_KEY || 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
+
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export interface DataJudOptions {
   fast?: boolean;
-  timeoutMs?: number;
 }
 
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
-  const startTime = Date.now();
   
   if (cnjLimpo.length !== 20) {
     return { 
       numeroProcesso: cnj, 
       movimentos: [], 
       error: true, 
-      message: "CNJ_INVALIDO",
-      httpStatus: 400,
-      latency: Date.now() - startTime,
+      message: "Número CNJ inválido.",
       attempts: attempt
     };
   }
 
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
-  const alias = COURT_ALIASES[aliasPart] || "tjsp";
+  let alias = COURT_ALIASES[aliasPart] || "tjsp";
+
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
-  const timeoutMs = options.timeoutMs || 20000;
+
+  // PROTOCOLO DE PARIDADE v460.0
+  // Scanner (fast=true) e Clique Manual usam o MESMO teto de 45s.
+  const isFast = options.fast === true;
+  const timeoutMs = 45000; 
+  const maxAttempts = isFast ? 2 : 3;
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==`,
+        'Authorization': `APIKey ${DATAJUD_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         size: 1,
-        query: { match: { "numeroProcesso": cnjLimpo } }
+        query: {
+          match: {
+            "numeroProcesso": cnjLimpo
+          }
+        }
       }),
       signal: AbortSignal.timeout(timeoutMs)
     });
 
-    const latency = Date.now() - startTime;
-
     if (!response.ok) {
-      return { 
-        error: true, 
-        message: `HTTP_${response.status}`, 
-        httpStatus: response.status, 
-        latency, 
-        endpoint: url,
-        attempts: attempt 
-      };
+      if (response.status === 401 || response.status === 403) {
+        return { error: true, message: "Falha de autenticação API Key.", isAuthError: true, attempts: attempt };
+      }
+      
+      if ([429, 502, 503, 504].includes(response.status)) {
+        throw new Error(`RETRYABLE_HTTP_${response.status}`);
+      }
+      
+      throw new Error(`HTTP_${response.status}`);
     }
 
     const data = await response.json();
@@ -75,10 +86,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
         numeroProcesso: cnjLimpo, 
         movimentos: [], 
         error: false, 
-        message: "NOT_FOUND",
-        httpStatus: 200,
-        latency,
-        endpoint: url,
+        message: "Não localizado no DataJud.",
         attempts: attempt
       };
     }
@@ -90,24 +98,25 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
       dataAjuizamento: source.dataAjuizamento || null,
       error: false,
-      httpStatus: 200,
-      latency,
-      endpoint: url,
       attempts: attempt
     };
 
   } catch (e: any) {
-    const latency = Date.now() - startTime;
     const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
-    
+    const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
+
+    if (isRetryable && attempt < maxAttempts) {
+      const waitTime = isFast ? 1000 : (1000 * Math.pow(2, attempt - 1));
+      const jitter = Math.random() * 300;
+      await sleep(waitTime + jitter);
+      return fetchDataJud(cnj, attempt + 1, options);
+    }
+
     return { 
       numeroProcesso: cnjLimpo, 
       movimentos: [], 
       error: true, 
-      message: isTimeout ? "TIMEOUT_20S" : "NETWORK_ERROR",
-      httpStatus: isTimeout ? 408 : 500,
-      endpoint: url,
-      latency,
+      message: isTimeout ? "Tempo esgotado." : "Falha na comunicação.",
       attempts: attempt
     };
   }
