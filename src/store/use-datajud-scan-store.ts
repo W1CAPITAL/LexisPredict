@@ -1,8 +1,7 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.9
- * Otimizado com RETRIES, BACKOFF, LOGS INFINITOS e DUPLA PASSAGEM DE RECUPERAÇÃO.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v4.0 - PERFORMANCE ELITE
+ * Otimizado com busca atômica, gap reduzido e Fast Mode.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -10,6 +9,9 @@ import { useAppStore } from '@/store/use-app-store';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanScope = 'resume' | 'critical' | 'full';
+
+// CONSTANTE DE PERFORMANCE ELITE
+const SCAN_GAP_MS = 500; 
 
 interface ScanLog {
   protocolo: string;
@@ -165,7 +167,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
             protocolo: 'SISTEMA',
             status: 'warning',
             message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticos.`
-          }, ...get().logs];
+          } as ScanLog, ...get().logs];
 
           set({
             queue: failedQueue,
@@ -175,7 +177,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
             logs: pass2Logs
           });
           
-          setTimeout(() => get().processNext(), 1500);
+          setTimeout(() => get().processNext(), SCAN_GAP_MS);
           return;
         }
 
@@ -186,11 +188,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     }
 
     const protocolo = queue[currentIndex];
-    const targetCase = useAppStore.getState().cases.find(c => c.protocolo === protocolo);
-    const isSemPrazo = targetCase?.status === 'Sem Prazo';
-
+    
     try {
-      const result = await scanOneDataJudAction(protocolo, isSemPrazo);
+      // Chama a Action com Fast Mode ativo (Otimizado para scanner)
+      const result = await scanOneDataJudAction(protocolo, true);
 
       if (result.success && result.casePatch) {
         try {
@@ -205,23 +206,19 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
              protocolo: 'SISTEMA',
              status: 'error',
              message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
-           }, ...state.logs]
+           } as ScanLog, ...state.logs]
         }));
         return;
       }
 
-      const displayMessage = (!result.success && isSemPrazo) 
-        ? "Sem Prazo — Tribunal indisponível (Ignorado)" 
-        : (result.message || "Auditado");
-      
       const logStatus: 'success' | 'error' | 'warning' = result.success 
         ? (result.encerrado || result.alerta ? 'warning' : 'success') 
-        : (isSemPrazo ? 'success' : 'error');
+        : 'error';
 
       const newLog: ScanLog = {
         protocolo: protocolo,
         status: logStatus,
-        message: (isSecondPass ? "[P2] " : "") + displayMessage,
+        message: (isSecondPass ? "[P2] " : "") + (result.message || "Auditado"),
         alerta: result.alerta,
         encerrado: result.encerrado,
         attempts: result.attempts,
@@ -239,10 +236,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       if (!isSecondPass) {
         nextDone++;
         if (!result.success) {
-          if (!isSemPrazo) {
-            nextErrors++;
-            nextFailedQueue.push(protocolo);
-          }
+          nextErrors++;
+          nextFailedQueue.push(protocolo);
         } else {
           if (result.alerta) nextAlerts++;
           if (result.encerrado) nextClosed++;
@@ -282,23 +277,23 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
     } catch (e: any) {
       const nextFailedQueue = [...get().failedQueue];
-      if (!isSecondPass && !isSemPrazo) nextFailedQueue.push(protocolo);
+      if (!isSecondPass) nextFailedQueue.push(protocolo);
 
       set((state) => ({
         currentIndex: state.currentIndex + 1,
         done: isSecondPass ? state.done : state.done + 1,
-        errors: (isSecondPass || isSemPrazo) ? state.errors : state.errors + 1,
+        errors: isSecondPass ? state.errors : state.errors + 1,
         failedQueue: nextFailedQueue,
         logs: [{
           protocolo,
-          status: (isSemPrazo ? 'success' : 'error'),
-          message: isSemPrazo ? "Sem Prazo — Falha de infraestrutura (Ignorada)" : "ERRO DE INFRAESTRUTURA."
-        }, ...state.logs]
+          status: 'error',
+          message: "ERRO DE INFRAESTRUTURA."
+        } as ScanLog, ...state.logs]
       }));
     }
 
     if (get().status === 'running') {
-      setTimeout(() => get().processNext(), 1500);
+      setTimeout(() => get().processNext(), SCAN_GAP_MS);
     }
   }
 }));
