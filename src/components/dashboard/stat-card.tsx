@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
 /**
- * @fileOverview StatCard v420.0 - Corrigida clonagem de ícones
+ * @fileOverview StatCard v460.0 - Corrigida tipagem de cloneElement
  */
 
 interface StatCardProps {
