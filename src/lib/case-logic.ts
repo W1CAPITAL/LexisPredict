@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -138,7 +137,7 @@ export function calcularStatus(
   alertLimit: number = 3
 ): CaseStatus {
   const sit = (situacao || "").toUpperCase();
-  if (sit.includes("ENCERRADO") || sit.includes("ARQUIVADO") || sit.includes("EXTINTO") || sit.includes("SUSPENSO")) return "Arquivado";
+  if (sit.includes("ENCERRADO") || sit.includes("ARQUIVADO") || sit.includes("EXTINTO") || sit.includes("SUSPENSO") || sit.includes("IMOVEL") || sit.includes("IMÓVEL")) return "Arquivado";
 
   const iso = formatDateToISO(proximoRetorno);
   if (!iso) return "Sem Prazo";
@@ -213,8 +212,11 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     observacao = `[PRODUTO: ${produtos}] ${observacao}`.trim();
   }
 
-  // Sanitização de Flags de Auditoria (Garantir Booleano Puro)
-  const toBool = (val: any) => val === true || val === 'true';
+  // Sanitização Robusta de Flags de Auditoria (Garantir Booleano Puro v350.0)
+  const toBool = (val: any) => {
+    if (val === true || val === 'true' || val === 1 || val === '1') return true;
+    return false;
+  };
 
   return {
     id: raw.id || crypto.randomUUID(),
