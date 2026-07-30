@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Server Actions do Motor de Auditoria Consolidada v8.0
- * Garante a sincronia entre as auditorias e a tabela principal de processos.
+ * @fileOverview Server Actions do Motor de Auditoria Consolidada v9.0
+ * Instrumentação de rastreio para identificação de interrupções.
  */
 
 import { ScannerService, AuditResult } from '@/modules/process-scanner/services/scanner-service';
@@ -11,30 +11,33 @@ import { createClient } from '@/lib/supabase/server';
 import { detectarAtualizacaoPosRetorno } from '@/lib/datajud-sync';
 
 export async function startFullScannerJobAction() {
+  console.log("\n[ACTION] Scanner iniciado");
+  
   const { empresa_id, auth_id } = await getUserContext();
-  if (!empresa_id) return { success: false, error: "401_SESSAO_EXPIRADA" };
+  if (!empresa_id) {
+    console.error("[ACTION] Falha: Sessão expirada.");
+    return { success: false, error: "401_SESSAO_EXPIRADA" };
+  }
 
   try {
+    console.log("[ACTION] Banco conectado. Buscando carteira...");
     const cases = await getStoredCasesForEmpresa(empresa_id);
-    const validCases = cases.filter(c => c.protocolo.length >= 8);
+    const validCases = cases.filter(c => c.protocolo && c.protocolo.length >= 8);
+
+    console.log(`[ACTION] Quantidade de processos encontrada: ${validCases.length}`);
 
     if (validCases.length === 0) {
       return { success: true, processed: 0, message: "Nenhum processo para auditoria." };
     }
 
     const scanner = new ScannerService();
-    const results: AuditResult[] = [];
-    
-    // Execução sequencial para resiliência de rate limit e timeout individual
-    for (const c of validCases) {
-      // Passamos o hash da última auditoria (se houver) para detectar mudanças
-      const res = await scanner.auditarProcesso(c.protocolo, c.metadata?.hash);
-      if (res) results.push(res);
-    }
+    // O rito scanLoteInteligente já possui logs internos para cada processo
+    const results = await scanner.scanLoteInteligente(validCases);
 
+    console.log("[ACTION] Gravando resultados no repositório de auditoria...");
     const supabase = await createClient();
+    
     if (results.length > 0) {
-      // 1. Gravação na Tabela de Auditoria (process_scans)
       const auditRows = results.map(r => ({
         empresa_id: empresa_id,
         cnj: r.cnj,
@@ -56,15 +59,18 @@ export async function startFullScannerJobAction() {
         }
       }));
 
-      await supabase.from('process_scans').upsert(auditRows, { onConflict: 'cnj' });
+      const { error: upsertError } = await supabase.from('process_scans').upsert(auditRows, { onConflict: 'cnj' });
+      if (upsertError) {
+        console.error("[ACTION] Erro ao salvar auditoria:", upsertError.message);
+      } else {
+        console.log("[ACTION] Processo salvo no banco com sucesso.");
+      }
 
-      // 2. Sincronia Reativa com a Tabela Principal (processos)
-      // Se houver mudança detectada ou se o motor MNI encontrar algo novo, marcamos na tela de processos.
+      // Sincronia Reativa
       for (const res of results) {
         if (res.localizado && res.mudancaDetectada) {
           const targetCase = validCases.find(c => c.protocolo === res.cnj);
           if (targetCase) {
-             // Verificamos se esse novo andamento é posterior ao último retorno do cliente
              const check = detectarAtualizacaoPosRetorno(targetCase.ultimoRetorno, [{
                dataHora: res.dataUltimoEvento,
                nome: res.analysis.detalhes
@@ -87,6 +93,7 @@ export async function startFullScannerJobAction() {
       }
     }
 
+    console.log("[ACTION] Job de Scanner concluído com sucesso.");
     return { 
       success: true, 
       processed: results.length,
@@ -94,7 +101,7 @@ export async function startFullScannerJobAction() {
       timestamp: new Date().toISOString()
     };
   } catch (error: any) {
-    console.error("[Scanner Action] Critical Failure:", error.message);
+    console.error("[ACTION] Falha crítica no fluxo do scanner:", error.message);
     return { success: false, error: error.message };
   }
 }
