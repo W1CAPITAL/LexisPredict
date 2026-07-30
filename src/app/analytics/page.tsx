@@ -39,7 +39,10 @@ import {
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
-// CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT - TODAS AS LETRAS EM PRETO
+/**
+ * @fileOverview Analytics v420.0 - Corrigida clonagem de ícones
+ */
+
 const TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 as const };
 const TOOLTIP_LIGHT = {
   backgroundColor: '#ffffff',
@@ -171,7 +174,7 @@ export default function AnalyticsPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-            {/* OFFICE PERFORMANCE ANALYSIS - CONVERTIDO PARA LETRAS PRETAS */}
+            {/* OFFICE PERFORMANCE ANALYSIS */}
             <div className="xl:col-span-12 premium-card p-8 bg-white text-black min-h-[400px] flex flex-col relative overflow-hidden border-2 border-black">
               <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none print:hidden">
                  <Building2 size={200} className="text-black" />
@@ -213,9 +216,6 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                   ))}
-                  {(!metrics?.officePerformance || metrics.officePerformance.length === 0) && (
-                    <p className="text-[10px] font-black uppercase text-black/20 text-center py-10">Sem dados para o período</p>
-                  )}
                 </div>
 
                 <div className="lg:col-span-2 h-[300px]">
@@ -377,7 +377,7 @@ function MetricCard({ label, value, icon, color }: { label: string, value: numbe
           <h3 className="text-3xl font-black tracking-tighter text-black tabular-nums">{value}</h3>
         </div>
         <div className={cn("p-2.5 rounded-lg border transition-colors", styles[color])}>
-          {React.cloneElement(icon as React.ReactElement<any>, { size: 18, className: "text-black" })}
+          {React.isValidElement(icon) && React.cloneElement(icon as React.ReactElement<any>, { size: 18, className: "text-black" } as any)}
         </div>
       </div>
     </div>

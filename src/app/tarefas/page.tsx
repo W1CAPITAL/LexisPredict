@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -23,7 +22,6 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  Settings2,
   Plus,
   Minus,
   Zap,
@@ -32,13 +30,9 @@ import {
   Loader2,
   FileText,
   Calendar,
-  Archive,
-  PlayCircle,
   Sparkles,
   Gavel,
-  User,
   Building2,
-  Filter,
   FileSearch,
   History
 } from 'lucide-react';
@@ -62,7 +56,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -73,6 +66,10 @@ import {
 import { format, parseISO, startOfDay, differenceInDays } from 'date-fns';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
+
+/**
+ * @fileOverview Fila de Atendimento v420.0 - Sincronia de Tipagem
+ */
 
 interface TaskGroup {
   cliente: string;
@@ -86,7 +83,6 @@ interface TaskGroup {
   escritorio: string;
   cases: LegalCase[];
   
-  // Metadados de Prioridade v260.0
   hasBA: boolean;
   hasClosedCourt: boolean;
   hasUpdate: boolean;
@@ -113,7 +109,6 @@ export default function TarefasPage() {
     applyToAll: true
   });
 
-  // DataJud State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
 
@@ -164,7 +159,7 @@ export default function TarefasPage() {
 
   const handleSingleScan = async (protocolo: string) => {
     try {
-      const res = await scanSingleCaseAction(protocolo);
+      const res = (await scanSingleCaseAction(protocolo)) as any;
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);
@@ -187,10 +182,8 @@ export default function TarefasPage() {
     const contactedSet = new Set(contatadosHoje);
     const today = startOfDay(new Date());
 
-    // 1. Filtrar Ativos
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
 
-    // 2. Agrupar por Cliente e Identificar Gravidade
     activeCases.forEach(c => {
       const nome = c.cliente || 'NÃO IDENTIFICADO';
       if (!groups[nome]) {
@@ -217,12 +210,10 @@ export default function TarefasPage() {
       g.totalAtivos++;
       g.cases.push(c);
 
-      // Flags DataJud
       if (c.indicio_busca_apreensao) g.hasBA = true;
       if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
       if (c.tem_atualizacao_pos_retorno) g.hasUpdate = true;
 
-      // Ranking de Status (Maior Score = Mais Urgente)
       let currentScore = 0;
       if (c.status === 'Caso Crítico') currentScore = 50;
       else if (c.status === 'Vencido') currentScore = 40;
@@ -232,7 +223,6 @@ export default function TarefasPage() {
       
       if (currentScore > g.statusScore) g.statusScore = currentScore;
 
-      // Dias de atraso (para desempate secundário)
       if (c.status === 'Vencido' || c.status === 'Caso Crítico') {
         g.vencidos++;
         const atraso = c.diasFaltando ? Math.abs(c.diasFaltando) : 0;
@@ -240,18 +230,15 @@ export default function TarefasPage() {
       }
       if (c.status === 'É Hoje') g.hoje++;
 
-      // Carência de Retorno (Tempo sem atendimento)
       const isoRetorno = formatDateToISO(c.ultimoRetorno);
       if (isoRetorno) {
         const gap = differenceInDays(today, startOfDay(parseISO(isoRetorno)));
         if (gap > g.oldestReturnGap) g.oldestReturnGap = gap;
       } else {
-        // Sem retorno = Carência máxima (tratar como 365 dias para subir na fila)
         if (365 > g.oldestReturnGap) g.oldestReturnGap = 365;
       }
     });
 
-    // 3. Ordenação Estratégica v260.0
     const sortedAll = Object.values(groups)
       .filter(g => {
         const matchesSearch = g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search);
@@ -259,18 +246,11 @@ export default function TarefasPage() {
         return matchesSearch && matchesOffice;
       })
       .sort((a, b) => {
-        // NÍVEL 1: SOBERANIA DATAJUD
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
         if (a.hasUpdate !== b.hasUpdate) return a.hasUpdate ? -1 : 1;
-
-        // NÍVEL 2: URGÊNCIA DE PRAZO
         if (b.statusScore !== a.statusScore) return b.statusScore - a.statusScore;
-
-        // NÍVEL 3: CARÊNCIA DE ATENDIMENTO (Quem está há mais tempo sem retorno)
         if (b.oldestReturnGap !== a.oldestReturnGap) return b.oldestReturnGap - a.oldestReturnGap;
-
-        // NÍVEL 4: DESEMPATE TÉCNICO
         return b.diasAtrasoMax - a.diasAtrasoMax;
       });
 
@@ -318,7 +298,7 @@ export default function TarefasPage() {
             observacao: attendanceForm.observacao || c.observacao,
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : (attendanceForm.proximoRetorno || c.proximoPrazo),
             statusManual: 'Automatico',
-            tem_atualizacao_pos_retorno: false // Desarma alerta ao atender
+            tem_atualizacao_pos_retorno: false 
           };
           return processarCaso(newCaseData, thresholds);
         }
@@ -461,7 +441,6 @@ export default function TarefasPage() {
           </div>
         </div>
 
-        {/* Modal de Cronologia DataJud */}
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
           <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="p-6 bg-black text-white">
@@ -589,8 +568,6 @@ function TaskCard({
   onMarkContacted: () => void,
   onScan: (protocolo: string) => void
 }) {
-  const [isScanning, setIsScanning] = useState(false);
-  
   const prob = calcularProbabilidadeEncerramento({
     status: group.vencidos > 0 ? "Vencido" : "No Prazo",
     situacao: "EM ANDAMENTO",
@@ -660,15 +637,12 @@ function TaskCard({
               title="Andamentos DataJud" 
               variant="ghost" 
               size="icon" 
-              disabled={isScanning}
               onClick={async () => {
-                setIsScanning(true);
                 await onScan(group.protocoloReferencia);
-                setIsScanning(false);
               }}
               className="h-9 w-9 rounded-lg text-primary hover:bg-primary/10 transition-colors"
            >
-             {isScanning ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
+             <FileSearch size={18} />
            </Button>
            <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-lg text-emerald-600 hover:bg-emerald-50"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
            <Button title="Registrar Atendimento" variant="ghost" size="icon" onClick={onMarkContacted} className="h-9 w-9 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"><UserCheck size={18} /></Button>
@@ -678,4 +652,3 @@ function TaskCard({
     </div>
   );
 }
-

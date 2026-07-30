@@ -1,9 +1,7 @@
 "use client";
 
 /**
- * @fileOverview Módulo de Onboarding Interativo v210.0 ELITE
- * Conduz o usuário por TODAS as abas estratégicas com suporte a VÍDEO INTEGRADO.
- * Globalizado para persistir em todas as rotas.
+ * @fileOverview Módulo de Onboarding Interativo v420.0 - Corrigida clonagem de ícones
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -300,7 +298,6 @@ export function GuidedTour() {
     <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
       <div className="w-full max-w-5xl bg-white border-4 border-black shadow-[30px_30px_0px_rgba(0,0,0,0.1)] relative overflow-hidden flex flex-col h-[85vh]">
         
-        {/* Progress Bar */}
         <div className="absolute top-0 left-0 right-0 h-2 bg-gray-100 z-20">
           <div 
             className="h-full bg-primary transition-all duration-700 ease-out" 
@@ -327,7 +324,6 @@ export function GuidedTour() {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Lado Esquerdo: Resumo Estratégico */}
           <div className="w-1/3 bg-[#f8f9fb] border-r-2 border-black p-10 flex flex-col justify-between overflow-y-auto">
              <div className="space-y-8">
                 <div className={cn("px-4 py-2 w-fit rounded-none border-2 border-black font-black uppercase text-[10px] tracking-widest", currentLevel.bg, currentLevel.color)}>
@@ -392,7 +388,6 @@ export function GuidedTour() {
              </div>
           </div>
 
-          {/* Lado Direito: Explicação / Vídeo Player */}
           <div className="flex-1 flex flex-col bg-white overflow-hidden">
              {showVideo ? (
                <div className="flex-1 bg-black flex items-center justify-center p-4">
@@ -408,7 +403,7 @@ export function GuidedTour() {
                  <div className="p-16 space-y-12">
                     <div className="flex items-center gap-8">
                        <div className="w-24 h-24 bg-black flex items-center justify-center text-white border-4 border-black shadow-[10px_10px_0px_#00D1FF] shrink-0">
-                          {React.cloneElement(step.icon as React.ReactElement<any>, { size: 48 })}
+                          {React.isValidElement(step.icon) && React.cloneElement(step.icon as React.ReactElement<any>, { size: 48 } as any)}
                        </div>
                        <p className="text-xl font-bold uppercase leading-relaxed tracking-tight text-black/80">
                           {step.content}
@@ -432,7 +427,6 @@ export function GuidedTour() {
                </div>
              )}
 
-             {/* Footer Navegação */}
              {!showVideo && (
                <div className="p-10 bg-[#f8f9fb] border-t-2 border-black flex items-center justify-between shrink-0">
                   <Button 

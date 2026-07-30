@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v4.0 - PERFORMANCE ELITE
- * Otimizado com busca atômica, gap reduzido e Fast Mode.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v420.0 - PERFORMANCE ELITE
+ * Otimizado com busca atômica, gap reduzido e tipagem rigorosa.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -10,7 +10,6 @@ import { useAppStore } from '@/store/use-app-store';
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanScope = 'resume' | 'critical' | 'full';
 
-// CONSTANTE DE PERFORMANCE ELITE
 const SCAN_GAP_MS = 500; 
 
 interface ScanLog {
@@ -39,7 +38,6 @@ interface DataJudScanState {
   errors: number;
   logs: ScanLog[];
   
-  // Actions
   toggleMinimize: () => void;
   startScan: (protocolos: string[], scope: ScanScope) => void;
   pauseScan: () => void;
@@ -163,18 +161,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const { failedQueue } = get();
         
         if (failedQueue.length > 0 && !isSecondPass) {
-          const pass2Logs: ScanLog[] = [{
+          const pass2Log: ScanLog = {
             protocolo: 'SISTEMA',
             status: 'warning',
             message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticos.`
-          } as ScanLog, ...get().logs];
+          };
 
           set({
             queue: failedQueue,
             failedQueue: [],
             currentIndex: 0,
             isSecondPass: true,
-            logs: pass2Logs
+            logs: [pass2Log, ...get().logs]
           });
           
           setTimeout(() => get().processNext(), SCAN_GAP_MS);
@@ -190,8 +188,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     const protocolo = queue[currentIndex];
     
     try {
-      // Chama a Action com Fast Mode ativo (Otimizado para scanner)
-      const result = await scanOneDataJudAction(protocolo, true);
+      const result = (await scanOneDataJudAction(protocolo, true)) as any;
 
       if (result.success && result.casePatch) {
         try {
@@ -201,13 +198,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       if (!result.success && result.isAuthError) {
         set({ status: 'paused', isAuthPaused: true });
-        set((state) => ({
-           logs: [{
-             protocolo: 'SISTEMA',
-             status: 'error',
-             message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
-           } as ScanLog, ...state.logs]
-        }));
+        const authErrLog: ScanLog = {
+           protocolo: 'SISTEMA',
+           status: 'error',
+           message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
+        };
+        set((state) => ({ logs: [authErrLog, ...state.logs] }));
         return;
       }
 
@@ -279,16 +275,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const nextFailedQueue = [...get().failedQueue];
       if (!isSecondPass) nextFailedQueue.push(protocolo);
 
+      const infraErrLog: ScanLog = {
+        protocolo,
+        status: 'error',
+        message: "ERRO DE INFRAESTRUTURA."
+      };
+
       set((state) => ({
         currentIndex: state.currentIndex + 1,
         done: isSecondPass ? state.done : state.done + 1,
         errors: isSecondPass ? state.errors : state.errors + 1,
         failedQueue: nextFailedQueue,
-        logs: [{
-          protocolo,
-          status: 'error',
-          message: "ERRO DE INFRAESTRUTURA."
-        } as ScanLog, ...state.logs]
+        logs: [infraErrLog, ...state.logs]
       }));
     }
 

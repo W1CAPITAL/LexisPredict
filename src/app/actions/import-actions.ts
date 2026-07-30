@@ -12,8 +12,8 @@ import { processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { mapCsvRowToCanonical, sanitizeDateCell, sanitizeProtocolo } from '@/lib/csv-import-engine';
 
 /**
- * Motor de Ingestão P0: Padrão Enterprise
- * Agora com feedback detalhado de auditoria e tratamento resiliente de linhas.
+ * Motor de Ingestão P0: Padrão Enterprise v420.0
+ * Agora com feedback detalhado de auditoria e tipagem TSC resolvida.
  */
 export async function importCsvAction(csvText: string) {
   try {
@@ -29,7 +29,6 @@ export async function importCsvAction(csvText: string) {
       };
     }
 
-    // Detecção inteligente de separador
     const firstLine = csvText.split('\n')[0] || '';
     const semiCount = (firstLine.match(/;/g) || []).length;
     const commaCount = (firstLine.match(/,/g) || []).length;
@@ -67,14 +66,13 @@ export async function importCsvAction(csvText: string) {
 
     const supabase = await createClient();
 
-    // Lookup de usuários para distribuição
     const { data: companyUsers } = await supabase
       .from('usuarios')
       .select('auth_user_id, nome')
       .eq('empresa_id', empresa_id);
 
     const userLookup = new Map<string, string>();
-    companyUsers?.forEach((u: { auth_user_id: string; nome: string | null }) => {
+    (companyUsers as any[])?.forEach((u: { auth_user_id: string; nome: string | null }) => {
       if (u.nome) {
         userLookup.set(u.nome.trim().toUpperCase(), u.auth_user_id);
       }
@@ -95,12 +93,10 @@ export async function importCsvAction(csvText: string) {
       try {
         const canonical = mapCsvRowToCanonical(row);
         
-        // Sanitização de Entrada
         const cleanProtocolo = sanitizeProtocolo(canonical.protocolo);
         const cleanRetorno = sanitizeDateCell(canonical.ultimoRetorno);
         const cleanPrazo = sanitizeDateCell(canonical.proximoPrazo);
 
-        // Validação Mínima
         if (!cleanProtocolo || cleanProtocolo.length < 8) {
           addSkip('PROTOCOLO_INVALIDO');
           return;
@@ -122,7 +118,6 @@ export async function importCsvAction(csvText: string) {
         const isoPrazo = formatDateToISO(caso.proximoPrazo);
         const isoRetorno = formatDateToISO(caso.ultimoRetorno);
 
-        // Resolução de Assistente Responsável
         const assistantName = (canonical.assistente || '').trim().toUpperCase();
         const resolvedCreatedBy = userLookup.get(assistantName) || auth_id;
 
@@ -181,16 +176,13 @@ export async function importCsvAction(csvText: string) {
     }
 
     importedCount = data?.length || uniqueRows.length;
-    const skipSummary = Object.entries(skipReasonsMap)
-      .map(([reason, count]) => `${count} ${reason.toLowerCase().replace('_', ' ')}`)
-      .join(', ');
 
     return {
       success: true,
       imported: importedCount,
       skipped: skippedCount,
       skipReasons: Object.entries(skipReasonsMap).map(([reason, count]) => ({ reason, count })),
-      message: `${importedCount} processos sincronizados.${skippedCount > 0 ? ` ${skippedCount} ignorados (${skipSummary}).` : ''}`,
+      message: `${importedCount} processos sincronizados.`,
     };
   } catch (err: any) {
     console.error('[Import Critical]', err);

@@ -15,7 +15,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/li
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v410.0 ELITE - Otimização de Performance para Lote
+ * @fileOverview Actions de Processos v420.0 ELITE - Sincronia de Tipagem e Performance
  */
 
 export async function fetchRepoCases() {
@@ -63,7 +63,7 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * Auditador de Registro Único (Utilizado pelo Scanner e Clique Manual)
- * Otimizado para busca direta no banco via protocolo_ref.
+ * Retorna o objeto completo para satisfazer a UI e o sistema de tipos.
  */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
@@ -75,7 +75,6 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     const supabase = await createClient();
     if (!supabase) throw new Error("Supabase indisponível.");
 
-    // BUSCA ATÔMICA: Evita ler 1150 registros desnecessariamente
     const { data: dbItem, error: fetchError } = await supabase
       .from('processos')
       .select('*')
@@ -87,7 +86,6 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
     }
 
-    // Injeção de contexto completo das colunas reais no target para comparação fiel
     const target = processarCaso({
       ...(dbItem.dados as any),
       id: dbItem.id.toString(),
@@ -128,7 +126,6 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      // SMART WRITE: Só grava se houver mudança real nas flags ou andamento
       const hasRealChange = 
         patch.datajud_ultimo_nome !== target.datajud_ultimo_nome ||
         patch.datajud_encerrado_tribunal !== !!target.datajud_encerrado_tribunal ||
@@ -136,17 +133,16 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         patch.tem_atualizacao_pos_retorno !== !!target.tem_atualizacao_pos_retorno;
 
       let msg = attempts > 1 ? `Auditado (Recuperado na T${attempts})` : "Auditado";
+      let updatedCase: LegalCase = { ...target, ...patch };
 
       if (!hasRealChange) {
-        // Update pontual: Apenas renova o timestamp de vigilância
         await supabase
           .from('processos')
           .update({ datajud_consultado_em: patch.datajud_consultado_em })
           .eq('id', dbItem.id);
         msg += " (Preservado)";
+        updatedCase = target;
       } else {
-        // Sincronização completa: Mudança detectada
-        const updatedCase: LegalCase = { ...target, ...patch };
         await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       }
       
@@ -170,6 +166,8 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         encerrado: !!enc.encerrado,
         message: msg,
         casePatch: patch,
+        case: updatedCase,
+        movimentos: dataJud.movimentos,
         attempts
       };
     }
@@ -189,7 +187,6 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
 }
 
 export async function scanSingleCaseAction(protocolo: string) {
-  // Chamada via aba Processos: Usa modo normal (fast=false) para máxima precisão
   return await scanOneDataJudAction(protocolo, false);
 }
 

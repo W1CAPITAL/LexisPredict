@@ -22,7 +22,6 @@ import {
   AlertCircle,
   Gavel,
   ShieldCheck,
-  Target,
   Cpu,
   Info,
   ExternalLink
@@ -297,7 +296,6 @@ export default function VereditoPage() {
             {result && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Aviso de Transparência DataJud vs PJe */}
                   <Alert className="border-2 border-amber-500 bg-amber-50 rounded-none shadow-[4px_4px_0px_#f59e0b]">
                     <Info className="h-5 w-5 text-amber-600" />
                     <AlertTitle className="text-[10px] font-black uppercase tracking-widest text-amber-800">Protocolo de Integridade de Fonte</AlertTitle>
@@ -313,7 +311,7 @@ export default function VereditoPage() {
                         <span className="text-[10px] font-black uppercase tracking-widest">Motor Processual: {result.engineUsed || "N/A"}</span>
                      </div>
                      {result.isDeterministic && (
-                       <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">MODO SEGURANÇA LOCAL</Badge>
+                       <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] rounded-none">MODO SEGURANÇA LOCAL</Badge>
                      )}
                   </div>
 
