@@ -1,3 +1,4 @@
+
 /**
  * MOTOR DE INTERNACIONALIZAÇÃO v3500.0 ELITE
  * Dicionários oficiais para o Gabinete W1 Capital.
@@ -112,6 +113,9 @@ export const translations = {
   }
 };
 
-export const getTranslation = (locale: Locale) => {
+/**
+ * Recupera o dicionário de tradução baseado no locale.
+ */
+export function getTranslation(locale: Locale) {
   return translations[locale] || translations.pt;
-};
+}

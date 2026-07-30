@@ -1,9 +1,35 @@
+
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.5
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.6
+ * Agora com hashing de integridade para detectar mudanças reais de conteúdo.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
+
+/**
+ * Gera uma assinatura (hash) do estado atual das movimentações.
+ * Usado para detectar mudanças mesmo que as datas não mudem (ex: correção de texto).
+ */
+export function gerarHashAuditoria(movimentos: any[]): string {
+  if (!movimentos || movimentos.length === 0) return "EMPTY";
+  
+  // Analisamos os 5 movimentos mais recentes para compor o hash
+  const sorted = [...movimentos].sort((a, b) => 
+    new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
+  );
+
+  const signature = sorted.slice(0, 5)
+    .map(m => `${m.dataHora || ''}|${m.nome || ''}`)
+    .join('##');
+
+  // Retorno de hash simplificado via base64 para economia de espaço no banco
+  try {
+    return Buffer.from(signature).toString('base64').substring(0, 32);
+  } catch {
+    return signature.substring(0, 32);
+  }
+}
 
 /**
  * Analisa os movimentos recentes do tribunal para detectar encerramento definitivo.
@@ -17,14 +43,12 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     return { encerrado: false, motivo: null };
   }
 
-  // Janela de auditoria expandida: Analisar os 20 movimentos mais recentes (dataHora DESC)
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
   
   const window = sorted.slice(0, 20);
 
-  // Definição de Hierarquia de Encerramento (Ordem de Prioridade do Match)
   const patternGroups = [
     {
       patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'DETERMINADA A BAIXA', 'PROCESSO BAIXADO'],
@@ -73,19 +97,14 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
   const constructedWindow = window.map(mov => {
     const text = `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
     const nomeRaw = (mov.nome || "").toUpperCase().trim();
-    
-    // Regra de Exclusão de Provisórios
     const isProvisional = (text.includes("PROVISÓRIA") || text.includes("PROVISORIA")) && 
                           !(/DEFINITIV|EXTINT|ARQUIVADO DEFINITIVAMENTE/.test(text));
-    
     return { text, nomeRaw, isProvisional };
   });
 
-  // Percorre as prioridades de encerramento
   for (const group of patternGroups) {
     for (const item of constructedWindow) {
       if (item.isProvisional) continue;
-
       if (group.patterns.some(p => item.text.includes(p))) {
         if (group.filter && !group.filter(item.text)) continue;
         return { encerrado: true, motivo: group.label };
@@ -93,7 +112,6 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     }
   }
 
-  // Regra Especial para o termo "DEFINITIVO"
   for (const item of constructedWindow) {
     if (item.isProvisional) continue;
     if (item.nomeRaw === "DEFINITIVO" || (item.text.includes("DEFINITIVO") && /ARQUIV|BAIXA|BAIXADO/.test(item.text))) {

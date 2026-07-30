@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -11,11 +12,11 @@ import { createClient } from '@/lib/supabase/server';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
-import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/lib/datajud-sync';
+import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v460.0 ELITE - Busca Atômica + Paridade de Timeout
+ * @fileOverview Actions de Processos v420.0 ELITE - Suporte a Integridade por Hash
  */
 
 export async function fetchRepoCases() {
@@ -63,7 +64,7 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * Auditador de Registro Único (Utilizado pelo Scanner e Clique Manual)
- * Otimizado v460.0: Busca ATÔMICA e Paridade de timeout (45s).
+ * Otimizado com Hashing de Integridade para detectar mudanças reais de conteúdo.
  */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
@@ -75,7 +76,6 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     const supabase = await createClient();
     if (!supabase) throw new Error("Supabase indisponível.");
 
-    // BUSCA ATÔMICA PONTUAL (NUNCA recarregar a carteira inteira aqui)
     const { data: dbItem, error: fetchError } = await supabase
       .from('processos')
       .select('*')
@@ -87,7 +87,6 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
     }
 
-    // CONSCIÊNCIA DE ESTADO: Montar o target com as flags reais do banco para detecção de mudança
     const target = processarCaso({
       ...(dbItem.dados as any),
       id: dbItem.id.toString(),
@@ -100,13 +99,13 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       tem_atualizacao_pos_retorno: dbItem.tem_atualizacao_pos_retorno,
       datajud_encerrado_tribunal: dbItem.datajud_encerrado_tribunal,
       datajud_encerrado_motivo: dbItem.datajud_encerrado_motivo,
+      datajud_hash: dbItem.datajud_hash,
       indicio_busca_apreensao: dbItem.indicio_busca_apreensao,
       busca_apreensao_confianca: dbItem.busca_apreensao_confianca,
       busca_apreensao_motivo: dbItem.busca_apreensao_motivo,
       busca_apreensao_consultado_em: dbItem.busca_apreensao_consultado_em
     });
 
-    // Chamada unificada de 45s de teto
     const dataJud = await fetchDataJud(protocolo, 1, { fast });
     const attempts = dataJud?.attempts || 1;
     
@@ -114,14 +113,16 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
       const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
       const ba = analisarBuscaApreensao(dataJud);
+      const newHash = gerarHashAuditoria(dataJud.movimentos);
       
       const patch = {
         datajud_ultimo_movimento: check.dataUltimo,
         datajud_ultimo_nome: check.nomeUltimo,
         datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: !!check.alerta,
+        tem_atualizacao_pos_retorno: !!check.alerta || newHash !== target.datajud_hash,
         datajud_encerrado_tribunal: !!enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
+        datajud_hash: newHash,
         indicio_busca_apreensao: !!ba.indicio,
         busca_apreensao_confianca: ba.confianca,
         busca_apreensao_motivo: ba.motivo,
@@ -129,27 +130,23 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      // MUDANÇA REAL: Compara estado anterior vs novo estado capturado
       const hasRealChange = 
-        patch.datajud_ultimo_nome !== target.datajud_ultimo_nome ||
+        patch.datajud_hash !== target.datajud_hash ||
         patch.datajud_encerrado_tribunal !== !!target.datajud_encerrado_tribunal ||
-        patch.indicio_busca_apreensao !== !!target.indicio_busca_apreensao ||
-        patch.tem_atualizacao_pos_retorno !== !!target.tem_atualizacao_pos_retorno;
+        patch.indicio_busca_apreensao !== !!target.indicio_busca_apreensao;
 
       let msg = attempts > 1 ? `Auditado (Recuperado na T${attempts})` : "Auditado";
-      let updatedCase: LegalCase = { ...target, ...patch };
 
       if (!hasRealChange) {
-        // SMART WRITE: Se nada mudou, atualiza apenas o timestamp de vigilância
         await supabase
           .from('processos')
           .update({ datajud_consultado_em: patch.datajud_consultado_em })
           .eq('id', dbItem.id);
         msg += " (Preservado)";
-        updatedCase = target; 
       } else {
-        // SOBRESCRITA SELETIVA: Grava o patch completo apenas se houver novidade
+        const updatedCase: LegalCase = { ...target, ...patch };
         await saveStoredCasesForEmpresa([updatedCase], empresa_id);
+        msg += " (Mudança Detectada)";
       }
       
       let tipo = 'sem_novidade';
@@ -159,8 +156,8 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       } else if (ba.indicio && ba.confianca === 'alta') {
         msg = `⚠ ALERTA BUSCA E APREENSÃO`;
         tipo = 'novo_andamento';
-      } else if (check.alerta) {
-        msg = `NOVO ANDAMENTO — ${check.nomeUltimo}`;
+      } else if (patch.tem_atualizacao_pos_retorno) {
+        msg = `NOVO ANDAMENTO — ${check.nomeUltimo || 'Identificado por Hash'}`;
         tipo = 'novo_andamento';
       }
       
@@ -168,12 +165,10 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         success: true, 
         protocolo, 
         tipo,
-        alerta: !!(check.alerta || ba.indicio), 
+        alerta: !!(patch.tem_atualizacao_pos_retorno || ba.indicio), 
         encerrado: !!enc.encerrado,
         message: msg,
         casePatch: patch,
-        case: updatedCase,
-        movimentos: dataJud.movimentos,
         attempts
       };
     }
@@ -181,19 +176,18 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     return { 
       success: false, 
       protocolo, 
-      tipo: 'error', 
+      tipo: 'erro', 
       message: dataJud?.message || "Erro no tribunal", 
       error: true, 
       isAuthError: dataJud?.isAuthError,
       attempts
     };
   } catch (e: any) {
-    return { success: false, protocolo, tipo: 'error', message: `Falha técnica`, error: true };
+    return { success: false, protocolo, tipo: 'erro', message: `Falha técnica`, error: true };
   }
 }
 
 export async function scanSingleCaseAction(protocolo: string) {
-  // Clique Manual: Usa modo robusto (fast=false) herdando 45s e 3 tentativas
   return await scanOneDataJudAction(protocolo, false);
 }
 
@@ -231,6 +225,7 @@ export async function clearDataJudAuditAction() {
       datajud_consultado_em: null,
       datajud_ultimo_movimento: null,
       datajud_ultimo_nome: null,
+      datajud_hash: null,
       indicio_busca_apreensao: false,
       busca_apreensao_confianca: null,
       busca_apreensao_motivo: null,

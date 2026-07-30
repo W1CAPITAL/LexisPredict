@@ -56,10 +56,6 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { useAppStore } from '@/store/use-app-store';
 
-/**
- * @fileOverview Gestão de Processos v420.0 - Corrigida tipagem de Auditoria
- */
-
 const CaseRow = React.memo(({ 
   c, 
   isOperador, 
@@ -154,6 +150,7 @@ const CaseRow = React.memo(({
       </td>
       <td className="px-8 py-5">
         <div className="flex flex-col gap-4">
+          {/* Retorno Manual */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg border border-border/50 flex items-center justify-center bg-secondary/50 group-hover:bg-background transition-all">
               <CheckCircle2 size={16} className="text-emerald-500" />
@@ -166,6 +163,7 @@ const CaseRow = React.memo(({
             </div>
           </div>
 
+          {/* Última Movimentação DataJud (Visível) */}
           {c.datajud_ultimo_nome && (
             <div className="flex items-center gap-3 pl-0.5">
               <div className="w-7 h-7 rounded-lg border border-border/30 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-all">
@@ -301,7 +299,7 @@ function CasesContent() {
 
   const handleSingleScan = async (caseItem: LegalCase) => {
     try {
-      const res = (await scanSingleCaseAction(caseItem.protocolo)) as any;
+      const res = await scanSingleCaseAction(caseItem.protocolo);
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);

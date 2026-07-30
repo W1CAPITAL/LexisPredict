@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -57,10 +58,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-/**
- * @fileOverview Gestão de Equipe v420.0 - Corrigidas referências de Build
- */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Superadmin': 100,

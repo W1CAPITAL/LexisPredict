@@ -60,6 +60,7 @@ export interface LegalCase {
   tem_atualizacao_pos_retorno?: boolean;
   datajud_encerrado_tribunal?: boolean;
   datajud_encerrado_motivo?: string | null;
+  datajud_hash?: string | null; // Assinatura da última auditoria
 
   // Auditoria Busca e Apreensão (BA)
   indicio_busca_apreensao?: boolean;
@@ -166,7 +167,7 @@ export function extrairTribunal(protocolo: string): { tribunal: string; link: st
     const mapa: Record<string, string> = {
       '01': 'TJAC', '02': 'TJAL', '03': 'TJAP', '04': 'TJAM', '05': 'TJBA',
       '06': 'TJCE', '07': 'TJDF', '08': 'TJES', '09': 'TJGO', '10': 'TJMA',
-      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'TJPA', '15': 'TJPB',
+      '11': 'TJMT', '12': 'TJMS', '13': 'TJMG', '14': 'Tjpa', '15': 'TJPB',
       '16': 'TJPR', '17': 'TJPE', '18': 'TJPI', '19': 'TJRJ', '20': 'TJRN',
       '21': 'TJRS', '22': 'TJRO', '23': 'TJRR', '24': 'TJSC', '25': 'TJSE',
       '26': 'TJSP', '27': 'TJTO',
@@ -213,7 +214,6 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     observacao = `[PRODUTO: ${produtos}] ${observacao}`.trim();
   }
 
-  // Sanitização Robusta de Flags de Auditoria (Garantir Booleano Puro v350.0)
   const toBool = (val: any) => {
     if (val === true || val === 'true' || val === 1 || val === '1') return true;
     return false;
@@ -238,15 +238,14 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     observacao,
     telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, ''),
     
-    // Preservar dados de auditoria com cast booleano rigoroso
     datajud_ultimo_movimento: data.datajud_ultimo_movimento,
     datajud_ultimo_nome: data.datajud_ultimo_nome,
     datajud_consultado_em: data.datajud_consultado_em,
     tem_atualizacao_pos_retorno: toBool(data.tem_atualizacao_pos_retorno),
     datajud_encerrado_tribunal: toBool(data.datajud_encerrado_tribunal),
     datajud_encerrado_motivo: data.datajud_encerrado_motivo,
+    datajud_hash: data.datajud_hash || null,
 
-    // Auditoria BA
     indicio_busca_apreensao: toBool(data.indicio_busca_apreensao),
     busca_apreensao_confianca: data.busca_apreensao_confianca,
     busca_apreensao_motivo: data.busca_apreensao_motivo,
