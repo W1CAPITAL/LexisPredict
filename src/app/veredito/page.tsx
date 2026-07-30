@@ -354,7 +354,7 @@ export default function VereditoPage() {
                            )}
                            
                            {result.conclusaoEncerramento && (
-                             <Card className="bg-primary/5 border-2 border-black shadow-[8px_8px_0px_#000] rounded-none">
+                             <Card className="bg-primary/5 border-2 border-black shadow-[8px_8px_0px_#00D1FF] rounded-none">
                                <CardHeader className="bg-black text-white p-4">
                                   <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                                     <ShieldCheck size={14} /> Conclusão Neural
