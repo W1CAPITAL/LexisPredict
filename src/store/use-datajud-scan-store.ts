@@ -1,8 +1,8 @@
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v6.0 — ADAPTIVE WORKPOOL & COURT HEALTH
- * Implementa 5 workers simultâneos com Health Check adaptativo e ordenação por performance.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v6.1 — ADAPTIVE WORKPOOL & COURT HEALTH
+ * Implementa 5 workers simultâneos com Health Check otimizado e timeout preventivo.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -123,7 +123,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       let newStatus: 'online' | 'slow' | 'offline' = 'online';
       if (newRate < 0.3) newStatus = 'offline';
-      else if (newAvgLatency > 10000 || newRate < 0.7) newStatus = 'slow';
+      else if (newAvgLatency > 12000 || newRate < 0.6) newStatus = 'slow';
 
       return {
         courtHealthMap: {
@@ -142,7 +142,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   runInitialHealthCheck: async (protocolos) => {
-    // Identifica tribunais únicos
     const courtSampleMap: Record<string, string> = {};
     protocolos.forEach(p => {
       const match = p.match(/\.(\d)\.(\d{2})\./);
@@ -153,31 +152,39 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     });
 
     const courts = Object.keys(courtSampleMap);
-    set({ logs: [{ protocolo: 'SISTEMA', status: 'success', message: `Iniciando Health Check de ${courts.length} tribunais...` }] });
+    set({ logs: [{ protocolo: 'SISTEMA', status: 'success', message: `Auditoria de Latência: ${courts.length} tribunais...` }] });
 
-    // Executa um ping paralelo por tribunal
-    await Promise.all(courts.map(async (courtId) => {
-      const sampleP = courtSampleMap[courtId];
-      const start = Date.now();
-      try {
-        const res = await scanOneDataJudAction(sampleP, true);
-        const lat = Date.now() - start;
-        get().updateCourtHealth(courtId, lat, res.success);
-      } catch (e) {
-        get().updateCourtHealth(courtId, 20000, false);
-      }
-    }));
+    // Pool de pings para não sobrecarregar a conexão inicial
+    const PING_BATCH_SIZE = 3;
+    for (let i = 0; i < courts.length; i += PING_BATCH_SIZE) {
+      const batch = courts.slice(i, i + PING_BATCH_SIZE);
+      await Promise.all(batch.map(async (courtId) => {
+        const sampleP = courtSampleMap[courtId];
+        const start = Date.now();
+        
+        try {
+          // Timeout rígido de 8s para o Health Check não travar o app
+          const pingPromise = scanOneDataJudAction(sampleP, true);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000));
+          
+          const res = await Promise.race([pingPromise, timeoutPromise]) as any;
+          const lat = Date.now() - start;
+          get().updateCourtHealth(courtId, lat, !!res?.success);
+        } catch (e) {
+          get().updateCourtHealth(courtId, 8000, false);
+        }
+      }));
+    }
 
-    // Re-ordena a fila baseada na saúde
     return [...protocolos].sort((a, b) => {
       const getScore = (p: string) => {
         const match = p.match(/\.(\d)\.(\d{2})\./);
         if (!match) return 0;
         const health = get().courtHealthMap[`${match[1]}.${match[2]}`];
-        if (!health) return 50; // Neutro
+        if (!health) return 50;
         if (health.status === 'offline') return -100;
         if (health.status === 'slow') return 10;
-        return 100 - (health.avgLatency / 1000); // Prioriza menor latência
+        return 100 - (health.avgLatency / 1000);
       };
       return getScore(b) - getScore(a);
     });
@@ -198,11 +205,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       logs: []
     });
 
-    // Rito Adaptativo: Health Check Inicial
     const optimizedQueue = await get().runInitialHealthCheck(protocolos);
     set({ queue: optimizedQueue });
 
-    // Iniciar Workers em paralelo
     for (let i = 0; i < CONCURRENT_WORKERS; i++) {
       get().workerLoop();
     }
@@ -268,7 +273,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const result = await scanOneDataJudAction(protocolo, true);
         const latency = Date.now() - startTime;
 
-        // Extrai ID do tribunal para o Health Check
         const match = protocolo.match(/\.(\d)\.(\d{2})\./);
         if (match) {
           get().updateCourtHealth(`${match[1]}.${match[2]}`, latency, result.success);
@@ -302,7 +306,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           logs: [newLog, ...state.logs].slice(0, 100)
         }));
 
-        // Persistência de progresso
         const s = get();
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
           queue: s.queue,
