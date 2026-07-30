@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -16,42 +17,48 @@ import {
   Scale,
   Zap,
   TrendingUp,
+  StickyNote,
   Sparkles,
   TrendingDown,
+  Layout,
   Layers,
+  FileCode,
+  Download,
   Search,
   Users,
   Loader2,
   Building2,
-  Gavel
+  Gavel,
+  CheckCircle
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { useAppStore } from "@/store/use-app-store";
+import { saveAs } from 'file-saver';
+import { useToast } from "@/hooks/use-toast";
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
   YAxis,
+  Tooltip as RechartsTooltip,
   Cell
 } from 'recharts';
+import { Input } from "@/components/ui/input";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
-import { ChanceEncerramentoCard } from '@/components/dashboard/chance-encerramento-card';
-import { analisarChanceEncerramento } from '@/lib/chance-encerramento-logic';
 
 export default function UnifiedReport() {
-  const { setCases } = useAppStore();
-  const [cases, setLocalCases] = useState<LegalCase[]>([]);
+  const [cases, setCases] = useState<LegalCase[]>([]);
   const [notes, setNotes] = useState<CaseNote[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   
   const { profile, loading: authLoading } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
@@ -61,7 +68,6 @@ export default function UnifiedReport() {
           fetchRepoCases(),
           fetchRepoNotes()
         ]);
-        setLocalCases(casesData || []);
         setCases(casesData || []);
         setNotes(notesData || []);
         
@@ -78,7 +84,7 @@ export default function UnifiedReport() {
       }
     }
     if (mounted && !authLoading) load();
-  }, [mounted, authLoading, setCases]);
+  }, [mounted, authLoading]);
 
   const metrics = useMemo(() => {
     const totalRepo = cases.length;
@@ -89,12 +95,12 @@ export default function UnifiedReport() {
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
-    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
+    const countSemPrazo = ativos.filter(c => !c.proximoPrazo).length;
     
-    // Alertas DataJud baseados em ativos com cast de verdade absoluta (!! v350.0)
-    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno).length;
-    const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
-    const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
+    // Métricas DataJud baseadas nos ativos
+    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno).length;
+    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal).length;
+    const countBA = ativos.filter(c => c.indicio_busca_apreensao).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
@@ -164,6 +170,13 @@ export default function UnifiedReport() {
     };
   }, [cases]);
 
+  const prioritaryCases = useMemo(() => {
+    return cases
+      .filter(c => ["Vencido", "É Hoje", "Atenção", "Caso Crítico"].includes(c.status) && !isCasoEncerrado(c))
+      .sort((a, b) => (a.diasFaltando || 0) - (b.diasFaltando || 0))
+      .slice(0, 50);
+  }, [cases]);
+
   const handleExportPDF = () => window.print();
 
   if (!mounted || loading || authLoading) {
@@ -223,7 +236,7 @@ export default function UnifiedReport() {
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Andamentos Judiciais não atendidos</p>
                       <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
+                         <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento} de {metrics.activeTotal}</span>
                          <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
                       </div>
                       <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de vigilância: processos com movimentos novos após o último contato.</p>
@@ -231,7 +244,7 @@ export default function UnifiedReport() {
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Baixas identificadas no Tribunal</p>
                       <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
+                         <span className="text-4xl font-black tabular-nums">{metrics.countEncerradoTribunal} de {metrics.activeTotal}</span>
                          <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
                       </div>
                       <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.</p>
@@ -239,7 +252,7 @@ export default function UnifiedReport() {
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Busca e Apreensão Detectada</p>
                       <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
+                         <span className="text-4xl font-black tabular-nums">{metrics.countBA} de {metrics.activeTotal}</span>
                          <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
                       </div>
                       <p className="text-[8px] font-bold uppercase italic opacity-40">Indícios de Busca e Apreensão detectados via auditoria CNJ (protocolo do processo).</p>
@@ -391,7 +404,7 @@ export default function UnifiedReport() {
                   <p className="text-xs text-black font-black uppercase">Relatório Executivo Operacional</p>
                 </div>
               </div>
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-black bg-white shadow-[4px_4px_0px_#00D1FF]">
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-black bg-white shadow-[4px_4px_0px_#000]">
                 <ShieldCheck size={13} className="text-black" />
                 <span className="text-[9px] font-black tracking-[0.2em] uppercase text-black">Auditado por Davi Alves Figueredo</span>
               </div>
@@ -410,7 +423,7 @@ export default function UnifiedReport() {
           }
           .shadow-\[12px_12px_0px_#000\] { box-shadow: none !important; }
           .shadow-\[6px_6px_0px_#000\] { box-shadow: none !important; }
-          .shadow-\[4px_4px_0px_#00D1FF\] { box-shadow: none !important; }
+          .shadow-\[4px_4px_0px_#000\] { box-shadow: none !important; }
           @page { size: A4; margin: 10mm; }
         }
       `}</style>
@@ -420,7 +433,7 @@ export default function UnifiedReport() {
 
 function KpiCard({ icon, label, value, accent, highlight = false }: { icon: React.ReactNode; label: string; value: number; accent: string; highlight?: boolean; }) {
   return (
-    <div className={cn("bg-white border-2 p-5 flex flex-col justify-between min-h-[140px] shadow-[4px_4px_0px_#00D1FF]", highlight ? "border-red-600" : "border-black")}>
+    <div className={cn("bg-white border-2 p-5 flex flex-col justify-between min-h-[140px] shadow-[4px_4px_0px_#000]", highlight ? "border-red-600" : "border-black")}>
       <div className={cn("mb-4", accent)}>{icon}</div>
       <div>
         <p className="text-3xl font-black tracking-tighter text-black tabular-nums">{value}</p>
@@ -434,7 +447,7 @@ function StatusPill({ label, count, total, color }: { label: string; count: numb
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   const isTotalBase = label === "Ativos Totais";
   return (
-    <div className="bg-white border-2 border-black p-4 shadow-[3px_3px_0px_#00D1FF]">
+    <div className="bg-white border-2 border-black p-4 shadow-[3px_3px_0px_#000]">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[9px] font-black tracking-wide text-black/40 uppercase">{label}</span>
         <span className="text-xl font-black text-black tabular-nums">{count}</span>
@@ -442,7 +455,7 @@ function StatusPill({ label, count, total, color }: { label: string; count: numb
       <div className="h-2 w-full bg-gray-100 border border-black overflow-hidden">
         <div className={cn("h-full", color)} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-[8px] font-black text-black/30 mt-2 tabular-nums uppercase">
+      <p className="text-[8px] font-black text-black/30 mt-2 tabular-nums">
         {pct}% {isTotalBase ? "DA CARTEIRA TOTAL" : "DA CARTEIRA ATIVA"}
       </p>
     </div>

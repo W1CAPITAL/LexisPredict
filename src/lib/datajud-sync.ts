@@ -1,5 +1,5 @@
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.5
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.3
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -17,87 +17,47 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     return { encerrado: false, motivo: null };
   }
 
-  // Janela de auditoria expandida: Analisar os 20 movimentos mais recentes (dataHora DESC)
+  // Janela de auditoria expandida: Analisar os 15 movimentos mais recentes (dataHora DESC)
+  // Alguns ritos de extinção são seguidos por várias certidões/expedições de rotina.
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
   
-  const window = sorted.slice(0, 20);
+  const recentMovs = sorted.slice(0, 15);
 
-  // Definição de Hierarquia de Encerramento (Ordem de Prioridade do Match)
-  const patternGroups = [
-    {
-      patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'DETERMINADA A BAIXA', 'PROCESSO BAIXADO'],
-      label: 'BAIXA DEFINITIVA'
-    },
-    {
-      patterns: ['TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO'],
-      label: 'TRÂNSITO EM JULGADO'
-    },
-    {
-      patterns: ['EXTINTO O PROCESSO', 'EXTINTO POR ABANDONO', 'ABANDONO DA CAUSA', 'ABANDONO PELO AUTOR', 'EXTINTO O PROCESSO POR ABANDONO', 'JULGO EXTINTO', 'EXTINGO O PROCESSO', 'PROCESSO EXTINTO', 'SENTENÇA DE EXTINÇÃO', 'SENTENCA DE EXTINCAO'],
-      label: 'EXTINÇÃO / ABANDONO'
-    },
-    {
-      patterns: ['EXTINTO', 'EXTINÇÃO', 'EXTINCAO', 'EXTINÇÃO SEM RESOLUÇÃO', 'EXTINCAO SEM RESOLUCAO', 'SEM RESOLUÇÃO DO MÉRITO', 'SEM RESOLUCAO DO MERITO'],
-      label: 'EXTINÇÃO DO FEITO'
-    },
-    {
-      patterns: ['ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVEM-SE OS AUTOS', 'AUTOS ARQUIVADOS', 'ARQUIVAMENTO', 'ARQUIVADO', 'ARQUIV'],
-      label: 'ARQUIVAMENTO DEFINITIVO'
-    },
-    {
-      patterns: ['CANCELAMENTO DA DISTRIBUIÇÃO', 'CANCELAMENTO DA DISTRIBUICAO', 'CANCELADA A DISTRIBUIÇÃO', 'DISTRIBUIÇÃO CANCELADA'],
-      label: 'CANCELAMENTO DE DISTRIBUIÇÃO'
-    },
-    {
-      patterns: ['HOMOLOGAÇÃO DE DESISTÊNCIA', 'HOMOLOGACAO DE DESISTENCIA', 'HOMOLOGO A DESISTÊNCIA', 'DESISTÊNCIA DA AÇÃO', 'RENÚNCIA AO DIREITO', 'RENUNCIA AO DIREITO'],
-      label: 'DESISTÊNCIA / RENÚNCIA'
-    },
-    {
-      patterns: ['EXTINTO O CUMPRIMENTO DE SENTENÇA', 'CUMPRIMENTO DE SENTENÇA EXTINTO'],
-      label: 'EXTINÇÃO DE CUMPRIMENTO'
-    },
-    {
-      patterns: ['PERDA DO OBJETO'],
-      label: 'PERDA DO OBJETO',
-      filter: (t: string) => /EXTINT|ARQUIV|BAIXA/.test(t)
-    },
-    {
-      patterns: ['HOMOLOGAÇÃO DE ACORDO', 'ACORDO HOMOLOGADO'],
-      label: 'ACORDO HOMOLOGADO',
-      filter: (t: string) => /ARQUIV|BAIXA|EXTINT/.test(t)
-    }
+  const keywords = [
+    'ARQUIV', 'BAIXA DEFINITIVA', 'BAIXADO', 'EXTINTO', 'EXTINCAO', 'EXTINÇÃO',
+    'EXTINTO O PROCESSO', 'ABANDONO DA CAUSA', 'ABANDONO PELO AUTOR', 'EXTINTO POR ABANDONO',
+    'TRANSITO EM JULGADO', 'TRÂNSITO EM JULGADO',
+    'CANCELAMENTO DA DISTRIBUICAO', 'CANCELAMENTO DA DISTRIBUIÇÃO', 'CANCELADA A DISTRIBUIÇÃO',
+    'SEM RESOLUÇÃO DO MÉRITO', 'SEM RESOLUCAO DO MERITO',
+    'HOMOLOGAÇÃO DE DESISTÊNCIA', 'HOMOLOGACAO DE DESISTENCIA',
+    'ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVAMENTO', 'PROCESSO BAIXADO'
   ];
 
-  const constructedWindow = window.map(mov => {
-    const text = `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
+  for (const mov of recentMovs) {
     const nomeRaw = (mov.nome || "").toUpperCase().trim();
+    const texto = `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
     
-    // Regra de Exclusão de Provisórios
-    const isProvisional = (text.includes("PROVISÓRIA") || text.includes("PROVISORIA")) && 
-                          !(/DEFINITIV|EXTINT|ARQUIVADO DEFINITIVAMENTE/.test(text));
+    // Regra para DEFINITIVO: Isolado (comum em arquivamento) ou acompanhado de ritos de baixa
+    const hasDefinitivoContext = (texto.includes('DEFINITIVO') && (texto.includes('ARQUIV') || texto.includes('BAIXA') || texto.includes('BAIXADO') || texto.includes('EXTINTO')));
+    const isDefinitivoIsolated = nomeRaw === 'DEFINITIVO';
+    const isDefinitivoReal = hasDefinitivoContext || isDefinitivoIsolated;
+
+    // Verificação de match por palavra-chave
+    const match = keywords.find(k => texto.includes(k));
     
-    return { text, nomeRaw, isProvisional };
-  });
-
-  // Percorre as prioridades de encerramento
-  for (const group of patternGroups) {
-    for (const item of constructedWindow) {
-      if (item.isProvisional) continue;
-
-      if (group.patterns.some(p => item.text.includes(p))) {
-        if (group.filter && !group.filter(item.text)) continue;
-        return { encerrado: true, motivo: group.label };
+    if (isDefinitivoReal || match || nomeRaw === 'BAIXA DEFINITIVA') {
+      const motivoReal = isDefinitivoReal ? 'DEFINITIVO / ARQUIVAMENTO' : (match || nomeRaw);
+      
+      // Regra especial: Baixa Provisória sozinha não encerra, precisa de Arquiv/Extinto/Definitivo
+      if (texto.includes('PROVISÓRIA') || texto.includes('PROVISORIA')) {
+        if (texto.includes('ARQUIV') || texto.includes('EXTINTO') || texto.includes('DEFINITIVO')) {
+          return { encerrado: true, motivo: motivoReal };
+        }
+        continue;
       }
-    }
-  }
-
-  // Regra Especial para o termo "DEFINITIVO"
-  for (const item of constructedWindow) {
-    if (item.isProvisional) continue;
-    if (item.nomeRaw === "DEFINITIVO" || (item.text.includes("DEFINITIVO") && /ARQUIV|BAIXA|BAIXADO/.test(item.text))) {
-      return { encerrado: true, motivo: "DEFINITIVO / ARQUIVAMENTO" };
+      return { encerrado: true, motivo: motivoReal };
     }
   }
 
@@ -106,6 +66,7 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 
 /**
  * Detecta se houve atualização no tribunal após o último retorno do usuário.
+ * Suporta formatos de data DD/MM/YYYY e ISO.
  */
 export function detectarAtualizacaoPosRetorno(
   ultimoRetornoStr: string | null | undefined,
@@ -115,6 +76,7 @@ export function detectarAtualizacaoPosRetorno(
     return { alerta: false, dataUltimo: null, nomeUltimo: null };
   }
 
+  // Obter movimento mais recente (Sempre o #1 da lista cronológica)
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
@@ -128,7 +90,9 @@ export function detectarAtualizacaoPosRetorno(
   const dataUltimoStr = dataMov.toISOString();
   const nomeUltimo = lastMov.nome || "Movimentação não identificada";
 
+  // CASO 1: Não existe último retorno cadastrado
   if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-") {
+    // Alerta se o movimento for dos últimos 30 dias
     const trintaDiasAtras = startOfDay(subDays(new Date(), 30));
     return {
       alerta: isAfter(dataMovDay, trintaDiasAtras),
@@ -137,12 +101,16 @@ export function detectarAtualizacaoPosRetorno(
     };
   }
 
+  // CASO 2: Existe último retorno - Tratamento Resiliente de Formato
   try {
     let dataRetorno;
     const cleanStr = ultimoRetornoStr.trim();
+    
     if (cleanStr.includes('-')) {
+      // Padrão ISO YYYY-MM-DD
       dataRetorno = startOfDay(parseISO(cleanStr));
     } else if (cleanStr.includes('/')) {
+      // Padrão BR DD/MM/YYYY
       dataRetorno = startOfDay(parse(cleanStr, 'dd/MM/yyyy', new Date()));
     }
 
@@ -153,6 +121,7 @@ export function detectarAtualizacaoPosRetorno(
         nomeUltimo
       };
     }
+    
     return { alerta: false, dataUltimo: dataUltimoStr, nomeUltimo };
   } catch (e) {
     return { alerta: false, dataUltimo: dataUltimoStr, nomeUltimo };
