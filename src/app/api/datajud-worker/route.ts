@@ -1,7 +1,7 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.7
- * Otimizado com concorrência limitada (2) e timeout de 45s.
+ * @fileOverview Worker de Auditoria Automática DataJud v1.8
+ * Otimizado para micro-lotes assíncronos.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -17,9 +17,9 @@ import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 export const dynamic = 'force-dynamic';
 
-const BATCH_SIZE = 10; 
-const CONCURRENCY = 2; // Reduzido conforme PROMPT
-const MAX_RUNTIME_MS = 45000; // Limite de 45s conforme PROMPT
+const BATCH_SIZE = 5; 
+const CONCURRENCY = 2; 
+const MAX_RUNTIME_MS = 45000; 
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -42,9 +42,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ 
         success: true, 
         processed: 0, 
-        successCount: 0, 
-        message: "Fila limpa.",
-        remainingEstimate: 0 
+        message: "Fila limpa."
       });
     }
 
@@ -53,7 +51,7 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
       if (Date.now() - start > MAX_RUNTIME_MS) {
-        console.warn("[DataJud Worker] Tempo limite atingido. Interrompendo lote parcialmente.");
+        console.warn("[DataJud Worker] Tempo limite atingido.");
         break;
       }
 
@@ -64,26 +62,11 @@ export async function POST(request: Request) {
       }));
     }
 
-    const admin = await getSupabaseAdmin();
-    const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
-    
-    let countQuery = admin
-      .from('processos')
-      .select('*', { count: 'exact', head: true })
-      .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`);
-      
-    if (empresa_id) {
-      countQuery = countQuery.eq('empresa_id', empresa_id);
-    }
-
-    const { count } = await countQuery;
-
     return NextResponse.json({ 
       success: true,
       processed: successCount + failedCount, 
       successCount, 
       failedCount,
-      remainingEstimate: (count || 0),
       duration: `${Date.now() - start}ms`
     });
 
