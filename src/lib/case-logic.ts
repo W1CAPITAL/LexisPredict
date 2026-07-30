@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -212,6 +213,9 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     observacao = `[PRODUTO: ${produtos}] ${observacao}`.trim();
   }
 
+  // Sanitização de Flags de Auditoria (Garantir Booleano Puro)
+  const toBool = (val: any) => val === true || val === 'true';
+
   return {
     id: raw.id || crypto.randomUUID(),
     created_by: data.created_by,
@@ -231,16 +235,16 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     observacao,
     telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, ''),
     
-    // Preservar dados de auditoria se estiverem presentes
+    // Preservar dados de auditoria com cast booleano rigoroso
     datajud_ultimo_movimento: data.datajud_ultimo_movimento,
     datajud_ultimo_nome: data.datajud_ultimo_nome,
     datajud_consultado_em: data.datajud_consultado_em,
-    tem_atualizacao_pos_retorno: data.tem_atualizacao_pos_retorno,
-    datajud_encerrado_tribunal: data.datajud_encerrado_tribunal,
+    tem_atualizacao_pos_retorno: toBool(data.tem_atualizacao_pos_retorno),
+    datajud_encerrado_tribunal: toBool(data.datajud_encerrado_tribunal),
     datajud_encerrado_motivo: data.datajud_encerrado_motivo,
 
     // Auditoria BA
-    indicio_busca_apreensao: data.indicio_busca_apreensao,
+    indicio_busca_apreensao: toBool(data.indicio_busca_apreensao),
     busca_apreensao_confianca: data.busca_apreensao_confianca,
     busca_apreensao_motivo: data.busca_apreensao_motivo,
     busca_apreensao_consultado_em: data.busca_apreensao_consultado_em
