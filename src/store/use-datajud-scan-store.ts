@@ -1,11 +1,11 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v7.0 — PROTOCOLO ASSÍNCRONO POR POLLING
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v8.0 — DUAL ENGINE (CLOUD + MANUAL)
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
 import { useAppStore } from '@/store/use-app-store';
+import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 
@@ -19,21 +19,34 @@ interface CourtHealth {
 }
 
 interface DataJudScanState {
+  // Motor de Nuvem (Polling)
   status: ScanStatus;
-  isMinimized: boolean;
   total: number;
   done: number;
   alerts: number;
   closed: number;
-  errors: number;
   pending: number;
-  activeWorkers: number;
+  cycles: number;
+
+  // Scanner Manual (Browser)
+  manualStatus: ScanStatus;
+  manualTotal: number;
+  manualDone: number;
+  manualAlerts: number;
+  manualClosed: number;
+  manualErrors: number;
+  lastLogs: { protocolo: string; message: string; latency: number; success: boolean }[];
+
+  // Global UI
+  isMinimized: boolean;
   courtHealthMap: Record<string, CourtHealth>;
   
   // Actions
   toggleMinimize: () => void;
   startCloudScan: () => void;
   pauseCloudScan: () => void;
+  startManualScan: () => Promise<void>;
+  pauseManualScan: () => void;
   resetScan: () => void;
   pollStatus: () => Promise<void>;
   updateCourtHealth: (courtId: string, latency: number, success: boolean) => void;
@@ -43,14 +56,22 @@ let pollTimer: NodeJS.Timeout | null = null;
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
-  isMinimized: true,
   total: 0,
   done: 0,
   alerts: 0,
   closed: 0,
-  errors: 0,
   pending: 0,
-  activeWorkers: 0,
+  cycles: 0,
+
+  manualStatus: 'idle',
+  manualTotal: 0,
+  manualDone: 0,
+  manualAlerts: 0,
+  manualClosed: 0,
+  manualErrors: 0,
+  lastLogs: [],
+
+  isMinimized: true,
   courtHealthMap: {},
 
   toggleMinimize: () => set((state) => ({ isMinimized: !state.isMinimized })),
@@ -82,14 +103,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   startCloudScan: () => {
-    set({ status: 'running', isMinimized: false });
+    set({ status: 'running', isMinimized: false, cycles: 0 });
     if (pollTimer) clearInterval(pollTimer);
     
-    // Inicia gatilho e polling imediato
     get().pollStatus();
     pollTimer = setInterval(() => {
       get().pollStatus();
-    }, 5000);
+    }, 10000); // Polling a cada 10s para não saturar
   },
 
   pauseCloudScan: () => {
@@ -97,19 +117,66 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     if (pollTimer) clearInterval(pollTimer);
   },
 
+  startManualScan: async () => {
+    const cases = useAppStore.getState().cases.filter(c => !isCasoEncerrado(c));
+    if (cases.length === 0) return;
+
+    set({ manualStatus: 'running', manualTotal: cases.length, manualDone: 0, manualAlerts: 0, manualClosed: 0, manualErrors: 0, lastLogs: [] });
+
+    for (const c of cases) {
+      if (get().manualStatus !== 'running') break;
+      
+      const startTime = Date.now();
+      const res = await scanOneDataJudAction(c.protocolo, true);
+      const latency = Date.now() - startTime;
+
+      if (res.success) {
+        if (res.casePatch?.tem_atualizacao_pos_retorno) set(s => ({ manualAlerts: s.manualAlerts + 1 }));
+        if (res.casePatch?.datajud_encerrado_tribunal) set(s => ({ manualClosed: s.manualClosed + 1 }));
+        
+        set(s => ({ 
+          manualDone: s.manualDone + 1,
+          lastLogs: [{ protocolo: c.protocolo, message: 'Auditado', latency, success: true }, ...s.lastLogs].slice(0, 10)
+        }));
+        
+        const courtId = c.protocolo.split('.')[4]; // Ex: 8.26
+        if (courtId) get().updateCourtHealth(courtId, latency, true);
+      } else {
+        set(s => ({ 
+          manualErrors: s.manualErrors + 1,
+          manualDone: s.manualDone + 1,
+          lastLogs: [{ protocolo: c.protocolo, message: res.message || 'Falha', latency, success: false }, ...s.lastLogs].slice(0, 10)
+        }));
+        const courtId = c.protocolo.split('.')[4];
+        if (courtId) get().updateCourtHealth(courtId, latency, false);
+      }
+
+      await new Promise(r => setTimeout(r, 600)); // Gap de rede
+    }
+
+    if (get().manualStatus === 'running') set({ manualStatus: 'done' });
+  },
+
+  pauseManualScan: () => set({ manualStatus: 'paused' }),
+
   resetScan: () => {
-    set({ status: 'idle', total: 0, done: 0, alerts: 0, closed: 0, errors: 0, pending: 0 });
     if (pollTimer) clearInterval(pollTimer);
+    set({ 
+      status: 'idle', total: 0, done: 0, alerts: 0, closed: 0, pending: 0, cycles: 0,
+      manualStatus: 'idle', manualDone: 0, manualTotal: 0, manualErrors: 0, manualAlerts: 0, manualClosed: 0, lastLogs: []
+    });
   },
 
   pollStatus: async () => {
     if (get().status !== 'running') return;
 
     try {
-      // 1. Disparar Trigger (Assíncrono no Server)
+      set(s => ({ cycles: s.cycles + 1 }));
+      
+      // Gatilho via API Scoped
       fetch('/api/datajud-trigger', { method: 'POST' }).catch(() => {});
 
-      // 2. Consultar Status (Snapshots de DB)
+      // Telemetria via Snapshot de DB
       const res = await fetch('/api/datajud-status');
       if (!res.ok) throw new Error();
       const metrics = await res.json();
@@ -119,15 +186,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         done: metrics.audited,
         pending: metrics.pending,
         alerts: metrics.alerts,
-        closed: metrics.closed,
-        status: metrics.pending === 0 ? 'done' : 'running'
+        closed: metrics.closed
       });
 
-      if (metrics.pending === 0 && pollTimer) {
-        clearInterval(pollTimer);
+      if (metrics.pending === 0) {
+        set({ status: 'done' });
+        if (pollTimer) clearInterval(pollTimer);
       }
     } catch (e) {
-      console.warn("[Polling Error] Aguardando próximo ciclo...");
+      console.warn("[Cloud Polling Error]");
     }
   }
 }));
