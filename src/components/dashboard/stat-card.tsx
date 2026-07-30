@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -35,7 +34,7 @@ export function StatCard({ title, value, icon, trend, trendUp, color = 'primary'
           </h3>
         </div>
         <div className={cn("p-2.5 rounded-lg transition-transform group-hover:scale-110", iconColors[color])}>
-          {React.cloneElement(icon as React.ReactElement, { size: 20 })}
+          {React.cloneElement(icon as React.ReactElement<any>, { size: 20 })}
         </div>
       </div>
       

@@ -39,6 +39,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 interface TourStep {
   title: string;
@@ -263,7 +264,6 @@ export function GuidedTour() {
   }, [tutorialStep]);
 
   useEffect(() => {
-    // Sincronia de rota inteligente: evita loops se o usuário já estiver na rota do passo
     const currentStepRoute = TOUR_STEPS[tutorialStep]?.route;
     if (isTutorialActive && currentStepRoute && !showVideo && pathname !== currentStepRoute) {
       router.push(currentStepRoute);
@@ -309,6 +309,22 @@ export function GuidedTour() {
         </div>
 
         <button onClick={finishTour} className="absolute top-6 right-6 p-2 hover:bg-black hover:text-white transition-all z-30"><X size={24} /></button>
+
+        <div className="p-8 pb-0">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+            <div className="flex items-center gap-4">
+              <Link href="/">
+                <Button variant="ghost" className="h-11 px-4 border-2 border-black rounded-none font-black uppercase text-[10px] hover:bg-black hover:text-white transition-all">
+                  <ArrowLeft size={16} className="mr-2" /> Gabinete
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-black uppercase tracking-tighter leading-none">Mestre em LexisPredict</h1>
+                <p className="text-[10px] font-black uppercase text-black/40 tracking-widest mt-1">Formação Estratégica de Operador Elite</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="flex flex-1 overflow-hidden">
           {/* Lado Esquerdo: Resumo Estratégico */}
@@ -392,7 +408,7 @@ export function GuidedTour() {
                  <div className="p-16 space-y-12">
                     <div className="flex items-center gap-8">
                        <div className="w-24 h-24 bg-black flex items-center justify-center text-white border-4 border-black shadow-[10px_10px_0px_#00D1FF] shrink-0">
-                          {React.cloneElement(step.icon as React.ReactElement, { size: 48 })}
+                          {React.cloneElement(step.icon as React.ReactElement<any>, { size: 48 })}
                        </div>
                        <p className="text-xl font-bold uppercase leading-relaxed tracking-tight text-black/80">
                           {step.content}

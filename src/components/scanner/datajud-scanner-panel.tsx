@@ -24,7 +24,8 @@ import {
   Clock,
   ArrowRightCircle,
   Copy,
-  Trash2
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -119,6 +120,13 @@ export function DataJudScannerPanel() {
     startScan(finalQueue, scope);
   };
 
+  const handleRestartFull = () => {
+    if (confirm("Deseja descartar o progresso atual e iniciar uma nova varredura inteligente de toda a carteira?")) {
+      resetScan();
+      handleStart('full');
+    }
+  };
+
   const handleCopyLogs = () => {
     if (logs.length === 0) return;
     const text = logs.map(l => `[${l.protocolo}] ${l.message}`).join('\n');
@@ -133,10 +141,7 @@ export function DataJudScannerPanel() {
     try {
       const res = await clearDataJudAuditAction();
       if (res.success) {
-        // Clear localStorage
         localStorage.removeItem('lexis_datajud_scan_v1');
-        
-        // Update memory store
         const clearedCases = cases.map(c => ({
           ...c,
           tem_atualizacao_pos_retorno: false,
@@ -151,10 +156,7 @@ export function DataJudScannerPanel() {
           busca_apreensao_consultado_em: null
         }));
         setCases(clearedCases);
-        
-        // Reset scan UI state
         resetScan();
-        
         toast({ title: "Auditoria Zerada", description: "Todos os sinalizadores foram removidos com sucesso." });
       } else {
         toast({ title: "Falha na Limpeza", description: "Erro ao comunicar com o repositório.", variant: "destructive" });
@@ -209,15 +211,15 @@ export function DataJudScannerPanel() {
               )}
 
               <Button onClick={() => handleStart('resume')} disabled={loadingCases || isClearing} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                <PlayCircle size={16} className="mr-3 text-primary" /> Retomar (Pular já auditados)
+                <PlayCircle size={16} className="mr-3 text-primary" /> Retomar Auditoria (Pular)
               </Button>
               
+              <Button onClick={handleRestartFull} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#22c55e] hover:shadow-none transition-all bg-emerald-50/30">
+                <RotateCcw size={16} className="mr-3 text-emerald-600" /> Nova Varredura Inteligente
+              </Button>
+
               <Button onClick={() => handleStart('critical')} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                <AlertCircle size={16} className="mr-3 text-red-600" /> Fila Crítica
-              </Button>
-              
-              <Button onClick={() => handleStart('full')} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                <RefreshCcw size={16} className="mr-3 text-slate-400" /> Carteira Total
+                <AlertCircle size={16} className="mr-3 text-red-600" /> Fila Crítica de Prazos
               </Button>
 
               <div className="pt-4 border-t border-black/10 mt-2 space-y-2">

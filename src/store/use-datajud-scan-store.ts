@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * MOTOR DE ESTADO DO SCANNER GLOBAL v1.8
@@ -109,7 +108,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       errors: 0,
       logs: [{
         protocolo: 'SISTEMA',
-        status: 'success',
+        status: 'success' as const,
         message: `Fila iniciada: ${protocolos.length} processos (${scope.toUpperCase()}).`
       }]
     });
@@ -161,9 +160,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const { failedQueue } = get();
         
         if (failedQueue.length > 0 && !isSecondPass) {
-          const pass2Logs = [{
+          const pass2Logs: ScanLog[] = [{
             protocolo: 'SISTEMA',
-            status: 'warning',
+            status: 'warning' as const,
             message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticos.`
           }, ...get().logs];
 
@@ -205,7 +204,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         set((state) => ({
            logs: [{
              protocolo: 'SISTEMA',
-             status: 'error',
+             status: 'error' as const,
              message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
            }, ...state.logs]
         }));
@@ -217,9 +216,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         ? "Sem Prazo — Tribunal indisponível (Ignorado)" 
         : (result.message || "Auditado");
       
-      const logStatus = result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : (isSemPrazo ? 'success' : 'error');
+      const logStatus: 'success' | 'error' | 'warning' = result.success 
+        ? (result.encerrado || result.alerta ? 'warning' : 'success') 
+        : (isSemPrazo ? 'success' : 'error');
 
-      const newLogs = [{
+      const newLogs: ScanLog[] = [{
         protocolo: protocolo,
         status: logStatus,
         message: (isSecondPass ? "[P2] " : "") + displayMessage,
@@ -293,7 +294,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         failedQueue: nextFailedQueue,
         logs: [{
           protocolo,
-          status: isSemPrazo ? 'success' : 'error',
+          status: (isSemPrazo ? 'success' : 'error') as const,
           message: isSemPrazo ? "Sem Prazo — Falha de infraestrutura (Ignorada)" : "ERRO DE INFRAESTRUTURA."
         }, ...state.logs]
       }));

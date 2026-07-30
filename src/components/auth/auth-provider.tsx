@@ -7,6 +7,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase, UserProfile, isSupabaseConfigured } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: any | null;
@@ -71,7 +72,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     // Sessão Inicial
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       const sessionUser = data.session?.user ?? null;
       setUser(sessionUser);
       if (sessionUser) {
@@ -82,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     // Listener de Mudanças
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       const sessionUser = session?.user ?? null;
       setUser(sessionUser);
 
