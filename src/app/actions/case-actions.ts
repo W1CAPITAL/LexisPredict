@@ -15,7 +15,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/li
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v450.0 ELITE - Paridade de Timeout Scanner/Manual
+ * @fileOverview Actions de Processos v460.0 ELITE - Busca Atômica + Paridade de Timeout
  */
 
 export async function fetchRepoCases() {
@@ -63,7 +63,7 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * Auditador de Registro Único (Utilizado pelo Scanner e Clique Manual)
- * Otimizado v450.0: Paridade de timeout (45s) entre scanner e manual.
+ * Otimizado v460.0: Busca ATÔMICA e Paridade de timeout (45s).
  */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
@@ -146,7 +146,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
           .update({ datajud_consultado_em: patch.datajud_consultado_em })
           .eq('id', dbItem.id);
         msg += " (Preservado)";
-        updatedCase = target; // Mantém o target atual
+        updatedCase = target; 
       } else {
         // SOBRESCRITA SELETIVA: Grava o patch completo apenas se houver novidade
         await saveStoredCasesForEmpresa([updatedCase], empresa_id);
@@ -181,14 +181,14 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     return { 
       success: false, 
       protocolo, 
-      tipo: 'erro', 
+      tipo: 'error', 
       message: dataJud?.message || "Erro no tribunal", 
       error: true, 
       isAuthError: dataJud?.isAuthError,
       attempts
     };
   } catch (e: any) {
-    return { success: false, protocolo, tipo: 'erro', message: `Falha técnica`, error: true };
+    return { success: false, protocolo, tipo: 'error', message: `Falha técnica`, error: true };
   }
 }
 
