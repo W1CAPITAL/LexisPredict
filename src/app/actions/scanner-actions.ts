@@ -1,46 +1,51 @@
 'use server';
 
 /**
- * @fileOverview Server Actions do Módulo Process Scanner v2.0
- * Ponte de execução entre a UI soberana e o serviço MNI Inteligente.
+ * @fileOverview Server Actions do Motor de Auditoria v6.0
  */
 
-import { ScannerService, MNIProcessResult } from '@/modules/process-scanner/services/scanner-service';
+import { ScannerService, AuditResult } from '@/modules/process-scanner/services/scanner-service';
 import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
 import { createClient } from '@/lib/supabase/server';
 
 export async function startFullScannerJobAction() {
   const { empresa_id } = await getUserContext();
-  
-  if (!empresa_id) {
-    return { success: false, error: "401_SESSAO_EXPIRADA" };
-  }
+  if (!empresa_id) return { success: false, error: "401_SESSAO_EXPIRADA" };
 
   try {
     const cases = await getStoredCasesForEmpresa(empresa_id);
     const validCases = cases.filter(c => c.protocolo.length >= 8);
 
     if (validCases.length === 0) {
-      return { success: true, processed: 0, message: "Nenhum processo válido para triagem." };
+      return { success: true, processed: 0, message: "Nenhum processo para auditoria." };
     }
 
     const scanner = new ScannerService();
-    const results = await scanner.scanLoteInteligente(validCases);
+    const results: AuditResult[] = [];
+    
+    // Execução sequencial para evitar bloqueios de IP (Rate Limit)
+    for (const c of validCases) {
+      const res = await scanner.auditarProcesso(c.protocolo, c.metadata?.hash);
+      if (res) results.push(res);
+    }
 
     const supabase = await createClient();
-    
     if (results.length > 0) {
       const rows = results.map(r => ({
         empresa_id: empresa_id,
         cnj: r.cnj,
-        status: r.statusUtil,
-        last_sync: new Date().toISOString(),
+        status: r.statusAuditoria,
+        last_sync: r.dataAuditoria,
         metadata: {
-          ultimo_evento: r.ultimoEventoNome,
-          data_evento: r.dataEvento,
+          ultimo_evento: r.analysis.detalhes,
+          data_evento: r.dataUltimoEvento,
           categoria: r.analysis.categoria,
-          necessita_retorno: r.necessitaRetorno,
-          criticidade: r.analysis.criticidade
+          criticidade: r.analysis.criticidade,
+          confianca: r.analysis.confianca,
+          dias_parado: r.diasSemMovimentacao,
+          mudanca_detectada: r.mudancaDetectada,
+          hash: r.hash,
+          tribunal: r.tribunal
         }
       }));
 
@@ -54,7 +59,6 @@ export async function startFullScannerJobAction() {
       timestamp: new Date().toISOString()
     };
   } catch (error: any) {
-    console.error("[Scanner Action Fail]", error.message);
     return { success: false, error: error.message };
   }
 }
@@ -71,16 +75,16 @@ export async function fetchMniStatsAction() {
 
   if (!data) return null;
 
-  const stats = {
+  return {
     total: data.length,
-    semAndamento: data.filter(d => d.status === 'SEM NOVOS ANDAMENTOS').length,
-    novoAndamento: data.filter(d => d.status === 'HOUVE NOVO ANDAMENTO').length,
-    encerrados: data.filter(d => d.status === 'PROCESSO ENCERRADO').length,
-    emRecurso: data.filter(d => d.metadata?.categoria === 'RECURSO').length,
-    publicacao: data.filter(d => d.metadata?.categoria === 'PUBLICAÇÃO').length,
-    peticao: data.filter(d => d.metadata?.categoria === 'PETIÇÃO').length,
-    comPrazo: data.filter(d => d.metadata?.categoria === 'COM PRAZO').length,
+    localizados: data.filter(d => d.status !== 'Processo Não Localizado').length,
+    naoLocalizados: data.filter(d => d.status === 'Processo Não Localizado').length,
+    mudancasDetectadas: data.filter(d => d.metadata?.mudanca_detectada === true).length,
+    semAlteracao: data.filter(d => d.metadata?.mudanca_detectada === false).length,
+    possivelEncerramento: data.filter(d => d.metadata?.categoria === 'Possível encerramento').length,
+    possivelArquivamento: data.filter(d => d.metadata?.categoria === 'Possível arquivamento').length,
+    parados30: data.filter(d => d.metadata?.dias_parado >= 30 && d.metadata?.dias_parado < 90).length,
+    parados90: data.filter(d => d.metadata?.dias_parado >= 90 && d.metadata?.dias_parado < 180).length,
+    parados180: data.filter(d => d.metadata?.dias_parado >= 180).length,
   };
-
-  return stats;
 }
