@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v540.0 - WORKPOOL EDITION
- * Arquitetura FIFO com 5 Workers paralelos, unificada para Painel e Monitor.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v460.0 - PERFORMANCE ELITE
+ * Otimizado com busca atômica, gap reduzido e tipagem rigorosa.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -10,8 +10,7 @@ import { useAppStore } from '@/store/use-app-store';
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanScope = 'resume' | 'critical' | 'full';
 
-const MAX_WORKERS = 5; // Configuração de concorrência solicitada
-const SCAN_GAP_MS = 300; 
+const SCAN_GAP_MS = 600; 
 
 interface ScanLog {
   protocolo: string;
@@ -28,8 +27,9 @@ interface DataJudScanState {
   scope: ScanScope;
   isMinimized: boolean;
   isAuthPaused: boolean;
-  activeWorkers: number;
+  isSecondPass: boolean;
   queue: string[];
+  failedQueue: string[];
   currentIndex: number;
   total: number;
   done: number;
@@ -45,19 +45,20 @@ interface DataJudScanState {
   resumeInterruptedScan: () => void;
   cancelScan: () => void;
   resetScan: () => void;
-  worker: (id: number) => Promise<void>;
+  processNext: () => Promise<void>;
   loadProgress: () => void;
 }
 
-const STORAGE_KEY = 'lexis_datajud_scan_v2_workpool';
+const STORAGE_KEY = 'lexis_datajud_scan_v1';
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
   scope: 'resume',
   isMinimized: true,
   isAuthPaused: false,
-  activeWorkers: 0,
+  isSecondPass: false,
   queue: [],
+  failedQueue: [],
   currentIndex: 0,
   total: 0,
   done: 0,
@@ -76,6 +77,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const data = JSON.parse(saved);
         set({ 
           queue: data.queue || [], 
+          failedQueue: data.failedQueue || [],
+          isSecondPass: data.isSecondPass || false,
           currentIndex: data.currentIndex || 0,
           total: data.total || 0,
           done: data.done || 0,
@@ -95,7 +98,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       status: 'running',
       isMinimized: false,
       isAuthPaused: false,
+      isSecondPass: false,
       queue: protocolos,
+      failedQueue: [],
       total: protocolos.length,
       currentIndex: 0,
       done: 0,
@@ -105,36 +110,29 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       logs: [{
         protocolo: 'SISTEMA',
         status: 'success',
-        message: `Workpool iniciado com ${MAX_WORKERS} workers para ${protocolos.length} registros.`
+        message: `Fila iniciada: ${protocolos.length} processos (${scope.toUpperCase()}).`
       }]
     });
-    
-    // Dispara a bateria de workers simultâneos
-    for (let i = 0; i < MAX_WORKERS; i++) {
-      get().worker(i);
-    }
+    get().processNext();
   },
 
   pauseScan: () => set({ status: 'paused', isAuthPaused: false }),
 
   resumeScan: () => {
     set({ status: 'running', isMinimized: false, isAuthPaused: false });
-    for (let i = 0; i < MAX_WORKERS; i++) {
-      get().worker(i);
-    }
+    get().processNext();
   },
 
   resumeInterruptedScan: () => {
-    if (get().status !== 'running') {
+    const { queue, currentIndex } = get();
+    if (queue.length > 0 && currentIndex < queue.length) {
       set({ status: 'running', isMinimized: false, isAuthPaused: false });
-      for (let i = 0; i < MAX_WORKERS; i++) {
-        get().worker(i);
-      }
+      get().processNext();
     }
   },
 
   cancelScan: () => {
-    set({ status: 'cancelled', queue: [] });
+    set({ status: 'cancelled', queue: [], failedQueue: [] });
     localStorage.removeItem(STORAGE_KEY);
   },
 
@@ -148,95 +146,153 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       errors: 0,
       logs: [],
       queue: [],
-      isAuthPaused: false,
-      activeWorkers: 0
+      failedQueue: [],
+      isSecondPass: false,
+      isAuthPaused: false
     });
     localStorage.removeItem(STORAGE_KEY);
   },
 
-  worker: async (workerId: number) => {
-    set(s => ({ activeWorkers: s.activeWorkers + 1 }));
+  processNext: async () => {
+    const { status, queue, currentIndex, isSecondPass } = get();
 
-    while (get().status === 'running') {
-      const { queue, currentIndex } = get();
-      
-      // Busca atômica do próximo índice disponível
-      if (currentIndex >= queue.length) break;
-      
-      // Reserva o índice e avança o contador global
-      set(s => ({ currentIndex: s.currentIndex + 1 }));
-      const protocolo = queue[currentIndex];
-      
-      if (!protocolo) break;
+    if (status !== 'running' || currentIndex >= queue.length) {
+      if (currentIndex >= queue.length && queue.length > 0 && status === 'running') {
+        const { failedQueue } = get();
+        
+        if (failedQueue.length > 0 && !isSecondPass) {
+          const pass2Log: ScanLog = {
+            protocolo: 'SISTEMA',
+            status: 'warning',
+            message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticos.`
+          };
 
-      try {
-        // Chamada ao motor híbrido unificado
-        const result = (await scanOneDataJudAction(protocolo, true)) as any;
-
-        // Atualização imediata do dashboard via store de casos
-        if (result.success && result.casePatch) {
-          useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
+          set({
+            queue: failedQueue,
+            failedQueue: [],
+            currentIndex: 0,
+            isSecondPass: true,
+            logs: [pass2Log, ...get().logs]
+          });
+          
+          setTimeout(() => get().processNext(), SCAN_GAP_MS);
+          return;
         }
 
-        // Tratamento de Sessão Expirada (Pausa global por segurança)
-        if (!result.success && result.isAuthError) {
-          set({ status: 'paused', isAuthPaused: true });
-          set(s => ({ 
-            logs: [{ protocolo: 'SESSÃO', status: 'error', message: 'AUTENTICAÇÃO EXPIRADA' }, ...s.logs] 
-          }));
-          break;
-        }
-
-        // Retry automático apenas para 429 e 503 (Lógica solicitada)
-        if (!result.success && (result.httpStatus === 429 || result.httpStatus === 503)) {
-          // Devolve para a fila? Não, apenas registra o erro e segue o rito FIFO
-          // Em um sistema real, poderíamos reinserir no fim da fila, mas aqui manteremos a ordem.
-        }
-
-        const logStatus = result.success 
-          ? (result.encerrado || result.alerta ? 'warning' : 'success') 
-          : 'error';
-
-        const newLog: ScanLog = {
-          protocolo,
-          status: logStatus,
-          message: result.message || (result.success ? "Auditado" : "Falha na fonte"),
-          alerta: result.alerta,
-          encerrado: result.encerrado
-        };
-
-        // Consolidação de resultados atômica
-        set(s => ({
-          done: s.done + 1,
-          alerts: result.alerta ? s.alerts + 1 : s.alerts,
-          closed: result.encerrado ? s.closed + 1 : s.closed,
-          errors: !result.success ? s.errors + 1 : s.errors,
-          logs: [newLog, ...s.logs].slice(0, 100) // Mantém os últimos 100 logs
-        }));
-
-        // Persistência de progresso para retomada
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          ...get(),
-          updatedAt: new Date().toISOString()
-        }));
-
-      } catch (e) {
-        set(s => ({ 
-          done: s.done + 1, 
-          errors: s.errors + 1,
-          logs: [{ protocolo, status: 'error', message: 'ERRO DE COMUNICAÇÃO' }, ...s.logs]
-        }));
+        set({ status: 'done' });
+        localStorage.removeItem(STORAGE_KEY);
       }
-
-      // Pequeno respiro para evitar bloqueio de thread
-      await new Promise(r => setTimeout(r, SCAN_GAP_MS));
+      return;
     }
 
-    set(s => ({ activeWorkers: Math.max(0, s.activeWorkers - 1) }));
+    const protocolo = queue[currentIndex];
     
-    // Verificação de conclusão por este worker
-    if (get().activeWorkers === 0 && get().currentIndex >= get().queue.length) {
-      set({ status: 'done' });
+    try {
+      // Chamada atômica conforme rito v460.0
+      const result = (await scanOneDataJudAction(protocolo, true)) as any;
+
+      if (result.success && result.casePatch) {
+        try {
+          useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
+        } catch (e) {}
+      }
+
+      if (!result.success && result.isAuthError) {
+        set({ status: 'paused', isAuthPaused: true });
+        const authErrLog: ScanLog = {
+           protocolo: 'SISTEMA',
+           status: 'error',
+           message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
+        };
+        set((state) => ({ logs: [authErrLog, ...state.logs] }));
+        return;
+      }
+
+      const logStatus: 'success' | 'error' | 'warning' = result.success 
+        ? (result.encerrado || result.alerta ? 'warning' : 'success') 
+        : 'error';
+
+      const newLog: ScanLog = {
+        protocolo: protocolo,
+        status: logStatus,
+        message: (isSecondPass ? "[P2] " : "") + (result.message || "Auditado"),
+        alerta: result.alerta,
+        encerrado: result.encerrado,
+        attempts: result.attempts,
+        isPass2: isSecondPass
+      };
+
+      const updatedLogs = [newLog, ...get().logs];
+
+      let nextErrors = get().errors;
+      let nextAlerts = get().alerts;
+      let nextClosed = get().closed;
+      let nextDone = get().done;
+      const nextFailedQueue = [...get().failedQueue];
+
+      if (!isSecondPass) {
+        nextDone++;
+        if (!result.success) {
+          nextErrors++;
+          nextFailedQueue.push(protocolo);
+        } else {
+          if (result.alerta) nextAlerts++;
+          if (result.encerrado) nextClosed++;
+        }
+      } else {
+        if (result.success) {
+          nextErrors = Math.max(0, nextErrors - 1);
+          if (result.alerta) nextAlerts++;
+          if (result.encerrado) nextClosed++;
+        }
+      }
+
+      set({
+        currentIndex: currentIndex + 1,
+        done: nextDone,
+        alerts: nextAlerts,
+        closed: nextClosed,
+        errors: nextErrors,
+        failedQueue: nextFailedQueue,
+        logs: updatedLogs
+      });
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        queue: queue,
+        failedQueue: nextFailedQueue,
+        isSecondPass: isSecondPass,
+        currentIndex: currentIndex + 1,
+        total: get().total,
+        done: nextDone,
+        alerts: nextAlerts,
+        closed: nextClosed,
+        errors: nextErrors,
+        logs: updatedLogs,
+        scope: get().scope,
+        updatedAt: new Date().toISOString()
+      }));
+
+    } catch (e: any) {
+      const nextFailedQueue = [...get().failedQueue];
+      if (!isSecondPass) nextFailedQueue.push(protocolo);
+
+      const infraErrLog: ScanLog = {
+        protocolo,
+        status: 'error',
+        message: "ERRO DE INFRAESTRUTURA."
+      };
+
+      set((state) => ({
+        currentIndex: state.currentIndex + 1,
+        done: isSecondPass ? state.done : state.done + 1,
+        errors: isSecondPass ? state.errors : state.errors + 1,
+        failedQueue: nextFailedQueue,
+        logs: [infraErrLog, ...state.logs]
+      }));
+    }
+
+    if (get().status === 'running') {
+      setTimeout(() => get().processNext(), SCAN_GAP_MS);
     }
   }
 }));
