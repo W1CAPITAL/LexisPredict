@@ -28,7 +28,9 @@ import {
   RotateCcw,
   Activity,
   ShieldCheck,
-  Clock
+  Clock,
+  CloudLightning,
+  Power
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -36,7 +38,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, clearDataJudAuditAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, clearDataJudAuditAction, runCloudWorkerAction } from '@/app/actions/case-actions';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 export function DataJudScannerPanel() {
   const { 
@@ -47,11 +51,45 @@ export function DataJudScannerPanel() {
   const { cases } = useAppStore();
   const [loadingCases, setLoadingCases] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  
+  // Cloud Worker Heartbeat
+  const [isCloudActive, setIsCloudActive] = useState(false);
+  const [cloudStats, setCloudStats] = useState({ success: 0, batches: 0 });
+  const [isCloudLoading, setIsCloudLoading] = useState(false);
+
   const { toast } = useToast();
 
   useEffect(() => {
     loadProgress();
   }, [loadProgress]);
+
+  // Heartbeat do Motor de Nuvem (Efeito de Loop)
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    if (isCloudActive) {
+      const executeCloudBatch = async () => {
+        if (!isCloudActive) return;
+        setIsCloudLoading(true);
+        try {
+          const res = await runCloudWorkerAction();
+          if (res.success && res.processed > 0) {
+             setCloudStats(prev => ({ 
+               success: prev.success + (res.successCount || 0), 
+               batches: prev.batches + 1 
+             }));
+          }
+        } finally {
+          setIsCloudLoading(false);
+          // Agenda o próximo pulso para 20 segundos
+          timer = setTimeout(executeCloudBatch, 20000);
+        }
+      };
+      executeCloudBatch();
+    }
+
+    return () => clearTimeout(timer);
+  }, [isCloudActive]);
 
   const handleStart = async (scope: ScanScope) => {
     setLoadingCases(true);
@@ -131,6 +169,41 @@ export function DataJudScannerPanel() {
       </div>
 
       <div className="p-6 space-y-6">
+        {/* SEÇÃO MOTOR DE NUVEM 24H */}
+        <section className="p-4 bg-slate-50 border-2 border-black/5 space-y-4">
+           <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                 <CloudLightning className={cn("text-primary", isCloudActive && "animate-pulse")} size={16} />
+                 <Label className="text-[10px] font-black uppercase">Auditoria em Nuvem 24h</Label>
+              </div>
+              <Switch checked={isCloudActive} onCheckedChange={setIsCloudActive} />
+           </div>
+           
+           {isCloudActive ? (
+             <div className="space-y-3 animate-in fade-in">
+                <div className="flex justify-between items-center text-[9px] font-black uppercase opacity-60">
+                   <span>Ativo em Nuvem</span>
+                   {isCloudLoading && <Loader2 className="animate-spin" size={10} />}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                   <div className="p-2 bg-white border border-black/5 text-center">
+                      <p className="text-[7px] font-black uppercase opacity-40">Sucessos</p>
+                      <p className="text-xs font-black text-emerald-600 tabular-nums">{cloudStats.success}</p>
+                   </div>
+                   <div className="p-2 bg-white border border-black/5 text-center">
+                      <p className="text-[7px] font-black uppercase opacity-40">Ciclos</p>
+                      <p className="text-xs font-black text-blue-600 tabular-nums">{cloudStats.batches}</p>
+                   </div>
+                </div>
+                <p className="text-[8px] font-bold uppercase text-black/40 italic leading-tight">
+                  O sistema está auditando lotes residuais em segundo plano enquanto esta aba permanecer aberta.
+                </p>
+             </div>
+           ) : (
+             <p className="text-[9px] font-bold uppercase text-black/30">Motor de nuvem desativado. Ative para manter a auditoria contínua.</p>
+           )}
+        </section>
+
         {status === 'idle' ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-3">
