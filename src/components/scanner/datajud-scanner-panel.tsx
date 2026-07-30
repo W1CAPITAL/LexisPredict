@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useDataJudScanStore, ScanScope } from '@/store/use-datajud-scan-store';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { isCNJ } from '@/lib/utils';
 import { 
   Zap, 
   X, 
@@ -77,36 +78,34 @@ export function DataJudScannerPanel() {
       return;
     }
 
-    // FILTRAGEM INTELIGENTE v400.0
-    // Ignora processos já encerrados/arquivados
-    const activeCases = currentCases.filter(c => !isCasoEncerrado(c));
+    // 1. FILTRAGEM DE HIGIENE E ESCOPO v410.0
+    // Ignora textos internos (placeholders) e processos já encerrados definitivamente
+    const filteredCases = currentCases.filter(c => isCNJ(c.protocolo) && !isCasoEncerrado(c));
+    
+    // DEDUPLICAÇÃO DE FILA
+    const uniqueMap = new Map();
+    filteredCases.forEach(c => uniqueMap.set(c.protocolo, c));
+    const uniqueCases = Array.from(uniqueMap.values());
+
     let finalQueue: string[] = [];
 
     if (scope === 'resume') {
-       // Pula os que já possuem andamento identificado ou baixa no tribunal
-       finalQueue = activeCases
-         .filter(c => !c.datajud_encerrado_tribunal && !c.tem_atualizacao_pos_retorno)
-         .map(c => c.protocolo);
-    } else if (scope === 'critical') {
-       // Apenas os com status de alerta crítico
-       finalQueue = activeCases
-         .filter(c => ['Vencido', 'Caso Crítico', 'É Hoje'].includes(c.status))
+       // MODO INTELIGENTE: Pula processos que já possuem dados recentes ou alertas ativos
+       finalQueue = uniqueCases
+         .filter(c => !c.datajud_ultimo_nome && !c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal)
          .map(c => c.protocolo);
     } else {
-       // Lote integral: Ordena por data de consulta (antigos/null primeiro)
-       finalQueue = [...activeCases]
-         .sort((a, b) => {
-           const dateA = a.datajud_consultado_em ? new Date(a.datajud_consultado_em).getTime() : 0;
-           const dateB = b.datajud_consultado_em ? new Date(b.datajud_consultado_em).getTime() : 0;
-           return dateA - dateB;
-         })
-         .map(c => c.protocolo);
+       // Lote integral: Auditoria completa de todos os CNJs válidos
+       finalQueue = uniqueCases.map(c => c.protocolo);
     }
 
     if (finalQueue.length === 0) {
-      toast({ title: "Escopo Limpo", description: "Nenhum processo ativo pendente de auditoria.", variant: "destructive" });
+      toast({ title: "Escopo Limpo", description: "Nenhum processo pendente localizado com os critérios atuais.", variant: "destructive" });
       return;
     }
+
+    const ignoredCount = currentCases.length - finalQueue.length;
+    console.log(`[Scanner] Lote validado: ${finalQueue.length} registros. Ignorados: ${ignoredCount} (Inválidos/Encerrados/Atualizados).`);
 
     toast({ title: "Iniciando Varredura", description: `${finalQueue.length} registros em triagem neural.` });
     startScan(finalQueue, scope);
@@ -127,7 +126,7 @@ export function DataJudScannerPanel() {
   };
 
   const handleClearAudit = async () => {
-    if (!confirm("Isso zerará os alertas de novos andamentos e baixas detectadas. Continuar?")) return;
+    if (!confirm("Isso zerará os alertas de novos andamentos e baixas detectadas no repositório. Continuar?")) return;
     
     setIsClearing(true);
     try {
@@ -191,9 +190,12 @@ export function DataJudScannerPanel() {
                 <RotateCcw size={16} className="mr-3 text-emerald-600" /> Varredura Lote Integral
               </Button>
 
-              <div className="pt-4 border-t border-black/10 mt-2 space-y-2">
+              <div className="pt-4 border-t border-black/10 mt-2">
+                 <p className="text-[8px] font-bold text-black/30 uppercase leading-relaxed mb-4 italic">
+                    O modo Inteligente pula registros que já possuem movimentações identificadas ou flags de alerta ativas.
+                 </p>
                 <Button onClick={handleClearAudit} disabled={isClearing || loadingCases} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none hover:bg-red-50 hover:border-red-600 transition-all">
-                  {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />} Limpar Auditoria
+                  {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />} Limpar Alertas de Auditoria
                 </Button>
               </div>
             </div>
