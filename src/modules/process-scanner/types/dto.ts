@@ -56,6 +56,9 @@ export interface RequisicaoConsultarProcesso {
   senhaConsultante: string;
   numeroProcesso: string;
   incluirDocumentos: boolean;
+  incluirMovimentos?: boolean;
+  incluirCabecalho?: boolean;
+  dataReferencia?: string;
 }
 
 export interface RespostaConsultarProcesso {
