@@ -40,7 +40,7 @@ import {
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 /**
- * @fileOverview Analytics v420.0 - Corrigida clonagem de ícones
+ * @fileOverview Analytics v460.0 - Corrigida tipagem de cloneElement
  */
 
 const TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 as const };
