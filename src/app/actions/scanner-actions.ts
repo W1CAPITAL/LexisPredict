@@ -1,14 +1,58 @@
+
 'use server';
 
 /**
- * @fileOverview Server Actions do Motor de Auditoria v10.0
- * Correção de tipagem explícita para compatibilidade TSC.
+ * @fileOverview Server Actions do Motor de Auditoria v11.0
+ * Adicionada auditoria unitária dedicada para o Monitor v520.0
  */
 
 import { ScannerService, AuditResult } from '@/modules/process-scanner/services/scanner-service';
 import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
 import { createClient } from '@/lib/supabase/server';
 import { detectarAtualizacaoPosRetorno } from '@/lib/datajud-sync';
+
+/**
+ * Auditoria de processo único para o Monitor Progressivo.
+ * Retorna o AuditResult completo preservando metadados de debug.
+ */
+export async function scanSingleProcessForMonitorAction(cnj: string) {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) return { success: false, error: "401_UNAUTHORIZED" };
+
+    const scanner = new ScannerService();
+    const result = await scanner.auditarProcesso(cnj);
+
+    // Persistência Atômica se houver mudança
+    if (result.localizado) {
+      const supabase = await createClient();
+      await supabase.from('process_scans').upsert({
+        empresa_id: empresa_id,
+        cnj: result.cnj,
+        status: result.statusAuditoria,
+        last_sync: result.dataAuditoria,
+        metadata: {
+          ultimo_evento: result.analysis.detalhes,
+          data_evento: result.dataUltimoEvento,
+          categoria: result.analysis.categoria,
+          criticidade: result.analysis.criticidade,
+          confianca: result.analysis.confianca,
+          dias_parado: result.diasSemMovimentacao,
+          mudanca_detectada: result.mudancaDetectada,
+          hash: result.hash,
+          tribunal: result.tribunal,
+          classe: result.metadata.classe,
+          orgao: result.metadata.orgao,
+          source: result.debug.source
+        }
+      }, { onConflict: 'cnj' });
+    }
+
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
 
 export async function startFullScannerJobAction() {
   const { empresa_id } = await getUserContext();
