@@ -1,7 +1,7 @@
 
 /**
  * @fileOverview Worker de Auditoria Automática DataJud v1.5
- * Otimizado com Guardião de Tempo para evitar 504 no Vercel.
+ * Otimizado com Guardião de Tempo e Isolamento por Empresa.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -19,9 +19,12 @@ export const dynamic = 'force-dynamic';
 
 const BATCH_SIZE = 10; 
 const CONCURRENCY = 3;
-const MAX_RUNTIME_MS = 50000; // Limite de 50s para segurança do Vercel (limite total é 60s ou 300s)
+const MAX_RUNTIME_MS = 50000; // Limite de 50s para segurança do Vercel
 
 export async function POST(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const empresa_id = searchParams.get('empresa_id') || undefined;
+  
   const authHeader = request.headers.get('Authorization');
   const workerSecret = process.env.DATAJUD_WORKER_SECRET;
 
@@ -30,10 +33,10 @@ export async function POST(request: Request) {
   }
 
   const start = Date.now();
-  console.log(`[DataJud Worker] Lote Iniciado: ${new Date().toLocaleTimeString()}`);
+  console.log(`[DataJud Worker] Lote Recebido - Empresa: ${empresa_id || 'Global'}`);
 
   try {
-    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
+    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE, empresa_id);
 
     if (casesToAudit.length === 0) {
       return NextResponse.json({ 
@@ -50,9 +53,8 @@ export async function POST(request: Request) {
 
     // Processamento com Guardião de Tempo
     for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
-      // Verifica se ainda temos tempo seguro para continuar
       if (Date.now() - start > MAX_RUNTIME_MS) {
-        console.warn("[DataJud Worker] Tempo limite atingido. Interrompendo lote parcialmente.");
+        console.warn("[DataJud Worker] Tempo limite atingido.");
         break;
       }
 
@@ -63,21 +65,28 @@ export async function POST(request: Request) {
       }));
     }
 
+    // Calcular estimativa real para a empresa
     const admin = await getSupabaseAdmin();
-    const { count } = await admin
+    const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
+    
+    let countQuery = admin
       .from('processos')
       .select('*', { count: 'exact', head: true })
-      .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO","IMOVEL","IMÓVEL")');
+      .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`);
+      
+    if (empresa_id) {
+      countQuery = countQuery.eq('empresa_id', empresa_id);
+    }
 
-    const duration = Date.now() - start;
-    
+    const { count } = await countQuery;
+
     return NextResponse.json({ 
       success: true,
       processed: successCount + failedCount, 
       successCount, 
       failedCount,
       remainingEstimate: (count || 0),
-      duration: `${duration}ms`
+      duration: `${Date.now() - start}ms`
     });
 
   } catch (error: any) {
