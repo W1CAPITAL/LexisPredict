@@ -1,3 +1,4 @@
+
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -49,7 +50,7 @@ import {
   PieChart,
   Pie,
   Cell,
-  Tooltip
+  Tooltip as RechartsTooltip
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -405,7 +406,7 @@ export default function Dashboard() {
                                   <Cell key={`cell-${index}`} fill={entry.color} />
                                 ))}
                               </Pie>
-                              <Tooltip 
+                              <RechartsTooltip 
                                 contentStyle={{ 
                                   borderRadius: '12px', 
                                   border: '1px solid #e2e8f0', 
