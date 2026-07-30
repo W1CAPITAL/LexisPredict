@@ -1,8 +1,8 @@
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v6.1 — ADAPTIVE WORKPOOL & COURT HEALTH
- * Implementa 5 workers simultâneos com Health Check otimizado e timeout preventivo.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v6.2 — INSTANT START & PASSIVE HEALTH
+ * Removeu bloqueio inicial. Agora inicia a fila imediatamente.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -11,8 +11,8 @@ import { useAppStore } from '@/store/use-app-store';
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanScope = 'resume' | 'critical' | 'full';
 
-const CONCURRENT_WORKERS = 5;
-const SCAN_GAP_MS = 500; 
+const CONCURRENT_WORKERS = 3; // Reduzido para estabilidade
+const SCAN_GAP_MS = 300; 
 
 interface CourtHealth {
   id: string;
@@ -119,11 +119,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const newTotal = current.totalCalls + 1;
       const newSuccess = success ? current.successCalls + 1 : current.successCalls;
       const newRate = newSuccess / newTotal;
-      const newAvgLatency = (current.avgLatency * current.totalCalls + latency) / newTotal;
+      const newAvgLatency = current.totalCalls === 0 ? latency : (current.avgLatency * 0.7) + (latency * 0.3);
 
       let newStatus: 'online' | 'slow' | 'offline' = 'online';
-      if (newRate < 0.3) newStatus = 'offline';
-      else if (newAvgLatency > 12000 || newRate < 0.6) newStatus = 'slow';
+      if (newRate < 0.4) newStatus = 'offline';
+      else if (newAvgLatency > 15000 || newRate < 0.7) newStatus = 'slow';
 
       return {
         courtHealthMap: {
@@ -142,52 +142,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   runInitialHealthCheck: async (protocolos) => {
-    const courtSampleMap: Record<string, string> = {};
-    protocolos.forEach(p => {
-      const match = p.match(/\.(\d)\.(\d{2})\./);
-      if (match) {
-        const courtId = `${match[1]}.${match[2]}`;
-        if (!courtSampleMap[courtId]) courtSampleMap[courtId] = p;
-      }
-    });
-
-    const courts = Object.keys(courtSampleMap);
-    set({ logs: [{ protocolo: 'SISTEMA', status: 'success', message: `Auditoria de Latência: ${courts.length} tribunais...` }] });
-
-    // Pool de pings para não sobrecarregar a conexão inicial
-    const PING_BATCH_SIZE = 3;
-    for (let i = 0; i < courts.length; i += PING_BATCH_SIZE) {
-      const batch = courts.slice(i, i + PING_BATCH_SIZE);
-      await Promise.all(batch.map(async (courtId) => {
-        const sampleP = courtSampleMap[courtId];
-        const start = Date.now();
-        
-        try {
-          // Timeout rígido de 8s para o Health Check não travar o app
-          const pingPromise = scanOneDataJudAction(sampleP, true);
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000));
-          
-          const res = await Promise.race([pingPromise, timeoutPromise]) as any;
-          const lat = Date.now() - start;
-          get().updateCourtHealth(courtId, lat, !!res?.success);
-        } catch (e) {
-          get().updateCourtHealth(courtId, 8000, false);
-        }
-      }));
-    }
-
-    return [...protocolos].sort((a, b) => {
-      const getScore = (p: string) => {
-        const match = p.match(/\.(\d)\.(\d{2})\./);
-        if (!match) return 0;
-        const health = get().courtHealthMap[`${match[1]}.${match[2]}`];
-        if (!health) return 50;
-        if (health.status === 'offline') return -100;
-        if (health.status === 'slow') return 10;
-        return 100 - (health.avgLatency / 1000);
-      };
-      return getScore(b) - getScore(a);
-    });
+    // Agora o Health Check é passivo. Esta função apenas limpa logs antigos.
+    set({ logs: [{ protocolo: 'SISTEMA', status: 'success', message: 'Iniciando varredura estratégica instantânea...' }] });
+    return protocolos;
   },
 
   startScan: async (protocolos, scope) => {
@@ -202,12 +159,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       alerts: 0,
       closed: 0,
       errors: 0,
-      logs: []
+      logs: [],
+      queue: protocolos
     });
 
-    const optimizedQueue = await get().runInitialHealthCheck(protocolos);
-    set({ queue: optimizedQueue });
-
+    // Dispara workers imediatamente sem esperar health check
     for (let i = 0; i < CONCURRENT_WORKERS; i++) {
       get().workerLoop();
     }
@@ -233,7 +189,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   cancelScan: () => {
-    set({ status: 'cancelled', queue: [], currentIndex: 0 });
+    set({ status: 'cancelled', queue: [], currentIndex: 0, status: 'idle' });
     localStorage.removeItem(STORAGE_KEY);
   },
 
@@ -275,7 +231,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
         const match = protocolo.match(/\.(\d)\.(\d{2})\./);
         if (match) {
-          get().updateCourtHealth(`${match[1]}.${match[2]}`, latency, result.success);
+          get().updateCourtHealth(`${match[1]}.${match[2]}`, latency, !!result.success);
         }
 
         if (result.success && result.casePatch) {
@@ -287,21 +243,20 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           break;
         }
 
-        const logStatus = result.success ? (result.encerrado || result.alerta ? 'warning' : 'success') : 'error';
+        const logStatus = result.success ? (result.casePatch?.datajud_encerrado_tribunal || result.casePatch?.tem_atualizacao_pos_retorno ? 'warning' : 'success') : 'error';
         const newLog: ScanLog = {
           protocolo,
           status: logStatus,
-          message: result.message || "Auditado",
-          alerta: result.alerta,
-          encerrado: result.encerrado,
-          attempts: result.attempts,
+          message: result.message || (result.success ? "Auditado" : "Falha Tribunal"),
+          alerta: result.casePatch?.tem_atualizacao_pos_retorno,
+          encerrado: result.casePatch?.datajud_encerrado_tribunal,
           latency
         };
 
         set(state => ({
           done: state.done + 1,
-          alerts: result.alerta ? state.alerts + 1 : state.alerts,
-          closed: result.encerrado ? state.closed + 1 : state.closed,
+          alerts: result.casePatch?.tem_atualizacao_pos_retorno ? state.alerts + 1 : state.alerts,
+          closed: result.casePatch?.datajud_encerrado_tribunal ? state.closed + 1 : state.closed,
           errors: !result.success ? state.errors + 1 : state.errors,
           logs: [newLog, ...state.logs].slice(0, 100)
         }));
@@ -323,7 +278,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         set(state => ({ 
           done: state.done + 1, 
           errors: state.errors + 1,
-          logs: [{ protocolo, status: 'error', message: "Falha de Infraestrutura" }, ...state.logs].slice(0, 100)
+          logs: [{ protocolo, status: 'error', message: "Falha de Rede" }, ...state.logs].slice(0, 100)
         }));
       }
 
@@ -332,10 +287,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
     set(state => {
       const nextActive = state.activeWorkers - 1;
-      if (nextActive === 0 && state.currentIndex >= state.queue.length && state.status === 'running') {
+      const currentS = get();
+      if (nextActive <= 0 && currentS.currentIndex >= currentS.queue.length && currentS.status === 'running') {
         return { activeWorkers: 0, status: 'done' };
       }
-      return { activeWorkers: nextActive };
+      return { activeWorkers: Math.max(0, nextActive) };
     });
   }
 }));
