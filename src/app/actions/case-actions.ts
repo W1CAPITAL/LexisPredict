@@ -72,7 +72,6 @@ export async function scanOneDataJudAction(protocolo: string, noRetry = false) {
     const target = cases.find(c => c.protocolo === protocolo);
     if (!target) return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
 
-    // fetchDataJud agora aceita o parâmetro noRetry para pular esperas em casos de baixa prioridade
     const dataJud = await fetchDataJud(protocolo, 1, noRetry);
     const attempts = dataJud?.attempts || 1;
     
@@ -147,6 +146,7 @@ export async function scanSingleCaseAction(protocolo: string) {
     const target = cases.find(c => c.protocolo === protocolo);
     if (!target) return { success: false, error: "NOT_FOUND", message: "Não localizado." };
 
+    // Sincronizando o timeout de auditoria individual com o padrão do gabinete
     const dataJud = await fetchDataJud(protocolo);
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
