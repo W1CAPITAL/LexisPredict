@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
@@ -8,7 +7,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v270.0 ELITE)
- * Governança de Visibilidade: Visão Master para cargos de Autoridade (Admin, Supervisor, Superadmin).
+ * Governança de Visibilidade: Visão Master para cargos de Autoridade (Supervisor e Superadmin).
+ * O cargo de Administrador agora segue o rito de isolamento por created_by.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -42,7 +42,6 @@ export async function getUserContext() {
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
-  const isAdmin = cargo === 'Administrador';
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -51,7 +50,7 @@ export async function getUserContext() {
     email: profile?.email || null,
     isSuperAdmin,
     isSupervisor,
-    isMasterView: isSuperAdmin || isSupervisor || isAdmin, // VISÃO MASTER CONSOLIDADA
+    isMasterView: isSuperAdmin || isSupervisor, // VISÃO MASTER CONSOLIDADA (Apenas Super e Supervisor)
     weight: ROLE_WEIGHTS[cargo] || 0
   };
 }
