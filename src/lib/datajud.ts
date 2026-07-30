@@ -1,6 +1,5 @@
-
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v452.0 ELITE
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v453.0 ELITE
  * Otimizado com timeouts rígidos de 15s e rito de retentativa controlado.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
@@ -26,7 +25,7 @@ export interface DataJudOptions {
 }
 
 /**
- * Consulta API DataJud com timeout de 15s e rito de tentativas controlado.
+ * Consulta API DataJud com timeout rígido de 15s.
  */
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
@@ -49,7 +48,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   const isFast = options.fast === true;
-  const timeoutMs = 15000; // Timeout rígido de 15s conforme PROMPT
+  const timeoutMs = 15000; // Timeout fixo de 15s conforme solicitado
   const maxAttempts = isFast ? 1 : 2; // 1 tentativa para scanner/worker, 2 para manual
 
   try {
@@ -110,10 +109,21 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
   } catch (e: any) {
     const latency = Date.now() - startTime;
-    const isTimeout = e.name === 'AbortError' || e.message?.includes('timeout');
+    const isTimeout = e.name === 'AbortError' || e.message?.includes('timeout') || (Date.now() - startTime >= timeoutMs);
 
-    if (!isTimeout && attempt < maxAttempts) {
-      await sleep(2000);
+    if (isTimeout) {
+       return {
+         numeroProcesso: cnjLimpo,
+         movimentos: [],
+         error: true,
+         message: "Tempo esgotado no Tribunal.",
+         attempts: attempt,
+         latency
+       };
+    }
+
+    if (attempt < maxAttempts) {
+      await sleep(1000);
       return fetchDataJud(cnj, attempt + 1, options);
     }
 
@@ -121,7 +131,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       numeroProcesso: cnjLimpo, 
       movimentos: [], 
       error: true, 
-      message: isTimeout ? "Tempo esgotado no Tribunal." : "Falha na comunicação DataJud.",
+      message: "Falha na comunicação DataJud.",
       attempts: attempt,
       latency
     };
