@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -27,7 +26,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, isCNJ } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, clearDataJudAuditAction } from '@/app/actions/case-actions';
@@ -78,21 +77,54 @@ export function DataJudScannerPanel() {
       return;
     }
 
-    // FILTRAGEM INTELIGENTE v500.0 - OTIMIZAÇÃO DE RECURSOS
-    const activeCases = currentCases.filter(c => !isCasoEncerrado(c));
+    // 1. HIGIENE E FILTRAGEM PRÉ-SCANNER v600.0
+    const loadedCount = currentCases.length;
+    let ignoredCount = 0;
+    let duplicateCount = 0;
+    let closedCount = 0;
+
+    // Mapa para deduplicação física
+    const uniqueMap = new Map();
+    
+    currentCases.forEach(c => {
+      const proto = (c.protocolo || "").trim();
+      
+      // Validação Canônica CNJ
+      if (!isCNJ(proto)) {
+        ignoredCount++;
+        return;
+      }
+
+      // Verificação de Encerramento (Pula processos já baixados)
+      if (isCasoEncerrado(c)) {
+        closedCount++;
+        return;
+      }
+
+      // Deduplicação (Mesmo CNJ no mesmo lote)
+      const cleanProto = proto.replace(/\D/g, '');
+      if (uniqueMap.has(cleanProto)) {
+        duplicateCount++;
+        return;
+      }
+
+      uniqueMap.set(cleanProto, c);
+    });
+
+    const validatedCases = Array.from(uniqueMap.values()) as any[];
+    const now = new Date().getTime();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    // 2. APLICAÇÃO DE ESCOPO INTELIGENTE
     let finalQueue: string[] = [];
 
     if (scope === 'resume') {
-       const now = new Date().getTime();
-       const oneDayMs = 24 * 60 * 60 * 1000;
-
-       // RITO INTELIGENTE: Pula os que já possuem novidade não lida ou foram auditados nas últimas 24h
-       finalQueue = activeCases
+       finalQueue = validatedCases
          .filter(c => {
-           // Se tem flag de atualização ou baixa, já está "atendido" pelo radar
+           // Pula se tem flag de novidade não lida
            if (c.datajud_encerrado_tribunal || c.tem_atualizacao_pos_retorno || c.indicio_busca_apreensao) return false;
            
-           // Se foi consultado muito recentemente (24h), pula
+           // Pula se consultado nas últimas 24h
            if (c.datajud_consultado_em) {
              const lastScan = new Date(c.datajud_consultado_em).getTime();
              if (now - lastScan < oneDayMs) return false;
@@ -102,13 +134,11 @@ export function DataJudScannerPanel() {
          })
          .map(c => c.protocolo);
     } else if (scope === 'critical') {
-       // Apenas os com status de alerta crítico
-       finalQueue = activeCases
+       finalQueue = validatedCases
          .filter(c => ['Vencido', 'Caso Crítico', 'É Hoje'].includes(c.status))
          .map(c => c.protocolo);
     } else {
-       // Lote integral: Ordena por data de consulta (antigos/null primeiro)
-       finalQueue = [...activeCases]
+       finalQueue = validatedCases
          .sort((a, b) => {
            const dateA = a.datajud_consultado_em ? new Date(a.datajud_consultado_em).getTime() : 0;
            const dateB = b.datajud_consultado_em ? new Date(b.datajud_consultado_em).getTime() : 0;
@@ -117,13 +147,21 @@ export function DataJudScannerPanel() {
          .map(c => c.protocolo);
     }
 
+    // Log de Dossiê de Fila
+    console.log(`[SCANNER] [HIGIENE]
+      - Total Carregado: ${loadedCount}
+      - Ignorados (Inválidos): ${ignoredCount}
+      - Duplicados: ${duplicateCount}
+      - Encerrados Pulados: ${closedCount}
+      - Fila Final Validada: ${finalQueue.length}
+    `);
+
     if (finalQueue.length === 0) {
-      const msg = scope === 'resume' ? "Toda a sua carteira já está auditada e atualizada." : "Nenhum processo pendente.";
-      toast({ title: "Escopo Limpo", description: msg });
+      toast({ title: "Fila Limpa", description: "Todos os processos válidos já estão auditados." });
       return;
     }
 
-    toast({ title: "Iniciando Varredura", description: `${finalQueue.length} registros em triagem neural.` });
+    toast({ title: "Iniciando Varredura", description: `${finalQueue.length} processos entrarão no Workpool.` });
     startScan(finalQueue, scope);
   };
 
@@ -138,7 +176,7 @@ export function DataJudScannerPanel() {
     if (logs.length === 0) return;
     const text = logs.map(l => `[${l.protocolo}] ${l.message}`).join('\n');
     navigator.clipboard.writeText(text);
-    toast({ title: "Log Copiado", description: "Histórico na área de transferência." });
+    toast({ title: "Log Copiado" });
   };
 
   const handleClearAudit = async () => {
@@ -148,7 +186,7 @@ export function DataJudScannerPanel() {
     try {
       const res = await clearDataJudAuditAction();
       if (res.success) {
-        localStorage.removeItem('lexis_datajud_scan_v1');
+        localStorage.removeItem('lexis_datajud_scan_v2_workpool');
         window.location.reload();
       }
     } finally {
@@ -209,7 +247,7 @@ export function DataJudScannerPanel() {
               <div className="pt-4 border-t border-black/10 mt-2 space-y-2">
                 <div className="p-3 bg-secondary/20 rounded-sm mb-2">
                    <p className="text-[8px] font-bold text-muted-foreground uppercase leading-relaxed">
-                     O modo inteligente pula processos com flags de atualização ativas ou auditados nas últimas 24h.
+                     O modo inteligente valida cada CNJ e pula processos com alertas ativos ou auditados recentemente.
                    </p>
                 </div>
                 <Button onClick={handleClearAudit} disabled={isClearing || loadingCases} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none hover:bg-red-50 hover:border-red-600 transition-all">
