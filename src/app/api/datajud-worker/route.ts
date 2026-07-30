@@ -1,25 +1,24 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.0
+ * @fileOverview Worker de Auditoria Automática DataJud v1.1
  * Realiza varredura incremental de processos em background (servidor).
+ * Otimizado para rito industrial de merge e preservação de dados humanos.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 import { NextResponse } from 'next/server';
 import { 
   getGlobalPendingProcessesSystem, 
-  getStoredCasesForEmpresa, 
   updateCaseDataJudSystem,
   getSupabaseAdmin
 } from '@/lib/server-db';
 import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
-import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 export const dynamic = 'force-dynamic';
 
-// Limites de Segurança do CNJ para processamento em background
+// Configurações de Carga Industrial
 const BATCH_SIZE = 15; 
 const CONCURRENCY = 2;
 
@@ -27,34 +26,17 @@ export async function POST(request: Request) {
   const authHeader = request.headers.get('Authorization');
   const workerSecret = process.env.DATAJUD_WORKER_SECRET;
 
-  // 1. Validação de Segurança
+  // 1. Validação de Segurança (Bearer Token)
   if (!workerSecret || authHeader !== `Bearer ${workerSecret}`) {
     return new Response('Unauthorized: Token de Gabinete Inválido', { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const targetEmpresaId = searchParams.get('empresa_id');
-
   try {
     const start = Date.now();
-    let casesToAudit = [];
-
+    
     // 2. Seleção de Fila por Prioridade de Carência
-    if (targetEmpresaId) {
-      // Auditoria focada em uma empresa específica
-      const allCases = await getStoredCasesForEmpresa(targetEmpresaId, true);
-      casesToAudit = allCases
-        .filter(c => !isCasoEncerrado(c))
-        .sort((a, b) => {
-          if (!a.datajud_consultado_em) return -1;
-          if (!b.datajud_consultado_em) return 1;
-          return new Date(a.datajud_consultado_em).getTime() - new Date(b.datajud_consultado_em).getTime();
-        })
-        .slice(0, BATCH_SIZE);
-    } else {
-      // Auditoria global balanceada (Garante que todas as empresas sejam atendidas no ciclo de 24h)
-      casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
-    }
+    // Prioriza processos nunca consultados ou com a auditoria mais antiga.
+    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
 
     if (casesToAudit.length === 0) {
       return NextResponse.json({ processed: 0, message: "Sem processos ativos pendentes no momento." });
@@ -72,12 +54,12 @@ export async function POST(request: Request) {
       }));
     }
 
-    // 4. Estimativa de Trabalho Restante
+    // 4. Estimativa de Trabalho Restante (Contagem heads de ativos)
     const admin = await getSupabaseAdmin();
     const { count } = await admin
       .from('processos')
       .select('*', { count: 'exact', head: true })
-      .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO")');
+      .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO","IMOVEL","IMÓVEL")');
 
     return NextResponse.json({ 
       processed: casesToAudit.length, 
@@ -95,11 +77,11 @@ export async function POST(request: Request) {
 
 /**
  * Realiza o ciclo de auditoria de um único processo sem sobrescrever dados humanos.
- * PROTOCOLO DE MERGE INCREMENTAL v1.0
+ * PROTOCOLO DE MERGE INCREMENTAL v1.1
  */
 async function auditSingleProcess(c: any): Promise<boolean> {
   try {
-    // Fast Mode habilitado para o Worker (Economia de tempo de CPU)
+    // Fast Mode habilitado para o Worker (Economia de tempo de CPU e rede)
     const dataJud = await fetchDataJud(c.protocolo, 1, { fast: true });
 
     if (!dataJud || dataJud.error) return false;
@@ -132,9 +114,10 @@ async function auditSingleProcess(c: any): Promise<boolean> {
       busca_apreensao_confianca: ba.confianca,
       busca_apreensao_motivo: ba.motivo,
       busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
+      tribunal: dataJud.tribunal || c.tribunal
     };
 
-    // Chamada atômica de update (Merge por cima do blob 'dados' via RPC ou Service Role)
+    // Chamada atômica de update (Merge por cima do blob 'dados')
     const res = await updateCaseDataJudSystem(c.db_id || c.id, patch);
     return res.success;
 
