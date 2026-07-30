@@ -29,8 +29,7 @@ import {
   Activity,
   ShieldCheck,
   Clock,
-  CloudLightning,
-  Power
+  CloudLightning
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
