@@ -1,3 +1,4 @@
+
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -27,7 +28,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [mniStats, setMniStats] = useState<any>(null);
-  const [telemetrySource, setTelemetrySource] = useState<'datajud' | 'mni'>('mni');
+  // PRIORIDADE: DataJud por padrão v520.0
+  const [telemetrySource, setTelemetrySource] = useState<'datajud' | 'mni'>('datajud');
   const t = getTranslation(locale);
 
   const loadData = useCallback(async () => {
@@ -75,7 +77,7 @@ export default function Dashboard() {
         <div className="flex-1 overflow-auto p-10 space-y-10 max-w-[1600px] mx-auto w-full pb-32">
           {telemetrySource === 'mni' ? (
             <section className="bg-black text-white p-8 border-4 border-black shadow-[10px_10px_0px_#00D1FF] animate-in fade-in duration-500">
-               <div className="flex items-center justify-between mb-10 border-b border-white/10 pb-4">
+               <div className="flex items-center justify-between mb-10 border-b-2 border-white/10 pb-4">
                   <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3"><ShieldCheck size={16} className="text-primary" /> Telemetria de Auditoria Inteligente</h3>
                   <Badge className="bg-primary text-black font-black uppercase text-[8px] rounded-none px-3">MNI Resolutivo v6.0</Badge>
                </div>
@@ -95,9 +97,9 @@ export default function Dashboard() {
             </section>
           ) : (
             <section className="bg-white border-4 border-black p-8 shadow-[10px_10px_0px_#000] animate-in fade-in duration-500">
-               <div className="flex items-center justify-between mb-10 border-b border-black/10 pb-4">
-                  <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3"><Cpu size={16} /> Vigilância DataJud</h3>
-                  <Badge variant="outline" className="border-black font-black uppercase text-[8px] rounded-none px-3">Vigilância Passiva</Badge>
+               <div className="flex items-center justify-between mb-10 border-b-2 border-black/10 pb-4">
+                  <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3 text-black"><Cpu size={16} /> Vigilância DataJud</h3>
+                  <Badge variant="outline" className="border-black font-black uppercase text-[8px] rounded-none px-3 text-black">Vigilância Passiva</Badge>
                </div>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-10 text-black">
                   <UtilityStatDark label="Novos Andamentos" value={cases.filter(c => !!c.tem_atualizacao_pos_retorno).length} color="text-blue-600" />
