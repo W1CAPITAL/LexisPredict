@@ -1,9 +1,10 @@
 "use client";
 /**
- * @fileOverview Painel de Monitoramento Soberano do Scanner
+ * @fileOverview Painel de Monitoramento Soberano do Scanner v1.1
+ * Ativado para execução real via Server Actions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Zap, 
@@ -16,36 +17,56 @@ import {
   Play,
   Settings,
   History,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
+import { startFullScannerJobAction } from '@/app/actions/scanner-actions';
 
 export default function ScannerMonitorPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState({ total: 0, today: 0, events: 0, errors: 0 });
+  const { toast } = useToast();
 
-  const runSampleScan = () => {
+  const handleStartScan = async () => {
     setIsScanning(true);
-    setProgress(0);
+    setProgress(10);
     setLogs([{ type: 'INFO', msg: 'Iniciando Handshake com MNI Tribunal...' }]);
-
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 10;
-      setProgress(p);
-      setLogs(prev => [{ type: 'SUCCESS', msg: `Lote ${p/10} processado via consultarProcesso()` }, ...prev]);
+    
+    try {
+      const res = await startFullScannerJobAction();
       
-      if (p >= 100) {
-        clearInterval(interval);
-        setIsScanning(false);
-        setLogs(prev => [{ type: 'DONE', msg: 'Monitoramento concluído com 0 falhas.' }, ...prev]);
+      if (res.success) {
+        setProgress(100);
+        const newLogs = (res.results || []).map((r: any) => ({
+          type: 'SUCCESS',
+          msg: `CNJ ${r.cnj}: [${r.analysis.categoria}] ${r.lastMov}`
+        }));
+        
+        setLogs(prev => [...newLogs, { type: 'DONE', msg: `Lote finalizado: ${res.processed} itens.` }, ...prev]);
+        setMetrics(prev => ({
+          ...prev,
+          today: prev.today + (res.processed || 0),
+          events: prev.events + (res.results?.length || 0)
+        }));
+        
+        toast({ title: "Módulo Scanner: Lote Concluído" });
+      } else {
+        setLogs(prev => [{ type: 'ERROR', msg: `Falha: ${res.error}` }, ...prev]);
+        setMetrics(prev => ({ ...prev, errors: prev.errors + 1 }));
       }
-    }, 1000);
+    } catch (err) {
+      setLogs(prev => [{ type: 'ERROR', msg: 'Erro crítico de infraestrutura.' }, ...prev]);
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   return (
@@ -63,7 +84,7 @@ export default function ScannerMonitorPage() {
              </div>
           </div>
           <div className="flex items-center gap-4">
-             <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Ativo: 17 Tribunais</Badge>
+             <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Lote real ativado</Badge>
              <Button variant="ghost" size="icon" className="border-2 border-black rounded-none"><Settings size={18} /></Button>
           </div>
         </header>
@@ -71,9 +92,9 @@ export default function ScannerMonitorPage() {
         <div className="flex-1 overflow-auto p-10 max-w-7xl mx-auto w-full space-y-10">
            <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <KpiMini label="Processos Monitorados" value="1.149" icon={<Database size={16}/>} />
-              <KpiMini label="Consultas Hoje" value="482" icon={<RefreshCcw size={16}/>} />
-              <KpiMini label="Eventos Detectados" value="12" icon={<Zap size={16}/>} />
-              <KpiMini label="Erros MNI" value="0" icon={<AlertCircle size={16}/>} />
+              <KpiMini label="Consultas Hoje" value={metrics.today} icon={<RefreshCcw size={16}/>} />
+              <KpiMini label="Eventos Detectados" value={metrics.events} icon={<Zap size={16}/>} />
+              <KpiMini label="Erros MNI" value={metrics.errors} icon={<AlertCircle size={16}/>} />
            </section>
 
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -82,23 +103,21 @@ export default function ScannerMonitorPage() {
                     <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                        <Zap size={16} className="text-primary" /> Motor de Varredura em Execução
                     </CardTitle>
-                    {isScanning && <Badge className="bg-primary text-black animate-pulse rounded-none">RUNNING</Badge>}
+                    {isScanning && <Badge className="bg-primary text-black animate-pulse rounded-none">BUSCANDO NO TRIBUNAL</Badge>}
                  </CardHeader>
                  <CardContent className="p-10 space-y-8">
                     <div className="space-y-4">
                        <div className="flex justify-between items-end">
-                          <p className="text-[11px] font-black uppercase">Progresso do Lote Atual</p>
+                          <p className="text-[11px] font-black uppercase">Progresso do Lote MNI</p>
                           <p className="text-xl font-black">{progress}%</p>
                        </div>
                        <Progress value={progress} className="h-3 border-2 border-black bg-gray-100 [&>div]:bg-black" />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6 pt-6">
-                       <Button onClick={runSampleScan} disabled={isScanning} className="h-16 bg-black text-white font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#00D1FF] hover:shadow-none transition-all">
-                          <Play size={18} className="mr-3" /> Iniciar Lote Global
-                       </Button>
-                       <Button variant="outline" className="h-16 border-2 border-black font-black uppercase text-[11px] tracking-widest rounded-none bg-white">
-                          <History size={18} className="mr-3" /> Ver Logs Históricos
+                    <div className="grid grid-cols-1 gap-6 pt-6">
+                       <Button onClick={handleStartScan} disabled={isScanning} className="h-16 bg-black text-white font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#00D1FF] hover:shadow-none transition-all">
+                          {isScanning ? <Loader2 className="animate-spin mr-3" /> : <Play size={18} className="mr-3" />} 
+                          Iniciar Lote Global (Módulo Independente)
                        </Button>
                     </div>
                  </CardContent>
@@ -114,7 +133,7 @@ export default function ScannerMonitorPage() {
                     {logs.map((log, i) => (
                       <div key={i} className="mb-2 flex gap-3">
                          <span className="opacity-40">[{new Date().toLocaleTimeString()}]</span>
-                         <span className={log.type === 'SUCCESS' ? 'text-green-400' : 'text-primary'}>
+                         <span className={log.type === 'ERROR' ? 'text-red-500' : log.type === 'SUCCESS' ? 'text-green-400' : 'text-primary'}>
                            {log.msg}
                          </span>
                       </div>
@@ -127,9 +146,9 @@ export default function ScannerMonitorPage() {
 
         <footer className="h-10 border-t border-[#dddbda] bg-white flex items-center justify-center gap-6 text-[10px] text-black/60 font-black uppercase tracking-[0.2em] shrink-0">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={14} className="text-primary" /> Módulo CNJ-MNI Ativado
+            <ShieldCheck size={14} className="text-primary" /> Módulo Independente Ativo
           </div>
-          <span>Authority Engine v1.0 • Desenvolvido por W1 Capital</span>
+          <span>Authority Engine v1.0 • Acesso em /scanner-monitor</span>
         </footer>
       </main>
     </div>
