@@ -24,6 +24,10 @@ export interface DataJudOptions {
   fast?: boolean;
 }
 
+/**
+ * Consulta API DataJud com rito de Backoff Exponencial
+ * Tentativa 1 -> falha -> 5s -> Tentativa 2 -> falha -> 30s -> Tentativa 3
+ */
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   
@@ -42,10 +46,10 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
-  // Configuração de Performance baseada no Modo (Lote vs Pontual)
+  // Configuração de Performance: Timeout aumentado para 45s para tribunais lentos
   const isFast = options.fast === true;
-  const timeoutMs = isFast ? 18000 : 45000;
-  const maxAttempts = isFast ? 2 : 3;
+  const timeoutMs = isFast ? 30000 : 60000;
+  const maxAttempts = 3;
 
   try {
     const response = await fetch(url, {
@@ -70,6 +74,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
         return { error: true, message: "Falha de autenticação API Key.", isAuthError: true, attempts: attempt };
       }
       
+      // Retry apenas para sobrecarga ou indisponibilidade
       if ([429, 502, 503, 504].includes(response.status)) {
         throw new Error(`RETRYABLE_HTTP_${response.status}`);
       }
@@ -105,8 +110,12 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
 
     if (isRetryable && attempt < maxAttempts) {
-      const waitTime = isFast ? 1000 : (1000 * Math.pow(2, attempt - 1));
-      const jitter = Math.random() * 300;
+      // Backoff Exponencial: 5s, 30s, 120s
+      const delays = [0, 5000, 30000, 120000];
+      const waitTime = delays[attempt] || 5000;
+      const jitter = Math.random() * 1000;
+      
+      console.log(`[DataJud] Tentativa ${attempt} falhou (${e.message}). Aguardando ${waitTime/1000}s para retry...`);
       await sleep(waitTime + jitter);
       return fetchDataJud(cnj, attempt + 1, options);
     }
@@ -115,7 +124,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       numeroProcesso: cnjLimpo, 
       movimentos: [], 
       error: true, 
-      message: isTimeout ? "Tempo esgotado." : "Falha na comunicação.",
+      message: isTimeout ? "Tempo esgotado no Tribunal." : "Falha na comunicação DataJud.",
       attempts: attempt
     };
   }
