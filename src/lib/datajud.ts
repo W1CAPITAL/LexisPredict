@@ -1,7 +1,7 @@
 
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v451.0 ELITE
- * Otimizado com Fast Mode para scanner em lote e Standard Mode para vereditos pontuais.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v452.0 ELITE
+ * Otimizado com timeouts rígidos de 15s e rito de retentativa controlado.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -26,7 +26,7 @@ export interface DataJudOptions {
 }
 
 /**
- * Consulta API DataJud com rito de Backoff Exponencial e métricas de latência.
+ * Consulta API DataJud com timeout de 15s e rito de tentativas controlado.
  */
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
@@ -49,10 +49,13 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   const isFast = options.fast === true;
-  const timeoutMs = isFast ? 25000 : 60000;
-  const maxAttempts = isFast ? 2 : 3; // Menos tentativas em modo lote para evitar timeout do servidor
+  const timeoutMs = 15000; // Timeout rígido de 15s conforme PROMPT
+  const maxAttempts = isFast ? 1 : 2; // 1 tentativa para scanner/worker, 2 para manual
 
   try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -67,20 +70,16 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
           }
         }
       }),
-      signal: AbortSignal.timeout(timeoutMs)
+      signal: controller.signal
     });
 
+    clearTimeout(id);
     const latency = Date.now() - startTime;
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        return { error: true, message: "Falha de autenticação API Key.", isAuthError: true, attempts: attempt, latency };
+        return { error: true, message: "Falha de autenticação API Key.", attempts: attempt, latency };
       }
-      
-      if ([429, 502, 503, 504].includes(response.status)) {
-        throw new Error(`RETRYABLE_HTTP_${response.status}`);
-      }
-      
       throw new Error(`HTTP_${response.status}`);
     }
 
@@ -111,14 +110,10 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
   } catch (e: any) {
     const latency = Date.now() - startTime;
-    const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
-    const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
+    const isTimeout = e.name === 'AbortError' || e.message?.includes('timeout');
 
-    if (isRetryable && attempt < maxAttempts) {
-      // Delays mais curtos em modo fast para não travar o worker
-      const delays = isFast ? [0, 2000, 5000] : [0, 5000, 30000, 120000];
-      const waitTime = delays[attempt] || 5000;
-      await sleep(waitTime + (Math.random() * 500));
+    if (!isTimeout && attempt < maxAttempts) {
+      await sleep(2000);
       return fetchDataJud(cnj, attempt + 1, options);
     }
 
