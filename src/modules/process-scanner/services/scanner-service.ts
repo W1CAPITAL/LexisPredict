@@ -1,6 +1,6 @@
 /**
- * @fileOverview Motor de Consolidação Híbrida v10.0 (COMPATIBILITY LAYER)
- * Unifica fontes MNI e DataJud preservando métodos públicos originais.
+ * @fileOverview Motor de Consolidação Híbrida v11.0
+ * Unificação definitiva de fontes com latência real e logs de auditoria.
  * @copyright 2026 W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -40,33 +40,9 @@ export interface AuditResult {
 
 export class ScannerService {
   
-  /**
-   * Watchdog Interno: Dispara log se a etapa demorar mais de 5 segundos.
-   */
-  private async runWithWatchdog<T>(name: string, promise: Promise<T>, timeoutMs = 5000): Promise<T> {
-    const timer = setTimeout(() => {
-      console.warn(`\n[WATCHDOG] Etapa travada: ${name} | Tempo: >${timeoutMs}ms`);
-    }, timeoutMs);
-    
-    try {
-      return await promise;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  /**
-   * Timeout Atômico Individual de 20 segundos por processo.
-   */
-  private async withTimeout<T>(promise: Promise<T>, timeoutMs = 20000): Promise<T> {
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`TIMEOUT_20S`)), timeoutMs)
-    );
-    return Promise.race([promise, timeoutPromise]);
-  }
-
   private getProvider(cnj: string): IProcessProvider {
     const clean = cnj.replace(/\D/g, '');
+    if (clean.length < 16) return new CNJProvider();
     const code = `${clean[13]}.${clean.substring(14, 16)}`;
     if (code.startsWith('8.')) return new TJProvider();
     if (code.startsWith('4.')) return new TRFProvider();
@@ -85,40 +61,53 @@ export class ScannerService {
   }
 
   /**
-   * Método Público de Compatibilidade
-   * Delegado para o ProviderManager interno (auditarProcesso)
+   * Realiza a auditoria consolidada (DataJud + MNI).
    */
-  async scanProcesso(cnj: string, empresaId?: string): Promise<AuditResult> {
-    console.log(`[MNI_COMPAT] Scan unitário solicitado: ${cnj}`);
-    return this.auditarProcesso(cnj);
-  }
-
   async auditarProcesso(cnj: string, lastAuditHash?: string | null): Promise<AuditResult> {
-    const startTime = Date.now();
+    const globalStartTime = Date.now();
     const now = new Date();
     const provider = this.getProvider(cnj);
 
-    let resMNI: ProviderResponse | null = null;
-    let resPublic: any = null;
+    console.log(`[SCANNER] [START] Processando CNJ: ${cnj}`);
 
-    try {
-      await this.withTimeout(
-        this.runWithWatchdog(`FETCH_HYBRID_${cnj}`, (async () => {
-          // Rito ProviderManager: Tenta MNI -> Se falhar, complementa com DataJud
-          resMNI = await provider.consultarProcesso(cnj).catch(() => ({ processo: null, httpStatus: 500, error: 'MNI_FAIL', latency: 0, endpoint: 'MNI' }));
-          resPublic = await fetchDataJud(cnj, 1, { fast: true, timeoutMs: 15000 }).catch(() => ({ error: true, httpStatus: 500 }));
-        })())
-      );
-    } catch (e: any) {
-      return this.buildFailureResult(cnj, null, { message: e.message, httpStatus: 408 });
+    // 1. Consulta DataJud (Fonte Principal)
+    const resPublic = await fetchDataJud(cnj, 1, { fast: true, timeoutMs: 20000 });
+    
+    // 2. Consulta MNI (Fonte Secundária/Auxiliar)
+    let resMNI: ProviderResponse | null = null;
+    if (resPublic.error || resPublic.message === 'NOT_FOUND') {
+       resMNI = await provider.consultarProcesso(cnj).catch(() => null);
     }
 
-    const localizado = !!(resMNI?.processo || (resPublic && !resPublic.error && resPublic.movimentos?.length > 0));
+    const globalLatency = Date.now() - globalStartTime;
+
+    const localizado = !!((resPublic && !resPublic.error && resPublic.movimentos?.length > 0) || resMNI?.processo);
     
     if (!localizado) {
-      return this.buildFailureResult(cnj, resMNI, resPublic);
+      console.warn(`[SCANNER] [NOT_FOUND] ${cnj} | Total Time: ${globalLatency}ms`);
+      return {
+        cnj,
+        localizado: false,
+        tribunal: resPublic.tribunal || "N/A",
+        dataAuditoria: now.toISOString(),
+        dataUltimoEvento: null,
+        diasSemMovimentacao: 0,
+        mudancaDetectada: false,
+        statusAuditoria: 'Processo Não Localizado',
+        analysis: MovimentacaoAI.analisar(null),
+        hash: "",
+        metadata: {},
+        debug: {
+          latency: globalLatency,
+          httpStatus: resPublic.httpStatus || 404,
+          endpoint: resPublic.endpoint || "CNJ_API",
+          source: 'DATAJUD',
+          error: resPublic.message || "NOT_FOUND"
+        }
+      };
     }
 
+    // Consolidação de Movimentações
     const movsMNI = resMNI?.processo?.movimentos || [];
     const movsPublic = resPublic?.movimentos?.map((m: any) => ({
       codigo: m.codigo || "0",
@@ -141,68 +130,39 @@ export class ScannerService {
     const daysIdle = differenceInDays(startOfDay(now), startOfDay(parseISO(ultimaMov.dataHora)));
     
     const analysis = MovimentacaoAI.analisar(ultimaMov);
-    const changeDetected = lastAuditHash !== currentHash;
+    const changeDetected = lastAuditHash && lastAuditHash !== currentHash;
 
-    const tribunal = resPublic?.tribunal || resMNI?.processo?.orgao || "TJ";
-    const metadata = {
-      classe: resPublic?.classe || resMNI?.processo?.classe || 'N/A',
-      assunto: (resPublic?.assunto || resMNI?.processo?.assunto || []).toString(),
-      orgao: resPublic?.tribunal || resMNI?.processo?.orgao || 'N/A',
-      ultimaAtualizacao: now.toISOString()
-    };
+    console.log(`[SCANNER] [SUCCESS] ${cnj} | Category: ${analysis.categoria} | Change: ${changeDetected}`);
 
     return {
       cnj,
       localizado: true,
-      tribunal,
+      tribunal: resPublic.tribunal || resMNI?.processo?.orgao || "TJ",
       dataAuditoria: now.toISOString(),
       dataUltimoEvento: ultimaMov.dataHora,
       diasSemMovimentacao: daysIdle,
-      mudancaDetectada: changeDetected,
+      mudancaDetectada: !!changeDetected,
       statusAuditoria: changeDetected ? 'Mudança Detectada' : 'Sem Evidências de Alteração',
       analysis,
       hash: currentHash,
-      metadata,
+      metadata: {
+        classe: resPublic.classe || resMNI?.processo?.classe || 'N/A',
+        orgao: resPublic.tribunal || resMNI?.processo?.orgao || 'N/A',
+        ultimaAtualizacao: now.toISOString()
+      },
       debug: {
-        latency: Date.now() - startTime,
-        httpStatus: resPublic?.httpStatus || resMNI?.httpStatus || 200,
-        endpoint: resPublic?.endpoint || resMNI?.endpoint || "CONSOLIDATED_API",
-        source: (resMNI?.processo && resPublic?.movimentos) ? 'HYBRID' : (resMNI?.processo ? 'MNI' : 'DATAJUD')
+        latency: globalLatency,
+        httpStatus: resPublic.httpStatus || 200,
+        endpoint: resPublic.endpoint || "DATAJUD_API",
+        source: resMNI?.processo ? 'HYBRID' : 'DATAJUD'
       }
     };
   }
 
-  private buildFailureResult(cnj: string, resMNI: any, resPublic: any): AuditResult {
-    return {
-      cnj,
-      localizado: false,
-      tribunal: "N/A",
-      dataAuditoria: new Date().toISOString(),
-      dataUltimoEvento: null,
-      diasSemMovimentacao: 0,
-      mudancaDetectada: false,
-      statusAuditoria: 'Processo Não Localizado',
-      analysis: MovimentacaoAI.analisar(null),
-      hash: "",
-      metadata: {},
-      debug: {
-        latency: 0,
-        httpStatus: resPublic?.httpStatus || resMNI?.httpStatus || 404,
-        endpoint: "ALL_SOURCES",
-        source: 'HYBRID',
-        error: resPublic?.message || resMNI?.error || "Falha na triagem"
-      }
-    };
-  }
-
-  async scanLoteInteligente(casos: any[]): Promise<AuditResult[]> {
-    const results: AuditResult[] = [];
-    for (const c of casos) {
-      try {
-        const res = await this.auditarProcesso(c.protocolo, c.metadata?.hash);
-        results.push(res);
-      } catch (e) {}
-    }
-    return results;
+  /**
+   * Método Público de Compatibilidade para chamadas individuais.
+   */
+  async scanProcesso(cnj: string): Promise<AuditResult> {
+    return this.auditarProcesso(cnj);
   }
 }
