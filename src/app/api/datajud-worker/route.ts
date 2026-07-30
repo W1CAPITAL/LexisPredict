@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.5
+ * @fileOverview Worker de Auditoria Automática DataJud v1.6
  * Otimizado com Guardião de Tempo e Isolamento por Empresa.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
