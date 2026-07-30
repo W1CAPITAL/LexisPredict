@@ -1,6 +1,5 @@
-
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.6
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.8
  * Agora com hashing de integridade para detectar mudanças reais de conteúdo.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -14,17 +13,20 @@ import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
   
-  // Analisamos os 5 movimentos mais recentes para compor o hash
+  // Analisamos os 10 movimentos mais recentes para compor o hash de integridade
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  const signature = sorted.slice(0, 5)
-    .map(m => `${m.dataHora || ''}|${m.nome || ''}`)
+  const signature = sorted.slice(0, 10)
+    .map(m => `${m.dataHora || ''}|${m.nome || ''}|${m.codigo || ''}`)
     .join('##');
 
-  // Retorno de hash simplificado via base64 para economia de espaço no banco
+  // Retorno de hash simplificado via base64
   try {
+    if (typeof btoa !== 'undefined') {
+      return btoa(unescape(encodeURIComponent(signature))).substring(0, 32);
+    }
     return Buffer.from(signature).toString('base64').substring(0, 32);
   } catch {
     return signature.substring(0, 32);
@@ -33,7 +35,6 @@ export function gerarHashAuditoria(movimentos: any[]): string {
 
 /**
  * Analisa os movimentos recentes do tribunal para detectar encerramento definitivo.
- * Prioridade Máxima de Auditoria.
  */
 export function detectarEncerradoNoTribunal(movimentos: any[]): {
   encerrado: boolean;
@@ -69,53 +70,19 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     {
       patterns: ['ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVEM-SE OS AUTOS', 'AUTOS ARQUIVADOS', 'ARQUIVAMENTO', 'ARQUIVADO', 'ARQUIV'],
       label: 'ARQUIVAMENTO DEFINITIVO'
-    },
-    {
-      patterns: ['CANCELAMENTO DA DISTRIBUIÇÃO', 'CANCELAMENTO DA DISTRIBUICAO', 'CANCELADA A DISTRIBUIÇÃO', 'DISTRIBUIÇÃO CANCELADA'],
-      label: 'CANCELAMENTO DE DISTRIBUIÇÃO'
-    },
-    {
-      patterns: ['HOMOLOGAÇÃO DE DESISTÊNCIA', 'HOMOLOGACAO DE DESISTENCIA', 'HOMOLOGO A DESISTÊNCIA', 'DESISTÊNCIA DA AÇÃO', 'RENÚNCIA AO DIREITO', 'RENUNCIA AO DIREITO'],
-      label: 'DESISTÊNCIA / RENÚNCIA'
-    },
-    {
-      patterns: ['EXTINTO O CUMPRIMENTO DE SENTENÇA', 'CUMPRIMENTO DE SENTENÇA EXTINTO'],
-      label: 'EXTINÇÃO DE CUMPRIMENTO'
-    },
-    {
-      patterns: ['PERDA DO OBJETO'],
-      label: 'PERDA DO OBJETO',
-      filter: (t: string) => /EXTINT|ARQUIV|BAIXA/.test(t)
-    },
-    {
-      patterns: ['HOMOLOGAÇÃO DE ACORDO', 'ACORDO HOMOLOGADO'],
-      label: 'ACORDO HOMOLOGADO',
-      filter: (t: string) => /ARQUIV|BAIXA|EXTINT/.test(t)
     }
   ];
 
   const constructedWindow = window.map(mov => {
     const text = `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
-    const nomeRaw = (mov.nome || "").toUpperCase().trim();
-    const isProvisional = (text.includes("PROVISÓRIA") || text.includes("PROVISORIA")) && 
-                          !(/DEFINITIV|EXTINT|ARQUIVADO DEFINITIVAMENTE/.test(text));
-    return { text, nomeRaw, isProvisional };
+    return { text };
   });
 
   for (const group of patternGroups) {
     for (const item of constructedWindow) {
-      if (item.isProvisional) continue;
       if (group.patterns.some(p => item.text.includes(p))) {
-        if (group.filter && !group.filter(item.text)) continue;
         return { encerrado: true, motivo: group.label };
       }
-    }
-  }
-
-  for (const item of constructedWindow) {
-    if (item.isProvisional) continue;
-    if (item.nomeRaw === "DEFINITIVO" || (item.text.includes("DEFINITIVO") && /ARQUIV|BAIXA|BAIXADO/.test(item.text))) {
-      return { encerrado: true, motivo: "DEFINITIVO / ARQUIVAMENTO" };
     }
   }
 
