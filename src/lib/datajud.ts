@@ -1,5 +1,5 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v450.0 ELITE
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v460.0 ELITE
  * Otimizado com Paridade de Timeout entre Scanner e Veredito.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
@@ -42,9 +42,8 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
-  // PARIDADE DE TIMEOUT v450.0
-  // O Scanner em lote (fast) agora usa os mesmos 45s do clique manual.
-  // A diferença reside apenas na agressividade do retry para manter a fila fluida.
+  // PROTOCOLO DE PARIDADE v460.0
+  // Scanner (fast=true) e Clique Manual usam o MESMO teto de 45s.
   const isFast = options.fast === true;
   const timeoutMs = 45000; 
   const maxAttempts = isFast ? 2 : 3;
