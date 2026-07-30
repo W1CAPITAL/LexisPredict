@@ -30,7 +30,9 @@ import {
   FileSearch,
   FileDown,
   ShieldAlert,
-  Activity
+  Activity,
+  Save,
+  Database
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -38,17 +40,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useSearchParams } from 'next/navigation';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
-import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
-import { format } from 'date-fns';
+import { 
+  fetchRepoCases, 
+  syncRepoCases, 
+  recalibrateCasesAction, 
+  runDataJudScanAction, 
+  scanSingleCaseAction 
+} from '@/app/actions/case-actions';
+import { exportCasesToCSVAction } from '@/app/actions/export-actions';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
@@ -58,6 +57,14 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { useAppStore } from '@/store/use-app-store';
 import { createClient } from '@/lib/supabase/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from '@/components/ui/label';
 
 const CaseRow = React.memo(({ 
   c, 
@@ -92,7 +99,6 @@ const CaseRow = React.memo(({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground font-black text-[13px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
             
-            {/* FLAG MNI INTELIGENTE */}
             {mniScan && (
               <Badge className={cn(
                 "h-5 px-2 rounded-md font-black uppercase text-[8px] border-2",
@@ -178,9 +184,14 @@ const CaseRow = React.memo(({
             {loading ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
           </button>
           {isOperador && (
-            <button title="Registrar Atendimento Hoje" onClick={(e) => { e.stopPropagation(); onLogReturn(c.protocolo); }} className="text-emerald-600 hover:bg-emerald-50 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
-              <CheckCircle2 size={18} />
-            </button>
+            <>
+              <button title="Editar Processo" onClick={() => onEdit(c)} className="text-blue-600 hover:bg-blue-50 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
+                <Edit2 size={18} />
+              </button>
+              <button title="Excluir" onClick={() => onDelete(c.id)} className="text-red-600 hover:bg-red-50 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
+                <Trash2 size={18} />
+              </button>
+            </>
           )}
           {c.telefone && (
              <a href={formatWhatsAppLink(c.telefone)} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all h-9 w-9 flex items-center justify-center rounded-lg">
@@ -199,17 +210,30 @@ const CaseRow = React.memo(({
 CaseRow.displayName = 'CaseRow';
 
 function CasesContent() {
-  const { cases, setCases, updateCaseByProtocolo, updateCase, addCase } = useAppStore();
+  const { cases, setCases, updateCaseByProtocolo, updateCase, addCase, removeCase } = useAppStore();
   const [mniScans, setMniScans] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
   const [mounted, setMounted] = useState(false);
-  const { isOperador } = useAdmin();
+  const { isOperador, isAdmin } = useAdmin();
   const { toast } = useToast();
+
+  const [form, setForm] = useState({
+    cliente: '',
+    protocolo: '',
+    telefone: '',
+    advogado: '',
+    escritorio: '',
+    situacao: 'EM ANDAMENTO',
+    proximoPrazo: '',
+    ultimoRetorno: '',
+    observacao: ''
+  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -226,6 +250,98 @@ function CasesContent() {
   }, [setCases]);
 
   useEffect(() => { setMounted(true); loadData(); }, [loadData]);
+
+  const handleRecalibrate = async () => {
+    setActionLoading(true);
+    const res = await recalibrateCasesAction();
+    if (res.success) {
+      toast({ title: "Recalibração Concluída", description: res.message });
+      loadData();
+    }
+    setActionLoading(false);
+  };
+
+  const handleBulkScan = async () => {
+    setActionLoading(true);
+    toast({ title: "Iniciando Varredura", description: "Auditando processos ativos..." });
+    const res = await runDataJudScanAction();
+    if (res.success) {
+      toast({ title: "Varredura Finalizada", description: res.message });
+      loadData();
+    }
+    setActionLoading(false);
+  };
+
+  const handleExport = async () => {
+    setActionLoading(true);
+    const res = await exportCasesToCSVAction();
+    if (res.success && res.base64) {
+      const link = document.createElement('a');
+      link.href = `data:text/csv;base64,${res.base64}`;
+      link.download = res.filename;
+      link.click();
+      toast({ title: "Planilha Gerada" });
+    }
+    setActionLoading(false);
+  };
+
+  const handleSaveCase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      const caseData = processarCaso({
+        ...form,
+        CLIENTE: form.cliente,
+        PROTOCOLO: form.protocolo,
+        ADVOGADO: form.advogado,
+        ESCRITORIO: form.escritorio,
+        RETORNO: form.ultimoRetorno,
+        PROXIMO_RETORNO: form.proximoPrazo,
+        id: editingCase?.id
+      });
+
+      const updated = editingCase 
+        ? cases.map(c => c.id === editingCase.id ? caseData : c)
+        : [caseData, ...cases];
+
+      const res = await syncRepoCases(updated);
+      if (res.success) {
+        if (editingCase) updateCase(editingCase.id, caseData);
+        else addCase(caseData);
+        setIsModalOpen(false);
+        setEditingCase(null);
+        toast({ title: editingCase ? "Processo Atualizado" : "Processo Cadastrado" });
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteCase = async (id: string) => {
+    if (!confirm("Remover este processo do repositório?")) return;
+    const updated = cases.filter(c => c.id !== id);
+    const res = await syncRepoCases(updated);
+    if (res.success) {
+      removeCase(id);
+      toast({ title: "Registro Removido" });
+    }
+  };
+
+  const openEdit = (c: LegalCase) => {
+    setEditingCase(c);
+    setForm({
+      cliente: c.cliente,
+      protocolo: c.protocolo,
+      telefone: c.telefone || '',
+      advogado: c.advogado,
+      escritorio: c.escritorio,
+      situacao: c.situacao,
+      proximoPrazo: c.proximoPrazo,
+      ultimoRetorno: c.ultimoRetorno,
+      observacao: c.observacao || ''
+    });
+    setIsModalOpen(true);
+  };
 
   const filtered = useMemo(() => {
     const searchLower = deferredSearch.toLowerCase();
@@ -246,10 +362,30 @@ function CasesContent() {
         <header className="h-20 border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40">
           <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Processos do Gabinete</h1>
           <div className="flex items-center gap-3">
-             <Button variant="outline" size="sm" onClick={() => setShowClosed(!showClosed)} className={cn("h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest", showClosed && "bg-black text-white")}>
+             <Button variant="outline" size="sm" onClick={() => setShowClosed(!showClosed)} className={cn("h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-none bg-secondary/50", showClosed && "bg-black text-white")}>
                {showClosed ? <Eye size={16} className="mr-2" /> : <EyeOff size={16} className="mr-2" />}
                {showClosed ? "Ocultar Encerrados" : "Mostrar Encerrados"}
              </Button>
+             
+             {isAdmin && (
+               <>
+                 <Button variant="outline" size="sm" onClick={handleRecalibrate} disabled={actionLoading} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] border-none bg-secondary/50">
+                    <RefreshCcw size={14} className={cn("mr-2", actionLoading && "animate-spin")} /> Recalibrar Prazos
+                 </Button>
+                 <Button variant="outline" size="sm" onClick={handleBulkScan} disabled={actionLoading} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] border-none bg-secondary/50">
+                    <Zap size={14} className={cn("mr-2 text-primary", actionLoading && "animate-pulse")} /> Varredura DataJud
+                 </Button>
+               </>
+             )}
+
+             <Button variant="outline" size="sm" onClick={handleExport} disabled={actionLoading} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] border-none bg-secondary/50">
+                <FileDown size={14} className="mr-2" /> Exportar Planilha
+             </Button>
+
+             <Button onClick={() => { setEditingCase(null); setForm({ cliente: '', protocolo: '', telefone: '', advogado: '', escritorio: '', situacao: 'EM ANDAMENTO', proximoPrazo: '', ultimoRetorno: '', observacao: '' }); setIsModalOpen(true); }} className="h-10 px-6 rounded-xl bg-black text-white hover:bg-black/90 font-black uppercase text-[10px] tracking-widest shadow-xl">
+               <Plus size={16} className="mr-2 text-primary" /> Novo Registro
+             </Button>
+
              <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
                <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin")} />
              </Button>
@@ -288,8 +424,8 @@ function CasesContent() {
                         isOperador={isOperador} 
                         onLogReturn={async () => {}} 
                         onScan={async () => {}}
-                        onEdit={() => {}} 
-                        onDelete={async () => {}}
+                        onEdit={openEdit} 
+                        onDelete={handleDeleteCase}
                       />
                     );
                   })}
@@ -303,6 +439,77 @@ function CasesContent() {
             </div>
           </div>
         </div>
+
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+           <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl">
+              <form onSubmit={handleSaveCase}>
+                 <DialogHeader className="p-6 bg-secondary/20 border-b">
+                    <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2">
+                       <Briefcase className="text-primary" /> {editingCase ? "Editar Processo" : "Provisionar Novo Caso"}
+                    </DialogTitle>
+                 </DialogHeader>
+                 <ScrollArea className="max-h-[70vh]">
+                    <div className="p-6 space-y-6">
+                       <div className="grid gap-2">
+                          <Label className="uppercase text-[9px] font-black text-muted-foreground">Nome Completo do Titular</Label>
+                          <Input value={form.cliente} onChange={e => setForm({...form, cliente: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" required />
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                             <Label className="uppercase text-[9px] font-black text-muted-foreground">Protocolo CNJ</Label>
+                             <Input value={form.protocolo} onChange={e => setForm({...form, protocolo: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-mono" required />
+                          </div>
+                          <div className="grid gap-2">
+                             <Label className="uppercase text-[9px] font-black text-muted-foreground">Telefone WhatsApp</Label>
+                             <Input value={form.telefone} onChange={e => setForm({...form, telefone: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-mono" />
+                          </div>
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                             <Label className="uppercase text-[9px] font-black text-muted-foreground">Advogado Responsável</Label>
+                             <Input value={form.advogado} onChange={e => setForm({...form, advogado: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" />
+                          </div>
+                          <div className="grid gap-2">
+                             <Label className="uppercase text-[9px] font-black text-muted-foreground">Escritório / Unidade</Label>
+                             <Input value={form.escritorio} onChange={e => setForm({...form, escritorio: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" />
+                          </div>
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                             <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Retorno (Contato)</Label>
+                             <Input value={form.ultimoRetorno} onChange={e => setForm({...form, ultimoRetorno: e.target.value})} placeholder="DD/MM/AAAA" className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
+                          </div>
+                          <div className="grid gap-2">
+                             <Label className="uppercase text-[9px] font-black text-muted-foreground">Próximo Prazo (Alerta)</Label>
+                             <Input value={form.proximoPrazo} onChange={e => setForm({...form, proximoPrazo: e.target.value})} placeholder="DD/MM/AAAA" className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
+                          </div>
+                       </div>
+                       <div className="grid gap-2">
+                          <Label className="uppercase text-[9px] font-black text-muted-foreground">Situação Interna</Label>
+                          <Select value={form.situacao} onValueChange={v => setForm({...form, situacao: v})}>
+                             <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase"><SelectValue /></SelectTrigger>
+                             <SelectContent>
+                                <SelectItem value="EM ANDAMENTO">EM ANDAMENTO</SelectItem>
+                                <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
+                                <SelectItem value="ARQUIVADO">ARQUIVADO</SelectItem>
+                                <SelectItem value="SUSPENSO">SUSPENSO</SelectItem>
+                             </SelectContent>
+                          </Select>
+                       </div>
+                       <div className="grid gap-2">
+                          <Label className="uppercase text-[9px] font-black text-muted-foreground">Observações Técnicas</Label>
+                          <Textarea value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold uppercase resize-none" />
+                       </div>
+                    </div>
+                 </ScrollArea>
+                 <DialogFooter className="p-6 pt-0">
+                    <Button type="submit" disabled={actionLoading} className="w-full h-12 bg-black text-white rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl">
+                       {actionLoading ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />} {editingCase ? "Atualizar Registro" : "Ativar Cadastro"}
+                    </Button>
+                 </DialogFooter>
+              </form>
+           </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
