@@ -14,7 +14,10 @@ const nextConfig: NextConfig = {
     'pdf-parse',
     '@opentelemetry/sdk-node',
     '@opentelemetry/api',
-    '@opentelemetry/exporter-jaeger'
+    '@opentelemetry/exporter-jaeger',
+    '@opentelemetry/sdk-trace-base',
+    '@opentelemetry/sdk-trace-node',
+    '@opentelemetry/instrumentation'
   ],
   experimental: {
     serverActions: {
