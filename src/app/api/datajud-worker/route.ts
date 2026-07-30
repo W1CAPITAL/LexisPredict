@@ -1,7 +1,7 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.6
- * Otimizado com Guardião de Tempo e Isolamento por Empresa.
+ * @fileOverview Worker de Auditoria Automática DataJud v1.7
+ * Otimizado com concorrência limitada (2) e timeout de 45s.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -18,8 +18,8 @@ import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 export const dynamic = 'force-dynamic';
 
 const BATCH_SIZE = 10; 
-const CONCURRENCY = 3;
-const MAX_RUNTIME_MS = 50000; // Limite de 50s para segurança do Vercel
+const CONCURRENCY = 2; // Reduzido conforme PROMPT
+const MAX_RUNTIME_MS = 45000; // Limite de 45s conforme PROMPT
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   const start = Date.now();
-  console.log(`[DataJud Worker] Lote Recebido - Empresa: ${empresa_id || 'Global'}`);
+  console.log(`[DataJud Worker] Lote Iniciado: ${new Date().toLocaleTimeString()}`);
 
   try {
     const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE, empresa_id);
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         success: true, 
         processed: 0, 
         successCount: 0, 
-        message: "Fila de carência limpa.",
+        message: "Fila limpa.",
         remainingEstimate: 0 
       });
     }
@@ -51,10 +51,9 @@ export async function POST(request: Request) {
     let successCount = 0;
     let failedCount = 0;
 
-    // Processamento com Guardião de Tempo
     for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
       if (Date.now() - start > MAX_RUNTIME_MS) {
-        console.warn("[DataJud Worker] Tempo limite atingido.");
+        console.warn("[DataJud Worker] Tempo limite atingido. Interrompendo lote parcialmente.");
         break;
       }
 
@@ -65,7 +64,6 @@ export async function POST(request: Request) {
       }));
     }
 
-    // Calcular estimativa real para a empresa
     const admin = await getSupabaseAdmin();
     const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
     

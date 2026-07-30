@@ -1,8 +1,8 @@
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v6.2 — INSTANT START & PASSIVE HEALTH
- * Removeu bloqueio inicial. Agora inicia a fila imediatamente.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v6.3 — PROTOCOLO DE ESTABILIDADE
+ * Concorrência limitada (2) e Gap de 400ms conforme PROMPT.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -11,8 +11,8 @@ import { useAppStore } from '@/store/use-app-store';
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanScope = 'resume' | 'critical' | 'full';
 
-const CONCURRENT_WORKERS = 3; // Reduzido para estabilidade
-const SCAN_GAP_MS = 300; 
+const CONCURRENT_WORKERS = 2; // Conforme PROMPT
+const SCAN_GAP_MS = 400; // Conforme PROMPT
 
 interface CourtHealth {
   id: string;
@@ -142,8 +142,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   runInitialHealthCheck: async (protocolos) => {
-    // Agora o Health Check é passivo. Esta função apenas limpa logs antigos.
-    set({ logs: [{ protocolo: 'SISTEMA', status: 'success', message: 'Iniciando varredura estratégica instantânea...' }] });
+    set({ logs: [{ protocolo: 'SISTEMA', status: 'success', message: 'Iniciando varredura estratégica...' }] });
     return protocolos;
   },
 
@@ -163,7 +162,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       queue: protocolos
     });
 
-    // Dispara workers imediatamente sem esperar health check
     for (let i = 0; i < CONCURRENT_WORKERS; i++) {
       get().workerLoop();
     }
@@ -238,11 +236,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           useAppStore.getState().updateCaseByProtocolo(protocolo, result.casePatch);
         }
 
-        if (!result.success && result.isAuthError) {
-          set({ status: 'paused', isAuthPaused: true });
-          break;
-        }
-
         const logStatus = result.success ? (result.casePatch?.datajud_encerrado_tribunal || result.casePatch?.tem_atualizacao_pos_retorno ? 'warning' : 'success') : 'error';
         const newLog: ScanLog = {
           protocolo,
@@ -278,7 +271,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         set(state => ({ 
           done: state.done + 1, 
           errors: state.errors + 1,
-          logs: [{ protocolo, status: 'error', message: "Falha de Rede" }, ...state.logs].slice(0, 100)
+          logs: [{ protocolo, status: 'error', message: "Erro Inesperado" }, ...state.logs].slice(0, 100)
         }));
       }
 
