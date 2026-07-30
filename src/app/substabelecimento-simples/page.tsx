@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -11,12 +12,9 @@ import {
   Loader2, 
   CheckCircle2, 
   Shield, 
-  Gavel, 
-  FileText, 
   ArrowRight,
   Printer,
   Edit3,
-  Building2,
   User,
   Zap,
   MapPin
@@ -56,12 +54,10 @@ export default function SubstabelecimentoSimplesPage() {
       setBanca(data);
       if (data.length > 0) {
         setAdvLeavingId(data[0].id);
-        // Tenta achar o Diego se existir na banca
         const diego = data.find(a => a.nome.toUpperCase().includes('DIEGO'));
         if (diego) setAdvEnteringId(diego.id);
         else setAdvEnteringId(data[0].id);
         
-        // Define estado inicial baseado no primeiro advogado
         const firstUF = Object.keys(data[0].oabs || {})[0] || 'SP';
         setSelectedState(firstUF);
       }
@@ -72,8 +68,8 @@ export default function SubstabelecimentoSimplesPage() {
   const advLeaving = banca.find(a => a.id === advLeavingId);
   const advEntering = banca.find(a => a.id === advEnteringId);
 
-  const oabLeaving = advLeaving?.oabs?.[selectedState] || "___.___";
-  const oabEntering = advEntering?.oabs?.[selectedState] || "___.___";
+  const oabLeaving = advLeaving?.oabs?.[selectedState] || "NÃO CADASTRADA";
+  const oabEntering = advEntering?.oabs?.[selectedState] || "NÃO CADASTRADA";
 
   const handleSeal = async () => {
     if (!advLeaving || !advEntering || !numeroProcesso || !parteNome) {
@@ -81,10 +77,10 @@ export default function SubstabelecimentoSimplesPage() {
       return;
     }
 
-    if (oabLeaving === "___.___" || oabEntering === "___.___") {
+    if (oabLeaving === "NÃO CADASTRADA" || oabEntering === "NÃO CADASTRADA") {
       toast({ 
         title: "OAB não localizada", 
-        description: `Um dos advogados selecionados não possui OAB cadastrada para o estado ${selectedState}.`, 
+        description: `Um dos advogados não possui OAB cadastrada para o estado ${selectedState}.`, 
         variant: "destructive" 
       });
       return;
@@ -112,7 +108,7 @@ export default function SubstabelecimentoSimplesPage() {
       if (res.success && res.base64) {
         const link = document.createElement('a');
         link.href = `data:application/pdf;base64,${res.base64}`;
-        link.download = `Substabelecimento_Simples_${parteNome.replace(/\s/g, '_')}.pdf`;
+        link.download = `Subst_Simples_${parteNome.replace(/\s/g, '_')}.pdf`;
         link.click();
         toast({ title: "Documento Selado" });
       } else {
@@ -232,14 +228,14 @@ export default function SubstabelecimentoSimplesPage() {
 
             <Card className="bg-[#f8f9fb] border-2 border-black border-dashed rounded-none overflow-hidden">
                <CardHeader className="bg-white border-b-2 border-black border-dashed py-2">
-                 <p className="text-[8px] font-black uppercase text-center tracking-widest">Preview Forense • UF Selecionada: {selectedState}</p>
+                 <p className="text-[8px] font-black uppercase text-center tracking-widest">Preview Forense • UF: {selectedState}</p>
                </CardHeader>
                <CardContent className="p-10 text-black/60 font-serif text-[11pt] leading-relaxed italic text-center space-y-4">
                   <p>
-                    "Pelo presente instrumento, <span className="font-bold">Dr. {advLeaving?.nome || '[Cedente]'}</span>, advogado regularmente inscrito na <span className={cn("font-bold", oabLeaving === "___.___" && "text-red-600 underline")}>OAB/{selectedState} sob o n.º {oabLeaving}</span>, substabelece, SEM RESERVA DE PODERES, ao <span className="font-bold">Dr. {advEntering?.nome || '[Cessionário]'}</span>, advogado inscrito na <span className={cn("font-bold", oabEntering === "___.___" && "text-red-600 underline")}>OAB/{selectedState} sob o n.º {oabEntering}</span>, todos os poderes que lhe foram conferidos nos autos do processo nº {numeroProcesso || '[Processo]'}, para que represente os interesses da parte {parteNome || '[Parte]'}."
+                    "Pelo presente instrumento, <span className="font-bold">Dr. {advLeaving?.nome || '[Cedente]'}</span>, advogado regularmente inscrito na <span className={cn("font-bold", oabLeaving === "NÃO CADASTRADA" && "text-red-600 underline")}>OAB/{selectedState} sob o n.º {oabLeaving}</span>, substabelece, SEM RESERVA DE PODERES, ao <span className="font-bold">Dr. {advEntering?.nome || '[Cessionário]'}</span>, advogado inscrito na <span className={cn("font-bold", oabEntering === "NÃO CADASTRADA" && "text-red-600 underline")}>OAB/{selectedState} sob o n.º {oabEntering}</span>, todos os poderes que lhe foram conferidos nos autos do processo nº {numeroProcesso || '[Processo]'}, para que represente os interesses da parte {parteNome || '[Parte]'}."
                   </p>
-                  { (oabLeaving === "___.___" || oabEntering === "___.___") && (
-                    <p className="text-[9px] font-black uppercase text-red-600 not-italic">⚠ Atenção: Verifique o cadastro de OAB dos advogados para o estado {selectedState} em Configurações.</p>
+                  { (oabLeaving === "NÃO CADASTRADA" || oabEntering === "NÃO CADASTRADA") && (
+                    <p className="text-[9px] font-black uppercase text-red-600 not-italic">⚠ Atenção: Um dos advogados não possui OAB para o estado {selectedState}. Verifique em Configurações.</p>
                   )}
                </CardContent>
             </Card>
