@@ -1,19 +1,28 @@
 /**
- * @fileOverview Interpretador Neural de Movimentações MNI v2.0
+ * @fileOverview Interpretador Neural de Movimentações MNI v3.0
  * Transforma dados brutos em informações resolutivas para o gabinete.
+ * Classificação estrita conforme regras de Gabinete W1 Capital.
  */
 
 import { MovimentoNacional } from '../types/dto';
 
 export type AICategory = 
-  | 'NOVO ANDAMENTO' 
-  | 'ENCERRADO' 
-  | 'SEM NOVOS ANDAMENTOS'
-  | 'EM RECURSO' 
-  | 'NOVA PUBLICAÇÃO' 
-  | 'NOVA PETIÇÃO' 
-  | 'COM PRAZO'
+  | 'ENCERRADO'
+  | 'PUBLICAÇÃO'
+  | 'PETIÇÃO'
+  | 'CONCLUSÃO'
+  | 'ATO ORDINATÓRIO'
+  | 'DECISÃO'
   | 'DESPACHO'
+  | 'SENTENÇA'
+  | 'AUDIÊNCIA'
+  | 'INTIMAÇÃO'
+  | 'EXPEDIÇÃO'
+  | 'CERTIDÃO'
+  | 'RECURSO'
+  | 'NOVO ANDAMENTO'
+  | 'SEM NOVOS ANDAMENTOS'
+  | 'COM PRAZO'
   | 'OUTROS';
 
 export interface AIAnalysis {
@@ -28,74 +37,87 @@ export interface AIAnalysis {
 
 export class MovimentacaoAI {
   /**
-   * Detecta se um conjunto de movimentações indica encerramento definitivo.
+   * Detecta encerramento definitivo baseado em palavras-chave mandatórias.
    */
-  static detectarEncerramento(movs: MovimentoNacional[]): { encerrado: boolean; motivo: string | null } {
-    const termosEncerramento = [
+  static detectarEncerramento(text: string): { encerrado: boolean; motivo: string | null } {
+    const upper = text.toUpperCase();
+    const termos = [
       'TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO', 'BAIXA DEFINITIVA', 
-      'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVAMENTO', 'CERTIDÃO DE BAIXA', 
-      'BAIXA DE RECURSO', 'PROCESSO ENCERRADO', 'EXTINTO O PROCESSO', 
-      'CANCELAMENTO DA DISTRIBUIÇÃO', 'REMESSA AO ARQUIVO', 
-      'CUMPRIMENTO INTEGRAL DA SENTENÇA', 'EXTINÇÃO DA EXECUÇÃO', 'BAIXA DOS AUTOS'
+      'ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVAMENTO', 
+      'ARQUIVADO', 'EXTINTO', 'PROCESSO EXTINTO', 'CANCELAMENTO DA DISTRIBUIÇÃO', 
+      'REMESSA AO ARQUIVO', 'BAIXA', 'EXTINÇÃO'
     ];
 
-    for (const mov of movs) {
-      const text = mov.descricao.toUpperCase();
-      const match = termosEncerramento.find(t => text.includes(t));
-      if (match) return { encerrado: true, motivo: match };
-    }
-
-    return { encerrado: false, motivo: null };
+    const match = termos.find(t => upper.includes(t));
+    return match ? { encerrado: true, motivo: match } : { encerrado: false, motivo: null };
   }
 
   /**
-   * Analisa a movimentação mais recente e classifica sua utilidade.
+   * Analisa a movimentação e classifica conforme a matriz técnica solicitada.
    */
   static analisar(mov: MovimentoNacional): AIAnalysis {
     const text = mov.descricao.toUpperCase();
     
-    // Ritos de Encerramento (Alta Prioridade)
-    const enc = this.detectarEncerramento([mov]);
+    // 1. Ritos de Encerramento (Alta Precedência)
+    const enc = this.detectarEncerramento(text);
     if (enc.encerrado) {
       return { 
-        categoria: 'ENCERRADO', 
-        criticidade: 'ALTA', 
-        prioridade: 1, 
-        risco: 'Nenhum', 
-        acaoSugerida: 'Realizar baixa na pasta interna e avisar cliente.',
-        detalhes: enc.motivo || 'Baixa definitiva detectada.',
-        motivoEncerramento: enc.motivo || undefined
+        categoria: 'ENCERRADO', criticidade: 'ALTA', prioridade: 1, risco: 'Nenhum', 
+        acaoSugerida: 'Realizar baixa interna.', detalhes: enc.motivo!
       };
     }
 
-    // Classificação por Tipo
-    if (text.includes('RECURSO') || text.includes('APELAÇÃO') || text.includes('AGRAVO')) {
-      return { categoria: 'EM RECURSO', criticidade: 'ALTA', prioridade: 2, risco: 'Médio', acaoSugerida: 'Acompanhar distribuição em 2º grau.', detalhes: 'Processo subiu para tribunal superior.' };
-    }
+    // 2. Matriz de Classificação Técnica
+    if (text.includes('PUBLICAÇÃO') || text.includes('DIÁRIO') || text.includes('DJEN')) 
+      return this.buildResult('PUBLICAÇÃO', 'MÉDIA', 'Verificar Diário Oficial.');
+    
+    if (text.includes('PETIÇÃO') || text.includes('JUNTADA')) 
+      return this.buildResult('PETIÇÃO', 'BAIXA', 'Analisar peça anexada.');
+    
+    if (text.includes('CONCLUSÃO') || text.includes('CONCLUSOS')) 
+      return this.buildResult('CONCLUSÃO', 'MÉDIA', 'Aguardando decisão judicial.');
+    
+    if (text.includes('ATO ORDINATÓRIO')) 
+      return this.buildResult('ATO ORDINATÓRIO', 'BAIXA', 'Andamento de secretaria.');
+    
+    if (text.includes('DECISÃO')) 
+      return this.buildResult('DECISÃO', 'ALTA', 'Analisar determinação judicial.');
+    
+    if (text.includes('DESPACHO')) 
+      return this.buildResult('DESPACHO', 'MÉDIA', 'Cumprir despacho.');
+    
+    if (text.includes('SENTENÇA') || text.includes('SENTENCA')) 
+      return this.buildResult('SENTENÇA', 'MÁXIMA', 'Leitura urgente de sentença.');
+    
+    if (text.includes('AUDIÊNCIA') || text.includes('AUDIENCIA')) 
+      return this.buildResult('AUDIÊNCIA', 'ALTA', 'Preparar para ato presencial/virtual.');
+    
+    if (text.includes('INTIMAÇÃO') || text.includes('INTIMACAO')) 
+      return this.buildResult('INTIMAÇÃO', 'ALTA', 'Ciência obrigatória.');
+    
+    if (text.includes('EXPEDIÇÃO') || text.includes('EXPEDICAO')) 
+      return this.buildResult('EXPEDIÇÃO', 'MÉDIA', 'Verificar documento expedido.');
+    
+    if (text.includes('CERTIDÃO') || text.includes('CERTIDAO')) 
+      return this.buildResult('CERTIDÃO', 'BAIXA', 'Conferir fé pública.');
+    
+    if (text.includes('RECURSO') || text.includes('APELAÇÃO') || text.includes('AGRAVO')) 
+      return this.buildResult('RECURSO', 'ALTA', 'Acompanhar instância superior.');
 
-    if (text.includes('PUBLICAÇÃO') || text.includes('DJEN') || text.includes('DIÁRIO')) {
-      return { categoria: 'NOVA PUBLICAÇÃO', criticidade: 'MÉDIA', prioridade: 2, risco: 'Monitoramento', acaoSugerida: 'Verificar conteúdo da nota de expediente.', detalhes: 'Evento registrado no Diário Oficial.' };
-    }
+    if (text.includes('PRAZO') || text.includes('VENCIMENTO'))
+      return this.buildResult('COM PRAZO', 'MÁXIMA', 'Protocolar manifestação.');
 
-    if (text.includes('PETIÇÃO') || text.includes('JUNTADA')) {
-      return { categoria: 'NOVA PETIÇÃO', criticidade: 'BAIXA', prioridade: 3, risco: 'Monitoramento', acaoSugerida: 'Analisar petição da parte contrária.', detalhes: 'Nova peça processual anexada.' };
-    }
+    return this.buildResult('OUTROS', 'BAIXA', 'Andamento intermediário.', text);
+  }
 
-    if (text.includes('DESPACHO') || text.includes('DECISÃO')) {
-      return { categoria: 'DESPACHO', criticidade: 'MÉDIA', prioridade: 2, risco: 'Alerta', acaoSugerida: 'Cumprir determinações judiciais.', detalhes: 'Magistrado proferiu nova ordem.' };
-    }
-
-    if (text.includes('PRAZO') || text.includes('VENCIMENTO')) {
-      return { categoria: 'COM PRAZO', criticidade: 'MÁXIMA', prioridade: 0, risco: 'Alto', acaoSugerida: 'Protocolar manifestação urgente.', detalhes: 'Contagem regressiva processual ativa.' };
-    }
-
+  private static buildResult(cat: AICategory, crit: any, acao: string, desc?: string): AIAnalysis {
     return {
-      categoria: 'NOVO ANDAMENTO',
-      criticidade: 'MÉDIA',
-      prioridade: 3,
+      categoria: cat,
+      criticidade: crit,
+      prioridade: crit === 'MÁXIMA' ? 0 : crit === 'ALTA' ? 1 : crit === 'MÉDIA' ? 2 : 3,
       risco: 'Normal',
-      acaoSugerida: 'Analisar andamento no PJe/e-SAJ.',
-      detalhes: mov.descricao
+      acaoSugerida: acao,
+      detalhes: desc || cat
     };
   }
 }
