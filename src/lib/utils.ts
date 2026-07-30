@@ -17,6 +17,17 @@ export function formatWhatsAppLink(phone: string, text?: string) {
 }
 
 /**
+ * Valida se uma string segue o padrão canônico de número de processo CNJ.
+ * Padrão: NNNNNNN-DD.AAAA.J.TR.OOOO
+ */
+export function isCNJ(numero: string): boolean {
+  if (!numero) return false;
+  // Regex flexível que aceita com ou sem pontuação: NNNNNNNDDAAAAJTROOOO ou NNNNNNN-DD.AAAA.J.TR.OOOO
+  const cnjRegex = /^\d{7}-?\d{2}\.?\d{4}\.?(1|4|5|8)\.?\d{2}\.?\d{4}$/;
+  return cnjRegex.test(numero.trim());
+}
+
+/**
  * Calcula a luminância de uma cor hex para verificar contraste.
  */
 export function getLuminance(hex: string) {
