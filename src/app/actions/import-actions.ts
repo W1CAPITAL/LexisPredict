@@ -74,7 +74,7 @@ export async function importCsvAction(csvText: string) {
       .eq('empresa_id', empresa_id);
 
     const userLookup = new Map<string, string>();
-    companyUsers?.forEach(u => {
+    companyUsers?.forEach((u: { auth_user_id: string; nome: string | null }) => {
       if (u.nome) {
         userLookup.set(u.nome.trim().toUpperCase(), u.auth_user_id);
       }

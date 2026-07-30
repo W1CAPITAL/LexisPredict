@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -41,7 +42,7 @@ import {
   FileSearch,
   History
 } from 'lucide-react';
-import { LegalCase, processarCaso } from '@/lib/case-logic';
+import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,7 +70,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format } from 'date-fns';
+import { format, parseISO, startOfDay, differenceInDays } from 'date-fns';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 
@@ -84,6 +85,13 @@ interface TaskGroup {
   advogado: string;
   escritorio: string;
   cases: LegalCase[];
+  
+  // Metadados de Prioridade v260.0
+  hasBA: boolean;
+  hasClosedCourt: boolean;
+  hasUpdate: boolean;
+  statusScore: number;
+  oldestReturnGap: number;
 }
 
 export default function TarefasPage() {
@@ -134,7 +142,7 @@ export default function TarefasPage() {
   }, []);
 
   const adjustMeta = (amount: number) => {
-    const newVal = Math.max(10, Math.min(50, dailyMeta + amount));
+    const newVal = Math.max(10, Math.min(100, dailyMeta + amount));
     setDailyMeta(newVal);
     localStorage.setItem('lexis_tarefas_meta', newVal.toString());
     toast({ title: `Meta atualizada: ${newVal} contatos`, duration: 1500 });
@@ -160,10 +168,9 @@ export default function TarefasPage() {
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);
-        // Atualizar lista local
         setCases(prev => prev.map(c => c.protocolo === protocolo ? res.case! : c));
       } else {
-        toast({ title: "Andamento não localizado", description: res.error, variant: "destructive" });
+        toast({ title: "Andamento não localizado", description: res.message || "Tribunal offline", variant: "destructive" });
       }
     } catch (e) {
       toast({ title: "Erro na consulta", variant: "destructive" });
@@ -178,12 +185,13 @@ export default function TarefasPage() {
   const taskData = useMemo(() => {
     const groups: Record<string, TaskGroup> = {};
     const contactedSet = new Set(contatadosHoje);
+    const today = startOfDay(new Date());
 
+    // 1. Filtrar Ativos
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
 
+    // 2. Agrupar por Cliente e Identificar Gravidade
     activeCases.forEach(c => {
-      if (c.status !== 'Vencido' && c.status !== 'É Hoje' && c.status !== 'Caso Crítico') return;
-
       const nome = c.cliente || 'NÃO IDENTIFICADO';
       if (!groups[nome]) {
         groups[nome] = {
@@ -196,36 +204,74 @@ export default function TarefasPage() {
           telefone: c.telefone || '',
           advogado: c.advogado || 'NÃO ATRIBUÍDO',
           escritorio: c.escritorio || '',
-          cases: []
+          cases: [],
+          hasBA: false,
+          hasClosedCourt: false,
+          hasUpdate: false,
+          statusScore: 0,
+          oldestReturnGap: 0
         };
       }
 
-      groups[nome].totalAtivos++;
-      groups[nome].cases.push(c);
+      const g = groups[nome];
+      g.totalAtivos++;
+      g.cases.push(c);
+
+      // Flags DataJud
+      if (c.indicio_busca_apreensao) g.hasBA = true;
+      if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
+      if (c.tem_atualizacao_pos_retorno) g.hasUpdate = true;
+
+      // Ranking de Status (Maior Score = Mais Urgente)
+      let currentScore = 0;
+      if (c.status === 'Caso Crítico') currentScore = 50;
+      else if (c.status === 'Vencido') currentScore = 40;
+      else if (c.status === 'É Hoje') currentScore = 30;
+      else if (c.status === 'Atenção') currentScore = 20;
+      else if (c.status === 'Sem Prazo') currentScore = 10;
       
+      if (currentScore > g.statusScore) g.statusScore = currentScore;
+
+      // Dias de atraso (para desempate secundário)
       if (c.status === 'Vencido' || c.status === 'Caso Crítico') {
-        groups[nome].vencidos++;
-        const atraso = c.status === 'Caso Crítico' ? 999 : (c.diasFaltando ? Math.abs(c.diasFaltando) : 0);
-        if (atraso > groups[nome].diasAtrasoMax) {
-          groups[nome].diasAtrasoMax = atraso;
-        }
+        g.vencidos++;
+        const atraso = c.diasFaltando ? Math.abs(c.diasFaltando) : 0;
+        if (atraso > g.diasAtrasoMax) g.diasAtrasoMax = atraso;
       }
-      
-      if (c.status === 'É Hoje') {
-        groups[nome].hoje++;
+      if (c.status === 'É Hoje') g.hoje++;
+
+      // Carência de Retorno (Tempo sem atendimento)
+      const isoRetorno = formatDateToISO(c.ultimoRetorno);
+      if (isoRetorno) {
+        const gap = differenceInDays(today, startOfDay(parseISO(isoRetorno)));
+        if (gap > g.oldestReturnGap) g.oldestReturnGap = gap;
+      } else {
+        // Sem retorno = Carência máxima (tratar como 365 dias para subir na fila)
+        if (365 > g.oldestReturnGap) g.oldestReturnGap = 365;
       }
     });
 
+    // 3. Ordenação Estratégica v260.0
     const sortedAll = Object.values(groups)
       .filter(g => {
-        const matchesSearch = g.cliente.toLowerCase().includes(search.toLowerCase());
+        const matchesSearch = g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search);
         const matchesOffice = officeFilter === 'all' || g.escritorio === officeFilter;
         return matchesSearch && matchesOffice;
       })
       .sort((a, b) => {
-        if (b.diasAtrasoMax !== a.diasAtrasoMax) return b.diasAtrasoMax - a.diasAtrasoMax;
-        if (b.vencidos !== a.vencidos) return b.vencidos - a.vencidos;
-        return b.totalAtivos - a.totalAtivos;
+        // NÍVEL 1: SOBERANIA DATAJUD
+        if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
+        if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
+        if (a.hasUpdate !== b.hasUpdate) return a.hasUpdate ? -1 : 1;
+
+        // NÍVEL 2: URGÊNCIA DE PRAZO
+        if (b.statusScore !== a.statusScore) return b.statusScore - a.statusScore;
+
+        // NÍVEL 3: CARÊNCIA DE ATENDIMENTO (Quem está há mais tempo sem retorno)
+        if (b.oldestReturnGap !== a.oldestReturnGap) return b.oldestReturnGap - a.oldestReturnGap;
+
+        // NÍVEL 4: DESEMPATE TÉCNICO
+        return b.diasAtrasoMax - a.diasAtrasoMax;
       });
 
     const pending = sortedAll.filter(g => !contactedSet.has(g.cliente));
@@ -271,7 +317,8 @@ export default function TarefasPage() {
             ultimoRetorno: today,
             observacao: attendanceForm.observacao || c.observacao,
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : (attendanceForm.proximoRetorno || c.proximoPrazo),
-            statusManual: 'Automatico'
+            statusManual: 'Automatico',
+            tem_atualizacao_pos_retorno: false // Desarma alerta ao atender
           };
           return processarCaso(newCaseData, thresholds);
         }
@@ -302,22 +349,30 @@ export default function TarefasPage() {
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
               <CheckCircle size={20} className="text-primary" />
             </div>
-            <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Tarefas de Contato</h1>
+            <div>
+               <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Fila Crítica de Contato</h1>
+               <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-0.5">Priorização DataJud & Carência</p>
+            </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
-            <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />
-          </Button>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">
+              Sincronia Global Ativa
+            </Badge>
+            <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
+              <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-auto p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
           {!loading && (
             <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="premium-card p-6 border-l-4 border-l-slate-400">
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Fila Crítica</p>
-                <h3 className="text-3xl font-black text-foreground">{taskData.totalPendingCount}</h3>
+                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Fila em Aberto</p>
+                <h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3>
               </div>
               <div className="premium-card p-6 border-l-4 border-l-primary relative group">
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta de Hoje</p>
+                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Período</p>
                 <div className="flex items-center gap-4">
                   <span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span>
                   <div className="flex items-center gap-1.5 ml-auto">
@@ -328,11 +383,11 @@ export default function TarefasPage() {
               </div>
               <div className="premium-card p-6 border-l-4 border-l-emerald-500">
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Contatados Hoje</p>
-                <h3 className="text-3xl font-black text-emerald-600">{contatadosHoje.length}</h3>
+                <h3 className="text-3xl font-black text-emerald-600 tabular-nums">{contatadosHoje.length}</h3>
               </div>
               <div className="premium-card p-6 border-l-4 border-l-orange-400">
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Foco do Dia</p>
-                <h3 className="text-3xl font-black text-orange-600">{Math.min(dailyMeta, taskData.focus.length + contatadosHoje.length)}</h3>
+                <h3 className="text-3xl font-black text-orange-600 tabular-nums">{Math.min(dailyMeta, taskData.focus.length)}</h3>
               </div>
             </section>
           )}
@@ -369,7 +424,7 @@ export default function TarefasPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Target size={18} className="text-primary" />
-              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Foco Prioritário do Dia</h2>
+              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária (Auditoria DataJud Ativa)</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.map((group) => (
@@ -388,8 +443,8 @@ export default function TarefasPage() {
                   <div className="flex items-center gap-3">
                     <Clock size={18} className="text-slate-400 group-hover:text-primary" />
                     <div className="text-left">
-                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-600">Resto da Fila ({taskData.backlog.length})</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Clientes aguardando atendimento fora da meta de hoje</p>
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-600">Demais Ativos em Fila ({taskData.backlog.length})</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Clientes aguardando atendimento após a meta imediata</p>
                     </div>
                   </div>
                   {showBacklog ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -438,7 +493,11 @@ export default function TarefasPage() {
                <ScrollArea className="h-[450px] bg-white">
                   <div className="p-6 space-y-6">
                     {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                      [...historyResult.movimentos].sort((a,b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()).map((m, i) => (
+                      [...historyResult.movimentos].sort((a,b) => {
+                        const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
+                        const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
+                        return dateB - dateA;
+                      }).map((m, i) => (
                         <div key={i} className="flex gap-6 relative group">
                            {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
                            <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
@@ -487,7 +546,7 @@ export default function TarefasPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter em Andamento</SelectItem>
-                      <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase">Encerrar Processo</SelectItem>
+                      <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Processo (Baixa Interna)</SelectItem>
                       <SelectItem value="ARQUIVADO" className="text-[10px] font-bold uppercase">Arquivar Processo</SelectItem>
                     </SelectContent>
                   </Select>
@@ -500,16 +559,16 @@ export default function TarefasPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label className="uppercase text-[9px] font-black text-muted-foreground flex items-center gap-2">
-                    <FileText size={12} /> Observações
+                    <FileText size={12} /> Observações de Gabinete
                   </Label>
-                  <Textarea placeholder="DETALHES DO ATENDIMENTO..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-[11px] uppercase resize-none" />
+                  <Textarea placeholder="REGISTRE DETALHES DO ACORDO OU ATENDIMENTO..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-[11px] uppercase resize-none" />
                 </div>
               </div>
             </div>
             <DialogFooter className="p-6 pt-0">
               <Button onClick={handleSaveAttendance} disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl">
                 {isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 text-white" />}
-                Salvar Registro e Sincronizar
+                Salvar Registro & Sincronizar
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -538,34 +597,47 @@ function TaskCard({
     diasVencidos: group.diasAtrasoMax
   });
 
-  const isCritical = group.cases.some(c => c.status === 'Caso Crítico');
-  const isClosedCourt = group.cases.some(c => c.datajud_encerrado_tribunal);
-  const hasUpdate = group.cases.some(c => c.tem_atualizacao_pos_retorno);
+  const isCritical = group.statusScore >= 50;
 
   return (
-    <div className={cn("premium-card p-6 bg-white flex flex-col transition-all group", isFocus && "border-l-4 border-l-primary", isCritical && "border-l-red-600 bg-red-50/10")}>
+    <div className={cn(
+      "premium-card p-6 bg-white flex flex-col transition-all group border-l-4", 
+      isFocus ? "border-l-primary" : "border-l-slate-200", 
+      group.hasBA && "border-l-red-600 bg-red-50/10",
+      group.hasClosedCourt && !group.hasBA && "border-l-black bg-slate-50/50"
+    )}>
       <div className="flex justify-between items-start mb-6">
-        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center bg-slate-50 text-slate-400 group-hover:text-white transition-all", isCritical ? "bg-red-600 text-white animate-pulse" : "group-hover:bg-primary")}>
-          <Phone size={24} />
+        <div className={cn(
+          "w-12 h-12 rounded-xl flex items-center justify-center transition-all", 
+          group.hasBA ? "bg-red-600 text-white animate-pulse shadow-lg" : 
+          group.hasClosedCourt ? "bg-black text-white" :
+          "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white"
+        )}>
+          {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <Phone size={24} />}
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
-          {isClosedCourt ? (
-            <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">ENCERRADO TRIBUNAL</Badge>
+          {group.hasBA ? (
+             <Badge className="bg-red-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-bounce">CRÍTICO: BUSCA E APREENSÃO</Badge>
+          ) : group.hasClosedCourt ? (
+            <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">BAIXA NO TRIBUNAL</Badge>
+          ) : group.hasUpdate ? (
+            <Badge variant="destructive" className="text-[7px] font-black uppercase px-2 py-0 h-4 animate-pulse">NOVO ANDAMENTO</Badge>
           ) : isCritical ? (
             <Badge className="bg-red-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-bounce">URGÊNCIA MÁXIMA</Badge>
-          ) : group.diasAtrasoMax > 0 ? (
-            <Badge className="bg-red-50 text-red-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Atrasado há {group.diasAtrasoMax} dia(s)</Badge>
+          ) : group.oldestReturnGap >= 30 ? (
+            <Badge className="bg-orange-50 text-orange-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Sem Retorno há {group.oldestReturnGap} dias</Badge>
           ) : (
-            <Badge className="bg-blue-50 text-blue-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Prazo Hoje</Badge>
+            <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0.5 border-slate-200">Em Monitoramento</Badge>
           )}
-          {hasUpdate && !isClosedCourt && (
-            <Badge variant="destructive" className="text-[7px] font-black uppercase px-2 py-0 h-4 animate-pulse">Andamento Novo</Badge>
-          )}
-          <div className="text-[8px] font-black text-primary/60 uppercase tracking-widest flex items-center gap-1" title="Estimativa automática — não é garantia"><Sparkles size={8}/> Prob. {prob}%</div>
+          
+          <div className="text-[8px] font-black text-primary/60 uppercase tracking-widest flex items-center gap-1">
+            <Sparkles size={8}/> Prob. {prob}%
+          </div>
         </div>
       </div>
+      
       <div className="space-y-1 flex-1">
-        <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate">{group.cliente}</h3>
+        <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate group-hover:text-primary transition-colors">{group.cliente}</h3>
         <p className="text-[9px] font-bold text-muted-foreground uppercase">Ref: {group.protocoloReferencia}</p>
         
         <div className="flex flex-col gap-2 mt-4">
@@ -581,6 +653,7 @@ function TaskCard({
            )}
         </div>
       </div>
+
       <div className="mt-8 pt-6 border-t border-border/30 flex items-center justify-between">
         <div className="flex items-center gap-2">
            <Button 
@@ -600,8 +673,9 @@ function TaskCard({
            <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-lg text-emerald-600 hover:bg-emerald-50"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
            <Button title="Registrar Atendimento" variant="ghost" size="icon" onClick={onMarkContacted} className="h-9 w-9 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"><UserCheck size={18} /></Button>
         </div>
-        <Button variant="ghost" asChild className="h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:text-primary"><Link href={`/cases?search=${encodeURIComponent(group.cliente)}`}>Processos <ChevronRight size={14} className="ml-1" /></Link></Button>
+        <Button variant="ghost" asChild className="h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:text-primary"><Link href={`/cases?search=${encodeURIComponent(group.cliente)}`}>Gerir Contas <ChevronRight size={14} className="ml-1" /></Link></Button>
       </div>
     </div>
   );
 }
+

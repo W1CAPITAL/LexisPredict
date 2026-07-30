@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/components/auth/provider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -62,7 +62,7 @@ export default function TeamManagement() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isNewUserOpen, setIsNewClientOpen] = useState(false);
+  const [isNewUserOpen, setIsNewUserOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'management' | 'performance'>('management');
   const [locale, setLocale] = useState<Locale>('pt');
   
@@ -120,7 +120,7 @@ export default function TeamManagement() {
       const res = await createEmpresaUserAction(userForm);
       if (res.success) {
         toast({ title: "Operador Ativado" });
-        setIsNewClientOpen(false);
+        setIsNewUserOpen(false);
         setUserForm({ nome: '', email: '', cargo: 'Operador', password: '' });
         loadData();
       } else {
@@ -404,7 +404,7 @@ export default function TeamManagement() {
                                   variant="outline" 
                                   className={cn(
                                     "text-[9px] font-black uppercase rounded-none border-2",
-                                    p.peso > 0 ? "border-emerald-600 text-emerald-700 bg-white" : "border-red-600 text-red-700 bg-white"
+                                    p.peso > 0 ? `+${formatInfiniteScore(p.peso)}` : formatInfiniteScore(p.peso)
                                   )}
                                 >
                                    {p.peso > 0 ? `+${formatInfiniteScore(p.peso)}` : formatInfiniteScore(p.peso)} pts

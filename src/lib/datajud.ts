@@ -1,7 +1,7 @@
 
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v2900.0 ELITE
- * Otimizado com Retries, Query Match e Timeouts robustos.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v3000.0 ELITE
+ * Otimizado com timeouts ajustados para 40s e retry ágil para máxima fluidez de lote.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -21,7 +21,7 @@ async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
+export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   
   if (cnjLimpo.length !== 20) {
@@ -29,7 +29,8 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
       numeroProcesso: cnj, 
       movimentos: [], 
       error: true, 
-      message: "Número CNJ inválido (deve conter 20 dígitos)." 
+      message: "Número CNJ inválido.",
+      attempts: attempt
     };
   }
 
@@ -37,12 +38,10 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
   let alias = COURT_ALIASES[aliasPart];
   
   if (!alias) {
-    console.warn(`[DataJud] Tribunal ${aliasPart} não mapeado. Fallback TJSP.`);
     alias = "tjsp";
   }
 
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
-  const startTime = Date.now();
 
   try {
     const response = await fetch(url, {
@@ -59,30 +58,32 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
           }
         }
       }),
-      // Aumentado para 45s conforme rito de infraestrutura
-      signal: AbortSignal.timeout(45000)
+      // Timeout ajustado para 40s conforme solicitado pelo gabinete
+      signal: AbortSignal.timeout(40000)
     });
-
-    const duration = Date.now() - startTime;
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        return { error: true, movimentos: [], message: "Falha de autenticação no DataJud. Verifique a chave da API." };
+        return { error: true, message: "Falha de autenticação API Key.", isAuthError: true, attempts: attempt };
       }
+      
+      if ([429, 502, 503, 504].includes(response.status)) {
+        throw new Error(`RETRYABLE_HTTP_${response.status}`);
+      }
+      
       throw new Error(`HTTP_${response.status}`);
     }
 
     const data = await response.json();
     const source = data.hits?.hits?.[0]?._source;
 
-    console.log(`[DataJud] ${alias.toUpperCase()} | ${cnjLimpo} | Hits: ${data.hits?.total?.value || 0} | ${duration}ms`);
-
     if (!source) {
       return { 
         numeroProcesso: cnjLimpo, 
         movimentos: [], 
         error: false, 
-        message: "Processo não localizado no sistema unificado do DataJud." 
+        message: "Não localizado no DataJud.",
+        attempts: attempt
       };
     }
 
@@ -92,23 +93,28 @@ export async function fetchDataJud(cnj: string, attempt = 1): Promise<any> {
       tribunal: source.tribunal || alias.toUpperCase(),
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
       dataAjuizamento: source.dataAjuizamento || null,
-      error: false
+      error: false,
+      attempts: attempt
     };
+
   } catch (e: any) {
     const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
-    
-    if (isTimeout && attempt < 2) {
-      console.warn(`[DataJud] Timeout na tentativa 1 para ${cnjLimpo}. Retrying...`);
-      await sleep(1000);
-      return fetchDataJud(cnj, attempt + 1);
+    const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
+
+    // Rito de Retry: Máximo 2 tentativas totais (1 inicial + 1 retry).
+    if (isRetryable && attempt < 2 && !noRetry) {
+      const waitTime = 1000 + (Math.random() * 300);
+      console.warn(`[DataJud] Falha T${attempt}. Retentando em ${Math.round(waitTime)}ms...`);
+      await sleep(waitTime);
+      return fetchDataJud(cnj, attempt + 1, noRetry);
     }
 
-    console.error(`[DataJud] Falha Crítica: ${e.message} | Attempt: ${attempt}`);
     return { 
       numeroProcesso: cnjLimpo, 
       movimentos: [], 
       error: true, 
-      message: isTimeout ? "Tempo esgotado na consulta ao CNJ. Tente novamente em instantes." : "Falha na comunicação com o tribunal." 
+      message: isTimeout ? "Tempo esgotado." : "Falha na comunicação.",
+      attempts: attempt
     };
   }
 }

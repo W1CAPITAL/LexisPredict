@@ -22,7 +22,7 @@ export async function generateHabilitacaoPecaPDFAction(data: any) {
   try {
     const renderToBuffer = await getRenderToBuffer();
     const { HabilitacaoPecaPDF } = await import('@/components/pdf/habilitacao-peca-pdf');
-    const pdfBuffer = await renderToBuffer(React.createElement(HabilitacaoPecaPDF as any, { data }));
+    const pdfBuffer = await renderToBuffer(React.createElement(HabilitacaoPecaPDF as any, { data }) as any);
     return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
   } catch (e: any) {
     console.error("[Selagem] Falha na Habilitação:", e.message || e);
@@ -34,7 +34,7 @@ export async function generatePecaSubstabelecimentoPDFAction(data: any) {
   try {
     const renderToBuffer = await getRenderToBuffer();
     const { PecaSubstabelecimentoPDF } = await import('@/components/pdf/peca-substabelecimento-pdf');
-    const pdfBuffer = await renderToBuffer(React.createElement(PecaSubstabelecimentoPDF as any, { data }));
+    const pdfBuffer = await renderToBuffer(React.createElement(PecaSubstabelecimentoPDF as any, { data }) as any);
     return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
   } catch (e: any) {
     console.error("[Selagem] Falha na Peça Substabelecimento:", e.message || e);
@@ -46,7 +46,7 @@ export async function generateProcuracaoPDFAction(data: any) {
   try {
     const renderToBuffer = await getRenderToBuffer();
     const { ProcuracaoPDF } = await import('@/components/pdf/procuracao-pdf');
-    const pdfBuffer = await renderToBuffer(React.createElement(ProcuracaoPDF as any, { data }));
+    const pdfBuffer = await renderToBuffer(React.createElement(ProcuracaoPDF as any, { data }) as any);
     return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
   } catch (e: any) {
     console.error("[Selagem] Falha na Procuração:", e.message || e);
@@ -58,7 +58,7 @@ export async function generateSubstabelecimentoPDFAction(data: any) {
   try {
     const renderToBuffer = await getRenderToBuffer();
     const { SubstabelecimentoPDF } = await import('@/components/pdf/substabelecimento-pdf');
-    const pdfBuffer = await renderToBuffer(React.createElement(SubstabelecimentoPDF as any, { data }));
+    const pdfBuffer = await renderToBuffer(React.createElement(SubstabelecimentoPDF as any, { data }) as any);
     return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
   } catch (e: any) {
     console.error("[Selagem] Falha no Substabelecimento:", e.message || e);

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -378,7 +377,7 @@ function MetricCard({ label, value, icon, color }: { label: string, value: numbe
           <h3 className="text-3xl font-black tracking-tighter text-black tabular-nums">{value}</h3>
         </div>
         <div className={cn("p-2.5 rounded-lg border transition-colors", styles[color])}>
-          {React.cloneElement(icon as React.ReactElement, { size: 18, className: "text-black" })}
+          {React.cloneElement(icon as React.ReactElement<any>, { size: 18, className: "text-black" })}
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -14,7 +15,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/li
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v170.0 ELITE - Auditoria de Busca e Apreensão Integrada
+ * @fileOverview Actions de Processos v210.0 ELITE - Sincronia com Telemetria e Retries
  */
 
 export async function fetchRepoCases() {
@@ -60,18 +61,19 @@ export async function fetchTeamPerformanceAction() {
   }
 }
 
-export async function scanOneDataJudAction(protocolo: string) {
+export async function scanOneDataJudAction(protocolo: string, noRetry = false) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id || !auth_id) {
-       return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada — faça login" };
+       return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada" };
     }
 
     const cases = await getStoredCasesForEmpresa(empresa_id);
     const target = cases.find(c => c.protocolo === protocolo);
     if (!target) return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
 
-    const dataJud = await fetchDataJud(protocolo);
+    const dataJud = await fetchDataJud(protocolo, 1, noRetry);
+    const attempts = dataJud?.attempts || 1;
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
@@ -82,29 +84,40 @@ export async function scanOneDataJudAction(protocolo: string) {
         datajud_ultimo_movimento: check.dataUltimo,
         datajud_ultimo_nome: check.nomeUltimo,
         datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: check.alerta,
-        datajud_encerrado_tribunal: enc.encerrado,
+        tem_atualizacao_pos_retorno: !!check.alerta,
+        datajud_encerrado_tribunal: !!enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
-        indicio_busca_apreensao: ba.indicio,
+        indicio_busca_apreensao: !!ba.indicio,
         busca_apreensao_confianca: ba.confianca,
         busca_apreensao_motivo: ba.motivo,
         busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
         tribunal: dataJud.tribunal || target.tribunal
       };
 
+      // REGRA DE SOBRESCRITA INTELIGENTE: Só salva se houver mudança real ou para atualizar o timestamp de consulta
+      // O timestamp atualizado é vital para o filtro de "Retomar" não repetir o mesmo processo.
+      const hasRealChange = 
+        patch.datajud_ultimo_nome !== target.datajud_ultimo_nome ||
+        patch.datajud_encerrado_tribunal !== !!target.datajud_encerrado_tribunal ||
+        patch.indicio_busca_apreensao !== !!target.indicio_busca_apreensao ||
+        patch.tem_atualizacao_pos_retorno !== !!target.tem_atualizacao_pos_retorno;
+
       const updatedCase: LegalCase = { ...target, ...patch };
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
-      let msg = "Auditado";
+      let msg = attempts > 1 ? `Auditado (Recuperado na T${attempts})` : "Auditado";
+      if (!hasRealChange) msg += " (Sem mudanças)";
+      
       let tipo = 'sem_novidade';
+      
       if (enc.encerrado) {
-        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
+        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}${attempts > 1 ? ` (T${attempts})` : ''}`;
         tipo = 'encerrado';
       } else if (ba.indicio && ba.confianca === 'alta') {
-        msg = `⚠ ALERTA BUSCA E APREENSÃO DETECTADA`;
+        msg = `⚠ ALERTA BUSCA E APREENSÃO DETECTADA${attempts > 1 ? ` (T${attempts})` : ''}`;
         tipo = 'novo_andamento';
       } else if (check.alerta) {
-        msg = `NOVO ANDAMENTO — ${check.nomeUltimo}`;
+        msg = `NOVO ANDAMENTO — ${check.nomeUltimo}${attempts > 1 ? ` (T${attempts})` : ''}`;
         tipo = 'novo_andamento';
       }
       
@@ -112,17 +125,25 @@ export async function scanOneDataJudAction(protocolo: string) {
         success: true, 
         protocolo, 
         tipo,
-        alerta: check.alerta || ba.indicio, 
-        encerrado: enc.encerrado,
+        alerta: !!(check.alerta || ba.indicio), 
+        encerrado: !!enc.encerrado,
         message: msg,
-        casePatch: patch
+        casePatch: patch,
+        attempts
       };
     }
     
-    return { success: false, protocolo, tipo: 'erro', message: `Falha — ${dataJud?.message || "Erro no tribunal"}`, error: true };
+    return { 
+      success: false, 
+      protocolo, 
+      tipo: 'erro', 
+      message: dataJud?.message || "Erro no tribunal", 
+      error: true, 
+      isAuthError: dataJud?.isAuthError,
+      attempts
+    };
   } catch (e: any) {
-    const isAuthError = e.message?.includes('400') || e.message?.includes('401') || e.message?.includes('refresh_token');
-    return { success: false, protocolo, tipo: 'erro', message: isAuthError ? "Sessão expirada" : `Falha técnica`, error: true, isAuthError };
+    return { success: false, protocolo, tipo: 'erro', message: `Falha técnica`, error: true };
   }
 }
 
@@ -146,10 +167,10 @@ export async function scanSingleCaseAction(protocolo: string) {
         datajud_ultimo_movimento: check.dataUltimo,
         datajud_ultimo_nome: check.nomeUltimo,
         datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: check.alerta,
-        datajud_encerrado_tribunal: enc.encerrado,
+        tem_atualizacao_pos_retorno: !!check.alerta,
+        datajud_encerrado_tribunal: !!enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
-        indicio_busca_apreensao: ba.indicio,
+        indicio_busca_apreensao: !!ba.indicio,
         busca_apreensao_confianca: ba.confianca,
         busca_apreensao_motivo: ba.motivo,
         busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
@@ -159,12 +180,22 @@ export async function scanSingleCaseAction(protocolo: string) {
       const updatedCase: LegalCase = { ...target, ...patch };
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
-      let msg = "Auditoria concluída.";
-      if (enc.encerrado) msg = `ENCERRAMENTO: ${enc.motivo}`;
-      else if (ba.indicio) msg = `ALERTA: Indício de Busca e Apreensão (${ba.confianca})`;
-      else if (check.alerta) msg = "ALERTA: Novo andamento identificado!";
+      let msg = "Sem atualizações após o último retorno.";
+      if (enc.encerrado) {
+        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
+      } else if (check.alerta) {
+        msg = "Novo andamento identificado!";
+      } else if (ba.indicio) {
+        msg = `ALERTA: Indício de Busca e Apreensão (${ba.confianca})`;
+      }
       
-      return { success: true, case: updatedCase, movimentos: dataJud.movimentos, casePatch: patch, message: msg };
+      return { 
+        success: true, 
+        case: updatedCase, 
+        movimentos: dataJud.movimentos || [], 
+        casePatch: patch, 
+        message: msg 
+      };
     }
     return { success: false, error: "TRIBUNAL_OFFLINE", message: dataJud?.message || "Sem dados." };
   } catch (e: any) {

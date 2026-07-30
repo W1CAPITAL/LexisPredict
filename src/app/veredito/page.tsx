@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -106,7 +105,7 @@ export default function VereditoPage() {
         } else {
            setResult(data);
            if (data.error) {
-              toast({ title: "Aviso de Auditoria", description: data.message, variant: "warning" });
+              toast({ title: "Aviso de Auditoria", description: data.message });
            } else {
               toast({ title: "Auditoria 3D Concluída" });
            }
@@ -388,7 +387,7 @@ export default function VereditoPage() {
                            </div>
                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <Button disabled={sendingApi} onClick={handleApiSend} className="h-14 bg-black text-white border-2 border-black font-black uppercase text-[10px] rounded-none shadow-[6px_6px_0px_#00D1FF] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all">
-                                {sendingApi ? <Loader2 size={18} className="animate-spin mr-2" /> : <Zap size={18} className="mr-2 text-yellow-400 fill-yellow-400" />}
+                                {sendingApi ? <Loader2 className="animate-spin mr-2" /> : <Zap size={18} className="mr-2 text-yellow-400 fill-yellow-400" />}
                                 Disparo API Evolution
                               </Button>
                               <Button asChild className="h-14 bg-white text-black border-2 border-black font-black uppercase text-[10px] rounded-none">

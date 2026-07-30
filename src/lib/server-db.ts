@@ -7,8 +7,8 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v95.0 ELITE)
- * Governança de Visibilidade: Apenas Supervisor possui visão master.
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v270.0 ELITE)
+ * Governança de Visibilidade: Visão Master para cargos de Autoridade (Admin, Supervisor, Superadmin).
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -30,8 +30,8 @@ export async function getUserContext() {
   const cookieStore = await cookies();
   const userEmail = cookieStore.get('lexis_user_email')?.value;
   
-  if (!userEmail) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, weight: 0 };
-  if (!supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, weight: 0 };
+  if (!userEmail) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isMasterView: false, weight: 0 };
+  if (!supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isMasterView: false, weight: 0 };
 
   const { data: profile } = await supabase
     .from('usuarios')
@@ -42,6 +42,7 @@ export async function getUserContext() {
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
+  const isAdmin = cargo === 'Administrador';
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -50,6 +51,7 @@ export async function getUserContext() {
     email: profile?.email || null,
     isSuperAdmin,
     isSupervisor,
+    isMasterView: isSuperAdmin || isSupervisor || isAdmin, // VISÃO MASTER CONSOLIDADA
     weight: ROLE_WEIGHTS[cargo] || 0
   };
 }
@@ -80,8 +82,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (!isAdmin) {
-        const { auth_id, isSupervisor } = await getUserContext();
-        if (!isSupervisor && auth_id) {
+        const { auth_id, isMasterView } = await getUserContext();
+        if (!isMasterView && auth_id) {
           query = query.eq('created_by', auth_id);
         }
       }
@@ -111,7 +113,11 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       datajud_consultado_em: item.datajud_consultado_em,
       tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno,
       datajud_encerrado_tribunal: item.datajud_encerrado_tribunal,
-      datajud_encerrado_motivo: item.datajud_encerrado_motivo
+      datajud_encerrado_motivo: item.datajud_encerrado_motivo,
+      indicio_busca_apreensao: item.indicio_busca_apreensao,
+      busca_apreensao_confianca: item.busca_apreensao_confianca,
+      busca_apreensao_motivo: item.busca_apreensao_motivo,
+      busca_apreensao_consultado_em: item.busca_apreensao_consultado_em
     }));
   } catch (error) {
     return [];
@@ -133,7 +139,7 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
       
       return { 
         empresa_id: empresaId, 
-        created_by: c.created_by || auth_id, // Preserva autoria ou define o criador atual
+        created_by: c.created_by || auth_id,
         protocolo_ref: c.protocolo,
         advogado: c.advogado || 'NÃO ATRIBUÍDO',
         escritorio: c.escritorio || null,
@@ -150,6 +156,10 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
         tem_atualizacao_pos_retorno: c.tem_atualizacao_pos_retorno,
         datajud_encerrado_tribunal: c.datajud_encerrado_tribunal,
         datajud_encerrado_motivo: c.datajud_encerrado_motivo,
+        indicio_busca_apreensao: c.indicio_busca_apreensao,
+        busca_apreensao_confianca: c.busca_apreensao_confianca,
+        busca_apreensao_motivo: c.busca_apreensao_motivo,
+        busca_apreensao_consultado_em: c.busca_apreensao_consultado_em,
         dados: { ...c }
       };
     });
@@ -177,9 +187,9 @@ export async function listAllEmpresasSystem() {
 }
 
 export async function getStoredNotes(): Promise<any[]> {
-  const { auth_id, empresa_id, isSupervisor } = await getUserContext();
+  const { auth_id, empresa_id, isMasterView } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
-  const hasFullAccess = isSupervisor === true;
+  const hasFullAccess = isMasterView === true;
 
   try {
     let allData: any[] = [];
@@ -228,7 +238,7 @@ export async function updateStoredNote(id: string, updates: any): Promise<{ succ
 export async function deleteStoredNote(id: string): Promise<{ success: boolean }> {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };
-  const { error } = await supabase.from('notes').delete().eq('id', id).eq('empresa_id', empresa_id);
+  const { error = null } = await supabase.from('notes').delete().eq('id', id).eq('empresa_id', empresa_id);
   return { success: !error };
 }
 
@@ -257,8 +267,8 @@ export async function createEmpresaUserAction(userData: any) {
 }
 
 export async function removeEmpresaUser(id: string) {
-  const { empresa_id, isSuperAdmin, isSupervisor } = await getUserContext();
-  if (!isSuperAdmin && !isSupervisor) return { success: false, error: 'Permissão insuficiente.' };
+  const { empresa_id, isMasterView } = await getUserContext();
+  if (!isMasterView) return { success: false, error: 'Permissão insuficiente.' };
   const { error } = await supabase.from('usuarios').delete().eq('id', id).eq('empresa_id', empresa_id);
   return { success: !error, error: error?.message };
 }
