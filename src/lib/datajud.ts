@@ -1,6 +1,6 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v480.0 ELITE
- * Otimizado com Latência Real e Transparência de Endpoints.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v500.0 ELITE
+ * Otimizado com Latência Real, Transparência de Endpoints e Null-Safety.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -13,12 +13,6 @@ export const COURT_ALIASES: Record<string, string> = {
   "8.26": "tjsp", "8.27": "tjto", "4.01": "trf1", "4.02": "trf2", "4.03": "trf3",
   "4.04": "trf4", "4.05": "trf5", "4.06": "trf6"
 };
-
-const DATAJUD_API_KEY = process.env.DATAJUD_API_KEY || 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
-
-async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 export interface DataJudOptions {
   fast?: boolean;
@@ -42,18 +36,15 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
   }
 
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
-  let alias = COURT_ALIASES[aliasPart] || "tjsp";
+  const alias = COURT_ALIASES[aliasPart] || "tjsp";
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
-
-  const timeoutMs = options.timeoutMs || 20000; 
+  const timeoutMs = options.timeoutMs || 20000;
 
   try {
-    console.log(`[DATAJUD] [INIT] ${cnjLimpo} -> ${url}`);
-    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `APIKey ${DATAJUD_API_KEY}`,
+        'Authorization': `APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -64,7 +55,6 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     });
 
     const latency = Date.now() - startTime;
-    console.log(`[DATAJUD] [DONE] ${cnjLimpo} | Status: ${response.status} | Time: ${latency}ms`);
 
     if (!response.ok) {
       return { 
@@ -110,8 +100,6 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     const latency = Date.now() - startTime;
     const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
     
-    console.error(`[DATAJUD] [FAIL] ${cnjLimpo} | Error: ${e.message} | Time: ${latency}ms`);
-
     return { 
       numeroProcesso: cnjLimpo, 
       movimentos: [], 
