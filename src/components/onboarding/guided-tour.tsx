@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * @fileOverview Módulo de Onboarding Interativo v420.0 - Corrigida clonagem de ícones
+ * @fileOverview Módulo de Onboarding Interativo v460.0 - Corrigida tipagem de cloneElement
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
