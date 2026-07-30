@@ -6,7 +6,7 @@ import {
   UserPlus, 
   Mail, 
   Copyright,
-  MoreVertical,
+  MoreVertical, 
   Loader2,
   Users,
   Zap,
@@ -405,7 +405,7 @@ export default function TeamManagement() {
                           )}>
                              <div className="flex justify-between items-start">
                                 <div>
-                                   <p className="text-[10px] font-black uppercase">{p.cliente}</p>
+                                   <p className="text-10px] font-black uppercase">{p.cliente}</p>
                                    <p className="text-[9px] font-black uppercase opacity-60">{p.tipo}</p>
                                 </div>
                                 <Badge 
