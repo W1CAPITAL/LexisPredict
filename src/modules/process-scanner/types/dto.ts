@@ -1,56 +1,30 @@
 /**
- * @fileOverview DTOs Oficiais CNJ Intercomunicação (MNI)
- * Implementação desacoplada conforme especificação br.jus.cnj.intercomunicacao
+ * @fileOverview DTOs e Interfaces Standard v5.0
  */
-
-export interface NumeroUnico {
-  numero: string;
-  ano: string;
-  tribunal: string;
-  origem: string;
-}
 
 export interface MovimentoNacional {
   codigo: string;
   descricao: string;
   dataHora: string;
-  complemento?: string[];
 }
 
-export interface DocumentoProcessual {
-  id: string;
-  tipo: string;
-  descricao: string;
-  dataHora: string;
-  conteudo?: string; // Base64
-}
-
-export interface Parte {
-  nome: string;
-  tipo: 'ATIVO' | 'PASSIVO' | 'TERCEIRO';
-  documentoIdentificador?: string;
-  representanteProcessual?: RepresentanteProcessual[];
-}
-
-export interface RepresentanteProcessual {
-  nome: string;
-  inscricaoOAB: string;
-  ufOAB: string;
-}
-
-export interface Processo {
-  numeroUnico: NumeroUnico;
-  classeProcessual: string;
+export interface ProcessoStandard {
+  numero: string;
+  classe: string;
   assunto: string[];
-  valorCausa?: number;
-  segredoJustica: boolean;
-  partes: Parte[];
-  movimentacoes: MovimentoNacional[];
-  documentos: DocumentoProcessual[];
-  unidadeJudiciaria: string;
-  localidade: string;
+  orgao: string;
+  vara: string;
+  grau: string;
+  situacao: string;
+  movimentos: MovimentoNacional[];
+  documentos?: any[];
+  ultimaMovimentacao: string;
+  ultimaAtualizacao: string;
 }
 
+// Interfaces originais MNI para retrocompatibilidade interna
+export interface NumeroUnico { numero: string; ano: string; tribunal: string; origem: string; }
+export interface Parte { nome: string; tipo: string; }
 export interface RequisicaoConsultarProcesso {
   idConsultante: string;
   senhaConsultante: string;
@@ -64,7 +38,7 @@ export interface RequisicaoConsultarProcesso {
 export interface RespostaConsultarProcesso {
   sucesso: boolean;
   mensagem: string;
-  processo?: Processo;
+  processo?: any;
 }
 
 export interface RespostaConsultarAlteracao {
