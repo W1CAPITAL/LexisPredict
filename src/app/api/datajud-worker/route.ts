@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.1
+ * @fileOverview Worker de Auditoria Automática DataJud v1.2
  * Realiza varredura incremental de processos em background (servidor).
  * Otimizado para rito industrial de merge e preservação de dados humanos.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -28,24 +28,26 @@ export async function POST(request: Request) {
 
   // 1. Validação de Segurança (Bearer Token)
   if (!workerSecret || authHeader !== `Bearer ${workerSecret}`) {
-    return new Response('Unauthorized: Token de Gabinete Inválido', { status: 401 });
+    console.error("[DataJud Worker] Acesso Negado: Token Inválido");
+    return new Response('Unauthorized', { status: 401 });
   }
+
+  console.log("[DataJud Worker] Lote Recebido - Iniciando Auditoria Estratégica...");
 
   try {
     const start = Date.now();
     
     // 2. Seleção de Fila por Prioridade de Carência
-    // Prioriza processos nunca consultados ou com a auditoria mais antiga.
     const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
 
     if (casesToAudit.length === 0) {
-      return NextResponse.json({ processed: 0, message: "Sem processos ativos pendentes no momento." });
+      return NextResponse.json({ processed: 0, message: "Sem processos pendentes." });
     }
 
     let successCount = 0;
     let failedCount = 0;
 
-    // 3. Processamento com Pool de Concorrência 2 (Respeito aos limites do CNJ)
+    // 3. Processamento com Pool de Concorrência
     for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
       const chunk = casesToAudit.slice(i, i + CONCURRENCY);
       await Promise.all(chunk.map(async (caseItem) => {
@@ -54,34 +56,33 @@ export async function POST(request: Request) {
       }));
     }
 
-    // 4. Estimativa de Trabalho Restante (Contagem heads de ativos)
+    // 4. Estimativa de Trabalho Restante
     const admin = await getSupabaseAdmin();
     const { count } = await admin
       .from('processos')
       .select('*', { count: 'exact', head: true })
       .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO","IMOVEL","IMÓVEL")');
 
+    const duration = Date.now() - start;
+    console.log(`[DataJud Worker] Ciclo Concluído: ${successCount} sucessos em ${duration}ms`);
+
     return NextResponse.json({ 
+      success: true,
       processed: casesToAudit.length, 
-      success: successCount, 
-      failed: failedCount,
+      successCount, 
+      failedCount,
       remainingEstimate: (count || 0),
-      duration: `${Date.now() - start}ms`
+      duration: `${duration}ms`
     });
 
   } catch (error: any) {
-    console.error("[DataJud Worker] Falha Crítica na Operação:", error.message);
+    console.error("[DataJud Worker] Falha Crítica:", error.message);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-/**
- * Realiza o ciclo de auditoria de um único processo sem sobrescrever dados humanos.
- * PROTOCOLO DE MERGE INCREMENTAL v1.1
- */
 async function auditSingleProcess(c: any): Promise<boolean> {
   try {
-    // Fast Mode habilitado para o Worker (Economia de tempo de CPU e rede)
     const dataJud = await fetchDataJud(c.protocolo, 1, { fast: true });
 
     if (!dataJud || dataJud.error) return false;
@@ -92,15 +93,9 @@ async function auditSingleProcess(c: any): Promise<boolean> {
     const ba = analisarBuscaApreensao(dataJud);
     const newHash = gerarHashAuditoria(movimentos);
 
-    // LÓGICA DE ALERTA: 
-    // Se mudou o hash OU o tribunal disparou alerta, marcamos como novidade.
-    // Mas se o processo foi ENCERRADO no tribunal, desativamos o alerta de novidade
-    // para limpar a fila de tarefas do operador automaticamente.
     let novoStatusNovidade = c.tem_atualizacao_pos_retorno || !!upd.alerta || newHash !== c.datajud_hash;
     
-    if (enc.encerrado) {
-      novoStatusNovidade = false;
-    }
+    if (enc.encerrado) novoStatusNovidade = false;
 
     const patch: any = {
       datajud_ultimo_movimento: upd.dataUltimo,
@@ -117,7 +112,6 @@ async function auditSingleProcess(c: any): Promise<boolean> {
       tribunal: dataJud.tribunal || c.tribunal
     };
 
-    // Chamada atômica de update (Merge por cima do blob 'dados')
     const res = await updateCaseDataJudSystem(c.db_id || c.id, patch);
     return res.success;
 
