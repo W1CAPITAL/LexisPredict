@@ -7,7 +7,7 @@ import {
   getUserContext, 
   getStoredNotes, 
   getEmpresaUsers,
-  getGlobalPendingProcessesSystem,
+  getGlobalPendingProcessesSystem, 
   updateCaseDataJudSystem
 } from '@/lib/server-db';
 import { createClient } from '@/lib/supabase/server';
@@ -16,9 +16,10 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
+import { headers } from 'next/headers';
 
 /**
- * @fileOverview Actions de Processos v430.0 ELITE - Suporte a Motor de Nuvem
+ * @fileOverview Actions de Processos v440.0 ELITE - Suporte a Gatilho de Nuvem
  */
 
 export async function fetchRepoCases() {
@@ -64,10 +65,6 @@ export async function fetchTeamPerformanceAction() {
   }
 }
 
-/**
- * Auditador de Registro Único (Utilizado pelo Scanner e Clique Manual)
- * Otimizado com Hashing de Integridade para detectar mudanças reais de conteúdo.
- */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
@@ -112,10 +109,11 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     const attempts = dataJud?.attempts || 1;
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
-      const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
-      const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
+      const movimentos = dataJud.movimentos;
+      const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
+      const enc = detectarEncerradoNoTribunal(movimentos);
       const ba = analisarBuscaApreensao(dataJud);
-      const newHash = gerarHashAuditoria(dataJud.movimentos);
+      const newHash = gerarHashAuditoria(movimentos);
       
       const patch = {
         datajud_ultimo_movimento: check.dataUltimo,
@@ -137,55 +135,29 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         patch.datajud_encerrado_tribunal !== !!target.datajud_encerrado_tribunal ||
         patch.indicio_busca_apreensao !== !!target.indicio_busca_apreensao;
 
-      let msg = attempts > 1 ? `Auditado (Recuperado na T${attempts})` : "Auditado";
-
       if (!hasRealChange) {
         await supabase
           .from('processos')
           .update({ datajud_consultado_em: patch.datajud_consultado_em })
           .eq('id', dbItem.id);
-        msg += " (Preservado)";
       } else {
         const updatedCase: LegalCase = { ...target, ...patch };
         await saveStoredCasesForEmpresa([updatedCase], empresa_id);
-        msg += " (Mudança Detectada)";
-      }
-      
-      let tipo = 'sem_novidade';
-      if (enc.encerrado) {
-        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
-        tipo = 'encerrado';
-      } else if (ba.indicio && ba.confianca === 'alta') {
-        msg = `⚠ ALERTA BUSCA E APREENSÃO`;
-        tipo = 'novo_andamento';
-      } else if (patch.tem_atualizacao_pos_retorno) {
-        msg = `NOVO ANDAMENTO — ${check.nomeUltimo || 'Identificado por Hash'}`;
-        tipo = 'novo_andamento';
       }
       
       return { 
         success: true, 
         protocolo, 
-        tipo,
-        alerta: !!(patch.tem_atualizacao_pos_retorno || ba.indicio), 
-        encerrado: !!enc.encerrado,
-        message: msg,
         casePatch: patch,
+        movimentos,
+        case: { ...target, ...patch },
         attempts
       };
     }
     
-    return { 
-      success: false, 
-      protocolo, 
-      tipo: 'erro', 
-      message: dataJud?.message || "Erro no tribunal", 
-      error: true, 
-      isAuthError: dataJud?.isAuthError,
-      attempts
-    };
+    return { success: false, protocolo, message: dataJud?.message || "Erro no tribunal", error: true };
   } catch (e: any) {
-    return { success: false, protocolo, tipo: 'erro', message: `Falha técnica`, error: true };
+    return { success: false, protocolo, message: `Falha técnica`, error: true };
   }
 }
 
@@ -241,68 +213,37 @@ export async function clearDataJudAuditAction() {
 }
 
 /**
- * Gatilho Manual para o Ciclo de Nuvem v1.0
- * Executa exatamente a mesma lógica do Worker de API, mas via Server Action.
+ * Gatilho Oficial para o Motor de Nuvem 24h
+ * Refatorado para disparar requisição HTTP oficial e registrar logs no Vercel.
  */
 export async function runCloudWorkerAction() {
   try {
-    const BATCH_SIZE = 15;
-    const CONCURRENCY = 2;
-    
-    // 1. Fila de Lacunas em Todo o Sistema
-    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
-    
-    if (!casesToAudit || casesToAudit.length === 0) {
-      return { success: true, processed: 0, message: "Sem processos pendentes." };
+    const secret = process.env.DATAJUD_WORKER_SECRET;
+    if (!secret) throw new Error("DATAJUD_WORKER_SECRET ausente.");
+
+    // Protocolo de Descoberta de URL de Gabinete
+    const h = await headers();
+    const host = h.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+
+    const response = await fetch(`${baseUrl}/api/datajud-worker`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${secret}`,
+        'Content-Type': 'application/json'
+      },
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Worker HTTP ${response.status}: ${errorText}`);
     }
 
-    let successCount = 0;
-    let failedCount = 0;
-
-    // 2. Processamento paralelo controlado
-    for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
-      const chunk = casesToAudit.slice(i, i + CONCURRENCY);
-      await Promise.all(chunk.map(async (c) => {
-        const dataJud = await fetchDataJud(c.protocolo, 1, { fast: true });
-        if (dataJud && !dataJud.error) {
-          const movimentos = dataJud.movimentos || [];
-          const enc = detectarEncerradoNoTribunal(movimentos);
-          const upd = detectarAtualizacaoPosRetorno(c.ultimoRetorno, movimentos);
-          const ba = analisarBuscaApreensao(dataJud);
-          const newHash = gerarHashAuditoria(movimentos);
-
-          let novoStatusNovidade = c.tem_atualizacao_pos_retorno || !!upd.alerta || newHash !== c.datajud_hash;
-          if (enc.encerrado) novoStatusNovidade = false;
-
-          const patch = {
-            datajud_ultimo_movimento: upd.dataUltimo,
-            datajud_ultimo_nome: upd.nomeUltimo,
-            datajud_consultado_em: new Date().toISOString(),
-            tem_atualizacao_pos_retorno: novoStatusNovidade,
-            datajud_encerrado_tribunal: !!enc.encerrado,
-            datajud_encerrado_motivo: enc.motivo,
-            datajud_hash: newHash,
-            indicio_busca_apreensao: !!ba.indicio,
-            busca_apreensao_confianca: ba.confianca,
-            busca_apreensao_motivo: ba.motivo,
-            busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null
-          };
-
-          await updateCaseDataJudSystem(c.db_id || c.id, patch);
-          successCount++;
-        } else {
-          failedCount++;
-        }
-      }));
-    }
-
-    return { 
-      success: true, 
-      processed: casesToAudit.length, 
-      successCount, 
-      failedCount 
-    };
+    return await response.json();
   } catch (e: any) {
+    console.error("[Cloud Trigger Fail]", e.message);
     return { success: false, error: e.message };
   }
 }
