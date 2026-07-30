@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v460.0 - PERFORMANCE ELITE
- * Otimizado com busca atômica, gap reduzido e tipagem rigorosa.
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v4.1 - PERFORMANCE ELITE
+ * Otimizado com busca atômica, gap reduzido e Fast Mode.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -10,7 +10,8 @@ import { useAppStore } from '@/store/use-app-store';
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanScope = 'resume' | 'critical' | 'full';
 
-const SCAN_GAP_MS = 600; 
+// CONSTANTE DE PERFORMANCE ELITE
+const SCAN_GAP_MS = 500; 
 
 interface ScanLog {
   protocolo: string;
@@ -38,6 +39,7 @@ interface DataJudScanState {
   errors: number;
   logs: ScanLog[];
   
+  // Actions
   toggleMinimize: () => void;
   startScan: (protocolos: string[], scope: ScanScope) => void;
   pauseScan: () => void;
@@ -96,6 +98,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   startScan: (protocolos, scope) => {
     set({
       status: 'running',
+      scope,
       isMinimized: false,
       isAuthPaused: false,
       isSecondPass: false,
@@ -161,18 +164,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const { failedQueue } = get();
         
         if (failedQueue.length > 0 && !isSecondPass) {
-          const pass2Log: ScanLog = {
+          const pass2Logs: ScanLog[] = [{
             protocolo: 'SISTEMA',
             status: 'warning',
-            message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticos.`
-          };
+            message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticas.`
+          } as ScanLog, ...get().logs];
 
           set({
             queue: failedQueue,
             failedQueue: [],
             currentIndex: 0,
             isSecondPass: true,
-            logs: [pass2Log, ...get().logs]
+            logs: pass2Logs
           });
           
           setTimeout(() => get().processNext(), SCAN_GAP_MS);
@@ -188,8 +191,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     const protocolo = queue[currentIndex];
     
     try {
-      // Chamada atômica conforme rito v460.0
-      const result = (await scanOneDataJudAction(protocolo, true)) as any;
+      // Chama a Action com Fast Mode ativo (Otimizado para scanner)
+      const result = await scanOneDataJudAction(protocolo, true);
 
       if (result.success && result.casePatch) {
         try {
@@ -199,12 +202,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       if (!result.success && result.isAuthError) {
         set({ status: 'paused', isAuthPaused: true });
-        const authErrLog: ScanLog = {
-           protocolo: 'SISTEMA',
-           status: 'error',
-           message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
-        };
-        set((state) => ({ logs: [authErrLog, ...state.logs] }));
+        set((state) => ({
+           logs: [{
+             protocolo: 'SISTEMA',
+             status: 'error',
+             message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
+           } as ScanLog, ...state.logs]
+        }));
         return;
       }
 
@@ -276,18 +280,16 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const nextFailedQueue = [...get().failedQueue];
       if (!isSecondPass) nextFailedQueue.push(protocolo);
 
-      const infraErrLog: ScanLog = {
-        protocolo,
-        status: 'error',
-        message: "ERRO DE INFRAESTRUTURA."
-      };
-
       set((state) => ({
         currentIndex: state.currentIndex + 1,
         done: isSecondPass ? state.done : state.done + 1,
         errors: isSecondPass ? state.errors : state.errors + 1,
         failedQueue: nextFailedQueue,
-        logs: [infraErrLog, ...state.logs]
+        logs: [{
+          protocolo,
+          status: 'error',
+          message: "ERRO DE INFRAESTRUTURA."
+        } as ScanLog, ...state.logs]
       }));
     }
 
