@@ -173,6 +173,45 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId?:
 }
 
 /**
+ * Recupera métricas de auditoria para poling de status.
+ */
+export async function getScanStatusMetrics(empresaId: string) {
+  const admin = await getSupabaseAdmin();
+  const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
+
+  const { count: total } = await admin
+    .from('processos')
+    .select('*', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId);
+
+  const { count: pending } = await admin
+    .from('processos')
+    .select('*', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`);
+
+  const { count: alerts } = await admin
+    .from('processos')
+    .select('*', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .eq('tem_atualizacao_pos_retorno', true);
+
+  const { count: closed } = await admin
+    .from('processos')
+    .select('*', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .eq('datajud_encerrado_tribunal', true);
+
+  return {
+    total: total || 0,
+    pending: pending || 0,
+    alerts: alerts || 0,
+    closed: closed || 0,
+    audited: (total || 0) - (pending || 0)
+  };
+}
+
+/**
  * Atualiza apenas os metadados DataJud de um processo (Merge Incremental).
  */
 export async function updateCaseDataJudSystem(caseId: string, patch: any) {
