@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -100,6 +99,7 @@ export function Sidebar() {
         { label: "Procuração", href: '/documents', icon: FileText },
         { label: "Habilitação", href: '/habilitacao-peca', icon: FileSignature },
         { label: "Substabelecimento", href: '/substabelecimento', icon: Repeat },
+        { label: "Subst. Simples", href: '/substabelecimento-simples', icon: Repeat },
         { label: "Peça de Subst.", href: '/substabelecimento-peca', icon: FileStack },
         { label: t.whatsapp, href: '/whatsapp', icon: MessageCircle },
         { label: t.import, href: '/import', icon: Upload },
