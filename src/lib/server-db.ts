@@ -7,9 +7,9 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v270.0 ELITE)
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v280.0 ELITE)
  * Governança de Visibilidade: Visão Master restrita a Superadmin e Supervisor.
- * Operadores e Administradores visualizam apenas seus próprios dados.
+ * Suporte a Workers de Sistema via Service Role.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -20,10 +20,10 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Visualizador': 20
 };
 
-async function getSupabaseAdmin() {
+export async function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Configuração de Admin ausente.");
+  if (!url || !key) throw new Error("Configuração de Admin (Service Role) ausente nas ENV.");
   return createSupabaseClient(url, key);
 }
 
@@ -43,7 +43,6 @@ export async function getUserContext() {
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
-  // REGRA: Administrador NÃO possui visão master de processos. Apenas Supervisor e Superadmin.
   const isMasterView = isSuperAdmin || isSupervisor; 
 
   return { 
@@ -83,10 +82,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      // APLICAÇÃO DO ISOLAMENTO DE DADOS
       if (!isAdmin) {
         const { auth_id, isMasterView } = await getUserContext();
-        // Se NÃO for Supervisor/Superadmin, filtra apenas o que ele criou
         if (!isMasterView && auth_id) {
           query = query.eq('created_by', auth_id);
         }
@@ -109,15 +106,13 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       id: item.id.toString(),
       db_id: item.id.toString(),
       created_by: item.created_by,
-      escritorio: item.escritorio || (item.dados as any).escritorio || '',
-      proximoPrazo: item.proximo_retorno || (item.dados as any).proximoPrazo || '',
-      ultimoRetorno: item.ultimo_retorno || (item.dados as any).ultimoRetorno || '',
       datajud_ultimo_movimento: item.datajud_ultimo_movimento,
       datajud_ultimo_nome: item.datajud_ultimo_nome,
       datajud_consultado_em: item.datajud_consultado_em,
       tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno,
       datajud_encerrado_tribunal: item.datajud_encerrado_tribunal,
       datajud_encerrado_motivo: item.datajud_encerrado_motivo,
+      datajud_hash: item.datajud_hash,
       indicio_busca_apreensao: item.indicio_busca_apreensao,
       busca_apreensao_confianca: item.busca_apreensao_confianca,
       busca_apreensao_motivo: item.busca_apreensao_motivo,
@@ -126,6 +121,74 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   } catch (error) {
     return [];
   }
+}
+
+/**
+ * Recupera processos pendentes de auditoria em todo o sistema para o Worker.
+ * Prioriza processos nunca consultados ou com consulta mais antiga.
+ */
+export async function getGlobalPendingProcessesSystem(limit: number): Promise<LegalCase[]> {
+  const admin = await getSupabaseAdmin();
+  
+  const { data, error } = await admin
+    .from('processos')
+    .select('*')
+    .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO")')
+    .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
+    .limit(limit);
+
+  if (error || !data) return [];
+
+  return data.map(item => processarCaso({
+    ...(item.dados as any),
+    id: item.id.toString(),
+    db_id: item.id.toString(),
+    created_by: item.created_by,
+    datajud_ultimo_movimento: item.datajud_ultimo_movimento,
+    datajud_ultimo_nome: item.datajud_ultimo_nome,
+    datajud_consultado_em: item.datajud_consultado_em,
+    tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno,
+    datajud_encerrado_tribunal: item.datajud_encerrado_tribunal,
+    datajud_encerrado_motivo: item.datajud_encerrado_motivo,
+    datajud_hash: item.datajud_hash,
+    indicio_busca_apreensao: item.indicio_busca_apreensao,
+    busca_apreensao_confianca: item.busca_apreensao_confianca,
+    busca_apreensao_motivo: item.busca_apreensao_motivo,
+    busca_apreensao_consultado_em: item.busca_apreensao_consultado_em
+  }));
+}
+
+/**
+ * Atualiza apenas os metadados DataJud de um processo (Merge Incremental).
+ * Preserva campos operacionais inseridos pelo usuário.
+ */
+export async function updateCaseDataJudSystem(caseId: string, patch: any) {
+  const admin = await getSupabaseAdmin();
+  
+  const { data: current } = await admin
+    .from('processos')
+    .select('dados')
+    .eq('id', caseId)
+    .single();
+    
+  if (!current) return { success: false };
+
+  // MERGE ESTRATÉGICO: Preserva dados do operador (status, prazo, retorno, observação)
+  // sobrescrevendo apenas os campos datajud_*
+  const updatedDados = {
+    ...current.dados,
+    ...patch
+  };
+
+  const { error } = await admin
+    .from('processos')
+    .update({
+      ...patch, // Atualiza colunas para indexação e filtros rápidos
+      dados: updatedDados // Atualiza o objeto JSON completo para renderização na interface
+    })
+    .eq('id', caseId);
+    
+  return { success: !error };
 }
 
 export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
@@ -160,6 +223,7 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
         tem_atualizacao_pos_retorno: c.tem_atualizacao_pos_retorno,
         datajud_encerrado_tribunal: c.datajud_encerrado_tribunal,
         datajud_encerrado_motivo: c.datajud_encerrado_motivo,
+        datajud_hash: c.datajud_hash || null,
         indicio_busca_apreensao: c.indicio_busca_apreensao,
         busca_apreensao_confianca: c.busca_apreensao_confianca,
         busca_apreensao_motivo: c.busca_apreensao_motivo,
@@ -193,8 +257,6 @@ export async function listAllEmpresasSystem() {
 export async function getStoredNotes(): Promise<any[]> {
   const { auth_id, empresa_id, isMasterView } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
-  
-  // REGRA: Supervisor e Superadmin veem todas as notas da empresa
   const hasFullAccess = isMasterView === true;
 
   try {
@@ -204,12 +266,7 @@ export async function getStoredNotes(): Promise<any[]> {
     let hasMore = true;
     while (hasMore) {
       let query = supabase.from('notes').select('*').eq('empresa_id', empresa_id).order('created_at', { ascending: false }).range(page * pageSize, (page + 1) * pageSize - 1);
-      
-      // FILTRO DE ISOLAMENTO DE NOTAS
-      if (!hasFullAccess) {
-        query = query.eq('created_by', auth_id);
-      }
-      
+      if (!hasFullAccess) { query = query.eq('created_by', auth_id); }
       const { data, error } = await query;
       if (error) throw error;
       if (data && data.length > 0) {
@@ -256,11 +313,7 @@ export async function deleteStoredNote(id: string): Promise<{ success: boolean }
 export async function getEmpresaUsers(): Promise<UserProfile[]> {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return [];
-  const { data, error } = await supabase
-    .from('usuarios')
-    .select('*')
-    .eq('empresa_id', empresa_id)
-    .order('nome', { ascending: true });
+  const { data, error } = await supabase.from('usuarios').select('*').eq('empresa_id', empresa_id).order('nome', { ascending: true });
   return (data as UserProfile[]) || [];
 }
 
@@ -324,3 +377,4 @@ export async function desativarAdvogadoBanca(id: string) {
   const { error = null } = await supabase.from('advogados_banca').update({ ativo: false }).eq('id', id).eq('empresa_id', empresa_id);
   return { success: !error };
 }
+
