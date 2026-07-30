@@ -214,10 +214,13 @@ export async function clearDataJudAuditAction() {
 
 /**
  * Gatilho Oficial para o Motor de Nuvem 24h
- * Refatorado para disparar requisição HTTP oficial e registrar logs no Vercel.
+ * Refatorado para disparar requisição HTTP com escopo de empresa.
  */
 export async function runCloudWorkerAction() {
   try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) throw new Error("Sessão expirada.");
+
     const secret = process.env.DATAJUD_WORKER_SECRET;
     if (!secret) throw new Error("DATAJUD_WORKER_SECRET ausente.");
 
@@ -229,21 +232,20 @@ export async function runCloudWorkerAction() {
       ? `https://${process.env.VERCEL_URL}` 
       : `${protocol}://${host}`;
 
-    const response = await fetch(`${baseUrl}/api/datajud-worker`, {
+    const response = await fetch(`${baseUrl}/api/datajud-worker?empresa_id=${empresa_id}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${secret}`,
         'Content-Type': 'application/json'
       },
       cache: 'no-store',
-      // Timeout agressivo para a UI não travar se o worker demorar
       signal: AbortSignal.timeout(65000),
       next: { revalidate: 0 }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      return { success: false, error: `Worker HTTP ${response.status}: ${errorText}` };
+      return { success: false, error: `Worker HTTP ${response.status}` };
     }
 
     return await response.json();
