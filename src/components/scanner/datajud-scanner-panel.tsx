@@ -87,7 +87,7 @@ export function DataJudScannerPanel() {
         } finally {
           setIsCloudLoading(false);
           if (isCloudActive) {
-            timer = setTimeout(executeCloudBatch, 30000); // Proximo pulso em 30s
+            timer = setTimeout(executeCloudBatch, 45000); // Proximo pulso em 45s
           }
         }
       };
