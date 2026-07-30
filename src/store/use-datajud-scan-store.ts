@@ -1,6 +1,8 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v8.0 — DUAL ENGINE (CLOUD + MANUAL)
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v9.0 — DUAL ENGINE (CLOUD + MANUAL)
+ * Agora com suporte a logs detalhados e ritos processuais (Baixa, Novidade, Erro).
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction } from '@/app/actions/case-actions';
@@ -16,6 +18,15 @@ interface CourtHealth {
   successRate: number;
   totalCalls: number;
   successCalls: number;
+}
+
+export interface ScanLog {
+  protocolo: string;
+  message: string;
+  latency: number;
+  success: boolean;
+  type: 'update' | 'closed' | 'error' | 'ok';
+  engine: 'Local' | 'Nuvem';
 }
 
 interface DataJudScanState {
@@ -35,7 +46,9 @@ interface DataJudScanState {
   manualAlerts: number;
   manualClosed: number;
   manualErrors: number;
-  lastLogs: { protocolo: string; message: string; latency: number; success: boolean }[];
+  
+  // Registro Unificado
+  lastLogs: ScanLog[];
 
   // Global UI
   isMinimized: boolean;
@@ -50,6 +63,7 @@ interface DataJudScanState {
   resetScan: () => void;
   pollStatus: () => Promise<void>;
   updateCourtHealth: (courtId: string, latency: number, success: boolean) => void;
+  addLog: (log: ScanLog) => void;
 }
 
 let pollTimer: NodeJS.Timeout | null = null;
@@ -75,6 +89,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   courtHealthMap: {},
 
   toggleMinimize: () => set((state) => ({ isMinimized: !state.isMinimized })),
+
+  addLog: (log) => set(state => {
+    // Evita duplicatas de CNJ no log recente se for o mesmo motor
+    const filtered = state.lastLogs.filter(l => l.protocolo !== log.protocolo || l.engine !== log.engine);
+    return { lastLogs: [log, ...filtered].slice(0, 50) };
+  }),
 
   updateCourtHealth: (courtId, latency, success) => {
     set(state => {
@@ -109,7 +129,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     get().pollStatus();
     pollTimer = setInterval(() => {
       get().pollStatus();
-    }, 10000); // Polling a cada 10s para não saturar
+    }, 10000); 
   },
 
   pauseCloudScan: () => {
@@ -121,7 +141,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     const cases = useAppStore.getState().cases.filter(c => !isCasoEncerrado(c));
     if (cases.length === 0) return;
 
-    set({ manualStatus: 'running', manualTotal: cases.length, manualDone: 0, manualAlerts: 0, manualClosed: 0, manualErrors: 0, lastLogs: [] });
+    set({ manualStatus: 'running', manualTotal: cases.length, manualDone: 0, manualAlerts: 0, manualClosed: 0, manualErrors: 0 });
 
     for (const c of cases) {
       if (get().manualStatus !== 'running') break;
@@ -131,27 +151,43 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const latency = Date.now() - startTime;
 
       if (res.success) {
-        if (res.casePatch?.tem_atualizacao_pos_retorno) set(s => ({ manualAlerts: s.manualAlerts + 1 }));
-        if (res.casePatch?.datajud_encerrado_tribunal) set(s => ({ manualClosed: s.manualClosed + 1 }));
+        const isUpdate = !!res.casePatch?.tem_atualizacao_pos_retorno;
+        const isClosed = !!res.casePatch?.datajud_encerrado_tribunal;
+
+        if (isUpdate) set(s => ({ manualAlerts: s.manualAlerts + 1 }));
+        if (isClosed) set(s => ({ manualClosed: s.manualClosed + 1 }));
         
-        set(s => ({ 
-          manualDone: s.manualDone + 1,
-          lastLogs: [{ protocolo: c.protocolo, message: 'Auditado', latency, success: true }, ...s.lastLogs].slice(0, 10)
-        }));
+        get().addLog({ 
+          protocolo: c.protocolo, 
+          message: isClosed ? 'BAIXA NO TRIBUNAL' : isUpdate ? 'NOVA MOVIMENTAÇÃO' : 'Sem Alterações', 
+          latency, 
+          success: true,
+          type: isClosed ? 'closed' : isUpdate ? 'update' : 'ok',
+          engine: 'Local'
+        });
         
-        const courtId = c.protocolo.split('.')[4]; // Ex: 8.26
+        set(s => ({ manualDone: s.manualDone + 1 }));
+        
+        const courtId = c.protocolo.split('.')[4];
         if (courtId) get().updateCourtHealth(courtId, latency, true);
       } else {
         set(s => ({ 
           manualErrors: s.manualErrors + 1,
-          manualDone: s.manualDone + 1,
-          lastLogs: [{ protocolo: c.protocolo, message: res.message || 'Falha', latency, success: false }, ...s.lastLogs].slice(0, 10)
+          manualDone: s.manualDone + 1
         }));
+        get().addLog({ 
+          protocolo: c.protocolo, 
+          message: res.message || 'Falha Técnica', 
+          latency, 
+          success: false,
+          type: 'error',
+          engine: 'Local'
+        });
         const courtId = c.protocolo.split('.')[4];
         if (courtId) get().updateCourtHealth(courtId, latency, false);
       }
 
-      await new Promise(r => setTimeout(r, 600)); // Gap de rede
+      await new Promise(r => setTimeout(r, 600)); 
     }
 
     if (get().manualStatus === 'running') set({ manualStatus: 'done' });
@@ -189,7 +225,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         closed: metrics.closed
       });
 
-      if (metrics.pending === 0) {
+      // Incorpora logs da nuvem se houver novidades
+      if (metrics.recentLogs && metrics.recentLogs.length > 0) {
+        metrics.recentLogs.forEach((log: ScanLog) => get().addLog(log));
+      }
+
+      if (metrics.pending === 0 && metrics.total > 0) {
         set({ status: 'done' });
         if (pollTimer) clearInterval(pollTimer);
       }
