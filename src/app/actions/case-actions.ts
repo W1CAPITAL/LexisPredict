@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -8,6 +7,7 @@ import {
   getStoredNotes, 
   getEmpresaUsers 
 } from '@/lib/server-db';
+import { createClient } from '@/lib/supabase/server';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
@@ -15,7 +15,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/li
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v210.0 ELITE - Sincronia com Telemetria e Retries
+ * @fileOverview Actions de Processos v400.0 ELITE - Otimização de Performance para Lote
  */
 
 export async function fetchRepoCases() {
@@ -61,18 +61,41 @@ export async function fetchTeamPerformanceAction() {
   }
 }
 
-export async function scanOneDataJudAction(protocolo: string, noRetry = false) {
+/**
+ * Auditador de Registro Único (Utilizado pelo Scanner e Clique Manual)
+ * Otimizado para busca direta no banco via protocolo_ref.
+ */
+export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id || !auth_id) {
        return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada" };
     }
 
-    const cases = await getStoredCasesForEmpresa(empresa_id);
-    const target = cases.find(c => c.protocolo === protocolo);
-    if (!target) return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
+    const supabase = await createClient();
+    if (!supabase) throw new Error("Supabase indisponível.");
 
-    const dataJud = await fetchDataJud(protocolo, 1, noRetry);
+    // BUSCA ATÔMICA: Evita ler 1150 registros desnecessariamente
+    const { data: dbItem, error: fetchError } = await supabase
+      .from('processos')
+      .select('*')
+      .eq('protocolo_ref', protocolo)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+
+    if (fetchError || !dbItem) {
+      return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
+    }
+
+    const target = processarCaso({
+      ...(dbItem.dados as any),
+      id: dbItem.id.toString(),
+      created_by: dbItem.created_by,
+      proximoPrazo: dbItem.proximo_retorno || '',
+      ultimoRetorno: dbItem.ultimo_retorno || ''
+    });
+
+    const dataJud = await fetchDataJud(protocolo, 1, { fast });
     const attempts = dataJud?.attempts || 1;
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
@@ -94,8 +117,7 @@ export async function scanOneDataJudAction(protocolo: string, noRetry = false) {
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      // REGRA DE SOBRESCRITA INTELIGENTE: Só salva se houver mudança real ou para atualizar o timestamp de consulta
-      // O timestamp atualizado é vital para o filtro de "Retomar" não repetir o mesmo processo.
+      // SMART WRITE: Só grava se houver mudança real nas flags ou andamento
       const hasRealChange = 
         patch.datajud_ultimo_nome !== target.datajud_ultimo_nome ||
         patch.datajud_encerrado_tribunal !== !!target.datajud_encerrado_tribunal ||
@@ -106,18 +128,17 @@ export async function scanOneDataJudAction(protocolo: string, noRetry = false) {
       await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
       let msg = attempts > 1 ? `Auditado (Recuperado na T${attempts})` : "Auditado";
-      if (!hasRealChange) msg += " (Sem mudanças)";
+      if (!hasRealChange) msg += " (Preservado)";
       
       let tipo = 'sem_novidade';
-      
       if (enc.encerrado) {
-        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}${attempts > 1 ? ` (T${attempts})` : ''}`;
+        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
         tipo = 'encerrado';
       } else if (ba.indicio && ba.confianca === 'alta') {
-        msg = `⚠ ALERTA BUSCA E APREENSÃO DETECTADA${attempts > 1 ? ` (T${attempts})` : ''}`;
+        msg = `⚠ ALERTA BUSCA E APREENSÃO`;
         tipo = 'novo_andamento';
       } else if (check.alerta) {
-        msg = `NOVO ANDAMENTO — ${check.nomeUltimo}${attempts > 1 ? ` (T${attempts})` : ''}`;
+        msg = `NOVO ANDAMENTO — ${check.nomeUltimo}`;
         tipo = 'novo_andamento';
       }
       
@@ -148,59 +169,8 @@ export async function scanOneDataJudAction(protocolo: string, noRetry = false) {
 }
 
 export async function scanSingleCaseAction(protocolo: string) {
-  try {
-    const { empresa_id, auth_id } = await getUserContext();
-    if (!empresa_id || !auth_id) return { success: false, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada." };
-
-    const cases = await getStoredCasesForEmpresa(empresa_id);
-    const target = cases.find(c => c.protocolo === protocolo);
-    if (!target) return { success: false, error: "NOT_FOUND", message: "Não localizado." };
-
-    const dataJud = await fetchDataJud(protocolo);
-    
-    if (dataJud && !dataJud.error && dataJud.movimentos) {
-      const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, dataJud.movimentos);
-      const enc = detectarEncerradoNoTribunal(dataJud.movimentos);
-      const ba = analisarBuscaApreensao(dataJud);
-      
-      const patch = {
-        datajud_ultimo_movimento: check.dataUltimo,
-        datajud_ultimo_nome: check.nomeUltimo,
-        datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: !!check.alerta,
-        datajud_encerrado_tribunal: !!enc.encerrado,
-        datajud_encerrado_motivo: enc.motivo,
-        indicio_busca_apreensao: !!ba.indicio,
-        busca_apreensao_confianca: ba.confianca,
-        busca_apreensao_motivo: ba.motivo,
-        busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
-        tribunal: dataJud.tribunal || target.tribunal
-      };
-
-      const updatedCase: LegalCase = { ...target, ...patch };
-      await saveStoredCasesForEmpresa([updatedCase], empresa_id);
-      
-      let msg = "Sem atualizações após o último retorno.";
-      if (enc.encerrado) {
-        msg = `ENCERRADO NO TRIBUNAL — ${enc.motivo}`;
-      } else if (check.alerta) {
-        msg = "Novo andamento identificado!";
-      } else if (ba.indicio) {
-        msg = `ALERTA: Indício de Busca e Apreensão (${ba.confianca})`;
-      }
-      
-      return { 
-        success: true, 
-        case: updatedCase, 
-        movimentos: dataJud.movimentos || [], 
-        casePatch: patch, 
-        message: msg 
-      };
-    }
-    return { success: false, error: "TRIBUNAL_OFFLINE", message: dataJud?.message || "Sem dados." };
-  } catch (e: any) {
-    return { success: false, error: "ERRO_TECNICO", message: e.message };
-  }
+  // Chamada via aba Processos: Usa modo normal (fast=false) para máxima precisão
+  return await scanOneDataJudAction(protocolo, false);
 }
 
 export async function runDataJudScanAction(targetEmpresaId?: string) {
@@ -215,7 +185,7 @@ export async function runDataJudScanAction(targetEmpresaId?: string) {
     const batch = cases.filter(c => !isCasoEncerrado(c)).slice(0, 30);
     let updatedCount = 0;
     for (const c of batch) {
-      await scanOneDataJudAction(c.protocolo);
+      await scanOneDataJudAction(c.protocolo, true);
       updatedCount++;
     }
     return { success: true, scanned: batch.length, updated: updatedCount, message: `Auditados ${batch.length} registros.` };
