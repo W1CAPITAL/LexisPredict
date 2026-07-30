@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -10,9 +9,7 @@ import React from 'react';
 import { extrairDadosProcuracao } from '@/ai/flows/document-flow';
 
 /**
- * Motor de Selagem Digital v860.0
- * Configurado para processamento assíncrono em conformidade com Next.js 15.
- * Ajuste de tipagem para compatibilidade com elementos dinâmicos React 19.
+ * Motor de Selagem Digital v870.0
  */
 
 async function getRenderToBuffer() {
@@ -20,17 +17,29 @@ async function getRenderToBuffer() {
   return renderToBuffer;
 }
 
+export async function generateSubstabelecimentoSimplesPDFAction(data: any) {
+  try {
+    const renderToBuffer = await getRenderToBuffer();
+    const { SubstabelecimentoSimplesPDF } = await import('@/components/pdf/substabelecimento-simples-pdf');
+    const element = React.createElement(SubstabelecimentoSimplesPDF as any, { data }) as any;
+    const pdfBuffer = await renderToBuffer(element);
+    return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
+  } catch (e: any) {
+    console.error("[Selagem] Falha no Substabelecimento Simples:", e.message || e);
+    return { error: "Falha técnica ao selar o Substabelecimento Simples." };
+  }
+}
+
 export async function generateHabilitacaoPecaPDFAction(data: any) {
   try {
     const renderToBuffer = await getRenderToBuffer();
     const { HabilitacaoPecaPDF } = await import('@/components/pdf/habilitacao-peca-pdf');
-    // Cast para any para resolver conflito de tipos do DocumentProps no compilador
     const element = React.createElement(HabilitacaoPecaPDF as any, { data }) as any;
     const pdfBuffer = await renderToBuffer(element);
     return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
   } catch (e: any) {
     console.error("[Selagem] Falha na Habilitação:", e.message || e);
-    return { error: "Falha técnica ao selar a Habilitação. Verifique os dados e tente novamente." };
+    return { error: "Falha técnica ao selar a Habilitação." };
   }
 }
 
@@ -77,46 +86,23 @@ export async function extrairTextoDoPDFAction(formData: FormData) {
   try {
     const file = formData.get('pdf') as File;
     if (!file) return { error: "Nenhum arquivo enviado" };
-    
-    if (file.size > 10 * 1024 * 1024) {
-      return { error: "Arquivo excede o limite de 10MB suportado para transcrição forense." };
-    }
-
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
     const pdf = (await import('pdf-parse')).default;
     const data = await pdf(buffer);
-    
-    if (!data.text || data.text.trim().length < 5) {
-      return { 
-        error: "Este PDF parece conter apenas imagens (Scans). Utilize a ferramenta 'Motor de OCR' para transcrição visual.",
-        isScan: true 
-      };
-    }
-    
+    if (!data.text || data.text.trim().length < 5) return { error: "PDF sem texto extraível.", isScan: true };
     return { success: true, text: data.text };
   } catch (e: any) {
-    console.error("[OCR Engine] PDF Extraction Fail:", e.message);
-    return { error: "Falha na transcrição forense. O arquivo pode estar em um formato incompatível ou protegido." };
+    return { error: "Falha na transcrição." };
   }
 }
 
 export async function extrairDadosProcuracaoAction(inputText: string, lawyer: string, state: string) {
   try {
-    const res = await extrairDadosProcuracao({ 
-      text: inputText, 
-      preferredLawyer: lawyer, 
-      preferredState: state 
-    });
-    
-    if (!res) {
-       return { success: false, error: "TRIAGEM_INDISPONIVEL_TEMPORARIAMENTE" };
-    }
-    
+    const res = await extrairDadosProcuracao({ text: inputText, preferredLawyer: lawyer, preferredState: state });
+    if (!res) return { success: false, error: "TRIAGEM_INDISPONIVEL" };
     return { success: true, ...res };
   } catch (e: any) {
-    console.error("Neural Extraction Action Fail:", e);
-    return { success: false, error: e.message || "FALHA_NA_TRIAGEM_TECNICA" };
+    return { success: false, error: e.message };
   }
 }
