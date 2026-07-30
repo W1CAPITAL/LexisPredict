@@ -28,20 +28,20 @@ export default function LoginPage() {
   const router = useRouter();
   const logoAsset = PlaceHolderImages.find(img => img.id === 'app-logo');
 
-  // Redirecionamento e Válvula de Segurança
+  // Válvula de Segurança de Redirecionamento
   useEffect(() => {
     let safetyTimeout: NodeJS.Timeout;
 
     if (!authLoading && user && profile) {
-      // Tentativa 1: Client-side routing
+      // Tentativa 1: Redirecionamento suave via Router
       router.replace('/');
       router.refresh();
 
-      // Tentativa 2: Válvula de segurança após 2.5s (Full Refresh)
-      // Resolve loops de middleware e descompasso de deploy
+      // Tentativa 2: Válvula de segurança após 2.5s
+      // Se o usuário ainda estiver preso na rota /login, forçamos um recarregamento total
       safetyTimeout = setTimeout(() => {
-        if (window.location.pathname === '/login') {
-          console.log("[Auth] Safety Valve: Forcing full page redirect...");
+        if (window.location.pathname.includes('/login')) {
+          console.log("[Auth] Safety Valve: Forcing full page reload to mission control...");
           window.location.assign('/');
         }
       }, 2500);
@@ -56,7 +56,7 @@ export default function LoginPage() {
     
     setIsSubmitting(true);
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({ 
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ 
         email: email.trim().toLowerCase(), 
         password: password 
       });
@@ -64,6 +64,13 @@ export default function LoginPage() {
       if (authError) {
         toast({ title: "Erro de Acesso", description: "Credenciais inválidas.", variant: "destructive" });
         setIsSubmitting(false);
+      } else if (data.user) {
+        // Gravar cookie de contexto do servidor IMEDIATAMENTE (Sincronia com Middleware)
+        const emailVal = data.user.email?.toLowerCase().trim();
+        if (emailVal) {
+          const isProd = window.location.protocol === 'https:';
+          document.cookie = `lexis_user_email=${emailVal}; path=/; max-age=31536000; samesite=lax${isProd ? '; secure' : ''}`;
+        }
       }
     } catch (error) {
       toast({ title: "Falha de Rede", variant: "destructive" });
@@ -71,6 +78,7 @@ export default function LoginPage() {
     }
   };
 
+  // Renderização do Estado de Transição (Trava Visual Mitigada pela Válvula)
   if (!authLoading && user && profile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-8 font-sans p-6 text-center animate-in fade-in duration-500">
@@ -79,7 +87,7 @@ export default function LoginPage() {
         </div>
         <div className="space-y-4">
           <h1 className="text-2xl font-black uppercase tracking-tighter">Gabinete Aberto</h1>
-          <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Redirecionando para Mission Control...</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Sincronizando Sessão & Redirecionando...</p>
         </div>
         <Loader2 className="animate-spin text-black" size={32} />
       </div>
