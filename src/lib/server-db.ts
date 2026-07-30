@@ -7,7 +7,7 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v285.0 ELITE)
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v286.0 ELITE)
  * Governança de Visibilidade: Visão Master restrita a Superadmin e Supervisor.
  * Suporte a Workers de Sistema via Service Role para Auditoria em Background.
  */
@@ -128,7 +128,6 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
 /**
  * Recupera processos pendentes de auditoria para uma empresa específica ou globalmente para o Worker.
- * Exclui processos encerrados ou arquivados.
  */
 export async function getGlobalPendingProcessesSystem(limit: number, empresaId?: string): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
@@ -175,12 +174,10 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId?:
 
 /**
  * Atualiza apenas os metadados DataJud de um processo (Merge Incremental).
- * Realiza o update tanto nas colunas quanto no blob 'dados'.
  */
 export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   const admin = await getSupabaseAdmin();
   
-  // 1. Recuperar estado atual do blob
   const { data: current, error: fetchError } = await admin
     .from('processos')
     .select('dados')
@@ -189,18 +186,16 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     
   if (fetchError || !current) return { success: false };
 
-  // 2. Mesclar patch técnico preservando dados humanos (status, prazo, observação)
   const updatedDados = {
     ...current.dados,
     ...patch
   };
 
-  // 3. Update atômico
   const { error } = await admin
     .from('processos')
     .update({
-      ...patch, // Atualiza colunas mapeadas
-      dados: updatedDados // Atualiza o objeto completo
+      ...patch, 
+      dados: updatedDados
     })
     .eq('id', caseId);
     
