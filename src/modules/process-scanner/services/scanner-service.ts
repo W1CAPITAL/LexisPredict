@@ -1,10 +1,11 @@
 /**
- * @fileOverview ScannerService v2.0 - Motor de Inteligência Resolutiva
+ * @fileOverview ScannerService v3.0 - Motor de Inteligência Cronológica
+ * Implementa ordenação rigorosa e comparação com último retorno.
  */
 
 import { MNIClient } from './mni-client';
 import { MovimentacaoAI, AIAnalysis } from './movimentacao-ai';
-import { parseISO, isAfter, startOfDay } from 'date-fns';
+import { parseISO, isAfter, startOfDay, parse } from 'date-fns';
 
 export interface MNIProcessResult {
   cnj: string;
@@ -19,12 +20,11 @@ export class ScannerService {
   private client: MNIClient;
 
   constructor() {
-    // URL simulada para conformidade de interface
     this.client = new MNIClient('https://api.cnj.jus.br/intercomunicacao');
   }
 
   /**
-   * Realiza a varredura de um processo comparando com o último retorno do cliente.
+   * Realiza a varredura atômica com ordenação decrescente de movimentações.
    */
   async scanProcessoInteligente(cnj: string, ultimoRetornoStr: string | null): Promise<MNIProcessResult | null> {
     const res = await this.client.consultarProcesso({
@@ -35,36 +35,48 @@ export class ScannerService {
     });
 
     if (res.sucesso && res.processo && res.processo.movimentacoes) {
+      // 1. Recuperar TODAS e Ordenar por Data/Hora DESC
       const movimentacoes = [...res.processo.movimentacoes].sort((a, b) => 
         new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
       );
 
+      // 2. Considerar apenas a movimentação mais recente (pós-ordenação)
       const ultimaMov = movimentacoes[0];
       if (!ultimaMov) return null;
 
-      // 1. Detecção de Encerramento em todo o histórico recente
-      const encerramento = MovimentacaoAI.detectarEncerramento(movimentacoes.slice(0, 10));
+      // 3. Detecção de Encerramento (Soberana)
+      const encerramento = MovimentacaoAI.detectarEncerramento(ultimaMov.descricao);
       
-      // 2. Comparação com Último Retorno ao Cliente
+      // 4. Comparação com Último Retorno ao Cliente
       let temNovoAndamento = false;
-      if (ultimoRetornoStr) {
+      if (ultimoRetornoStr && ultimoRetornoStr !== '-' && ultimoRetornoStr !== 'S/ Atendimento') {
         try {
-          const dataRetorno = startOfDay(parseISO(ultimoRetornoStr.split('/').reverse().join('-')));
+          // Normalização de data DD/MM/YYYY para comparação
+          let dateObj;
+          if (ultimoRetornoStr.includes('/')) {
+            dateObj = parse(ultimoRetornoStr, 'dd/MM/yyyy', new Date());
+          } else {
+            dateObj = parseISO(ultimoRetornoStr);
+          }
+          
+          const dataRetorno = startOfDay(dateObj);
           const dataMov = startOfDay(parseISO(ultimaMov.dataHora));
+          
           temNovoAndamento = isAfter(dataMov, dataRetorno);
         } catch (e) {
           temNovoAndamento = true; 
         }
       } else {
+        // Se nunca houve retorno, qualquer andamento é "Novo" para o operador
         temNovoAndamento = true;
       }
 
-      // 3. Classificação Neural
+      // 5. Classificação Neural da Movimentação Recente
       const analysis = MovimentacaoAI.analisar(ultimaMov);
 
-      // 4. Montagem do Resultado Útil
+      // 6. Definição do Status de Utilidade
       let statusUtil = 'SEM NOVOS ANDAMENTOS';
-      if (encerramento.encerrado) {
+      if (analysis.categoria === 'ENCERRADO') {
         statusUtil = 'PROCESSO ENCERRADO';
       } else if (temNovoAndamento) {
         statusUtil = 'HOUVE NOVO ANDAMENTO';
@@ -73,7 +85,7 @@ export class ScannerService {
       return {
         cnj: cnj,
         statusUtil: statusUtil,
-        ultimoEventoNome: ultimaMov.descricao,
+        ultimoEventoNome: ultimaMov.descricao.toUpperCase(),
         dataEvento: ultimaMov.dataHora,
         necessitaRetorno: statusUtil !== 'SEM NOVOS ANDAMENTOS',
         analysis: analysis
