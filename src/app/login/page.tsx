@@ -14,10 +14,10 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Label } from '@/components/ui/label';
 import { Lock, Mail, Copyright, Loader2, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth } from '@/components/auth/auth-provider';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -28,20 +28,19 @@ export default function LoginPage() {
   const router = useRouter();
   const logoAsset = PlaceHolderImages.find(img => img.id === 'app-logo');
 
-  // Válvula de Segurança de Redirecionamento
+  // Válvula de Segurança de Redirecionamento Autoritativo
   useEffect(() => {
     let safetyTimeout: NodeJS.Timeout;
 
     if (!authLoading && user && profile) {
-      // Tentativa 1: Redirecionamento suave via Router
+      // Tentativa 1: Redirecionamento suave via Next Router
       router.replace('/');
       router.refresh();
 
-      // Tentativa 2: Válvula de segurança após 2.5s
-      // Se o usuário ainda estiver preso na rota /login, forçamos um recarregamento total
+      // Tentativa 2: Hard Refresh caso o router trave por cache ou descompasso de deploy
       safetyTimeout = setTimeout(() => {
         if (window.location.pathname.includes('/login')) {
-          console.log("[Auth] Safety Valve: Forcing full page reload to mission control...");
+          console.log("[Auth] Válvula de Segurança: Forçando recarregamento total para Mission Control...");
           window.location.assign('/');
         }
       }, 2500);
@@ -56,8 +55,9 @@ export default function LoginPage() {
     
     setIsSubmitting(true);
     try {
+      const loginEmail = email.trim().toLowerCase();
       const { data, error: authError } = await supabase.auth.signInWithPassword({ 
-        email: email.trim().toLowerCase(), 
+        email: loginEmail, 
         password: password 
       });
 
@@ -65,12 +65,14 @@ export default function LoginPage() {
         toast({ title: "Erro de Acesso", description: "Credenciais inválidas.", variant: "destructive" });
         setIsSubmitting(false);
       } else if (data.user) {
-        // Gravar cookie de contexto do servidor IMEDIATAMENTE (Sincronia com Middleware)
-        const emailVal = data.user.email?.toLowerCase().trim();
+        // Rito de Sincronia Imediata: Gravar cookie lexis_user_email NA HORA do submit sucesso
+        // Isso assegura que o Middleware reconheça a sessão na primeira requisição após o login
+        const emailVal = (data.user.email || loginEmail).toLowerCase().trim();
         if (emailVal) {
           const isProd = window.location.protocol === 'https:';
           document.cookie = `lexis_user_email=${emailVal}; path=/; max-age=31536000; samesite=lax${isProd ? '; secure' : ''}`;
         }
+        // O useEffect acima tratará o redirecionamento quando o user/profile estiverem prontos
       }
     } catch (error) {
       toast({ title: "Falha de Rede", variant: "destructive" });
@@ -78,7 +80,6 @@ export default function LoginPage() {
     }
   };
 
-  // Renderização do Estado de Transição (Trava Visual Mitigada pela Válvula)
   if (!authLoading && user && profile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-8 font-sans p-6 text-center animate-in fade-in duration-500">
@@ -87,7 +88,7 @@ export default function LoginPage() {
         </div>
         <div className="space-y-4">
           <h1 className="text-2xl font-black uppercase tracking-tighter">Gabinete Aberto</h1>
-          <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Sincronizando Sessão & Redirecionando...</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Redirecionando para Mission Control...</p>
         </div>
         <Loader2 className="animate-spin text-black" size={32} />
       </div>
