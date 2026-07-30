@@ -1,6 +1,6 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v470.0 ELITE
- * Otimizado com Paridade de Timeout e Suporte a Captura de Status HTTP.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v480.0 ELITE
+ * Otimizado com Latência Real e Transparência de Endpoints.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -27,30 +27,29 @@ export interface DataJudOptions {
 
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
+  const startTime = Date.now();
   
   if (cnjLimpo.length !== 20) {
     return { 
       numeroProcesso: cnj, 
       movimentos: [], 
       error: true, 
-      message: "Número CNJ inválido.",
+      message: "CNJ_INVALIDO",
       httpStatus: 400,
+      latency: Date.now() - startTime,
       attempts: attempt
     };
   }
 
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
   let alias = COURT_ALIASES[aliasPart] || "tjsp";
-
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
-  // PROTOCOLO DE RESILIÊNCIA v470.0
-  const isFast = options.fast === true;
-  const timeoutMs = options.timeoutMs || 45000; 
-  const maxAttempts = isFast ? 2 : 3;
+  const timeoutMs = options.timeoutMs || 20000; 
 
   try {
-    const startTime = Date.now();
+    console.log(`[DATAJUD] [INIT] ${cnjLimpo} -> ${url}`);
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -59,27 +58,23 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       },
       body: JSON.stringify({
         size: 1,
-        query: {
-          match: {
-            "numeroProcesso": cnjLimpo
-          }
-        }
+        query: { match: { "numeroProcesso": cnjLimpo } }
       }),
       signal: AbortSignal.timeout(timeoutMs)
     });
 
     const latency = Date.now() - startTime;
+    console.log(`[DATAJUD] [DONE] ${cnjLimpo} | Status: ${response.status} | Time: ${latency}ms`);
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        return { error: true, message: "Falha de autenticação API Key.", isAuthError: true, httpStatus: response.status, attempts: attempt, latency, endpoint: url };
-      }
-      
-      if ([429, 502, 503, 504].includes(response.status)) {
-        throw new Error(`RETRYABLE_HTTP_${response.status}`);
-      }
-      
-      throw new Error(`HTTP_${response.status}`);
+      return { 
+        error: true, 
+        message: `HTTP_${response.status}`, 
+        httpStatus: response.status, 
+        latency, 
+        endpoint: url,
+        attempts: attempt 
+      };
     }
 
     const data = await response.json();
@@ -90,7 +85,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
         numeroProcesso: cnjLimpo, 
         movimentos: [], 
         error: false, 
-        message: "Não localizado no DataJud.",
+        message: "NOT_FOUND",
         httpStatus: 200,
         latency,
         endpoint: url,
@@ -112,22 +107,19 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     };
 
   } catch (e: any) {
+    const latency = Date.now() - startTime;
     const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
-    const isRetryable = !isTimeout && (e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network'));
-
-    if (isRetryable && attempt < maxAttempts) {
-      const waitTime = isFast ? 1000 : (1000 * Math.pow(2, attempt - 1));
-      await sleep(waitTime);
-      return fetchDataJud(cnj, attempt + 1, options);
-    }
+    
+    console.error(`[DATAJUD] [FAIL] ${cnjLimpo} | Error: ${e.message} | Time: ${latency}ms`);
 
     return { 
       numeroProcesso: cnjLimpo, 
       movimentos: [], 
       error: true, 
-      message: isTimeout ? "Tempo esgotado (Timeout)." : "Falha na comunicação.",
+      message: isTimeout ? "TIMEOUT_20S" : "NETWORK_ERROR",
       httpStatus: isTimeout ? 408 : 500,
       endpoint: url,
+      latency,
       attempts: attempt
     };
   }
