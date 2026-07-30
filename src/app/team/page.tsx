@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react';
 import { removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
-import { useAuth } from '@/components/auth/provider';
+import { useAuth } from '@/components/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -96,7 +97,6 @@ export default function TeamManagement() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Carrega dados de performance da empresa (bypass de isolamento para o ranking)
       const { users: usersData, cases: casesData } = await fetchTeamPerformanceAction();
       setUsers(usersData);
       setCases(casesData || []);
@@ -165,7 +165,6 @@ export default function TeamManagement() {
 
     const normalizeStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    // RANKING OPERACIONAL: Todos da empresa aparecem aqui
     const assRank = users.map(user => {
       const userNorm = normalizeStr(user.nome);
       const userCases = cases.filter(c => {
@@ -179,7 +178,6 @@ export default function TeamManagement() {
       };
     }).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
-    // RANKING DE BANCA: Advogados citados nos processos
     const uniqueLawyers = Array.from(new Set(cases.map(c => (c.advogado || '').trim()))).filter(n => n && n !== 'NÃO ATRIBUÍDO');
     
     const advRank = uniqueLawyers.map(lawyerName => {
@@ -308,7 +306,6 @@ export default function TeamManagement() {
           {viewMode === 'performance' && (
             <section className="space-y-12 pb-20 animate-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                {/* Ranking Operacional (Todos da Empresa) */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center rounded-lg shadow-lg"><ClipboardList size={20}/></div>
@@ -338,7 +335,6 @@ export default function TeamManagement() {
                    </div>
                 </div>
 
-                {/* Ranking de Banca */}
                 <div className="space-y-6">
                    <div className="flex items-center gap-3 border-b-2 border-black pb-4">
                       <div className="w-10 h-10 bg-black text-primary flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
@@ -419,12 +415,49 @@ export default function TeamManagement() {
                              <p className="text-[7px] font-mono opacity-40 uppercase tracking-widest">{p.protocolo}</p>
                           </div>
                        ))}
-                       {selectedAudit?.pontos && selectedAudit.pontos.length === 0 && (
-                         <p className="py-12 text-center opacity-30 uppercase font-black text-[10px]">Nenhum registro de movimentação de pontos.</p>
-                       )}
                     </div>
                  </ScrollArea>
               </div>
+           </DialogContent>
+        </Dialog>
+
+        <Dialog open={isNewUserOpen} onOpenChange={setIsNewUserOpen}>
+           <DialogContent className="sm:max-w-[450px] rounded-2xl border-none shadow-2xl">
+              <form onSubmit={handleAddUser}>
+                 <DialogHeader className="p-6 bg-secondary/20 border-b">
+                    <DialogTitle className="font-black uppercase tracking-tight">Provisionar Operador</DialogTitle>
+                 </DialogHeader>
+                 <div className="p-6 space-y-4">
+                    <div className="grid gap-2">
+                       <Label className="uppercase text-[9px] font-black">Nome Completo</Label>
+                       <Input value={userForm.nome} onChange={e => setUserForm({...userForm, nome: e.target.value})} className="rounded-xl" required />
+                    </div>
+                    <div className="grid gap-2">
+                       <Label className="uppercase text-[9px] font-black">E-mail</Label>
+                       <Input type="email" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} className="rounded-xl" required />
+                    </div>
+                    <div className="grid gap-2">
+                       <Label className="uppercase text-[9px] font-black">Cargo</Label>
+                       <Select value={userForm.cargo} onValueChange={(val: UserRole) => setUserForm({...userForm, cargo: val})}>
+                          <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                             <SelectItem value="Operador">Operador</SelectItem>
+                             <SelectItem value="Administrador">Administrador</SelectItem>
+                             <SelectItem value="Supervisor">Supervisor</SelectItem>
+                          </SelectContent>
+                       </Select>
+                    </div>
+                    <div className="grid gap-2">
+                       <Label className="uppercase text-[9px] font-black">Senha Inicial</Label>
+                       <Input type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} className="rounded-xl" required />
+                    </div>
+                 </div>
+                 <DialogFooter className="p-6 pt-0">
+                    <Button type="submit" disabled={isSaving} className="w-full h-12 bg-black text-white rounded-xl font-black uppercase">
+                       {isSaving ? <Loader2 className="animate-spin" /> : "Ativar Cadastro"}
+                    </Button>
+                 </DialogFooter>
+              </form>
            </DialogContent>
         </Dialog>
 

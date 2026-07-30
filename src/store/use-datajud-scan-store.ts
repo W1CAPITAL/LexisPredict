@@ -1,6 +1,7 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v1.8
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v1.9
  * Otimizado com RETRIES, BACKOFF, LOGS INFINITOS e DUPLA PASSAGEM DE RECUPERAÇÃO.
  */
 import { create } from 'zustand';
@@ -108,7 +109,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       errors: 0,
       logs: [{
         protocolo: 'SISTEMA',
-        status: 'success' as const,
+        status: 'success',
         message: `Fila iniciada: ${protocolos.length} processos (${scope.toUpperCase()}).`
       }]
     });
@@ -162,7 +163,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         if (failedQueue.length > 0 && !isSecondPass) {
           const pass2Logs: ScanLog[] = [{
             protocolo: 'SISTEMA',
-            status: 'warning' as const,
+            status: 'warning',
             message: `Passagem 1 concluída. Iniciando 2ª passagem para reprocessar ${failedQueue.length} falhas críticos.`
           }, ...get().logs];
 
@@ -185,8 +186,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     }
 
     const protocolo = queue[currentIndex];
-    
-    // Identificação de prioridade: casos "Sem Prazo" não realizam retry e não contam como erro de lote
     const targetCase = useAppStore.getState().cases.find(c => c.protocolo === protocolo);
     const isSemPrazo = targetCase?.status === 'Sem Prazo';
 
@@ -204,14 +203,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         set((state) => ({
            logs: [{
              protocolo: 'SISTEMA',
-             status: 'error' as const,
+             status: 'error',
              message: "SESSÃO EXPIRADA. PAUSADO PARA SEGURANÇA."
            }, ...state.logs]
         }));
         return;
       }
 
-      // Mensageria Neutra para processos "Sem Prazo" que falharem (evita ruído operacional)
       const displayMessage = (!result.success && isSemPrazo) 
         ? "Sem Prazo — Tribunal indisponível (Ignorado)" 
         : (result.message || "Auditado");
@@ -220,7 +218,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         ? (result.encerrado || result.alerta ? 'warning' : 'success') 
         : (isSemPrazo ? 'success' : 'error');
 
-      const newLogs: ScanLog[] = [{
+      const newLog: ScanLog = {
         protocolo: protocolo,
         status: logStatus,
         message: (isSecondPass ? "[P2] " : "") + displayMessage,
@@ -228,7 +226,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         encerrado: result.encerrado,
         attempts: result.attempts,
         isPass2: isSecondPass
-      }, ...get().logs];
+      };
+
+      const updatedLogs = [newLog, ...get().logs];
 
       let nextErrors = get().errors;
       let nextAlerts = get().alerts;
@@ -239,7 +239,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       if (!isSecondPass) {
         nextDone++;
         if (!result.success) {
-          // Apenas processos COM PRAZO incrementam o contador de erros e entram na fila de reprocessamento
           if (!isSemPrazo) {
             nextErrors++;
             nextFailedQueue.push(protocolo);
@@ -256,29 +255,27 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         }
       }
 
-      const newState = {
+      set({
         currentIndex: currentIndex + 1,
         done: nextDone,
         alerts: nextAlerts,
         closed: nextClosed,
         errors: nextErrors,
         failedQueue: nextFailedQueue,
-        logs: newLogs
-      };
-
-      set(newState);
+        logs: updatedLogs
+      });
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         queue: queue,
         failedQueue: nextFailedQueue,
         isSecondPass: isSecondPass,
-        currentIndex: newState.currentIndex,
+        currentIndex: currentIndex + 1,
         total: get().total,
-        done: newState.done,
-        alerts: newState.alerts,
-        closed: newState.closed,
-        errors: newState.errors,
-        logs: newLogs,
+        done: nextDone,
+        alerts: nextAlerts,
+        closed: nextClosed,
+        errors: nextErrors,
+        logs: updatedLogs,
         scope: get().scope,
         updatedAt: new Date().toISOString()
       }));
@@ -294,14 +291,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         failedQueue: nextFailedQueue,
         logs: [{
           protocolo,
-          status: (isSemPrazo ? 'success' : 'error') as const,
+          status: (isSemPrazo ? 'success' : 'error'),
           message: isSemPrazo ? "Sem Prazo — Falha de infraestrutura (Ignorada)" : "ERRO DE INFRAESTRUTURA."
         }, ...state.logs]
       }));
     }
 
-    const nextState = get();
-    if (nextState.status === 'running') {
+    if (get().status === 'running') {
       setTimeout(() => get().processNext(), 1500);
     }
   }

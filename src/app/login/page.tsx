@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -27,27 +28,27 @@ export default function LoginPage() {
   const router = useRouter();
   const logoAsset = PlaceHolderImages.find(img => img.id === 'app-logo');
 
-  // Redirecionamento Automático: Ativado apenas se Perfil + User estiverem prontos
+  // Redirecionamento e Válvula de Segurança
   useEffect(() => {
-    if (!authLoading && user && profile) {
-      router.replace('/');
-    }
-  }, [user, profile, authLoading, router]);
+    let safetyTimeout: NodeJS.Timeout;
 
-  if (!authLoading && user && profile) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-8 font-sans p-6 text-center animate-in fade-in duration-500">
-        <div className="w-20 h-20 bg-black text-white border-2 border-black flex items-center justify-center shadow-[12px_12px_0px_#00D1FF]">
-          <ShieldCheck size={40} className="text-[#00D1FF]" />
-        </div>
-        <div className="space-y-4">
-          <h1 className="text-2xl font-black uppercase tracking-tighter">Gabinete Aberto</h1>
-          <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Redirecionando para Mission Control...</p>
-        </div>
-        <Loader2 className="animate-spin text-black" size={32} />
-      </div>
-    );
-  }
+    if (!authLoading && user && profile) {
+      // Tentativa 1: Client-side routing
+      router.replace('/');
+      router.refresh();
+
+      // Tentativa 2: Válvula de segurança após 2.5s (Full Refresh)
+      // Resolve loops de middleware e descompasso de deploy
+      safetyTimeout = setTimeout(() => {
+        if (window.location.pathname === '/login') {
+          console.log("[Auth] Safety Valve: Forcing full page redirect...");
+          window.location.assign('/');
+        }
+      }, 2500);
+    }
+
+    return () => clearTimeout(safetyTimeout);
+  }, [user, profile, authLoading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +70,21 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!authLoading && user && profile) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-8 font-sans p-6 text-center animate-in fade-in duration-500">
+        <div className="w-20 h-20 bg-black text-white border-2 border-black flex items-center justify-center shadow-[12px_12px_0px_#00D1FF]">
+          <ShieldCheck size={40} className="text-[#00D1FF]" />
+        </div>
+        <div className="space-y-4">
+          <h1 className="text-2xl font-black uppercase tracking-tighter">Gabinete Aberto</h1>
+          <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Redirecionando para Mission Control...</p>
+        </div>
+        <Loader2 className="animate-spin text-black" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f3f2f2] p-6 font-sans text-black relative overflow-hidden">

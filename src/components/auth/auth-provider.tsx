@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -47,8 +48,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (profileData) {
         setProfile(profileData as UserProfile);
-        // Sincronia de cookie para o contexto do servidor
-        document.cookie = `lexis_user_email=${profileData.email.toLowerCase().trim()}; path=/; max-age=31536000; samesite=lax`;
+        // Sincronia de cookie para o contexto do servidor (Middleware e Server Actions)
+        const email = String(profileData.email).toLowerCase().trim();
+        document.cookie = `lexis_user_email=${email}; path=/; max-age=31536000; samesite=lax`;
         return profileData as UserProfile;
       }
       return null;
@@ -65,7 +67,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (initialized.current) return;
     initialized.current = true;
 
-    // Se o Supabase não estiver configurado, encerra o carregamento e não tenta acessar .auth
     if (!supabase) {
       setLoading(false);
       return;
@@ -82,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     });
 
-    // Listener de Mudanças
+    // Listener de Mudanças de Auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       const sessionUser = session?.user ?? null;
       setUser(sessionUser);
@@ -97,7 +98,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (sessionUser) {
         if (lastUserId.current !== sessionUser.id) {
-          loadProfile(sessionUser.id);
+          await loadProfile(sessionUser.id);
         } else {
           setLoading(false);
         }
