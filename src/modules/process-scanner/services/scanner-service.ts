@@ -1,6 +1,6 @@
 /**
- * @fileOverview Motor de Consolidação Híbrida v9.0 (DIAGNOSTICO PROFUNDO)
- * Unifica fontes MNI e DataJud com Watchdog de travamento e logs atômicos.
+ * @fileOverview Motor de Consolidação Híbrida v10.0 (COMPATIBILITY LAYER)
+ * Unifica fontes MNI e DataJud preservando métodos públicos originais.
  * @copyright 2026 W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -46,7 +46,6 @@ export class ScannerService {
   private async runWithWatchdog<T>(name: string, promise: Promise<T>, timeoutMs = 5000): Promise<T> {
     const timer = setTimeout(() => {
       console.warn(`\n[WATCHDOG] Etapa travada: ${name} | Tempo: >${timeoutMs}ms`);
-      console.warn(`[WATCHDOG] Verifique se a Promise está pendente ou se há erro de rede não capturado.`);
     }, timeoutMs);
     
     try {
@@ -61,7 +60,7 @@ export class ScannerService {
    */
   private async withTimeout<T>(promise: Promise<T>, timeoutMs = 20000): Promise<T> {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`TIMEOUT_20S: Operação excedeu o limite de segurança.`)), timeoutMs)
+      setTimeout(() => reject(new Error(`TIMEOUT_20S`)), timeoutMs)
     );
     return Promise.race([promise, timeoutPromise]);
   }
@@ -85,40 +84,38 @@ export class ScannerService {
     return Math.abs(hash).toString(16);
   }
 
+  /**
+   * Método Público de Compatibilidade
+   * Delegado para o ProviderManager interno (auditarProcesso)
+   */
+  async scanProcesso(cnj: string, empresaId?: string): Promise<AuditResult> {
+    console.log(`[MNI_COMPAT] Scan unitário solicitado: ${cnj}`);
+    return this.auditarProcesso(cnj);
+  }
+
   async auditarProcesso(cnj: string, lastAuditHash?: string | null): Promise<AuditResult> {
     const startTime = Date.now();
     const now = new Date();
-    
-    console.log(`\nProvider escolhido para ${cnj}`);
     const provider = this.getProvider(cnj);
 
     let resMNI: ProviderResponse | null = null;
     let resPublic: any = null;
 
     try {
-      console.log(`Iniciando consulta para ${cnj}`);
-      
-      // Execução com Watchdog (5s) e Timeout Global (20s)
       await this.withTimeout(
         this.runWithWatchdog(`FETCH_HYBRID_${cnj}`, (async () => {
-          [resMNI, resPublic] = await Promise.all([
-            provider.consultarProcesso(cnj).catch(e => ({ processo: null, httpStatus: 500, error: e.message, latency: 0, endpoint: 'MNI' })),
-            fetchDataJud(cnj, 1, { fast: true, timeoutMs: 15000 }).catch(e => ({ error: true, message: e.message, httpStatus: 500 }))
-          ]);
+          // Rito ProviderManager: Tenta MNI -> Se falhar, complementa com DataJud
+          resMNI = await provider.consultarProcesso(cnj).catch(() => ({ processo: null, httpStatus: 500, error: 'MNI_FAIL', latency: 0, endpoint: 'MNI' }));
+          resPublic = await fetchDataJud(cnj, 1, { fast: true, timeoutMs: 15000 }).catch(() => ({ error: true, httpStatus: 500 }));
         })())
       );
-
-      console.log(`Consulta finalizada para ${cnj}`);
     } catch (e: any) {
-      console.error(`Falha na consulta para ${cnj}: ${e.message}`);
       return this.buildFailureResult(cnj, null, { message: e.message, httpStatus: 408 });
     }
 
-    console.log(`Parser iniciado para ${cnj}`);
     const localizado = !!(resMNI?.processo || (resPublic && !resPublic.error && resPublic.movimentos?.length > 0));
     
     if (!localizado) {
-      console.log(`Parser finalizado (Não Localizado) para ${cnj}`);
       return this.buildFailureResult(cnj, resMNI, resPublic);
     }
 
@@ -130,12 +127,12 @@ export class ScannerService {
     })) || [];
 
     const allMovsMap = new Map();
-    [...movsMNI, ...movsPublic].forEach(m => {
+    [...movsMNI, ...movsPublic].forEach((m: any) => {
       const key = `${m.dataHora}|${m.descricao.substring(0, 30).toUpperCase()}`;
       if (!allMovsMap.has(key)) allMovsMap.set(key, m);
     });
 
-    const sortedMovs = Array.from(allMovsMap.values()).sort((a, b) => 
+    const sortedMovs = Array.from(allMovsMap.values()).sort((a: any, b: any) => 
       new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
     );
 
@@ -153,8 +150,6 @@ export class ScannerService {
       orgao: resPublic?.tribunal || resMNI?.processo?.orgao || 'N/A',
       ultimaAtualizacao: now.toISOString()
     };
-
-    console.log(`Parser finalizado com sucesso para ${cnj}`);
 
     return {
       cnj,
@@ -195,25 +190,18 @@ export class ScannerService {
         httpStatus: resPublic?.httpStatus || resMNI?.httpStatus || 404,
         endpoint: "ALL_SOURCES",
         source: 'HYBRID',
-        error: resPublic?.message || resMNI?.error || "Nenhuma fonte retornou dados."
+        error: resPublic?.message || resMNI?.error || "Falha na triagem"
       }
     };
   }
 
-  async scanLoteInteligente(casos: any[]) {
+  async scanLoteInteligente(casos: any[]): Promise<AuditResult[]> {
     const results: AuditResult[] = [];
-    let count = 1;
     for (const c of casos) {
-      console.log(`\nProcesso ${count} iniciado: ${c.protocolo}`);
       try {
         const res = await this.auditarProcesso(c.protocolo, c.metadata?.hash);
         results.push(res);
-        console.log(`Processo concluído: ${c.protocolo}`);
-      } catch (e) {
-        console.error(`Erro fatal no processo ${c.protocolo}:`, e);
-      } finally {
-        count++;
-      }
+      } catch (e) {}
     }
     return results;
   }
