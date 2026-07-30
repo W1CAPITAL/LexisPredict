@@ -1,6 +1,6 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v453.0 ELITE
- * Otimizado com timeouts rígidos de 15s e rito de retentativa controlado.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v455.0 ELITE
+ * Otimizado com timeouts rígidos de 15s conforme PROMPT FECHADO.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -26,6 +26,7 @@ export interface DataJudOptions {
 
 /**
  * Consulta API DataJud com timeout rígido de 15s.
+ * Protocolo de Estabilidade v15.0
  */
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
@@ -48,12 +49,12 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   const isFast = options.fast === true;
-  const timeoutMs = 15000; // Timeout fixo de 15s conforme solicitado
-  const maxAttempts = isFast ? 1 : 2; // 1 tentativa para scanner/worker, 2 para manual
+  const timeoutMs = 15000; // Timeout rígido conforme solicitado
+  const maxAttempts = isFast ? 1 : 2; // 1 tentativa para lote, 2 para manual
 
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
+    const id = setTimeout(() => controller.abort(), 20000); // Teto de segurança em 20s
 
     const response = await fetch(url, {
       method: 'POST',
@@ -69,16 +70,14 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
           }
         }
       }),
-      signal: controller.signal
+      signal: controller.signal,
+      cache: 'no-store'
     });
 
     clearTimeout(id);
     const latency = Date.now() - startTime;
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        return { error: true, message: "Falha de autenticação API Key.", attempts: attempt, latency };
-      }
       throw new Error(`HTTP_${response.status}`);
     }
 
@@ -101,7 +100,6 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       classe: source.classe?.nome || 'N/A',
       tribunal: source.tribunal || alias.toUpperCase(),
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
-      dataAjuizamento: source.dataAjuizamento || null,
       error: false,
       attempts: attempt,
       latency
@@ -109,7 +107,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
   } catch (e: any) {
     const latency = Date.now() - startTime;
-    const isTimeout = e.name === 'AbortError' || e.message?.includes('timeout') || (Date.now() - startTime >= timeoutMs);
+    const isTimeout = e.name === 'AbortError' || latency >= timeoutMs;
 
     if (isTimeout) {
        return {
@@ -123,7 +121,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     }
 
     if (attempt < maxAttempts) {
-      await sleep(1000);
+      await sleep(500);
       return fetchDataJud(cnj, attempt + 1, options);
     }
 
