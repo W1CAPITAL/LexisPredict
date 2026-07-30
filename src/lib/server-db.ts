@@ -8,7 +8,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v270.0 ELITE)
- * Governança de Visibilidade: Visão Master para cargos de Autoridade (Admin, Supervisor, Superadmin).
+ * Governança de Visibilidade: Visão Master restrita a Superadmin e Supervisor.
+ * Operadores e Administradores visualizam apenas seus próprios dados.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -42,7 +43,8 @@ export async function getUserContext() {
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
-  const isAdmin = cargo === 'Administrador';
+  // REGRA: Administrador NÃO possui visão master de processos. Apenas Supervisor e Superadmin.
+  const isMasterView = isSuperAdmin || isSupervisor; 
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -51,7 +53,7 @@ export async function getUserContext() {
     email: profile?.email || null,
     isSuperAdmin,
     isSupervisor,
-    isMasterView: isSuperAdmin || isSupervisor || isAdmin, // VISÃO MASTER CONSOLIDADA
+    isMasterView,
     weight: ROLE_WEIGHTS[cargo] || 0
   };
 }
@@ -81,8 +83,10 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
+      // APLICAÇÃO DO ISOLAMENTO DE DADOS
       if (!isAdmin) {
         const { auth_id, isMasterView } = await getUserContext();
+        // Se NÃO for Supervisor/Superadmin, filtra apenas o que ele criou
         if (!isMasterView && auth_id) {
           query = query.eq('created_by', auth_id);
         }
@@ -189,6 +193,8 @@ export async function listAllEmpresasSystem() {
 export async function getStoredNotes(): Promise<any[]> {
   const { auth_id, empresa_id, isMasterView } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
+  
+  // REGRA: Supervisor e Superadmin veem todas as notas da empresa
   const hasFullAccess = isMasterView === true;
 
   try {
@@ -198,7 +204,12 @@ export async function getStoredNotes(): Promise<any[]> {
     let hasMore = true;
     while (hasMore) {
       let query = supabase.from('notes').select('*').eq('empresa_id', empresa_id).order('created_at', { ascending: false }).range(page * pageSize, (page + 1) * pageSize - 1);
-      if (!hasFullAccess) query = query.eq('created_by', auth_id);
+      
+      // FILTRO DE ISOLAMENTO DE NOTAS
+      if (!hasFullAccess) {
+        query = query.eq('created_by', auth_id);
+      }
+      
       const { data, error } = await query;
       if (error) throw error;
       if (data && data.length > 0) {
