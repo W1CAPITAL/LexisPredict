@@ -73,7 +73,8 @@ export function DataJudScannerPanel() {
         setIsCloudLoading(true);
         try {
           const res = await runCloudWorkerAction();
-          if (res && res.success && res.processed > 0) {
+          // Mesmo se processed for 0, incrementamos ciclos para dar feedback visual de pulso
+          if (res && res.success) {
              setCloudStats(prev => ({ 
                success: prev.success + (res.successCount || 0), 
                batches: prev.batches + 1,
@@ -85,13 +86,17 @@ export function DataJudScannerPanel() {
         } finally {
           setIsCloudLoading(false);
           // Agenda o próximo pulso para 20 segundos
-          timer = setTimeout(executeCloudBatch, 20000);
+          if (isCloudActive) {
+            timer = setTimeout(executeCloudBatch, 20000);
+          }
         }
       };
       executeCloudBatch();
     }
 
-    return () => clearTimeout(timer);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [isCloudActive]);
 
   const handleStart = async (scope: ScanScope) => {
@@ -185,25 +190,30 @@ export function DataJudScannerPanel() {
            {isCloudActive ? (
              <div className="space-y-3 animate-in fade-in">
                 <div className="flex justify-between items-center text-[9px] font-black uppercase opacity-60">
-                   <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/> Sincronizando Repositório...</span>
-                   {isCloudLoading && <Loader2 className="animate-spin" size={10} />}
+                   <span className="flex items-center gap-1.5">
+                     {isCloudLoading ? (
+                       <span className="flex items-center gap-2"><Loader2 className="animate-spin text-primary" size={10} /> Processando Lote...</span>
+                     ) : (
+                       <span className="flex items-center gap-2"><Clock size={10} className="text-emerald-500 animate-pulse" /> Aguardando Próximo Pulso...</span>
+                     )}
+                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                   <div className="p-2 bg-white border border-black/5 text-center">
-                      <p className="text-[7px] font-black uppercase opacity-40">Auditados</p>
+                   <div className="p-2 bg-white border border-black/5 text-center shadow-sm">
+                      <p className="text-[7px] font-black uppercase opacity-40">Sucessos</p>
                       <p className="text-xs font-black text-emerald-600 tabular-nums">{cloudStats.success}</p>
                    </div>
-                   <div className="p-2 bg-white border border-black/5 text-center">
+                   <div className="p-2 bg-white border border-black/5 text-center shadow-sm">
                       <p className="text-[7px] font-black uppercase opacity-40">Ciclos</p>
                       <p className="text-xs font-black text-blue-600 tabular-nums">{cloudStats.batches}</p>
                    </div>
-                   <div className="p-2 bg-white border border-black/5 text-center">
+                   <div className="p-2 bg-white border border-black/5 text-center shadow-sm">
                       <p className="text-[7px] font-black uppercase opacity-40">Restante</p>
                       <p className="text-xs font-black text-slate-600 tabular-nums">~{cloudStats.estimate}</p>
                    </div>
                 </div>
                 <p className="text-[8px] font-bold uppercase text-black/40 italic leading-tight">
-                  Gatilho HTTP ativo. O Vercel registrará requisições POST para /api/datajud-worker enquanto esta aba estiver aberta.
+                  O sistema está auditando lotes residuais no servidor enquanto esta aba permanecer aberta.
                 </p>
              </div>
            ) : (
