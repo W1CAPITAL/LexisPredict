@@ -1,5 +1,5 @@
 /**
- * @fileOverview Interpretador Neural de Movimentações MNI v3.0
+ * @fileOverview Interpretador Neural de Movimentações MNI v4.0
  * Transforma dados brutos em informações resolutivas para o gabinete.
  * Classificação estrita conforme regras de Gabinete W1 Capital.
  */
@@ -37,15 +37,22 @@ export interface AIAnalysis {
 
 export class MovimentacaoAI {
   /**
-   * Detecta encerramento definitivo baseado em palavras-chave mandatórias.
+   * Detecta encerramento definitivo baseado em palavras-chave mandatórias de auditoria.
    */
   static detectarEncerramento(text: string): { encerrado: boolean; motivo: string | null } {
     const upper = text.toUpperCase();
     const termos = [
-      'TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO', 'BAIXA DEFINITIVA', 
-      'ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVAMENTO', 
-      'ARQUIVADO', 'EXTINTO', 'PROCESSO EXTINTO', 'CANCELAMENTO DA DISTRIBUIÇÃO', 
-      'REMESSA AO ARQUIVO', 'BAIXA', 'EXTINÇÃO'
+      'TRÂNSITO EM JULGADO', 
+      'BAIXA DEFINITIVA', 
+      'ARQUIVAMENTO', 
+      'PROCESSO ARQUIVADO', 
+      'EXTINTO', 
+      'EXTINÇÃO', 
+      'CANCELAMENTO DA DISTRIBUIÇÃO', 
+      'REMESSA AO ARQUIVO', 
+      'BAIXA',
+      'CUMPRIMENTO DE SENTENÇA ENCERRADO',
+      'EXECUÇÃO EXTINTA'
     ];
 
     const match = termos.find(t => upper.includes(t));
