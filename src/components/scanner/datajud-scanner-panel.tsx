@@ -54,7 +54,7 @@ export function DataJudScannerPanel() {
   
   // Cloud Worker Heartbeat
   const [isCloudActive, setIsCloudActive] = useState(false);
-  const [cloudStats, setCloudStats] = useState({ success: 0, batches: 0 });
+  const [cloudStats, setCloudStats] = useState({ success: 0, batches: 0, estimate: 0 });
   const [isCloudLoading, setIsCloudLoading] = useState(false);
 
   const { toast } = useToast();
@@ -73,12 +73,15 @@ export function DataJudScannerPanel() {
         setIsCloudLoading(true);
         try {
           const res = await runCloudWorkerAction();
-          if (res.success && res.processed > 0) {
+          if (res && res.success && res.processed > 0) {
              setCloudStats(prev => ({ 
                success: prev.success + (res.successCount || 0), 
-               batches: prev.batches + 1 
+               batches: prev.batches + 1,
+               estimate: res.remainingEstimate || 0
              }));
           }
+        } catch (e) {
+          console.warn("[Cloud Heartbeat] Falha de comunicação.");
         } finally {
           setIsCloudLoading(false);
           // Agenda o próximo pulso para 20 segundos
@@ -182,25 +185,29 @@ export function DataJudScannerPanel() {
            {isCloudActive ? (
              <div className="space-y-3 animate-in fade-in">
                 <div className="flex justify-between items-center text-[9px] font-black uppercase opacity-60">
-                   <span>Ativo em Nuvem</span>
+                   <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/> Sincronizando Repositório...</span>
                    {isCloudLoading && <Loader2 className="animate-spin" size={10} />}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                    <div className="p-2 bg-white border border-black/5 text-center">
-                      <p className="text-[7px] font-black uppercase opacity-40">Sucessos</p>
+                      <p className="text-[7px] font-black uppercase opacity-40">Auditados</p>
                       <p className="text-xs font-black text-emerald-600 tabular-nums">{cloudStats.success}</p>
                    </div>
                    <div className="p-2 bg-white border border-black/5 text-center">
                       <p className="text-[7px] font-black uppercase opacity-40">Ciclos</p>
                       <p className="text-xs font-black text-blue-600 tabular-nums">{cloudStats.batches}</p>
                    </div>
+                   <div className="p-2 bg-white border border-black/5 text-center">
+                      <p className="text-[7px] font-black uppercase opacity-40">Restante</p>
+                      <p className="text-xs font-black text-slate-600 tabular-nums">~{cloudStats.estimate}</p>
+                   </div>
                 </div>
                 <p className="text-[8px] font-bold uppercase text-black/40 italic leading-tight">
-                  O sistema está auditando lotes residuais em segundo plano enquanto esta aba permanecer aberta.
+                  Gatilho HTTP ativo. O Vercel registrará requisições POST para /api/datajud-worker enquanto esta aba estiver aberta.
                 </p>
              </div>
            ) : (
-             <p className="text-[9px] font-bold uppercase text-black/30">Motor de nuvem desativado. Ative para manter a auditoria contínua.</p>
+             <p className="text-[9px] font-bold uppercase text-black/30">Motor de nuvem desativado. Ative para manter a auditoria contínua via servidor.</p>
            )}
         </section>
 
@@ -230,14 +237,12 @@ export function DataJudScannerPanel() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Monitor de Saúde dos Tribunais */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Activity size={10} /> Saúde dos Tribunais</p>
                 <div className="flex gap-2">
                    <Badge className="bg-emerald-500 text-white border-none text-[7px] font-black">{healthStats.online} OK</Badge>
                    <Badge className="bg-orange-500 text-white border-none text-[7px] font-black">{healthStats.slow} LENTOS</Badge>
-                   {healthStats.offline > 0 && <Badge className="bg-red-500 text-white border-none text-[7px] font-black">{healthStats.offline} OFF</Badge>}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto pr-2">
