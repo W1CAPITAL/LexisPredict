@@ -1,7 +1,6 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v6.3 — PROTOCOLO DE ESTABILIDADE
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v6.4 — PROTOCOLO DE ESTABILIDADE
  * Concorrência limitada (2) e Gap de 400ms conforme PROMPT.
  */
 import { create } from 'zustand';
@@ -60,7 +59,6 @@ interface DataJudScanState {
   workerLoop: () => Promise<void>;
   loadProgress: () => void;
   updateCourtHealth: (courtId: string, latency: number, success: boolean) => void;
-  runInitialHealthCheck: (protocolos: string[]) => Promise<string[]>;
 }
 
 const STORAGE_KEY = 'lexis_datajud_scan_v1';
@@ -139,11 +137,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         }
       };
     });
-  },
-
-  runInitialHealthCheck: async (protocolos) => {
-    set({ logs: [{ protocolo: 'SISTEMA', status: 'success', message: 'Iniciando varredura estratégica...' }] });
-    return protocolos;
   },
 
   startScan: async (protocolos, scope) => {
