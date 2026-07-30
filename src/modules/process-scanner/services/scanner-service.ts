@@ -1,6 +1,6 @@
 /**
- * @fileOverview Motor de Consolidação Híbrida v11.0
- * Unificação definitiva de fontes com latência real e logs de auditoria.
+ * @fileOverview Motor de Consolidação Híbrida v12.0
+ * PRIORIDADE DATAJUD-FIRST: Resposta rápida garantida sem bloqueio pelo MNI.
  * @copyright 2026 W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -33,7 +33,7 @@ export interface AuditResult {
     latency: number;
     httpStatus: number;
     endpoint: string;
-    source: 'MNI' | 'DATAJUD' | 'HYBRID';
+    source: 'MNI' | 'DATAJUD' | 'HYBRID' | 'FALLBACK';
     error?: string;
   };
 }
@@ -42,15 +42,15 @@ export class ScannerService {
   
   private getProvider(cnj: string): IProcessProvider {
     const clean = cnj.replace(/\D/g, '');
-    if (clean.length < 16) return new CNJProvider();
-    const code = `${clean[13]}.${clean.substring(14, 16)}`;
+    const code = clean.length >= 16 ? `${clean[13]}.${clean.substring(14, 16)}` : "8.26";
+    
     if (code.startsWith('8.')) return new TJProvider();
     if (code.startsWith('4.')) return new TRFProvider();
     return new CNJProvider();
   }
 
   private generateHash(text: string, date: string): string {
-    const raw = `${text}|${date}`;
+    const raw = `${text || ''}|${date || ''}`;
     let hash = 0;
     for (let i = 0; i < raw.length; i++) {
       const char = raw.charCodeAt(i);
@@ -61,34 +61,53 @@ export class ScannerService {
   }
 
   /**
-   * Realiza a auditoria consolidada (DataJud + MNI).
+   * Realiza a auditoria com prioridade absoluta para DataJud (API Pública).
    */
   async auditarProcesso(cnj: string, lastAuditHash?: string | null): Promise<AuditResult> {
     const globalStartTime = Date.now();
     const now = new Date();
-    const provider = this.getProvider(cnj);
-
-    console.log(`[SCANNER] [START] Processando CNJ: ${cnj}`);
-
-    // 1. Consulta DataJud (Fonte Principal)
-    const resPublic = await fetchDataJud(cnj, 1, { fast: true, timeoutMs: 20000 });
     
-    // 2. Consulta MNI (Fonte Secundária/Auxiliar)
-    let resMNI: ProviderResponse | null = null;
-    if (resPublic.error || resPublic.message === 'NOT_FOUND') {
-       resMNI = await provider.consultarProcesso(cnj).catch(() => null);
+    // Fallback de Tribunal baseado no CNJ caso a API não retorne o nome
+    const cnjLimpo = cnj.replace(/\D/g, '');
+    const tribunalCode = cnjLimpo.length >= 16 ? `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}` : "N/A";
+
+    console.log(`[SCANNER] [INIT] ${cnj} | Prioridade: DataJud`);
+
+    // 1. TENTA DATAJUD (FONTE PRIMÁRIA VELOZ)
+    const resPublic = await fetchDataJud(cnj, 1, { fast: true, timeoutMs: 15000 });
+    
+    let baseData = null;
+    let sourceUsed: 'DATAJUD' | 'MNI' | 'FALLBACK' = 'DATAJUD';
+
+    if (!resPublic.error && resPublic.movimentos && resPublic.movimentos.length > 0) {
+      baseData = resPublic;
+    } else {
+      // 2. TENTA MNI APENAS SE DATAJUD FALHAR (FONTE SECUNDÁRIA)
+      console.log(`[SCANNER] [FALLBACK] ${cnj} -> Tentando MNI`);
+      const provider = this.getProvider(cnj);
+      const resMNI = await provider.consultarProcesso(cnj).catch(() => null);
+      
+      if (resMNI?.processo) {
+        baseData = {
+          numeroProcesso: resMNI.processo.numero,
+          classe: resMNI.processo.classe,
+          tribunal: resMNI.processo.orgao || "TJ",
+          movimentos: resMNI.processo.movimentos,
+          latency: resMNI.latency,
+          httpStatus: resMNI.httpStatus,
+          endpoint: resMNI.endpoint
+        };
+        sourceUsed = 'MNI';
+      }
     }
 
     const globalLatency = Date.now() - globalStartTime;
 
-    const localizado = !!((resPublic && !resPublic.error && resPublic.movimentos?.length > 0) || resMNI?.processo);
-    
-    if (!localizado) {
-      console.warn(`[SCANNER] [NOT_FOUND] ${cnj} | Total Time: ${globalLatency}ms`);
+    if (!baseData) {
       return {
         cnj,
         localizado: false,
-        tribunal: resPublic.tribunal || "N/A",
+        tribunal: tribunalCode,
         dataAuditoria: now.toISOString(),
         dataUltimoEvento: null,
         diasSemMovimentacao: 0,
@@ -100,67 +119,56 @@ export class ScannerService {
         debug: {
           latency: globalLatency,
           httpStatus: resPublic.httpStatus || 404,
-          endpoint: resPublic.endpoint || "CNJ_API",
-          source: 'DATAJUD',
+          endpoint: resPublic.endpoint || "N/A",
+          source: 'FALLBACK',
           error: resPublic.message || "NOT_FOUND"
         }
       };
     }
 
-    // Consolidação de Movimentações
-    const movsMNI = resMNI?.processo?.movimentos || [];
-    const movsPublic = resPublic?.movimentos?.map((m: any) => ({
-      codigo: m.codigo || "0",
-      descricao: m.nome || m.descricao,
-      dataHora: m.dataHora
-    })) || [];
-
-    const allMovsMap = new Map();
-    [...movsMNI, ...movsPublic].forEach((m: any) => {
-      const key = `${m.dataHora}|${m.descricao.substring(0, 30).toUpperCase()}`;
-      if (!allMovsMap.has(key)) allMovsMap.set(key, m);
-    });
-
-    const sortedMovs = Array.from(allMovsMap.values()).sort((a: any, b: any) => 
-      new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
+    // Saneamento de Movimentações para evitar erros de undefined
+    const movimentos = Array.isArray(baseData.movimentos) ? baseData.movimentos : [];
+    const sortedMovs = [...movimentos].sort((a: any, b: any) => 
+      new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
     );
 
-    const ultimaMov = sortedMovs[0];
-    const currentHash = this.generateHash(ultimaMov.descricao, ultimaMov.dataHora);
-    const daysIdle = differenceInDays(startOfDay(now), startOfDay(parseISO(ultimaMov.dataHora)));
+    const ultimaMov = sortedMovs[0] || { descricao: "SEM MOVIMENTAÇÃO", dataHora: now.toISOString() };
+    const descUltima = String(ultimaMov.descricao || (ultimaMov as any).nome || "Sem descrição").toUpperCase();
+    const dataUltima = ultimaMov.dataHora || now.toISOString();
+
+    const currentHash = this.generateHash(descUltima, dataUltima);
+    const daysIdle = dataUltima ? differenceInDays(startOfDay(now), startOfDay(parseISO(dataUltima))) : 0;
     
     const analysis = MovimentacaoAI.analisar(ultimaMov);
     const changeDetected = lastAuditHash && lastAuditHash !== currentHash;
 
-    console.log(`[SCANNER] [SUCCESS] ${cnj} | Category: ${analysis.categoria} | Change: ${changeDetected}`);
-
     return {
       cnj,
       localizado: true,
-      tribunal: resPublic.tribunal || resMNI?.processo?.orgao || "TJ",
+      tribunal: baseData.tribunal || tribunalCode,
       dataAuditoria: now.toISOString(),
-      dataUltimoEvento: ultimaMov.dataHora,
+      dataUltimoEvento: dataUltima,
       diasSemMovimentacao: daysIdle,
       mudancaDetectada: !!changeDetected,
       statusAuditoria: changeDetected ? 'Mudança Detectada' : 'Sem Evidências de Alteração',
       analysis,
       hash: currentHash,
       metadata: {
-        classe: resPublic.classe || resMNI?.processo?.classe || 'N/A',
-        orgao: resPublic.tribunal || resMNI?.processo?.orgao || 'N/A',
+        classe: baseData.classe || 'N/A',
+        orgao: baseData.tribunal || 'N/A',
         ultimaAtualizacao: now.toISOString()
       },
       debug: {
         latency: globalLatency,
-        httpStatus: resPublic.httpStatus || 200,
-        endpoint: resPublic.endpoint || "DATAJUD_API",
-        source: resMNI?.processo ? 'HYBRID' : 'DATAJUD'
+        httpStatus: baseData.httpStatus || 200,
+        endpoint: baseData.endpoint || "API_JUD",
+        source: sourceUsed
       }
     };
   }
 
   /**
-   * Método Público de Compatibilidade para chamadas individuais.
+   * Método Público de Compatibilidade.
    */
   async scanProcesso(cnj: string): Promise<AuditResult> {
     return this.auditarProcesso(cnj);
