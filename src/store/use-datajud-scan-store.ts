@@ -1,6 +1,6 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v420.0 - PERFORMANCE ELITE
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v460.0 - PERFORMANCE ELITE
  * Otimizado com busca atômica, gap reduzido e tipagem rigorosa.
  */
 import { create } from 'zustand';
@@ -10,7 +10,7 @@ import { useAppStore } from '@/store/use-app-store';
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanScope = 'resume' | 'critical' | 'full';
 
-const SCAN_GAP_MS = 500; 
+const SCAN_GAP_MS = 600; 
 
 interface ScanLog {
   protocolo: string;
@@ -188,6 +188,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     const protocolo = queue[currentIndex];
     
     try {
+      // Chamada atômica conforme rito v460.0
       const result = (await scanOneDataJudAction(protocolo, true)) as any;
 
       if (result.success && result.casePatch) {
