@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -77,15 +78,28 @@ export function DataJudScannerPanel() {
       return;
     }
 
-    // FILTRAGEM INTELIGENTE v400.0
-    // Ignora processos já encerrados/arquivados
+    // FILTRAGEM INTELIGENTE v500.0 - OTIMIZAÇÃO DE RECURSOS
     const activeCases = currentCases.filter(c => !isCasoEncerrado(c));
     let finalQueue: string[] = [];
 
     if (scope === 'resume') {
-       // Pula os que já possuem andamento identificado ou baixa no tribunal
+       const now = new Date().getTime();
+       const oneDayMs = 24 * 60 * 60 * 1000;
+
+       // RITO INTELIGENTE: Pula os que já possuem novidade não lida ou foram auditados nas últimas 24h
        finalQueue = activeCases
-         .filter(c => !c.datajud_encerrado_tribunal && !c.tem_atualizacao_pos_retorno)
+         .filter(c => {
+           // Se tem flag de atualização ou baixa, já está "atendido" pelo radar
+           if (c.datajud_encerrado_tribunal || c.tem_atualizacao_pos_retorno || c.indicio_busca_apreensao) return false;
+           
+           // Se foi consultado muito recentemente (24h), pula
+           if (c.datajud_consultado_em) {
+             const lastScan = new Date(c.datajud_consultado_em).getTime();
+             if (now - lastScan < oneDayMs) return false;
+           }
+
+           return true;
+         })
          .map(c => c.protocolo);
     } else if (scope === 'critical') {
        // Apenas os com status de alerta crítico
@@ -104,7 +118,8 @@ export function DataJudScannerPanel() {
     }
 
     if (finalQueue.length === 0) {
-      toast({ title: "Escopo Limpo", description: "Nenhum processo ativo pendente de auditoria.", variant: "destructive" });
+      const msg = scope === 'resume' ? "Toda a sua carteira já está auditada e atualizada." : "Nenhum processo pendente.";
+      toast({ title: "Escopo Limpo", description: msg });
       return;
     }
 
@@ -183,17 +198,22 @@ export function DataJudScannerPanel() {
                 </Button>
               )}
 
-              <Button onClick={() => handleStart('resume')} disabled={loadingCases || isClearing} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
+              <Button onClick={() => handleStart('resume')} disabled={loadingCases || isClearing} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
                 <PlayCircle size={16} className="mr-3 text-primary" /> Retomar Auditoria (Inteligente)
               </Button>
               
-              <Button onClick={handleRestartFull} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#22c55e] hover:shadow-none transition-all bg-emerald-50/30">
-                <RotateCcw size={16} className="mr-3 text-emerald-600" /> Varredura Lote Integral
+              <Button onClick={handleRestartFull} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#000] hover:shadow-none transition-all bg-white">
+                <RotateCcw size={16} className="mr-3" /> Varredura Lote Integral
               </Button>
 
               <div className="pt-4 border-t border-black/10 mt-2 space-y-2">
+                <div className="p-3 bg-secondary/20 rounded-sm mb-2">
+                   <p className="text-[8px] font-bold text-muted-foreground uppercase leading-relaxed">
+                     O modo inteligente pula processos com flags de atualização ativas ou auditados nas últimas 24h.
+                   </p>
+                </div>
                 <Button onClick={handleClearAudit} disabled={isClearing || loadingCases} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none hover:bg-red-50 hover:border-red-600 transition-all">
-                  {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />} Limpar Auditoria
+                  {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />} Limpar Alertas de Auditoria
                 </Button>
               </div>
             </div>
