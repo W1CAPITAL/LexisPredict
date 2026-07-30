@@ -7,7 +7,7 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v286.0 ELITE)
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v290.0 ELITE)
  * Governança de Visibilidade: Visão Master restrita a Superadmin e Supervisor.
  * Suporte a Workers de Sistema via Service Role para Auditoria em Background.
  */
@@ -20,9 +20,6 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Visualizador': 20
 };
 
-/**
- * Retorna o cliente administrativo (Service Role) para operações de background e bypass de RLS.
- */
 export async function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -126,12 +123,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   }
 }
 
-/**
- * Recupera processos pendentes de auditoria para uma empresa específica ou globalmente para o Worker.
- */
 export async function getGlobalPendingProcessesSystem(limit: number, empresaId?: string): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
-  
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
 
   let query = admin
@@ -147,10 +140,7 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId?:
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(limit);
 
-  if (error || !data) {
-    console.error("[Worker DB Fetch Error]", error?.message);
-    return [];
-  }
+  if (error || !data) return [];
 
   return data.map(item => processarCaso({
     ...(item.dados as any),
@@ -172,9 +162,6 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId?:
   }));
 }
 
-/**
- * Recupera métricas de auditoria para poling de status.
- */
 export async function getScanStatusMetrics(empresaId: string) {
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
@@ -202,18 +189,30 @@ export async function getScanStatusMetrics(empresaId: string) {
     .eq('empresa_id', empresaId)
     .eq('datajud_encerrado_tribunal', true);
 
+  // Recupera as últimas 5 atividades da nuvem para o log da UI
+  const { data: recent } = await admin
+    .from('processos')
+    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, datajud_ultimo_nome')
+    .eq('empresa_id', empresaId)
+    .order('datajud_consultado_em', { ascending: false })
+    .limit(5);
+
   return {
     total: total || 0,
     pending: pending || 0,
     alerts: alerts || 0,
     closed: closed || 0,
-    audited: (total || 0) - (pending || 0)
+    audited: (total || 0) - (pending || 0),
+    recentLogs: recent?.map(r => ({
+      protocolo: r.protocolo_ref,
+      message: r.datajud_encerrado_tribunal ? 'BAIXA NO TRIBUNAL' : r.tem_atualizacao_pos_retorno ? 'NOVA MOVIMENTAÇÃO' : 'Monitoramento Regular',
+      success: true,
+      type: r.datajud_encerrado_tribunal ? 'closed' : r.tem_atualizacao_pos_retorno ? 'update' : 'ok',
+      engine: 'Nuvem'
+    })) || []
   };
 }
 
-/**
- * Atualiza apenas os metadados DataJud de um processo (Merge Incremental).
- */
 export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   const admin = await getSupabaseAdmin();
   
@@ -293,7 +292,6 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
 
     return { success: true, message: "Sincronia concluída." };
   } catch (error: any) {
-    console.error("[DB SAVE ERROR]", error.message);
     return { success: false, message: error.message || "Erro desconhecido no repositório." };
   }
 }
