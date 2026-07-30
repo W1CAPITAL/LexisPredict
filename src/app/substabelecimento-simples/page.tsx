@@ -18,7 +18,8 @@ import {
   Edit3,
   Building2,
   User,
-  Zap
+  Zap,
+  MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from '@/lib/utils';
 
 export default function SubstabelecimentoSimplesPage() {
   const [loading, setLoading] = useState(false);
@@ -58,17 +60,33 @@ export default function SubstabelecimentoSimplesPage() {
         const diego = data.find(a => a.nome.toUpperCase().includes('DIEGO'));
         if (diego) setAdvEnteringId(diego.id);
         else setAdvEnteringId(data[0].id);
+        
+        // Define estado inicial baseado no primeiro advogado
+        const firstUF = Object.keys(data[0].oabs || {})[0] || 'SP';
+        setSelectedState(firstUF);
       }
     }
     load();
   }, []);
 
-  const handleSeal = async () => {
-    const advLeaving = banca.find(a => a.id === advLeavingId);
-    const advEntering = banca.find(a => a.id === advEnteringId);
+  const advLeaving = banca.find(a => a.id === advLeavingId);
+  const advEntering = banca.find(a => a.id === advEnteringId);
 
+  const oabLeaving = advLeaving?.oabs?.[selectedState] || "___.___";
+  const oabEntering = advEntering?.oabs?.[selectedState] || "___.___";
+
+  const handleSeal = async () => {
     if (!advLeaving || !advEntering || !numeroProcesso || !parteNome) {
       toast({ title: "Dados Incompletos", description: "Preencha todos os campos para selar o documento.", variant: "destructive" });
+      return;
+    }
+
+    if (oabLeaving === "___.___" || oabEntering === "___.___") {
+      toast({ 
+        title: "OAB não localizada", 
+        description: `Um dos advogados selecionados não possui OAB cadastrada para o estado ${selectedState}.`, 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -77,13 +95,13 @@ export default function SubstabelecimentoSimplesPage() {
       const payload = {
         substabelecente: {
           nome: advLeaving.nome,
-          oabCompleta: `OAB/${selectedState} sob o n.º ${advLeaving.oabs[selectedState] || Object.values(advLeaving.oabs)[0] || '___.___'}`,
-          oabCurta: `OAB/${selectedState} Nº ${advLeaving.oabs[selectedState] || Object.values(advLeaving.oabs)[0] || '___.___'}`
+          oabCompleta: `OAB/${selectedState} sob o n.º ${oabLeaving}`,
+          oabCurta: `OAB/${selectedState} Nº ${oabLeaving}`
         },
         substabelecido: {
           nome: advEntering.nome,
-          oabCompleta: `OAB/${selectedState} sob o n.º ${advEntering.oabs[selectedState] || Object.values(advEntering.oabs)[0] || '___.___'}`,
-          oabCurta: `OAB/${selectedState} Nº ${advEntering.oabs[selectedState] || Object.values(advEntering.oabs)[0] || '___.___'}`
+          oabCompleta: `OAB/${selectedState} sob o n.º ${oabEntering}`,
+          oabCurta: `OAB/${selectedState} Nº ${oabEntering}`
         },
         numeroProcesso,
         parteNome: parteNome.toUpperCase(),
@@ -128,7 +146,7 @@ export default function SubstabelecimentoSimplesPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   <div className="space-y-4">
                     <Label className="uppercase text-[10px] font-black flex items-center gap-2 text-black/40"><User size={12}/> Advogado Substabelecente</Label>
                     <Select value={advLeavingId} onValueChange={setAdvLeavingId}>
@@ -151,6 +169,19 @@ export default function SubstabelecimentoSimplesPage() {
                       <SelectContent className="bg-white border-2 border-black rounded-none">
                         {banca.map((adv) => (
                           <SelectItem key={adv.id} value={adv.id} className="font-black uppercase text-[10px]">{adv.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-4">
+                    <Label className="uppercase text-[10px] font-black flex items-center gap-2 text-black/40"><MapPin size={12}/> Estado (OAB)</Label>
+                    <Select value={selectedState} onValueChange={setSelectedState}>
+                      <SelectTrigger className="w-full border-2 border-black h-14 font-black uppercase text-xs rounded-none bg-[#f8f9fb]">
+                        <SelectValue placeholder="UF..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-2 border-black rounded-none">
+                        {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => (
+                          <SelectItem key={uf} value={uf} className="font-black uppercase text-[10px]">{uf}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -199,15 +230,23 @@ export default function SubstabelecimentoSimplesPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-[#f8f9fb] border-2 border-black border-dashed rounded-none">
-               <CardContent className="p-10 text-black/60 font-serif text-[11pt] leading-relaxed italic text-center">
-                  "Pelo presente instrumento, Dr. [Substabelecente], advogado regularmente inscrito na OAB/SP sob o nº 337.930, substabelece, SEM RESERVA DE PODERES, ao Dr. [Substabelecido], advogado inscrito na OAB/___ sob o nº ________, todos os poderes que lhe foram conferidos nos autos do processo nº [Processo], para que represente os interesses da parte [Parte]."
+            <Card className="bg-[#f8f9fb] border-2 border-black border-dashed rounded-none overflow-hidden">
+               <CardHeader className="bg-white border-b-2 border-black border-dashed py-2">
+                 <p className="text-[8px] font-black uppercase text-center tracking-widest">Preview Forense • UF Selecionada: {selectedState}</p>
+               </CardHeader>
+               <CardContent className="p-10 text-black/60 font-serif text-[11pt] leading-relaxed italic text-center space-y-4">
+                  <p>
+                    "Pelo presente instrumento, <span className="font-bold">Dr. {advLeaving?.nome || '[Cedente]'}</span>, advogado regularmente inscrito na <span className={cn("font-bold", oabLeaving === "___.___" && "text-red-600 underline")}>OAB/{selectedState} sob o n.º {oabLeaving}</span>, substabelece, SEM RESERVA DE PODERES, ao <span className="font-bold">Dr. {advEntering?.nome || '[Cessionário]'}</span>, advogado inscrito na <span className={cn("font-bold", oabEntering === "___.___" && "text-red-600 underline")}>OAB/{selectedState} sob o n.º {oabEntering}</span>, todos os poderes que lhe foram conferidos nos autos do processo nº {numeroProcesso || '[Processo]'}, para que represente os interesses da parte {parteNome || '[Parte]'}."
+                  </p>
+                  { (oabLeaving === "___.___" || oabEntering === "___.___") && (
+                    <p className="text-[9px] font-black uppercase text-red-600 not-italic">⚠ Atenção: Verifique o cadastro de OAB dos advogados para o estado {selectedState} em Configurações.</p>
+                  )}
                </CardContent>
             </Card>
           </div>
         </div>
 
-        <footer className="h-10 border-t border-[#dddbda] bg-white flex items-center justify-center gap-6 text-[10px] text-black/60 font-black uppercase tracking-[0.2em] shrink-0">
+        <footer className="h-10 border-t border-[#dddbda] bg-white flex items-center justify-center gap-6 text-[10px] text-black/60 font-black uppercase tracking-[0.2em] shrink-0 hover:bg-black hover:text-white transition-all cursor-default">
           <div className="flex items-center gap-2"><Zap size={10} className="text-primary" /> 2026 W1 Capital.</div>
           <span>Draft Simples • AUTHORITY SERIES</span>
         </footer>
