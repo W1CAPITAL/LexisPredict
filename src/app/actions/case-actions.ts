@@ -223,9 +223,13 @@ export async function runCloudWorkerAction() {
 
     // Protocolo de Descoberta de URL de Gabinete
     const h = await headers();
-    const host = h.get('host');
+    let host = h.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const baseUrl = `${protocol}://${host}`;
+    
+    // Suporte a Vercel URL para bypass de proxy local
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : `${protocol}://${host}`;
 
     const response = await fetch(`${baseUrl}/api/datajud-worker`, {
       method: 'POST',
@@ -233,12 +237,14 @@ export async function runCloudWorkerAction() {
         'Authorization': `Bearer ${secret}`,
         'Content-Type': 'application/json'
       },
-      cache: 'no-store'
+      cache: 'no-store',
+      // Sinaliza para o servidor que esta é uma chamada de pulso
+      next: { revalidate: 0 }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Worker HTTP ${response.status}: ${errorText}`);
+      return { success: false, error: `Worker HTTP ${response.status}: ${errorText}` };
     }
 
     return await response.json();
