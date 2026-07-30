@@ -19,7 +19,7 @@ import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { headers } from 'next/headers';
 
 /**
- * @fileOverview Actions de Processos v441.0 ELITE - Suporte a Gatilho de Nuvem
+ * @fileOverview Actions de Processos v442.0 ELITE - Suporte a Gatilho de Nuvem
  */
 
 export async function fetchRepoCases() {
@@ -244,7 +244,6 @@ export async function runCloudWorkerAction() {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
       return { success: false, error: `Worker HTTP ${response.status}` };
     }
 
