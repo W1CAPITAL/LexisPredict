@@ -1,6 +1,6 @@
 /**
- * @fileOverview Motor de Consolidação Híbrida v8.0 (OMNI-SCANNER)
- * Unifica fontes MNI (Intercomunicação) e DataJud Público para auditoria processual.
+ * @fileOverview Motor de Consolidação Híbrida v9.0 (DIAGNOSTICO PROFUNDO)
+ * Unifica fontes MNI e DataJud com Watchdog de travamento e logs atômicos.
  * @copyright 2026 W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -39,6 +39,33 @@ export interface AuditResult {
 }
 
 export class ScannerService {
+  
+  /**
+   * Watchdog Interno: Dispara log se a etapa demorar mais de 5 segundos.
+   */
+  private async runWithWatchdog<T>(name: string, promise: Promise<T>, timeoutMs = 5000): Promise<T> {
+    const timer = setTimeout(() => {
+      console.warn(`\n[WATCHDOG] Etapa travada: ${name} | Tempo: >${timeoutMs}ms`);
+      console.warn(`[WATCHDOG] Verifique se a Promise está pendente ou se há erro de rede não capturado.`);
+    }, timeoutMs);
+    
+    try {
+      return await promise;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Timeout Atômico Individual de 20 segundos por processo.
+   */
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs = 20000): Promise<T> {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`TIMEOUT_20S: Operação excedeu o limite de segurança.`)), timeoutMs)
+    );
+    return Promise.race([promise, timeoutPromise]);
+  }
+
   private getProvider(cnj: string): IProcessProvider {
     const clean = cnj.replace(/\D/g, '');
     const code = `${clean[13]}.${clean.substring(14, 16)}`;
@@ -58,35 +85,43 @@ export class ScannerService {
     return Math.abs(hash).toString(16);
   }
 
-  /**
-   * Realiza a auditoria consolidando dados do MNI e do DataJud Público.
-   */
   async auditarProcesso(cnj: string, lastAuditHash?: string | null): Promise<AuditResult> {
-    const provider = this.getProvider(cnj);
     const startTime = Date.now();
     const now = new Date();
     
+    console.log(`\nProvider escolhido para ${cnj}`);
+    const provider = this.getProvider(cnj);
+
     let resMNI: ProviderResponse | null = null;
     let resPublic: any = null;
 
-    // 1. Consulta Concorrente (Resiliência)
     try {
-      [resMNI, resPublic] = await Promise.all([
-        provider.consultarProcesso(cnj).catch(() => null),
-        fetchDataJud(cnj, 1, { fast: true, timeoutMs: 20000 }).catch(() => null)
-      ]);
-    } catch (e) {
-      console.warn("[Consolidador] Falha na consulta concorrente");
+      console.log(`Iniciando consulta para ${cnj}`);
+      
+      // Execução com Watchdog (5s) e Timeout Global (20s)
+      await this.withTimeout(
+        this.runWithWatchdog(`FETCH_HYBRID_${cnj}`, (async () => {
+          [resMNI, resPublic] = await Promise.all([
+            provider.consultarProcesso(cnj).catch(e => ({ processo: null, httpStatus: 500, error: e.message, latency: 0, endpoint: 'MNI' })),
+            fetchDataJud(cnj, 1, { fast: true, timeoutMs: 15000 }).catch(e => ({ error: true, message: e.message, httpStatus: 500 }))
+          ]);
+        })())
+      );
+
+      console.log(`Consulta finalizada para ${cnj}`);
+    } catch (e: any) {
+      console.error(`Falha na consulta para ${cnj}: ${e.message}`);
+      return this.buildFailureResult(cnj, null, { message: e.message, httpStatus: 408 });
     }
 
-    // 2. Motor de Consolidação de Dados
+    console.log(`Parser iniciado para ${cnj}`);
     const localizado = !!(resMNI?.processo || (resPublic && !resPublic.error && resPublic.movimentos?.length > 0));
     
     if (!localizado) {
+      console.log(`Parser finalizado (Não Localizado) para ${cnj}`);
       return this.buildFailureResult(cnj, resMNI, resPublic);
     }
 
-    // Unificação de Movimentações (MNI + Public)
     const movsMNI = resMNI?.processo?.movimentos || [];
     const movsPublic = resPublic?.movimentos?.map((m: any) => ({
       codigo: m.codigo || "0",
@@ -94,14 +129,12 @@ export class ScannerService {
       dataHora: m.dataHora
     })) || [];
 
-    // Deduplicação por data/hora e descrição básica para evitar ruído no merge
     const allMovsMap = new Map();
     [...movsMNI, ...movsPublic].forEach(m => {
       const key = `${m.dataHora}|${m.descricao.substring(0, 30).toUpperCase()}`;
       if (!allMovsMap.has(key)) allMovsMap.set(key, m);
     });
 
-    // Ordenação Cronológica DESC (Mais recente primeiro)
     const sortedMovs = Array.from(allMovsMap.values()).sort((a, b) => 
       new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
     );
@@ -113,7 +146,6 @@ export class ScannerService {
     const analysis = MovimentacaoAI.analisar(ultimaMov);
     const changeDetected = lastAuditHash !== currentHash;
 
-    // 3. Enriquecimento de Metadados
     const tribunal = resPublic?.tribunal || resMNI?.processo?.orgao || "TJ";
     const metadata = {
       classe: resPublic?.classe || resMNI?.processo?.classe || 'N/A',
@@ -121,6 +153,8 @@ export class ScannerService {
       orgao: resPublic?.tribunal || resMNI?.processo?.orgao || 'N/A',
       ultimaAtualizacao: now.toISOString()
     };
+
+    console.log(`Parser finalizado com sucesso para ${cnj}`);
 
     return {
       cnj,
@@ -168,9 +202,18 @@ export class ScannerService {
 
   async scanLoteInteligente(casos: any[]) {
     const results: AuditResult[] = [];
+    let count = 1;
     for (const c of casos) {
-      const res = await this.auditarProcesso(c.protocolo, c.metadata?.hash);
-      results.push(res);
+      console.log(`\nProcesso ${count} iniciado: ${c.protocolo}`);
+      try {
+        const res = await this.auditarProcesso(c.protocolo, c.metadata?.hash);
+        results.push(res);
+        console.log(`Processo concluído: ${c.protocolo}`);
+      } catch (e) {
+        console.error(`Erro fatal no processo ${c.protocolo}:`, e);
+      } finally {
+        count++;
+      }
     }
     return results;
   }
