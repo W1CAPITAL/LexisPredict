@@ -1,7 +1,7 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.4
- * Otimizado para rito industrial de merge e preservação de dados humanos.
+ * @fileOverview Worker de Auditoria Automática DataJud v1.5
+ * Otimizado com Guardião de Tempo para evitar 504 no Vercel.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -17,9 +17,9 @@ import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 export const dynamic = 'force-dynamic';
 
-// Configuração de Lote Estratégico (Pequeno para garantir resposta rápida ao navegador)
 const BATCH_SIZE = 10; 
-const CONCURRENCY = 2;
+const CONCURRENCY = 3;
+const MAX_RUNTIME_MS = 50000; // Limite de 50s para segurança do Vercel (limite total é 60s ou 300s)
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get('Authorization');
@@ -29,12 +29,10 @@ export async function POST(request: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  const start = Date.now();
   console.log(`[DataJud Worker] Lote Iniciado: ${new Date().toLocaleTimeString()}`);
 
   try {
-    const start = Date.now();
-    
-    // 2. Seleção de Fila por Carência
     const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
 
     if (casesToAudit.length === 0) {
@@ -50,8 +48,14 @@ export async function POST(request: Request) {
     let successCount = 0;
     let failedCount = 0;
 
-    // 3. Processamento Paralelo Limitado
+    // Processamento com Guardião de Tempo
     for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
+      // Verifica se ainda temos tempo seguro para continuar
+      if (Date.now() - start > MAX_RUNTIME_MS) {
+        console.warn("[DataJud Worker] Tempo limite atingido. Interrompendo lote parcialmente.");
+        break;
+      }
+
       const chunk = casesToAudit.slice(i, i + CONCURRENCY);
       await Promise.all(chunk.map(async (caseItem) => {
         const ok = await auditSingleProcess(caseItem);
@@ -59,7 +63,6 @@ export async function POST(request: Request) {
       }));
     }
 
-    // 4. Estimativa de Trabalho Restante (Query Rápida)
     const admin = await getSupabaseAdmin();
     const { count } = await admin
       .from('processos')
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
     
     return NextResponse.json({ 
       success: true,
-      processed: casesToAudit.length, 
+      processed: successCount + failedCount, 
       successCount, 
       failedCount,
       remainingEstimate: (count || 0),
@@ -95,8 +98,6 @@ async function auditSingleProcess(c: any): Promise<boolean> {
     const ba = analisarBuscaApreensao(dataJud);
     const newHash = gerarHashAuditoria(movimentos);
 
-    // O alerta de novidade só deve ser limpo se o processo for baixado.
-    // Caso contrário, se já houver novidade (true), mantemos true até o operador ler.
     let novoStatusNovidade = c.tem_atualizacao_pos_retorno || !!upd.alerta || newHash !== c.datajud_hash;
     if (enc.encerrado) novoStatusNovidade = false;
 
