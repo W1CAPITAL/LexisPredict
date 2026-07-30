@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -12,13 +11,12 @@ import {
   Loader2, 
   CheckCircle2, 
   Shield, 
-  ArrowRight,
   Printer,
   Edit3,
   User,
-  Zap,
+  FileText,
   MapPin,
-  FileText
+  Scale
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,11 +41,12 @@ export default function SubstabelecimentoSimplesPage() {
   const [loading, setLoading] = useState(false);
   const [banca, setBanca] = useState<any[]>([]);
   
-  // Estados Independentes conforme PROMPT
+  // Advogado Cedente (Sai)
   const [advLeavingId, setAdvLeavingId] = useState('');
   const [ufLeaving, setUfLeaving] = useState('SP');
   const [oabNumLeaving, setOabNumLeaving] = useState('');
   
+  // Advogado Substabelecido (Entra)
   const [advEnteringId, setAdvEnteringId] = useState('');
   const [ufEntering, setUfEntering] = useState('SP');
   const [oabNumEntering, setOabNumEntering] = useState('');
@@ -63,26 +62,25 @@ export default function SubstabelecimentoSimplesPage() {
       const data = await listAdvogadosBanca();
       setBanca(data);
       if (data.length > 0) {
-        // Cedente Default
+        // Inicialização Cedente
         const first = data[0];
         setAdvLeavingId(first.id);
-        const firstUF = Object.keys(first.oabs || {})[0] || 'SP';
-        setUfLeaving(firstUF);
-        setOabNumLeaving(first.oabs?.[firstUF] || '');
+        const fUF = Object.keys(first.oabs || {})[0] || 'SP';
+        setUfLeaving(fUF);
+        setOabNumLeaving(first.oabs?.[fUF] || '');
 
-        // Substabelecido Default (Tenta achar Diego ou pega o segundo)
+        // Inicialização Substabelecido
         const diego = data.find(a => a.nome.toUpperCase().includes('DIEGO'));
         const second = diego || (data[1] || data[0]);
         setAdvEnteringId(second.id);
-        const secUF = Object.keys(second.oabs || {})[0] || 'SP';
-        setUfEntering(secUF);
-        setOabNumEntering(second.oabs?.[secUF] || '');
+        const sUF = Object.keys(second.oabs || {})[0] || 'SP';
+        setUfEntering(sUF);
+        setOabNumEntering(second.oabs?.[sUF] || '');
       }
     }
     load();
   }, []);
 
-  // Sincronia Automática de OAB ao trocar Advogado ou UF (Cedente)
   const handleAdvLeavingChange = (id: string) => {
     setAdvLeavingId(id);
     const adv = banca.find(a => a.id === id);
@@ -101,7 +99,6 @@ export default function SubstabelecimentoSimplesPage() {
     }
   };
 
-  // Sincronia Automática de OAB ao trocar Advogado ou UF (Substabelecido)
   const handleAdvEnteringChange = (id: string) => {
     setAdvEnteringId(id);
     const adv = banca.find(a => a.id === id);
@@ -173,7 +170,7 @@ export default function SubstabelecimentoSimplesPage() {
             </div>
             <h1 className="font-black text-xl text-black uppercase tracking-tighter">Subst. Sem Reserva</h1>
           </div>
-          <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Padrão Executivo</Badge>
+          <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">OAB Dinâmica</Badge>
         </header>
 
         <div className="flex-1 overflow-auto p-4 lg:p-10 max-w-5xl mx-auto w-full pb-32">
@@ -185,7 +182,6 @@ export default function SubstabelecimentoSimplesPage() {
             </CardHeader>
             <CardContent className="p-8 space-y-10">
               
-              {/* ADVOGADO SUBSTABELECENTE (CEDENTE) */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b border-black/5 pb-2">
                   <Badge className="bg-black text-white rounded-none text-[8px] font-black uppercase">CEDENTE</Badge>
@@ -211,7 +207,7 @@ export default function SubstabelecimentoSimplesPage() {
                       <SelectTrigger className="border-2 border-black h-12 font-black uppercase text-xs rounded-none bg-[#f8f9fb]">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border-2 border-black rounded-none">
+                      <SelectContent className="bg-white border-2 border-black rounded-none max-h-60 overflow-auto">
                         {UFS.map(uf => <SelectItem key={uf} value={uf} className="font-black uppercase text-[10px]">{uf}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -223,7 +219,6 @@ export default function SubstabelecimentoSimplesPage() {
                 </div>
               </div>
 
-              {/* ADVOGADO SUBSTABELECIDO (QUEM RECEBE) */}
               <div className="space-y-6 pt-6 border-t-2 border-black/5">
                 <div className="flex items-center gap-2 border-b border-black/5 pb-2">
                   <Badge className="bg-primary text-black rounded-none text-[8px] font-black uppercase">SUBSTABELECIDO</Badge>
@@ -249,7 +244,7 @@ export default function SubstabelecimentoSimplesPage() {
                       <SelectTrigger className="border-2 border-black h-12 font-black uppercase text-xs rounded-none bg-[#f8f9fb]">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border-2 border-black rounded-none">
+                      <SelectContent className="bg-white border-2 border-black rounded-none max-h-60 overflow-auto">
                         {UFS.map(uf => <SelectItem key={uf} value={uf} className="font-black uppercase text-[10px]">{uf}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -261,7 +256,6 @@ export default function SubstabelecimentoSimplesPage() {
                 </div>
               </div>
 
-              {/* DADOS DO PROCESSO */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t-2 border-black/5">
                 <div className="space-y-2">
                   <Label className="text-[9px] font-black uppercase text-black/40">Número do Processo (CNJ)</Label>
@@ -269,7 +263,7 @@ export default function SubstabelecimentoSimplesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[9px] font-black uppercase text-black/40">Parte Representada (Cliente)</Label>
-                  <Input placeholder="NOME COMPLETO DO CLIENTE" value={parteNome} onChange={(e) => setParteNome(e.target.value.toUpperCase())} className="border-2 border-black h-12 font-black uppercase text-xs rounded-none bg-[#f8f9fb]" />
+                  <Input placeholder="NOME DO CLIENTE" value={parteNome} onChange={(e) => setParteNome(e.target.value.toUpperCase())} className="border-2 border-black h-12 font-black uppercase text-xs rounded-none bg-[#f8f9fb]" />
                 </div>
               </div>
 
@@ -290,14 +284,13 @@ export default function SubstabelecimentoSimplesPage() {
             </CardContent>
           </Card>
 
-          {/* PREVIEW DINÂMICO */}
           <Card className="bg-[#f8f9fb] border-2 border-black border-dashed rounded-none overflow-hidden mt-10">
             <CardHeader className="bg-white border-b-2 border-black border-dashed py-2">
               <p className="text-[8px] font-black uppercase text-center tracking-widest flex items-center justify-center gap-2">
-                <FileText size={10} /> Preview Forense v1.0
+                <FileText size={10} /> Preview Forense v1.1
               </p>
             </CardHeader>
-            <CardContent className="p-10 text-black/80 font-serif text-[11pt] leading-relaxed text-justify space-y-4">
+            <CardContent className="p-10 text-black/80 font-serif text-[11pt] leading-relaxed text-justify space-y-4 bg-white">
               <p className="text-center font-bold underline mb-8">SUBSTABELECIMENTO SEM RESERVA DE PODERES</p>
               <p>
                 Pelo presente instrumento, <span className="font-bold">Dr. {advLeaving?.nome || '[Cedente]'}</span>, advogado regularmente inscrito na <span className="font-bold">OAB/{ufLeaving} sob o n.º {oabNumLeaving || '________'}</span>, substabelece, <span className="font-bold">SEM RESERVA DE PODERES</span>, ao <span className="font-bold">Dr. {advEntering?.nome || '[Cessionário]'}</span>, advogado inscrito na <span className="font-bold">OAB/{ufEntering} sob o n.º {oabNumEntering || '________'}</span>, todos os poderes que lhe foram conferidos nos autos do processo nº <span className="font-bold">{numeroProcesso || '____________________'}</span>, para que represente os interesses da parte <span className="font-bold">{parteNome || '____________________'}</span>.
@@ -306,11 +299,6 @@ export default function SubstabelecimentoSimplesPage() {
             </CardContent>
           </Card>
         </div>
-
-        <footer className="h-10 border-t border-[#dddbda] bg-white flex items-center justify-center gap-6 text-[10px] text-black/60 font-black uppercase tracking-[0.2em] shrink-0">
-          <div className="flex items-center gap-2"><Zap size={10} className="text-primary" /> 2026 W1 Capital.</div>
-          <span>Authority Series • Draft Dynamic v1.0</span>
-        </footer>
       </main>
     </div>
   );
