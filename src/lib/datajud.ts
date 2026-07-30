@@ -1,7 +1,6 @@
-
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v3000.0 ELITE
- * Otimizado com timeouts ajustados para 40s e retry ágil para máxima fluidez de lote.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v400.0 ELITE
+ * Otimizado com Fast Mode para scanner em lote e Standard Mode para vereditos pontuais.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -21,7 +20,11 @@ async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): Promise<any> {
+export interface DataJudOptions {
+  fast?: boolean;
+}
+
+export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   
   if (cnjLimpo.length !== 20) {
@@ -35,13 +38,14 @@ export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): P
   }
 
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
-  let alias = COURT_ALIASES[aliasPart];
-  
-  if (!alias) {
-    alias = "tjsp";
-  }
+  let alias = COURT_ALIASES[aliasPart] || "tjsp";
 
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
+
+  // Configuração de Performance baseada no Modo (Lote vs Pontual)
+  const isFast = options.fast === true;
+  const timeoutMs = isFast ? 18000 : 45000;
+  const maxAttempts = isFast ? 2 : 3;
 
   try {
     const response = await fetch(url, {
@@ -58,8 +62,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): P
           }
         }
       }),
-      // Timeout ajustado para 40s conforme solicitado pelo gabinete
-      signal: AbortSignal.timeout(40000)
+      signal: AbortSignal.timeout(timeoutMs)
     });
 
     if (!response.ok) {
@@ -101,12 +104,11 @@ export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): P
     const isTimeout = e.name === 'AbortError' || e.name === 'TimeoutError' || e.message?.includes('timeout');
     const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
 
-    // Rito de Retry: Máximo 2 tentativas totais (1 inicial + 1 retry).
-    if (isRetryable && attempt < 2 && !noRetry) {
-      const waitTime = 1000 + (Math.random() * 300);
-      console.warn(`[DataJud] Falha T${attempt}. Retentando em ${Math.round(waitTime)}ms...`);
-      await sleep(waitTime);
-      return fetchDataJud(cnj, attempt + 1, noRetry);
+    if (isRetryable && attempt < maxAttempts) {
+      const waitTime = isFast ? 1000 : (1000 * Math.pow(2, attempt - 1));
+      const jitter = Math.random() * 300;
+      await sleep(waitTime + jitter);
+      return fetchDataJud(cnj, attempt + 1, options);
     }
 
     return { 
