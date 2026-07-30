@@ -1,3 +1,4 @@
+
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -29,12 +30,14 @@ import {
   Layers,
   Briefcase,
   History,
-  ExternalLink
+  ExternalLink,
+  Cpu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
+import { fetchMniStatsAction } from '@/app/actions/scanner-actions';
 import Link from 'next/link';
 import { getTranslation } from '@/lib/i18n';
 import { useAppStore } from '@/store/use-app-store';
@@ -46,11 +49,20 @@ import {
   Tooltip
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Dashboard() {
   const { cases, setCases, locale, sync, updateLastSync } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [mniStats, setMniStats] = useState<any>(null);
+  const [telemetrySource, setTelemetrySource] = useState<'datajud' | 'mni'>('datajud');
   const [iaInsights, setIaInsights] = useState<any>(null);
   const t = getTranslation(locale);
 
@@ -65,11 +77,15 @@ export default function Dashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const caseData = await fetchRepoCases();
+      const [caseData, mniData] = await Promise.all([
+        fetchRepoCases(),
+        fetchMniStatsAction()
+      ]);
       if (Array.isArray(caseData)) {
         setCases(caseData);
         updateLastSync();
       }
+      setMniStats(mniData);
     } finally {
       setLoading(false);
     }
@@ -90,14 +106,12 @@ export default function Dashboard() {
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
-    // Categorias de Status dos Ativos (SINCRO v360.0 - MOTOR ÚNICO)
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // Alertas DataJud - Uso de Truthy Casting (!!) para garantir detecção reativa instantânea
     const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
@@ -106,7 +120,6 @@ export default function Dashboard() {
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
     const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
    
-    // Índice de Risco Global
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
 
@@ -116,9 +129,6 @@ export default function Dashboard() {
     else if (riskScore > 60) { riskLabel = "ALTO"; riskColor = "text-orange-600"; }
     else if (riskScore > 40) { riskLabel = "ELEVADO"; riskColor = "text-yellow-600"; }
     else if (riskScore > 20) { riskLabel = "MODERADO"; riskColor = "text-amber-600"; }
-
-    const pctHoje = activeTotal > 0 ? Math.round((countHoje / activeTotal) * 100) : 0;
-    const pctVencidos = activeTotal > 0 ? Math.round((countVencido / activeTotal) * 100) : 0;
 
     const statusData = [
       { name: t.statusCritico, value: countVencido, color: '#ef4444' },
@@ -136,10 +146,12 @@ export default function Dashboard() {
       countAtencao, 
       countSaudavel, 
       countSemPrazo,
-      riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos,
+      riskScore, riskLabel, riskColor, statusData,
       countNovoAndamento, rateAndamento,
       countEncerradoTribunal, rateEncerrado,
-      countBA, rateBA
+      countBA, rateBA,
+      pctHoje: activeTotal > 0 ? Math.round((countHoje / activeTotal) * 100) : 0,
+      pctVencidos: activeTotal > 0 ? Math.round((countVencido / activeTotal) * 100) : 0
     };
   }, [cases, t]);
 
@@ -171,16 +183,11 @@ export default function Dashboard() {
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Gabinete Estratégico • W1 Capital</p>
           </div>
           <div className="flex items-center gap-4">
-            {(metrics.countNovoAndamento > 0 || metrics.countEncerradoTribunal > 0) && (
-              <Badge variant="destructive" className="animate-pulse h-8 px-4 rounded-xl font-black uppercase text-[10px] flex items-center gap-2">
-                <AlertCircle size={14} /> Auditoria do Tribunal Detectou Novidades
-              </Badge>
-            )}
             <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-secondary/50 px-3">
               {t.activeTelemetry}: {sync.lastSync ? new Date(sync.lastSync).toLocaleTimeString() : '...'}
             </Badge>
             <Button variant="outline" size="sm" asChild className="premium-card h-10 px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none">
-              <Link href="/report">
+              <Link href={telemetrySource === 'mni' ? "/report?source=mni" : "/report"}>
                 <FileDown size={16} className="mr-2" /> {t.audit}
               </Link>
             </Button>
@@ -191,68 +198,115 @@ export default function Dashboard() {
         </header>
 
         <div className="flex-1 overflow-auto p-10 space-y-10 max-w-[1600px] mx-auto w-full">
-          {/* TOP KPI CARDS */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
-            <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
-            <StatCard title="Novos Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} trend={`${metrics.rateAndamento}%`} trendUp={true} />
-            <StatCard title="Encerrados Tribunal" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color={metrics.countEncerradoTribunal > 0 ? "success" : "primary"} trend={`${metrics.rateEncerrado}%`} trendUp={true} />
+          {/* BLOCO DE TELEMETRIA INTELIGENTE DUAL */}
+          <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] group transition-all">
+             <div className="flex items-center justify-between mb-10 border-b border-white/10 pb-4">
+               <div className="flex items-center gap-6">
+                 <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
+                    <Cpu size={16} className="text-primary animate-pulse" /> Telemetria de Auditoria
+                 </h3>
+                 <Select value={telemetrySource} onValueChange={(val: any) => setTelemetrySource(val)}>
+                    <SelectTrigger className="w-[200px] bg-white/5 border-white/20 h-9 font-black uppercase text-[9px] rounded-none text-primary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black border-white/20 text-white rounded-none">
+                      <SelectItem value="datajud" className="text-[9px] font-black uppercase">DataJud (Vigilância)</SelectItem>
+                      <SelectItem value="mni" className="text-[9px] font-black uppercase">Motor MNI (Resolutivo)</SelectItem>
+                    </SelectContent>
+                 </Select>
+               </div>
+               <Badge className="bg-primary text-black font-black uppercase text-[8px] rounded-none px-3">
+                 {telemetrySource === 'datajud' ? 'Monitoramento DataJud v460.0' : 'Inteligência MNI v2.0'}
+               </Badge>
+             </div>
+             
+             {telemetrySource === 'datajud' ? (
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-10 animate-in fade-in duration-300">
+                  <div className="space-y-3">
+                     <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Andamentos não atendidos</p>
+                     <div className="flex items-baseline gap-4">
+                        <span className="text-4xl font-black tabular-nums tracking-tighter">
+                          {metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                        </span>
+                        <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
+                     </div>
+                  </div>
+                  <div className="space-y-3">
+                     <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Baixas no Tribunal</p>
+                     <div className="flex items-baseline gap-4">
+                        <span className="text-4xl font-black tabular-nums tracking-tighter">
+                          {metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                        </span>
+                        <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
+                     </div>
+                  </div>
+                  <div className="space-y-3">
+                     <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Busca e Apreensão</p>
+                     <div className="flex items-baseline gap-4">
+                        <span className="text-4xl font-black tabular-nums tracking-tighter">
+                          {metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                        </span>
+                        <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
+                     </div>
+                  </div>
+               </div>
+             ) : (
+               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 animate-in fade-in duration-300">
+                  <UtilityStat label="Sem Novidades" value={mniStats?.semAndamento || 0} color="text-white/40" />
+                  <UtilityStat label="Novos Andamentos" value={mniStats?.novoAndamento || 0} color="text-primary" highlight />
+                  <UtilityStat label="Encerrados" value={mniStats?.encerrados || 0} color="text-emerald-500" highlight />
+                  <UtilityStat label="Em Recurso" value={mniStats?.emRecurso || 0} color="text-blue-400" />
+                  <UtilityStat label="Novas Petições" value={mniStats?.peticao || 0} color="text-slate-400" />
+                  <UtilityStat label="Publicações" value={mniStats?.publicacao || 0} color="text-orange-300" />
+                  <UtilityStat label="Com Prazo" value={mniStats?.comPrazo || 0} color="text-red-500" highlight />
+               </div>
+             )}
+
+             <div className="mt-10 pt-6 border-t border-white/5 flex justify-between items-center">
+                <p className="text-[8px] font-bold uppercase text-white/20 tracking-widest">
+                  {telemetrySource === 'datajud' ? 'Base: DataJud Pública' : 'Base: MNI Intercomunicação Resolutiva'}
+                </p>
+                <Button asChild variant="ghost" className="h-8 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
+                   <Link href={telemetrySource === 'datajud' ? "/cases?filter=updated" : "/scanner-monitor"}>
+                     {telemetrySource === 'datajud' ? 'Auditar Vigilância' : 'Ver Monitor MNI'} <ArrowRight size={12} className="ml-2" />
+                   </Link>
+                </Button>
+             </div>
           </section>
-          
+
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
             <div className="xl:col-span-8 space-y-8">
-               {/* TELEMETRIA DATAJUD - BLOCO ÚNICO SINCRO v360.0 */}
-               <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] group transition-all">
-                  <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
-                    <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
-                       <Zap className="text-primary animate-pulse" size={16}/> Telemetria Forense (DataJud)
-                    </h3>
-                    <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Auditoria Ativa</Badge>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                     <div className="space-y-3">
-                        <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Andamentos Judiciais não atendidos</p>
-                        <div className="flex items-baseline gap-4">
-                           <span className="text-4xl font-black tabular-nums tracking-tighter">
-                             {metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
-                           </span>
-                           <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
-                        </div>
-                        <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                          Métrica de vigilância: processos com movimentos novos após o último contato.
-                        </p>
+               {/* INSIGHTS DE IA (EVIDÊNCIAS) */}
+               {iaInsights && (
+                 <section className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-500">
+                   <div className="premium-card p-6 border-l-4 border-l-emerald-500 space-y-4">
+                     <div className="flex items-center gap-2">
+                       <TrendingUp size={16} className="text-emerald-600" />
+                       <h4 className="text-[10px] font-black uppercase tracking-widest">Vantagens Técnicas</h4>
                      </div>
-                     <div className="space-y-3">
-                        <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Baixas identificadas no Tribunal</p>
-                        <div className="flex items-baseline gap-4">
-                           <span className="text-4xl font-black tabular-nums tracking-tighter">
-                             {metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
-                           </span>
-                           <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
-                        </div>
-                        <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                          Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.
-                        </p>
+                     <ul className="space-y-2">
+                       {iaInsights.pontosFortes?.slice(0, 3).map((p: string, i: number) => (
+                         <li key={i} className="text-[11px] font-bold uppercase text-foreground leading-tight flex items-start gap-2">
+                           <CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" /> {p}
+                         </li>
+                       ))}
+                     </ul>
+                   </div>
+                   <div className="premium-card p-6 border-l-4 border-l-red-500 space-y-4">
+                     <div className="flex items-center gap-2">
+                       <AlertTriangle size={16} className="text-red-600" />
+                       <h4 className="text-[10px] font-black uppercase tracking-widest">Riscos Detectados</h4>
                      </div>
-                     <div className="space-y-3">
-                        <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Indícios de Busca e Apreensão</p>
-                        <div className="flex items-baseline gap-4">
-                           <span className="text-4xl font-black tabular-nums tracking-tighter">
-                             {metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
-                           </span>
-                           <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
-                        </div>
-                        <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                          Riscos possessórios detectados via análise neural de movimentos e processos relacionados.
-                        </p>
-                     </div>
-                  </div>
-                  <div className="mt-8 pt-6 border-t border-white/5 flex justify-end">
-                    <Button asChild variant="ghost" className="h-8 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
-                       <Link href="/cases?filter=updated">Auditar Processos <ArrowRight size={12} className="ml-2" /></Link>
-                    </Button>
-                  </div>
-               </section>
+                     <ul className="space-y-2">
+                       {iaInsights.riscosDetectados?.slice(0, 3).map((r: string, i: number) => (
+                         <li key={i} className="text-[11px] font-bold uppercase text-foreground leading-tight flex items-start gap-2">
+                           <AlertCircle size={12} className="text-red-500 shrink-0 mt-0.5" /> {r}
+                         </li>
+                       ))}
+                     </ul>
+                   </div>
+                 </section>
+               )}
 
                {/* FILA DE PRIORIDADE */}
                <section className="premium-card overflow-hidden">
@@ -345,9 +399,6 @@ export default function Dashboard() {
                     <DashboardKpiMini label="Processos Vencidos" value={metrics.countVencido} icon={<AlertTriangle size={12}/>} color="text-red-600" />
                     <DashboardKpiMini label="Casos Saudáveis" value={metrics.countSaudavel} icon={<CheckCircle2 size={12}/>} color="text-emerald-600" />
                     <DashboardKpiMini label="Vencem Hoje" value={metrics.countHoje} icon={<Clock size={12}/>} color="text-orange-600" />
-                    <div className="col-span-2">
-                      <DashboardKpiMini label="Carteira Total (Escopo)" value={metrics.totalRepo} icon={<Briefcase size={12}/>} color="text-slate-500" />
-                    </div>
                   </div>
                </section>
 
@@ -366,37 +417,6 @@ export default function Dashboard() {
                     <div className="pt-4 border-t border-border/30">
                       <StatusPillDashboard label="Ativos Totais" count={metrics.activeTotal} total={metrics.totalRepo} color="bg-black" isTotalBase />
                     </div>
-                  </div>
-               </section>
-
-               {/* GRÁFICO DE STATUS */}
-               <section className="premium-card p-8 h-[380px] flex flex-col">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-10">Proporção de Ativos</h3>
-                  <div className="flex-1 min-h-0">
-                    {metrics.statusData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={metrics.statusData} innerRadius={70} outerRadius={100} paddingAngle={8} dataKey="value" stroke="none">
-                            {metrics.statusData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ 
-                              borderRadius: '12px', 
-                              border: '1px solid #e2e8f0', 
-                              textTransform: 'uppercase', 
-                              fontSize: '10px', 
-                              fontWeight: '900', 
-                              backgroundColor: '#ffffff', 
-                              color: '#0a0a0a' 
-                            }} 
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados operacionais</p>
-                    )}
                   </div>
                </section>
 
@@ -421,6 +441,15 @@ export default function Dashboard() {
           <span>Advanced Monitoring • Davi Alves Figueredo</span>
         </footer>
       </main>
+    </div>
+  );
+}
+
+function UtilityStat({ label, value, color, highlight }: { label: string, value: number, color: string, highlight?: boolean }) {
+  return (
+    <div className={cn("space-y-1 transition-opacity", highlight ? "opacity-100" : "opacity-60")}>
+       <p className="text-[8px] font-black uppercase tracking-widest text-white/40">{label}</p>
+       <p className={cn("text-2xl font-black tabular-nums", color)}>{value}</p>
     </div>
   );
 }
