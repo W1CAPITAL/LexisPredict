@@ -127,20 +127,24 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 }
 
 /**
- * Recupera processos pendentes de auditoria em todo o sistema para o Worker.
+ * Recupera processos pendentes de auditoria para uma empresa específica ou globalmente para o Worker.
  * Exclui processos encerrados ou arquivados.
- * Prioriza: 1. Nunca consultados | 2. Mais antigos
  */
-export async function getGlobalPendingProcessesSystem(limit: number): Promise<LegalCase[]> {
+export async function getGlobalPendingProcessesSystem(limit: number, empresaId?: string): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
   
-  // Lista de status que bloqueiam a auditoria automática (Case Insensitive handled by Supabase filter)
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
 
-  const { data, error } = await admin
+  let query = admin
     .from('processos')
     .select('*')
-    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`)
+    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`);
+
+  if (empresaId) {
+    query = query.eq('empresa_id', empresaId);
+  }
+
+  const { data, error } = await query
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(limit);
 
