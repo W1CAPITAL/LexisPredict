@@ -1,153 +1,40 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
  */
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useDataJudScanStore, ScanScope } from '@/store/use-datajud-scan-store';
-import { useAppStore } from '@/store/use-app-store';
-import { isCasoEncerrado } from '@/lib/status-encerrado';
-import { isCNJ } from '@/lib/utils';
+import React, { useMemo } from 'react';
+import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
 import { 
   Zap, 
   X, 
   Play, 
   Pause, 
-  Square, 
   ChevronDown, 
   Loader2, 
-  CheckCircle2, 
-  History,
-  Gavel,
+  Activity, 
+  ShieldCheck, 
+  Clock, 
+  CloudLightning,
   AlertTriangle,
-  PlayCircle,
-  ArrowRightCircle,
-  Trash2,
-  RotateCcw,
-  Activity,
-  ShieldCheck,
-  Clock,
-  CloudLightning
+  Gavel,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, clearDataJudAuditAction, runCloudWorkerAction } from '@/app/actions/case-actions';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 
-/**
- * Painel de Controle de Auditoria DataJud v6.7
- * Sincronizado com Protocolo de Estabilidade v15.0
- */
 export function DataJudScannerPanel() {
   const { 
-    status, total, done, alerts, closed, errors, logs, queue, currentIndex, courtHealthMap,
-    isMinimized, toggleMinimize, startScan, pauseScan, resumeScan, resumeInterruptedScan, cancelScan, resetScan, loadProgress 
+    status, total, done, alerts, closed, pending,
+    isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, resetScan 
   } = useDataJudScanStore();
   
-  const { cases } = useAppStore();
-  const [loadingCases, setLoadingCases] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  
-  // Cloud Worker Heartbeat
-  const [isCloudActive, setIsCloudActive] = useState(false);
-  const [cloudStats, setCloudStats] = useState({ success: 0, batches: 0, estimate: 0 });
-  const [isCloudLoading, setIsCloudLoading] = useState(false);
-
-  const { toast } = useToast();
-
-  useEffect(() => {
-    loadProgress();
-  }, [loadProgress]);
-
-  // Heartbeat do Motor de Nuvem (Efeito de Loop Assíncrono)
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-
-    if (isCloudActive) {
-      const executeCloudBatch = async () => {
-        if (!isCloudActive) return;
-        setIsCloudLoading(true);
-        
-        try {
-          const res = await runCloudWorkerAction();
-          if (res && res.success) {
-             setCloudStats(prev => ({ 
-               ...prev,
-               success: prev.success + (res.successCount || 0), 
-               batches: prev.batches + 1,
-               estimate: res.remainingEstimate || 0
-             }));
-          }
-        } catch (e) {
-          console.warn("[Cloud Heartbeat] Falha de pulso.");
-        } finally {
-          setIsCloudLoading(false);
-          if (isCloudActive) {
-            timer = setTimeout(executeCloudBatch, 45000); 
-          }
-        }
-      };
-      
-      executeCloudBatch();
-    }
-
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isCloudActive]);
-
-  const handleStart = async (scope: ScanScope) => {
-    setLoadingCases(true);
-    try {
-      const currentCases = cases.length > 0 ? cases : await fetchRepoCases();
-      if (!currentCases || currentCases.length === 0) {
-        toast({ title: "Carteira Vazia", description: "Não localizamos processos para auditar.", variant: "destructive" });
-        return;
-      }
-
-      const validCases = currentCases.filter(c => isCNJ(c.protocolo) && !isCasoEncerrado(c));
-      const uniqueMap = new Map();
-      validCases.forEach(c => uniqueMap.set(c.protocolo, c));
-      const pool = Array.from(uniqueMap.values()) as any[];
-
-      let finalQueue: string[] = [];
-      if (scope === 'resume') {
-        finalQueue = pool
-          .filter(c => !c.datajud_ultimo_nome && !c.tem_atualizacao_pos_retorno)
-          .map(c => c.protocolo);
-      } else {
-        finalQueue = pool.map(c => c.protocolo);
-      }
-
-      if (finalQueue.length === 0) {
-        toast({ title: "Fila Limpa", description: "Todos os registros já possuem dados recentes." });
-        return;
-      }
-
-      await startScan(finalQueue, scope);
-      toast({ title: "Varredura Manual Iniciada" });
-
-    } catch (e) {
-      toast({ title: "Falha técnica", variant: "destructive" });
-    } finally {
-      setLoadingCases(false);
-    }
-  };
-
-  const healthStats = useMemo(() => {
-    const list = Object.values(courtHealthMap);
-    return {
-      online: list.filter(h => h.status === 'online').length,
-      slow: list.filter(h => h.status === 'slow').length,
-      offline: list.filter(h => h.status === 'offline').length
-    };
-  }, [courtHealthMap]);
+  const pct = Math.round((done / (total || 1)) * 100);
 
   if (isMinimized && status === 'idle') return null;
 
@@ -158,7 +45,7 @@ export function DataJudScannerPanel() {
           <div className="relative">
             <Zap className={cn("text-primary", status === 'running' && "animate-pulse")} />
             <span className="absolute -top-4 -right-4 bg-primary text-black text-[9px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-black">
-              {Math.round((done / (total || 1)) * 100)}%
+              {pct}%
             </span>
           </div>
         </Button>
@@ -170,8 +57,8 @@ export function DataJudScannerPanel() {
     <div className={cn("fixed bottom-6 right-6 z-[200] w-[420px] bg-white border-2 border-black shadow-[20px_20px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col max-h-[90vh]")}>
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black shrink-0">
         <div className="flex items-center gap-3">
-          <Zap size={18} className={cn("text-primary", (status === 'running' || isCloudLoading) && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v6.7</h3>
+          <Zap size={18} className={cn("text-primary", status === 'running' && "animate-pulse")} />
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v7.0</h3>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -181,166 +68,89 @@ export function DataJudScannerPanel() {
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-8">
-          {/* MOTOR DE NUVEM */}
-          <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-4">
-             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                   <CloudLightning className={cn("text-primary", isCloudActive && "animate-pulse")} size={16} />
-                   <Label className="text-[10px] font-black uppercase">Auditoria em Nuvem 24h</Label>
-                </div>
-                <Switch checked={isCloudActive} onCheckedChange={(val) => {
-                  setIsCloudActive(val);
-                  if (val) setCloudStats({ success: 0, batches: 0, estimate: 0 });
-                }} />
+          <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-6">
+             <div className="flex items-center gap-2">
+                <CloudLightning className={cn("text-primary", status === 'running' && "animate-pulse")} size={16} />
+                <p className="text-[10px] font-black uppercase">Auditoria Assíncrona 24h</p>
              </div>
              
-             {isCloudActive ? (
-               <div className="space-y-4 animate-in fade-in">
-                  <div className="flex justify-between items-center text-[9px] font-black uppercase opacity-60">
-                     {isCloudLoading ? (
-                       <span className="flex items-center gap-2"><Loader2 className="animate-spin text-primary" size={10} /> Processando Lote...</span>
-                     ) : (
-                       <span className="flex items-center gap-2"><Clock size={10} className="text-emerald-500 animate-pulse" /> Sincronia Estável</span>
-                     )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                     <div className="p-2 bg-white border border-black/5 text-center shadow-sm">
-                        <p className="text-[7px] font-black uppercase opacity-40">Sucessos</p>
-                        <p className="text-xs font-black text-emerald-600 tabular-nums">{cloudStats.success}</p>
-                     </div>
-                     <div className="p-2 bg-white border border-black/5 text-center shadow-sm">
-                        <p className="text-[7px] font-black uppercase opacity-40">Ciclos</p>
-                        <p className="text-xs font-black text-blue-600 tabular-nums">{cloudStats.batches}</p>
-                     </div>
-                     <div className="p-2 bg-white border border-black/5 text-center shadow-sm">
-                        <p className="text-[7px] font-black uppercase opacity-40">Restante</p>
-                        <p className="text-xs font-black text-slate-600 tabular-nums">~{cloudStats.estimate}</p>
-                     </div>
-                  </div>
+             {status === 'idle' ? (
+               <div className="space-y-4">
+                  <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
+                    O sistema auditará sua carteira em micro-lotes via servidor, evitando timeouts e sobrecarga. 
+                    Recomendado para sincronia global.
+                  </p>
+                  <Button onClick={startCloudScan} className="w-full h-12 bg-black text-white font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
+                    Ativar Ciclo de Auditoria
+                  </Button>
                </div>
              ) : (
-               <p className="text-[9px] font-bold uppercase text-black/30">O sistema está auditando lotes residuais no servidor enquanto esta aba permanecer aberta.</p>
+               <div className="space-y-6 animate-in fade-in">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-[9px] font-black uppercase text-black/40">Progresso Geral</p>
+                        <p className="text-xl font-black tabular-nums">{done} / {total}</p>
+                      </div>
+                      <Badge className={cn("font-black uppercase text-[8px] rounded-none px-2", status === 'running' ? "bg-emerald-50 text-emerald-600" : "bg-primary")}>
+                        {status === 'running' ? 'Sincronizando...' : 'Concluído'}
+                      </Badge>
+                    </div>
+                    <Progress value={pct} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2 border-2 border-black bg-emerald-50 text-center">
+                      <p className="text-[7px] font-black uppercase text-emerald-800/40">Baixas</p>
+                      <p className="text-sm font-black text-emerald-600 tabular-nums">{closed}</p>
+                    </div>
+                    <div className="p-2 border-2 border-black bg-blue-50 text-center">
+                      <p className="text-[7px] font-black uppercase text-blue-800/40">Alertas</p>
+                      <p className="text-sm font-black text-blue-600 tabular-nums">{alerts}</p>
+                    </div>
+                    <div className="p-2 border-2 border-black bg-slate-50 text-center">
+                      <p className="text-[7px] font-black uppercase text-slate-800/40">Fila</p>
+                      <p className="text-sm font-black text-slate-600 tabular-nums">{pending}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {status === 'running' ? (
+                      <Button variant="outline" onClick={pauseCloudScan} className="flex-1 border-2 border-black rounded-none font-black text-[9px] uppercase"><Pause size={12} className="mr-2" /> Pausar Polling</Button>
+                    ) : (
+                      <Button onClick={startCloudScan} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase"><Play size={12} className="mr-2" /> Retomar</Button>
+                    )}
+                  </div>
+               </div>
              )}
           </section>
 
-          {/* MOTOR MANUAL */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-2">
-               <Activity size={16} className="text-black/40" />
-               <Label className="text-[10px] font-black uppercase">Scanner Manual (Navegador)</Label>
-            </div>
-
-            {status === 'idle' ? (
-              <div className="grid grid-cols-1 gap-3">
-                {queue.length > 0 && currentIndex < queue.length && (
-                  <Button onClick={resumeInterruptedScan} className="h-14 bg-emerald-600 text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none">
-                    <ArrowRightCircle size={18} className="mr-3" /> Retomar Auditoria (Smart Skip)
-                  </Button>
-                )}
-
-                <Button onClick={() => handleStart('resume')} disabled={loadingCases} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none">
-                  <PlayCircle size={16} className="mr-3 text-primary" /> Varredura Inteligente
-                </Button>
-                
-                <div className="pt-4 border-t border-black/10">
-                  <Button onClick={async () => { if(confirm('Resetar todas as assinaturas?')) { setIsClearing(true); await clearDataJudAuditAction(); setIsClearing(false); resetScan(); } }} disabled={isClearing} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none">
-                    <Trash2 size={14} className="mr-2" /> Limpar Histórico de Sincronia
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6 animate-in slide-in-from-top-2">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <p className="text-[9px] font-black uppercase text-black/40">Progresso Manual</p>
-                      <p className="text-xl font-black tabular-nums">{done} / {total}</p>
-                    </div>
-                    <Badge className={cn("font-black uppercase text-[8px] rounded-none px-2", status === 'running' ? "bg-emerald-50 text-emerald-600" : "bg-primary")}>
-                      {status === 'running' ? 'Auditando...' : 'Concluído'}
-                    </Badge>
-                  </div>
-                  <Progress value={(done / (total || 1)) * 100} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="p-2 border-2 border-black bg-emerald-50 text-center">
-                    <p className="text-[7px] font-black uppercase text-emerald-800/40">Baixas</p>
-                    <p className="text-sm font-black text-emerald-600 tabular-nums">{closed}</p>
-                  </div>
-                  <div className="p-2 border-2 border-black bg-blue-50 text-center">
-                    <p className="text-[7px] font-black uppercase text-blue-800/40">Alertas</p>
-                    <p className="text-sm font-black text-blue-600 tabular-nums">{alerts}</p>
-                  </div>
-                  <div className="p-2 border-2 border-black bg-red-50 text-center">
-                    <p className="text-[7px] font-black uppercase text-red-800/40">Falhas</p>
-                    <p className="text-sm font-black text-red-600 tabular-nums">{errors}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {status === 'running' ? (
-                    <Button variant="outline" onClick={pauseScan} className="flex-1 border-2 border-black rounded-none font-black text-[9px] uppercase"><Pause size={12} className="mr-2" /> Pausar</Button>
-                  ) : status === 'paused' ? (
-                    <Button onClick={resumeScan} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase"><Play size={12} className="mr-2" /> Retomar</Button>
-                  ) : null}
-                  
-                  {status === 'done' && (
-                    <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase">Finalizar Sessão</Button>
-                  )}
-                </div>
-              </div>
-            )}
+          <section className="space-y-4">
+             <div className="flex items-center gap-2 opacity-40">
+                <Activity size={14} />
+                <h4 className="text-[9px] font-black uppercase tracking-widest">Protocolo de Integridade</h4>
+             </div>
+             <div className="grid grid-cols-1 gap-2">
+                <IntegridadeRow icon={<CheckCircle2 size={10} className="text-emerald-500" />} label="Merge Incremental" status="Ativo" />
+                <IntegridadeRow icon={<Clock size={10} className="text-blue-500" />} label="Janela de Polling" status="5s" />
+                <IntegridadeRow icon={<ShieldCheck size={10} className="text-primary" />} label="Isolamento SaaS" status="Empresa" />
+             </div>
           </section>
-
-          {/* TELEMETRIA DE CONEXÃO */}
-          <section className="space-y-3">
-            <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Activity size={10} /> Status de Conexão Tribunais</p>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-2">
-              {Object.values(courtHealthMap).sort((a,b) => b.successRate - a.successRate).map(h => (
-                <div key={h.id} className="flex flex-col p-2 bg-[#f8f9fb] border border-black/5">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[8px] font-black uppercase">{h.id}</span>
-                    <span className={cn("w-1.5 h-1.5 rounded-full", h.status === 'online' ? "bg-emerald-500" : h.status === 'slow' ? "bg-orange-500" : "bg-red-500")} />
-                  </div>
-                  <div className="flex justify-between items-center text-[7px] font-bold text-black/40">
-                    <span>{Math.round(h.avgLatency)}ms</span>
-                    <span>{Math.round(h.successRate * 100)}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* LOGS RECENTES */}
-          {logs.length > 0 && (
-            <section className="space-y-2">
-              <Label className="text-[9px] font-black uppercase text-black/40 tracking-widest">Logs de Atividade Recente</Label>
-              <ScrollArea className="h-32 border-2 border-black bg-[#fafafa]">
-                <div className="p-2 space-y-1">
-                  {logs.map((log, i) => (
-                    <div key={i} className={cn("flex items-start gap-2 text-[9px] font-bold uppercase leading-tight p-2 border-b border-black/5", log.encerrado ? "bg-red-50" : log.alerta ? "bg-blue-50" : "")}>
-                      <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                        {log.encerrado ? <Gavel size={10} className="text-red-600" /> : 
-                         log.alerta ? <AlertTriangle size={10} className="text-blue-600" /> : 
-                         <CheckCircle2 size={10} className="text-emerald-500" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono text-[8px] truncate">{log.protocolo}</p>
-                        <p className="text-[7px] opacity-60 truncate">{log.message}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </section>
-          )}
         </div>
       </ScrollArea>
       
       <div className="p-3 bg-black text-white text-[8px] font-black uppercase text-center border-t-2 border-black shrink-0">
-        <ShieldCheck size={10} className="inline mr-1 text-primary" /> Authority System • Dual Engine Mode
+        Authority System • Modo Micro-Batch Híbrido
       </div>
+    </div>
+  );
+}
+
+function IntegridadeRow({ icon, label, status }: { icon: React.ReactNode, label: string, status: string }) {
+  return (
+    <div className="flex items-center justify-between text-[8px] font-black uppercase bg-[#f8f9fb] p-2 border border-black/5">
+       <div className="flex items-center gap-2">{icon} {label}</div>
+       <span className="opacity-40">{status}</span>
     </div>
   );
 }
