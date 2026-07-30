@@ -7,9 +7,9 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v280.0 ELITE)
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v285.0 ELITE)
  * Governança de Visibilidade: Visão Master restrita a Superadmin e Supervisor.
- * Suporte a Workers de Sistema via Service Role.
+ * Suporte a Workers de Sistema via Service Role para Auditoria em Background.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -20,6 +20,9 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Visualizador': 20
 };
 
+/**
+ * Retorna o cliente administrativo (Service Role) para operações de background e bypass de RLS.
+ */
 export async function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -125,15 +128,19 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
 /**
  * Recupera processos pendentes de auditoria em todo o sistema para o Worker.
- * Prioriza processos nunca consultados ou com consulta mais antiga.
+ * Exclui processos encerrados ou arquivados.
+ * Ordena por data de consulta (nulls first, depois mais antigo).
  */
 export async function getGlobalPendingProcessesSystem(limit: number): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
   
+  // Status que não devem entrar no ciclo de auditoria automática
+  const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL'];
+
   const { data, error } = await admin
     .from('processos')
     .select('*')
-    .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO")')
+    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`)
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(limit);
 
@@ -143,6 +150,7 @@ export async function getGlobalPendingProcessesSystem(limit: number): Promise<Le
     ...(item.dados as any),
     id: item.id.toString(),
     db_id: item.id.toString(),
+    empresa_id: item.empresa_id,
     created_by: item.created_by,
     datajud_ultimo_movimento: item.datajud_ultimo_movimento,
     datajud_ultimo_nome: item.datajud_ultimo_nome,
@@ -160,31 +168,32 @@ export async function getGlobalPendingProcessesSystem(limit: number): Promise<Le
 
 /**
  * Atualiza apenas os metadados DataJud de um processo (Merge Incremental).
- * Preserva campos operacionais inseridos pelo usuário.
+ * Realiza o update tanto nas colunas quanto no blob 'dados'.
  */
 export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   const admin = await getSupabaseAdmin();
   
-  const { data: current } = await admin
+  // 1. Recuperar estado atual do blob
+  const { data: current, error: fetchError } = await admin
     .from('processos')
     .select('dados')
     .eq('id', caseId)
     .single();
     
-  if (!current) return { success: false };
+  if (fetchError || !current) return { success: false };
 
-  // MERGE ESTRATÉGICO: Preserva dados do operador (status, prazo, retorno, observação)
-  // sobrescrevendo apenas os campos datajud_*
+  // 2. Mesclar patch técnico preservando dados humanos (status, prazo, observação)
   const updatedDados = {
     ...current.dados,
     ...patch
   };
 
+  // 3. Update atômico
   const { error } = await admin
     .from('processos')
     .update({
-      ...patch, // Atualiza colunas para indexação e filtros rápidos
-      dados: updatedDados // Atualiza o objeto JSON completo para renderização na interface
+      ...patch, // Atualiza colunas mapeadas
+      dados: updatedDados // Atualiza o objeto completo
     })
     .eq('id', caseId);
     
@@ -377,4 +386,3 @@ export async function desativarAdvogadoBanca(id: string) {
   const { error = null } = await supabase.from('advogados_banca').update({ ativo: false }).eq('id', id).eq('empresa_id', empresa_id);
   return { success: !error };
 }
-
