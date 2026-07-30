@@ -1,3 +1,7 @@
+/**
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * @license Proprietary - All rights reserved.
+ */
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -13,7 +17,6 @@ import {
   Square, 
   ChevronDown, 
   Loader2, 
-  AlertCircle, 
   CheckCircle2, 
   History,
   Gavel,
@@ -22,7 +25,8 @@ import {
   ArrowRightCircle,
   Copy,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -47,89 +51,55 @@ export function DataJudScannerPanel() {
     loadProgress();
   }, [loadProgress]);
 
-  useEffect(() => {
-    if (!isMinimized && cases.length === 0 && !loadingCases) {
-      setLoadingCases(true);
-      fetchRepoCases().then(data => {
-        if (data) setCases(data);
-        setLoadingCases(false);
-      }).catch(() => setLoadingCases(false));
-    }
-  }, [isMinimized, cases.length, loadingCases, setCases]);
-
   const handleStart = async (scope: ScanScope) => {
-    let currentCases = cases;
-    
-    if (currentCases.length === 0) {
-      setLoadingCases(true);
-      try {
-        const data = await fetchRepoCases();
-        if (data) {
-          setCases(data);
-          currentCases = data;
-        }
-      } finally {
-        setLoadingCases(false);
+    setLoadingCases(true);
+    try {
+      const currentCases = cases.length > 0 ? cases : await fetchRepoCases();
+      if (!currentCases || currentCases.length === 0) {
+        toast({ title: "Carteira Vazia", description: "Não localizamos processos para auditar.", variant: "destructive" });
+        return;
       }
+
+      // 1. Higiene de Fila
+      const validCases = currentCases.filter(c => isCNJ(c.protocolo) && !isCasoEncerrado(c));
+      const uniqueMap = new Map();
+      validCases.forEach(c => uniqueMap.set(c.protocolo, c));
+      const pool = Array.from(uniqueMap.values()) as any[];
+
+      let finalQueue: string[] = [];
+
+      if (scope === 'resume') {
+        // Pula os que já possuem dados recentes (Smart Skip)
+        finalQueue = pool
+          .filter(c => !c.datajud_ultimo_nome && !c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal)
+          .map(c => c.protocolo);
+      } else {
+        finalQueue = pool.map(c => c.protocolo);
+      }
+
+      if (finalQueue.length === 0) {
+        toast({ title: "Fila Limpa", description: "Todos os registros já possuem dados ou alertas." });
+        return;
+      }
+
+      startScan(finalQueue, scope);
+      toast({ title: "Varredura Iniciada", description: `${finalQueue.length} registros em processamento.` });
+
+    } catch (e) {
+      toast({ title: "Falha técnica", variant: "destructive" });
+    } finally {
+      setLoadingCases(false);
     }
-
-    if (currentCases.length === 0) {
-      toast({ title: "Carteira Vazia", description: "Não localizamos processos ativos no seu perfil.", variant: "destructive" });
-      return;
-    }
-
-    // 1. FILTRAGEM DE HIGIENE E ESCOPO v410.0
-    const filteredCases = currentCases.filter(c => isCNJ(c.protocolo) && !isCasoEncerrado(c));
-    
-    // DEDUPLICAÇÃO DE FILA
-    const uniqueMap = new Map();
-    filteredCases.forEach(c => uniqueMap.set(c.protocolo, c));
-    const uniqueCases = Array.from(uniqueMap.values());
-
-    let finalQueue: string[] = [];
-
-    if (scope === 'resume') {
-       // MODO INTELIGENTE: Pula processos que já possuem dados recentes ou alertas ativos
-       // Foca apenas nos registros "vazios"
-       finalQueue = uniqueCases
-         .filter(c => !c.datajud_ultimo_nome && !c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal)
-         .map(c => c.protocolo);
-    } else {
-       // Lote integral: Auditoria completa de todos os CNJs válidos
-       finalQueue = uniqueCases.map(c => c.protocolo);
-    }
-
-    if (finalQueue.length === 0) {
-      toast({ title: "Escopo Limpo", description: "Todos os processos filtrados já possuem dados ou são inválidos.", variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "Iniciando Varredura", description: `${finalQueue.length} registros em triagem neural.` });
-    startScan(finalQueue, scope);
-  };
-
-  const handleRestartFull = () => {
-    if (confirm("Deseja descartar o progresso atual e iniciar uma nova varredura de toda a carteira ativa?")) {
-      resetScan();
-      handleStart('full');
-    }
-  };
-
-  const handleCopyLogs = () => {
-    if (logs.length === 0) return;
-    const text = logs.map(l => `[${l.protocolo}] ${l.message}`).join('\n');
-    navigator.clipboard.writeText(text);
-    toast({ title: "Log Copiado" });
   };
 
   const handleClearAudit = async () => {
-    if (!confirm("Isso zerará os alertas de novos andamentos e baixas detectadas no repositório. Continuar?")) return;
-    
+    if (!confirm("Deseja zerar os alertas e hashes de integridade da carteira?")) return;
     setIsClearing(true);
     try {
       const res = await clearDataJudAuditAction();
       if (res.success) {
-        localStorage.removeItem('lexis_datajud_scan_v1');
+        resetScan();
+        toast({ title: "Ambiente Resetado" });
         window.location.reload();
       }
     } finally {
@@ -170,29 +140,24 @@ export function DataJudScannerPanel() {
       <div className="p-6 space-y-6">
         {status === 'idle' ? (
           <div className="space-y-4">
-            <p className="text-[9px] font-black uppercase text-black/40 tracking-widest">Opções de Varredura Elite</p>
-            
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 gap-3">
               {queue.length > 0 && currentIndex < queue.length && (
-                <Button onClick={resumeInterruptedScan} className="h-14 bg-emerald-600 text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all mb-4 animate-pulse">
+                <Button onClick={resumeInterruptedScan} className="h-14 bg-emerald-600 text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none animate-pulse">
                   <ArrowRightCircle size={18} className="mr-3" /> Continuar Fila ({done} / {total})
                 </Button>
               )}
 
-              <Button onClick={() => handleStart('resume')} disabled={loadingCases || isClearing} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
+              <Button onClick={() => handleStart('resume')} disabled={loadingCases || isClearing} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none">
                 <PlayCircle size={16} className="mr-3 text-primary" /> Retomar Auditoria (Smart Skip)
               </Button>
               
-              <Button onClick={handleRestartFull} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#22c55e] hover:shadow-none transition-all bg-emerald-50/30">
+              <Button onClick={() => handleStart('full')} disabled={loadingCases || isClearing} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#22c55e] hover:shadow-none">
                 <RotateCcw size={16} className="mr-3 text-emerald-600" /> Varredura Lote Integral
               </Button>
 
-              <div className="pt-4 border-t border-black/10 mt-2">
-                 <p className="text-[8px] font-bold text-black/30 uppercase leading-relaxed mb-4 italic">
-                    O modo Smart Skip pula registros que já possuem movimentações identificadas ou alertas de novos andamentos.
-                 </p>
-                <Button onClick={handleClearAudit} disabled={isClearing || loadingCases} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none hover:bg-red-50 hover:border-red-600 transition-all">
-                  {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />} Limpar Alertas de Auditoria
+              <div className="pt-4 border-t border-black/10">
+                <Button onClick={handleClearAudit} disabled={isClearing || loadingCases} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none hover:bg-red-50">
+                  {isClearing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 size={14} className="mr-2" />} Limpar Alertas e Hashes
                 </Button>
               </div>
             </div>
@@ -207,13 +172,9 @@ export function DataJudScannerPanel() {
                 </div>
                 <Badge className={cn(
                   "font-black uppercase text-[8px] rounded-none px-2", 
-                  status === 'running' ? "bg-emerald-500" : 
-                  status === 'done' ? "bg-primary" : 
-                  isAuthPaused ? "bg-red-600 animate-pulse" : "bg-orange-500"
+                  status === 'running' ? "bg-emerald-500" : "bg-primary"
                 )}>
-                  {status === 'running' ? 'Triagem Ativa' : 
-                   status === 'done' ? 'Auditado' : 
-                   isAuthPaused ? 'Sessão Expirada' : 'Pausado'}
+                  {status === 'running' ? 'Processando' : 'Concluído'}
                 </Badge>
               </div>
               <Progress value={(done / (total || 1)) * 100} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-black" />
@@ -225,7 +186,7 @@ export function DataJudScannerPanel() {
                 <p className="text-sm font-black text-emerald-600 tabular-nums">{closed}</p>
               </div>
               <div className="p-2 border-2 border-black bg-blue-50 text-center">
-                <p className="text-[7px] font-black uppercase text-blue-800/40">Alertas</p>
+                <p className="text-[7px] font-black uppercase text-blue-800/40">Mudanças</p>
                 <p className="text-sm font-black text-blue-600 tabular-nums">{alerts}</p>
               </div>
               <div className="p-2 border-2 border-black bg-red-50 text-center">
@@ -234,26 +195,18 @@ export function DataJudScannerPanel() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><History size={10}/> Telemetria Forense</p>
-                <Button variant="ghost" size="sm" onClick={handleCopyLogs} className="h-6 px-2 text-[8px] font-black uppercase hover:bg-black hover:text-white transition-all">
-                  <Copy size={10} className="mr-1" /> Copiar Log
-                </Button>
+            <ScrollArea className="h-32 border-2 border-black bg-[#fafafa]">
+              <div className="p-2 space-y-1">
+                {logs.map((log, i) => (
+                  <div key={i} className={cn("flex items-start gap-2 text-[9px] font-bold uppercase leading-tight p-2 border-b border-black/5", log.encerrado ? "bg-red-50" : log.alerta ? "bg-blue-50" : "")}>
+                    {log.encerrado ? <Gavel size={10} className="text-red-600 mt-0.5" /> : 
+                     log.alerta ? <AlertTriangle size={10} className="text-blue-600 mt-0.5" /> : 
+                     <CheckCircle2 size={10} className="text-emerald-500 mt-0.5" />}
+                    <span className="break-all font-mono">{log.protocolo}: {log.message}</span>
+                  </div>
+                ))}
               </div>
-              <ScrollArea className="h-32 border-2 border-black bg-[#fafafa]">
-                <div className="p-2 space-y-1">
-                  {logs.map((log, i) => (
-                    <div key={i} className={cn("flex items-start gap-2 text-[9px] font-bold uppercase leading-tight p-2 border-b border-black/5", log.encerrado ? "bg-red-50" : log.alerta ? "bg-blue-50" : "")}>
-                      {log.encerrado ? <Gavel size={10} className="text-red-600 shrink-0 mt-0.5" /> : 
-                       log.alerta ? <AlertTriangle size={10} className="text-blue-600 shrink-0 mt-0.5" /> : 
-                       <CheckCircle2 size={10} className="text-emerald-500 shrink-0 mt-0.5" />}
-                      <span className="break-all font-mono">{log.protocolo}: {log.message}</span>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
+            </ScrollArea>
 
             <div className="flex gap-2">
               {status === 'running' ? (
@@ -263,11 +216,11 @@ export function DataJudScannerPanel() {
               ) : null}
               
               {(status === 'running' || status === 'paused') && (
-                <Button variant="ghost" onClick={cancelScan} title="Cancelar" className="h-10 w-10 border-2 border-black rounded-none text-red-600 hover:bg-red-50"><Square size={12} fill="currentColor" /></Button>
+                <Button variant="ghost" onClick={cancelScan} title="Cancelar" className="h-10 w-10 border-2 border-black rounded-none text-red-600"><Square size={12} fill="currentColor" /></Button>
               )}
 
               {status === 'done' && (
-                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">Concluir</Button>
+                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">Concluir Auditoria</Button>
               )}
             </div>
           </div>
