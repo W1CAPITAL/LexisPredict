@@ -1,39 +1,33 @@
+import { NextResponse } from 'next/server';
+import { chatAIFlow } from '@/ai/flows/chat-ai-flow';
+
 /**
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * @fileOverview Handler de Chat IA v1.0
+ * Fornece interface HTTP para consultas estratégicas via motores neurais.
  */
-import { NextRequest, NextResponse } from 'next/server';
-import { perguntarIA } from '@/ai/flows/chat-ai-flow';
 
-export const maxDuration = 300; // Define 5 minutos de execução para o Vercel
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const { messages, model } = await req.json();
-    
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ response: "Formato de mensagem inválido." }, { status: 400 });
-    }
+    const body = await req.json();
+    const { pergunta, historico, preferredModel } = body;
 
-    const lastUserMessage = messages[messages.length - 1]?.content || "";
-
-    // Execução via Flow Genkit
-    const result = await perguntarIA({
-      pergunta: lastUserMessage,
-      historico: messages.slice(0, -1),
-      preferredModel: model
+    const result = await chatAIFlow({
+      pergunta,
+      historico,
+      preferredModel
     });
 
-    // Se a IA retornar uma falha de configuração, reportamos status 200 com a mensagem para não quebrar o front
-    return NextResponse.json({ 
-      response: result.resposta, 
+    // Retorna apenas propriedades existentes no tipo do chatAIFlow
+    return NextResponse.json({
+      response: result.resposta,
       engine: result.engineUtilizada,
-      unlocked: result.unlocked || false
+      sucesso: result.sucesso
     });
-
   } catch (error: any) {
-    console.error("[Chat API Critical Fail]", error.message);
-    return NextResponse.json({ 
-      response: "A Unidade Neural está temporariamente instável devido a falhas de rede ou chaves expiradas." 
-    }, { status: 500 });
+    console.error("[CHAT API ERROR]", error.message);
+    return NextResponse.json(
+      { sucesso: false, response: "Falha interna no motor neural." },
+      { status: 500 }
+    );
   }
 }
