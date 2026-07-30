@@ -1,13 +1,14 @@
+
 "use client";
 /**
- * @fileOverview Painel de Auditoria Inteligente MNI v7.0
- * Suporte a modo Debug e Resiliência de 20s.
+ * @fileOverview Painel de Auditoria Inteligente MNI v7.5
+ * Refatorado v520.0 para processamento SEQUENCIAL ATÔMICO com progressão visual funcional.
  */
 
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
-  Zap, Activity, RefreshCcw, CheckCircle2, Search, Play, History, ShieldCheck, Loader2, Clock, AlertTriangle, Fingerprint, Bug, Server, Globe
+  Zap, Activity, RefreshCcw, CheckCircle2, Search, Play, History, ShieldCheck, Loader2, Clock, AlertTriangle, Fingerprint, Bug, Server, Globe, Square
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,11 +16,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { startFullScannerJobAction, fetchMniStatsAction } from '@/app/actions/scanner-actions';
+import { scanSingleProcessForMonitorAction, fetchMniStatsAction } from '@/app/actions/scanner-actions';
+import { fetchRepoCases } from '@/app/actions/case-actions';
 import { cn } from '@/lib/utils';
 
 export default function ScannerMonitorPage() {
   const [isScanning, setIsScanning] = useState(false);
+  const [shouldStop, setShouldStop] = useState(false);
   const [progress, setProgress] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
@@ -36,40 +39,77 @@ export default function ScannerMonitorPage() {
 
   const handleStartScan = async () => {
     setIsScanning(true);
-    setProgress(2);
-    setCounters({ done: 0, total: 0, timeouts: 0, apiErrors: 0 });
-    setLogs([{ type: 'INFO', msg: 'Handshake: Iniciando Auditoria Inteligente com timeout de 20s...' }]);
+    setShouldStop(false);
+    setProgress(1);
+    setLogs([{ type: 'INFO', msg: 'Iniciando Rito de Auditoria Progressiva v520.0...' }]);
     
     try {
-      const res = await startFullScannerJobAction();
-      if (res.success) {
-        setProgress(100);
-        const results = res.results || [];
-        
-        let tCount = 0;
-        let eCount = 0;
-
-        const newLogs = results.map((r: any) => {
-          if (r.debug?.httpStatus === 408) tCount++;
-          if (r.debug?.httpStatus >= 400 && r.debug?.httpStatus !== 408) eCount++;
-
-          return {
-            type: r.mudancaDetectada ? 'WARNING' : r.localizado ? 'SUCCESS' : 'ERROR',
-            msg: `[${r.tribunal}] CNJ ${r.cnj} | ${r.analysis.categoria} | HTTP ${r.debug?.httpStatus} | ${r.debug?.latency}ms`,
-            debug: r.debug
-          };
-        });
-
-        setCounters({ done: results.length, total: results.length, timeouts: tCount, apiErrors: eCount });
-        setLogs(prev => [...newLogs, { type: 'DONE', msg: `Auditoria Concluída: ${res.processed} processos auditados.` }, ...prev]);
-        toast({ title: "Auditoria Finalizada" });
-        await loadStats();
+      // 1. Obter Fila de Trabalho
+      const cases = await fetchRepoCases();
+      const validCases = cases.filter(c => c.protocolo && c.protocolo.length >= 8);
+      
+      if (validCases.length === 0) {
+        setLogs(prev => [{ type: 'ERROR', msg: 'Nenhum processo válido na carteira para auditoria.' }, ...prev]);
+        setIsScanning(false);
+        return;
       }
+
+      setCounters({ done: 0, total: validCases.length, timeouts: 0, apiErrors: 0 });
+      setLogs(prev => [{ type: 'INFO', msg: `Fila de ${validCases.length} registros provisionada. Iniciando processamento...` }, ...prev]);
+
+      // 2. Loop Sequencial Atômico (Evita timeout de server action longa)
+      for (let i = 0; i < validCases.length; i++) {
+        if (shouldStop) {
+          setLogs(prev => [{ type: 'WARNING', msg: 'Operação interrompida pelo operador.' }, ...prev]);
+          break;
+        }
+
+        const c = validCases[i];
+        
+        try {
+          const res = await scanSingleProcessForMonitorAction(c.protocolo);
+          
+          if (res.success) {
+            const audit = res.data;
+            if (audit.debug?.httpStatus === 408) setCounters(prev => ({ ...prev, timeouts: prev.timeouts + 1 }));
+            if (audit.debug?.httpStatus >= 400 && audit.debug?.httpStatus !== 408) setCounters(prev => ({ ...prev, apiErrors: prev.apiErrors + 1 }));
+
+            const logType = audit.mudancaDetectada ? 'WARNING' : audit.localizado ? 'SUCCESS' : 'ERROR';
+            const logMsg = `[${audit.tribunal}] CNJ ${audit.cnj} | ${audit.analysis.categoria} | ${audit.debug?.latency}ms`;
+            
+            setLogs(prev => [{ 
+              type: logType, 
+              msg: logMsg,
+              debug: audit.debug 
+            }, ...prev]);
+          } else {
+            setCounters(prev => ({ ...prev, apiErrors: prev.apiErrors + 1 }));
+            setLogs(prev => [{ type: 'ERROR', msg: `CNJ ${c.protocolo}: ${res.error || 'Falha na resposta'}` }, ...prev]);
+          }
+        } catch (err) {
+          setCounters(prev => ({ ...prev, apiErrors: prev.apiErrors + 1 }));
+          setLogs(prev => [{ type: 'ERROR', msg: `CNJ ${c.protocolo}: Erro de rede na auditoria.` }, ...prev]);
+        }
+
+        const currentDone = i + 1;
+        setCounters(prev => ({ ...prev, done: currentDone }));
+        setProgress(Math.round((currentDone / validCases.length) * 100));
+      }
+
+      setLogs(prev => [{ type: 'DONE', msg: 'Auditoria Progressiva Concluída.' }, ...prev]);
+      toast({ title: "Auditoria Finalizada" });
+      await loadStats();
+
     } catch (err) {
-      setLogs(prev => [{ type: 'ERROR', msg: 'Falha crítica no motor de auditoria.' }, ...prev]);
+      setLogs(prev => [{ type: 'ERROR', msg: 'Falha catastrófica na inicialização do scanner.' }, ...prev]);
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const handleStop = () => {
+    setShouldStop(true);
+    setIsScanning(false);
   };
 
   return (
@@ -82,8 +122,8 @@ export default function ScannerMonitorPage() {
                 <ShieldCheck size={24} className="text-primary" />
              </div>
              <div>
-                <h1 className="font-black text-xl uppercase tracking-tighter">Monitor de Auditoria Inteligente</h1>
-                <p className="text-[10px] font-black uppercase text-black/40 tracking-widest">Protocolo de Integridade MNI v7.0 (Resiliente)</p>
+                <h1 className="font-black text-xl uppercase tracking-tighter">Monitor de Auditoria Progressiva</h1>
+                <p className="text-[10px] font-black uppercase text-black/40 tracking-widest">Protocolo de Integridade Atômica v520.0 (Resiliente)</p>
              </div>
           </div>
           <div className="flex items-center gap-3">
@@ -96,7 +136,7 @@ export default function ScannerMonitorPage() {
 
         <div className="flex-1 overflow-auto p-10 max-w-7xl mx-auto w-full space-y-8 pb-20">
            <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <MiniStat label="Processados" value={counters.done} />
+              <MiniStat label="Concluídos" value={counters.done} />
               <MiniStat label="Timeouts (20s)" value={counters.timeouts} color="text-orange-600" />
               <MiniStat label="Erros de API" value={counters.apiErrors} color="text-red-600" />
               <MiniStat label="Localizados" value={stats?.localizados || 0} color="text-emerald-600" />
@@ -104,18 +144,25 @@ export default function ScannerMonitorPage() {
 
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <Card className="lg:col-span-2 bg-white border-2 border-black rounded-none shadow-[10px_10px_0px_#000]">
-                 <CardHeader className="bg-black text-white py-4"><CardTitle className="text-[10px] font-black uppercase flex items-center gap-2"><Fingerprint size={16} className="text-primary" /> Execução de Auditoria Cronológica</CardTitle></CardHeader>
+                 <CardHeader className="bg-black text-white py-4"><CardTitle className="text-[10px] font-black uppercase flex items-center gap-2"><Fingerprint size={16} className="text-primary" /> Execução Cronológica Progressiva</CardTitle></CardHeader>
                  <CardContent className="p-10 space-y-8">
                     <div className="space-y-2">
                        <div className="flex justify-between items-end">
-                          <p className="text-[9px] font-black uppercase text-black/40">Status do Motor</p>
-                          <p className="text-[10px] font-black uppercase">{isScanning ? 'Varredura em curso...' : 'Aguardando comando'}</p>
+                          <p className="text-[9px] font-black uppercase text-black/40">Status do Lote</p>
+                          <p className="text-[10px] font-black uppercase">{isScanning ? `${progress}% Processado` : 'Aguardando comando'}</p>
                        </div>
                        <Progress value={progress} className="h-4 border-2 border-black bg-gray-100 [&>div]:bg-black" />
                     </div>
-                    <Button onClick={handleStartScan} disabled={isScanning} className="h-16 w-full bg-black text-white font-black uppercase text-[11px] tracking-[0.2em] rounded-none shadow-[6px_6px_0px_#00D1FF] hover:shadow-none transition-all">
-                       {isScanning ? <Loader2 className="animate-spin mr-3" /> : <Play size={18} className="mr-3" />} Iniciar Auditoria (Circuit Breaker 20s)
-                    </Button>
+                    
+                    {!isScanning ? (
+                      <Button onClick={handleStartScan} className="h-16 w-full bg-black text-white font-black uppercase text-[11px] tracking-[0.2em] rounded-none shadow-[6px_6px_0px_#00D1FF] hover:shadow-none transition-all">
+                         <Play size={18} className="mr-3" /> Iniciar Auditoria (Circuit Breaker 20s)
+                      </Button>
+                    ) : (
+                      <Button onClick={handleStop} variant="destructive" className="h-16 w-full font-black uppercase text-[11px] tracking-[0.2em] rounded-none border-2 border-black shadow-[6px_6px_0px_#ef4444] hover:shadow-none transition-all">
+                         <Square size={18} className="mr-3" fill="white" /> Interromper Varredura
+                      </Button>
+                    )}
                  </CardContent>
               </Card>
 
