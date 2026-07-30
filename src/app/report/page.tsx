@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -92,10 +91,10 @@ export default function UnifiedReport() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // Alertas DataJud baseados em ativos com cast booleano rigoroso
-    const countNovoAndamento = ativos.filter(c => c.tem_atualizacao_pos_retorno === true).length;
-    const countEncerradoTribunal = ativos.filter(c => c.datajud_encerrado_tribunal === true).length;
-    const countBA = ativos.filter(c => c.indicio_busca_apreensao === true).length;
+    // Alertas DataJud baseados em ativos com cast de verdade absoluta (!! v350.0)
+    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno).length;
+    const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
+    const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
@@ -411,7 +410,7 @@ export default function UnifiedReport() {
           }
           .shadow-\[12px_12px_0px_#000\] { box-shadow: none !important; }
           .shadow-\[6px_6px_0px_#000\] { box-shadow: none !important; }
-          .shadow-\[4px_4px_0px_#000\] { box-shadow: none !important; }
+          .shadow-\[4px_4px_0px_#00D1FF\] { box-shadow: none !important; }
           @page { size: A4; margin: 10mm; }
         }
       `}</style>
