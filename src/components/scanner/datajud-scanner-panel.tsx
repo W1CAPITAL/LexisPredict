@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -20,7 +21,9 @@ import {
   Gavel,
   CheckCircle2,
   Terminal,
-  AlertCircle
+  AlertCircle,
+  Search,
+  Monitor
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -56,11 +59,11 @@ export function DataJudScannerPanel() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[200] w-[420px] bg-white border-2 border-black shadow-[20px_20px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col max-h-[85vh]">
+    <div className="fixed bottom-6 right-6 z-[200] w-[450px] bg-white border-2 border-black shadow-[20px_20px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col h-[85vh]">
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black shrink-0">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v8.0</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v9.0</h3>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -69,7 +72,7 @@ export function DataJudScannerPanel() {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-6 space-y-8 pb-20">
+        <div className="p-6 space-y-8">
           {/* ENGINE 1: CLOUD AUDIT */}
           <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-6">
              <div className="flex items-center justify-between">
@@ -147,44 +150,67 @@ export function DataJudScannerPanel() {
                       <Button onClick={startManualScan} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase h-10"><Play size={12} className="mr-2" /> Retomar</Button>
                     )}
                   </div>
-                  
-                  {/* Logs de Atividade */}
-                  <div className="mt-4 space-y-2">
-                    <p className="text-[8px] font-black uppercase text-black/30 tracking-widest">Logs de Atividade Local</p>
-                    <div className="bg-black/5 p-3 rounded-none space-y-1.5 max-h-[150px] overflow-auto">
-                      {lastLogs.map((log, i) => (
-                        <div key={i} className="flex items-center justify-between text-[8px] font-bold uppercase border-b border-black/5 pb-1">
-                          <span className="truncate max-w-[150px]">{log.protocolo}</span>
-                          <span className={cn(log.success ? "text-emerald-600" : "text-red-600")}>{log.message}</span>
-                          <span className="text-black/30 font-mono">{log.latency}ms</span>
-                        </div>
-                      ))}
-                      {lastLogs.length === 0 && <p className="text-center py-4 text-[8px] font-black opacity-20">Aguardando telemetria...</p>}
-                    </div>
-                  </div>
                </div>
              )}
           </section>
 
-          <section className="space-y-4">
-             <div className="flex items-center gap-2 opacity-40">
-                <Activity size={14} />
-                <h4 className="text-[9px] font-black uppercase tracking-widest">Protocolo de Integridade</h4>
+          {/* SHARED LOG FEED */}
+          <section className="space-y-4 pb-10">
+             <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2 opacity-40">
+                   <Monitor size={14} />
+                   <h4 className="text-[9px] font-black uppercase tracking-widest">Feed de Auditoria Unificado</h4>
+                </div>
+                <Badge variant="outline" className="text-[7px] font-black uppercase border-black/10">Histórico de Sessão</Badge>
              </div>
-             <div className="grid grid-cols-1 gap-2">
-                <IntegridadeRow icon={<CheckCircle2 size={10} className="text-emerald-500" />} label="Merge Híbrido" status="Ativo" />
-                <IntegridadeRow icon={<Clock size={10} className="text-blue-500" />} label="Gap de Rede" status="600ms" />
-                <IntegridadeRow icon={<ShieldCheck size={10} className="text-primary" />} label="Isolamento" status="SaaS Scoped" />
+             
+             <div className="bg-black/5 p-4 rounded-none space-y-3 min-h-[250px]">
+                {lastLogs.map((log, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-white border-b-2 border-black/5 hover:border-black transition-colors group">
+                    <div className="flex items-center gap-3 min-w-0">
+                       <LogTypeIcon type={log.type} />
+                       <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase text-black truncate max-w-[180px]">{log.protocolo}</p>
+                          <div className="flex items-center gap-2">
+                             <Badge className={cn(
+                               "text-[7px] font-black uppercase px-1 py-0 border-none",
+                               log.engine === 'Local' ? "bg-slate-200 text-slate-700" : "bg-blue-600 text-white"
+                             )}>{log.engine}</Badge>
+                             <span className="text-[8px] font-bold text-black/40 uppercase truncate">{log.message}</span>
+                          </div>
+                       </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                       <p className="text-[8px] font-mono text-black/30 group-hover:text-black transition-colors">{log.latency}ms</p>
+                    </div>
+                  </div>
+                ))}
+                {lastLogs.length === 0 && (
+                  <div className="py-20 flex flex-col items-center justify-center opacity-20 space-y-4">
+                     <Search size={32} />
+                     <p className="text-[9px] font-black uppercase tracking-widest">Aguardando telemetria...</p>
+                  </div>
+                )}
              </div>
           </section>
         </div>
       </ScrollArea>
       
-      <div className="p-3 bg-black text-white text-[8px] font-black uppercase text-center border-t-2 border-black shrink-0">
-        Authority System • Dual Engine Mode
+      <div className="p-3 bg-black text-white text-[8px] font-black uppercase text-center border-t-2 border-black shrink-0 flex items-center justify-center gap-4">
+        <span>Authority System • v9.0</span>
+        <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> Rede Ativa</div>
       </div>
     </div>
   );
+}
+
+function LogTypeIcon({ type }: { type: ScanLog['type'] }) {
+  switch (type) {
+    case 'closed': return <Gavel size={14} className="text-emerald-600 shrink-0" />;
+    case 'update': return <Zap size={14} className="text-blue-600 shrink-0" />;
+    case 'error': return <AlertCircle size={14} className="text-red-600 shrink-0" />;
+    default: return <CheckCircle2 size={14} className="text-slate-400 shrink-0" />;
+  }
 }
 
 function DashboardMiniKpi({ label, value, color }: { label: string, value: number, color: string }) {
@@ -192,15 +218,6 @@ function DashboardMiniKpi({ label, value, color }: { label: string, value: numbe
     <div className="p-2 border-2 border-black bg-white text-center">
       <p className="text-[7px] font-black uppercase text-black/40">{label}</p>
       <p className={cn("text-sm font-black tabular-nums", color)}>{value}</p>
-    </div>
-  );
-}
-
-function IntegridadeRow({ icon, label, status }: { icon: React.ReactNode, label: string, status: string }) {
-  return (
-    <div className="flex items-center justify-between text-[8px] font-black uppercase bg-[#f8f9fb] p-2 border border-black/5">
-       <div className="flex items-center gap-2">{icon} {label}</div>
-       <span className="opacity-40">{status}</span>
     </div>
   );
 }
