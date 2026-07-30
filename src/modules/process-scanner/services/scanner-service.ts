@@ -1,10 +1,10 @@
 /**
- * @fileOverview Motor de Consolidação Híbrida v12.0
+ * @fileOverview Motor de Consolidação Híbrida v15.0
  * PRIORIDADE DATAJUD-FIRST: Resposta rápida garantida sem bloqueio pelo MNI.
  * @copyright 2026 W1 Capital | Fundador: Davi Alves Figueredo
  */
 
-import { IProcessProvider, ProviderResponse } from '../providers/BaseProvider';
+import { IProcessProvider } from '../providers/BaseProvider';
 import { TJProvider } from '../providers/TJProvider';
 import { TRFProvider } from '../providers/TRFProvider';
 import { CNJProvider } from '../providers/CNJProvider';
@@ -67,22 +67,22 @@ export class ScannerService {
     const globalStartTime = Date.now();
     const now = new Date();
     
-    // Fallback de Tribunal baseado no CNJ caso a API não retorne o nome
     const cnjLimpo = cnj.replace(/\D/g, '');
     const tribunalCode = cnjLimpo.length >= 16 ? `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}` : "N/A";
 
     console.log(`[SCANNER] [INIT] ${cnj} | Prioridade: DataJud`);
 
-    // 1. TENTA DATAJUD (FONTE PRIMÁRIA VELOZ)
+    // 1. TENTA DATAJUD (FONTE PRIMÁRIA)
     const resPublic = await fetchDataJud(cnj, 1, { fast: true, timeoutMs: 15000 });
     
     let baseData = null;
     let sourceUsed: 'DATAJUD' | 'MNI' | 'FALLBACK' = 'DATAJUD';
 
-    if (!resPublic.error && resPublic.movimentos && resPublic.movimentos.length > 0) {
+    // RITO DE SUCESSO: DataJud retornou dados válidos
+    if (!resPublic.error && resPublic.message !== "NOT_FOUND" && resPublic.movimentos && resPublic.movimentos.length > 0) {
       baseData = resPublic;
     } else {
-      // 2. TENTA MNI APENAS SE DATAJUD FALHAR (FONTE SECUNDÁRIA)
+      // 2. TENTA MNI APENAS SE DATAJUD FALHAR OU NÃO LOCALIZAR
       console.log(`[SCANNER] [FALLBACK] ${cnj} -> Tentando MNI`);
       const provider = this.getProvider(cnj);
       const resMNI = await provider.consultarProcesso(cnj).catch(() => null);
@@ -126,14 +126,13 @@ export class ScannerService {
       };
     }
 
-    // Saneamento de Movimentações para evitar erros de undefined
     const movimentos = Array.isArray(baseData.movimentos) ? baseData.movimentos : [];
     const sortedMovs = [...movimentos].sort((a: any, b: any) => 
       new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
     );
 
     const ultimaMov = sortedMovs[0] || { descricao: "SEM MOVIMENTAÇÃO", dataHora: now.toISOString() };
-    const descUltima = String(ultimaMov.descricao || (ultimaMov as any).nome || "Sem descrição").toUpperCase();
+    const descUltima = String(ultimaMov.descricao || ultimaMov.nome || (ultimaMov as any).texto || "Sem descrição").toUpperCase();
     const dataUltima = ultimaMov.dataHora || now.toISOString();
 
     const currentHash = this.generateHash(descUltima, dataUltima);
@@ -167,9 +166,6 @@ export class ScannerService {
     };
   }
 
-  /**
-   * Método Público de Compatibilidade.
-   */
   async scanProcesso(cnj: string): Promise<AuditResult> {
     return this.auditarProcesso(cnj);
   }
