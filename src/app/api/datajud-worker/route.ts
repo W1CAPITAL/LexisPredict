@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v1.2
+ * @fileOverview Worker de Auditoria Automática DataJud v1.3
  * Realiza varredura incremental de processos em background (servidor).
  * Otimizado para rito industrial de merge e preservação de dados humanos.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -18,21 +18,20 @@ import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 export const dynamic = 'force-dynamic';
 
-// Configurações de Carga Industrial
-const BATCH_SIZE = 15; 
+// Configurações de Carga Industrial (Reduzido para 10 para evitar timeout de servidor)
+const BATCH_SIZE = 10; 
 const CONCURRENCY = 2;
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get('Authorization');
   const workerSecret = process.env.DATAJUD_WORKER_SECRET;
 
-  // 1. Validação de Segurança (Bearer Token)
   if (!workerSecret || authHeader !== `Bearer ${workerSecret}`) {
     console.error("[DataJud Worker] Acesso Negado: Token Inválido");
     return new Response('Unauthorized', { status: 401 });
   }
 
-  console.log("[DataJud Worker] Lote Recebido - Iniciando Auditoria Estratégica...");
+  console.log(`[DataJud Worker] Lote Recebido em ${new Date().toLocaleTimeString()} - Iniciando Auditoria...`);
 
   try {
     const start = Date.now();
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
     const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
 
     if (casesToAudit.length === 0) {
-      return NextResponse.json({ processed: 0, message: "Sem processos pendentes." });
+      return NextResponse.json({ success: true, processed: 0, message: "Sem processos pendentes." });
     }
 
     let successCount = 0;
@@ -64,7 +63,7 @@ export async function POST(request: Request) {
       .not('status', 'in', '("ENCERRADO","Arquivado","EXTINTO","SUSPENSO","IMOVEL","IMÓVEL")');
 
     const duration = Date.now() - start;
-    console.log(`[DataJud Worker] Ciclo Concluído: ${successCount} sucessos em ${duration}ms`);
+    console.log(`[DataJud Worker] Ciclo Concluído: ${successCount} sucessos em ${duration}ms. Restante: ~${count}`);
 
     return NextResponse.json({ 
       success: true,
