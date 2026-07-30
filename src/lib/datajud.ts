@@ -1,7 +1,7 @@
 
 /**
  * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v3000.0 ELITE
- * Otimizado com timeouts curtos (18s) e retry ágil para máxima fluidez de lote.
+ * Otimizado com timeouts ajustados para 40s e retry ágil para máxima fluidez de lote.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -58,8 +58,8 @@ export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): P
           }
         }
       }),
-      // Timeout reduzido para 18s para acelerar a fila em casos de falha crônica do tribunal
-      signal: AbortSignal.timeout(18000)
+      // Timeout ajustado para 40s conforme solicitado pelo gabinete
+      signal: AbortSignal.timeout(40000)
     });
 
     if (!response.ok) {
@@ -67,7 +67,6 @@ export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): P
         return { error: true, message: "Falha de autenticação API Key.", isAuthError: true, attempts: attempt };
       }
       
-      // Erros retentáveis
       if ([429, 502, 503, 504].includes(response.status)) {
         throw new Error(`RETRYABLE_HTTP_${response.status}`);
       }
@@ -103,7 +102,6 @@ export async function fetchDataJud(cnj: string, attempt = 1, noRetry = false): P
     const isRetryable = isTimeout || e.message?.startsWith('RETRYABLE_HTTP_') || e.message?.includes('fetch') || e.message?.includes('Network');
 
     // Rito de Retry: Máximo 2 tentativas totais (1 inicial + 1 retry).
-    // Casos "Sem Prazo" não realizam retry para poupar tempo de lote.
     if (isRetryable && attempt < 2 && !noRetry) {
       const waitTime = 1000 + (Math.random() * 300);
       console.warn(`[DataJud] Falha T${attempt}. Retentando em ${Math.round(waitTime)}ms...`);
