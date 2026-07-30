@@ -15,7 +15,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal } from '@/li
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v400.0 ELITE - Otimização de Performance para Lote
+ * @fileOverview Actions de Processos v410.0 ELITE - Otimização de Performance para Lote
  */
 
 export async function fetchRepoCases() {
@@ -87,12 +87,23 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
     }
 
+    // Injeção de contexto completo das colunas reais no target para comparação fiel
     const target = processarCaso({
       ...(dbItem.dados as any),
       id: dbItem.id.toString(),
       created_by: dbItem.created_by,
       proximoPrazo: dbItem.proximo_retorno || '',
-      ultimoRetorno: dbItem.ultimo_retorno || ''
+      ultimoRetorno: dbItem.ultimo_retorno || '',
+      datajud_ultimo_movimento: dbItem.datajud_ultimo_movimento,
+      datajud_ultimo_nome: dbItem.datajud_ultimo_nome,
+      datajud_consultado_em: dbItem.datajud_consultado_em,
+      tem_atualizacao_pos_retorno: dbItem.tem_atualizacao_pos_retorno,
+      datajud_encerrado_tribunal: dbItem.datajud_encerrado_tribunal,
+      datajud_encerrado_motivo: dbItem.datajud_encerrado_motivo,
+      indicio_busca_apreensao: dbItem.indicio_busca_apreensao,
+      busca_apreensao_confianca: dbItem.busca_apreensao_confianca,
+      busca_apreensao_motivo: dbItem.busca_apreensao_motivo,
+      busca_apreensao_consultado_em: dbItem.busca_apreensao_consultado_em
     });
 
     const dataJud = await fetchDataJud(protocolo, 1, { fast });
@@ -124,11 +135,20 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         patch.indicio_busca_apreensao !== !!target.indicio_busca_apreensao ||
         patch.tem_atualizacao_pos_retorno !== !!target.tem_atualizacao_pos_retorno;
 
-      const updatedCase: LegalCase = { ...target, ...patch };
-      await saveStoredCasesForEmpresa([updatedCase], empresa_id);
-      
       let msg = attempts > 1 ? `Auditado (Recuperado na T${attempts})` : "Auditado";
-      if (!hasRealChange) msg += " (Preservado)";
+
+      if (!hasRealChange) {
+        // Update pontual: Apenas renova o timestamp de vigilância
+        await supabase
+          .from('processos')
+          .update({ datajud_consultado_em: patch.datajud_consultado_em })
+          .eq('id', dbItem.id);
+        msg += " (Preservado)";
+      } else {
+        // Sincronização completa: Mudança detectada
+        const updatedCase: LegalCase = { ...target, ...patch };
+        await saveStoredCasesForEmpresa([updatedCase], empresa_id);
+      }
       
       let tipo = 'sem_novidade';
       if (enc.encerrado) {
