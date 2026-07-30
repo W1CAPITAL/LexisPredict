@@ -56,7 +56,8 @@ export const translations = {
     syncFail: "Falha na Sincronia",
     viewMode: "Visualização",
     viewManagement: "Gestão",
-    viewHierarchy: "Hierarquia / Ranking"
+    viewHierarchy: "Hierarquia / Ranking",
+    scannerMni: "Monitor MNI"
   },
   en: {
     management: "Management",
@@ -108,7 +109,8 @@ export const translations = {
     syncFail: "Sync Failed",
     viewMode: "View Mode",
     viewManagement: "Manage",
-    viewHierarchy: "Hierarchy / Ranking"
+    viewHierarchy: "Hierarchy / Ranking",
+    scannerMni: "MNI Monitor"
   }
 };
 
