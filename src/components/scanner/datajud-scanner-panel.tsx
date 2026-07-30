@@ -71,10 +71,11 @@ export function DataJudScannerPanel() {
       const executeCloudBatch = async () => {
         if (!isCloudActive) return;
         setIsCloudLoading(true);
-        // Incrementar ciclos IMEDIATAMENTE para dar feedback de que o gatilho foi enviado
-        setCloudStats(prev => ({ ...prev, batches: prev.batches + 1 }));
-
+        
         try {
+          // Incrementa ciclos IMEDIATAMENTE ao disparar para feedback de vida
+          setCloudStats(prev => ({ ...prev, batches: prev.batches + 1 }));
+          
           const res = await runCloudWorkerAction();
           if (res && res.success) {
              setCloudStats(prev => ({ 
@@ -87,12 +88,14 @@ export function DataJudScannerPanel() {
           console.warn("[Cloud Heartbeat] Falha de comunicação.");
         } finally {
           setIsCloudLoading(false);
-          // Agenda o próximo pulso para 45 segundos para evitar estouro de timeout
+          // Agenda o próximo pulso para 30 segundos
           if (isCloudActive) {
-            timer = setTimeout(executeCloudBatch, 45000);
+            timer = setTimeout(executeCloudBatch, 30000);
           }
         }
       };
+      
+      // Início imediato ao ligar o switch
       executeCloudBatch();
     }
 
@@ -113,7 +116,7 @@ export function DataJudScannerPanel() {
       const validCases = currentCases.filter(c => isCNJ(c.protocolo) && !isCasoEncerrado(c));
       const uniqueMap = new Map();
       validCases.forEach(c => uniqueMap.set(c.protocolo, c));
-      const pool = Array.from(uniqueMap.values());
+      const pool = Array.from(uniqueMap.values()) as any[];
 
       let finalQueue: string[] = [];
       if (scope === 'resume') {
@@ -125,12 +128,12 @@ export function DataJudScannerPanel() {
       }
 
       if (finalQueue.length === 0) {
-        toast({ title: "Fila Limpa", description: "Todos os registros já possuem dados." });
+        toast({ title: "Fila Limpa", description: "Todos os registros já possuem dados recentes." });
         return;
       }
 
       await startScan(finalQueue, scope);
-      toast({ title: "Varredura Iniciada", description: "Health check e priorização concluídos." });
+      toast({ title: "Varredura Manual Iniciada" });
 
     } catch (e) {
       toast({ title: "Falha técnica", variant: "destructive" });
@@ -170,7 +173,7 @@ export function DataJudScannerPanel() {
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", status === 'running' && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v6.1</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v6.2</h3>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -186,7 +189,10 @@ export function DataJudScannerPanel() {
                  <CloudLightning className={cn("text-primary", isCloudActive && "animate-pulse")} size={16} />
                  <Label className="text-[10px] font-black uppercase">Auditoria em Nuvem 24h</Label>
               </div>
-              <Switch checked={isCloudActive} onCheckedChange={setIsCloudActive} />
+              <Switch checked={isCloudActive} onCheckedChange={(val) => {
+                setIsCloudActive(val);
+                if (val) setCloudStats({ success: 0, batches: 0, estimate: 0 });
+              }} />
            </div>
            
            {isCloudActive ? (
@@ -215,11 +221,11 @@ export function DataJudScannerPanel() {
                    </div>
                 </div>
                 <p className="text-[8px] font-bold uppercase text-black/40 italic leading-tight">
-                  Sincronia automática servidor-tribunal ativa enquanto esta aba estiver aberta.
+                  Sincronia contínua via servidor ativa enquanto esta aba estiver aberta.
                 </p>
              </div>
            ) : (
-             <p className="text-[9px] font-bold uppercase text-black/30">Motor de nuvem desativado. Ative para manter a auditoria contínua via servidor.</p>
+             <p className="text-[9px] font-bold uppercase text-black/30">Motor de nuvem desativado. Ative para manter a auditoria automática.</p>
            )}
         </section>
 
@@ -233,7 +239,7 @@ export function DataJudScannerPanel() {
               )}
 
               <Button onClick={() => handleStart('resume')} disabled={loadingCases} className="h-12 bg-black text-white font-black uppercase text-[10px] justify-start px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none">
-                <PlayCircle size={16} className="mr-3 text-primary" /> Retomar Auditoria (Smart Skip)
+                <PlayCircle size={16} className="mr-3 text-primary" /> Varredura Inteligente (Pular Lidos)
               </Button>
               
               <Button onClick={() => handleStart('full')} disabled={loadingCases} variant="outline" className="h-12 border-2 border-black font-black uppercase text-[10px] justify-start px-6 rounded-none shadow-[4px_4px_0px_#22c55e] hover:shadow-none">
@@ -241,8 +247,8 @@ export function DataJudScannerPanel() {
               </Button>
 
               <div className="pt-4 border-t border-black/10">
-                <Button onClick={async () => { if(confirm('Resetar hashes?')) { setIsClearing(true); await clearDataJudAuditAction(); setIsClearing(false); resetScan(); } }} disabled={isClearing} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none">
-                  <Trash2 size={14} className="mr-2" /> Limpar Alertas e Hashes
+                <Button onClick={async () => { if(confirm('Deseja resetar todos os hashes de auditoria?')) { setIsClearing(true); await clearDataJudAuditAction(); setIsClearing(false); resetScan(); } }} disabled={isClearing} variant="outline" className="w-full h-10 border-2 border-red-600/20 text-red-600 font-black uppercase text-[9px] rounded-none">
+                  <Trash2 size={14} className="mr-2" /> Limpar Alertas e Sincronia
                 </Button>
               </div>
             </div>
@@ -292,7 +298,7 @@ export function DataJudScannerPanel() {
                 <p className="text-sm font-black text-emerald-600 tabular-nums">{closed}</p>
               </div>
               <div className="p-2 border-2 border-black bg-blue-50 text-center">
-                <p className="text-[7px] font-black uppercase text-blue-800/40">Mudanças</p>
+                <p className="text-[7px] font-black uppercase text-blue-800/40">Alertas</p>
                 <p className="text-sm font-black text-blue-600 tabular-nums">{alerts}</p>
               </div>
               <div className="p-2 border-2 border-black bg-red-50 text-center">
@@ -332,7 +338,7 @@ export function DataJudScannerPanel() {
               )}
 
               {status === 'done' && (
-                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">Concluir Auditoria</Button>
+                <Button onClick={resetScan} className="w-full bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase shadow-[4px_4px_0px_#22c55e]">Finalizar Auditoria</Button>
               )}
             </div>
           </div>
