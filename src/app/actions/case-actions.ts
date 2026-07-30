@@ -6,7 +6,9 @@ import {
   saveStoredCasesForEmpresa, 
   getUserContext, 
   getStoredNotes, 
-  getEmpresaUsers 
+  getEmpresaUsers,
+  getGlobalPendingProcessesSystem,
+  updateCaseDataJudSystem
 } from '@/lib/server-db';
 import { createClient } from '@/lib/supabase/server';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
@@ -16,7 +18,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAu
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 /**
- * @fileOverview Actions de Processos v420.0 ELITE - Suporte a Integridade por Hash
+ * @fileOverview Actions de Processos v430.0 ELITE - Suporte a Motor de Nuvem
  */
 
 export async function fetchRepoCases() {
@@ -235,5 +237,72 @@ export async function clearDataJudAuditAction() {
     return { success: true };
   } catch (e) {
     return { success: false };
+  }
+}
+
+/**
+ * Gatilho Manual para o Ciclo de Nuvem v1.0
+ * Executa exatamente a mesma lógica do Worker de API, mas via Server Action.
+ */
+export async function runCloudWorkerAction() {
+  try {
+    const BATCH_SIZE = 15;
+    const CONCURRENCY = 2;
+    
+    // 1. Fila de Lacunas em Todo o Sistema
+    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE);
+    
+    if (!casesToAudit || casesToAudit.length === 0) {
+      return { success: true, processed: 0, message: "Sem processos pendentes." };
+    }
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    // 2. Processamento paralelo controlado
+    for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
+      const chunk = casesToAudit.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async (c) => {
+        const dataJud = await fetchDataJud(c.protocolo, 1, { fast: true });
+        if (dataJud && !dataJud.error) {
+          const movimentos = dataJud.movimentos || [];
+          const enc = detectarEncerradoNoTribunal(movimentos);
+          const upd = detectarAtualizacaoPosRetorno(c.ultimoRetorno, movimentos);
+          const ba = analisarBuscaApreensao(dataJud);
+          const newHash = gerarHashAuditoria(movimentos);
+
+          let novoStatusNovidade = c.tem_atualizacao_pos_retorno || !!upd.alerta || newHash !== c.datajud_hash;
+          if (enc.encerrado) novoStatusNovidade = false;
+
+          const patch = {
+            datajud_ultimo_movimento: upd.dataUltimo,
+            datajud_ultimo_nome: upd.nomeUltimo,
+            datajud_consultado_em: new Date().toISOString(),
+            tem_atualizacao_pos_retorno: novoStatusNovidade,
+            datajud_encerrado_tribunal: !!enc.encerrado,
+            datajud_encerrado_motivo: enc.motivo,
+            datajud_hash: newHash,
+            indicio_busca_apreensao: !!ba.indicio,
+            busca_apreensao_confianca: ba.confianca,
+            busca_apreensao_motivo: ba.motivo,
+            busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null
+          };
+
+          await updateCaseDataJudSystem(c.db_id || c.id, patch);
+          successCount++;
+        } else {
+          failedCount++;
+        }
+      }));
+    }
+
+    return { 
+      success: true, 
+      processed: casesToAudit.length, 
+      successCount, 
+      failedCount 
+    };
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
 }
