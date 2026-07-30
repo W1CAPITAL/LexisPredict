@@ -1,13 +1,18 @@
 
 'use server';
 
+/**
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * @license Proprietary - All rights reserved.
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v445.0 ELITE
+ */
+
 import { 
   getStoredCasesForEmpresa, 
   saveStoredCasesForEmpresa, 
   getUserContext, 
   getStoredNotes, 
   getEmpresaUsers,
-  getGlobalPendingProcessesSystem, 
   updateCaseDataJudSystem
 } from '@/lib/server-db';
 import { createClient } from '@/lib/supabase/server';
@@ -17,10 +22,6 @@ import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { headers } from 'next/headers';
-
-/**
- * @fileOverview Actions de Processos v442.0 ELITE - Suporte a Gatilho de Nuvem
- */
 
 export async function fetchRepoCases() {
   const { empresa_id } = await getUserContext();
@@ -65,6 +66,10 @@ export async function fetchTeamPerformanceAction() {
   }
 }
 
+/**
+ * Realiza a auditoria de um único protocolo via DataJud.
+ * Usado pelo Scanner Manual e pelo Worker.
+ */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
@@ -90,23 +95,11 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       ...(dbItem.dados as any),
       id: dbItem.id.toString(),
       created_by: dbItem.created_by,
-      proximoPrazo: dbItem.proximo_retorno || '',
       ultimoRetorno: dbItem.ultimo_retorno || '',
-      datajud_ultimo_movimento: dbItem.datajud_ultimo_movimento,
-      datajud_ultimo_nome: dbItem.datajud_ultimo_nome,
-      datajud_consultado_em: dbItem.datajud_consultado_em,
-      tem_atualizacao_pos_retorno: dbItem.tem_atualizacao_pos_retorno,
-      datajud_encerrado_tribunal: dbItem.datajud_encerrado_tribunal,
-      datajud_encerrado_motivo: dbItem.datajud_encerrado_motivo,
-      datajud_hash: dbItem.datajud_hash,
-      indicio_busca_apreensao: dbItem.indicio_busca_apreensao,
-      busca_apreensao_confianca: dbItem.busca_apreensao_confianca,
-      busca_apreensao_motivo: dbItem.busca_apreensao_motivo,
-      busca_apreensao_consultado_em: dbItem.busca_apreensao_consultado_em
+      datajud_hash: dbItem.datajud_hash
     });
 
     const dataJud = await fetchDataJud(protocolo, 1, { fast });
-    const attempts = dataJud?.attempts || 1;
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
       const movimentos = dataJud.movimentos;
@@ -150,8 +143,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         protocolo, 
         casePatch: patch,
         movimentos,
-        case: { ...target, ...patch },
-        attempts
+        case: { ...target, ...patch }
       };
     }
     
@@ -213,8 +205,8 @@ export async function clearDataJudAuditAction() {
 }
 
 /**
- * Gatilho Oficial para o Motor de Nuvem 24h
- * Refatorado para disparar requisição HTTP com escopo de empresa.
+ * Gatilho do Motor de Nuvem
+ * Dispara uma requisição HTTP real para a API worker garantindo registro nos logs do Vercel.
  */
 export async function runCloudWorkerAction() {
   try {
@@ -225,9 +217,10 @@ export async function runCloudWorkerAction() {
     if (!secret) throw new Error("DATAJUD_WORKER_SECRET ausente.");
 
     const h = await headers();
-    let host = h.get('host');
+    const host = h.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     
+    // Fallback para variável VERCEL_URL se disponível
     const baseUrl = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
       : `${protocol}://${host}`;
@@ -239,8 +232,7 @@ export async function runCloudWorkerAction() {
         'Content-Type': 'application/json'
       },
       cache: 'no-store',
-      signal: AbortSignal.timeout(65000),
-      next: { revalidate: 0 }
+      signal: AbortSignal.timeout(65000)
     });
 
     if (!response.ok) {
