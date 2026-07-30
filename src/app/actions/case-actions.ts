@@ -19,7 +19,7 @@ import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { headers } from 'next/headers';
 
 /**
- * @fileOverview Actions de Processos v440.0 ELITE - Suporte a Gatilho de Nuvem
+ * @fileOverview Actions de Processos v441.0 ELITE - Suporte a Gatilho de Nuvem
  */
 
 export async function fetchRepoCases() {
@@ -221,12 +221,10 @@ export async function runCloudWorkerAction() {
     const secret = process.env.DATAJUD_WORKER_SECRET;
     if (!secret) throw new Error("DATAJUD_WORKER_SECRET ausente.");
 
-    // Protocolo de Descoberta de URL de Gabinete
     const h = await headers();
     let host = h.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     
-    // Suporte a Vercel URL para bypass de proxy local
     const baseUrl = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
       : `${protocol}://${host}`;
@@ -238,7 +236,8 @@ export async function runCloudWorkerAction() {
         'Content-Type': 'application/json'
       },
       cache: 'no-store',
-      // Sinaliza para o servidor que esta é uma chamada de pulso
+      // Timeout agressivo para a UI não travar se o worker demorar
+      signal: AbortSignal.timeout(65000),
       next: { revalidate: 0 }
     });
 
