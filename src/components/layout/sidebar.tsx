@@ -105,7 +105,6 @@ export function Sidebar() {
         { label: t.import, href: '/import', icon: Upload },
         { label: t.notes, href: '/notes', icon: StickyNote },
         { label: "Motor de OCR", href: '/tools/ocr', icon: Zap },
-        { label: t.scannerMni, href: '/scanner-monitor', icon: Activity },
         { label: "Treinamento Vídeo", href: '/onboarding', icon: PlayCircle },
       ]
     },
@@ -137,13 +136,26 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 py-8 px-4 space-y-8 overflow-y-auto text-black">
-        <div className="px-3">
+        <div className="px-3 space-y-2">
           <Button 
             onClick={() => toggleMinimize()} 
             className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black border-2 border-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all gap-3"
           >
             <Zap className={cn("w-4 h-4 text-primary", status === 'running' && "animate-pulse")} />
             {!collapsed && "DataJud Scanner"}
+          </Button>
+
+          <Button 
+            asChild
+            className={cn(
+              "w-full h-12 bg-black text-white border-2 border-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all gap-3",
+              pathname === '/scanner-monitor' ? "bg-primary text-black border-primary" : "hover:bg-emerald-500 hover:text-black"
+            )}
+          >
+            <Link href="/scanner-monitor">
+              <Activity className={cn("w-4 h-4 text-emerald-400", pathname === '/scanner-monitor' && "text-black")} />
+              {!collapsed && t.scannerMni}
+            </Link>
           </Button>
         </div>
 
