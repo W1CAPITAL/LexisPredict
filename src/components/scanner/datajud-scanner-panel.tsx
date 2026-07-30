@@ -88,14 +88,12 @@ export function DataJudScannerPanel() {
           console.warn("[Cloud Heartbeat] Falha de comunicação.");
         } finally {
           setIsCloudLoading(false);
-          // Agenda o próximo pulso para 30 segundos
           if (isCloudActive) {
-            timer = setTimeout(executeCloudBatch, 30000);
+            timer = setTimeout(executeCloudBatch, 30000); // Proximo pulso em 30s
           }
         }
       };
       
-      // Início imediato ao ligar o switch
       executeCloudBatch();
     }
 
@@ -317,7 +315,7 @@ export function DataJudScannerPanel() {
                 <div key={h.id} className="flex flex-col p-2 bg-[#f8f9fb] border border-black/5">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-[8px] font-black uppercase">{h.id}</span>
-                    <span className={cn("w-1.5 h-1.5 rounded-full", h.status === 'online' ? "bg-emerald-500" : h.status === 'slow' ? "bg-orange-500" : "bg-red-500")} />
+                    <span className={cn("w-1.5 h-1.5 rounded-full", h.status === 'online' ? "bg-emerald-50" : h.status === 'slow' ? "bg-orange-500" : "bg-red-500")} />
                   </div>
                   <div className="flex justify-between items-center text-[7px] font-bold text-black/40">
                     <span>{Math.round(h.avgLatency)}ms</span>
@@ -361,4 +359,3 @@ export function DataJudScannerPanel() {
     </div>
   );
 }
-
