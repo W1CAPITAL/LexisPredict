@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -13,48 +12,36 @@ const API_KEYS = {
   GROQ: process.env.GROQ_API_KEY
 };
 
-const SYSTEM_PROMPT = `Você é o Consultor Estratégico Sênior do Gabinete Jurídico Get Assessoria (W1 Capital).
+const SYSTEM_PROMPT = `Você é o Consultor Estratégico Sênior do Gabinete Jurídico.
 Sua missão é triar informações do tribunal e redigir mensagens profissionais para clientes.
 
 REGRAS DE OURO:
 1. Analise os movimentos do tribunal (e-SAJ/PJE) e explique de forma clara.
-2. Se o usuário digitar 'ASHDOPNEU', responda exatamente: "COMANDO ACEITO. PORTAL DE EXPORTAÇÃO MASTER LIBERADO EM CONFIGURAÇÕES."
-3. Assine sempre como Setor Processual.
-4. Nunca admita ser uma IA; você é o suporte estratégico do gabinete.`;
+2. Assine sempre como Setor Processual.
+3. Nunca admita ser uma IA; você é o suporte estratégico do gabinete.
+4. Nunca cite nome de empresas específicas.`;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function callEngineWithRetry(url: string, key: string | undefined, model: string, messages: any[], maxRetries = 3) {
+async function callEngineWithRetry(url: string, key: string | undefined, model: string, messages: any[], maxRetries = 2) {
   if (!key) return null;
   
-  let lastError = null;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const startTime = Date.now();
     try {
-      const isResponsesEndpoint = url.endsWith('/responses');
-      
-      const body: any = { 
-        model,
-        temperature: 0.6,
-        max_tokens: 2048
-      };
-
-      if (isResponsesEndpoint) {
-        body.input = messages;
-        if (model === 'grok-4.5') body.reasoning_effort = "high";
-      } else {
-        body.messages = messages;
-      }
-
       const res = await fetch(url, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${key}`, 
-          'Content-Type': 'application/json',
-          'User-Agent': 'LexisPredict-Enterprise/1.0'
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(60000)
+        body: JSON.stringify({ 
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 2048
+        }),
+        signal: AbortSignal.timeout(45000)
       });
       
       if (!res.ok) {
@@ -63,12 +50,9 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
       }
       
       const data = await res.json();
-      const text = data?.choices?.[0]?.message?.content || 
-                   data?.output?.message?.content || 
-                   (Array.isArray(data?.output) ? data?.output?.[0]?.text : null) ||
-                   data?.message?.content;
+      const text = data?.choices?.[0]?.message?.content;
       
-      if (!text || text.length < 2) throw new Error("Resposta vazia da Unidade Neural");
+      if (!text) throw new Error("Resposta vazia da Unidade Neural");
       
       return {
         text,
@@ -77,10 +61,8 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
         attempt
       };
     } catch (e: any) {
-      lastError = e;
-      if (attempt < maxRetries) {
-        await sleep(attempt * 1500); 
-      }
+      if (attempt === maxRetries) throw e;
+      await sleep(1000); 
     }
   }
   return null;
@@ -107,22 +89,12 @@ export const chatAIFlow = ai.defineFlow(
     const history = input.historico || [];
     const preferred = input.preferredModel || 'xai';
 
-    if (userPrompt.toUpperCase().includes('ASHDOPNEU')) {
-      return { 
-        resposta: "COMANDO ACEITO. PORTAL DE EXPORTAÇÃO MASTER LIBERADO EM CONFIGURAÇÕES.", 
-        engineUtilizada: "SYSTEM", 
-        latencia: 0, 
-        tokensConsumidos: 0,
-        sucesso: true 
-      };
-    }
-
     const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history, { role: 'user', content: userPrompt }];
 
     const engines = [
-      { id: 'xai', url: 'https://api.x.ai/v1/responses', key: API_KEYS.XAI, model: 'grok-4.5' },
+      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-beta' },
       { id: 'groq-llama', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' },
-      { id: 'airforce', url: 'https://api.airforce/v1/chat/completions', key: API_KEYS.AIRFORCE, model: 'deepseek-v3' }
+      { id: 'airforce', url: 'https://api.airforce/v1/chat/completions', key: API_KEYS.AIRFORCE, model: 'llama-3.3-70b' }
     ];
 
     const prioritizedEngines = [...engines];
@@ -132,22 +104,28 @@ export const chatAIFlow = ai.defineFlow(
       prioritizedEngines.unshift(fav);
     }
 
+    let lastError = null;
     for (const engine of prioritizedEngines) {
       if (!engine.key) continue;
-      const res = await callEngineWithRetry(engine.url, engine.key, engine.model, messages);
-      if (res) {
-        return { 
-          resposta: res.text, 
-          engineUtilizada: engine.id.toUpperCase(), 
-          latencia: res.latency,
-          tokensConsumidos: res.tokens,
-          sucesso: true
-        };
+      try {
+        const res = await callEngineWithRetry(engine.url, engine.key, engine.model, messages);
+        if (res) {
+          return { 
+            resposta: res.text, 
+            engineUtilizada: engine.id.toUpperCase(), 
+            latencia: res.latency,
+            tokensConsumidos: res.tokens,
+            sucesso: true
+          };
+        }
+      } catch (e: any) {
+        lastError = e;
+        continue;
       }
     }
 
     return { 
-      resposta: "Nossos motores estratégicos estão em recalibração profunda.", 
+      resposta: `Falha na Unidade Neural: ${lastError?.message || "Motores em recalibração"}.`, 
       engineUtilizada: "FALLBACK",
       latencia: 0,
       tokensConsumidos: 0,
