@@ -31,7 +31,8 @@ import {
   ShieldAlert,
   Scale,
   MessageSquare,
-  Copy
+  Copy,
+  MessageSquareQuote
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -67,14 +68,16 @@ const CaseRow = React.memo(({
   onLogReturn, 
   onEdit, 
   onDelete,
-  onScan
+  onScan,
+  onSuggest
 }: { 
   c: LegalCase, 
   isOperador: boolean, 
   onLogReturn: (p: string) => void, 
   onEdit: (c: LegalCase) => void, 
   onDelete: (id: string) => void,
-  onScan: (c: LegalCase) => void
+  onScan: (c: LegalCase) => void,
+  onSuggest: (c: LegalCase) => void
 }) => {
   const prob = calcularProbabilidadeEncerramento({
     status: c.status,
@@ -84,6 +87,7 @@ const CaseRow = React.memo(({
   });
 
   const [loading, setLoading] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   // HEURÍSTICA DE CUMPRIMENTO (v60.0)
   const isExecutionPhase = useMemo(() => {
@@ -206,6 +210,18 @@ const CaseRow = React.memo(({
       </td>
       <td className="px-8 py-5 text-right">
         <div className="flex items-center justify-end gap-2">
+          <button 
+            title="Sugerir Resposta" 
+            disabled={suggestLoading}
+            onClick={async () => {
+              setSuggestLoading(true);
+              await onSuggest(c);
+              setSuggestLoading(false);
+            }} 
+            className="text-amber-600 hover:bg-amber-50 h-9 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-50"
+          >
+            {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
+          </button>
           <button 
             title="Andamentos DataJud" 
             disabled={loading}
@@ -338,6 +354,42 @@ function CasesContent() {
         toast({ 
           title: "Auditoria Indisponível", 
           description: res.message || "Tribunal não retornou andamentos para este CNJ.", 
+          variant: "destructive" 
+        });
+      }
+    } catch (e) {
+      toast({ title: "Erro na consulta", variant: "destructive" });
+    }
+  };
+
+  const handleSuggestClick = async (caseItem: LegalCase) => {
+    try {
+      const res = await scanSingleCaseAction(caseItem.protocolo);
+      if (res.success && res.case) {
+        const moves = res.movimentos || [];
+        setHistoryResult({ case: res.case, movimentos: moves });
+        
+        // Gera scripts imediatamente
+        const suggestions = suggestScripts({
+          clienteNome: res.case.cliente,
+          protocolo: res.case.protocolo,
+          ultimoRetorno: res.case.ultimoRetorno,
+          movimentos: moves
+        });
+        
+        setSuggestedScripts(suggestions);
+        setShowScripts(true);
+        setIsHistoryModalOpen(true);
+        
+        if (res.casePatch) {
+          updateCaseByProtocolo(caseItem.protocolo, res.casePatch);
+        } else if (res.case) {
+          updateCase(res.case.id || '', res.case);
+        }
+      } else {
+        toast({ 
+          title: "Sugestão Indisponível", 
+          description: res.message || "Tribunal não retornou andamentos.", 
           variant: "destructive" 
         });
       }
@@ -662,6 +714,7 @@ function CasesContent() {
                       isOperador={isOperador} 
                       onLogReturn={handleLogReturn} 
                       onScan={handleSingleScan}
+                      onSuggest={handleSuggestClick}
                       onEdit={(caseItem) => {
                         setEditingCase(caseItem);
                         setFormState({
