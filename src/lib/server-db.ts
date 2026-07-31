@@ -7,9 +7,8 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v290.0 ELITE)
- * Governança de Visibilidade: Visão Master restrita a Superadmin e Supervisor.
- * Suporte a Workers de Sistema via Service Role para Auditoria em Background.
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v300.0 ELITE)
+ * Governança de Visibilidade e Telemetria Real.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -23,7 +22,7 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
 export async function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Configuração de Admin (Service Role) ausente nas ENV.");
+  if (!url || !key) throw new Error("Configuração de Admin ausente.");
   return createSupabaseClient(url, key);
 }
 
@@ -31,8 +30,7 @@ export async function getUserContext() {
   const cookieStore = await cookies();
   const userEmail = cookieStore.get('lexis_user_email')?.value;
   
-  if (!userEmail) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isMasterView: false, weight: 0 };
-  if (!supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isMasterView: false, weight: 0 };
+  if (!userEmail || !supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isMasterView: false, weight: 0 };
 
   const { data: profile } = await supabase
     .from('usuarios')
@@ -69,6 +67,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!client) return [];
 
   try {
+    const { auth_id, isMasterView } = await getUserContext();
     let allData: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -82,11 +81,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      if (!isAdmin) {
-        const { auth_id, isMasterView } = await getUserContext();
-        if (!isMasterView && auth_id) {
-          query = query.eq('created_by', auth_id);
-        }
+      if (!isAdmin && !isMasterView && auth_id) {
+        query = query.eq('created_by', auth_id);
       }
 
       const { data, error } = await query;
@@ -189,7 +185,6 @@ export async function getScanStatusMetrics(empresaId: string) {
     .eq('empresa_id', empresaId)
     .eq('datajud_encerrado_tribunal', true);
 
-  // Recupera as últimas 10 atividades da nuvem para o log da UI (Sincronia v47)
   const { data: recent } = await admin
     .from('processos')
     .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, datajud_ultimo_nome, datajud_consultado_em')
@@ -203,7 +198,7 @@ export async function getScanStatusMetrics(empresaId: string) {
     alerts: alerts || 0,
     closed: closed || 0,
     audited: (total || 0) - (pending || 0),
-    recentLogs: recent?.map(r => ({
+    recentLogs: recent?.filter(r => r.datajud_consultado_em).map(r => ({
       protocolo: r.protocolo_ref,
       message: r.datajud_encerrado_tribunal ? 'BAIXA NO TRIBUNAL' : r.tem_atualizacao_pos_retorno ? 'NOVA MOVIMENTAÇÃO' : 'Monitoramento Regular',
       success: true,
