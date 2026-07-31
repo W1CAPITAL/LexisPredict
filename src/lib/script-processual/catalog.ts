@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * CATÁLOGO DE SCRIPTS DE GABINETE v1.4 - MÓDULO TYPE-SAFE
+ * CATÁLOGO DE SCRIPTS DE GABINETE v1.5 - MÓDULO TYPE-SAFE
  */
 
 export interface ScriptTemplate {
@@ -39,7 +39,16 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     titulo: 'Liminar e Justiça Gratuita Analisadas',
     texto: 'Olá, [Nome]! O juiz realizou a análise dos nossos pedidos iniciais no processo [CNJ], tratando tanto da liminar quanto do pedido de Justiça Gratuita. Nossa equipe jurídica já está analisando o teor detalhado desta decisão para os próximos passos. Seguimos acompanhando de perto.',
     quandoUsar: 'Usar quando houver movimentos de Liminar e Justiça Gratuita na mesma janela.',
-    keywords: ['LIMINAR', 'ASSISTÊNCIA JUDICIÁRIA', 'JUSTIÇA GRATUITA', 'GRATUIDADE'],
+    keywords: ['LIMINAR', 'ASSISTÊNCIA JUDICIÁRIA', 'JUSTIÇA GRATUITA', 'GRATUIDADE', 'GRATUIDADE DA JUSTIÇA'],
+    prioridade: 1
+  },
+  {
+    id: 'outras_decisoes',
+    categoria: 'decisao',
+    titulo: 'Nova Decisão Prolatada',
+    texto: 'Olá, [Nome]! O juízo proferiu uma nova decisão nos autos do processo [CNJ]. Nossa equipe jurídica já foi notificada e está analisando o teor técnico do despacho para dar andamento às providências necessárias. Qualquer novidade relevante, entraremos em contato imediatamente.',
+    quandoUsar: 'Usar para movimentos genéricos de decisão ou decisões interlocutórias.',
+    keywords: ['OUTRAS DECISÕES', 'OUTRAS DECISOES', 'OUTRA DECISÃO', 'OUTRA DECISAO', 'DECISÃO INTERLOCUTÓRIA', 'DECISAO INTERLOCUTORIA'],
     prioridade: 1
   },
   {
@@ -57,7 +66,7 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     titulo: 'Justiça Gratuita Apreciada',
     texto: 'Oi, [Nome]! O pedido de Justiça Gratuita do processo [CNJ] foi analisado pelo juízo. Esta é uma etapa importante para a continuidade da ação sem custos processuais imediatos. Nossa equipe está conferindo o despacho para garantir que tudo esteja regularizado.',
     quandoUsar: 'Usar quando houver menção à gratuidade da justiça ou assistência judiciária.',
-    keywords: ['ASSISTÊNCIA JUDICIÁRIA', 'JUSTIÇA GRATUITA', 'GRATUIDADE'],
+    keywords: ['ASSISTÊNCIA JUDICIÁRIA', 'JUSTIÇA GRATUITA', 'GRATUIDADE', 'GRATUIDADE DA JUSTIÇA'],
     prioridade: 1
   },
   {
@@ -102,7 +111,7 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     titulo: 'Aguardando Decisão (Conclusos)',
     texto: 'Oi, [Nome]! O seu processo [CNJ] teve uma atualização técnica: ele foi enviado para a mesa do juiz (conclusos). Isso significa que o processo está na fila para que o magistrado profira uma decisão ou despacho. Estamos monitorando diariamente esse retorno.',
     quandoUsar: 'Usar quando o andamento indicar "Conclusos para despacho/decisão".',
-    keywords: ['CONCLUSOS PARA DESPACHO', 'CONCLUSOS PARA DECISÃO', 'CONCLUSOS PARA SENTENÇA'],
+    keywords: ['CONCLUSOS', 'CONCLUSÃO', 'CONCLUSAO', 'CONCLUSOS PARA DESPACHO', 'CONCLUSOS PARA DECISÃO', 'CONCLUSOS PARA SENTENÇA'],
     prioridade: 4
   },
   {
