@@ -12,9 +12,9 @@ import {
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview Unidade de Ingestão de Conhecimento v8.1
- * Gerencia o ciclo de vida de documentos e fragmentação de PDFs para aprendizado da IA.
- * Protocolo de Integridade: Extensão Soberana + Resiliência a PDFs corrompidos.
+ * @fileOverview Unidade de Ingestão de Conhecimento v8.2
+ * Gerencia o ciclo de vida de documentos e fragmentação de PDFs/Texto para aprendizado da IA.
+ * Protocolo de Integridade: Extensão Soberana + Suporte a Texto Manual.
  */
 
 const BANNED_TERMS = ['GET ASSESSORIA', 'GETASSESSORIA', 'W1 CAPITAL', 'W1CAPITAL', 'W1', 'GET'];
@@ -41,7 +41,6 @@ export async function extractTextResilient(buffer: Buffer, fileName: string): Pr
       if (!data.text || data.text.trim().length < 5) throw new Error("PDF sem conteúdo textual.");
       return data.text;
     } catch (e: any) {
-      // Se falhar o parser primário, bloqueia para evitar lixo binário.
       throw new Error(`Falha estrutural no PDF (${e.message}). Converta este documento para .txt ou .md para ingestão segura.`);
     }
   } else if (lowerName.endsWith('.txt') || lowerName.endsWith('.md')) {
@@ -69,13 +68,14 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
     const { empresa_id, isMasterView, auth_id } = await getUserContext();
     if (!empresa_id || !isMasterView) throw new Error("Permissão insuficiente.");
 
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
+    const rawTextContent = formData.get('rawText') as string | null;
     const title = formData.get('title') as string;
     const type = formData.get('type') as string;
     const tagsStr = formData.get('tags') as string;
     const useInDispatch = formData.get('useInDispatch') === 'true';
 
-    if (!file) throw new Error("Nenhum arquivo enviado.");
+    if (!file && !rawTextContent) throw new Error("Nenhum conteúdo enviado (arquivo ou texto).");
 
     const tags = tagsStr.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
     const admin = await getSupabaseAdmin();
@@ -86,20 +86,32 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
       throw new Error("Bucket 'knowledge' inexistente no Storage.");
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
-    // Extração Resiliente
-    const rawText = await extractTextResilient(buffer, file.name);
-    const cleanExtractedText = cleanText(rawText);
+    let finalExtractedText = "";
+    let fileName = "";
+    let fileToUpload: File | Blob;
 
-    const uniqueFileName = `${Date.now()}_${file.name}`;
+    if (file && file.size > 0) {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      finalExtractedText = await extractTextResilient(buffer, file.name);
+      fileName = file.name;
+      fileToUpload = file;
+    } else if (rawTextContent) {
+      finalExtractedText = rawTextContent;
+      fileName = `manual_input_${Date.now()}.txt`;
+      fileToUpload = new Blob([rawTextContent], { type: 'text/plain' });
+    } else {
+      throw new Error("Dados de entrada inválidos.");
+    }
+
+    const cleanExtractedText = cleanText(finalExtractedText);
+    const uniqueFileName = `${Date.now()}_${fileName}`;
     const storagePath = `${empresa_id}/knowledge/${uniqueFileName}`;
 
-    // Upload Storage
+    // Upload Storage (Mantém consistência mesmo para texto manual)
     const { error: uploadError } = await admin.storage
       .from('knowledge')
-      .upload(storagePath, file);
+      .upload(storagePath, fileToUpload);
 
     if (uploadError) throw new Error(`Falha no Storage: ${uploadError.message}`);
 
@@ -119,7 +131,7 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
       throw new Error(`Erro de Schema: ${docRes.error?.message || 'Falha nas colunas do banco'}`);
     }
 
-    // Fragmentação
+    // Fragmentação (Chunking)
     const rawChunks = cleanExtractedText.split(/\n\s*\n/).filter(c => c.trim().length > 50);
     const chunksPayload = rawChunks.map((text, i) => ({
       doc_id: docRes.data.id,
