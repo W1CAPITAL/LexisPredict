@@ -1,9 +1,10 @@
+
 'use server';
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v446.0 ELITE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v450.0 ELITE
  */
 
 import { 
@@ -67,6 +68,7 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * Realiza a auditoria de um único protocolo via DataJud.
+ * Sempre persiste o patch de telemetria completo após scan bem sucedido.
  */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
@@ -97,14 +99,13 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       datajud_hash: dbItem.datajud_hash
     });
 
-    // Se já estiver marcado internamente como encerrado, não auditamos
     if (isCasoEncerrado(target)) {
       return { success: true, protocolo, message: "Já encerrado internamente", skipped: true };
     }
 
     const dataJud = await fetchDataJud(protocolo, 1, { fast });
     
-    if (dataJud && !dataJud.error && dataJud.movimentos) {
+    if (dataJud && !dataJud.error && dataJud.movimentos && dataJud.movimentos.length > 0) {
       const movimentos = dataJud.movimentos;
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
       const enc = detectarEncerradoNoTribunal(movimentos);
@@ -115,7 +116,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         datajud_ultimo_movimento: check.dataUltimo,
         datajud_ultimo_nome: check.nomeUltimo,
         datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: !!check.alerta || newHash !== target.datajud_hash,
+        tem_atualizacao_pos_retorno: !!check.alerta, // Apenas comparação de datas
         datajud_encerrado_tribunal: !!enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
         datajud_hash: newHash,
@@ -126,9 +127,8 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      // Sempre persistimos a consulta, mesmo se não houver mudança de flag
-      const updatedCase: LegalCase = { ...target, ...patch };
-      await saveStoredCasesForEmpresa([updatedCase], empresa_id);
+      // Persistência Integral: Flags, Movimentos e Metadados
+      await updateCaseDataJudSystem(dbItem.id, patch);
       
       return { 
         success: true, 
@@ -139,7 +139,8 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       };
     }
     
-    return { success: false, protocolo, message: dataJud?.message || "Erro no tribunal", error: true };
+    const failMsg = dataJud?.movimentos?.length === 0 ? "Sem dados de movimento" : (dataJud?.message || "Erro no tribunal");
+    return { success: false, protocolo, message: failMsg, error: true };
   } catch (e: any) {
     return { success: false, protocolo, message: `Falha técnica`, error: true };
   }
