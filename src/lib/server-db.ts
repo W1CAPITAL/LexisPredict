@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
@@ -300,6 +299,8 @@ export async function listAllEmpresasSystem() {
 export async function getStoredNotes(): Promise<any[]> {
   const { auth_id, empresa_id, isMasterView } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
+  
+  // Governança Master: Se for Superadmin ou Supervisor, vê todas as notas da empresa
   const hasFullAccess = isMasterView === true;
 
   try {
@@ -307,22 +308,49 @@ export async function getStoredNotes(): Promise<any[]> {
     let page = 0;
     const pageSize = 1000;
     let hasMore = true;
+
     while (hasMore) {
-      let query = supabase.from('notes').select('*').eq('empresa_id', empresa_id).order('created_at', { ascending: false }).range(page * pageSize, (page + 1) * pageSize - 1);
-      if (!hasFullAccess) { query = query.eq('created_by', auth_id); }
+      let query = supabase
+        .from('notes')
+        .select('*')
+        .eq('empresa_id', empresa_id)
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (!hasFullAccess) {
+        query = query.eq('created_by', auth_id);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
+
       if (data && data.length > 0) {
         allData = [...allData, ...data];
         hasMore = data.length === pageSize;
         page++;
-      } else { hasMore = false; }
+      } else {
+        hasMore = false;
+      }
     }
+    
     return allData.map(item => {
       let imageUrl;
       let displayContent = item.content || '';
-      try { if (displayContent.startsWith('{')) { const parsed = JSON.parse(displayContent); displayContent = parsed.text; imageUrl = parsed.imageUrl; } } catch (e) {}
-      return { id: item.id.toString(), title: item.title || 'Nota', content: displayContent, imageUrl: imageUrl, color: 'bg-white', updatedAt: new Date(item.created_at).toLocaleString('pt-BR') };
+      try { 
+        if (displayContent.startsWith('{')) { 
+          const parsed = JSON.parse(displayContent); 
+          displayContent = parsed.text; 
+          imageUrl = parsed.imageUrl; 
+        } 
+      } catch (e) {}
+      return { 
+        id: item.id.toString(), 
+        title: item.title || 'Nota', 
+        content: displayContent, 
+        imageUrl: imageUrl, 
+        color: 'bg-white', 
+        updatedAt: new Date(item.created_at).toLocaleString('pt-BR') 
+      };
     });
   } catch (error) { return []; }
 }
