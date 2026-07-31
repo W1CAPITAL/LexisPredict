@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -173,8 +174,8 @@ export default function SettingsPage() {
     setGlassBlur(visual.glassBlur);
 
     fetchBanca();
-    if (isAdmin) fetchKnowledge();
-  }, [isAdmin]);
+    fetchKnowledge();
+  }, []);
 
   const fetchBanca = async () => {
     setLoadingBanca(true);
@@ -193,7 +194,7 @@ export default function SettingsPage() {
   const handleUnlockKnowledge = () => {
     if (knowledgePassword === 'Ashley@25472053') {
       setKnowledgeUnlocked(true);
-      toast({ title: "Base de Conhecimento Liberada" });
+      toast({ title: "Modo de Edição Liberado" });
     } else {
       toast({ title: "Senha de Gabinete Inválida", variant: "destructive" });
     }
@@ -390,7 +391,7 @@ export default function SettingsPage() {
               <nav className="space-y-1">
                 <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
                 <NavButton active={activeTab === 'Banca'} onClick={() => setActiveTab('Banca')} icon={<Gavel size={14}/>} label="Banca de Advogados" />
-                {isAdmin && <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />}
+                <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
                 <NavButton active={activeTab === 'Engine'} onClick={() => setActiveTab('Engine')} icon={<Cpu size={14}/>} label="Núcleo Neural" />
                 {isMasterUnlocked && <NavButton active={activeTab === 'Export'} onClick={() => setActiveTab('Export')} icon={<Archive size={14}/>} label="Exportação Master" />}
               </nav>
@@ -438,53 +439,68 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {activeTab === 'Knowledge' && isAdmin && (
+              {activeTab === 'Knowledge' && (
                 <div className="space-y-8 animate-in fade-in duration-500">
-                   {!knowledgeUnlocked ? (
-                     <div className="p-16 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center space-y-6 bg-background/10 backdrop-blur-md">
-                        <div className="w-16 h-16 bg-black text-primary flex items-center justify-center rounded-full shadow-2xl"><Lock size={32} /></div>
-                        <div className="text-center space-y-2">
-                           <h3 className="font-black uppercase text-sm tracking-widest">Acesso de Gabinete Requerido</h3>
-                           <p className="text-[10px] font-bold uppercase text-muted-foreground">Insira a senha mestre para gerenciar o conhecimento da IA.</p>
+                   <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                         <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Base de Dados & Scripts Corporativos</Label>
+                         <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest">Acesso de consulta liberado para toda a empresa.</p>
+                      </div>
+                      {isAdmin && (
+                        <Button onClick={() => {
+                          if (!knowledgeUnlocked) {
+                             const pass = prompt("Insira a senha master para gerenciar o conhecimento:");
+                             if (pass === 'Ashley@25472053') {
+                               setKnowledgeUnlocked(true);
+                               toast({ title: "Acesso de Gestão Liberado" });
+                               setIsKnowledgeModalOpen(true);
+                             } else {
+                               toast({ title: "Senha incorreta", variant: "destructive" });
+                             }
+                          } else {
+                             setIsKnowledgeModalOpen(true);
+                          }
+                        }} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all">
+                          <Plus size={14} className="mr-2"/> {knowledgeUnlocked ? 'Ensinar IA' : 'Gerenciar Conhecimento'}
+                        </Button>
+                      )}
+                   </div>
+
+                   <div className="grid gap-4">
+                      {loadingKnowledge ? (
+                        <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary"/></div>
+                      ) : knowledgeDocs.length > 0 ? (
+                        knowledgeDocs.map((doc) => (
+                        <div key={doc.id} className="p-6 border border-border rounded-lg bg-background/20 backdrop-blur-xl flex items-center justify-between group hover:border-primary/50 transition-all">
+                           <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 bg-black flex items-center justify-center text-primary rounded-lg border-2 border-black shadow-sm group-hover:shadow-primary/20"><BookOpen size={24} /></div>
+                              <div>
+                                 <div className="flex items-center gap-2">
+                                    <p className="font-black text-sm uppercase tracking-tight">{doc.titulo}</p>
+                                    <Badge variant="outline" className="text-[7px] font-black uppercase px-1.5 py-0 border-black/10">{doc.tipo}</Badge>
+                                 </div>
+                                 <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex gap-1">{doc.tags?.slice(0, 3).map((t: string) => (<span key={t} className="text-[7px] bg-secondary/50 text-muted-foreground px-1 py-0.5 rounded-sm font-black uppercase">{t}</span>))}</div>
+                                    <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
+                                    {doc.uso_despacho ? (<Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><Eye size={8}/> Ativo em Despacho</Badge>) : (<Badge className="bg-slate-500/10 text-slate-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><EyeOff size={8}/> Apenas Consulta</Badge>)}
+                                 </div>
+                              </div>
+                           </div>
+                           {isAdmin && knowledgeUnlocked && (
+                             <div className="flex gap-2">
+                               <Button variant="ghost" size="icon" onClick={() => handleDeleteKnowledge(doc.id)} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm">
+                                 <Trash2 size={14}/>
+                               </Button>
+                             </div>
+                           )}
                         </div>
-                        <div className="flex gap-2 w-full max-w-xs">
-                           <Input type="password" placeholder="SENHA MASTER..." value={knowledgePassword} onChange={(e) => setKnowledgePassword(e.target.value)} className="border-2 border-black rounded-none h-11 uppercase font-black text-xs text-center" />
-                           <Button onClick={handleUnlockKnowledge} className="bg-black text-white h-11 px-6 rounded-none font-black uppercase text-[10px]">Liberar</Button>
+                      ))) : (
+                        <div className="py-20 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center opacity-30">
+                           <BookOpen size={48} className="mb-4" />
+                           <p className="font-black uppercase text-xs">Nenhum documento na base corporativa.</p>
                         </div>
-                     </div>
-                   ) : (
-                     <>
-                       <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                             <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Base de Dados & Scripts</Label>
-                             <div className="flex items-center gap-2 text-emerald-500 text-[8px] font-black uppercase"><Unlock size={10} /> Ashley Protocol Active</div>
-                          </div>
-                          <Button onClick={() => setIsKnowledgeModalOpen(true)} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all"><Plus size={14} className="mr-2"/> Ensinar IA</Button>
-                       </div>
-                       <div className="grid gap-4">
-                          {loadingKnowledge ? <Loader2 className="animate-spin mx-auto"/> : 
-                            knowledgeDocs.map((doc) => (
-                            <div key={doc.id} className="p-6 border border-border rounded-lg bg-background/20 backdrop-blur-xl flex items-center justify-between group hover:border-primary/50 transition-all">
-                               <div className="flex items-center gap-4">
-                                  <div className="w-12 h-12 bg-black flex items-center justify-center text-primary rounded-lg border-2 border-black shadow-sm group-hover:shadow-primary/20"><BookOpen size={24} /></div>
-                                  <div>
-                                     <div className="flex items-center gap-2">
-                                        <p className="font-black text-sm uppercase tracking-tight">{doc.titulo}</p>
-                                        <Badge variant="outline" className="text-[7px] font-black uppercase px-1.5 py-0 border-black/10">{doc.tipo}</Badge>
-                                     </div>
-                                     <div className="flex items-center gap-2 mt-1">
-                                        <div className="flex gap-1">{doc.tags?.slice(0, 3).map((t: string) => (<span key={t} className="text-[7px] bg-secondary/50 text-muted-foreground px-1 py-0.5 rounded-sm font-black uppercase">{t}</span>))}</div>
-                                        <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
-                                        {doc.uso_despacho ? (<Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><Eye size={8}/> Despacho Ativo</Badge>) : (<Badge className="bg-slate-500/10 text-slate-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><EyeOff size={8}/> Apenas Interno</Badge>)}
-                                     </div>
-                                  </div>
-                               </div>
-                               <div className="flex gap-2"><Button variant="ghost" size="icon" onClick={() => handleDeleteKnowledge(doc.id)} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button></div>
-                            </div>
-                          ))}
-                       </div>
-                     </>
-                   )}
+                      )}
+                   </div>
                 </div>
               )}
 
@@ -492,7 +508,7 @@ export default function SettingsPage() {
                 <div className="space-y-8 animate-in fade-in duration-500">
                    <div className="flex items-center justify-between">
                       <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Advogados Ativos</Label>
-                      <Button onClick={openAddAdv} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all"><Plus size={14} className="mr-2"/> Cadastrar Novo</Button>
+                      {isAdmin && <Button onClick={openAddAdv} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all"><Plus size={14} className="mr-2"/> Cadastrar Novo</Button>}
                    </div>
                    <div className="grid gap-4">
                       {loadingBanca ? <Loader2 className="animate-spin mx-auto"/> : 
@@ -504,7 +520,7 @@ export default function SettingsPage() {
                                    <AvatarImage src={adv.avatar_url || ''} />
                                    <AvatarFallback className="bg-black text-primary font-black text-sm">{adv.nome.substring(0, 2).toUpperCase()}</AvatarFallback>
                                 </Avatar>
-                                <button onClick={() => { setEditingAdv(adv); advAvatarInputRef.current?.click(); }} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"><Camera size={14} /></button>
+                                {isAdmin && <button onClick={() => { setEditingAdv(adv); advAvatarInputRef.current?.click(); }} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"><Camera size={14} /></button>}
                               </div>
                               <div>
                                  <p className="font-black text-sm uppercase tracking-tight">{adv.nome}</p>
@@ -513,10 +529,12 @@ export default function SettingsPage() {
                                  </div>
                               </div>
                            </div>
-                           <div className="flex gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => openEditAdv(adv)} className="h-8 w-8 hover:bg-primary hover:text-black rounded-sm"><Edit2 size={14}/></Button>
-                              <Button variant="ghost" size="icon" onClick={async () => { if(confirm('Remover?')) { await desativarAdvogadoBanca(adv.id); fetchBanca(); } }} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
-                           </div>
+                           {isAdmin && (
+                             <div className="flex gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => openEditAdv(adv)} className="h-8 w-8 hover:bg-primary hover:text-black rounded-sm"><Edit2 size={14}/></Button>
+                                <Button variant="ghost" size="icon" onClick={async () => { if(confirm('Remover?')) { await desativarAdvogadoBanca(adv.id); fetchBanca(); } }} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
+                             </div>
+                           )}
                         </div>
                       ))}
                       <input type="file" className="hidden" ref={advAvatarInputRef} onChange={(e) => editingAdv && handleAdvogadoAvatarUpload(editingAdv.id, e)} accept="image/*" />
@@ -538,7 +556,15 @@ export default function SettingsPage() {
                             <p className="text-[9px] font-bold text-amber-600/80 uppercase leading-relaxed mt-1">As IAs estão instruídas a nunca citar nomes de empresas. Todo despacho é gerado em tom institucional neutro.</p>
                          </div>
                       </div>
-                      <RadioGroup value={iaModel} onValueChange={(val) => { setIaModel(val); localStorage.setItem('lexisPredict_preferred_ia', val); toast({ title: "Prioridade Alterada" }); }}>
+                      <RadioGroup value={iaModel} onValueChange={(val) => { 
+                        if (!isAdmin) {
+                           toast({ title: "Acesso Negado", description: "Apenas administradores alteram o motor neural.", variant: "destructive" });
+                           return;
+                        }
+                        setIaModel(val); 
+                        localStorage.setItem('lexisPredict_preferred_ia', val); 
+                        toast({ title: "Prioridade Alterada" }); 
+                      }}>
                         <div className="grid gap-4">
                           <EngineOption id="xai" label="xAI GROK 4.5" desc="Raciocínio jurídico sênior + RAG." status="ONLINE" />
                           <EngineOption id="groq-llama" label="GROQ LLAMA 3.3" desc="Velocidade ultra-fluida." status="ONLINE" />
@@ -580,7 +606,7 @@ export default function SettingsPage() {
                  </DialogHeader>
                  <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
                     <div className="space-y-2">
-                       <Label className="text-[9px] font-black uppercase">Título</Label>
+                       <Label className="text-[9px] font-black uppercase">Título do Documento</Label>
                        <Input value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value.toUpperCase()})} placeholder="EX: MANUAL DE CUSTAS 2026" className="border-black rounded-none h-11 uppercase font-black text-xs" required />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -592,12 +618,12 @@ export default function SettingsPage() {
                           </Select>
                        </div>
                        <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Tags</Label>
+                          <Label className="text-[9px] font-black uppercase">Tags (Vírgula)</Label>
                           <Input value={knowledgeForm.tags} onChange={e => setKnowledgeForm({...knowledgeForm, tags: e.target.value})} placeholder="JG, CUSTAS" className="border-black rounded-none h-11 uppercase font-bold text-xs" />
                        </div>
                     </div>
                     <div className="p-4 bg-secondary/20 border border-black/5 flex items-center justify-between">
-                       <Label className="text-[10px] font-black uppercase">Usar em Despacho?</Label>
+                       <Label className="text-[10px] font-black uppercase">Usar em Despacho WhatsApp?</Label>
                        <Switch checked={knowledgeForm.useInDispatch} onCheckedChange={v => setKnowledgeForm({...knowledgeForm, useInDispatch: v})} />
                     </div>
                     <div className="space-y-4">
@@ -610,6 +636,7 @@ export default function SettingsPage() {
                             <div className="border-2 border-dashed border-black/20 p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-black group transition-all" onClick={() => knowledgeFileInputRef.current?.click()}>
                                <FileUp className="text-black/20 group-hover:text-white mb-2" size={32} />
                                <input type="file" ref={knowledgeFileInputRef} accept=".pdf,.md,.txt" className="hidden" />
+                               <p className="text-[9px] font-black uppercase group-hover:text-white">Clique para selecionar</p>
                             </div>
                          </TabsContent>
                          <TabsContent value="text" className="pt-4">
@@ -620,7 +647,7 @@ export default function SettingsPage() {
                  </div>
                  <DialogFooter className="p-6 bg-[#f8f9fb] border-t-2 border-black">
                     <Button type="submit" disabled={isUploadingKnowledge} className="w-full h-14 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#22c55e]">
-                       {isUploadingKnowledge ? <Loader2 className="animate-spin mr-2"/> : <Zap size={14} className="mr-2"/>} Processar
+                       {isUploadingKnowledge ? <Loader2 className="animate-spin mr-2"/> : <Zap size={14} className="mr-2"/>} Sincronizar com Unidade Neural
                     </Button>
                  </DialogFooter>
               </form>
