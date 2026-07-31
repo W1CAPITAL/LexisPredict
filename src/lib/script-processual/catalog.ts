@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * CATÁLOGO DE SCRIPTS DE GABINETE v7.0 - PROTOCOLO DE FIDELIDADE DE MÉRITO
+ * CATÁLOGO DE SCRIPTS DE GABINETE v8.0 - FIDELIDADE E PROTEÇÃO FINANCEIRA
  */
 
 export interface ScriptTemplate {
@@ -28,9 +28,18 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     id: 'baixa_derrota_honorarios',
     categoria: 'baixa',
     titulo: 'Encerramento: Sentença de Improcedência',
-    texto: 'Olá! Informamos que o seu processo ([CNJ]) atingiu a etapa final com a baixa definitiva. Contudo, é importante destacar que a decisão final foi de IMPROCEDÊNCIA (derrota), e o tribunal inclusive majorou os honorários devidos à parte contrária para 15% do valor da causa. O caso está encerrado e nossa equipe está pronta para orientar sobre o passivo gerado por esta decisão.',
-    quandoUsar: 'Usar quando houver improcedência confirmada e majoração de honorários.',
-    keywords: ['IMPROCEDENTE', 'IMPROCEDÊNCIA', 'MAJORADOS', 'MAJORAÇÃO', 'HONORÁRIOS EM 15%'],
+    texto: 'Olá! Informamos que o seu processo ([CNJ]) atingiu a etapa final com a baixa definitiva. Contudo, é importante destacar que a decisão final foi de IMPROCEDÊNCIA, e o tribunal fixou honorários sucumbenciais devidos à parte contrária conforme sentença. O caso está encerrado no momento e nossa equipe está pronta para orientar sobre os próximos passos e o impacto desta decisão.',
+    quandoUsar: 'Usar quando houver improcedência confirmada.',
+    keywords: ['IMPROCEDENTE', 'IMPROCEDÊNCIA', 'HONORÁRIOS SUCUMBENCIAIS'],
+    prioridade: 1
+  },
+  {
+    id: 'baixa_derrota_jg',
+    categoria: 'baixa',
+    titulo: 'Encerramento: Improcedência (Cobrança Suspensa)',
+    texto: 'Olá! Informamos que o processo ([CNJ]) foi encerrado com uma sentença de improcedência. Entretanto, como você possui o benefício da GRATUIDADE DE JUSTIÇA deferido, a cobrança de eventuais honorários à parte contrária fica SUSPENSA por lei. Você não precisa realizar nenhum pagamento agora. O caso está arquivado no tribunal e nossa equipe jurídica segue monitorando.',
+    quandoUsar: 'Usar quando houver improcedência MAS o cliente tem Justiça Gratuita.',
+    keywords: ['GRATUIDADE DA JUSTIÇA', 'ASSISTÊNCIA JUDICIÁRIA GRATUITA', 'JG DEFERIDA', 'GRATUIDADE DEFERIDA'],
     prioridade: 0
   },
   {
@@ -40,7 +49,7 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     texto: 'Olá! Informamos que o tribunal oficializou o encerramento do processo [CNJ] através da Baixa Definitiva. Isso indica que o caso atingiu sua etapa final no sistema judicial após o trânsito em julgado. Nossa equipe segue agora com os ritos internos de arquivamento.',
     quandoUsar: 'Usar APENAS quando não houver indícios de derrota ou falha técnica no histórico recente.',
     keywords: ['BAIXA DEFINITIVA', 'TRÂNSITO EM JULGADO', 'ARQUIVADO DEFINITIVAMENTE'],
-    prioridade: 1
+    prioridade: 2
   },
   {
     id: 'sentenca_procedente',
