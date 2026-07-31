@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -43,7 +42,8 @@ import {
   Eye,
   EyeOff,
   Briefcase,
-  Unlock
+  Unlock,
+  Type
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -86,6 +86,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
@@ -120,8 +121,10 @@ export default function SettingsPage() {
     title: '',
     type: 'script',
     tags: '',
-    useInDispatch: true
+    useInDispatch: true,
+    rawText: ''
   });
+  const [knowledgeInputType, setKnowledgeInputType] = useState('file');
   const knowledgeFileInputRef = useRef<HTMLInputElement>(null);
 
   // Cores
@@ -206,14 +209,22 @@ export default function SettingsPage() {
     if (!knowledgeUnlocked) return;
     
     const file = knowledgeFileInputRef.current?.files?.[0];
-    if (!file || !knowledgeForm.title) {
-      toast({ title: "Dados incompletos", description: "Selecione um arquivo e informe o título.", variant: "destructive" });
+    const rawText = knowledgeForm.rawText;
+
+    if (knowledgeInputType === 'file' && !file) {
+      toast({ title: "Arquivo não selecionado", variant: "destructive" });
+      return;
+    }
+    if (knowledgeInputType === 'text' && !rawText.trim()) {
+      toast({ title: "Texto vazio", variant: "destructive" });
       return;
     }
 
     setIsUploadingKnowledge(true);
     const formData = new FormData();
-    formData.append('file', file);
+    if (knowledgeInputType === 'file' && file) formData.append('file', file);
+    if (knowledgeInputType === 'text') formData.append('rawText', rawText);
+    
     formData.append('title', knowledgeForm.title);
     formData.append('type', knowledgeForm.type);
     formData.append('tags', knowledgeForm.tags);
@@ -221,9 +232,9 @@ export default function SettingsPage() {
 
     const res = await uploadKnowledgeDocAction(formData);
     if (res.success) {
-      toast({ title: "Documento Ingerido", description: `A IA aprendeu o conteúdo através de ${res.chunks} fragmentos.` });
+      toast({ title: "Conhecimento Sincronizado", description: `A IA absorveu ${res.chunks} fragmentos técnicos.` });
       setIsKnowledgeModalOpen(false);
-      setKnowledgeForm({ title: '', type: 'script', tags: '', useInDispatch: true });
+      setKnowledgeForm({ title: '', type: 'script', tags: '', useInDispatch: true, rawText: '' });
       fetchKnowledge();
     } else {
       toast({ title: "Erro na Ingestão", description: res.error, variant: "destructive" });
@@ -529,8 +540,8 @@ export default function SettingsPage() {
                                   </div>
                                   <div>
                                      <div className="flex items-center gap-2">
-                                        <p className="font-black text-sm uppercase tracking-tight">{doc.title}</p>
-                                        <Badge variant="outline" className="text-[7px] font-black uppercase px-1.5 py-0 border-black/10">{doc.type}</Badge>
+                                        <p className="font-black text-sm uppercase tracking-tight">{doc.titulo}</p>
+                                        <Badge variant="outline" className="text-[7px] font-black uppercase px-1.5 py-0 border-black/10">{doc.tipo}</Badge>
                                      </div>
                                      <div className="flex items-center gap-2 mt-1">
                                         <div className="flex gap-1">
@@ -539,7 +550,7 @@ export default function SettingsPage() {
                                            ))}
                                         </div>
                                         <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
-                                        {doc.use_in_dispatch ? (
+                                        {doc.uso_despacho ? (
                                            <Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><Eye size={8}/> Despacho Ativo</Badge>
                                         ) : (
                                            <Badge className="bg-slate-500/10 text-slate-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><EyeOff size={8}/> Apenas Interno</Badge>
@@ -662,25 +673,26 @@ export default function SettingsPage() {
 
         {/* MODAL CONHECIMENTO */}
         <Dialog open={isKnowledgeModalOpen} onOpenChange={setIsKnowledgeModalOpen}>
-           <DialogContent className="sm:max-w-[500px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
+           <DialogContent className="sm:max-w-[500px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000] p-0 overflow-hidden">
               <form onSubmit={handleKnowledgeUpload}>
-                 <DialogHeader>
+                 <DialogHeader className="p-6 bg-black text-white">
                     <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3">
-                       <FileUp size={20} className="text-primary"/> Ensinar Unidade Neural
+                       <Zap size={20} className="text-primary"/> Ensinar Unidade Neural
                     </DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase text-muted-foreground mt-2">
-                       A IA processará este PDF para fundamentar os rascunhos de resposta aos clientes.
+                    <DialogDescription className="text-[10px] font-bold uppercase text-white/60 mt-2">
+                       Alimente o cérebro da IA com novos scripts ou políticas de atendimento.
                     </DialogDescription>
                  </DialogHeader>
-                 <div className="space-y-6 py-6">
+                 
+                 <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
                     <div className="space-y-2">
-                       <Label className="text-[9px] font-black uppercase">Título do Documento</Label>
+                       <Label className="text-[9px] font-black uppercase">Título do Conhecimento</Label>
                        <Input value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value.toUpperCase()})} placeholder="EX: MANUAL DE CUSTAS 2026" className="border-black rounded-none h-11 uppercase font-black text-xs" required />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Tipo</Label>
+                          <Label className="text-[9px] font-black uppercase">Tipo de Documento</Label>
                           <Select value={knowledgeForm.type} onValueChange={v => setKnowledgeForm({...knowledgeForm, type: v})}>
                              <SelectTrigger className="border-black rounded-none h-11"><SelectValue /></SelectTrigger>
                              <SelectContent>
@@ -692,26 +704,47 @@ export default function SettingsPage() {
                           </Select>
                        </div>
                        <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Tags (Separadas por vírgula)</Label>
+                          <Label className="text-[9px] font-black uppercase">Tags (Keywords)</Label>
                           <Input value={knowledgeForm.tags} onChange={e => setKnowledgeForm({...knowledgeForm, tags: e.target.value})} placeholder="JG, CUSTAS, TJSP" className="border-black rounded-none h-11 uppercase font-bold text-xs" />
                        </div>
                     </div>
 
                     <div className="p-4 bg-secondary/20 border border-black/5 flex items-center justify-between">
                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase">Usar no Despacho ao Cliente?</Label>
-                          <p className="text-[8px] font-bold uppercase text-muted-foreground">Se ativo, a IA utilizará este conteúdo para redigir rascunhos de rascunhos.</p>
+                          <Label className="text-[10px] font-black uppercase">Autorizar uso em Despacho?</Label>
+                          <p className="text-[8px] font-bold uppercase text-muted-foreground">Se ativo, a IA usará este texto para redigir mensagens ao cliente.</p>
                        </div>
                        <Switch checked={knowledgeForm.useInDispatch} onCheckedChange={v => setKnowledgeForm({...knowledgeForm, useInDispatch: v})} />
                     </div>
 
-                    <div className="space-y-2">
-                       <Label className="text-[9px] font-black uppercase">Arquivo (PDF, MD ou TXT)</Label>
-                       <Input type="file" ref={knowledgeFileInputRef} accept=".pdf,.md,.txt" className="border-black rounded-none h-11 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-black file:text-white" required />
+                    <div className="space-y-4">
+                      <Label className="text-[9px] font-black uppercase">Fonte de Dados</Label>
+                      <Tabs value={knowledgeInputType} onValueChange={setKnowledgeInputType} className="w-full">
+                         <TabsList className="grid w-full grid-cols-2 bg-gray-100 border-2 border-black rounded-none p-1">
+                            <TabsTrigger value="file" className="rounded-none font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Carregar Arquivo</TabsTrigger>
+                            <TabsTrigger value="text" className="rounded-none font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Colar Texto</TabsTrigger>
+                         </TabsList>
+                         <TabsContent value="file" className="pt-4">
+                            <div className="border-2 border-dashed border-black/20 p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-black group transition-all" onClick={() => knowledgeFileInputRef.current?.click()}>
+                               <FileUp className="text-black/20 group-hover:text-white mb-2" size={32} />
+                               <p className="text-[9px] font-black uppercase group-hover:text-white">PDF, MD ou TXT</p>
+                               <input type="file" ref={knowledgeFileInputRef} accept=".pdf,.md,.txt" className="hidden" />
+                            </div>
+                         </TabsContent>
+                         <TabsContent value="text" className="pt-4">
+                            <Textarea 
+                              value={knowledgeForm.rawText} 
+                              onChange={e => setKnowledgeForm({...knowledgeForm, rawText: e.target.value})} 
+                              placeholder="COLE O CONTEÚDO TÉCNICO AQUI..."
+                              className="min-h-[200px] border-2 border-black rounded-none uppercase font-bold text-[10px] resize-none"
+                            />
+                         </TabsContent>
+                      </Tabs>
                     </div>
                  </div>
-                 <DialogFooter>
-                    <Button type="submit" disabled={isUploadingKnowledge} className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] tracking-widest rounded-none shadow-[6px_6px_0px_#22c55e]">
+                 
+                 <DialogFooter className="p-6 bg-[#f8f9fb] border-t-2 border-black">
+                    <Button type="submit" disabled={isUploadingKnowledge} className="w-full h-14 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#22c55e] transition-all">
                        {isUploadingKnowledge ? <Loader2 className="animate-spin mr-2"/> : <Zap size={14} className="mr-2"/>}
                        Processar Conhecimento Neural
                     </Button>
