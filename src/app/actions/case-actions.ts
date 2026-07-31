@@ -3,7 +3,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v445.0 ELITE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v446.0 ELITE
  */
 
 import { 
@@ -67,7 +67,6 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * Realiza a auditoria de um único protocolo via DataJud.
- * Usado pelo Scanner Manual e pelo Worker.
  */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
@@ -98,6 +97,11 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       datajud_hash: dbItem.datajud_hash
     });
 
+    // Se já estiver marcado internamente como encerrado, não auditamos
+    if (isCasoEncerrado(target)) {
+      return { success: true, protocolo, message: "Já encerrado internamente", skipped: true };
+    }
+
     const dataJud = await fetchDataJud(protocolo, 1, { fast });
     
     if (dataJud && !dataJud.error && dataJud.movimentos) {
@@ -122,20 +126,9 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      const hasRealChange = 
-        patch.datajud_hash !== target.datajud_hash ||
-        patch.datajud_encerrado_tribunal !== !!target.datajud_encerrado_tribunal ||
-        patch.indicio_busca_apreensao !== !!target.indicio_busca_apreensao;
-
-      if (!hasRealChange) {
-        await supabase
-          .from('processos')
-          .update({ datajud_consultado_em: patch.datajud_consultado_em })
-          .eq('id', dbItem.id);
-      } else {
-        const updatedCase: LegalCase = { ...target, ...patch };
-        await saveStoredCasesForEmpresa([updatedCase], empresa_id);
-      }
+      // Sempre persistimos a consulta, mesmo se não houver mudança de flag
+      const updatedCase: LegalCase = { ...target, ...patch };
+      await saveStoredCasesForEmpresa([updatedCase], empresa_id);
       
       return { 
         success: true, 
@@ -203,10 +196,6 @@ export async function clearDataJudAuditAction() {
   }
 }
 
-/**
- * Gatilho do Motor de Nuvem
- * Dispara uma requisição HTTP real para a API worker garantindo registro nos logs do Vercel.
- */
 export async function runCloudWorkerAction() {
   try {
     const { empresa_id } = await getUserContext();
@@ -218,29 +207,20 @@ export async function runCloudWorkerAction() {
     const h = await headers();
     const host = h.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
-    
-    // Fallback para variável VERCEL_URL se disponível
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : `${protocol}://${host}`;
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
 
-    const response = await fetch(`${baseUrl}/api/datajud-worker?empresa_id=${empresa_id}`, {
+    fetch(`${baseUrl}/api/datajud-worker?empresa_id=${empresa_id}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${secret}`,
         'Content-Type': 'application/json'
       },
       cache: 'no-store',
-      signal: AbortSignal.timeout(65000)
-    });
+      signal: AbortSignal.timeout(8000)
+    }).catch(() => {});
 
-    if (!response.ok) {
-      return { success: false, error: `Worker HTTP ${response.status}` };
-    }
-
-    return await response.json();
+    return { success: true, message: "Lote disparado no servidor." };
   } catch (e: any) {
-    console.error("[Cloud Trigger Fail]", e.message);
     return { success: false, error: e.message };
   }
 }
