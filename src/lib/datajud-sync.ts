@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v3.0
  * Regras de Negócio:
