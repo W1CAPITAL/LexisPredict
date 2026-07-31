@@ -36,7 +36,9 @@ import {
   Settings2,
   BookOpen,
   Globe,
-  Info
+  Info,
+  AlertTriangle,
+  Gavel
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -67,6 +69,7 @@ import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerrame
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
+import { plainTextFromDjen } from '@/lib/djen';
 
 const CaseRow = React.memo(({ 
   c, 
@@ -834,7 +837,7 @@ function CasesContent() {
                         <History size={28} />
                     </div>
                     <div>
-                        <DialogTitle className="font-black uppercase tracking-tight text-xl">Andamentos Oficiais</DialogTitle>
+                        <DialogTitle className="font-black uppercase tracking-tight text-xl">Dossiê de Auditoria Unificado</DialogTitle>
                         <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
                     </div>
                   </div>
@@ -859,10 +862,10 @@ function CasesContent() {
                     </Button>
                   </div>
                 </div>
-                <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização detalhada da cronologia processual do tribunal e comunicações oficiais.</DialogDescription>
+                <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visão consolidada de tribunal (DataJud) e comunicações oficiais (DJEN).</DialogDescription>
               </DialogHeader>
               
-              <div className="flex flex-col h-[600px]">
+              <div className="flex flex-col h-[650px]">
                 <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
                   <div className="space-y-1">
                       <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
@@ -870,109 +873,107 @@ function CasesContent() {
                   </div>
                   <div className="flex items-center gap-3">
                     {historyResult?.case?.djen_nova_comunicacao && (
-                      <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Novidade DJEN</Badge>
+                      <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Publicação DJEN</Badge>
                     )}
                     {historyResult?.case?.indicio_busca_apreensao && (
-                      <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício Busca e Apreensão</Badge>
+                      <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício B.A.</Badge>
                     )}
                     {historyResult?.case?.datajud_encerrado_tribunal && (
-                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
+                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Baixa Tribunal</Badge>
                     )}
                   </div>
                 </div>
 
                 <div className="flex-1 overflow-hidden flex">
                   <div className={cn("bg-white transition-all duration-300 flex flex-col", showScripts ? "w-1/2 border-r" : "w-full")}>
-                    <Tabs defaultValue="timeline" className="flex-1 flex flex-col overflow-hidden">
-                       <TabsList className="bg-secondary/20 mx-6 mt-4 p-1 rounded-xl h-10">
-                          <TabsTrigger value="timeline" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">Cronologia Tribunal</TabsTrigger>
-                          <TabsTrigger value="djen" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">DJEN Nacional</TabsTrigger>
-                       </TabsList>
+                    <ScrollArea className="flex-1">
+                      <div className="p-8 space-y-10">
+                        {/* SEÇÃO 1: TRIBUNAL (DATAJUD) */}
+                        <section className="space-y-6">
+                           <div className="flex items-center justify-between border-b-2 border-black/5 pb-2">
+                              <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                <Gavel size={14} /> Movimentações do Tribunal
+                              </h3>
+                              <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/20 text-primary">DataJud Core</Badge>
+                           </div>
+                           <div className="space-y-6">
+                             {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
+                               [...historyResult.movimentos].sort((a,b) => {
+                                 const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
+                                 const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
+                                 return dateB - dateA;
+                               }).slice(0, 15).map((m, i) => (
+                                 <div key={i} className="flex gap-6 relative group">
+                                   <div className="w-10 h-10 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10">
+                                       <Clock size={14} className="text-muted-foreground" />
+                                   </div>
+                                   <div className="flex-1 pt-0.5 space-y-0.5">
+                                       <p className="text-[9px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D'}</p>
+                                       <p className="text-[12px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
+                                       {m.complemento && <p className="text-[9px] text-muted-foreground uppercase">{m.complemento}</p>}
+                                   </div>
+                                 </div>
+                               ))
+                             ) : (
+                               <div className="py-10 text-center opacity-30">
+                                 <AlertTriangle size={32} className="mx-auto mb-2" />
+                                 <p className="text-[10px] font-black uppercase">Nenhum movimento DataJud.</p>
+                               </div>
+                             )}
+                           </div>
+                        </section>
 
-                       <TabsContent value="timeline" className="flex-1 overflow-hidden p-0 m-0">
-                        <ScrollArea className="h-full">
-                          <div className="p-6 space-y-6">
-                            {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                              [...historyResult.movimentos].sort((a,b) => {
-                                const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
-                                const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
-                                return dateB - dateA;
-                              }).map((m, i) => (
-                                <div key={i} className="flex gap-6 relative group">
-                                  {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
-                                  <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
-                                      <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                        {/* SEÇÃO 2: DIÁRIO OFICIAL (DJEN) */}
+                        <section className="space-y-6 pt-4">
+                           <div className="flex items-center justify-between border-b-2 border-black/5 pb-2">
+                              <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-2">
+                                <Globe size={14} /> Comunicações DJEN
+                              </h3>
+                              <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-blue-600 text-white font-black uppercase text-[8px] rounded-lg px-4 hover:bg-blue-700">
+                                 {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <RefreshCcw size={10} className="mr-2"/>} Sincronizar DJEN
+                              </Button>
+                           </div>
+                           
+                           <div className="bg-slate-50 rounded-xl p-4 border border-blue-100 flex items-center gap-3">
+                             <Info size={14} className="text-blue-600 shrink-0" />
+                             <p className="text-[9px] font-bold text-blue-800 uppercase leading-relaxed">
+                               O DJEN apresenta o texto completo das publicações em diários oficiais e editais.
+                             </p>
+                           </div>
+
+                           <div className="space-y-4">
+                              {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
+                                historyResult.djenComunicacoes.map((item, i) => (
+                                  <div key={i} className="p-5 border-2 border-black/5 bg-white hover:border-blue-600 transition-all rounded-xl space-y-3">
+                                     <div className="flex items-start justify-between">
+                                        <div className="space-y-1">
+                                           <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
+                                              {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
+                                           </Badge>
+                                           <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
+                                        </div>
+                                        {item.link && (
+                                          <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-blue-600"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
+                                        )}
+                                     </div>
+                                     <p className="text-[11px] font-bold text-foreground leading-relaxed whitespace-pre-wrap uppercase line-clamp-4 italic">
+                                        "{plainTextFromDjen(item.texto || '')}"
+                                     </p>
+                                     <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase pt-2 border-t border-black/5">
+                                        <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
+                                     </div>
                                   </div>
-                                  <div className="flex-1 pt-1 space-y-1 pb-6">
-                                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
-                                      <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
-                                      {m.complemento && <p className="text-[10px] text-muted-foreground uppercase">{m.complemento}</p>}
-                                  </div>
+                                ))
+                              ) : (
+                                <div className="py-10 text-center space-y-4 opacity-30">
+                                   <BookOpen size={32} className="mx-auto" />
+                                   <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma publicação carregada.</p>
                                 </div>
-                              ))
-                            ) : (
-                              <div className="py-20 text-center space-y-4 opacity-40">
-                                <FileSearch size={48} className="mx-auto" />
-                                <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
-                              </div>
-                            )}
-                          </div>
-                        </ScrollArea>
-                       </TabsContent>
-
-                       <TabsContent value="djen" className="flex-1 overflow-hidden p-0 m-0">
-                         <div className="h-full flex flex-col">
-                            <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-                               <div>
-                                  <p className="text-[10px] font-black uppercase">Comunicações Oficiais</p>
-                                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Base pública DJEN</p>
-                               </div>
-                               <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-black text-white font-black uppercase text-[8px] rounded-lg px-4">
-                                  {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <Globe size={10} className="mr-2"/>} Consultar DJEN
-                               </Button>
-                            </div>
-                            <div className="px-6 py-3 bg-amber-50 border-b flex items-center gap-3">
-                               <Info size={14} className="text-amber-600" />
-                               <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed">Ferramenta de auxílio — não substitui consulta oficial ao diário/tribunal.</p>
-                            </div>
-                            <ScrollArea className="flex-1">
-                               <div className="p-6 space-y-4">
-                                  {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
-                                    historyResult.djenComunicacoes.map((item, i) => (
-                                      <div key={i} className="p-4 border-2 border-black/5 bg-slate-50 hover:border-black transition-all rounded-xl space-y-3">
-                                         <div className="flex items-start justify-between">
-                                            <div className="space-y-1">
-                                               <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
-                                                  {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
-                                               </Badge>
-                                               <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
-                                            </div>
-                                            {item.link && (
-                                              <Button asChild variant="ghost" size="icon" className="h-7 w-7"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
-                                            )}
-                                         </div>
-                                         <p className="text-[11px] font-bold text-foreground leading-relaxed line-clamp-3 uppercase">
-                                            {item.texto}
-                                         </p>
-                                         <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase">
-                                            <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
-                                         </div>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <div className="py-20 text-center space-y-6 opacity-30">
-                                       <BookOpen size={48} className="mx-auto" />
-                                       <div className="space-y-1">
-                                          <p className="text-xs font-black uppercase tracking-widest">Nenhuma comunicação carregada.</p>
-                                          <p className="text-[9px] font-bold uppercase">Clique em "Consultar DJEN" para buscar no diário oficial.</p>
-                                       </div>
-                                    </div>
-                                  )}
-                               </div>
-                            </ScrollArea>
-                         </div>
-                       </TabsContent>
-                    </Tabs>
+                              )}
+                           </div>
+                        </section>
+                      </div>
+                    </ScrollArea>
                   </div>
 
                   {showScripts && (
@@ -1025,7 +1026,7 @@ function CasesContent() {
                                 <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho</Button>
                              </div>
                            ) : !isGeneratingAIDraft && (
-                             <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta baseada na Base de Conhecimento.</p>
+                             <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta baseada no histórico.</p>
                            )}
 
                            {isGeneratingAIDraft && (
@@ -1055,11 +1056,6 @@ function CasesContent() {
                              </div>
                           </div>
                         ))}
-                        
-                        <div className="p-4 bg-amber-50 border border-amber-200 flex items-start gap-3">
-                           <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />
-                           <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed">Atenção: Revise o texto e placeholders antes de realizar o envio oficial.</p>
-                        </div>
                       </div>
                     </ScrollArea>
                   )}
@@ -1114,7 +1110,7 @@ function CasesContent() {
                       <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Automático (Por Prazos)</SelectItem>
-                        <SelectItem value="Caso Crítico" className="text-[10px] font-bold uppercase text-red-600 font-black">⚠ CASO CRÍTICO</SelectItem>
+                        <SelectItem value="Caso CrÍTico" className="text-[10px] font-bold uppercase text-red-600 font-black">⚠ CASO CRÍTICO</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1164,7 +1160,7 @@ function StatusBadge({ status }: { status: any }) {
     'É Hoje': "bg-blue-50 text-blue-700 border-blue-100 animate-pulse",
     'Atenção': "bg-orange-50 text-orange-700 border-orange-100",
     'No Prazo': "bg-emerald-50 text-emerald-700 border-emerald-100",
-    'Caso Crítico': "bg-red-600 text-white border-none animate-pulse font-black",
+    'Caso CrÍTico': "bg-red-600 text-white border-none animate-pulse font-black",
   };
   return (
     <Badge variant="outline" className={cn("px-3 py-1 text-[10px] font-black uppercase rounded-lg border-none", styles[status] || "bg-secondary text-muted-foreground")}>
