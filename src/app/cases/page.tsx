@@ -32,7 +32,8 @@ import {
   Scale,
   MessageSquare,
   Copy,
-  MessageSquareQuote
+  MessageSquareQuote,
+  Settings2
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -291,6 +292,7 @@ function CasesContent() {
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
+  const [selectedMotor, setSelectedMotor] = useState<string>('xai');
 
   const [mounted, setMounted] = useState(false);
   const { isOperador } = useAdmin();
@@ -407,12 +409,14 @@ function CasesContent() {
     if (!historyResult || isGeneratingAIDraft) return;
     
     setIsGeneratingAIDraft(true);
+    setAiDraft(null);
     try {
       const res = await gerarRascunhoEstrategico({
         clienteNome: historyResult.case.cliente,
         protocolo: historyResult.case.protocolo,
         ultimoRetorno: historyResult.case.ultimoRetorno,
-        movimentos: historyResult.movimentos
+        movimentos: historyResult.movimentos,
+        preferredModel: selectedMotor
       });
       
       if (res.rascunho) {
@@ -890,23 +894,53 @@ function CasesContent() {
 
                         {/* IA DRAFT AREA (Opcional via Motor Lexis) */}
                         <div className="bg-black text-white p-5 space-y-4 mb-8">
-                           <div className="flex items-center justify-between">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
-                              <Button 
-                                onClick={handleGenerateAIDraft} 
-                                disabled={isGeneratingAIDraft}
-                                className="h-7 px-3 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all"
-                              >
-                                {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
-                              </Button>
+                           <div className="flex flex-col gap-3">
+                              <div className="flex items-center justify-between">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
+                                <Badge variant="outline" className="border-primary/20 text-primary text-[8px] font-black uppercase">Grounded RAG</Badge>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <Select value={selectedMotor} onValueChange={setSelectedMotor}>
+                                  <SelectTrigger className="h-8 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-none">
+                                    <div className="flex items-center gap-1.5">
+                                      <Settings2 size={10} />
+                                      <SelectValue />
+                                    </div>
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-white border-2 border-black rounded-none">
+                                    <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 4.5</SelectItem>
+                                    <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
+                                    <SelectItem value="airforce" className="text-[9px] font-black uppercase">Airforce Ultra</SelectItem>
+                                  </SelectContent>
+                                </Select>
+
+                                <Button 
+                                  onClick={handleGenerateAIDraft} 
+                                  disabled={isGeneratingAIDraft}
+                                  className="h-8 flex-1 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all shadow-[3px_3px_0px_#00D1FF] hover:shadow-none"
+                                >
+                                  {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
+                                </Button>
+                              </div>
                            </div>
+
                            {aiDraft ? (
-                             <div className="space-y-3 animate-in fade-in duration-500">
-                                <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
-                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-6 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
+                             <div className="space-y-3 animate-in fade-in duration-500 mt-2">
+                                <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
+                                   <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
+                                </div>
+                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
                              </div>
-                           ) : (
-                             <p className="text-[8px] font-bold text-white/30 uppercase">Clique no botão para gerar uma resposta personalizada baseada na Base de Conhecimento.</p>
+                           ) : !isGeneratingAIDraft && (
+                             <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta baseada na Base de Conhecimento.</p>
+                           )}
+
+                           {isGeneratingAIDraft && (
+                              <div className="flex items-center gap-2 text-[8px] font-black uppercase text-primary animate-pulse py-2">
+                                <Loader2 size={10} className="animate-spin" />
+                                Orquestrando conhecimento via {selectedMotor.toUpperCase()}...
+                              </div>
                            )}
                         </div>
                         
