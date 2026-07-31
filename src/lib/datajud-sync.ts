@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v3.1
  * Regras de Negócio:
@@ -86,6 +85,7 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 
 /**
  * Detecta se o processo está em fase de Cumprimento de Sentença / Execução.
+ * Analisa a janela dos 20 movimentos mais recentes.
  */
 export function detectarCumprimentoSentenca(movimentos: any[]): {
   ativo: boolean;
@@ -95,7 +95,14 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
     return { ativo: false, motivo: null };
   }
 
-  const allText = movimentos.slice(0, 30).map(m => 
+  // Ordenação DESC por segurança
+  const sorted = [...movimentos].sort((a, b) => 
+    new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
+  );
+
+  // Analisar janela de 20
+  const window = sorted.slice(0, 20);
+  const allText = window.map(m => 
     `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
   ).join(' ');
 
@@ -122,7 +129,7 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
 /**
  * Detecta se houve atualização no tribunal após o último retorno do usuário.
  * REGRA LEXIS: Alerta somente se DataMov > Fim do dia do Retorno.
- * Se não houver data, retorna false.
+ * Se não houver data de movimento, não há alerta.
  */
 export function detectarAtualizacaoPosRetorno(
   ultimoRetornoStr: string | null | undefined,
