@@ -19,7 +19,8 @@ import {
   ArrowRight,
   Filter,
   History,
-  AlertCircle
+  AlertCircle,
+  Copyright
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { LegalCase } from '@/lib/case-logic';
