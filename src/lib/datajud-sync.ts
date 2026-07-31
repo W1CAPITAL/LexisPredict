@@ -1,10 +1,12 @@
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v2.0
- * Agora com hashing de integridade e detecção rigorosa de ritos de encerramento.
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v3.0
+ * Regras de Negócio:
+ * 1. Alerta apenas se Data Movimento > Data Retorno (Ignora mesmo dia para evitar alertas circulares).
+ * 2. Padrões de encerramento restritos a ritos definitivos.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import { startOfDay, parseISO, isAfter, subDays, parse, isValid, isBefore } from 'date-fns';
+import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
 
 /**
  * Gera uma assinatura (hash) do estado atual das movimentações.
@@ -49,7 +51,7 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 
   const patternGroups = [
     {
-      patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'DETERMINADA A BAIXA', 'PROCESSO BAIXADO', 'MANDADO DE LEVANTAMENTO EXPEDIDO'],
+      patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'PROCESSO BAIXADO'],
       label: 'BAIXA DEFINITIVA'
     },
     {
@@ -57,15 +59,11 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
       label: 'TRÂNSITO EM JULGADO'
     },
     {
-      patterns: ['EXTINTO O PROCESSO', 'EXTINTO POR ABANDONO', 'ABANDONO DA CAUSA', 'EXTINTO O PROCESSO POR ABANDONO', 'JULGO EXTINTO', 'EXTINGO O PROCESSO', 'PROCESSO EXTINTO', 'SENTENÇA DE EXTINÇÃO', 'SENTENCA DE EXTINCAO', 'EXTINÇÃO DO PROCESSO'],
-      label: 'EXTINÇÃO / ABANDONO'
+      patterns: ['EXTINTO O PROCESSO', 'PROCESSO EXTINTO', 'SENTENÇA DE EXTINÇÃO', 'EXTINÇÃO DO PROCESSO'],
+      label: 'EXTINÇÃO DO PROCESSO'
     },
     {
-      patterns: ['EXTINTO', 'EXTINÇÃO', 'EXTINCAO', 'SEM RESOLUÇÃO DO MÉRITO', 'SEM RESOLUCAO DO MERITO'],
-      label: 'EXTINÇÃO DO FEITO'
-    },
-    {
-      patterns: ['ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVEM-SE OS AUTOS', 'AUTOS ARQUIVADOS', 'ARQUIVAMENTO', 'ARQUIVADO'],
+      patterns: ['ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVEM-SE OS AUTOS', 'AUTOS ARQUIVADOS'],
       label: 'ARQUIVAMENTO DEFINITIVO'
     }
   ];
@@ -85,6 +83,8 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 
 /**
  * Detecta se houve atualização no tribunal após o último retorno do usuário.
+ * REGRA LEXIS: Movimentos no MESMO DIA do retorno são considerados "vistos". 
+ * Só alerta se DataMov > DataRetorno (strictly).
  */
 export function detectarAtualizacaoPosRetorno(
   ultimoRetornoStr: string | null | undefined,
@@ -106,7 +106,7 @@ export function detectarAtualizacaoPosRetorno(
   const dataUltimoStr = dataMov.toISOString();
   const nomeUltimo = lastMov.nome || "Movimentação não identificada";
 
-  // Se nunca houve retorno, marcamos como alerta se o movimento for recente (últimos 45 dias)
+  // Se nunca houve retorno, alerta se for recente (últimos 45 dias)
   if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-" || ultimoRetornoStr === "0") {
     const quarentaECincoDias = startOfDay(subDays(new Date(), 45));
     return {
@@ -126,9 +126,15 @@ export function detectarAtualizacaoPosRetorno(
     }
 
     if (dataRetorno && isValid(dataRetorno)) {
-      // Comparação absoluta: Movimento é estritamente após o retorno?
+      // Regra de Propósito: Só alerta se a movimentação for em dia posterior ao atendimento
+      // isAfter compara timestamps. Como dataRetorno DD/MM/YYYY é 00:00:00, 
+      // qualquer movimento NO MESMO DIA cairia como isAfter. 
+      // Por isso, definimos o final do dia do retorno como marco zero.
+      const fimDoDiaRetorno = new Date(dataRetorno);
+      fimDoDiaRetorno.setHours(23, 59, 59, 999);
+
       return {
-        alerta: isAfter(dataMov, dataRetorno),
+        alerta: isAfter(dataMov, fimDoDiaRetorno),
         dataUltimo: dataUltimoStr,
         nomeUltimo
       };
