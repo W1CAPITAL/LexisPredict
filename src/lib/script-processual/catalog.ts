@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * CATÁLOGO DE SCRIPTS DE GABINETE v6.0 - ANONIMIZAÇÃO CORPORATIVA TOTAL
+ * CATÁLOGO DE SCRIPTS DE GABINETE v7.0 - PROTOCOLO DE FIDELIDADE DE MÉRITO
  */
 
 export interface ScriptTemplate {
@@ -18,20 +18,29 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
   {
     id: 'baixa_cancelamento',
     categoria: 'baixa',
-    titulo: 'Encerramento por Cancelamento',
-    texto: 'Olá! Passando para atualizar sobre o andamento do seu processo ([CNJ]). O tribunal oficializou o encerramento da sua ação, mas infelizmente o juiz determinou o Cancelamento da Distribuição por ausência de pressupostos (quando o tribunal entende que faltaram requisitos legais ou documentais para dar continuidade). O processo foi baixado definitivamente. O setor jurídico que acompanha seu caso está à disposição caso queira entender os detalhes técnicos desta decisão.',
-    quandoUsar: 'Prioridade Máxima. Usar quando o processo for morto administrativamente (Cancelamento/Pressupostos).',
-    keywords: ['CANCELAMENTO DA DISTRIBUIÇÃO', 'CANCELAMENTO DE DISTRIBUICAO', 'AUSÊNCIA DE PRESSUPOSTOS', 'AUSENCIA DE PRESSUPOSTOS', 'INDEFERIMENTO DA PETIÇÃO INICIAL', 'INDEFERIMENTO DA INICIAL'],
+    titulo: 'Encerramento por Falha Técnica/Custas',
+    texto: 'Olá! Passando para atualizar sobre o desfecho do seu processo ([CNJ]). O tribunal oficializou a baixa definitiva do caso, mas infelizmente o juiz determinou o encerramento sem análise do mérito devido a uma falha técnica processual (referente ao não recolhimento de taxas judiciárias/preparo ou ausência de pressupostos). Isso significa que o processo foi cancelado na raiz. Nossa equipe jurídica está à disposição para explicar as consequências desta baixa definitiva.',
+    quandoUsar: 'Prioridade Máxima. Usar quando o processo for morto por falha de custas, deserto ou cancelamento.',
+    keywords: ['CANCELAMENTO DA DISTRIBUIÇÃO', 'AUSÊNCIA DE PRESSUPOSTOS', 'DESERTO', 'NÃO CONHECIDO', 'RECURSO NÃO CONHECIDO', 'FALTA DE PREPARO', 'RECOLHIMENTO DA TAXA'],
+    prioridade: 0
+  },
+  {
+    id: 'baixa_derrota_honorarios',
+    categoria: 'baixa',
+    titulo: 'Encerramento: Sentença de Improcedência',
+    texto: 'Olá! Informamos que o seu processo ([CNJ]) atingiu a etapa final com a baixa definitiva. Contudo, é importante destacar que a decisão final foi de IMPROCEDÊNCIA (derrota), e o tribunal inclusive majorou os honorários devidos à parte contrária para 15% do valor da causa. O caso está encerrado e nossa equipe está pronta para orientar sobre o passivo gerado por esta decisão.',
+    quandoUsar: 'Usar quando houver improcedência confirmada e majoração de honorários.',
+    keywords: ['IMPROCEDENTE', 'IMPROCEDÊNCIA', 'MAJORADOS', 'MAJORAÇÃO', 'HONORÁRIOS EM 15%'],
     prioridade: 0
   },
   {
     id: 'baixa_definitiva',
     categoria: 'baixa',
     titulo: 'Processo Finalizado (Baixa)',
-    texto: 'Olá! Informamos que o tribunal oficializou o encerramento do processo [CNJ] através da Baixa Definitiva. Isso indica que o caso atingiu sua etapa final no sistema judicial. Nossa equipe segue agora com os ritos internos de arquivamento.',
-    quandoUsar: 'Usar quando identificar Trânsito em Julgado ou Baixa Definitiva.',
-    keywords: ['BAIXA DEFINITIVA', 'TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO', 'ARQUIVADO DEFINITIVAMENTE', 'EXTINÇÃO DO PROCESSO'],
-    prioridade: 0
+    texto: 'Olá! Informamos que o tribunal oficializou o encerramento do processo [CNJ] através da Baixa Definitiva. Isso indica que o caso atingiu sua etapa final no sistema judicial após o trânsito em julgado. Nossa equipe segue agora com os ritos internos de arquivamento.',
+    quandoUsar: 'Usar APENAS quando não houver indícios de derrota ou falha técnica no histórico recente.',
+    keywords: ['BAIXA DEFINITIVA', 'TRÂNSITO EM JULGADO', 'ARQUIVADO DEFINITIVAMENTE'],
+    prioridade: 1
   },
   {
     id: 'sentenca_procedente',
@@ -40,7 +49,7 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     texto: 'Olá! Temos uma atualização importante: o juiz proferiu sentença julgando PROCEDENTE o pedido no processo [CNJ]. O magistrado acolheu a tese apresentada e decidiu favoravelmente à sua demanda. Nossos advogados estão realizando a leitura técnica completa da decisão para os próximos passos.',
     quandoUsar: 'Usar quando houver procedência total dos pedidos.',
     keywords: ['JULGADO PROCEDENTE', 'JULGADA PROCEDENTE', 'PEDIDO ACOLHIDO', 'SENTENÇA DE PROCEDÊNCIA'],
-    prioridade: 0
+    prioridade: 2
   },
   {
     id: 'sentenca_parcial',
@@ -49,7 +58,7 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     texto: 'Olá! Informamos que houve a prolação de sentença PARCIALMENTE PROCEDENTE no processo [CNJ]. Isso significa que o juiz acolheu parte fundamental dos pedidos. O jurídico está analisando os fundamentos para verificar a necessidade de recurso ou se seguiremos para a fase de execução.',
     quandoUsar: 'Usar quando houver procedência parcial.',
     keywords: ['PARCIALMENTE PROCEDENTE', 'PROCEDENTE EM PARTE'],
-    prioridade: 0
+    prioridade: 2
   },
   {
     id: 'busca_apreensao',
@@ -61,238 +70,22 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     prioridade: 1
   },
   {
-    id: 'acordao',
-    categoria: 'recurso',
-    titulo: 'Julgamento de 2º Grau (Acórdão)',
-    texto: 'Olá! Informamos que houve o julgamento do recurso pelo tribunal de segunda instância no processo [CNJ], com a prolação do Acórdão. Trata-se da decisão proferida pelos Desembargadores. Nossos advogados estão realizando a leitura técnica completa para verificar o impacto no seu caso.',
-    quandoUsar: 'Usar quando houver julgamento colegiado (Acórdão) em 2ª instância.',
-    keywords: ['ACÓRDÃO', 'ACORDAO', 'JULGAMENTO COLEGIADO', 'PUBLICADO O ACÓRDÃO'],
-    prioridade: 1
+    id: 'audiencia_designada',
+    categoria: 'audiencia',
+    titulo: 'Audiência Designada pelo Juízo',
+    texto: 'Olá! Informamos que o tribunal designou uma data para audiência no processo [CNJ]. Trata-se de uma etapa do rito processual para tentativa de conciliação ou instrução. Nossa equipe entrará em contato em breve para passar as instruções e o link de acesso.',
+    quandoUsar: 'Usar quando houver designação de audiência.',
+    keywords: ['AUDIÊNCIA', 'AUDIENCIA', 'CEJUSC', 'CONCILIAÇÃO'],
+    prioridade: 3
   },
   {
     id: 'liminar_deferida',
     categoria: 'liminar',
     titulo: 'Liminar Deferida pelo Juiz',
-    texto: 'Olá! Temos uma atualização positiva: o juiz DEFERIU o pedido de liminar (tutela) no processo [CNJ]. Esta é uma vitória estratégica inicial que resguarda seus direitos logo no começo da ação. O jurídico está analisando os detalhes da decisão para orientar os próximos passos.',
+    texto: 'Olá! Temos uma atualização positiva: o juiz DEFERIU o pedido de liminar (tutela) no processo [CNJ]. Esta é uma vitória estratégica inicial que resguarda seus direitos. O jurídico está analisando os detalhes para orientar os próximos passos.',
     quandoUsar: 'Usar quando houver deferimento de liminar ou tutela.',
-    keywords: ['LIMINAR DEFERIDA', 'TUTELA DEFERIDA', 'TUTELA CONCEDIDA', 'DEFERIDA A TUTELA DE URGÊNCIA'],
-    prioridade: 1
-  },
-  {
-    id: 'liminar_indeferida',
-    categoria: 'liminar',
-    titulo: 'Liminar Indeferida (Análise)',
-    texto: 'Olá! Informamos que o pedido de liminar no processo [CNJ] foi indeferido nesta etapa inicial. Ressaltamos que esta é uma decisão interlocutória e não encerra o caso. Nossos advogados estão analisando os fundamentos para verificar a viabilidade de recurso ou outras estratégias de defesa.',
-    quandoUsar: 'Usar quando houver indeferimento de liminar ou tutela.',
-    keywords: ['LIMINAR INDEFERIDA', 'TUTELA INDEFERIDA', 'INDEFERIDA A TUTELA DE URGÊNCIA'],
-    prioridade: 1
-  },
-  {
-    id: 'deposito_revogado',
-    categoria: 'financeiro',
-    titulo: 'Revogação de Depósito Judicial',
-    texto: 'Olá! Identificamos um andamento referente à Revogação de Depósito no processo [CNJ]. Isso pode significar que os depósitos em conta judicial foram cessados ou alterados. O jurídico está confirmando o efeito prático nos seus pagamentos e retornaremos com a orientação correta.',
-    quandoUsar: 'Usar quando depósitos judiciais forem revogados ou alterados.',
-    keywords: ['REVOGAÇÃO DE DEPÓSITO', 'REVOGACAO DE DEPOSITO', 'REVOGADO O DEPÓSITO'],
-    prioridade: 1
-  },
-  {
-    id: 'audiencia_designada',
-    categoria: 'audiencia',
-    titulo: 'Audiência Designada pelo Juízo',
-    texto: 'Olá! Informamos que o tribunal designou uma data para audiência no processo [CNJ]. Trata-se de uma etapa do rito processual para tentativa de conciliação ou instrução. Nossa equipe entrará em contato em breve para passar as instruções, o link de acesso e realizar o preparo necessário.',
-    quandoUsar: 'Usar quando houver designação de audiência.',
-    keywords: ['AUDIÊNCIA', 'AUDIENCIA', 'CEJUSC', 'CONCILIAÇÃO'],
-    prioridade: 1
-  },
-  {
-    id: 'acordo_homologado',
-    categoria: 'acordo',
-    titulo: 'Acordo Homologado Judicialmente',
-    texto: 'Olá! Temos uma atualização importante: o juiz homologou oficialmente o acordo firmado no processo [CNJ]. Com a homologação, os termos passam a ter força de sentença. Estamos conferindo o despacho para garantir o cumprimento das obrigações.',
-    quandoUsar: 'Usar quando houver homologação de acordo.',
-    keywords: ['HOMOLOGAÇÃO DE ACORDO', 'ACORDO HOMOLOGADO'],
-    prioridade: 1
-  },
-  {
-    id: 'alvara_mle',
-    categoria: 'alvara',
-    titulo: 'Expedição de Alvará / MLE',
-    texto: 'Olá! Identificamos a expedição de Alvará Judicial (ou MLE) no processo [CNJ]. Este documento autoriza o levantamento de valores depositados. Nossa equipe está acompanhando a liberação para garantir que os valores sejam processados conforme os ritos de pagamento.',
-    quandoUsar: 'Usar quando houver expedição de alvará ou mandado de pagamento.',
-    keywords: ['ALVARÁ', 'ALVARA', 'MLE', 'MANDADO DE LEVANTAMENTO'],
-    prioridade: 1
-  },
-  {
-    id: 'deposito_judicial',
-    categoria: 'financeiro',
-    titulo: 'Guia de Depósito Judicial',
-    texto: 'Olá! Identificamos um andamento referente a Depósito Judicial no processo [CNJ]. Trata-se de um procedimento para consignação de valores em conta vinculada ao juízo. Entraremos em contato com as instruções. Lembre-se: pagamentos judiciais nunca são feitos em nome de pessoas físicas.',
-    quandoUsar: 'Usar para depósitos ou contas judiciais.',
-    keywords: ['DEPÓSITO JUDICIAL', 'DEPOSITO JUDICIAL', 'CONTA JUDICIAL'],
-    prioridade: 1
-  },
-  {
-    id: 'liminar_e_jg',
-    categoria: 'liminar_jg',
-    titulo: 'Liminar e Justiça Gratuita Analisadas',
-    texto: 'Olá! O juiz realizou a análise dos pedidos iniciais no processo [CNJ], tratando tanto da liminar quanto do pedido de Justiça Gratuita. O setor jurídico já está analisando o teor detalhado desta decisão para definir as providências de gabinete necessárias.',
-    quandoUsar: 'Usar quando Liminar e JG forem apreciadas na mesma janela.',
-    keywords: ['LIMINAR', 'ASSISTÊNCIA JUDICIÁRIA', 'JUSTIÇA GRATUITA', 'GRATUIDADE'],
-    prioridade: 1
-  },
-  {
-    id: 'liminar_analisada',
-    categoria: 'liminar',
-    titulo: 'Análise de Liminar',
-    texto: 'Olá! Houve uma atualização importante: o juiz apreciou o pedido de liminar no seu processo [CNJ]. Nossos advogados estão realizando a leitura técnica da decisão para verificar os termos decididos. Entraremos em contato com o parecer completo.',
-    quandoUsar: 'Usar quando houver análise de Liminar sem resultado explícito.',
-    keywords: ['LIMINAR', 'TUTELA'],
-    prioridade: 1
-  },
-  {
-    id: 'justica_gratuita',
-    categoria: 'liminar',
-    titulo: 'Justiça Gratuita Apreciada',
-    texto: 'Olá! O pedido de Justiça Gratuita do processo [CNJ] foi analisado pelo juízo. Esta é uma etapa importante para a continuidade da ação. Nossa equipe está conferindo o despacho para garantir que tudo esteja regularizado conforme as regras de custas.',
-    quandoUsar: 'Usar quando houver menção à gratuidade da justiça.',
-    keywords: ['ASSISTÊNCIA JUDICIÁRIA', 'JUSTIÇA GRATUITA', 'GRATUIDADE'],
-    prioridade: 1
-  },
-  {
-    id: 'outras_decisoes',
-    categoria: 'decisao',
-    titulo: 'Nova Decisão Prolatada',
-    texto: 'Olá! O juízo proferiu uma nova decisão nos autos do processo [CNJ]. O jurídico já foi notificado e está analisando o teor técnico do despacho para dar andamento às providências necessárias. Retornaremos com o parecer em breve.',
-    quandoUsar: 'Usar para movimentos genéricos de decisão ou interlocutórias.',
-    keywords: ['OUTRAS DECISÕES', 'OUTRAS DECISOES', 'OUTRA DECISÃO', 'DECISÃO INTERLOCUTÓRIA'],
-    prioridade: 1
-  },
-  {
-    id: 'jg_indeferida',
-    categoria: 'financeiro',
-    titulo: 'Justiça Gratuita Indeferida',
-    texto: 'Olá! O juiz indeferiu o pedido de Justiça Gratuita no processo [CNJ]. Isso pode gerar a necessidade de recolhimento de custas processuais. O jurídico está analisando a decisão para confirmar os valores e retornaremos com a orientação sobre a guia de pagamento oficial.',
-    quandoUsar: 'Usar quando a gratuidade for negada.',
-    keywords: ['INDEFERIDA A GRATUIDADE', 'INDEFERIMENTO DA JUSTIÇA GRATUITA', 'JUSTIÇA GRATUITA INDEFERIDA'],
-    prioridade: 2
-  },
-  {
-    id: 'sentenca_improcedente',
-    categoria: 'sentenca',
-    titulo: 'Sentença Desfavorável (Análise)',
-    texto: 'Olá! Informamos que o juiz proferiu uma sentença improcedente no processo [CNJ]. O jurídico já está realizando a leitura técnica dos fundamentos para preparar o recurso cabível e buscar a reforma desta decisão no tribunal.',
-    quandoUsar: 'Usar quando houver improcedência.',
-    keywords: ['IMPROCEDENTE', 'IMPROCEDÊNCIA', 'IMPROCEDENCIA', 'NEGADO PROVIMENTO'],
-    prioridade: 2
-  },
-  {
-    id: 'pericia',
-    categoria: 'pericia',
-    titulo: 'Andamento de Perícia Técnica',
-    texto: 'Olá! O processo [CNJ] avançou para a fase de perícia. Esta etapa é fundamental para a produção de provas especializadas. Estamos acompanhando os prazos para manifestação técnica do perito nomeado pelo juiz.',
-    quandoUsar: 'Usar para perícias, peritos ou laudos.',
-    keywords: ['PERÍCIA', 'PERITO', 'LAUDO PERICIAL'],
-    prioridade: 2
-  },
-  {
-    id: 'penhora_bloqueio',
-    categoria: 'financeiro',
-    titulo: 'Fase de Penhora ou Bloqueio',
-    texto: 'Olá! Identificamos um andamento de penhora ou tentativa de bloqueio judicial no processo [CNJ]. Trata-se de um rito para garantir a execução. Nossa banca jurídica já está analisando as medidas de defesa necessárias para resguardar seus direitos.',
-    quandoUsar: 'Usar para penhora, SISBAJUD ou bloqueios.',
-    keywords: ['PENHORA', 'SISBAJUD', 'BLOQUEIO JUDICIAL'],
-    prioridade: 2
-  },
-  {
-    id: 'apelacao',
-    categoria: 'recurso',
-    titulo: 'Recurso de Apelação Protocolado',
-    texto: 'Olá! Informamos que houve o protocolo do Recurso de Apelação no processo [CNJ]. Este procedimento visa levar o caso para reapreciação pelos desembargadores no tribunal. Seguimos monitorando o prazo de remessa.',
-    quandoUsar: 'Usar para interposição de recurso ou apelação.',
-    keywords: ['APELAÇÃO', 'APELACAO', 'RECURSO DE APELAÇÃO'],
-    prioridade: 2
-  },
-  {
-    id: 'cumprimento',
-    categoria: 'cumprimento',
-    titulo: 'Fase de Pagamento (Execução)',
-    texto: 'Olá! O processo [CNJ] entrou em fase de Cumprimento de Sentença. Este é o momento em que o tribunal busca a satisfação do crédito decidido. Estamos acompanhando os prazos para garantir a efetividade da vitória.',
-    quandoUsar: 'Usar para execução ou cumprimento de sentença.',
-    keywords: ['CUMPRIMENTO DE SENTENÇA', 'EXECUÇÃO DE SENTENÇA', 'FASE DE CUMPRIMENTO'],
+    keywords: ['LIMINAR DEFERIDA', 'TUTELA DEFERIDA', 'TUTELA CONCEDIDA'],
     prioridade: 3
-  },
-  {
-    id: 'contestacao',
-    categoria: 'contestacao',
-    titulo: 'Apresentação de Defesa (Réu)',
-    texto: 'Olá! A outra parte apresentou a contestação (defesa) no processo [CNJ]. Nossos advogados já estão analisando cada ponto alegado para elaborar a réplica, onde rebateremos os argumentos trazidos por eles.',
-    quandoUsar: 'Usar quando o réu protocolar a contestação.',
-    keywords: ['CONTESTAÇÃO', 'CONTESTACAO', 'JUNTADA DE CONTESTAÇÃO'],
-    prioridade: 3
-  },
-  {
-    id: 'replica',
-    categoria: 'replica',
-    titulo: 'Apresentação de Réplica',
-    texto: 'Olá! Estamos na fase de Réplica no processo [CNJ]. Nossa equipe está redigindo a manifestação para rebater os argumentos trazidos pela defesa da outra parte. É uma etapa importante para reafirmar nossos pedidos.',
-    quandoUsar: 'Usar para réplica ou manifestação sobre contestação.',
-    keywords: ['RÉPLICA', 'REPLICA', 'INTIMAÇÃO PARA RÉPLICA'],
-    prioridade: 3
-  },
-  {
-    id: 'peticao_juntada',
-    categoria: 'peticao_juntada',
-    titulo: 'Protocolo de Petição',
-    texto: 'Olá! Houve a juntada de uma nova petição no seu processo [CNJ]. Este documento foi protocolado para impulsionar o andamento ou atender a uma determinação do juiz. Aguardamos agora a próxima manifestação do tribunal.',
-    quandoUsar: 'Usar para juntada de petição recente.',
-    keywords: ['PETIÇÃO', 'PETICAO', 'JUNTADA DE PETIÇÃO', 'JUNTADA DE PETICAO', 'PETIÇÃO JUNTADA', 'DOCUMENTO JUNTADO'],
-    prioridade: 4
-  },
-  {
-    id: 'decurso_prazo',
-    categoria: 'prazo',
-    titulo: 'Certificação de Prazos',
-    texto: 'Olá! Passando para atualizar o status do seu processo ([CNJ]). Tivemos movimentações recentes de rotina no cartório, incluindo a certificação de prazos processuais e publicações do tribunal ([DataMov]). Isso faz parte do fluxo normal da ação. Nossa equipe segue acompanhando de perto e avisaremos você assim que houver novidades.',
-    quandoUsar: 'Usar para decurso de prazo ou certificação burocrática.',
-    keywords: ['DECURSO DE PRAZO', 'DECORRIDO O PRAZO'],
-    prioridade: 4
-  },
-  {
-    id: 'conclusos',
-    categoria: 'conclusos',
-    titulo: 'Aguardando Decisão (Conclusos)',
-    texto: 'Olá! O seu processo [CNJ] teve uma atualização técnica: ele foi enviado para a mesa do juiz (conclusos). Isso significa que o processo está na fila para que o magistrado profira uma decisão ou despacho. Estamos monitorando esse retorno.',
-    quandoUsar: 'Usar para "Conclusos para despacho/decisão".',
-    keywords: ['CONCLUSOS', 'CONCLUSÃO', 'CONCLUSAO'],
-    prioridade: 4
-  },
-  {
-    id: 'saneamento_provas',
-    categoria: 'instrucao',
-    titulo: 'Fase de Provas (Saneamento)',
-    texto: 'Olá! O juiz iniciou a fase de saneamento no processo [CNJ], solicitando que as partes indiquem as provas que desejam produzir. É um momento de organização do processo antes do julgamento. Estamos cuidando de toda a parte técnica.',
-    quandoUsar: 'Usar para saneamento ou especificação de provas.',
-    keywords: ['SANEAMENTO', 'ESPECIFICAÇÃO DE PROVAS'],
-    prioridade: 4
-  },
-  {
-    id: 'citacao',
-    categoria: 'citacao',
-    titulo: 'Citação do Réu',
-    texto: 'Olá! O processo [CNJ] avançou para a fase de citação. O tribunal está notificando oficialmente a outra parte sobre a existência da ação. Este é um passo fundamental para que o processo saia da fase inicial.',
-    quandoUsar: 'Usar para expedição de mandado ou carta de citação.',
-    keywords: ['CITAÇÃO', 'CITACAO', 'MANDADO DE CITAÇÃO', 'CARTA DE CITAÇÃO'],
-    prioridade: 5
-  },
-  {
-    id: 'rotina_pos_retorno',
-    categoria: 'rotina',
-    titulo: 'Manutenção de Monitoramento',
-    texto: 'Olá! Desde nossa última conversa em [Data], o seu processo [CNJ] teve apenas movimentações internas de cartório. Não houve nenhuma decisão nova do juiz que mude o status atual, o que é comum no fluxo judicial. Seguimos em vigilância constante!',
-    quandoUsar: 'Ideal para quando o cliente pergunta e SÓ houve burocracia de cartório.',
-    keywords: [],
-    prioridade: 6
   },
   {
     id: 'rotina',
@@ -300,7 +93,7 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     titulo: 'Andamento de Rotina',
     texto: 'Olá! Houve um novo andamento técnico no seu processo [CNJ]. Trata-se de uma atualização de rotina do tribunal (movimentação de cartório), sem mudança prática no seu caso neste momento. O processo segue seu curso normal.',
     quandoUsar: 'Usar para andamentos genéricos sem impacto de mérito.',
-    keywords: ['ATO ORDINATÓRIO', 'MERO EXPEDIENTE', 'CERTIDÃO', 'DISPONIBILIZAÇÃO', 'PUBLICAÇÃO', 'REMESSA', 'RECEBIMENTO'],
+    keywords: ['ATO ORDINATÓRIO', 'MERO EXPEDIENTE', 'CERTIDÃO', 'PUBLICAÇÃO', 'REMESSA', 'RECEBIDO'],
     prioridade: 6
   }
 ];
