@@ -1,6 +1,6 @@
 /**
- * @fileOverview MOTOR LEXIS DE DESPACHO v6.5 (CORE SOBERANO)
- * Orquestrador principal que prioriza Base de Conhecimento Local e aplica Anonimização.
+ * @fileOverview MOTOR LEXIS DE DESPACHO v7.0 (FIDELIDADE DE MÉRITO)
+ * Orquestrador principal que prioriza Base de Conhecimento e aplica Transparência de Decisão.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -24,7 +24,7 @@ const BANNED_TERMS = [
 ];
 
 /**
- * Filtro de Segurança: Garante que NENHUM nome de empresa saia no rascunho.
+ * Filtro de Segurança: Garante anonimização e evita termos de vitória em ritos de perda.
  */
 function cleanBannedTerms(text: string): string {
   let cleaned = text;
@@ -32,21 +32,15 @@ function cleanBannedTerms(text: string): string {
     const regex = new RegExp(`\\b${term}\\b`, 'gi');
     cleaned = cleaned.replace(regex, 'nosso escritório');
   });
-  
-  // Limpeza extra para ritos de apresentação
-  cleaned = cleaned.replace(/pela nossa assessoria/gi, 'pelo nosso setor processual');
-  cleaned = cleaned.replace(/da Get/gi, 'do nosso jurídico');
-  
   return cleaned;
 }
 
 /**
- * Gera um rascunho estratégico utilizando o Core Lexis (RAG + Prompt Grounding).
+ * Gera um rascunho estratégico utilizando o Core Lexis (RAG + Fidelidade de Mérito).
  */
 export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
   const { clienteNome, protocolo, movimentos, preferredModel, empresaId } = input;
 
-  // 1. Obter Sugestão Determinística (Baseline)
   const suggestions = suggestScripts({
     clienteNome,
     protocolo,
@@ -57,13 +51,9 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
   const baseScript = suggestions[0]?.texto || "";
   const categoria = suggestions[0]?.categoria || "geral";
 
-  // 2. Recuperação de Conhecimento (RAG Local)
   const keywords = [categoria, ...(movimentos[0]?.nome?.split(' ') || [])].slice(0, 8);
-  
-  // A. Conhecimento Global (Manual da Get)
   const staticChunks = retrieveKnowledge(keywords);
   
-  // B. Conhecimento Dinâmico (PDFs da Empresa no Supabase)
   let dynamicChunks: any[] = [];
   if (empresaId) {
     const dbRes = await searchKnowledgeChunksAction(keywords, empresaId);
@@ -73,35 +63,29 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
   const allChunks = [...staticChunks, ...dynamicChunks].slice(0, 5);
   const contextKnowledge = allChunks.map(c => `[REGRA OFICIAL]: ${c.texto}`).join('\n\n');
 
-  // 3. System Prompt Soberano (GROUNDED)
   const systemPrompt = `
-    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v6.5.
-    SUA MISSÃO: REDIGIR ATENDIMENTO PROCESSUAL PROFISSIONAL PARA O CLIENTE ${clienteNome.toUpperCase()}.
+    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v7.0.
+    MISSÃO: REDIGIR ATENDIMENTO TRANSPARENTE E PROFISSIONAL.
     
-    FONTES DE VERDADE:
-    - Movimentos reais do tribunal (DataJud).
-    - Base de Conhecimento anexa (Siga estas regras rigorosamente).
+    DIRETRIZES CRÍTICAS DE FIDELIDADE:
+    1. SE O PROCESSO FOI ENCERRADO/CANCELADO: Explique o motivo real (ex: falta de custas, indeferimento). NUNCA use tom de comemoração se houve derrota ou falha técnica.
+    2. PASSIVO FINANCEIRO: Se houver majoração de honorários de sucumbência ou custas pendentes, ALERTE o cliente sobre este passivo.
+    3. ESTRUTURA: Contexto -> Fato Real -> Impacto (Ganhos ou Perdas) -> Próximo Passo.
+    4. PROIBIÇÃO: Nunca cite nome de empresa ou marca. Use "Setor Processual".
     
-    DIRETRIZES CRÍTICAS:
-    - ESTRUTURA: Contexto -> Fato Leigo -> Impacto Seguro -> Próximo Passo.
-    - TOM: Profissional, calmo, sem "juridiquês" excessivo.
-    - PROIBIÇÃO: NUNCA cite nome de empresa, marca, razão social ou fundador. 
-    - SEGURANÇA: Se o processo foi encerrado/cancelado, explique o motivo técnico de forma honesta. Não use tom de vitória se houve cancelamento.
-    
-    TRECHOS AUTORIZADOS DA BASE DE CONHECIMENTO:
+    BASE DE CONHECIMENTO AUTORIZADA:
     ${contextKnowledge}
   `;
 
   const userPrompt = `
     DADOS DO PROCESSO: ${protocolo}
-    ÚLTIMO RETORNO: ${input.ultimoRetorno || 'Não registrado'}
-    MOVIMENTAÇÃO RECENTE:
-    ${movimentos.slice(0, 5).map(m => `- ${m.dataHora}: ${m.nome}`).join('\n')}
+    HISTÓRICO RECENTE DO TRIBUNAL:
+    ${movimentos.slice(0, 15).map(m => `- ${m.dataHora}: ${m.nome} | ${m.complemento || ''}`).join('\n')}
     
-    SCRIPT BASE (Sugerido pelo Motor Local):
+    SCRIPT BASE SUGERIDO:
     "${baseScript}"
     
-    REDIGIR RASCUNHO FINAL (SIGA A ESTRUTURA):
+    REDIGIR RASCUNHO FINAL COM FOCO NA VERDADE DA DECISÃO:
   `;
 
   try {
@@ -111,23 +95,16 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
       preferredModel: preferredModel || 'xai'
     });
 
-    const finalDraft = cleanBannedTerms(response.resposta);
-
     return {
       sucesso: true,
-      rascunho: finalDraft,
-      engine: response.engineUtilizada,
-      chunks: allChunks.length,
-      isGrounded: allChunks.length > 0
+      rascunho: cleanBannedTerms(response.resposta),
+      engine: response.engineUtilizada
     };
   } catch (error) {
-    // Fallback absoluto: Script Local Determinístico com Anonimização
     return {
       sucesso: false,
       rascunho: cleanBannedTerms(baseScript),
-      engine: "LOCAL_DETERMINISTIC",
-      chunks: 0,
-      isGrounded: false
+      engine: "LOCAL_DETERMINISTIC"
     };
   }
 }
