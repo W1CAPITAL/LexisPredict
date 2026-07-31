@@ -1,9 +1,10 @@
 
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v3.0
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v3.1
  * Regras de Negócio:
- * 1. Alerta apenas se Data Movimento > Data Retorno (Ignora mesmo dia para evitar alertas circulares).
- * 2. Padrões de encerramento restritos a ritos definitivos.
+ * 1. tem_atualizacao_pos_retorno = estritamente DataMovimento > DataRetorno.
+ * 2. Movimentos no mesmo dia são considerados vistos.
+ * 3. Se não houver data de movimento, não há alerta.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -11,6 +12,7 @@ import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns
 
 /**
  * Gera uma assinatura (hash) do estado atual das movimentações.
+ * Usado para integridade, mas NÃO liga a flag de novo andamento.
  */
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
@@ -84,8 +86,8 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 
 /**
  * Detecta se houve atualização no tribunal após o último retorno do usuário.
- * REGRA LEXIS: Movimentos no MESMO DIA do retorno são considerados "vistos". 
- * Só alerta se DataMov > DataRetorno (strictly).
+ * REGRA LEXIS: Alerta somente se DataMov > Fim do dia do Retorno.
+ * Se não houver data, retorna false.
  */
 export function detectarAtualizacaoPosRetorno(
   ultimoRetornoStr: string | null | undefined,
@@ -102,12 +104,12 @@ export function detectarAtualizacaoPosRetorno(
   const lastMov = sorted[0];
   const dataMov = lastMov.dataHora ? parseISO(lastMov.dataHora) : null;
   
-  if (!dataMov) return { alerta: false, dataUltimo: null, nomeUltimo: null };
+  if (!dataMov) return { alerta: false, dataUltimo: null, nomeUltimo: lastMov.nome || null };
 
   const dataUltimoStr = dataMov.toISOString();
   const nomeUltimo = lastMov.nome || "Movimentação não identificada";
 
-  // Se nunca houve retorno, alerta se for recente (últimos 45 dias)
+  // Se nunca houve retorno, alerta se for recente (últimos 45 dias) para não poluir
   if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-" || ultimoRetornoStr === "0") {
     const quarentaECincoDias = startOfDay(subDays(new Date(), 45));
     return {
@@ -128,9 +130,6 @@ export function detectarAtualizacaoPosRetorno(
 
     if (dataRetorno && isValid(dataRetorno)) {
       // Regra de Propósito: Só alerta se a movimentação for em dia posterior ao atendimento
-      // isAfter compara timestamps. Como dataRetorno DD/MM/YYYY é 00:00:00, 
-      // qualquer movimento NO MESMO DIA cairia como isAfter. 
-      // Por isso, definimos o final do dia do retorno como marco zero.
       const fimDoDiaRetorno = new Date(dataRetorno);
       fimDoDiaRetorno.setHours(23, 59, 59, 999);
 
