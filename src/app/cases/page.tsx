@@ -61,6 +61,7 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
+import { perguntarIA } from '@/ai/flows/chat-ai-flow';
 
 const CaseRow = React.memo(({ 
   c, 
@@ -288,6 +289,8 @@ function CasesContent() {
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
   const [showScripts, setShowScripts] = useState(false);
+  const [aiDraft, setAiDraft] = useState<string | null>(null);
+  const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
 
   const [mounted, setMounted] = useState(false);
   const { isOperador } = useAdmin();
@@ -345,6 +348,7 @@ function CasesContent() {
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setSuggestedScripts([]);
+        setAiDraft(null);
         if (res.casePatch) {
           updateCaseByProtocolo(caseItem.protocolo, res.casePatch);
         } else if (res.case) {
@@ -368,6 +372,7 @@ function CasesContent() {
       if (res.success && res.case) {
         const moves = res.movimentos || [];
         setHistoryResult({ case: res.case, movimentos: moves });
+        setAiDraft(null);
         
         // Gera scripts imediatamente
         const suggestions = suggestScripts({
@@ -398,19 +403,33 @@ function CasesContent() {
     }
   };
 
-  const handleGenerateScript = () => {
-    if (!historyResult) return;
+  const handleGenerateAIDraft = async () => {
+    if (!historyResult || isGeneratingAIDraft) return;
     
-    const suggestions = suggestScripts({
-      clienteNome: historyResult.case.cliente,
-      protocolo: historyResult.case.protocolo,
-      ultimoRetorno: historyResult.case.ultimoRetorno,
-      movimentos: historyResult.movimentos
-    });
-    
-    setSuggestedScripts(suggestions);
-    setShowScripts(true);
-    toast({ title: "Sugestões Geradas" });
+    setIsGeneratingAIDraft(true);
+    try {
+      const context = `
+        CLIENTE: ${historyResult.case.cliente}
+        CNJ: ${historyResult.case.protocolo}
+        ÚLTIMO RETORNO NO SISTEMA: ${historyResult.case.ultimoRetorno || 'Não registrado'}
+        CRONOLOGIA RECENTE:
+        ${historyResult.movimentos.slice(0, 10).map(m => `- ${m.dataHora}: ${m.nome}`).join('\n')}
+      `;
+
+      const prompt = `Você é o Consultor Estratégico da Get Assessoria. Com base na cronologia acima, redija UMA sugestão de mensagem profissional e clara para o cliente. 
+      RITO OBRIGATÓRIO: Contexto -> Fato Simples -> Impacto Seguro -> Próximo Passo. 
+      REGRAS: Use linguagem leiga, não invente decisões positivas se o texto for neutro, e tranquilize o cliente se for apenas rotina.`;
+
+      const res = await perguntarIA({ pergunta: prompt });
+      if (res?.resposta) {
+        setAiDraft(res.resposta);
+        toast({ title: "Rascunho Neural Gerado" });
+      }
+    } catch (e) {
+      toast({ title: "Falha na Unidade Neural", variant: "destructive" });
+    } finally {
+      setIsGeneratingAIDraft(false);
+    }
   };
 
   const copyScript = (text: string) => {
@@ -796,7 +815,18 @@ function CasesContent() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Button 
-                      onClick={handleGenerateScript} 
+                      onClick={() => {
+                        if (historyResult) {
+                          const suggestions = suggestScripts({
+                            clienteNome: historyResult.case.cliente,
+                            protocolo: historyResult.case.protocolo,
+                            ultimoRetorno: historyResult.case.ultimoRetorno,
+                            movimentos: historyResult.movimentos
+                          });
+                          setSuggestedScripts(suggestions);
+                          setShowScripts(true);
+                        }
+                      }} 
                       variant="outline" 
                       className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] rounded-xl h-10 px-4"
                     >
@@ -862,6 +892,28 @@ function CasesContent() {
                              <Zap size={14} /> Sugestões de Resposta
                            </h3>
                            <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
+                        </div>
+
+                        {/* IA DRAFT AREA (Opcional via Validação) */}
+                        <div className="bg-black text-white p-5 space-y-4 mb-8">
+                           <div className="flex items-center justify-between">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico via IA</p>
+                              <Button 
+                                onClick={handleGenerateAIDraft} 
+                                disabled={isGeneratingAIDraft}
+                                className="h-7 px-3 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all"
+                              >
+                                {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
+                              </Button>
+                           </div>
+                           {aiDraft ? (
+                             <div className="space-y-3 animate-in fade-in duration-500">
+                                <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
+                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-6 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
+                             </div>
+                           ) : (
+                             <p className="text-[8px] font-bold text-white/30 uppercase">Clique no botão para gerar uma resposta personalizada baseada no contexto neural.</p>
+                           )}
                         </div>
                         
                         {suggestedScripts.map((script, idx) => (
