@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SUGESTÃO DE SCRIPTS v1.3 - LÓGICA DE JANELA E PRIORIDADE
+ * MOTOR DE SUGESTÃO DE SCRIPTS v1.4 - ANÁLISE UNIVERSAL EM JANELA
  */
 
 import { parseISO, parse, isAfter, isValid, startOfDay } from 'date-fns';
@@ -30,91 +30,97 @@ const ROUTINE_KEYWORDS = [
 export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   const { clienteNome = 'Cliente', protocolo, ultimoRetorno, movimentos = [] } = input;
   
-  // 1. Preparação da Janela
+  // 1. Preparação e Ordenação
   const sortedMovs = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  // Parse do último retorno para comparação cronológica
+  // Parse do último retorno para comparação temporal
   let dateRetorno: Date | null = null;
   if (ultimoRetorno) {
     const cleanStr = ultimoRetorno.trim();
-    if (cleanStr.includes('/')) {
-      dateRetorno = startOfDay(parse(cleanStr, 'dd/MM/yyyy', new Date()));
-    } else {
-      dateRetorno = startOfDay(parseISO(cleanStr));
-    }
+    try {
+      if (cleanStr.includes('/')) {
+        dateRetorno = startOfDay(parse(cleanStr, 'dd/MM/yyyy', new Date()));
+      } else {
+        dateRetorno = startOfDay(parseISO(cleanStr));
+      }
+    } catch (e) { dateRetorno = null; }
   }
 
-  // Define a janela: 20 mais recentes OU todos desde o último retorno
+  // 2. Definição da Janela de Análise (Até 20 movimentos ou todos pós-retorno)
   const windowLimit = 20;
   const movsInWindow = sortedMovs.filter((m, idx) => {
-    if (idx < windowLimit) return true;
+    if (idx < 10) return true; // Mínimo de 10 para segurança
+    if (idx >= windowLimit) return false;
     if (dateRetorno && isValid(dateRetorno) && m.dataHora) {
        return isAfter(parseISO(m.dataHora), dateRetorno);
     }
-    return false;
+    return true;
   });
 
   if (movsInWindow.length === 0) {
-    return [createSuggestion(SCRIPT_CATALOG.find(s => s.id === 'rotina')!, clienteNome, protocolo, ultimoRetorno)];
+    const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
+    return fallback ? [createSuggestion(fallback, clienteNome, protocolo, ultimoRetorno)] : [];
   }
 
-  // 2. Classificação de Prioridade na Janela
-  const matches: ScriptTemplate[] = [];
-  const matchedCategories = new Set<string>();
+  // 3. Verificação de "Apenas Rotina" (Regra de Carência)
+  const allRoutine = movsInWindow.every(m => {
+    const text = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
+    return ROUTINE_KEYWORDS.some(kw => text.includes(kw)) && 
+           !text.includes('PETIÇÃO') && !text.includes('LIMINAR') && !text.includes('SENTENÇA');
+  });
 
-  // Verificamos se TODOS os movimentos na janela são rotina (P6)
-  const allRoutine = movsInWindow.every(m => 
-    ROUTINE_KEYWORDS.some(kw => (m.nome || '').toUpperCase().includes(kw))
-  );
-
-  if (allRoutine && dateRetorno) {
+  if (allRoutine && dateRetorno && isValid(dateRetorno)) {
     const template = SCRIPT_CATALOG.find(s => s.id === 'rotina_pos_retorno');
     if (template) return [createSuggestion(template, clienteNome, protocolo, ultimoRetorno)];
   }
 
-  // Detecção de Multi-matches na janela (Prioridade vindo do catálogo)
-  const windowText = movsInWindow.map(m => (m.nome || '').toUpperCase()).join(' | ');
+  // 4. Coleta de Correspondências na Janela
+  const matches: ScriptTemplate[] = [];
+  const matchedIds = new Set<string>();
+  const fullWindowText = movsInWindow.map(m => 
+    `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
+  ).join(' || ');
 
   // Caso Especial: Liminar + JG na mesma janela
-  const hasLiminar = windowText.includes('LIMINAR') || windowText.includes('TUTELA');
-  const hasJG = windowText.includes('JUSTIÇA GRATUITA') || windowText.includes('ASSISTÊNCIA JUDICIÁRIA') || windowText.includes('GRATUIDADE');
+  const hasLiminar = fullWindowText.includes('LIMINAR') || fullWindowText.includes('TUTELA');
+  const hasJG = /(JUSTIÇA GRATUITA|ASSISTÊNCIA JUDICIÁRIA|GRATUIDADE)/.test(fullWindowText);
   
   if (hasLiminar && hasJG) {
     const template = SCRIPT_CATALOG.find(s => s.id === 'liminar_e_jg');
     if (template) {
       matches.push(template);
-      matchedCategories.add('liminar');
-      matchedCategories.add('jg');
+      matchedIds.add('liminar_analisada');
+      matchedIds.add('justica_gratuita');
     }
   }
 
-  // Busca Geral por Prioridade (excluindo o que já foi detectado no caso especial)
+  // Varredura Geral
   for (const template of SCRIPT_CATALOG) {
-    if (template.id === 'rotina_pos_retorno') continue;
-    if (template.id === 'liminar_e_jg' && matches.length > 0) continue;
-
-    // Se já temos JG ou Liminar via script combinado, não repetimos
-    if (template.id === 'liminar_analisada' && matchedCategories.has('liminar')) continue;
-    if (template.id === 'justica_gratuita' && matchedCategories.has('jg')) continue;
-
-    if (template.keywords.some(kw => windowText.includes(kw))) {
+    if (template.id === 'rotina_pos_retorno' || matchedIds.has(template.id)) continue;
+    
+    if (template.keywords.some(kw => fullWindowText.includes(kw))) {
       matches.push(template);
-      if (matches.length >= 3) break; // Máximo 3 sugestões
+      matchedIds.add(template.id);
     }
   }
 
-  // Fallback: Rotina Geral
-  if (matches.length === 0) {
-    const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
-    if (fallback) matches.push(fallback);
+  // 5. Refino e Anti-Ruído
+  let finalMatches = matches.sort((a, b) => a.prioridade - b.prioridade);
+
+  // Se houver P0-P2, remove "rotina" para evitar poluição
+  if (finalMatches.some(m => m.prioridade <= 2)) {
+    finalMatches = finalMatches.filter(m => m.id !== 'rotina' && m.id !== 'rotina_pos_retorno');
   }
 
-  // 3. Ordenação por Prioridade (P0 primeiro) e Mapeamento
-  return matches
-    .sort((a, b) => a.prioridade - b.prioridade)
-    .map(s => createSuggestion(s, clienteNome, protocolo, ultimoRetorno));
+  // Fallback se nada bater
+  if (finalMatches.length === 0) {
+    const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
+    if (fallback) finalMatches.push(fallback);
+  }
+
+  return finalMatches.slice(0, 3).map(s => createSuggestion(s, clienteNome, protocolo, ultimoRetorno));
 }
 
 function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, data: string | null | undefined): ScriptSuggestion {
