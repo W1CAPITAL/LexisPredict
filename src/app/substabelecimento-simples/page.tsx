@@ -18,7 +18,10 @@ import {
   MapPin,
   Scale,
   Building2,
-  Calendar
+  Calendar,
+  FileSignature,
+  FileStack,
+  Gavel
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 
 const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
@@ -42,6 +46,7 @@ const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","P
 export default function SubstabelecimentoSimplesPage() {
   const [loading, setLoading] = useState(false);
   const [banca, setBanca] = useState<any[]>([]);
+  const [template, setTemplate] = useState<'padrao' | 'cpc272'>('padrao');
   
   // Advogado Cedente
   const [advLeavingId, setAdvLeavingId] = useState('');
@@ -57,6 +62,7 @@ export default function SubstabelecimentoSimplesPage() {
 
   const [numeroProcesso, setNumeroProcesso] = useState('');
   const [parteNome, setParteNome] = useState('');
+  const [tipoAcao, setTipoAcao] = useState('AÇÃO REVISIONAL DE CONTRATO BANCÁRIO');
   const [cidadeData, setCidadeData] = useState(`São Paulo, ${new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}`);
 
   const { toast } = useToast();
@@ -66,7 +72,6 @@ export default function SubstabelecimentoSimplesPage() {
       const data = await listAdvogadosBanca();
       setBanca(data);
       if (data.length > 0) {
-        // Inicialização automática Cedente
         const first = data[0];
         setAdvLeavingId(first.id);
         setNameLeaving(first.nome);
@@ -74,7 +79,6 @@ export default function SubstabelecimentoSimplesPage() {
         setUfLeaving(fUF);
         setOabNumLeaving(first.oabs?.[fUF] || '');
 
-        // Inicialização automática Substabelecido
         const second = data[1] || data[0];
         setAdvEnteringId(second.id);
         setNameEntering(second.nome);
@@ -133,6 +137,7 @@ export default function SubstabelecimentoSimplesPage() {
     setLoading(true);
     try {
       const payload = {
+        template,
         substabelecente: {
           nome: nameLeaving,
           oabCompleta: `OAB/${ufLeaving} sob o n.º ${oabNumLeaving}`,
@@ -145,6 +150,7 @@ export default function SubstabelecimentoSimplesPage() {
         },
         numeroProcesso,
         parteNome: parteNome.toUpperCase(),
+        tipoAcao,
         cidadeData
       };
 
@@ -174,10 +180,18 @@ export default function SubstabelecimentoSimplesPage() {
             </div>
             <h1 className="font-black text-xl text-black uppercase tracking-tighter">Subst. Sem Reserva</h1>
           </div>
-          <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Padrão Bonfim v1.2</Badge>
+          <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Versão Authority v1.5</Badge>
         </header>
 
         <div className="flex-1 overflow-auto p-4 lg:p-10 max-w-5xl mx-auto w-full pb-32">
+          
+          <Tabs value={template} onValueChange={(v: any) => setTemplate(v)} className="mb-10 w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-200 p-1 border-2 border-black rounded-none shadow-[6px_6px_0px_#000]">
+              <TabsTrigger value="padrao" className="rounded-none font-black uppercase text-[10px] data-[state=active]:bg-black data-[state=active]:text-white h-10">Modelo Padrão (Simples)</TabsTrigger>
+              <TabsTrigger value="cpc272" className="rounded-none font-black uppercase text-[10px] data-[state=active]:bg-black data-[state=active]:text-white h-10">Modelo CPC Art. 272 (Exclusão)</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <Card className="bg-white border-2 border-black rounded-none shadow-[10px_10px_0px_#000]">
             <CardHeader className="bg-black text-white py-4">
               <CardTitle className="text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-3">
@@ -186,7 +200,6 @@ export default function SubstabelecimentoSimplesPage() {
             </CardHeader>
             <CardContent className="p-8 space-y-10">
               
-              {/* SUBSTABELECENTE */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b border-black/5 pb-2">
                   <Badge className="bg-black text-white rounded-none text-[8px] font-black uppercase">CEDENTE</Badge>
@@ -194,7 +207,7 @@ export default function SubstabelecimentoSimplesPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="md:col-span-2 space-y-2">
-                    <Label className="text-[9px] font-black uppercase">Nome / Selecionar Banca</Label>
+                    <Label className="text-[9px] font-black uppercase">Nome / Banca</Label>
                     <Select value={advLeavingId} onValueChange={handleAdvLeavingChange}>
                       <SelectTrigger className="border-2 border-black h-12 font-black uppercase text-xs rounded-none bg-[#f8f9fb]">
                         <SelectValue placeholder="NOME DO ADVOGADO" />
@@ -219,12 +232,11 @@ export default function SubstabelecimentoSimplesPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase">Número OAB</Label>
-                    <Input value={oabNumLeaving} onChange={e => setOabNumLeaving(e.target.value)} className="border-2 border-black h-12 font-mono text-sm rounded-none bg-white" placeholder="000.000" />
+                    <Input value={oabNumLeaving} onChange={e => setOabNumLeaving(e.target.value)} className="border-2 border-black h-12 font-mono text-sm rounded-none bg-white" />
                   </div>
                 </div>
               </div>
 
-              {/* SUBSTABELECIDO */}
               <div className="space-y-6 pt-6 border-t-2 border-black/5">
                 <div className="flex items-center gap-2 border-b border-black/5 pb-2">
                   <Badge className="bg-primary text-black rounded-none text-[8px] font-black uppercase">SUBSTABELECIDO</Badge>
@@ -232,7 +244,7 @@ export default function SubstabelecimentoSimplesPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="md:col-span-2 space-y-2">
-                    <Label className="text-[9px] font-black uppercase">Nome / Selecionar Banca</Label>
+                    <Label className="text-[9px] font-black uppercase">Nome / Banca</Label>
                     <Select value={advEnteringId} onValueChange={handleAdvEnteringChange}>
                       <SelectTrigger className="border-2 border-black h-12 font-black uppercase text-xs rounded-none bg-[#f8f9fb]">
                         <SelectValue placeholder="NOME DO ADVOGADO" />
@@ -257,12 +269,11 @@ export default function SubstabelecimentoSimplesPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase">Número OAB</Label>
-                    <Input value={oabNumEntering} onChange={e => setOabNumEntering(e.target.value)} className="border-2 border-black h-12 font-mono text-sm rounded-none bg-white" placeholder="000.000" />
+                    <Input value={oabNumEntering} onChange={e => setOabNumEntering(e.target.value)} className="border-2 border-black h-12 font-mono text-sm rounded-none bg-white" />
                   </div>
                 </div>
               </div>
 
-              {/* DADOS DO PROCESSO */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t-2 border-black/5">
                 <div className="space-y-2">
                   <Label className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Building2 size={12}/> Processo (CNJ)</Label>
@@ -274,35 +285,52 @@ export default function SubstabelecimentoSimplesPage() {
                 </div>
               </div>
 
-              <div className="space-y-2 pt-6 border-t-2 border-black/5">
-                <Label className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Calendar size={12}/> Local e Data</Label>
-                <Input value={cidadeData} onChange={(e) => setCidadeData(e.target.value)} className="border-2 border-black h-12 font-bold uppercase text-xs rounded-none bg-[#f8f9fb]" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t-2 border-black/5">
+                <div className="space-y-2">
+                  <Label className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Gavel size={12}/> Objeto / Tipo de Ação</Label>
+                  <Input value={tipoAcao} onChange={(e) => setTipoAcao(e.target.value.toUpperCase())} className="border-2 border-black h-12 font-bold uppercase text-[10px] rounded-none bg-[#f8f9fb]" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[9px] font-black uppercase text-black/40 flex items-center gap-2"><Calendar size={12}/> Local e Data</Label>
+                  <Input value={cidadeData} onChange={(e) => setCidadeData(e.target.value)} className="border-2 border-black h-12 font-bold uppercase text-xs rounded-none bg-[#f8f9fb]" />
+                </div>
               </div>
 
               <div className="pt-10 flex flex-col items-center gap-6">
                 <Button onClick={handleSeal} disabled={loading} className="w-full h-16 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-sm rounded-none border-2 border-black shadow-[8px_8px_0px_#00D1FF] hover:shadow-none transition-all">
                   {loading ? <Loader2 className="animate-spin mr-3" size={24} /> : <Printer className="mr-3" size={24} />}
-                  Selar Substabelecimento "Padrão Bonfim"
+                  Selar Substabelecimento {template === 'cpc272' ? 'Art. 272 CPC' : 'Padrão'}
                 </Button>
                 <div className="flex items-center gap-2 text-[9px] font-black uppercase text-black/40">
-                  <Shield size={12} /> Autenticidade Forense • Authority System
+                  <Shield size={12} /> Autenticidade Forense Garantida
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* PREVIEW */}
-          <Card className="bg-[#f8f9fb] border-2 border-black border-dashed rounded-none overflow-hidden mt-10">
-            <CardHeader className="bg-white border-b-2 border-black border-dashed py-2">
+          <Card className="bg-white border-2 border-black border-dashed rounded-none overflow-hidden mt-10">
+            <CardHeader className="bg-[#f8f9fb] border-b-2 border-black border-dashed py-2">
               <p className="text-[8px] font-black uppercase text-center tracking-widest flex items-center justify-center gap-2">
-                <FileText size={10} /> Preview do Instrumento v1.1
+                <FileText size={10} /> Preview Dinâmico v1.2
               </p>
             </CardHeader>
             <CardContent className="p-10 text-black/80 font-serif text-[11pt] leading-relaxed text-justify space-y-4 bg-white">
-              <p className="text-center font-bold underline mb-8">SUBSTABELECIMENTO SEM RESERVA DE PODERES</p>
-              <p>
-                Pelo presente instrumento, <span className="font-bold">Dr. {nameLeaving || '[Cedente]'}</span>, advogado regularmente inscrito na <span className={cn("font-bold", !oabNumLeaving && "text-red-500")}>OAB/{ufLeaving} sob o n.º {oabNumLeaving || '________'}</span>, substabelece, <span className="font-bold">SEM RESERVA DE PODERES</span>, ao <span className="font-bold">Dr. {nameEntering || '[Substabelecido]'}</span>, advogado inscrito na <span className={cn("font-bold", !oabNumEntering && "text-red-500")}>OAB/{ufEntering} sob o n.º {oabNumEntering || '________'}</span>, todos os poderes que lhe foram conferidos nos autos do processo nº <span className="font-bold">{numeroProcesso || '____________________'}</span>, para que represente os interesses da parte <span className="font-bold">{parteNome || '____________________'}</span>.
-              </p>
+              {template === 'padrao' ? (
+                <>
+                  <p className="text-center font-bold underline mb-8 uppercase">SUBSTABELECIMENTO SEM RESERVA DE PODERES</p>
+                  <p>
+                    Pelo presente instrumento, <span className="font-bold">Dr. {nameLeaving || '[Cedente]'}</span>, advogado regularmente inscrito na <span className="font-bold">OAB/{ufLeaving} sob o n.º {oabNumLeaving || '________'}</span>, substabelece, <span className="font-bold">SEM RESERVA DE PODERES</span>, ao <span className="font-bold">Dr. {nameEntering || '[Substabelecido]'}</span>, advogado inscrito na <span className="font-bold">OAB/{ufEntering} sob o n.º {oabNumEntering || '________'}</span>, todos os poderes que lhe foram conferidos nos autos do processo nº <span className="font-bold">{numeroProcesso || '____________________'}</span>, para que represente os interesses da parte <span className="font-bold">{parteNome || '____________________'}</span>.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-center font-bold uppercase underline">SUBSTABELECIMENTO</p>
+                  <p className="text-center font-bold mb-8">(sem reserva de poderes)</p>
+                  <p>
+                    O <span className="font-bold">DR(A). {nameLeaving || '[CEDENTE]'}</span>, brasileiro(a), advogado(a), inscrito(a) na <span className="font-bold">OAB/{ufLeaving} sob o n.º {oabNumLeaving || '________'}</span>, <span className="font-bold">SUBSTABELECE SEM RESERVA DE PODERES</span> na pessoa do <span className="font-bold">DR(A). {nameEntering || '[SUBSTABELECIDO]'}</span>, inscrito(a) na <span className="font-bold">OAB/{ufEntering} sob o n.º {oabNumEntering || '________'}</span>, os poderes conferidos por <span className="font-bold">{parteNome || '[PARTE]'}</span>, <span className="font-bold">PARA A PROMOÇÃO DE {tipoAcao}</span>, processo de n.º <span className="font-bold">{numeroProcesso || '________'}</span>...
+                  </p>
+                </>
+              )}
               <p className="text-center mt-12">{cidadeData}</p>
             </CardContent>
           </Card>
