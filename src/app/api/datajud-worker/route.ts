@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Worker de Auditoria Automática DataJud v2.0
+ * @fileOverview Worker de Auditoria Automática DataJud v2.1
  * Otimizado para micro-lotes assíncronos com isolamento estrito de empresa.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -83,6 +83,7 @@ async function auditSingleProcess(c: any): Promise<boolean> {
   try {
     const dataJud = await fetchDataJud(c.protocolo, 1, { fast: true });
 
+    // Falha em obter movimentos é tratada como erro de auditoria (não audita este CNJ neste ciclo)
     if (!dataJud || dataJud.error || !dataJud.movimentos || dataJud.movimentos.length === 0) return false;
 
     const movimentos = dataJud.movimentos;
@@ -95,7 +96,7 @@ async function auditSingleProcess(c: any): Promise<boolean> {
       datajud_ultimo_movimento: upd.dataUltimo,
       datajud_ultimo_nome: upd.nomeUltimo,
       datajud_consultado_em: new Date().toISOString(),
-      tem_atualizacao_pos_retorno: !!upd.alerta, // Flag dependente apenas da regra cronológica
+      tem_atualizacao_pos_retorno: !!upd.alerta, // Overwrite estrito (sem OR)
       datajud_encerrado_tribunal: !!enc.encerrado,
       datajud_encerrado_motivo: enc.motivo,
       datajud_hash: newHash,
