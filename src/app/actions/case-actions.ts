@@ -105,8 +105,8 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
 
     const dataJud = await fetchDataJud(protocolo, 1, { fast });
     
-    if (dataJud && !dataJud.error && dataJud.movimentos && dataJud.movimentos.length > 0) {
-      const movimentos = dataJud.movimentos;
+    if (dataJud && !dataJud.error) {
+      const movimentos = Array.isArray(dataJud.movimentos) ? dataJud.movimentos : [];
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
       const enc = detectarEncerradoNoTribunal(movimentos);
       const ba = analisarBuscaApreensao(dataJud);
@@ -143,7 +143,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       };
     }
     
-    const failMsg = dataJud?.movimentos?.length === 0 ? "Sem dados de movimento" : (dataJud?.message || "Erro no tribunal");
+    const failMsg = dataJud?.message || "Erro no tribunal";
     return { success: false, protocolo, message: failMsg, error: true };
   } catch (e: any) {
     return { success: false, protocolo, message: `Falha técnica`, error: true };
