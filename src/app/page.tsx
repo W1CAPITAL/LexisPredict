@@ -115,7 +115,8 @@ export default function Dashboard() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno).length;
+    // REGRA DE VIGILÂNCIA: Se está encerrado no tribunal, não conta como "andamento não atendido"
+    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
 
@@ -244,7 +245,7 @@ export default function Dashboard() {
                                <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
                             </div>
                             <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                              Métrica de vigilância: processos com movimentos novos após o último contato.
+                              Métrica de vigilância: processos ativos com movimentos novos após o último contato.
                             </p>
                          </div>
                          <div className="space-y-3">
