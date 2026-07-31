@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SUGESTÃO DE SCRIPTS v2.2 - PROTOCOLO DE FIDELIDADE DE MÉRITO
+ * MOTOR DE SUGESTÃO DE SCRIPTS v2.5 - FIDELIDADE DE MÉRITO E PROTEÇÃO DE PASSIVO
  */
 
 import { parseISO, parse, isAfter, isValid, startOfDay, format } from 'date-fns';
@@ -21,15 +21,6 @@ export interface ScriptInput {
   movimentos?: Array<{ nome?: string; complemento?: string; descricao?: string; dataHora?: string }>;
 }
 
-const NON_ROUTINE_TERMS = [
-  'PETIÇÃO', 'PETICAO', 'LIMINAR', 'SENTENÇA', 'SENTENCA', 'DECISÃO', 'DECISAO',
-  'ACÓRDÃO', 'ACORDAO', 'AUDIÊNCIA', 'AUDIENCIA', 'ALVARÁ', 'ALVARA', 'PROCEDENTE', 'IMPROCEDENTE',
-  'ACORDO', 'PERÍCIA', 'PERITO', 'PENHORA', 'CUMPRIMENTO', 'APELAÇÃO', 'APELACAO', 'CONTESTAÇÃO', 
-  'CONTESTACAO', 'GRATUIDADE', 'TUTELA', 'BUSCA E APREENSÃO', 'BUSCA E APREENSAO', 'TRÂNSITO', 
-  'TRANSITO', 'BAIXA DEFINITIVA', 'RÉPLICA', 'REPLICA', 'DECURSO', 'CITACAO', 'CITAÇÃO', 'SANEAMENTO', 
-  'DESERTO', 'NÃO CONHECIDO', 'MAJORADOS', 'MAJORAÇÃO'
-];
-
 export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   const { clienteNome = 'Cliente', protocolo, ultimoRetorno, movimentos = [] } = input;
   
@@ -37,7 +28,7 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  const windowLimit = 25;
+  const windowLimit = 30;
   const movsInWindow = sortedMovs.slice(0, windowLimit);
 
   if (movsInWindow.length === 0) {
@@ -51,19 +42,22 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
 
   const matchedTemplates = new Map<string, { template: ScriptTemplate, recencia: number, dataMov: string }>();
   
-  // REGRA DE OURO v2.2: Identificação de "Derrota/Falha Técnica" com precedência sobre "Baixa Neutra"
+  // PROTOCOLO DE FIDELIDADE v2.5
   const isLoss = /(IMPROCEDENTE|IMPROCEDÊNCIA|DESERTO|NÃO CONHECIDO|RECURSO NÃO CONHECIDO|FALTA DE PREPARO)/.test(fullWindowText);
-  const isMajorado = /(MAJORADOS|MAJORAÇÃO|MAJORO)/.test(fullWindowText);
+  const hasGratuidade = /(GRATUIDADE DA JUSTIÇA|ASSISTÊNCIA JUDICIÁRIA GRATUITA|JG DEFERIDA|GRATUIDADE DEFERIDA|CONCEDIDA A GRATUIDADE)/.test(fullWindowText);
 
   movsInWindow.forEach((m, idx) => {
     const text = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
     
     for (const template of SCRIPT_CATALOG) {
+      // Regra Especial: Se tem Gratuidade + Derrota, prioriza 'baixa_derrota_jg'
+      if (template.id === 'baixa_derrota_jg' && (!isLoss || !hasGratuidade)) continue;
+      
+      // Bloqueio de Baixa Neutra se houver indício de Derrota
+      if (template.id === 'baixa_definitiva' && isLoss) continue;
+
       if (template.keywords.some(kw => text.includes(kw))) {
-        // Bloqueio de Baixa Neutra se houver indício de Derrota
-        if (template.id === 'baixa_definitiva' && (isLoss || isMajorado)) continue;
-        
-        // Bloqueio de ritos intermediários se o processo já está em Baixa (P0)
+        // Se já tem um P0 (Encerramento desfavorável), evita ritos secundários
         const hasP0Matched = Array.from(matchedTemplates.values()).some(match => match.template.prioridade === 0);
         if (hasP0Matched && template.prioridade > 0) continue;
 
