@@ -1,105 +1,49 @@
-/**
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * @license Proprietary - All rights reserved.
- * CATÁLOGO DE SCRIPTS DE GABINETE v1.1
- */
+CORREÇÃO DO MOTOR DE SCRIPTS — classificação por JANELA, não só pelo último nome.
 
-export interface ScriptTemplate {
-  id: string;
-  categoria: string;
-  titulo: string;
-  texto: string;
-  quandoUsar: string;
-  keywords: string[];
-}
+Problema real: processo com Liminar + Assistência Judiciária Gratuita (01/06) + Publicação/DJe + Expedição + Petição (10/06) recebeu texto "apenas atualização de rotina do tribunal". Isso está ERRADO.
 
-export const SCRIPT_CATALOG: ScriptTemplate[] = [
-  {
-    id: 'rotina_pos_retorno',
-    categoria: 'rotina_pos_retorno',
-    titulo: 'Manutenção de Monitoramento',
-    texto: 'Olá, [Nome]! Desde nossa última conversa em [Data], o seu processo [CNJ] teve apenas movimentações internas de cartório (atos ordinatórios). Não houve nenhuma decisão nova do juiz que mude o status atual. Seguimos em vigilância constante e qualquer novidade relevante avisaremos imediatamente!',
-    quandoUsar: 'Ideal para quando o cliente pergunta e só houve burocracia de cartório desde o último contato.',
-    keywords: []
-  },
-  {
-    id: 'baixa_definitiva',
-    categoria: 'baixa_definitiva',
-    titulo: 'Processo Finalizado (Baixa)',
-    texto: 'Olá, [Nome]! Temos uma ótima notícia: o tribunal oficializou a Baixa Definitiva (Trânsito em Julgado) do processo [CNJ]. Isso significa que o caso foi encerrado no sistema judicial e não cabem mais recursos. Nossa equipe agora segue com os ritos internos de arquivamento.',
-    quandoUsar: 'Usar quando identificar Trânsito em Julgado ou Baixa Definitiva.',
-    keywords: ['BAIXA DEFINITIVA', 'TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO', 'ARQUIVADO DEFINITIVAMENTE', 'CANCELADA A DISTRIBUIÇÃO', 'EXTINÇÃO DO PROCESSO']
-  },
-  {
-    id: 'busca_apreensao',
-    categoria: 'busca_apreensao',
-    titulo: 'Alerta de Busca e Apreensão',
-    texto: 'URGENTE: Sr(a). [Nome], identificamos um novo andamento de Busca e Apreensão no seu processo [CNJ]. Nossa equipe jurídica já está em prontidão para as medidas de defesa. É fundamental que mantenha o veículo em local seguro e aguarde nossas orientações imediatas.',
-    quandoUsar: 'Prioridade Máxima. Usar ao detectar Mandado de Busca ou Liminar de Posse.',
-    keywords: ['BUSCA E APREENSÃO', 'BUSCA E APREENSAO', 'APREENSÃO DO VEÍCULO', 'LIMINAR DEFERIDA', 'REINTEGRAÇÃO DE POSSE']
-  },
-  {
-    id: 'cumprimento',
-    categoria: 'cumprimento',
-    titulo: 'Fase de Pagamento (Execução)',
-    texto: 'Olá, [Nome]! O processo [CNJ] entrou em fase de Cumprimento de Sentença. Este é o momento em que o tribunal busca a satisfação do crédito ou cumprimento da ordem judicial decidida. Estamos acompanhando os prazos para garantir a efetividade da vitória.',
-    quandoUsar: 'Usar ao detectar início de execução ou cumprimento de sentença.',
-    keywords: ['CUMPRIMENTO DE SENTENÇA', 'EXECUÇÃO DE SENTENÇA', 'FASE DE CUMPRIMENTO', 'CUMPRIMENTO PROVISÓRIO']
-  },
-  {
-    id: 'sentenca_improcedente',
-    categoria: 'sentenca_improcedente',
-    titulo: 'Sentença Desfavorável (Análise)',
-    texto: 'Olá, [Nome]! Informamos que o juiz proferiu uma sentença improcedente no processo [CNJ]. Nossa equipe jurídica já está realizando a leitura técnica dos fundamentos da decisão para preparar o recurso cabível e buscar a reforma da sentença em instância superior.',
-    quandoUsar: 'Usar quando houver improcedência total ou parcial desfavorável.',
-    keywords: ['IMPROCEDENTE', 'IMPROCEDÊNCIA', 'NEGADO PROVIMENTO']
-  },
-  {
-    id: 'conclusos',
-    categoria: 'conclusos',
-    titulo: 'Aguardando Decisão (Conclusos)',
-    texto: 'Oi, [Nome]! O seu processo [CNJ] teve uma atualização técnica: ele foi enviado para a mesa do juiz (conclusos). Isso significa que o processo está na fila para que o magistrado profira uma decisão ou sentença. Estamos monitorando diariamente esse retorno.',
-    quandoUsar: 'Usar quando o andamento indicar "Conclusos para despacho/decisão".',
-    keywords: ['CONCLUSOS PARA DESPACHO', 'CONCLUSOS PARA DECISÃO', 'CONCLUSOS PARA SENTENÇA']
-  },
-  {
-    id: 'decurso',
-    categoria: 'decurso',
-    titulo: 'Decurso de Prazo',
-    texto: 'Olá, [Nome]! O prazo para a parte contrária se manifestar no processo [CNJ] encerrou (decurso). Agora, o processo seguirá para a próxima etapa judicial. Estamos peticionando para que o juiz dê andamento ao feito diante da inércia da outra parte.',
-    quandoUsar: 'Usar quando houver decurso de prazo da parte contrária.',
-    keywords: ['DECURSO DE PRAZO', 'DECORRIDO O PRAZO', 'PRAZO TRANSCORRIDO']
-  },
-  {
-    id: 'juntada',
-    categoria: 'juntada',
-    titulo: 'Documentação Protocolada',
-    texto: 'Olá, [Nome]! Acabamos de realizar a juntada de novos documentos/petição no seu processo [CNJ]. Esta medida visa reforçar nossos argumentos perante o juízo. Agora aguardamos a análise do magistrado sobre esta nova peça.',
-    quandoUsar: 'Usar após protocolos de petições ou documentos.',
-    keywords: ['JUNTADA DE PETIÇÃO', 'PETIÇÃO JUNTADA', 'DOCUMENTO JUNTADO']
-  },
-  {
-    id: 'citacao',
-    categoria: 'citacao',
-    titulo: 'Citação do Réu',
-    texto: 'Olá, [Nome]! O processo [CNJ] avançou para a fase de citação. O tribunal está notificando oficialmente a outra parte sobre a existência da ação. Este é um passo fundamental para que o processo saia da fase inicial.',
-    quandoUsar: 'Usar quando houver expedição de mandado ou carta de citação.',
-    keywords: ['CITAÇÃO', 'MANDADO', 'EXPEDIÇÃO DE MANDADO', 'INTIMAÇÃO DO RÉU']
-  },
-  {
-    id: 'contestacao',
-    categoria: 'contestacao',
-    titulo: 'Apresentação de Defesa',
-    texto: 'Olá, [Nome]! A outra parte apresentou a contestação (defesa) no processo [CNJ]. Nossos advogados já estão analisando cada ponto alegado para elaborar a nossa réplica, onde rebateremos os argumentos trazidos por eles.',
-    quandoUsar: 'Usar quando o réu protocolar a contestação.',
-    keywords: ['CONTESTAÇÃO APRESENTADA', 'JUNTADA DE CONTESTAÇÃO']
-  },
-  {
-    id: 'rotina',
-    categoria: 'rotina',
-    titulo: 'Andamento de Rotina',
-    texto: 'Olá, [Nome]! Houve um novo andamento técnico no seu processo [CNJ]. Trata-se de uma atualização de rotina do tribunal (movimentação de cartório). O processo segue seu curso normal e nossa equipe jurídica está acompanhando o fluxo.',
-    quandoUsar: 'Usar para andamentos genéricos sem impacto de mérito.',
-    keywords: ['ATO ORDINATÓRIO', 'MERO EXPEDIENTE', 'CERTIDÃO', 'DISPONIBILIZAÇÃO', 'PUBLICAÇÃO', 'REMESSA', 'RECEBIMENTO']
-  }
-];
+REGRAS NOVAS (src/lib/script-processual — suggest + catalog; não mexer login/scanner/RLS além do necessário):
+
+1) JANELA DE ANÁLISE
+   - Ordenar movimentos por dataHora DESC.
+   - Considerar os 20 mais recentes OU todos com data >= ultimoRetorno (se parseável), o que for mais amplo entre os dois (mínimo: 10 movimentos se existirem).
+   - NUNCA decidir categoria só pelo movimento #1 se na janela houver ato de prioridade maior.
+
+2) PRIORIDADE (maior vence; varrer a janela)
+   P0 encerrado: baixa definitiva, trânsito em julgado, arquivado definitivamente, cancelada distribuição
+   P1 liminar/tutela: LIMINAR, TUTELA, ANTECIPAÇÃO DE TUTELA, DEFERIDA/INDEFERIDA tutela
+   P1 justiça gratuita: ASSISTÊNCIA JUDICIÁRIA, JUSTIÇA GRATUITA, GRATUIDADE
+   P2 sentença: PROCEDENTE, IMPROCEDENTE, PARCIALMENTE, SENTENÇA (com cuidado)
+   P2 recurso: APELAÇÃO, CONTRARRAZÕES, REMESSA 2º GRAU
+   P3 contestação / réplica / especificação de provas / saneamento
+   P3 cumprimento de sentença / execução
+   P4 juntada de PETIÇÃO / petição (não é rotina; texto neutro)
+   P5 citação / mandado / expedição de documento (pode ser formalidade; se na mesma janela houver P1/P2, a mensagem principal é P1/P2 e expedição é secundária)
+   P6 ROTINA pura: mero expediente, ato ordinatório, certidão isolada, disponibilização DJe, publicação isolada, remessa/recebimento interno, inclusão juízo digital, movimentação não identificada
+
+3) rotina_pos_retorno SÓ SE
+   - ultimoRetorno parseável E
+   - TODOS os movimentos com dataHora > ultimoRetorno forem P6
+   - Se QUALQUER um for P0–P5 → NÃO usar script de “só rotina”
+
+4) CASO TIPO ELISSAMA (liminar + AJG na janela + petição recente)
+   - Categoria principal: liminar_e_ou_justica_gratuita (ou duas sugestões)
+   - Texto deve mencionar que o juiz apreciou pedidos de liminar e/ou justiça gratuita
+   - Pode citar que houve publicação/expedição e petição posterior, SEM inventar se a liminar foi deferida ou indeferida se o nome do movimento não disser
+   - Se o movimento só diz "Liminar" sem deferida/indeferida → "o juiz analisou o pedido de liminar" (neutro)
+
+5) CATÁLOGO — acrescentar/ajustar scripts:
+   - liminar_analisada (neutro deferimento)
+   - justica_gratuita_apreciada
+   - liminar_e_jg_mesma_janela (combinado — como o exemplo do processo 1075481-32.2026.8.13.0024)
+   - peticao_juntada (neutro)
+   - rotina_pos_retorno (manter, mas só com regra 3)
+
+6) UI: se houver 2 categorias fortes na janela, sugerir até 3 textos (ex.: completo + objetivo + só petição).
+
+NÃO inventar resultado da liminar (deferida/indeferida) sem keyword explícita no texto do movimento.
+NÃO classificar Petição como mero expediente.
+
+AO FINAL: arquivos alterados + exemplo de saída para a cronologia:
+01/06 Liminar + AJG + mero expediente; 03/06 Publicação; 09/06 Expedição; 10/06 Petição
+→ NÃO pode sair "apenas rotina de cartório".
