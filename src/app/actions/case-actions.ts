@@ -3,7 +3,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v461.0 ELITE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v462.0 ELITE
  */
 
 import { 
@@ -156,10 +156,16 @@ export async function scanSingleCaseAction(protocolo: string) {
   return await scanOneDataJudAction(protocolo, false);
 }
 
-export async function scanOneDjenAction(protocolo: string) {
+/**
+ * Realiza a auditoria DJEN (Diário Nacional) de um único protocolo.
+ * Pesquisa no último ano e grava flags djen_*.
+ */
+export async function scanOneDjenAction(protocolo: string, opts?: { dataInicio?: string; dataFim?: string }) {
   try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id) return { success: false, message: "Sessão expirada." };
+    const { empresa_id, auth_id } = await getUserContext();
+    if (!empresa_id || !auth_id) {
+      return { success: false, message: "Sessão expirada." };
+    }
 
     const supabase = await createClient();
     const { data: dbItem } = await supabase
@@ -171,16 +177,28 @@ export async function scanOneDjenAction(protocolo: string) {
 
     if (!dbItem) return { success: false, message: "Processo não localizado." };
 
-    const data = await fetchDjenComunicacoes(protocolo);
+    const sigla = dbItem.tribunal && dbItem.tribunal.length >= 2 && !/^outros$/i.test(dbItem.tribunal) 
+      ? dbItem.tribunal 
+      : undefined;
+
+    const data = await fetchDjenComunicacoes(protocolo, {
+      siglaTribunal: sigla,
+      dataInicio: opts?.dataInicio,
+      dataFim: opts?.dataFim
+    });
+
+    if (data.isRateLimited) {
+      return { success: false, isRateLimited: true, message: data.error || "Rate limit DJEN — aguarde 1 minuto." };
+    }
     if (!data.success) {
-      return { success: false, isRateLimited: data.isRateLimited, message: data.error };
+      return { success: false, message: data.error || "Falha na comunicação DJEN" };
     }
 
     const check = detectarNovaComunicacaoDjen(dbItem.ultimo_retorno, data.items);
     
     const patch = {
       djen_consultado_em: new Date().toISOString(),
-      djen_nova_comunicacao: check.alerta,
+      djen_nova_comunicacao: !!check.alerta,
       djen_ultima_data: check.dataUltima,
       djen_ultimo_resumo: check.resumo,
       djen_ultimo_link: check.link,
@@ -194,10 +212,10 @@ export async function scanOneDjenAction(protocolo: string) {
       protocolo, 
       casePatch: patch, 
       comunicacoes: data.items, 
-      message: check.alerta ? "Nova comunicação no DJEN" : (data.count ? "Comunicações DJEN carregadas" : "Nenhuma comunicação no DJEN")
+      message: check.alerta ? "Nova comunicação no DJEN" : (data.count ? `Comunicações DJEN: ${data.count}` : "Nenhuma comunicação no DJEN")
     };
   } catch (e: any) {
-    return { success: false, message: "Falha técnica na consulta DJEN." };
+    return { success: false, message: e?.message || "Falha técnica na consulta DJEN." };
   }
 }
 
