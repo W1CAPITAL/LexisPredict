@@ -6,10 +6,6 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
-/**
- * @fileOverview StatCard v460.0 - Corrigida tipagem de cloneElement
- */
-
 interface StatCardProps {
   title: string;
   value: string | number;
@@ -38,7 +34,7 @@ export function StatCard({ title, value, icon, trend, trendUp, color = 'primary'
           </h3>
         </div>
         <div className={cn("p-2.5 rounded-lg transition-transform group-hover:scale-110", iconColors[color])}>
-          {React.isValidElement(icon) && React.cloneElement(icon as React.ReactElement<any>, { size: 20 } as any)}
+          {React.cloneElement(icon as React.ReactElement<any>, { size: 20 })}
         </div>
       </div>
       
