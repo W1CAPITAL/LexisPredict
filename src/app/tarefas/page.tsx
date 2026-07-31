@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -78,6 +77,7 @@ import { format, parseISO, startOfDay, differenceInDays, isAfter, isValid, parse
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
+import { perguntarIA } from '@/ai/flows/chat-ai-flow';
 
 interface TaskGroup {
   cliente: string;
@@ -127,6 +127,8 @@ export default function TarefasPage() {
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
   const [showScripts, setShowScripts] = useState(false);
+  const [aiDraft, setAiDraft] = useState<string | null>(null);
+  const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
 
   const { toast } = useToast();
 
@@ -181,6 +183,7 @@ export default function TarefasPage() {
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setSuggestedScripts([]);
+        setAiDraft(null);
         setCases(prev => prev.map(c => c.protocolo === protocolo ? res.case! : c));
       } else {
         toast({ title: "Andamento não localizado", description: res.message || "Tribunal offline", variant: "destructive" });
@@ -196,6 +199,7 @@ export default function TarefasPage() {
       if (res.success && res.case) {
         const moves = res.movimentos || [];
         setHistoryResult({ case: res.case, movimentos: moves });
+        setAiDraft(null);
         
         const suggestions = suggestScripts({
           clienteNome: cliente,
@@ -214,6 +218,34 @@ export default function TarefasPage() {
       }
     } catch (e) {
       toast({ title: "Erro na consulta", variant: "destructive" });
+    }
+  };
+
+  const handleGenerateAIDraft = async () => {
+    if (!historyResult || isGeneratingAIDraft) return;
+    
+    setIsGeneratingAIDraft(true);
+    try {
+      const context = `
+        CLIENTE: ${historyResult.case.cliente}
+        CNJ: ${historyResult.case.protocolo}
+        ÚLTIMO RETORNO: ${historyResult.case.ultimoRetorno || 'S/ Registro'}
+        MOVIMENTOS:
+        ${historyResult.movimentos.slice(0, 10).map(m => `- ${m.dataHora}: ${m.nome}`).join('\n')}
+      `;
+
+      const prompt = `Você é o Especialista em CX da Get Assessoria. Com base nos dados acima, redija UMA mensagem para o cliente. 
+      RITO: Contexto -> Fato -> Impacto -> Próximo Passo. Seja claro, profissional e acolhedor. Não invente decisões.`;
+
+      const res = await perguntarIA({ pergunta: prompt });
+      if (res?.resposta) {
+        setAiDraft(res.resposta);
+        toast({ title: "Draft IA Gerado" });
+      }
+    } catch (e) {
+      toast({ title: "Falha Neural", variant: "destructive" });
+    } finally {
+      setIsGeneratingAIDraft(false);
     }
   };
 
@@ -621,6 +653,28 @@ export default function TarefasPage() {
                            <Zap size={14} /> Sugestões de Resposta
                          </h3>
                          <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
+                      </div>
+
+                      {/* IA STRATEGIC DRAFT (Opcional via Validação) */}
+                      <div className="bg-black text-white p-5 space-y-4 mb-8">
+                         <div className="flex items-center justify-between">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico via IA</p>
+                            <Button 
+                              onClick={handleGenerateAIDraft} 
+                              disabled={isGeneratingAIDraft}
+                              className="h-7 px-3 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all"
+                            >
+                              {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
+                            </Button>
+                         </div>
+                         {aiDraft ? (
+                           <div className="space-y-3 animate-in fade-in duration-500">
+                              <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
+                              <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-6 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
+                           </div>
+                         ) : (
+                           <p className="text-[8px] font-bold text-white/30 uppercase">Clique no botão para gerar uma resposta personalizada baseada na cronologia neural.</p>
+                         )}
                       </div>
                       
                       {suggestedScripts.map((script, idx) => (
