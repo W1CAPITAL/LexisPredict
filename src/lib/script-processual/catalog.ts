@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * CATÁLOGO DE SCRIPTS DE GABINETE v8.0 - FIDELIDADE E PROTEÇÃO FINANCEIRA
+ * CATÁLOGO DE SCRIPTS DE GABINETE v9.0 - FIDELIDADE E PROTEÇÃO FINANCEIRA
  */
 
 export interface ScriptTemplate {
@@ -16,12 +16,30 @@ export interface ScriptTemplate {
 
 export const SCRIPT_CATALOG: ScriptTemplate[] = [
   {
+    id: 'baixa_indeferimento',
+    categoria: 'baixa',
+    titulo: 'Encerramento: Indeferimento da Inicial (Sem Custos)',
+    texto: 'Olá, [CLIENTE]! Tudo bem? Passando para atualizar você sobre a conclusão do processo nº [PROTOCOLO]. O processo atingiu sua fase final e foi oficialmente encerrado no tribunal. No entanto, o encerramento ocorreu devido a uma decisão técnica chamada "indeferimento da petição inicial". Isso significa que o juiz extinguiu a ação logo nos estágios iniciais por entender que faltou o preenchimento de algum requisito formal ou documental para dar seguimento ao caso, não chegando a julgar o mérito do seu pedido. Apesar desse desfecho, você pode ficar totalmente tranquilo em relação a qualquer custo. Como o juiz deferiu o seu pedido de Gratuidade da Justiça e o processo foi encerrado de forma antecipada (antes mesmo da defesa da parte contrária), não há cobrança de custas processuais nem de honorários de sucumbência. Você não terá que desembolsar absolutamente nenhum valor por conta desta decisão. O caso encontra-se agora arquivado de forma definitiva em nossos sistemas.',
+    quandoUsar: 'Prioridade Máxima. Usar quando a inicial for indeferida ou extinta sem mérito logo no início.',
+    keywords: ['INDEFERIMENTO DA PETIÇÃO INICIAL', 'INDEFERIDA A INICIAL', 'INDEFIRO A INICIAL', 'FALTA DE EMENDA', 'EXTINÇÃO SEM RESOLUÇÃO DO MÉRITO'],
+    prioridade: 0
+  },
+  {
     id: 'baixa_cancelamento',
     categoria: 'baixa',
     titulo: 'Encerramento por Falha Técnica/Custas',
     texto: 'Olá! Passando para atualizar sobre o desfecho do seu processo ([CNJ]). O tribunal oficializou a baixa definitiva do caso, mas infelizmente o juiz determinou o encerramento sem análise do mérito devido a uma falha técnica processual (referente ao não recolhimento de taxas judiciárias/preparo ou ausência de pressupostos). Isso significa que o processo foi cancelado na raiz. Nossa equipe jurídica está à disposição para explicar as consequências desta baixa definitiva.',
     quandoUsar: 'Prioridade Máxima. Usar quando o processo for morto por falha de custas, deserto ou cancelamento.',
     keywords: ['CANCELAMENTO DA DISTRIBUIÇÃO', 'AUSÊNCIA DE PRESSUPOSTOS', 'DESERTO', 'NÃO CONHECIDO', 'RECURSO NÃO CONHECIDO', 'FALTA DE PREPARO', 'RECOLHIMENTO DA TAXA'],
+    prioridade: 0
+  },
+  {
+    id: 'baixa_derrota_jg',
+    categoria: 'baixa',
+    titulo: 'Encerramento: Improcedência (Cobrança Suspensa)',
+    texto: 'Olá! Informamos que o processo ([CNJ]) foi encerrado com uma sentença de improcedência. Entretanto, como você possui o benefício da GRATUIDADE DE JUSTIÇA deferido, a cobrança de eventuais honorários à parte contrária fica SUSPENSA por lei. Você não precisa realizar nenhum pagamento agora. O caso está arquivado no tribunal e nossa equipe jurídica segue monitorando.',
+    quandoUsar: 'Usar quando houver improcedência MAS o cliente tem Justiça Gratuita.',
+    keywords: ['GRATUIDADE DA JUSTIÇA', 'ASSISTÊNCIA JUDICIÁRIA GRATUITA', 'JG DEFERIDA', 'GRATUIDADE DEFERIDA'],
     prioridade: 0
   },
   {
@@ -32,15 +50,6 @@ export const SCRIPT_CATALOG: ScriptTemplate[] = [
     quandoUsar: 'Usar quando houver improcedência confirmada.',
     keywords: ['IMPROCEDENTE', 'IMPROCEDÊNCIA', 'HONORÁRIOS SUCUMBENCIAIS'],
     prioridade: 1
-  },
-  {
-    id: 'baixa_derrota_jg',
-    categoria: 'baixa',
-    titulo: 'Encerramento: Improcedência (Cobrança Suspensa)',
-    texto: 'Olá! Informamos que o processo ([CNJ]) foi encerrado com uma sentença de improcedência. Entretanto, como você possui o benefício da GRATUIDADE DE JUSTIÇA deferido, a cobrança de eventuais honorários à parte contrária fica SUSPENSA por lei. Você não precisa realizar nenhum pagamento agora. O caso está arquivado no tribunal e nossa equipe jurídica segue monitorando.',
-    quandoUsar: 'Usar quando houver improcedência MAS o cliente tem Justiça Gratuita.',
-    keywords: ['GRATUIDADE DA JUSTIÇA', 'ASSISTÊNCIA JUDICIÁRIA GRATUITA', 'JG DEFERIDA', 'GRATUIDADE DEFERIDA'],
-    prioridade: 0
   },
   {
     id: 'baixa_definitiva',
