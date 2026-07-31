@@ -20,6 +20,8 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
+import { fetchDjenComunicacoes } from '@/lib/djen';
+import { detectarNovaComunicacaoDjen } from '@/lib/djen-sync';
 import { headers } from 'next/headers';
 
 export async function fetchRepoCases() {
@@ -154,6 +156,51 @@ export async function scanSingleCaseAction(protocolo: string) {
   return await scanOneDataJudAction(protocolo, false);
 }
 
+export async function scanOneDjenAction(protocolo: string) {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) return { success: false, message: "Sessão expirada." };
+
+    const supabase = await createClient();
+    const { data: dbItem } = await supabase
+      .from('processos')
+      .select('*')
+      .eq('protocolo_ref', protocolo)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+
+    if (!dbItem) return { success: false, message: "Processo não localizado." };
+
+    const data = await fetchDjenComunicacoes(protocolo);
+    if (!data.success) {
+      return { success: false, isRateLimited: data.isRateLimited, message: data.error };
+    }
+
+    const check = detectarNovaComunicacaoDjen(dbItem.ultimo_retorno, data.items);
+    
+    const patch = {
+      djen_consultado_em: new Date().toISOString(),
+      djen_nova_comunicacao: check.alerta,
+      djen_ultima_data: check.dataUltima,
+      djen_ultimo_resumo: check.resumo,
+      djen_ultimo_link: check.link,
+      djen_count: data.count
+    };
+
+    await updateCaseDataJudSystem(dbItem.id, patch);
+
+    return { 
+      success: true, 
+      protocolo, 
+      casePatch: patch, 
+      comunicacoes: data.items, 
+      message: check.alerta ? "Nova comunicação no DJEN" : (data.count ? "Comunicações DJEN carregadas" : "Nenhuma comunicação no DJEN")
+    };
+  } catch (e: any) {
+    return { success: false, message: "Falha técnica na consulta DJEN." };
+  }
+}
+
 export async function runDataJudScanAction(targetEmpresaId?: string) {
   try {
     const ctx = await getUserContext();
@@ -196,7 +243,8 @@ export async function clearDataJudAuditAction() {
       busca_apreensao_consultado_em: null,
       em_cumprimento_sentenca: false,
       cumprimento_sentenca_motivo: null,
-      cumprimento_sentenca_consultado_em: null
+      cumprimento_sentenca_consultado_em: null,
+      djen_nova_comunicacao: false
     }));
     await saveStoredCasesForEmpresa(updated, empresa_id);
     return { success: true };

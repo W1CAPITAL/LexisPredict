@@ -71,6 +71,14 @@ export interface LegalCase {
   em_cumprimento_sentenca?: boolean;
   cumprimento_sentenca_motivo?: string | null;
   cumprimento_sentenca_consultado_em?: string | null;
+
+  // Auditoria DJEN (Diário Nacional)
+  djen_consultado_em?: string | null;
+  djen_nova_comunicacao?: boolean;
+  djen_ultima_data?: string | null;
+  djen_ultimo_resumo?: string | null;
+  djen_ultimo_link?: string | null;
+  djen_count?: number;
 }
 
 export type CaseNote = {
@@ -257,6 +265,14 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
 
     em_cumprimento_sentenca: toBool(data.em_cumprimento_sentenca),
     cumprimento_sentenca_motivo: data.cumprimento_sentenca_motivo,
-    cumprimento_sentenca_consultado_em: data.cumprimento_sentenca_consultado_em
+    cumprimento_sentenca_consultado_em: data.cumprimento_sentenca_consultado_em,
+
+    // DJEN
+    djen_consultado_em: data.djen_consultado_em,
+    djen_nova_comunicacao: toBool(data.djen_nova_comunicacao),
+    djen_ultima_data: data.djen_ultima_data,
+    djen_ultimo_resumo: data.djen_ultimo_resumo,
+    djen_ultimo_link: data.djen_ultimo_link,
+    djen_count: data.djen_count ? Number(data.djen_count) : 0
   };
 }

@@ -33,7 +33,9 @@ import {
   MessageSquare,
   Copy,
   MessageSquareQuote,
-  Settings2
+  Settings2,
+  BookOpen,
+  Globe
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -51,13 +53,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction, scanOneDjenAction } from '@/app/actions/case-actions';
 import { format, parseISO, startOfDay, isAfter, parse, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { useAppStore } from '@/store/use-app-store';
@@ -144,6 +147,15 @@ const CaseRow = React.memo(({
                 Novo Andamento
               </Badge>
             )}
+
+            {c.djen_nova_comunicacao && (
+              <Badge 
+                title={c.djen_ultimo_resumo || "Nova comunicação oficial no DJEN"}
+                className="h-5 px-2 rounded-md bg-blue-600 text-white font-black uppercase text-[8px] border-2 border-blue-800 animate-pulse"
+              >
+                DJEN
+              </Badge>
+            )}
           </div>
           <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{c.protocolo}</span>
         </div>
@@ -222,7 +234,7 @@ const CaseRow = React.memo(({
             {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
           </button>
           <button 
-            title="Andamentos DataJud" 
+            title="Andamentos Oficiais" 
             disabled={loading}
             onClick={async () => {
               setLoading(true);
@@ -279,12 +291,13 @@ function CasesContent() {
   const [showClosed, setShowClosed] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [loadingDjen, setLoadingDjen] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
   
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
+  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], djenComunicacoes?: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
@@ -304,7 +317,8 @@ function CasesContent() {
     ultimoRetorno: '',
     statusManual: 'Automatico',
     observacao: '',
-    telefone: ''
+    telefone: '',
+    escritorio: ''
   });
 
   const loadData = useCallback(async () => {
@@ -362,6 +376,23 @@ function CasesContent() {
       }
     } catch (e) {
       toast({ title: "Erro na consulta", variant: "destructive" });
+    }
+  };
+
+  const handleDjenScan = async () => {
+    if (!historyResult || loadingDjen) return;
+    setLoadingDjen(true);
+    try {
+      const res = await scanOneDjenAction(historyResult.case.protocolo);
+      if (res.success) {
+        setHistoryResult(prev => ({ ...prev!, djenComunicacoes: res.comunicacoes }));
+        if (res.casePatch) updateCaseByProtocolo(historyResult.case.protocolo, res.casePatch);
+        toast({ title: "DJEN Sincronizado", description: res.message });
+      } else {
+        toast({ title: "Falha no DJEN", description: res.message, variant: "destructive" });
+      }
+    } finally {
+      setLoadingDjen(false);
     }
   };
 
@@ -472,7 +503,8 @@ function CasesContent() {
         ultimoRetorno: formState.ultimoRetorno,
         statusManual: formState.statusManual,
         observacao: formState.observacao,
-        telefone: formState.telefone
+        telefone: formState.telefone,
+        escritorio: formState.escritorio
       };
 
       let newFlagStatus = editingCase?.tem_atualizacao_pos_retorno;
@@ -535,12 +567,13 @@ function CasesContent() {
     const updatedCase = { 
       ...target, 
       ultimoRetorno: todayStr,
-      tem_atualizacao_pos_retorno: shouldClearFlag ? false : target.tem_atualizacao_pos_retorno 
+      tem_atualizacao_pos_retorno: shouldClearFlag ? false : target.tem_atualizacao_pos_retorno,
+      djen_nova_comunicacao: false 
     };
     
     const result = await syncRepoCases([updatedCase]);
     if (result.success) {
-      updateCaseByProtocolo(protocolo, { ultimoRetorno: todayStr, tem_atualizacao_pos_retorno: updatedCase.tem_atualizacao_pos_retorno });
+      updateCaseByProtocolo(protocolo, { ultimoRetorno: todayStr, tem_atualizacao_pos_retorno: updatedCase.tem_atualizacao_pos_retorno, djen_nova_comunicacao: false });
       toast({ title: "Atendimento Registrado" });
     }
   }, [cases, isOperador, toast, updateCaseByProtocolo]);
@@ -557,7 +590,7 @@ function CasesContent() {
                             (c.protocolo || '').includes(deferredSearch);
       
       const matchesOffice = officeFilter === 'all' || c.escritorio === officeFilter;
-      const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && (c.tem_atualizacao_pos_retorno || c.datajud_encerrado_tribunal || c.indicio_busca_apreensao));
+      const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && (c.tem_atualizacao_pos_retorno || c.datajud_encerrado_tribunal || c.indicio_busca_apreensao || c.djen_nova_comunicacao));
       
       const isEncerrado = isCasoEncerrado(c);
       let pass = matchesSearch && matchesOffice && matchesQuick;
@@ -576,7 +609,7 @@ function CasesContent() {
     const headers = [
       'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
       'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
-      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'CUMPRIMENTO_SENTENCA'
+      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'CUMPRIMENTO_SENTENCA', 'DJEN_NOVIDADE'
     ];
 
     const rows = filtered.map(c => {
@@ -594,7 +627,8 @@ function CasesContent() {
         c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
         c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
         c.indicio_busca_apreensao ? 'SIM' : 'NÃO',
-        c.em_cumprimento_sentenca ? 'SIM' : 'NÃO'
+        c.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
+        c.djen_nova_comunicacao ? 'SIM' : 'NÃO'
       ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
     });
 
@@ -611,6 +645,17 @@ function CasesContent() {
     
     toast({ title: "Exportação Concluída" });
   }, [filtered, toast]);
+
+  const handleDelete = async (id: string) => {
+    if (!isOperador) return;
+    if (confirm('Excluir definitivamente?')) {
+      const target = cases.find(c => c.id === id);
+      const updated = cases.filter(item => item.id !== id);
+      setCases(updated);
+      await syncRepoCases(updated);
+      toast({ title: "Removido" });
+    }
+  };
 
   if (!mounted) return null;
 
@@ -735,6 +780,7 @@ function CasesContent() {
                     <th className="px-8 py-5">Tribunal</th>
                     <th className="px-8 py-5">Advocacia</th>
                     <th className="px-8 py-5">Prazo Final</th>
+                    <th className="px-8 py-5">Registros</th>
                     <th className="px-8 py-5 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -758,16 +804,12 @@ function CasesContent() {
                           ultimoRetorno: caseItem.ultimoRetorno || '',
                           statusManual: caseItem.statusManual || 'Automatico',
                           observacao: caseItem.observacao || '',
-                          telefone: caseItem.telefone || ''
+                          telefone: caseItem.telefone || '',
+                          escritorio: caseItem.escritorio || ''
                         });
                         setIsModalOpen(true);
                       }} 
-                      onDelete={async (id) => {
-                        if (confirm('Excluir definitivamente?')) {
-                          setCases(cases.filter(item => item.id !== id));
-                          toast({ title: "Removido" });
-                        }
-                      }}
+                      onDelete={handleDelete}
                     />
                   ))}
                 </tbody>
@@ -783,7 +825,7 @@ function CasesContent() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[750px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+            <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
               <DialogHeader className="p-6 bg-black text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -816,16 +858,19 @@ function CasesContent() {
                     </Button>
                   </div>
                 </div>
-                <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização detalhada da cronologia processual do tribunal e ferramentas de despacho.</DialogDescription>
+                <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização detalhada da cronologia processual do tribunal e comunicações oficiais.</DialogDescription>
               </DialogHeader>
               
-              <div className="flex flex-col h-[550px]">
+              <div className="flex flex-col h-[600px]">
                 <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
                   <div className="space-y-1">
                       <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
                       <p className="text-sm font-black uppercase">{historyResult?.case?.cliente}</p>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-3">
+                    {historyResult?.case?.djen_nova_comunicacao && (
+                      <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Novidade DJEN</Badge>
+                    )}
                     {historyResult?.case?.indicio_busca_apreensao && (
                       <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício Busca e Apreensão</Badge>
                     )}
@@ -836,33 +881,94 @@ function CasesContent() {
                 </div>
 
                 <div className="flex-1 overflow-hidden flex">
-                  <ScrollArea className={cn("bg-white transition-all duration-300", showScripts ? "w-1/2 border-r" : "w-full")}>
-                    <div className="p-6 space-y-6">
-                      {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                        [...historyResult.movimentos].sort((a,b) => {
-                          const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
-                          const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
-                          return dateB - dateA;
-                        }).map((m, i) => (
-                          <div key={i} className="flex gap-6 relative group">
-                             {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
-                             <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
-                                <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
-                             </div>
-                             <div className="flex-1 pt-1 space-y-1 pb-6">
-                                <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
-                                <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
-                             </div>
+                  <div className={cn("bg-white transition-all duration-300 flex flex-col", showScripts ? "w-1/2 border-r" : "w-full")}>
+                    <Tabs defaultValue="timeline" className="flex-1 flex flex-col overflow-hidden">
+                       <TabsList className="bg-secondary/20 mx-6 mt-4 p-1 rounded-xl h-10">
+                          <TabsTrigger value="timeline" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">Cronologia Tribunal</TabsTrigger>
+                          <TabsTrigger value="djen" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">DJEN Nacional</TabsTrigger>
+                       </TabsList>
+
+                       <TabsContent value="timeline" className="flex-1 overflow-hidden p-0 m-0">
+                        <ScrollArea className="h-full">
+                          <div className="p-6 space-y-6">
+                            {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
+                              [...historyResult.movimentos].sort((a,b) => {
+                                const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
+                                const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
+                                return dateB - dateA;
+                              }).map((m, i) => (
+                                <div key={i} className="flex gap-6 relative group">
+                                  {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
+                                  <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
+                                      <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                                  </div>
+                                  <div className="flex-1 pt-1 space-y-1 pb-6">
+                                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                                      <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
+                                      {m.complemento && <p className="text-[10px] text-muted-foreground uppercase">{m.complemento}</p>}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="py-20 text-center space-y-4 opacity-40">
+                                <FileSearch size={48} className="mx-auto" />
+                                <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
+                              </div>
+                            )}
                           </div>
-                        ))
-                      ) : (
-                        <div className="py-20 text-center space-y-4 opacity-40">
-                           <FileSearch size={48} className="mx-auto" />
-                           <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
+                        </ScrollArea>
+                       </TabsContent>
+
+                       <TabsContent value="djen" className="flex-1 overflow-hidden p-0 m-0">
+                         <div className="h-full flex flex-col">
+                            <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                               <div>
+                                  <p className="text-[10px] font-black uppercase">Comunicações Oficiais</p>
+                                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Base: comunicaapi.pje.jus.br</p>
+                               </div>
+                               <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-black text-white font-black uppercase text-[8px] rounded-lg px-4">
+                                  {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <Globe size={10} className="mr-2"/>} Consultar DJEN
+                               </Button>
+                            </div>
+                            <ScrollArea className="flex-1">
+                               <div className="p-6 space-y-4">
+                                  {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
+                                    historyResult.djenComunicacoes.map((item, i) => (
+                                      <div key={i} className="p-4 border-2 border-black/5 bg-slate-50 hover:border-black transition-all rounded-xl space-y-3">
+                                         <div className="flex items-start justify-between">
+                                            <div className="space-y-1">
+                                               <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
+                                                  {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
+                                               </Badge>
+                                               <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
+                                            </div>
+                                            {item.link && (
+                                              <Button asChild variant="ghost" size="icon" className="h-7 w-7"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
+                                            )}
+                                         </div>
+                                         <p className="text-[11px] font-bold text-foreground leading-relaxed line-clamp-3 uppercase">
+                                            {item.texto}
+                                         </p>
+                                         <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase">
+                                            <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
+                                         </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="py-20 text-center space-y-6 opacity-30">
+                                       <BookOpen size={48} className="mx-auto" />
+                                       <div className="space-y-1">
+                                          <p className="text-xs font-black uppercase tracking-widest">Nenhuma comunicação carregada.</p>
+                                          <p className="text-[9px] font-bold uppercase">Clique em "Consultar DJEN" para buscar no diário oficial.</p>
+                                       </div>
+                                    </div>
+                                  )}
+                               </div>
+                            </ScrollArea>
+                         </div>
+                       </TabsContent>
+                    </Tabs>
+                  </div>
 
                   {showScripts && (
                     <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
@@ -992,15 +1098,8 @@ function CasesContent() {
                     <Input value={formState.advogado} onChange={e => setFormState({...formState, advogado: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" />
                   </div>
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Situação</Label>
-                    <Select value={formState.situacao} onValueChange={val => setFormState({...formState, situacao: val})}>
-                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">EM ANDAMENTO</SelectItem>
-                        <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase">ENCERRADO</SelectItem>
-                        <SelectItem value="ARQUIVADO" className="text-[10px] font-bold uppercase">ARQUIVADO</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Escritório</Label>
+                    <Input value={formState.escritorio} onChange={e => setFormState({...formState, escritorio: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -1019,9 +1118,22 @@ function CasesContent() {
                     <Input value={formState.proximoPrazo} onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
                   </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Atendimento</Label>
-                  <Input value={formState.ultimoRetorno} onChange={e => setFormState({...formState, ultimoRetorno: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Atendimento</Label>
+                    <Input value={formState.ultimoRetorno} onChange={e => setFormState({...formState, ultimoRetorno: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Situação</Label>
+                    <Select value={formState.situacao} onValueChange={val => setFormState({...formState, situacao: val})}>
+                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">EM ANDAMENTO</SelectItem>
+                        <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">ENCERRADO / BAIXA</SelectItem>
+                        <SelectItem value="ARQUIVADO" className="text-[10px] font-bold uppercase">ARQUIVADO</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label className="uppercase text-[9px] font-black text-muted-foreground">Notas</Label>

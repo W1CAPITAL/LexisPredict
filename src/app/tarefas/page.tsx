@@ -43,7 +43,9 @@ import {
   MessageSquareQuote,
   MessageSquare,
   Copy,
-  EyeOff
+  EyeOff,
+  BookOpen,
+  Globe
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -51,7 +53,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, scanOneDjenAction } from '@/app/actions/case-actions';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -73,6 +75,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, parseISO, startOfDay, differenceInDays, isAfter, isValid, parse } from 'date-fns';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
@@ -94,6 +97,7 @@ interface TaskGroup {
   hasBA: boolean;
   hasClosedCourt: boolean;
   hasUpdate: boolean;
+  hasDjen: boolean;
   statusScore: number;
   oldestReturnGap: number;
   lastMovementName?: string | null;
@@ -120,12 +124,13 @@ export default function TarefasPage() {
   });
 
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
+  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], djenComunicacoes?: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
   const [selectedMotor, setSelectedMotor] = useState<string>('local_only');
+  const [loadingDjen, setLoadingDjen] = useState(false);
 
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -188,6 +193,23 @@ export default function TarefasPage() {
       }
     } catch (e) {
       toast({ title: "Erro na consulta", variant: "destructive" });
+    }
+  };
+
+  const handleDjenScan = async () => {
+    if (!historyResult || loadingDjen) return;
+    setLoadingDjen(true);
+    try {
+      const res = await scanOneDjenAction(historyResult.case.protocolo);
+      if (res.success) {
+        setHistoryResult(prev => ({ ...prev!, djenComunicacoes: res.comunicacoes }));
+        toast({ title: "DJEN Sincronizado", description: res.message });
+        setCases(prev => prev.map(c => c.protocolo === historyResult.case.protocolo ? { ...c, ...res.casePatch } : c));
+      } else {
+        toast({ title: "Falha no DJEN", description: res.message, variant: "destructive" });
+      }
+    } finally {
+      setLoadingDjen(false);
     }
   };
 
@@ -279,6 +301,7 @@ export default function TarefasPage() {
           hasBA: false,
           hasClosedCourt: false,
           hasUpdate: false,
+          hasDjen: false,
           statusScore: 0,
           oldestReturnGap: 0,
           lastMovementName: c.datajud_ultimo_nome,
@@ -303,6 +326,7 @@ export default function TarefasPage() {
       if (c.indicio_busca_apreensao) g.hasBA = true;
       if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
       if (c.tem_atualizacao_pos_retorno) g.hasUpdate = true;
+      if (c.djen_nova_comunicacao) g.hasDjen = true;
 
       let currentScore = 0;
       if (c.status === 'Caso Crítico') currentScore = 50;
@@ -338,6 +362,7 @@ export default function TarefasPage() {
       .sort((a, b) => {
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
+        if (a.hasDjen !== b.hasDjen) return a.hasDjen ? -1 : 1;
         if (a.hasUpdate !== b.hasUpdate) return a.hasUpdate ? -1 : 1;
         if (b.statusScore !== a.statusScore) return b.statusScore - a.statusScore;
         if (b.oldestReturnGap !== a.oldestReturnGap) return b.oldestReturnGap - a.oldestReturnGap;
@@ -400,7 +425,8 @@ export default function TarefasPage() {
             observacao: attendanceForm.observacao || c.observacao,
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : (attendanceForm.proximoRetorno || c.proximoPrazo),
             statusManual: 'Automatico',
-            tem_atualizacao_pos_retorno: newFlagStatus
+            tem_atualizacao_pos_retorno: newFlagStatus,
+            djen_nova_comunicacao: false
           };
           return processarCaso(newCaseData, thresholds);
         }
@@ -506,7 +532,7 @@ export default function TarefasPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Target size={18} className="text-primary" />
-              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária (Auditoria DataJud Ativa)</h2>
+              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária (Auditoria Unificada Ativa)</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.map((group) => (
@@ -557,7 +583,7 @@ export default function TarefasPage() {
         </div>
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[750px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+          <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="p-6 bg-black text-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -590,16 +616,19 @@ export default function TarefasPage() {
                   </Button>
                 </div>
               </div>
-              <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização detalhada da cronologia processual e ferramentas de despacho.</DialogDescription>
+              <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização unificada Tribunal e DJEN (Diário Nacional).</DialogDescription>
             </DialogHeader>
             
-            <div className="flex flex-col h-[550px]">
+            <div className="flex flex-col h-[600px]">
               <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
                 <div className="space-y-1">
                     <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
                     <p className="text-sm font-black uppercase">{historyResult?.case?.cliente}</p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex items-center gap-3">
+                  {historyResult?.case?.djen_nova_comunicacao && (
+                    <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Novidade DJEN</Badge>
+                  )}
                   {historyResult?.case?.indicio_busca_apreensao && (
                     <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício Busca e Apreensão</Badge>
                   )}
@@ -610,33 +639,94 @@ export default function TarefasPage() {
               </div>
 
               <div className="flex-1 overflow-hidden flex">
-                <ScrollArea className={cn("bg-white transition-all duration-300", showScripts ? "w-1/2 border-r" : "w-full")}>
-                  <div className="p-6 space-y-6">
-                    {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                      [...historyResult.movimentos].sort((a,b) => {
-                        const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
-                        const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
-                        return dateB - dateA;
-                      }).map((m, i) => (
-                        <div key={i} className="flex gap-6 relative group">
-                           {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
-                           <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
-                              <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                <div className={cn("bg-white transition-all duration-300 flex flex-col", showScripts ? "w-1/2 border-r" : "w-full")}>
+                  <Tabs defaultValue="timeline" className="flex-1 flex flex-col overflow-hidden">
+                     <TabsList className="bg-secondary/20 mx-6 mt-4 p-1 rounded-xl h-10">
+                        <TabsTrigger value="timeline" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">Cronologia Tribunal</TabsTrigger>
+                        <TabsTrigger value="djen" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">DJEN Nacional</TabsTrigger>
+                     </TabsList>
+
+                     <TabsContent value="timeline" className="flex-1 overflow-hidden p-0 m-0">
+                       <ScrollArea className="h-full">
+                         <div className="p-6 space-y-6">
+                           {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
+                             [...historyResult.movimentos].sort((a,b) => {
+                               const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
+                               const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
+                               return dateB - dateA;
+                             }).map((m, i) => (
+                               <div key={i} className="flex gap-6 relative group">
+                                 {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
+                                 <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
+                                     <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                                 </div>
+                                 <div className="flex-1 pt-1 space-y-1 pb-6">
+                                     <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                                     <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
+                                     {m.complemento && <p className="text-[10px] text-muted-foreground uppercase">{m.complemento}</p>}
+                                 </div>
+                               </div>
+                             ))
+                           ) : (
+                             <div className="py-20 text-center space-y-4 opacity-40">
+                               <FileSearch size={48} className="mx-auto" />
+                               <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
+                             </div>
+                           )}
+                         </div>
+                       </ScrollArea>
+                     </TabsContent>
+
+                     <TabsContent value="djen" className="flex-1 overflow-hidden p-0 m-0">
+                        <div className="h-full flex flex-col">
+                           <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                              <div>
+                                 <p className="text-[10px] font-black uppercase">Comunicações Oficiais</p>
+                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">Base pública DJEN</p>
+                              </div>
+                              <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-black text-white font-black uppercase text-[8px] rounded-lg px-4">
+                                 {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <Globe size={10} className="mr-2"/>} Consultar DJEN
+                              </Button>
                            </div>
-                           <div className="flex-1 pt-1 space-y-1 pb-6">
-                              <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
-                              <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
-                           </div>
+                           <ScrollArea className="flex-1">
+                              <div className="p-6 space-y-4">
+                                 {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
+                                   historyResult.djenComunicacoes.map((item, i) => (
+                                     <div key={i} className="p-4 border-2 border-black/5 bg-slate-50 hover:border-black transition-all rounded-xl space-y-3">
+                                        <div className="flex items-start justify-between">
+                                           <div className="space-y-1">
+                                              <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
+                                                 {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
+                                              </Badge>
+                                              <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
+                                           </div>
+                                           {item.link && (
+                                             <Button asChild variant="ghost" size="icon" className="h-7 w-7"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
+                                           )}
+                                        </div>
+                                        <p className="text-[11px] font-bold text-foreground leading-relaxed line-clamp-3 uppercase">
+                                           {item.texto}
+                                        </p>
+                                        <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase">
+                                           <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
+                                        </div>
+                                     </div>
+                                   ))
+                                 ) : (
+                                   <div className="py-20 text-center space-y-6 opacity-30">
+                                      <BookOpen size={48} className="mx-auto" />
+                                      <div className="space-y-1">
+                                         <p className="text-xs font-black uppercase tracking-widest">Nenhuma comunicação carregada.</p>
+                                         <p className="text-[9px] font-bold uppercase">Clique em "Consultar DJEN" para buscar no diário oficial.</p>
+                                      </div>
+                                   </div>
+                                 )}
+                              </div>
+                           </ScrollArea>
                         </div>
-                      ))
-                    ) : (
-                      <div className="py-20 text-center space-y-4 opacity-40">
-                         <FileSearch size={48} className="mx-auto" />
-                         <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
+                     </TabsContent>
+                  </Tabs>
+                </div>
 
                 {showScripts && (
                   <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
@@ -718,11 +808,6 @@ export default function TarefasPage() {
                            </div>
                         </div>
                       ))}
-                      
-                      <div className="p-4 bg-amber-50 border border-amber-200 flex items-start gap-3">
-                         <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />
-                         <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed">Atenção: Revise o texto e placeholders antes de realizar o envio oficial.</p>
-                      </div>
                     </div>
                   </ScrollArea>
                 )}
@@ -834,6 +919,8 @@ function TaskCard({
              <Badge className="bg-red-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-bounce">CRÍTICO: BUSCA E APREENSÃO</Badge>
           ) : group.hasClosedCourt ? (
             <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">BAIXA NO TRIBUNAL</Badge>
+          ) : group.hasDjen ? (
+            <Badge className="bg-blue-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">NOVIDADE DJEN</Badge>
           ) : group.hasUpdate ? (
             <Badge variant="destructive" className="text-[7px] font-black uppercase px-2 py-0 h-4 animate-pulse">NOVO ANDAMENTO</Badge>
           ) : isCritical ? (
@@ -900,7 +987,7 @@ function TaskCard({
              {isSuggesting ? <Loader2 className="animate-spin" /> : <MessageSquareQuote size={18} />}
            </Button>
            <Button 
-              title="Andamentos DataJud" 
+              title="Andamentos Oficiais" 
               variant="ghost" 
               size="icon" 
               disabled={isScanning}
