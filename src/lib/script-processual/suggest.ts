@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SUGESTÃO DE SCRIPTS v2.0 - ALGORITMO DE RECÊNCIA E RELEVÂNCIA
+ * MOTOR DE SUGESTÃO DE SCRIPTS v2.1 - ALGORITMO DE RECÊNCIA E RELEVÂNCIA
  */
 
 import { parseISO, parse, isAfter, isValid, startOfDay, format } from 'date-fns';
@@ -92,7 +92,7 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     for (const template of SCRIPT_CATALOG) {
       if (template.id === 'rotina_pos_retorno' || template.id === 'liminar_e_jg') continue;
       
-      // REGRA DE OURO v2.0: Eventos de prioridade Média/Baixa (P3, P4, P5) 
+      // REGRA DE OURO v2.1: Eventos de prioridade Média/Baixa (P3, P4, P5) 
       // só são considerados se forem MUITO recentes (top 5 movimentos).
       if (template.prioridade >= 3 && idx >= 5) continue;
 
@@ -112,9 +112,15 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   // 5. Ordenação e Filtro Anti-Ruído
   let finalMatches = Array.from(matchedTemplates.values());
 
-  // Se houver rito de Alta Prioridade (P0-P2), remove sugestões de rotina
-  if (finalMatches.some(m => m.template.prioridade <= 2)) {
-    finalMatches = finalMatches.filter(m => m.template.id !== 'rotina' && m.template.id !== 'rotina_pos_retorno');
+  // REGRA DE OURO v2.1 (TRAVA P0): Se houver encerramento (P0), bloqueia TODA a sujeira intermediária.
+  const hasP0 = finalMatches.some(m => m.template.prioridade === 0);
+  if (hasP0) {
+    finalMatches = finalMatches.filter(m => m.template.prioridade === 0);
+  } else {
+    // Anti-ruído padrão (se prioridade <= 2, remove rotinas)
+    if (finalMatches.some(m => m.template.prioridade <= 2)) {
+      finalMatches = finalMatches.filter(m => m.template.id !== 'rotina' && m.template.id !== 'rotina_pos_retorno');
+    }
   }
 
   finalMatches.sort((a, b) => {
