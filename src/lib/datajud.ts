@@ -3,6 +3,7 @@
  * Otimizado com timeouts rígidos de 15s conforme PROMPT FECHADO.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
+
 export const COURT_ALIASES: Record<string, string> = {
   "8.01": "tjac", "8.02": "tjal", "8.03": "tjap", "8.04": "tjam", "8.05": "tjba",
   "8.06": "tjce", "8.07": "tjdft", "8.08": "tjes", "8.09": "tjgo", "8.10": "tjma",
