@@ -68,7 +68,7 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   const allRoutine = movsInWindow.every(m => {
     const text = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
     return ROUTINE_KEYWORDS.some(kw => text.includes(kw)) && 
-           !text.includes('PETIÇÃO') && !text.includes('LIMINAR') && !text.includes('SENTENÇA');
+           !text.includes('PETIÇÃO') && !text.includes('LIMINAR') && !text.includes('SENTENÇA') && !text.includes('DECISÃO');
   });
 
   if (allRoutine && dateRetorno && isValid(dateRetorno)) {
@@ -76,9 +76,9 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     if (template) return [createSuggestion(template, clienteNome, protocolo, ultimoRetorno)];
   }
 
-  // 4. Coleta de Correspondências na Janela
-  const matches: ScriptTemplate[] = [];
-  const matchedIds = new Set<string>();
+  // 4. Coleta de Correspondências na Janela (Deduplicada por ID)
+  const matchedTemplates = new Map<string, { template: ScriptTemplate, recencia: number }>();
+  
   const fullWindowText = movsInWindow.map(m => 
     `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
   ).join(' || ');
@@ -90,37 +90,49 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   if (hasLiminar && hasJG) {
     const template = SCRIPT_CATALOG.find(s => s.id === 'liminar_e_jg');
     if (template) {
-      matches.push(template);
-      matchedIds.add('liminar_analisada');
-      matchedIds.add('justica_gratuita');
+      matchedTemplates.set(template.id, { template, recencia: -1 });
     }
   }
 
-  // Varredura Geral
-  for (const template of SCRIPT_CATALOG) {
-    if (template.id === 'rotina_pos_retorno' || matchedIds.has(template.id)) continue;
+  // Varredura Geral por Keywords
+  movsInWindow.forEach((m, idx) => {
+    const text = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
     
-    if (template.keywords.some(kw => fullWindowText.includes(kw))) {
-      matches.push(template);
-      matchedIds.add(template.id);
+    for (const template of SCRIPT_CATALOG) {
+      if (template.id === 'rotina_pos_retorno' || template.id === 'liminar_e_jg') continue;
+      
+      if (template.keywords.some(kw => text.includes(kw))) {
+        // Se já existe, mantém o que bateu no movimento mais recente (menor idx)
+        if (!matchedTemplates.has(template.id)) {
+          matchedTemplates.set(template.id, { template, recencia: idx });
+        }
+      }
     }
+  });
+
+  // 5. Refino, Anti-Ruído e Ordenação
+  let finalMatches = Array.from(matchedTemplates.values());
+
+  // Regra Anti-Ruído: Se houver P0-P2, remove "rotina"
+  if (finalMatches.some(m => m.template.prioridade <= 2)) {
+    finalMatches = finalMatches.filter(m => m.template.id !== 'rotina' && m.template.id !== 'rotina_pos_retorno');
   }
 
-  // 5. Refino e Anti-Ruído
-  let finalMatches = matches.sort((a, b) => a.prioridade - b.prioridade);
-
-  // Se houver P0-P2, remove "rotina" para evitar poluição
-  if (finalMatches.some(m => m.prioridade <= 2)) {
-    finalMatches = finalMatches.filter(m => m.id !== 'rotina' && m.id !== 'rotina_pos_retorno');
-  }
+  // Ordenação: Prioridade ASC, Recência ASC (idx menor = mais recente)
+  finalMatches.sort((a, b) => {
+    if (a.template.prioridade !== b.template.prioridade) {
+      return a.template.prioridade - b.template.prioridade;
+    }
+    return a.recencia - b.recencia;
+  });
 
   // Fallback se nada bater
   if (finalMatches.length === 0) {
     const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
-    if (fallback) finalMatches.push(fallback);
+    if (fallback) finalMatches.push({ template: fallback, recencia: 0 });
   }
 
-  return finalMatches.slice(0, 3).map(s => createSuggestion(s, clienteNome, protocolo, ultimoRetorno));
+  return finalMatches.slice(0, 3).map(m => createSuggestion(m.template, clienteNome, protocolo, ultimoRetorno));
 }
 
 function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, data: string | null | undefined): ScriptSuggestion {
