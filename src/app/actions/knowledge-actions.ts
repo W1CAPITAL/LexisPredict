@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -13,9 +12,9 @@ import {
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview Unidade de Ingestão de Conhecimento v7.0
+ * @fileOverview Unidade de Ingestão de Conhecimento v8.1
  * Gerencia o ciclo de vida de documentos e fragmentação de PDFs para aprendizado da IA.
- * Protocolo de Integridade: Extensão Soberana + Anti-Lixo Binário.
+ * Protocolo de Integridade: Extensão Soberana + Resiliência a PDFs corrompidos.
  */
 
 const BANNED_TERMS = ['GET ASSESSORIA', 'GETASSESSORIA', 'W1 CAPITAL', 'W1CAPITAL', 'W1', 'GET'];
@@ -27,6 +26,29 @@ function cleanText(text: string): string {
     cleaned = cleaned.replace(regex, 'nosso escritório');
   });
   return cleaned;
+}
+
+/**
+ * Função soberana de extração de texto para documentos técnicos.
+ */
+export async function extractTextResilient(buffer: Buffer, fileName: string): Promise<string> {
+  const lowerName = fileName.toLowerCase();
+  
+  if (lowerName.endsWith('.pdf')) {
+    try {
+      const pdf = (await import('pdf-parse')).default;
+      const data = await pdf(buffer);
+      if (!data.text || data.text.trim().length < 5) throw new Error("PDF sem conteúdo textual.");
+      return data.text;
+    } catch (e: any) {
+      // Se falhar o parser primário, bloqueia para evitar lixo binário.
+      throw new Error(`Falha estrutural no PDF (${e.message}). Converta este documento para .txt ou .md para ingestão segura.`);
+    }
+  } else if (lowerName.endsWith('.txt') || lowerName.endsWith('.md')) {
+    return buffer.toString('utf-8');
+  }
+  
+  throw new Error(`Formato não suportado para extração: ${fileName}`);
 }
 
 export async function fetchKnowledgeDocsAction() {
@@ -55,85 +77,57 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
 
     if (!file) throw new Error("Nenhum arquivo enviado.");
 
-    // 1. Decisão de Formato por Extensão (Soberana)
-    const fileNameLower = file.name.toLowerCase();
-    const isPdf = fileNameLower.endsWith('.pdf');
-    const isText = fileNameLower.endsWith('.txt') || fileNameLower.endsWith('.md');
-
-    if (!isPdf && !isText) {
-      throw new Error(`Formato não suportado: ${file.name}. Utilize apenas .pdf, .txt ou .md`);
-    }
-
     const tags = tagsStr.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
     const admin = await getSupabaseAdmin();
     
-    // 2. Validação de Infraestrutura (Bucket)
-    const { data: buckets, error: bucketError } = await admin.storage.listBuckets();
-    if (bucketError) throw new Error(`Falha ao validar infraestrutura: ${bucketError.message}`);
+    // Validação de infraestrutura
+    const { data: buckets } = await admin.storage.listBuckets();
     if (!buckets?.find(b => b.name === 'knowledge')) {
-      throw new Error("bucket knowledge inexistente");
+      throw new Error("Bucket 'knowledge' inexistente no Storage.");
     }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Extração Resiliente
+    const rawText = await extractTextResilient(buffer, file.name);
+    const cleanExtractedText = cleanText(rawText);
 
     const uniqueFileName = `${Date.now()}_${file.name}`;
     const storagePath = `${empresa_id}/knowledge/${uniqueFileName}`;
 
-    // 3. Extração de Texto com Protocolo de Resiliência
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    let extractedText = "";
-
-    if (isPdf) {
-      try {
-        const pdf = (await import('pdf-parse')).default;
-        const pdfData = await pdf(buffer);
-        extractedText = pdfData.text || "";
-      } catch (pdfErr: any) {
-        // Bloqueia fallback binário. Exige transparência de erro.
-        throw new Error(`Falha no parser de PDF (Bad XRef ou corrupção estrutural). Mensagem: ${pdfErr.message}. Por favor, converta este documento para .txt ou .md para ingestão segura.`);
-      }
-    } else {
-      // Texto puro
-      extractedText = buffer.toString('utf-8');
-    }
-
-    if (!extractedText || extractedText.trim().length < 5) {
-      throw new Error("Falha na extração: o documento não contém texto processável suficiente.");
-    }
-
-    const cleanExtractedText = cleanText(extractedText);
-
-    // 4. Upload Storage
+    // Upload Storage
     const { error: uploadError } = await admin.storage
       .from('knowledge')
       .upload(storagePath, file);
 
-    if (uploadError) throw new Error(`Falha no upload do arquivo: ${uploadError.message}`);
+    if (uploadError) throw new Error(`Falha no Storage: ${uploadError.message}`);
 
-    // 5. Gravar Documento (Payload alinhado com esquema Lexis v7)
+    // Persistência com Schema em Português
     const docRes = await saveKnowledgeDocSystem({
       empresa_id,
       created_by: auth_id,
-      title,
-      type,
+      titulo: title,
+      tipo: type,
       tags,
       storage_path: storagePath,
-      use_in_dispatch: useInDispatch,
-      active: true
+      uso_despacho: useInDispatch,
+      ativo: true
     });
 
     if (!docRes.success || !docRes.data) {
-      throw new Error(`Erro ao registrar metadados: ${docRes.error?.message || 'Falha no banco'}`);
+      throw new Error(`Erro de Schema: ${docRes.error?.message || 'Falha nas colunas do banco'}`);
     }
 
-    // 6. Fragmentação (Chunks)
+    // Fragmentação
     const rawChunks = cleanExtractedText.split(/\n\s*\n/).filter(c => c.trim().length > 50);
     const chunksPayload = rawChunks.map((text, i) => ({
       doc_id: docRes.data.id,
       empresa_id,
-      section: `Seção ${i+1}`,
-      text: text.substring(0, 2000).trim(),
+      secao: `Seção ${i+1}`,
+      texto: text.substring(0, 2000).trim(),
       tags: tags,
-      use_in_dispatch: useInDispatch
+      uso_despacho: useInDispatch
     }));
 
     if (chunksPayload.length > 0) {
