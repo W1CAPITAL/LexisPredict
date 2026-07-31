@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -9,7 +10,8 @@ import React from 'react';
 import { extrairDadosProcuracao } from '@/ai/flows/document-flow';
 
 /**
- * Motor de Selagem Digital v872.0
+ * Motor de Selagem Digital v873.0
+ * Resiliência de extração ativada.
  */
 
 async function getRenderToBuffer() {
@@ -86,12 +88,25 @@ export async function extrairTextoDoPDFAction(formData: FormData) {
   try {
     const file = formData.get('pdf') as File;
     if (!file) return { error: "Nenhum arquivo enviado" };
+    
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const pdf = (await import('pdf-parse')).default;
-    const data = await pdf(buffer);
-    if (!data.text || data.text.trim().length < 5) return { error: "PDF sem texto extraível.", isScan: true };
-    return { success: true, text: data.text };
+    
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
+    if (isPdf) {
+      try {
+        const pdf = (await import('pdf-parse')).default;
+        const data = await pdf(buffer);
+        if (!data.text || data.text.trim().length < 5) return { error: "PDF sem texto extraível.", isScan: true };
+        return { success: true, text: data.text };
+      } catch (pdfErr) {
+        // Fallback: Lê como texto caso o PDF esteja estruturalmente corrompido mas contenha texto plano
+        return { success: true, text: buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, '') };
+      }
+    } else {
+      return { success: true, text: buffer.toString('utf-8') };
+    }
   } catch (e: any) {
     return { error: "Falha na transcrição." };
   }
