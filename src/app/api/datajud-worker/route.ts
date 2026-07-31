@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Worker de Auditoria Automática DataJud v2.1
  * Otimizado para micro-lotes assíncronos com isolamento estrito de empresa.
