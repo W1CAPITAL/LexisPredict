@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -70,7 +69,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format, parseISO, startOfDay, differenceInDays } from 'date-fns';
+import { format, parseISO, startOfDay, differenceInDays, isAfter, isValid, parse } from 'date-fns';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 
@@ -318,7 +317,8 @@ export default function TarefasPage() {
     setIsSavingAttendance(true);
 
     try {
-      const today = format(new Date(), 'dd/MM/yyyy');
+      const todayDate = new Date();
+      const todayStr = format(todayDate, 'dd/MM/yyyy');
       const savedThreshold = localStorage.getItem('lexisPredict_urgency_alert');
       const thresholds = { alertLimit: savedThreshold ? parseInt(savedThreshold) : 3 };
 
@@ -328,14 +328,26 @@ export default function TarefasPage() {
           : activeGroup.cases.some(ac => ac.protocolo === c.protocolo);
 
         if (isMatch) {
+          // REGRA DE OURO v65.0: Desarme cronológico de alertas
+          let newFlagStatus = c.tem_atualizacao_pos_retorno;
+          if (c.datajud_ultimo_movimento) {
+            const lastMovDate = startOfDay(parseISO(c.datajud_ultimo_movimento));
+            const returnDate = startOfDay(todayDate);
+            if (!isAfter(lastMovDate, returnDate)) {
+              newFlagStatus = false;
+            }
+          } else {
+            newFlagStatus = false;
+          }
+
           const newCaseData = {
             ...c,
             situacao: attendanceForm.situacao,
-            ultimoRetorno: today,
+            ultimoRetorno: todayStr,
             observacao: attendanceForm.observacao || c.observacao,
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : (attendanceForm.proximoRetorno || c.proximoPrazo),
             statusManual: 'Automatico',
-            tem_atualizacao_pos_retorno: false // Desarma alerta ao atender
+            tem_atualizacao_pos_retorno: newFlagStatus
           };
           return processarCaso(newCaseData, thresholds);
         }
