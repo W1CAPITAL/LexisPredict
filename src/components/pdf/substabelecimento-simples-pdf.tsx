@@ -15,44 +15,44 @@ Font.register({
 
 const styles = StyleSheet.create({
   page: {
-    padding: '40mm 25mm',
+    padding: '25mm 20mm',
     fontFamily: 'Times-Roman',
-    fontSize: 12,
-    lineHeight: 1.8,
+    fontSize: 11,
+    lineHeight: 1.45,
     textAlign: 'justify',
     color: '#000000'
   },
   title: {
     textAlign: 'center',
     fontWeight: 'bold',
-    fontSize: 13,
-    marginBottom: 5,
+    fontSize: 12,
+    marginBottom: 4,
     textTransform: 'uppercase'
   },
   subtitle: {
     textAlign: 'center',
     fontWeight: 'bold',
-    fontSize: 12,
-    marginBottom: 40,
+    fontSize: 11,
+    marginBottom: 25,
   },
   paragraph: {
-    marginBottom: 40,
-    textIndent: 50,
+    marginBottom: 30,
+    textIndent: 40,
   },
   bold: {
     fontWeight: 'bold'
   },
   dateArea: {
-    marginTop: 40,
-    marginBottom: 80,
+    marginTop: 20,
+    marginBottom: 40,
     textAlign: 'center',
   },
   signatureArea: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    marginTop: 20,
-    gap: 40
+    marginTop: 10,
+    gap: 30
   },
   signatureBlock: {
     width: '60%',
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   line: {
     width: '100%',
     borderTop: '1pt solid black',
-    marginBottom: 5,
+    marginBottom: 4,
   }
 });
 
@@ -111,11 +111,10 @@ export function SubstabelecimentoSimplesPDF({ data }: { data: any }) {
     );
   }
 
-  // MODELO PADRÃO (MÉTODO 1)
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={[styles.title, { textDecoration: 'underline' }]}>SUBSTABELECIMENTO SEM RESERVA DE PODERES</Text>
+        <Text style={[styles.title, { textDecoration: 'underline', marginBottom: 30 }]}>SUBSTABELECIMENTO SEM RESERVA DE PODERES</Text>
 
         <View style={styles.paragraph}>
           <Text>
