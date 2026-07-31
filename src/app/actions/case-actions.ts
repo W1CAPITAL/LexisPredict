@@ -3,7 +3,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v460.0 ELITE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v461.0 ELITE
  */
 
 import { 
