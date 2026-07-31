@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -23,7 +24,9 @@ import {
   Users,
   Loader2,
   Building2,
-  Gavel
+  Gavel,
+  StickyNote,
+  Image as ImageIcon
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -91,8 +94,8 @@ export default function UnifiedReport() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // Alertas DataJud baseados em ativos com cast de verdade absoluta (!! v350.0)
-    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno).length;
+    // REGRA DE VIGILÂNCIA: Se encerrado no tribunal, não conta como andamento pendente
+    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
 
@@ -144,6 +147,20 @@ export default function UnifiedReport() {
       }
     });
 
+    // Chance de Encerramento (Top 5 Ativos por Potencial)
+    const topChance = ativos
+      .map(c => ({
+        cliente: c.cliente,
+        protocolo: c.protocolo,
+        analysis: analisarChanceEncerramento(c)
+      }))
+      .filter(a => ['Muito Alta', 'Alta'].includes(a.analysis.level))
+      .slice(0, 5);
+
+    // Notas Metrics
+    const notesTotal = notes.length;
+    const notesComEvidencia = notes.filter(n => !!n.imageUrl).length;
+
     return {
       totalRepo, 
       activeTotal, 
@@ -160,9 +177,12 @@ export default function UnifiedReport() {
       sortedLawyers: Object.values(lawyers).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total),
       countNovoAndamento, rateAndamento,
       countEncerradoTribunal, rateEncerrado,
-      countBA, rateBA
+      countBA, rateBA,
+      topChance,
+      notesTotal,
+      notesComEvidencia
     };
-  }, [cases]);
+  }, [cases, notes]);
 
   const handleExportPDF = () => window.print();
 
@@ -184,10 +204,10 @@ export default function UnifiedReport() {
               <Link href="/"><ArrowLeft size={14} className="mr-2" /> Voltar ao Gabinete</Link>
             </Button>
             <div className="h-6 w-px bg-black/10 hidden sm:block" />
-            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">White Prestige v8.5</Badge>
+            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Unified Report v4.0</Badge>
           </div>
           <Button onClick={handleExportPDF} className="bg-black hover:bg-black/90 text-white font-black uppercase text-[10px] tracking-widest h-11 px-7 rounded-none transition-all shadow-[4px_4px_0px_#00D1FF] hover:shadow-none">
-            <Printer size={14} className="mr-2" /> Imprimir Dossiê Padrão
+            <Printer size={14} className="mr-2" /> Imprimir Dossiê Completo
           </Button>
         </div>
       </div>
@@ -199,19 +219,19 @@ export default function UnifiedReport() {
             <div className="px-10 pt-12 pb-10 flex flex-col lg:flex-row justify-between gap-8">
               <div className="space-y-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-black bg-black flex items-center justify-center"><Scale size={16} className="text-white" /></div>
+                  <div className="w-8 h-8 border-2 border-black bg-black flex items-center justify-center"><Layers size={16} className="text-white" /></div>
                   <span className="text-[10px] tracking-[0.35em] uppercase text-black font-black">W1 Capital • Advanced Ops</span>
                 </div>
                 <h1 className="text-4xl md:text-5xl font-black tracking-tighter leading-[0.9] text-black">DOSSIÊ OPERACIONAL<br /><span className="text-black/40">DA CARTEIRA</span></h1>
                 <div className="flex flex-wrap items-center gap-4 pt-1">
-                  <div className="px-3 py-1.5 bg-black text-white text-[10px] font-black tracking-widest uppercase">GABINETE EXECUTIVO</div>
+                  <div className="px-3 py-1.5 bg-black text-white text-[10px] font-black tracking-widest uppercase">RELATÓRIO CONSOLIDADO</div>
                   <div className="flex items-center gap-2 text-[11px] text-black/60 font-bold uppercase"><Calendar size={12} />{new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</div>
                 </div>
               </div>
               <div className="text-right space-y-2 self-end">
                 <p className="text-sm font-black tracking-wide text-black uppercase">{profile?.nome || "ADMINISTRADOR"}</p>
-                <p className="text-[10px] tracking-[0.2em] uppercase text-black/40 font-bold">Auditado sob protocolo v250.0 Elite</p>
-                <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 border-2 border-green-600 text-green-600 text-[9px] font-black tracking-widest uppercase"><ShieldCheck size={11} /> Autenticado</div>
+                <p className="text-[10px] tracking-[0.2em] uppercase text-black/40 font-bold">Gerado via Autoridade v250.0 Elite</p>
+                <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 border-2 border-green-600 text-green-600 text-[9px] font-black tracking-widest uppercase"><ShieldCheck size={11} /> Auditado</div>
               </div>
             </div>
           </header>
@@ -226,7 +246,7 @@ export default function UnifiedReport() {
                          <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
                          <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
                       </div>
-                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de vigilância: processos com movimentos novos após o último contato.</p>
+                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de vigilância: processos com movimentos novos após o último retorno.</p>
                    </div>
                    <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase opacity-60">Baixas identificadas no Tribunal</p>
@@ -234,15 +254,15 @@ export default function UnifiedReport() {
                          <span className="text-4xl font-black tabular-nums">{metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
                          <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
                       </div>
-                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.</p>
+                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de resolutividade: ritos de encerramento detectados via auditoria unificada.</p>
                    </div>
                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase opacity-60">Busca e Apreensão Detectada</p>
+                      <p className="text-[10px] font-black uppercase opacity-60">Indícios de Busca e Apreensão</p>
                       <div className="flex items-baseline gap-4">
                          <span className="text-4xl font-black tabular-nums">{metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
                          <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
                       </div>
-                      <p className="text-[8px] font-bold uppercase italic opacity-40">Indícios de Busca e Apreensão detectados via auditoria CNJ (protocolo do processo).</p>
+                      <p className="text-[8px] font-bold uppercase italic opacity-40">Riscos detectados via análise neural de movimentos processuais.</p>
                    </div>
                 </div>
              </div>
@@ -272,10 +292,91 @@ export default function UnifiedReport() {
             </div>
           </section>
 
+          {/* NOVO: VOLUMETRIA POR TRIBUNAL (GRÁFICO RESTAURADO) */}
           <section className="px-10 pb-12">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-1 h-5 bg-black" />
-              <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Distribuição Operacional (Carteira Total: {metrics.totalRepo})</h2>
+              <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Volumetria de Processos por Tribunal (Top 8)</h2>
+            </div>
+            <div className="bg-white border-2 border-black p-8 h-[350px]">
+              {metrics.chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={metrics.chartData}>
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#000', fontSize: 9, fontWeight: 900}} 
+                    />
+                    <YAxis hide />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={40}>
+                      {metrics.chartData.map((_, index) => (
+                        <Cell key={index} fill={index === 0 ? '#000' : '#00D1FF'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center opacity-20 uppercase font-black text-xs">Dados insuficientes para renderização gráfica</div>
+              )}
+            </div>
+          </section>
+
+          {/* NOVO: NOTAS E EVIDÊNCIAS (SEÇÃO ADICIONADA) */}
+          <section className="px-10 pb-12">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-1 h-5 bg-black" />
+              <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Notas, Anotações e Evidências</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+               <div className="bg-white border-2 border-black p-6 flex flex-col justify-center shadow-[4px_4px_0px_#000]">
+                  <p className="text-[8px] font-black uppercase text-black/40 tracking-widest mb-1">Total de Anotações</p>
+                  <div className="flex items-center gap-3">
+                     <StickyNote size={20} className="text-black/20" />
+                     <span className="text-4xl font-black">{metrics.notesTotal}</span>
+                  </div>
+               </div>
+               <div className="bg-white border-2 border-black p-6 flex flex-col justify-center shadow-[4px_4px_0px_#00D1FF]">
+                  <p className="text-[8px] font-black uppercase text-black/40 tracking-widest mb-1">Registros com Mídia/Anexo</p>
+                  <div className="flex items-center gap-3">
+                     <ImageIcon size={20} className="text-primary" />
+                     <span className="text-4xl font-black">{metrics.notesComEvidencia}</span>
+                  </div>
+               </div>
+            </div>
+
+            <div className="border-2 border-black overflow-hidden bg-gray-50">
+               <div className="bg-black text-white p-3 font-black text-[9px] uppercase tracking-widest flex items-center justify-between">
+                  <span>Últimos Registros do Livro de Evidências</span>
+                  <Badge className="bg-primary text-black rounded-none text-[8px]">Histórico v3.1</Badge>
+               </div>
+               <div className="divide-y-2 divide-black/5">
+                  {notes.slice(0, 20).map((note, idx) => (
+                    <div key={idx} className="p-5 bg-white space-y-1">
+                       <div className="flex justify-between items-start">
+                          <h4 className="text-[10px] font-black uppercase text-black">{note.title}</h4>
+                          <span className="text-[8px] font-black text-black/30 uppercase tabular-nums">{note.updatedAt}</span>
+                       </div>
+                       <p className="text-[10px] font-bold text-black/60 uppercase leading-relaxed line-clamp-2 italic">
+                         "{note.content}"
+                       </p>
+                    </div>
+                  ))}
+                  {notes.length === 0 && (
+                    <div className="p-20 text-center space-y-4 opacity-20">
+                       <StickyNote size={48} className="mx-auto" />
+                       <p className="text-xs font-black uppercase">Nenhuma anotação registrada no período/carteira visível.</p>
+                    </div>
+                  )}
+               </div>
+            </div>
+          </section>
+
+          <section className="px-10 pb-12">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-1 h-5 bg-black" />
+              <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Distribuição Operacional dos Ativos</h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <StatusPill label="Vencidos" count={metrics.countVencido} total={metrics.activeTotal} color="bg-red-600" />
@@ -288,6 +389,20 @@ export default function UnifiedReport() {
           </section>
 
           <section className="px-10 pb-12 space-y-12">
+             {metrics.topChance.length > 0 && (
+               <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp size={18} className="text-emerald-600" />
+                    <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Prognóstico: Chance Alta de Encerramento</h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {metrics.topChance.map((item, idx) => (
+                       <ChanceEncerramentoCard key={idx} analysis={item.analysis} className="shadow-none border-2" />
+                     ))}
+                  </div>
+               </div>
+             )}
+
              <div className="space-y-6">
                 <div className="flex items-center gap-3">
                    <Building2 size={18} className="text-primary" />
@@ -359,7 +474,7 @@ export default function UnifiedReport() {
             <section className="px-10 pb-12">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-1 h-5 bg-black" />
-                <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Parecer Estratégico da IA</h2>
+                <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Parecer Estratégico da Unidade Neural</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 border-2 border-black p-8">
                  <div className="space-y-4">
