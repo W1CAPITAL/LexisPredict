@@ -45,7 +45,8 @@ import {
   Copy,
   EyeOff,
   BookOpen,
-  Globe
+  Globe,
+  Info
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -206,7 +207,7 @@ export default function TarefasPage() {
         toast({ title: "DJEN Sincronizado", description: res.message });
         setCases(prev => prev.map(c => c.protocolo === historyResult.case.protocolo ? { ...c, ...res.casePatch } : c));
       } else {
-        toast({ title: "Falha no DJEN", description: res.message, variant: "destructive" });
+        toast({ title: "Falha no DJEN", description: res.message || "Erro regional (403/gru1)", variant: "destructive" });
       }
     } finally {
       setLoadingDjen(false);
@@ -582,243 +583,249 @@ export default function TarefasPage() {
           </div>
         </div>
 
-        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
-            <DialogHeader className="p-6 bg-black text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
-                      <History size={28} />
+        <Suspense fallback={null}>
+          <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+            <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+              <DialogHeader className="p-6 bg-black text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                        <History size={28} />
+                    </div>
+                    <div>
+                        <DialogTitle className="font-black uppercase tracking-tight text-xl">Andamentos Oficiais</DialogTitle>
+                        <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                    </div>
                   </div>
-                  <div>
-                      <DialogTitle className="font-black uppercase tracking-tight text-xl">Andamentos Oficiais</DialogTitle>
-                      <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      onClick={() => {
+                        if (historyResult) {
+                          const suggestions = suggestScripts({
+                            clienteNome: historyResult.case.cliente,
+                            protocolo: historyResult.case.protocolo,
+                            ultimoRetorno: historyResult.case.ultimoRetorno,
+                            movimentos: historyResult.movimentos
+                          });
+                          setSuggestedScripts(suggestions);
+                          setShowScripts(true);
+                        }
+                      }} 
+                      variant="outline" 
+                      className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] rounded-xl h-10 px-4"
+                    >
+                      <MessageSquare size={14} className="mr-2" /> Sugerir Resposta
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button 
-                    onClick={() => {
-                      if (historyResult) {
-                        const suggestions = suggestScripts({
-                          clienteNome: historyResult.case.cliente,
-                          protocolo: historyResult.case.protocolo,
-                          ultimoRetorno: historyResult.case.ultimoRetorno,
-                          movimentos: historyResult.movimentos
-                        });
-                        setSuggestedScripts(suggestions);
-                        setShowScripts(true);
-                      }
-                    }} 
-                    variant="outline" 
-                    className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] rounded-xl h-10 px-4"
-                  >
-                    <MessageSquare size={14} className="mr-2" /> Sugerir Resposta
-                  </Button>
+                <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização unificada Tribunal e DJEN (Diário Nacional).</DialogDescription>
+              </DialogHeader>
+              
+              <div className="flex flex-col h-[600px]">
+                <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
+                  <div className="space-y-1">
+                      <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
+                      <p className="text-sm font-black uppercase">{historyResult?.case?.cliente}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {historyResult?.case?.djen_nova_comunicacao && (
+                      <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Novidade DJEN</Badge>
+                    )}
+                    {historyResult?.case?.indicio_busca_apreensao && (
+                      <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício Busca e Apreensão</Badge>
+                    )}
+                    {historyResult?.case?.datajud_encerrado_tribunal && (
+                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização unificada Tribunal e DJEN (Diário Nacional).</DialogDescription>
-            </DialogHeader>
-            
-            <div className="flex flex-col h-[600px]">
-              <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
-                <div className="space-y-1">
-                    <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
-                    <p className="text-sm font-black uppercase">{historyResult?.case?.cliente}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {historyResult?.case?.djen_nova_comunicacao && (
-                    <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Novidade DJEN</Badge>
-                  )}
-                  {historyResult?.case?.indicio_busca_apreensao && (
-                    <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício Busca e Apreensão</Badge>
-                  )}
-                  {historyResult?.case?.datajud_encerrado_tribunal && (
-                    <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
-                  )}
-                </div>
-              </div>
 
-              <div className="flex-1 overflow-hidden flex">
-                <div className={cn("bg-white transition-all duration-300 flex flex-col", showScripts ? "w-1/2 border-r" : "w-full")}>
-                  <Tabs defaultValue="timeline" className="flex-1 flex flex-col overflow-hidden">
-                     <TabsList className="bg-secondary/20 mx-6 mt-4 p-1 rounded-xl h-10">
-                        <TabsTrigger value="timeline" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">Cronologia Tribunal</TabsTrigger>
-                        <TabsTrigger value="djen" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">DJEN Nacional</TabsTrigger>
-                     </TabsList>
+                <div className="flex-1 overflow-hidden flex">
+                  <div className={cn("bg-white transition-all duration-300 flex flex-col", showScripts ? "w-1/2 border-r" : "w-full")}>
+                    <Tabs defaultValue="timeline" className="flex-1 flex flex-col overflow-hidden">
+                       <TabsList className="bg-secondary/20 mx-6 mt-4 p-1 rounded-xl h-10">
+                          <TabsTrigger value="timeline" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">Cronologia Tribunal</TabsTrigger>
+                          <TabsTrigger value="djen" className="flex-1 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white rounded-lg">DJEN Nacional</TabsTrigger>
+                       </TabsList>
 
-                     <TabsContent value="timeline" className="flex-1 overflow-hidden p-0 m-0">
-                       <ScrollArea className="h-full">
-                         <div className="p-6 space-y-6">
-                           {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                             [...historyResult.movimentos].sort((a,b) => {
-                               const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
-                               const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
-                               return dateB - dateA;
-                             }).map((m, i) => (
-                               <div key={i} className="flex gap-6 relative group">
-                                 {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
-                                 <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
-                                     <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                       <TabsContent value="timeline" className="flex-1 overflow-hidden p-0 m-0">
+                         <ScrollArea className="h-full">
+                           <div className="p-6 space-y-6">
+                             {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
+                               [...historyResult.movimentos].sort((a,b) => {
+                                 const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
+                                 const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
+                                 return dateB - dateA;
+                               }).map((m, i) => (
+                                 <div key={i} className="flex gap-6 relative group">
+                                   {i !== historyResult.movimentos.length - 1 && <div className="absolute left-[23px] top-8 bottom-[-24px] w-0.5 bg-border group-hover:bg-primary/30 transition-colors" />}
+                                   <div className="w-12 h-12 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10 group-hover:border-primary transition-all">
+                                       <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
+                                   </div>
+                                   <div className="flex-1 pt-1 space-y-1 pb-6">
+                                       <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                                       <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
+                                       {m.complemento && <p className="text-[10px] text-muted-foreground uppercase">{m.complemento}</p>}
+                                   </div>
                                  </div>
-                                 <div className="flex-1 pt-1 space-y-1 pb-6">
-                                     <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
-                                     <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
-                                     {m.complemento && <p className="text-[10px] text-muted-foreground uppercase">{m.complemento}</p>}
-                                 </div>
+                               ))
+                             ) : (
+                               <div className="py-20 text-center space-y-4 opacity-40">
+                                 <FileSearch size={48} className="mx-auto" />
+                                 <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
                                </div>
-                             ))
-                           ) : (
-                             <div className="py-20 text-center space-y-4 opacity-40">
-                               <FileSearch size={48} className="mx-auto" />
-                               <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
-                             </div>
-                           )}
-                         </div>
-                       </ScrollArea>
-                     </TabsContent>
-
-                     <TabsContent value="djen" className="flex-1 overflow-hidden p-0 m-0">
-                        <div className="h-full flex flex-col">
-                           <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-                              <div>
-                                 <p className="text-[10px] font-black uppercase">Comunicações Oficiais</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">Base pública DJEN</p>
-                              </div>
-                              <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-black text-white font-black uppercase text-[8px] rounded-lg px-4">
-                                 {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <Globe size={10} className="mr-2"/>} Consultar DJEN
-                              </Button>
+                             )}
                            </div>
-                           <ScrollArea className="flex-1">
-                              <div className="p-6 space-y-4">
-                                 {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
-                                   historyResult.djenComunicacoes.map((item, i) => (
-                                     <div key={i} className="p-4 border-2 border-black/5 bg-slate-50 hover:border-black transition-all rounded-xl space-y-3">
-                                        <div className="flex items-start justify-between">
-                                           <div className="space-y-1">
-                                              <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
-                                                 {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
-                                              </Badge>
-                                              <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
-                                           </div>
-                                           {item.link && (
-                                             <Button asChild variant="ghost" size="icon" className="h-7 w-7"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
-                                           )}
-                                        </div>
-                                        <p className="text-[11px] font-bold text-foreground leading-relaxed line-clamp-3 uppercase">
-                                           {item.texto}
-                                        </p>
-                                        <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase">
-                                           <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
+                         </ScrollArea>
+                       </TabsContent>
+
+                       <TabsContent value="djen" className="flex-1 overflow-hidden p-0 m-0">
+                          <div className="h-full flex flex-col">
+                             <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                                <div>
+                                   <p className="text-[10px] font-black uppercase">Comunicações Oficiais</p>
+                                   <p className="text-[8px] font-bold text-muted-foreground uppercase">Base pública DJEN</p>
+                                </div>
+                                <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-black text-white font-black uppercase text-[8px] rounded-lg px-4">
+                                   {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <Globe size={10} className="mr-2"/>} Consultar DJEN
+                                </Button>
+                             </div>
+                             <div className="px-6 py-3 bg-amber-50 border-b flex items-center gap-3">
+                               <Info size={14} className="text-amber-600" />
+                               <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed">Ferramenta de auxílio — não substitui consulta oficial ao diário/tribunal.</p>
+                             </div>
+                             <ScrollArea className="flex-1">
+                                <div className="p-6 space-y-4">
+                                   {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
+                                     historyResult.djenComunicacoes.map((item, i) => (
+                                       <div key={i} className="p-4 border-2 border-black/5 bg-slate-50 hover:border-black transition-all rounded-xl space-y-3">
+                                          <div className="flex items-start justify-between">
+                                             <div className="space-y-1">
+                                                <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
+                                                   {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
+                                                </Badge>
+                                                <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
+                                             </div>
+                                             {item.link && (
+                                               <Button asChild variant="ghost" size="icon" className="h-7 w-7"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
+                                             )}
+                                          </div>
+                                          <p className="text-[11px] font-bold text-foreground leading-relaxed line-clamp-3 uppercase">
+                                             {item.texto}
+                                          </p>
+                                          <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase">
+                                             <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
+                                          </div>
+                                       </div>
+                                     ))
+                                   ) : (
+                                     <div className="py-20 text-center space-y-6 opacity-30">
+                                        <BookOpen size={48} className="mx-auto" />
+                                        <div className="space-y-1">
+                                           <p className="text-xs font-black uppercase tracking-widest">Nenhuma comunicação carregada.</p>
+                                           <p className="text-[9px] font-bold uppercase">Clique em "Consultar DJEN" para buscar no diário oficial.</p>
                                         </div>
                                      </div>
-                                   ))
-                                 ) : (
-                                   <div className="py-20 text-center space-y-6 opacity-30">
-                                      <BookOpen size={48} className="mx-auto" />
-                                      <div className="space-y-1">
-                                         <p className="text-xs font-black uppercase tracking-widest">Nenhuma comunicação carregada.</p>
-                                         <p className="text-[9px] font-bold uppercase">Clique em "Consultar DJEN" para buscar no diário oficial.</p>
-                                      </div>
-                                   </div>
-                                 )}
-                              </div>
-                           </ScrollArea>
+                                   )}
+                                </div>
+                             </ScrollArea>
+                          </div>
+                       </TabsContent>
+                    </Tabs>
+                  </div>
+
+                  {showScripts && (
+                    <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
+                      <div className="p-6 space-y-6">
+                        <div className="flex items-center justify-between mb-4">
+                           <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                             <Zap size={14} /> Sugestões de Resposta
+                           </h3>
+                           <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
                         </div>
-                     </TabsContent>
-                  </Tabs>
+
+                        <div className="bg-black text-white p-5 space-y-4 mb-8">
+                           <div className="flex flex-col gap-3">
+                              <div className="flex items-center justify-between">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
+                                <Badge variant="outline" className="border-primary/20 text-primary text-[8px] font-black uppercase">Neural Unit</Badge>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <Select value={selectedMotor} onValueChange={setSelectedMotor}>
+                                  <SelectTrigger className="h-8 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-none">
+                                    <div className="flex items-center gap-1.5">
+                                      <Settings2 size={10} />
+                                      <SelectValue />
+                                    </div>
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-white border-2 border-black rounded-none">
+                                    <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
+                                    <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2</SelectItem>
+                                    <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
+                                  </SelectContent>
+                                </Select>
+
+                                <Button 
+                                  onClick={handleGenerateAIDraft} 
+                                  disabled={isGeneratingAIDraft}
+                                  className="h-8 flex-1 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all shadow-[3px_3px_0px_#00D1FF] hover:shadow-none"
+                                >
+                                  {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
+                                </Button>
+                              </div>
+                           </div>
+
+                           {aiDraft ? (
+                             <div className="space-y-3 animate-in fade-in duration-500 mt-2">
+                                <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
+                                   <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
+                                </div>
+                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho</Button>
+                             </div>
+                           ) : !isGeneratingAIDraft && (
+                             <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta personalizada.</p>
+                           )}
+
+                           {isGeneratingAIDraft && (
+                              <div className="flex items-center gap-2 text-[8px] font-black uppercase text-primary animate-pulse py-2">
+                                <Loader2 size={10} className="animate-spin" />
+                                Processando rascunho via {selectedMotor.toUpperCase()}...
+                              </div>
+                           )}
+                        </div>
+                        
+                        {suggestedScripts.map((script, idx) => (
+                          <div key={idx} className="bg-white border-2 border-black p-5 rounded-none shadow-[6px_6px_0px_rgba(0,0,0,0.05)] space-y-4">
+                             <div className="space-y-1">
+                                <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none px-2 mb-1">{script.titulo}</Badge>
+                                <p className="text-[11px] font-black uppercase leading-tight">{script.quandoUsar}</p>
+                             </div>
+                             <div className="p-4 bg-slate-50 border border-black/5 relative">
+                                <p className="text-[11px] font-bold text-black/70 leading-relaxed italic">"{script.texto}"</p>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => copyScript(script.texto)}
+                                  className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all"
+                                >
+                                  <Copy size={14} />
+                                </Button>
+                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
                 </div>
-
-                {showScripts && (
-                  <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
-                    <div className="p-6 space-y-6">
-                      <div className="flex items-center justify-between mb-4">
-                         <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                           <Zap size={14} /> Sugestões de Resposta
-                         </h3>
-                         <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
-                      </div>
-
-                      <div className="bg-black text-white p-5 space-y-4 mb-8">
-                         <div className="flex flex-col gap-3">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
-                              <Badge variant="outline" className="border-primary/20 text-primary text-[8px] font-black uppercase">Neural Unit</Badge>
-                            </div>
-
-                            <div className="flex gap-2">
-                              <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                                <SelectTrigger className="h-8 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-none">
-                                  <div className="flex items-center gap-1.5">
-                                    <Settings2 size={10} />
-                                    <SelectValue />
-                                  </div>
-                                </SelectTrigger>
-                                <SelectContent className="bg-white border-2 border-black rounded-none">
-                                  <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
-                                  <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 4.5</SelectItem>
-                                  <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
-                                </SelectContent>
-                              </Select>
-
-                              <Button 
-                                onClick={handleGenerateAIDraft} 
-                                disabled={isGeneratingAIDraft}
-                                className="h-8 flex-1 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all shadow-[3px_3px_0px_#00D1FF] hover:shadow-none"
-                              >
-                                {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
-                              </Button>
-                            </div>
-                         </div>
-
-                         {aiDraft ? (
-                           <div className="space-y-3 animate-in fade-in duration-500 mt-2">
-                              <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
-                                 <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
-                              </div>
-                              <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho</Button>
-                           </div>
-                         ) : !isGeneratingAIDraft && (
-                           <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta personalizada.</p>
-                         )}
-
-                         {isGeneratingAIDraft && (
-                            <div className="flex items-center gap-2 text-[8px] font-black uppercase text-primary animate-pulse py-2">
-                              <Loader2 size={10} className="animate-spin" />
-                              Processando rascunho via {selectedMotor.toUpperCase()}...
-                            </div>
-                         )}
-                      </div>
-                      
-                      {suggestedScripts.map((script, idx) => (
-                        <div key={idx} className="bg-white border-2 border-black p-5 rounded-none shadow-[6px_6px_0px_rgba(0,0,0,0.05)] space-y-4">
-                           <div className="space-y-1">
-                              <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none px-2 mb-1">{script.titulo}</Badge>
-                              <p className="text-[11px] font-black uppercase leading-tight">{script.quandoUsar}</p>
-                           </div>
-                           <div className="p-4 bg-slate-50 border border-black/5 relative">
-                              <p className="text-[11px] font-bold text-black/70 leading-relaxed italic">"{script.texto}"</p>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => copyScript(script.texto)}
-                                className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all"
-                              >
-                                <Copy size={14} />
-                              </Button>
-                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
               </div>
-            </div>
 
-            <DialogFooter className="p-4 bg-secondary/10 border-t">
-               <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter className="p-4 bg-secondary/10 border-t">
+                 <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </Suspense>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
           <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl overflow-hidden p-0">

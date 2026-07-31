@@ -1,6 +1,6 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v455.0 ELITE
- * Otimizado com timeouts rígidos de 15s conforme PROMPT FECHADO.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v460.0 ELITE
+ * Otimizado com timeouts de 35s e tratamento de falhas parciais.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -25,22 +25,14 @@ export interface DataJudOptions {
 }
 
 /**
- * Consulta API DataJud com timeout rígido de 15s.
- * Protocolo de Estabilidade v15.0
+ * Consulta API DataJud com timeout de 35s e detecção de shards.
  */
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   const startTime = Date.now();
   
   if (cnjLimpo.length !== 20) {
-    return { 
-      numeroProcesso: cnj, 
-      movimentos: [], 
-      error: true, 
-      message: "Número CNJ inválido.",
-      attempts: attempt,
-      latency: 0
-    };
+    return { numeroProcesso: cnj, movimentos: [], error: true, message: "CNJ inválido." };
   }
 
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
@@ -49,12 +41,12 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   const isFast = options.fast === true;
-  const timeoutMs = 15000; // Timeout rígido conforme solicitado
-  const maxAttempts = isFast ? 1 : 2; // 1 tentativa para lote, 2 para manual
+  const timeoutMs = isFast ? 15000 : 35000;
+  const maxAttempts = isFast ? 1 : 2;
 
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 20000); // Teto de segurança em 20s
+    const id = setTimeout(() => controller.abort(), timeoutMs + 2000);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -64,11 +56,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       },
       body: JSON.stringify({
         size: 1,
-        query: {
-          match: {
-            "numeroProcesso": cnjLimpo
-          }
-        }
+        query: { match: { "numeroProcesso": cnjLimpo } }
       }),
       signal: controller.signal,
       cache: 'no-store'
@@ -77,23 +65,22 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     clearTimeout(id);
     const latency = Date.now() - startTime;
 
-    if (!response.ok) {
-      throw new Error(`HTTP_${response.status}`);
+    if (response.status === 429) {
+       if (attempt < maxAttempts) { await sleep(1500); return fetchDataJud(cnj, attempt + 1, options); }
+       throw new Error("Taxa de requisição excedida.");
     }
+
+    if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
 
     const data = await response.json();
-    const source = data.hits?.hits?.[0]?._source;
-
-    if (!source) {
-      return { 
-        numeroProcesso: cnjLimpo, 
-        movimentos: [], 
-        error: false, 
-        message: "Não localizado no DataJud.",
-        attempts: attempt,
-        latency
-      };
+    
+    // Tratamento de falhas parciais do cluster CNJ
+    if (data._shards?.failed > 0 && (!data.hits?.hits || data.hits.hits.length === 0)) {
+       return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Indisponibilidade momentânea no tribunal.", latency };
     }
+
+    const source = data.hits?.hits?.[0]?._source;
+    if (!source) return { numeroProcesso: cnjLimpo, movimentos: [], error: false, message: "Não localizado.", latency };
 
     return {
       numeroProcesso: source.numeroProcesso || cnjLimpo,
@@ -101,7 +88,6 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       tribunal: source.tribunal || alias.toUpperCase(),
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
       error: false,
-      attempts: attempt,
       latency
     };
 
@@ -109,29 +95,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     const latency = Date.now() - startTime;
     const isTimeout = e.name === 'AbortError' || latency >= timeoutMs;
 
-    if (isTimeout) {
-       return {
-         numeroProcesso: cnjLimpo,
-         movimentos: [],
-         error: true,
-         message: "Tempo esgotado no Tribunal.",
-         attempts: attempt,
-         latency
-       };
-    }
-
-    if (attempt < maxAttempts) {
-      await sleep(500);
-      return fetchDataJud(cnj, attempt + 1, options);
-    }
-
-    return { 
-      numeroProcesso: cnjLimpo, 
-      movimentos: [], 
-      error: true, 
-      message: "Falha na comunicação DataJud.",
-      attempts: attempt,
-      latency
-    };
+    if (isTimeout) return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Tempo esgotado no tribunal.", latency };
+    return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Falha de comunicação DataJud.", latency };
   }
 }

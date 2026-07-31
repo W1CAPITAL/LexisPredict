@@ -3,7 +3,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v462.0 ELITE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v465.0 ELITE
  */
 
 import { 
@@ -67,10 +67,6 @@ export async function fetchTeamPerformanceAction() {
   }
 }
 
-/**
- * Realiza a auditoria de um único protocolo via DataJud.
- * Sempre persiste o patch de telemetria completo (soberania do dado atual).
- */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
@@ -79,18 +75,14 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     }
 
     const supabase = await createClient();
-    if (!supabase) throw new Error("Supabase indisponível.");
-
-    const { data: dbItem, error: fetchError } = await supabase
+    const { data: dbItem } = await supabase
       .from('processos')
       .select('*')
       .eq('protocolo_ref', protocolo)
       .eq('empresa_id', empresa_id)
       .maybeSingle();
 
-    if (fetchError || !dbItem) {
-      return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
-    }
+    if (!dbItem) return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
 
     const target = processarCaso({
       ...(dbItem.dados as any),
@@ -100,15 +92,12 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       datajud_hash: dbItem.datajud_hash
     });
 
-    // Se já está encerrado internamente, não gasta banda de API pública
-    if (isCasoEncerrado(target)) {
-      return { success: true, protocolo, message: "Já encerrado internamente", skipped: true };
-    }
+    if (isCasoEncerrado(target)) return { success: true, protocolo, message: "Já encerrado", skipped: true };
 
     const dataJud = await fetchDataJud(protocolo, 1, { fast });
     
     if (dataJud && !dataJud.error) {
-      const movimentos = Array.isArray(dataJud.movimentos) ? dataJud.movimentos : [];
+      const movimentos = dataJud.movimentos || [];
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
       const enc = detectarEncerradoNoTribunal(movimentos);
       const ba = analisarBuscaApreensao(dataJud);
@@ -133,20 +122,11 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      // Persistência Integral do Patch auditado
       await updateCaseDataJudSystem(dbItem.id, patch);
-      
-      return { 
-        success: true, 
-        protocolo, 
-        casePatch: patch,
-        movimentos,
-        case: { ...target, ...patch }
-      };
+      return { success: true, protocolo, casePatch: patch, movimentos, case: { ...target, ...patch } };
     }
     
-    const failMsg = dataJud?.message || "Erro no tribunal";
-    return { success: false, protocolo, message: failMsg, error: true };
+    return { success: false, protocolo, message: dataJud?.message || "Erro no tribunal", error: true };
   } catch (e: any) {
     return { success: false, protocolo, message: `Falha técnica`, error: true };
   }
@@ -157,15 +137,12 @@ export async function scanSingleCaseAction(protocolo: string) {
 }
 
 /**
- * Realiza a auditoria DJEN (Diário Nacional) de um único protocolo.
- * Pesquisa no último ano e grava flags djen_*.
+ * Realiza a auditoria DJEN via Proxy gru1 (São Paulo) para evitar 403.
  */
 export async function scanOneDjenAction(protocolo: string, opts?: { dataInicio?: string; dataFim?: string }) {
   try {
     const { empresa_id, auth_id } = await getUserContext();
-    if (!empresa_id || !auth_id) {
-      return { success: false, message: "Sessão expirada." };
-    }
+    if (!empresa_id || !auth_id) return { success: false, message: "Sessão expirada." };
 
     const supabase = await createClient();
     const { data: dbItem } = await supabase
@@ -178,24 +155,34 @@ export async function scanOneDjenAction(protocolo: string, opts?: { dataInicio?:
     if (!dbItem) return { success: false, message: "Processo não localizado." };
 
     const sigla = dbItem.tribunal && dbItem.tribunal.length >= 2 && !/^outros$/i.test(dbItem.tribunal) 
-      ? dbItem.tribunal 
-      : undefined;
+      ? dbItem.tribunal : undefined;
 
-    const data = await fetchDjenComunicacoes(protocolo, {
-      siglaTribunal: sigla,
-      dataInicio: opts?.dataInicio,
-      dataFim: opts?.dataFim
-    });
+    // Disparo via Proxy gru1 (Túnel Brasil)
+    const secret = process.env.DATAJUD_WORKER_SECRET;
+    const h = await headers();
+    const host = h.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
 
-    if (data.isRateLimited) {
-      return { success: false, isRateLimited: true, message: data.error || "Rate limit DJEN — aguarde 1 minuto." };
+    let data;
+    try {
+      const proxyRes = await fetch(`${baseUrl}/api/djen-proxy`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${secret}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ protocolo, siglaTribunal: sigla, ...opts }),
+        signal: AbortSignal.timeout(20000)
+      });
+      data = await proxyRes.json();
+    } catch {
+      // Fallback local se proxy falhar (iap1 tentará direto)
+      data = await fetchDjenComunicacoes(protocolo, { siglaTribunal: sigla, ...opts });
     }
-    if (!data.success) {
-      return { success: false, message: data.error || "Falha na comunicação DJEN" };
-    }
+
+    if (data.isGeoBlocked) return { success: false, message: "Bloqueio regional (403). Verifique o túnel gru1." };
+    if (data.isRateLimited) return { success: false, message: "Rate limit DJEN — aguarde 1 minuto." };
+    if (!data.success) return { success: false, message: data.error || "Falha na comunicação DJEN" };
 
     const check = detectarNovaComunicacaoDjen(dbItem.ultimo_retorno, data.items);
-    
     const patch = {
       djen_consultado_em: new Date().toISOString(),
       djen_nova_comunicacao: !!check.alerta,
@@ -206,16 +193,9 @@ export async function scanOneDjenAction(protocolo: string, opts?: { dataInicio?:
     };
 
     await updateCaseDataJudSystem(dbItem.id, patch);
-
-    return { 
-      success: true, 
-      protocolo, 
-      casePatch: patch, 
-      comunicacoes: data.items, 
-      message: check.alerta ? "Nova comunicação no DJEN" : (data.count ? `Comunicações DJEN: ${data.count}` : "Nenhuma comunicação no DJEN")
-    };
+    return { success: true, protocolo, casePatch: patch, comunicacoes: data.items, message: check.alerta ? "Nova comunicação no DJEN" : `Comunicações DJEN: ${data.count}` };
   } catch (e: any) {
-    return { success: false, message: e?.message || "Falha técnica na consulta DJEN." };
+    return { success: false, message: "Erro técnico na auditoria DJEN." };
   }
 }
 
@@ -224,21 +204,11 @@ export async function runDataJudScanAction(targetEmpresaId?: string) {
     const ctx = await getUserContext();
     const empresa_id = targetEmpresaId || ctx.empresa_id;
     if (!empresa_id) return { success: false, error: "Sessão expirada." };
-
     const cases = await getStoredCasesForEmpresa(empresa_id);
-    if (!cases || cases.length === 0) return { success: true, scanned: 0, updated: 0, message: "Nenhum processo." };
-
-    // Lote de 30 para evitar gateway timeout em execuções manuais
     const batch = cases.filter(c => !isCasoEncerrado(c)).slice(0, 30);
-    let updatedCount = 0;
-    for (const c of batch) {
-      await scanOneDataJudAction(c.protocolo, true);
-      updatedCount++;
-    }
-    return { success: true, scanned: batch.length, updated: updatedCount, message: `Auditados ${batch.length} registros.` };
-  } catch (e: any) {
-    return { success: false, error: "Falha na varredura." };
-  }
+    for (const c of batch) await scanOneDataJudAction(c.protocolo, true);
+    return { success: true, scanned: batch.length, message: `Auditados ${batch.length} registros.` };
+  } catch { return { success: false, error: "Falha na varredura." }; }
 }
 
 export async function clearDataJudAuditAction() {
@@ -250,53 +220,27 @@ export async function clearDataJudAuditAction() {
       ...c,
       tem_atualizacao_pos_retorno: false,
       datajud_encerrado_tribunal: false,
-      datajud_encerrado_motivo: null,
-      datajud_consultado_em: null,
-      datajud_ultimo_movimento: null,
-      datajud_ultimo_nome: null,
-      datajud_hash: null,
-      indicio_busca_apreensao: false,
-      busca_apreensao_confianca: null,
-      busca_apreensao_motivo: null,
-      busca_apreensao_consultado_em: null,
-      em_cumprimento_sentenca: false,
-      cumprimento_sentenca_motivo: null,
-      cumprimento_sentenca_consultado_em: null,
       djen_nova_comunicacao: false
     }));
     await saveStoredCasesForEmpresa(updated, empresa_id);
     return { success: true };
-  } catch (e) {
-    return { success: false };
-  }
+  } catch { return { success: false }; }
 }
 
 export async function runCloudWorkerAction() {
   try {
     const { empresa_id } = await getUserContext();
     if (!empresa_id) throw new Error("Sessão expirada.");
-
-    const secret = process.env.DATAJUD_WORKER_SECRET;
-    if (!secret) throw new Error("DATAJUD_WORKER_SECRET ausente.");
-
     const h = await headers();
     const host = h.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
-
-    // Disparo Fire-and-Forget
     fetch(`${baseUrl}/api/datajud-worker?empresa_id=${empresa_id}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${secret}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': `Bearer ${process.env.DATAJUD_WORKER_SECRET}`, 'Content-Type': 'application/json' },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000)
     }).catch(() => {});
-
     return { success: true, message: "Lote disparado no servidor." };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
+  } catch (e: any) { return { success: false, error: e.message }; }
 }

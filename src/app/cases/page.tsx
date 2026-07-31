@@ -35,7 +35,8 @@ import {
   MessageSquareQuote,
   Settings2,
   BookOpen,
-  Globe
+  Globe,
+  Info
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -389,7 +390,7 @@ function CasesContent() {
         if (res.casePatch) updateCaseByProtocolo(historyResult.case.protocolo, res.casePatch);
         toast({ title: "DJEN Sincronizado", description: res.message });
       } else {
-        toast({ title: "Falha no DJEN", description: res.message, variant: "destructive" });
+        toast({ title: "Falha no DJEN", description: res.message || "Erro regional (403/gru1)", variant: "destructive" });
       }
     } finally {
       setLoadingDjen(false);
@@ -924,11 +925,15 @@ function CasesContent() {
                             <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
                                <div>
                                   <p className="text-[10px] font-black uppercase">Comunicações Oficiais</p>
-                                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Base: comunicaapi.pje.jus.br</p>
+                                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Base pública DJEN</p>
                                </div>
                                <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-black text-white font-black uppercase text-[8px] rounded-lg px-4">
                                   {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <Globe size={10} className="mr-2"/>} Consultar DJEN
                                </Button>
+                            </div>
+                            <div className="px-6 py-3 bg-amber-50 border-b flex items-center gap-3">
+                               <Info size={14} className="text-amber-600" />
+                               <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed">Ferramenta de auxílio — não substitui consulta oficial ao diário/tribunal.</p>
                             </div>
                             <ScrollArea className="flex-1">
                                <div className="p-6 space-y-4">
@@ -997,7 +1002,7 @@ function CasesContent() {
                                   </SelectTrigger>
                                   <SelectContent className="bg-white border-2 border-black rounded-none">
                                     <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
-                                    <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 4.5</SelectItem>
+                                    <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2</SelectItem>
                                     <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
                                   </SelectContent>
                                 </Select>
