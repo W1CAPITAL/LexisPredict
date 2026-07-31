@@ -35,7 +35,15 @@ import {
   Globe,
   Info,
   Camera,
-  X
+  X,
+  BookOpen,
+  FileUp,
+  Tags,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Briefcase,
+  Unlock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -45,6 +53,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { AUTHORITY_PRESETS, applyGlobalTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { 
@@ -56,6 +65,7 @@ import {
 import { exportFullSourceCodeAction } from '@/app/actions/system-actions';
 import { listAdvogadosBanca, upsertAdvogadoBanca, desativarAdvogadoBanca } from '@/lib/server-db';
 import { uploadUserAvatarAction, uploadAdvogadoAvatarAction, removeAvatarAction } from '@/app/actions/avatar-actions';
+import { fetchKnowledgeDocsAction, uploadKnowledgeDocAction, deleteKnowledgeDocAction } from '@/app/actions/knowledge-actions';
 import { saveAs } from 'file-saver';
 import { useAuth } from '@/components/auth/auth-provider';
 import Image from 'next/image';
@@ -75,6 +85,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
@@ -97,6 +108,21 @@ export default function SettingsPage() {
     email: '',
     oabs: [] as { uf: string, num: string }[]
   });
+
+  // Base de Conhecimento
+  const [knowledgeDocs, setKnowledgeDocs] = useState<any[]>([]);
+  const [loadingKnowledge, setLoadingKnowledge] = useState(false);
+  const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
+  const [isUploadingKnowledge, setIsUploadingKnowledge] = useState(false);
+  const [knowledgeUnlocked, setKnowledgeUnlocked] = useState(false);
+  const [knowledgePassword, setKnowledgePassword] = useState('');
+  const [knowledgeForm, setKnowledgeForm] = useState({
+    title: '',
+    type: 'script',
+    tags: '',
+    useInDispatch: true
+  });
+  const knowledgeFileInputRef = useRef<HTMLInputElement>(null);
 
   // Cores
   const [bgColor, setBgColor] = useState('#FFFFFF');
@@ -126,6 +152,9 @@ export default function SettingsPage() {
   const advAvatarInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  const isSupervisor = profile?.cargo === 'Supervisor' || profile?.cargo === 'Superadmin';
+  const isAdmin = profile?.cargo === 'Administrador' || isSupervisor;
+
   useEffect(() => {
     setMounted(true);
     setIaModel(localStorage.getItem('lexisPredict_preferred_ia') || 'xai');
@@ -146,13 +175,73 @@ export default function SettingsPage() {
     setGlassBlur(visual.glassBlur);
 
     fetchBanca();
-  }, []);
+    if (isAdmin) fetchKnowledge();
+  }, [isAdmin]);
 
   const fetchBanca = async () => {
     setLoadingBanca(true);
     const data = await listAdvogadosBanca();
     setAdvogados(data);
     setLoadingBanca(false);
+  };
+
+  const fetchKnowledge = async () => {
+    setLoadingKnowledge(true);
+    const res = await fetchKnowledgeDocsAction();
+    if (res.success) setKnowledgeDocs(res.docs || []);
+    setLoadingKnowledge(false);
+  };
+
+  const handleUnlockKnowledge = () => {
+    if (knowledgePassword === 'Ashley@25472053') {
+      setKnowledgeUnlocked(true);
+      toast({ title: "Base de Conhecimento Liberada" });
+    } else {
+      toast({ title: "Senha de Gabinete Inválida", variant: "destructive" });
+    }
+  };
+
+  const handleKnowledgeUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!knowledgeUnlocked) return;
+    
+    const file = knowledgeFileInputRef.current?.files?.[0];
+    if (!file || !knowledgeForm.title) {
+      toast({ title: "Dados incompletos", description: "Selecione um arquivo e informe o título.", variant: "destructive" });
+      return;
+    }
+
+    setIsUploadingKnowledge(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', knowledgeForm.title);
+    formData.append('type', knowledgeForm.type);
+    formData.append('tags', knowledgeForm.tags);
+    formData.append('useInDispatch', String(knowledgeForm.useInDispatch));
+
+    const res = await uploadKnowledgeDocAction(formData);
+    if (res.success) {
+      toast({ title: "Documento Ingerido", description: `A IA aprendeu o conteúdo através de ${res.chunks} fragmentos.` });
+      setIsKnowledgeModalOpen(false);
+      setKnowledgeForm({ title: '', type: 'script', tags: '', useInDispatch: true });
+      fetchKnowledge();
+    } else {
+      toast({ title: "Erro na Ingestão", description: res.error, variant: "destructive" });
+    }
+    setIsUploadingKnowledge(false);
+  };
+
+  const handleDeleteKnowledge = async (docId: string) => {
+    if (!knowledgeUnlocked) {
+      toast({ title: "Desbloqueie a aba para realizar alterações", variant: "destructive" });
+      return;
+    }
+    if (!confirm('Deseja remover este documento? A IA esquecerá esse conteúdo.')) return;
+    const res = await deleteKnowledgeDocAction(docId);
+    if (res.success) {
+      toast({ title: "Conhecimento Removido" });
+      fetchKnowledge();
+    }
   };
 
   const handleUserAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,7 +255,7 @@ export default function SettingsPage() {
     const res = await uploadUserAvatarAction(formData);
     if (res.success) {
       toast({ title: "Foto de Perfil Atualizada" });
-      window.location.reload(); // Refresh para atualizar todos os componentes
+      window.location.reload();
     } else {
       toast({ title: "Erro no Upload", description: res.error, variant: "destructive" });
     }
@@ -333,6 +422,9 @@ export default function SettingsPage() {
               <nav className="space-y-1">
                 <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
                 <NavButton active={activeTab === 'Banca'} onClick={() => setActiveTab('Banca')} icon={<Gavel size={14}/>} label="Banca de Advogados" />
+                {isAdmin && (
+                  <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
+                )}
                 <NavButton active={activeTab === 'Engine'} onClick={() => setActiveTab('Engine')} icon={<Cpu size={14}/>} label="Núcleo Neural" />
                 {isMasterUnlocked && (
                   <NavButton active={activeTab === 'Export'} onClick={() => setActiveTab('Export')} icon={<Archive size={14}/>} label="Exportação Master" />
@@ -391,6 +483,86 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {activeTab === 'Knowledge' && isAdmin && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                   {!knowledgeUnlocked ? (
+                     <div className="p-16 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center space-y-6 bg-background/10 backdrop-blur-md">
+                        <div className="w-16 h-16 bg-black text-primary flex items-center justify-center rounded-full shadow-2xl">
+                           <Lock size={32} />
+                        </div>
+                        <div className="text-center space-y-2">
+                           <h3 className="font-black uppercase text-sm tracking-widest">Acesso de Gabinete Requerido</h3>
+                           <p className="text-[10px] font-bold uppercase text-muted-foreground">Insira a senha mestre para gerenciar o conhecimento da IA.</p>
+                        </div>
+                        <div className="flex gap-2 w-full max-w-xs">
+                           <Input 
+                             type="password" 
+                             placeholder="SENHA MASTER..." 
+                             value={knowledgePassword} 
+                             onChange={(e) => setKnowledgePassword(e.target.value)} 
+                             className="border-2 border-black rounded-none h-11 uppercase font-black text-xs text-center"
+                           />
+                           <Button onClick={handleUnlockKnowledge} className="bg-black text-white h-11 px-6 rounded-none font-black uppercase text-[10px]">Liberar</Button>
+                        </div>
+                     </div>
+                   ) : (
+                     <>
+                       <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                             <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Base de Dados & Scripts</Label>
+                             <div className="flex items-center gap-2 text-emerald-500 text-[8px] font-black uppercase">
+                                <Unlock size={10} /> Ashley Protocol Active
+                             </div>
+                          </div>
+                          <Button onClick={() => setIsKnowledgeModalOpen(true)} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all">
+                            <Plus size={14} className="mr-2"/> Ensinar IA
+                          </Button>
+                       </div>
+
+                       <div className="grid gap-4">
+                          {loadingKnowledge ? <Loader2 className="animate-spin mx-auto"/> : 
+                            knowledgeDocs.map((doc) => (
+                            <div key={doc.id} className="p-6 border border-border rounded-lg bg-background/20 backdrop-blur-xl flex items-center justify-between group hover:border-primary/50 transition-all">
+                               <div className="flex items-center gap-4">
+                                  <div className="w-12 h-12 bg-black flex items-center justify-center text-primary rounded-lg border-2 border-black shadow-sm group-hover:shadow-primary/20">
+                                     <BookOpen size={24} />
+                                  </div>
+                                  <div>
+                                     <div className="flex items-center gap-2">
+                                        <p className="font-black text-sm uppercase tracking-tight">{doc.title}</p>
+                                        <Badge variant="outline" className="text-[7px] font-black uppercase px-1.5 py-0 border-black/10">{doc.type}</Badge>
+                                     </div>
+                                     <div className="flex items-center gap-2 mt-1">
+                                        <div className="flex gap-1">
+                                           {doc.tags?.slice(0, 3).map((t: string) => (
+                                              <span key={t} className="text-[7px] bg-secondary/50 text-muted-foreground px-1 py-0.5 rounded-sm font-black uppercase">{t}</span>
+                                           ))}
+                                        </div>
+                                        <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
+                                        {doc.use_in_dispatch ? (
+                                           <Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><Eye size={8}/> Despacho Ativo</Badge>
+                                        ) : (
+                                           <Badge className="bg-slate-500/10 text-slate-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><EyeOff size={8}/> Apenas Interno</Badge>
+                                        )}
+                                     </div>
+                                  </div>
+                               </div>
+                               <div className="flex gap-2">
+                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteKnowledge(doc.id)} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
+                               </div>
+                            </div>
+                          ))}
+                          {knowledgeDocs.length === 0 && !loadingKnowledge && (
+                            <div className="p-12 text-center border-2 border-dashed border-border/20 rounded-lg">
+                               <p className="text-[10px] font-black uppercase text-muted-foreground">Nenhum conhecimento externo cadastrado para a IA.</p>
+                            </div>
+                          )}
+                       </div>
+                     </>
+                   )}
+                </div>
+              )}
+
               {activeTab === 'Banca' && (
                 <div className="space-y-8 animate-in fade-in duration-500">
                    <div className="flex items-center justify-between">
@@ -433,11 +605,6 @@ export default function SettingsPage() {
                         </div>
                       ))}
                       <input type="file" className="hidden" ref={advAvatarInputRef} onChange={(e) => editingAdv && handleAdvogadoAvatarUpload(editingAdv.id, e)} accept="image/*" />
-                      {advogados.length === 0 && !loadingBanca && (
-                        <div className="p-12 text-center border-2 border-dashed border-border/20 rounded-lg">
-                           <p className="text-[10px] font-black uppercase text-muted-foreground">Nenhum advogado cadastrado no gabinete.</p>
-                        </div>
-                      )}
                    </div>
                 </div>
               )}
@@ -449,9 +616,18 @@ export default function SettingsPage() {
                       <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Zap size={14} className="text-primary"/> Neural Infrastructure</CardTitle>
                     </CardHeader>
                     <CardContent className="p-8">
+                      <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-4">
+                         <ShieldCheck className="text-amber-500 mt-1 shrink-0" size={18} />
+                         <div>
+                            <p className="text-[10px] font-black uppercase text-amber-700">Protocolo de Sigilo Ativo</p>
+                            <p className="text-[9px] font-bold text-amber-600/80 uppercase leading-relaxed mt-1">
+                               As IAs estão instruídas a nunca citar nomes de empresas. Todo despacho é gerado em tom institucional neutro (Setor Processual / Escritório).
+                            </p>
+                         </div>
+                      </div>
                       <RadioGroup value={iaModel} onValueChange={(val) => { setIaModel(val); localStorage.setItem('lexisPredict_preferred_ia', val); toast({ title: "Prioridade Alterada" }); }}>
                         <div className="grid gap-4">
-                          <EngineOption id="xai" label="xAI GROK 4.5" desc="Raciocínio jurídico sênior." status="ONLINE" />
+                          <EngineOption id="xai" label="xAI GROK 4.5" desc="Raciocínio jurídico sênior + RAG." status="ONLINE" />
                           <EngineOption id="groq-llama" label="GROQ LLAMA 3.3" desc="Velocidade ultra-fluida." status="ONLINE" />
                         </div>
                       </RadioGroup>
@@ -484,6 +660,66 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* MODAL CONHECIMENTO */}
+        <Dialog open={isKnowledgeModalOpen} onOpenChange={setIsKnowledgeModalOpen}>
+           <DialogContent className="sm:max-w-[500px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
+              <form onSubmit={handleKnowledgeUpload}>
+                 <DialogHeader>
+                    <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3">
+                       <FileUp size={20} className="text-primary"/> Ensinar Unidade Neural
+                    </DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase text-muted-foreground mt-2">
+                       A IA processará este PDF para fundamentar os rascunhos de resposta aos clientes.
+                    </DialogDescription>
+                 </DialogHeader>
+                 <div className="space-y-6 py-6">
+                    <div className="space-y-2">
+                       <Label className="text-[9px] font-black uppercase">Título do Documento</Label>
+                       <Input value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value.toUpperCase()})} placeholder="EX: MANUAL DE CUSTAS 2026" className="border-black rounded-none h-11 uppercase font-black text-xs" required />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-2">
+                          <Label className="text-[9px] font-black uppercase">Tipo</Label>
+                          <Select value={knowledgeForm.type} onValueChange={v => setKnowledgeForm({...knowledgeForm, type: v})}>
+                             <SelectTrigger className="border-black rounded-none h-11"><SelectValue /></SelectTrigger>
+                             <SelectContent>
+                                <SelectItem value="script">Script de Despacho</SelectItem>
+                                <SelectItem value="politica">Política Interna</SelectItem>
+                                <SelectItem value="manual">Manual Técnico</SelectItem>
+                                <SelectItem value="modelo">Modelo de Peça</SelectItem>
+                             </SelectContent>
+                          </Select>
+                       </div>
+                       <div className="space-y-2">
+                          <Label className="text-[9px] font-black uppercase">Tags (Separadas por vírgula)</Label>
+                          <Input value={knowledgeForm.tags} onChange={e => setKnowledgeForm({...knowledgeForm, tags: e.target.value})} placeholder="JG, CUSTAS, TJSP" className="border-black rounded-none h-11 uppercase font-bold text-xs" />
+                       </div>
+                    </div>
+
+                    <div className="p-4 bg-secondary/20 border border-black/5 flex items-center justify-between">
+                       <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase">Usar no Despacho ao Cliente?</Label>
+                          <p className="text-[8px] font-bold uppercase text-muted-foreground">Se ativo, a IA utilizará este conteúdo para redigir rascunhos de rascunhos.</p>
+                       </div>
+                       <Switch checked={knowledgeForm.useInDispatch} onCheckedChange={v => setKnowledgeForm({...knowledgeForm, useInDispatch: v})} />
+                    </div>
+
+                    <div className="space-y-2">
+                       <Label className="text-[9px] font-black uppercase">Arquivo (PDF, MD ou TXT)</Label>
+                       <Input type="file" ref={knowledgeFileInputRef} accept=".pdf,.md,.txt" className="border-black rounded-none h-11 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-black file:text-white" required />
+                    </div>
+                 </div>
+                 <DialogFooter>
+                    <Button type="submit" disabled={isUploadingKnowledge} className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] tracking-widest rounded-none shadow-[6px_6px_0px_#22c55e]">
+                       {isUploadingKnowledge ? <Loader2 className="animate-spin mr-2"/> : <Zap size={14} className="mr-2"/>}
+                       Processar Conhecimento Neural
+                    </Button>
+                 </DialogFooter>
+              </form>
+           </DialogContent>
+        </Dialog>
+
         <Dialog open={isAdvModalOpen} onOpenChange={setIsAdvModalOpen}>
            <DialogContent className="sm:max-w-[550px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
               <form onSubmit={handleSaveAdvogado}>
@@ -491,7 +727,6 @@ export default function SettingsPage() {
                     <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
                        <User size={16} className="text-primary"/> Perfil de Advogado Banca
                     </DialogTitle>
-                    <DialogDescription className="sr-only">Gerencie os dados técnicos e inscrições na OAB dos advogados da banca.</DialogDescription>
                  </DialogHeader>
                  <div className="space-y-6 py-6">
                     <div className="grid grid-cols-4 gap-4">
@@ -510,50 +745,49 @@ export default function SettingsPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase"><Globe size={10} className="inline mr-1"/> Nacionalidade</Label>
-                          <Input value={advForm.nacionalidade} onChange={e => setAdvForm({...advForm, nacionalidade: e.target.value.toLowerCase()})} placeholder="Ex: brasileiro" className="border-black rounded-none h-11 font-bold text-xs" />
+                          <Label className="text-[9px] font-black uppercase">Nacionalidade</Label>
+                          <Input value={advForm.nacionalidade} onChange={e => setAdvForm({...advForm, nacionalidade: e.target.value.toLowerCase()})} className="border-black rounded-none h-11 lowercase font-bold text-xs" />
                        </div>
                        <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase"><Info size={10} className="inline mr-1"/> Estado Civil</Label>
-                          <Select value={advForm.estadoCivil} onValueChange={v => setAdvForm({...advForm, estadoCivil: v})}>
-                             <SelectTrigger className="border-black rounded-none h-11"><SelectValue /></SelectTrigger>
-                             <SelectContent>
-                                <SelectItem value="solteiro">Solteiro(a)</SelectItem>
-                                <SelectItem value="casado">Casado(a)</SelectItem>
-                                <SelectItem value="divorciado">Divorciado(a)</SelectItem>
-                                <SelectItem value="viuvo">Viúvo(a)</SelectItem>
-                                <SelectItem value="uniao estavel">União Estável</SelectItem>
-                             </SelectContent>
-                          </Select>
+                          <Label className="text-[9px] font-black uppercase">Estado Civil</Label>
+                          <Input value={advForm.estadoCivil} onChange={e => setAdvForm({...advForm, estadoCivil: e.target.value.toLowerCase()})} className="border-black rounded-none h-11 lowercase font-bold text-xs" />
                        </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase"><Mail size={10} className="inline mr-1"/> Email Corporativo</Label>
-                          <Input type="email" value={advForm.email} onChange={e => setAdvForm({...advForm, email: e.target.value.toLowerCase()})} className="border-black rounded-none h-11 lowercase font-bold text-xs" />
-                       </div>
-                       <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase"><MapPin size={10} className="inline mr-1"/> Endereço Profissional</Label>
-                          <Input value={advForm.endereco} onChange={e => setAdvForm({...advForm, endereco: e.target.value.toUpperCase()})} className="border-black rounded-none h-11 uppercase font-bold text-[10px]" />
-                       </div>
+                    <div className="space-y-2">
+                       <Label className="text-[9px] font-black uppercase">Endereço Profissional</Label>
+                       <Input value={advForm.endereco} onChange={e => setAdvForm({...advForm, endereco: e.target.value.toUpperCase()})} className="border-black rounded-none h-11 font-bold text-xs" />
+                    </div>
+
+                    <div className="space-y-2">
+                       <Label className="text-[9px] font-black uppercase">E-mail de Intimação</Label>
+                       <Input value={advForm.email} onChange={e => setAdvForm({...advForm, email: e.target.value.toLowerCase()})} className="border-black rounded-none h-11 lowercase font-bold text-xs" />
                     </div>
 
                     <div className="space-y-4">
-                       <Label className="text-[9px] font-black uppercase flex items-center justify-between border-b pb-1">
-                          Inscrições OAB <Button type="button" variant="ghost" onClick={() => setAdvForm({...advForm, oabs: [...advForm.oabs, { uf: 'SP', num: '' }]})} className="h-6 text-[8px] border-none"><Plus size={10} className="mr-1"/> Add UF</Button>
-                       </Label>
-                       <div className="max-h-[120px] overflow-auto space-y-3 pr-2">
+                       <div className="flex justify-between items-center">
+                          <Label className="text-[9px] font-black uppercase">Registros OAB (UF / Número)</Label>
+                          <Button type="button" onClick={() => setAdvForm({...advForm, oabs: [...advForm.oabs, { uf: 'SP', num: '' }]})} variant="ghost" className="h-6 text-[8px] font-black uppercase">Add UF</Button>
+                       </div>
+                       <div className="space-y-2">
                           {advForm.oabs.map((o, idx) => (
-                             <div key={idx} className="flex gap-2 items-center">
-                                <Select value={o.uf} onValueChange={v => { const n = [...advForm.oabs]; n[idx].uf = v; setAdvForm({...advForm, oabs: n}); }}>
-                                   <SelectTrigger className="w-24 border-black rounded-none h-10"><SelectValue /></SelectTrigger>
+                             <div key={idx} className="flex gap-2">
+                                <Select value={o.uf} onValueChange={(v) => {
+                                   const newOabs = [...advForm.oabs];
+                                   newOabs[idx].uf = v;
+                                   setAdvForm({...advForm, oabs: newOabs});
+                                }}>
+                                   <SelectTrigger className="w-20 border-black rounded-none"><SelectValue /></SelectTrigger>
                                    <SelectContent>
                                       {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}
                                    </SelectContent>
                                 </Select>
-                                <Input placeholder="000.000" value={o.num} onChange={e => { const n = [...advForm.oabs]; n[idx].num = e.target.value; setAdvForm({...advForm, oabs: n}); }} className="border-black rounded-none h-10 uppercase font-mono text-xs" />
-                                <Button type="button" variant="ghost" onClick={() => { const n = [...advForm.oabs]; n.splice(idx,1); setAdvForm({...advForm, oabs: n}); }} className="text-red-500"><Trash2 size={14}/></Button>
+                                <Input value={o.num} onChange={e => {
+                                   const newOabs = [...advForm.oabs];
+                                   newOabs[idx].num = e.target.value;
+                                   setAdvForm({...advForm, oabs: newOabs});
+                                }} placeholder="000.000" className="border-black rounded-none font-mono" />
+                                <Button type="button" onClick={() => setAdvForm({...advForm, oabs: advForm.oabs.filter((_, i) => i !== idx)})} variant="ghost" size="icon" className="h-11 w-11"><X size={14}/></Button>
                              </div>
                           ))}
                        </div>

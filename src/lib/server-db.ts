@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
@@ -7,8 +6,8 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v300.0 ELITE)
- * Governança de Visibilidade e Telemetria Real.
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v305.0 ELITE)
+ * Governança de Visibilidade, Telemetria e Conhecimento.
  */
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -123,9 +122,51 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   }
 }
 
-/**
- * Busca processos pendentes de auditoria. Exige empresa_id para isolamento total.
- */
+export async function listKnowledgeDocs(empresaId: string) {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('knowledge_docs')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function deleteKnowledgeDoc(docId: string, empresaId: string) {
+  const admin = await getSupabaseAdmin();
+  // Deletar chunks primeiro
+  await admin.from('knowledge_chunks').delete().eq('doc_id', docId).eq('empresa_id', empresaId);
+  // Deletar doc
+  const { error } = await admin.from('knowledge_docs').delete().eq('id', docId).eq('empresa_id', empresaId);
+  return { success: !error };
+}
+
+export async function saveKnowledgeDocSystem(doc: any) {
+  const admin = await getSupabaseAdmin();
+  const { data, error } = await admin.from('knowledge_docs').insert(doc).select().single();
+  return { success: !error, data, error };
+}
+
+export async function saveKnowledgeChunksSystem(chunks: any[]) {
+  const admin = await getSupabaseAdmin();
+  const { error } = await admin.from('knowledge_chunks').insert(chunks);
+  return { success: !error, error };
+}
+
+export async function searchKnowledgeChunksSystem(keywords: string[], empresaId: string) {
+  const admin = await getSupabaseAdmin();
+  // Busca simples por tags que contenham as keywords
+  const { data, error } = await admin
+    .from('knowledge_chunks')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .containedBy('tags', keywords)
+    .limit(5);
+    
+  return { success: !error, data, error };
+}
+
+// ... (resto das funções mantidas)
 export async function getGlobalPendingProcessesSystem(limit: number, empresaId: string): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
@@ -310,7 +351,6 @@ export async function getStoredNotes(): Promise<any[]> {
   const { auth_id, empresa_id, isMasterView } = await getUserContext();
   if (!empresa_id || !auth_id || !supabase) return [];
   
-  // Governança Master: Se for Superadmin ou Supervisor, vê todas as notas da empresa
   const hasFullAccess = isMasterView === true;
 
   try {

@@ -1,0 +1,34 @@
+{
+  "chunks": [
+    {
+      "id": "global_001",
+      "secao": "JUSTIÇA GRATUITA",
+      "tags": ["jg", "gratuidade", "assistência judiciária", "custas"],
+      "texto": "A Justiça Gratuita é um benefício para quem não pode arcar com as custas do processo. Quando o juiz analisa, ele pode deferir (aceitar), indeferir (negar) ou pedir mais documentos. Se indeferir, haverá uma guia de custas para pagamento oficial do Tribunal. Nunca prometa que será aceito sem a decisão, apenas informe que o pedido foi feito e está sendo apreciado pelo juízo."
+    },
+    {
+      "id": "global_002",
+      "secao": "LIMINAR / TUTELA",
+      "tags": ["liminar", "tutela", "urgência", "concedida"],
+      "texto": "A liminar (tutela de urgência) é uma decisão provisória no início do processo. O objetivo é resguardar o direito imediatamente. Se o juiz analisar e não decidir na hora, o processo segue para a contestação da outra parte. Se deferir, a parte contrária é intimada a cumprir imediatamente."
+    },
+    {
+      "id": "global_003",
+      "secao": "SENTENÇA",
+      "tags": ["sentença", "procedente", "improcedente", "mérito"],
+      "texto": "A sentença é a decisão do juiz de primeiro grau. Procedente significa acolhimento do pedido; Improcedente significa negativa inicial. Cabe recurso em ambos os casos. O tom deve ser de análise técnica: o jurídico lê os fundamentos e prepara o próximo passo estratégico (recurso ou execução)."
+    },
+    {
+      "id": "global_004",
+      "secao": "BUSCA E APREENSÃO",
+      "tags": ["ba", "busca", "apreensão", "veículo", "posse"],
+      "texto": "Em caso de indício de Busca e Apreensão, a orientação é de segurança: manter o bem resguardado e aguardar a defesa técnica. É um rito de alta urgência que exige resposta imediata do jurídico para tentar reverter a medida liminar."
+    },
+    {
+      "id": "global_005",
+      "secao": "MERO EXPEDIENTE",
+      "tags": ["rotina", "mero expediente", "ato ordinatório", "cartório"],
+      "texto": "Movimentações de rotina são registros burocráticos do dia a dia do fórum (juntar petição, publicar nota, remeter autos). Não alteram o mérito e não exigem ação do cliente. Servem para manter o fluxo da ação caminhando no sistema do tribunal."
+    }
+  ]
+}

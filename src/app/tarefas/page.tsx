@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -63,7 +64,7 @@ import {
   DialogFooter,
   DialogDescription
 } from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -77,7 +78,7 @@ import { format, parseISO, startOfDay, differenceInDays, isAfter, isValid, parse
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
-import { perguntarIA } from '@/ai/flows/chat-ai-flow';
+import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 
 interface TaskGroup {
   cliente: string;
@@ -226,24 +227,19 @@ export default function TarefasPage() {
     
     setIsGeneratingAIDraft(true);
     try {
-      const context = `
-        CLIENTE: ${historyResult.case.cliente}
-        CNJ: ${historyResult.case.protocolo}
-        ÚLTIMO RETORNO: ${historyResult.case.ultimoRetorno || 'S/ Registro'}
-        MOVIMENTOS:
-        ${historyResult.movimentos.slice(0, 10).map(m => `- ${m.dataHora}: ${m.nome}`).join('\n')}
-      `;
-
-      const prompt = `Você é o Especialista em CX da Get Assessoria. Com base nos dados acima, redija UMA mensagem para o cliente. 
-      RITO: Contexto -> Fato -> Impacto -> Próximo Passo. Seja claro, profissional e acolhedor. Não invente decisões.`;
-
-      const res = await perguntarIA({ pergunta: prompt });
-      if (res?.resposta) {
-        setAiDraft(res.resposta);
-        toast({ title: "Draft IA Gerado" });
+      const res = await gerarRascunhoEstrategico({
+        clienteNome: historyResult.case.cliente,
+        protocolo: historyResult.case.protocolo,
+        ultimoRetorno: historyResult.case.ultimoRetorno,
+        movimentos: historyResult.movimentos
+      });
+      
+      if (res.rascunho) {
+        setAiDraft(res.rascunho);
+        toast({ title: "Rascunho Motor Lexis Gerado" });
       }
     } catch (e) {
-      toast({ title: "Falha Neural", variant: "destructive" });
+      toast({ title: "Falha no Motor Lexis", variant: "destructive" });
     } finally {
       setIsGeneratingAIDraft(false);
     }
@@ -655,10 +651,10 @@ export default function TarefasPage() {
                          <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
                       </div>
 
-                      {/* IA STRATEGIC DRAFT (Opcional via Validação) */}
+                      {/* IA DRAFT AREA (Opcional via Motor Lexis) */}
                       <div className="bg-black text-white p-5 space-y-4 mb-8">
                          <div className="flex items-center justify-between">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico via IA</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
                             <Button 
                               onClick={handleGenerateAIDraft} 
                               disabled={isGeneratingAIDraft}
@@ -673,7 +669,7 @@ export default function TarefasPage() {
                               <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-6 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
                            </div>
                          ) : (
-                           <p className="text-[8px] font-bold text-white/30 uppercase">Clique no botão para gerar uma resposta personalizada baseada na cronologia neural.</p>
+                           <p className="text-[8px] font-bold text-white/30 uppercase">Clique no botão para gerar uma resposta personalizada baseada na Base de Conhecimento.</p>
                          )}
                       </div>
                       

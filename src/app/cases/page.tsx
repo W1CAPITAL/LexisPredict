@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -49,7 +50,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/label';
 import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
 import { format, parseISO, startOfDay, isAfter, parse, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
@@ -61,7 +62,7 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
-import { perguntarIA } from '@/ai/flows/chat-ai-flow';
+import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 
 const CaseRow = React.memo(({ 
   c, 
@@ -408,25 +409,19 @@ function CasesContent() {
     
     setIsGeneratingAIDraft(true);
     try {
-      const context = `
-        CLIENTE: ${historyResult.case.cliente}
-        CNJ: ${historyResult.case.protocolo}
-        ÚLTIMO RETORNO NO SISTEMA: ${historyResult.case.ultimoRetorno || 'Não registrado'}
-        CRONOLOGIA RECENTE:
-        ${historyResult.movimentos.slice(0, 10).map(m => `- ${m.dataHora}: ${m.nome}`).join('\n')}
-      `;
-
-      const prompt = `Você é o Consultor Estratégico da Get Assessoria. Com base na cronologia acima, redija UMA sugestão de mensagem profissional e clara para o cliente. 
-      RITO OBRIGATÓRIO: Contexto -> Fato Simples -> Impacto Seguro -> Próximo Passo. 
-      REGRAS: Use linguagem leiga, não invente decisões positivas se o texto for neutro, e tranquilize o cliente se for apenas rotina.`;
-
-      const res = await perguntarIA({ pergunta: prompt });
-      if (res?.resposta) {
-        setAiDraft(res.resposta);
-        toast({ title: "Rascunho Neural Gerado" });
+      const res = await gerarRascunhoEstrategico({
+        clienteNome: historyResult.case.cliente,
+        protocolo: historyResult.case.protocolo,
+        ultimoRetorno: historyResult.case.ultimoRetorno,
+        movimentos: historyResult.movimentos
+      });
+      
+      if (res.rascunho) {
+        setAiDraft(res.rascunho);
+        toast({ title: "Rascunho Motor Lexis Gerado" });
       }
     } catch (e) {
-      toast({ title: "Falha na Unidade Neural", variant: "destructive" });
+      toast({ title: "Falha no Motor Lexis", variant: "destructive" });
     } finally {
       setIsGeneratingAIDraft(false);
     }
@@ -894,10 +889,10 @@ function CasesContent() {
                            <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
                         </div>
 
-                        {/* IA DRAFT AREA (Opcional via Validação) */}
+                        {/* IA DRAFT AREA (Opcional via Motor Lexis) */}
                         <div className="bg-black text-white p-5 space-y-4 mb-8">
                            <div className="flex items-center justify-between">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico via IA</p>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
                               <Button 
                                 onClick={handleGenerateAIDraft} 
                                 disabled={isGeneratingAIDraft}
@@ -912,7 +907,7 @@ function CasesContent() {
                                 <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-6 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
                              </div>
                            ) : (
-                             <p className="text-[8px] font-bold text-white/30 uppercase">Clique no botão para gerar uma resposta personalizada baseada no contexto neural.</p>
+                             <p className="text-[8px] font-bold text-white/30 uppercase">Clique no botão para gerar uma resposta personalizada baseada na Base de Conhecimento.</p>
                            )}
                         </div>
                         
