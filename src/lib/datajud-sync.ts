@@ -1,30 +1,25 @@
-
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v1.9
- * Agora com hashing de integridade para detectar mudanças reais de conteúdo.
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v2.0
+ * Agora com hashing de integridade e detecção rigorosa de ritos de encerramento.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
+import { startOfDay, parseISO, isAfter, subDays, parse, isValid, isBefore } from 'date-fns';
 
 /**
  * Gera uma assinatura (hash) do estado atual das movimentações.
- * Focado nos 3 movimentos mais recentes para detectar mudanças reais de texto.
  */
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
   
-  // Ordenar decrescente por data para pegar os mais recentes
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  // Compor a string base com os 3 movimentos mais novos
   const signature = sorted.slice(0, 3)
     .map(m => `${m.dataHora || ''}|${m.nome || ''}`)
     .join('##');
 
-  // Retorno de hash simplificado via base64 para o banco
   try {
     if (typeof btoa !== 'undefined') {
       return btoa(unescape(encodeURIComponent(signature))).substring(0, 32);
@@ -50,41 +45,38 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
   
-  const window = sorted.slice(0, 20);
+  const window = sorted.slice(0, 25);
 
   const patternGroups = [
     {
-      patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'DETERMINADA A BAIXA', 'PROCESSO BAIXADO'],
+      patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'DETERMINADA A BAIXA', 'PROCESSO BAIXADO', 'MANDADO DE LEVANTAMENTO EXPEDIDO'],
       label: 'BAIXA DEFINITIVA'
     },
     {
-      patterns: ['TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO'],
+      patterns: ['TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO', 'CERTIFICADA A TRANSITO'],
       label: 'TRÂNSITO EM JULGADO'
     },
     {
-      patterns: ['EXTINTO O PROCESSO', 'EXTINTO POR ABANDONO', 'ABANDONO DA CAUSA', 'ABANDONO PELO AUTOR', 'EXTINTO O PROCESSO POR ABANDONO', 'JULGO EXTINTO', 'EXTINGO O PROCESSO', 'PROCESSO EXTINTO', 'SENTENÇA DE EXTINÇÃO', 'SENTENCA DE EXTINCAO'],
+      patterns: ['EXTINTO O PROCESSO', 'EXTINTO POR ABANDONO', 'ABANDONO DA CAUSA', 'EXTINTO O PROCESSO POR ABANDONO', 'JULGO EXTINTO', 'EXTINGO O PROCESSO', 'PROCESSO EXTINTO', 'SENTENÇA DE EXTINÇÃO', 'SENTENCA DE EXTINCAO', 'EXTINÇÃO DO PROCESSO'],
       label: 'EXTINÇÃO / ABANDONO'
     },
     {
-      patterns: ['EXTINTO', 'EXTINÇÃO', 'EXTINCAO', 'EXTINÇÃO SEM RESOLUÇÃO', 'EXTINCAO SEM RESOLUCAO', 'SEM RESOLUÇÃO DO MÉRITO', 'SEM RESOLUCAO DO MERITO'],
+      patterns: ['EXTINTO', 'EXTINÇÃO', 'EXTINCAO', 'SEM RESOLUÇÃO DO MÉRITO', 'SEM RESOLUCAO DO MERITO'],
       label: 'EXTINÇÃO DO FEITO'
     },
     {
-      patterns: ['ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVEM-SE OS AUTOS', 'AUTOS ARQUIVADOS', 'ARQUIVAMENTO', 'ARQUIVADO', 'ARQUIV'],
+      patterns: ['ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVEM-SE OS AUTOS', 'AUTOS ARQUIVADOS', 'ARQUIVAMENTO', 'ARQUIVADO'],
       label: 'ARQUIVAMENTO DEFINITIVO'
     }
   ];
 
   const constructedWindow = window.map(mov => {
-    const text = `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
-    return { text };
+    return `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
   });
 
   for (const group of patternGroups) {
-    for (const item of constructedWindow) {
-      if (group.patterns.some(p => item.text.includes(p))) {
-        return { encerrado: true, motivo: group.label };
-      }
+    if (constructedWindow.some(text => group.patterns.some(p => text.includes(p)))) {
+      return { encerrado: true, motivo: group.label };
     }
   }
 
@@ -111,14 +103,14 @@ export function detectarAtualizacaoPosRetorno(
   
   if (!dataMov) return { alerta: false, dataUltimo: null, nomeUltimo: null };
 
-  const dataMovDay = startOfDay(dataMov);
   const dataUltimoStr = dataMov.toISOString();
   const nomeUltimo = lastMov.nome || "Movimentação não identificada";
 
-  if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-") {
-    const trintaDiasAtras = startOfDay(subDays(new Date(), 30));
+  // Se nunca houve retorno, marcamos como alerta se o movimento for recente (últimos 45 dias)
+  if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-" || ultimoRetornoStr === "0") {
+    const quarentaECincoDias = startOfDay(subDays(new Date(), 45));
     return {
-      alerta: isAfter(dataMovDay, trintaDiasAtras),
+      alerta: isAfter(dataMov, quarentaECincoDias),
       dataUltimo: dataUltimoStr,
       nomeUltimo
     };
@@ -128,14 +120,15 @@ export function detectarAtualizacaoPosRetorno(
     let dataRetorno;
     const cleanStr = ultimoRetornoStr.trim();
     if (cleanStr.includes('-')) {
-      dataRetorno = startOfDay(parseISO(cleanStr));
+      dataRetorno = parseISO(cleanStr);
     } else if (cleanStr.includes('/')) {
-      dataRetorno = startOfDay(parse(cleanStr, 'dd/MM/yyyy', new Date()));
+      dataRetorno = parse(cleanStr, 'dd/MM/yyyy', new Date());
     }
 
     if (dataRetorno && isValid(dataRetorno)) {
+      // Comparação absoluta: Movimento é estritamente após o retorno?
       return {
-        alerta: isAfter(dataMovDay, dataRetorno),
+        alerta: isAfter(dataMov, dataRetorno),
         dataUltimo: dataUltimoStr,
         nomeUltimo
       };
