@@ -94,7 +94,6 @@ export default function UnifiedReport() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // REGRA DE VIGILÂNCIA: Se encerrado no tribunal, não conta como andamento pendente
     const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
@@ -147,17 +146,21 @@ export default function UnifiedReport() {
       }
     });
 
-    // Chance de Encerramento (Top 5 Ativos por Potencial)
+    // Chance de Encerramento - Filtrar apenas processos do próprio usuário
     const topChance = ativos
+      .filter(c => c.created_by === profile?.auth_user_id)
       .map(c => ({
         cliente: c.cliente,
         protocolo: c.protocolo,
         analysis: analisarChanceEncerramento(c)
       }))
       .filter(a => ['Muito Alta', 'Alta'].includes(a.analysis.level))
+      .sort((a, b) => {
+        const priority: Record<string, number> = { 'Muito Alta': 0, 'Alta': 1 };
+        return (priority[a.analysis.level] ?? 2) - (priority[b.analysis.level] ?? 2);
+      })
       .slice(0, 5);
 
-    // Notas Metrics
     const notesTotal = notes.length;
     const notesComEvidencia = notes.filter(n => !!n.imageUrl).length;
 
@@ -182,7 +185,7 @@ export default function UnifiedReport() {
       notesTotal,
       notesComEvidencia
     };
-  }, [cases, notes]);
+  }, [cases, notes, profile]);
 
   const handleExportPDF = () => window.print();
 
@@ -292,7 +295,6 @@ export default function UnifiedReport() {
             </div>
           </section>
 
-          {/* NOVO: VOLUMETRIA POR TRIBUNAL (GRÁFICO RESTAURADO) */}
           <section className="px-10 pb-12">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-1 h-5 bg-black" />
@@ -322,7 +324,6 @@ export default function UnifiedReport() {
             </div>
           </section>
 
-          {/* NOVO: NOTAS E EVIDÊNCIAS (SEÇÃO ADICIONADA) */}
           <section className="px-10 pb-12">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-1 h-5 bg-black" />
@@ -395,9 +396,15 @@ export default function UnifiedReport() {
                     <TrendingUp size={18} className="text-emerald-600" />
                     <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Prognóstico: Chance Alta de Encerramento</h2>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                      {metrics.topChance.map((item, idx) => (
-                       <ChanceEncerramentoCard key={idx} analysis={item.analysis} className="shadow-none border-2" />
+                       <div key={idx} className="space-y-3">
+                          <div className="px-1 space-y-1">
+                             <p className="text-[10px] font-black uppercase text-black truncate tracking-tight">{item.cliente}</p>
+                             <p className="text-[8px] font-mono text-black/40 uppercase tracking-widest">{item.protocolo}</p>
+                          </div>
+                          <ChanceEncerramentoCard analysis={item.analysis} className="shadow-none border-2" />
+                       </div>
                      ))}
                   </div>
                </div>
@@ -502,7 +509,7 @@ export default function UnifiedReport() {
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 border-2 border-black flex items-center justify-center bg-black"><Zap size={16} className="text-white" /></div>
                 <div>
-                  <p className="text-[10px] tracking-[0.3em] uppercase text-black/40 font-black">2026 W1 Capital</p>
+                  <p className="text-[10px] tracking-[0.35em] uppercase text-black/40 font-black">2026 W1 Capital</p>
                   <p className="text-xs text-black font-black uppercase">Relatório Executivo Operacional</p>
                 </div>
               </div>
@@ -526,6 +533,7 @@ export default function UnifiedReport() {
           .shadow-\[12px_12px_0px_#000\] { box-shadow: none !important; }
           .shadow-\[6px_6px_0px_#000\] { box-shadow: none !important; }
           .shadow-\[4px_4px_0px_#00D1FF\] { box-shadow: none !important; }
+          .shadow-\[8px_8px_0px_#000\] { box-shadow: none !important; }
           @page { size: A4; margin: 10mm; }
         }
       `}</style>
