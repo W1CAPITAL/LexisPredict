@@ -4,7 +4,7 @@
  */
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   CheckCircle, 
