@@ -1,5 +1,5 @@
 /**
- * @fileOverview MOTOR LEXIS DE DESPACHO v6.0 (CORE SOBERANO)
+ * @fileOverview MOTOR LEXIS DE DESPACHO v6.5 (CORE SOBERANO)
  * Orquestrador principal que prioriza Base de Conhecimento Local e aplica Anonimização.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -75,7 +75,7 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
 
   // 3. System Prompt Soberano (GROUNDED)
   const systemPrompt = `
-    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v6.0.
+    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v6.5.
     SUA MISSÃO: REDIGIR ATENDIMENTO PROCESSUAL PROFISSIONAL PARA O CLIENTE ${clienteNome.toUpperCase()}.
     
     FONTES DE VERDADE:
@@ -87,7 +87,6 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     - TOM: Profissional, calmo, sem "juridiquês" excessivo.
     - PROIBIÇÃO: NUNCA cite nome de empresa, marca, razão social ou fundador. 
     - SEGURANÇA: Se o processo foi encerrado/cancelado, explique o motivo técnico de forma honesta. Não use tom de vitória se houve cancelamento.
-    - PAGAMENTOS: Se o assunto envolver custas, reforce que boletos são apenas oficiais do Tribunal ou via CNPJ da assessoria. Jamais em nome de pessoa física.
     
     TRECHOS AUTORIZADOS DA BASE DE CONHECIMENTO:
     ${contextKnowledge}
