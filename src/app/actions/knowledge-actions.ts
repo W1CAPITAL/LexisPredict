@@ -13,8 +13,9 @@ import {
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview Unidade de Ingestão de Conhecimento v6.1
+ * @fileOverview Unidade de Ingestão de Conhecimento v6.2
  * Gerencia o ciclo de vida de documentos e fragmentação de PDFs para aprendizado da IA.
+ * Protocolo de Resiliência: Bad XRef Handling.
  */
 
 const BANNED_TERMS = ['GET ASSESSORIA', 'GETASSESSORIA', 'W1 CAPITAL', 'W1CAPITAL', 'W1', 'GET'];
@@ -67,17 +68,30 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
 
     if (uploadError) throw uploadError;
 
-    // 2. Extração de Texto
+    // 2. Extração de Texto com Protocolo de Resiliência
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     let extractedText = "";
 
-    if (file.type === 'application/pdf') {
-      const pdf = (await import('pdf-parse')).default;
-      const pdfData = await pdf(buffer);
-      extractedText = pdfData.text || "";
+    const isPdfFile = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
+    if (isPdfFile) {
+      try {
+        const pdf = (await import('pdf-parse')).default;
+        const pdfData = await pdf(buffer);
+        extractedText = pdfData.text || "";
+      } catch (pdfErr: any) {
+        console.warn("[Extraction] PDF structure issue detected (bad xref?), attempting string recovery.");
+        // Fallback: Tenta ler como texto caso seja um PDF malformado ou TXT renomeado
+        extractedText = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, '');
+      }
     } else {
+      // TXT, MD, etc.
       extractedText = buffer.toString('utf-8');
+    }
+
+    if (!extractedText || extractedText.trim().length < 5) {
+      throw new Error("Não foi possível extrair conteúdo útil do arquivo.");
     }
 
     const cleanExtractedText = cleanText(extractedText);
@@ -96,7 +110,7 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
 
     if (!docRes.success || !docRes.data) throw new Error("Falha ao registrar documento.");
 
-    // 4. Fragmentação (Chunks) - Split por parágrafos duplos ou seções
+    // 4. Fragmentação (Chunks)
     const rawChunks = cleanExtractedText.split(/\n\s*\n/).filter(c => c.trim().length > 50);
     const chunksPayload = rawChunks.map((text, i) => ({
       doc_id: docRes.data.id,
@@ -121,7 +135,6 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
 }
 
 export async function searchKnowledgeChunksAction(keywords: string[], empresaId: string) {
-  // Filtra apenas chunks de documentos marcados para uso em despacho e da empresa específica
   const res = await searchKnowledgeChunksSystem(keywords, empresaId);
   return {
     success: res.success,
