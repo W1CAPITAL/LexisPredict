@@ -45,6 +45,7 @@ import {
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { ChanceEncerramentoCard } from '@/components/dashboard/chance-encerramento-card';
 import { analisarChanceEncerramento } from '@/lib/chance-encerramento-logic';
+import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 
 export default function UnifiedReport() {
   const { setCases } = useAppStore();
@@ -146,9 +147,11 @@ export default function UnifiedReport() {
       }
     });
 
-    // Chance de Encerramento - Filtrar apenas processos do próprio usuário
+    // Governança de Escopo para Chance de Encerramento
+    const isMaster = checkIfSuperAdmin(profile) || checkIfSupervisor(profile);
+
     const topChance = ativos
-      .filter(c => c.created_by === profile?.auth_user_id)
+      .filter(c => isMaster ? true : (c.created_by === profile?.auth_user_id))
       .map(c => ({
         cliente: c.cliente,
         protocolo: c.protocolo,
@@ -159,7 +162,7 @@ export default function UnifiedReport() {
         const priority: Record<string, number> = { 'Muito Alta': 0, 'Alta': 1 };
         return (priority[a.analysis.level] ?? 2) - (priority[b.analysis.level] ?? 2);
       })
-      .slice(0, 5);
+      .slice(0, isMaster ? 12 : 6);
 
     const notesTotal = notes.length;
     const notesComEvidencia = notes.filter(n => !!n.imageUrl).length;
@@ -183,7 +186,8 @@ export default function UnifiedReport() {
       countBA, rateBA,
       topChance,
       notesTotal,
-      notesComEvidencia
+      notesComEvidencia,
+      isMaster
     };
   }, [cases, notes, profile]);
 
@@ -392,18 +396,23 @@ export default function UnifiedReport() {
           <section className="px-10 pb-12 space-y-12">
              {metrics.topChance.length > 0 && (
                <div className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <TrendingUp size={18} className="text-emerald-600" />
-                    <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Prognóstico: Chance Alta de Encerramento</h2>
+                  <div className="flex items-center justify-between border-b-2 border-black pb-2">
+                    <div className="flex items-center gap-3">
+                      <TrendingUp size={18} className="text-emerald-600" />
+                      <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">
+                        Prognóstico: Chance Alta de Encerramento {metrics.isMaster ? "(Visão Master)" : "(Sua Carteira)"}
+                      </h2>
+                    </div>
+                    <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px]">Top {metrics.topChance.length}</Badge>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                      {metrics.topChance.map((item, idx) => (
-                       <div key={idx} className="space-y-3">
-                          <div className="px-1 space-y-1">
+                       <div key={idx} className="bg-white border-2 border-black shadow-[8px_8px_0px_#000] rounded-none overflow-hidden flex flex-col">
+                          <div className="px-4 py-3 border-b-2 border-black bg-[#f8f9fb]">
                              <p className="text-[10px] font-black uppercase text-black truncate tracking-tight">{item.cliente}</p>
                              <p className="text-[8px] font-mono text-black/40 uppercase tracking-widest">{item.protocolo}</p>
                           </div>
-                          <ChanceEncerramentoCard analysis={item.analysis} className="shadow-none border-2" />
+                          <ChanceEncerramentoCard analysis={item.analysis} className="border-none shadow-none" />
                        </div>
                      ))}
                   </div>
