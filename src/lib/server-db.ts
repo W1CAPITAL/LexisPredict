@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
@@ -67,7 +66,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!client) return [];
 
   try {
-    const { auth_id, isMasterView } = await getUserContext();
+    const context = await getUserContext();
+    const { auth_id, isMasterView } = context;
     let allData: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -119,20 +119,18 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   }
 }
 
-export async function getGlobalPendingProcessesSystem(limit: number, empresaId?: string): Promise<LegalCase[]> {
+/**
+ * Busca processos pendentes de auditoria. Exige empresa_id para isolamento total.
+ */
+export async function getGlobalPendingProcessesSystem(limit: number, empresaId: string): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
 
-  let query = admin
+  const { data, error } = await admin
     .from('processos')
     .select('*')
-    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`);
-
-  if (empresaId) {
-    query = query.eq('empresa_id', empresaId);
-  }
-
-  const { data, error } = await query
+    .eq('empresa_id', empresaId)
+    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`)
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(limit);
 
@@ -221,7 +219,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   if (fetchError || !current) return { success: false };
 
   const updatedDados = {
-    ...current.dados,
+    ...(current.dados as any),
     ...patch
   };
 
@@ -265,11 +263,11 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
         datajud_ultimo_movimento: c.datajud_ultimo_movimento,
         datajud_ultimo_nome: c.datajud_ultimo_nome,
         datajud_consultado_em: c.datajud_consultado_em,
-        tem_atualizacao_pos_retorno: c.tem_atualizacao_pos_retorno,
-        datajud_encerrado_tribunal: c.datajud_encerrado_tribunal,
+        tem_atualizacao_pos_retorno: !!c.tem_atualizacao_pos_retorno,
+        datajud_encerrado_tribunal: !!c.datajud_encerrado_tribunal,
         datajud_encerrado_motivo: c.datajud_encerrado_motivo,
         datajud_hash: c.datajud_hash || null,
-        indicio_busca_apreensao: c.indicio_busca_apreensao,
+        indicio_busca_apreensao: !!c.indicio_busca_apreensao,
         busca_apreensao_confianca: c.busca_apreensao_confianca,
         busca_apreensao_motivo: c.busca_apreensao_motivo,
         busca_apreensao_consultado_em: c.busca_apreensao_consultado_em,
