@@ -13,9 +13,9 @@ import {
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview Unidade de Ingestão de Conhecimento v6.2
+ * @fileOverview Unidade de Ingestão de Conhecimento v7.0
  * Gerencia o ciclo de vida de documentos e fragmentação de PDFs para aprendizado da IA.
- * Protocolo de Resiliência: Bad XRef Handling.
+ * Protocolo de Integridade: Extensão Soberana + Anti-Lixo Binário.
  */
 
 const BANNED_TERMS = ['GET ASSESSORIA', 'GETASSESSORIA', 'W1 CAPITAL', 'W1CAPITAL', 'W1', 'GET'];
@@ -55,62 +55,77 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
 
     if (!file) throw new Error("Nenhum arquivo enviado.");
 
+    // 1. Decisão de Formato por Extensão (Soberana)
+    const fileNameLower = file.name.toLowerCase();
+    const isPdf = fileNameLower.endsWith('.pdf');
+    const isText = fileNameLower.endsWith('.txt') || fileNameLower.endsWith('.md');
+
+    if (!isPdf && !isText) {
+      throw new Error(`Formato não suportado: ${file.name}. Utilize apenas .pdf, .txt ou .md`);
+    }
+
     const tags = tagsStr.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
     const admin = await getSupabaseAdmin();
     
-    const fileName = `${Date.now()}_${file.name}`;
-    const filePath = `${empresa_id}/knowledge/${fileName}`;
+    // 2. Validação de Infraestrutura (Bucket)
+    const { data: buckets, error: bucketError } = await admin.storage.listBuckets();
+    if (bucketError) throw new Error(`Falha ao validar infraestrutura: ${bucketError.message}`);
+    if (!buckets?.find(b => b.name === 'knowledge')) {
+      throw new Error("bucket knowledge inexistente");
+    }
 
-    // 1. Upload Storage
-    const { error: uploadError } = await admin.storage
-      .from('knowledge')
-      .upload(filePath, file);
+    const uniqueFileName = `${Date.now()}_${file.name}`;
+    const storagePath = `${empresa_id}/knowledge/${uniqueFileName}`;
 
-    if (uploadError) throw uploadError;
-
-    // 2. Extração de Texto com Protocolo de Resiliência
+    // 3. Extração de Texto com Protocolo de Resiliência
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     let extractedText = "";
 
-    const isPdfFile = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
-
-    if (isPdfFile) {
+    if (isPdf) {
       try {
         const pdf = (await import('pdf-parse')).default;
         const pdfData = await pdf(buffer);
         extractedText = pdfData.text || "";
       } catch (pdfErr: any) {
-        console.warn("[Extraction] PDF structure issue detected (bad xref?), attempting string recovery.");
-        // Fallback: Tenta ler como texto caso seja um PDF malformado ou TXT renomeado
-        extractedText = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, '');
+        // Bloqueia fallback binário. Exige transparência de erro.
+        throw new Error(`Falha no parser de PDF (Bad XRef ou corrupção estrutural). Mensagem: ${pdfErr.message}. Por favor, converta este documento para .txt ou .md para ingestão segura.`);
       }
     } else {
-      // TXT, MD, etc.
+      // Texto puro
       extractedText = buffer.toString('utf-8');
     }
 
     if (!extractedText || extractedText.trim().length < 5) {
-      throw new Error("Não foi possível extrair conteúdo útil do arquivo.");
+      throw new Error("Falha na extração: o documento não contém texto processável suficiente.");
     }
 
     const cleanExtractedText = cleanText(extractedText);
 
-    // 3. Gravar Documento
+    // 4. Upload Storage
+    const { error: uploadError } = await admin.storage
+      .from('knowledge')
+      .upload(storagePath, file);
+
+    if (uploadError) throw new Error(`Falha no upload do arquivo: ${uploadError.message}`);
+
+    // 5. Gravar Documento (Payload alinhado com esquema Lexis v7)
     const docRes = await saveKnowledgeDocSystem({
       empresa_id,
       created_by: auth_id,
       title,
       type,
       tags,
-      storage_path: filePath,
+      storage_path: storagePath,
       use_in_dispatch: useInDispatch,
       active: true
     });
 
-    if (!docRes.success || !docRes.data) throw new Error("Falha ao registrar documento.");
+    if (!docRes.success || !docRes.data) {
+      throw new Error(`Erro ao registrar metadados: ${docRes.error?.message || 'Falha no banco'}`);
+    }
 
-    // 4. Fragmentação (Chunks)
+    // 6. Fragmentação (Chunks)
     const rawChunks = cleanExtractedText.split(/\n\s*\n/).filter(c => c.trim().length > 50);
     const chunksPayload = rawChunks.map((text, i) => ({
       doc_id: docRes.data.id,
@@ -129,7 +144,7 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
     return { success: true, docId: docRes.data.id, chunks: chunksPayload.length };
 
   } catch (e: any) {
-    console.error("[Knowledge Upload] Fail:", e.message);
+    console.error("[Knowledge Upload] Critical Fail:", e.message);
     return { success: false, error: e.message };
   }
 }
