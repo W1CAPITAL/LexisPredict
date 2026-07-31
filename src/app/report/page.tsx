@@ -98,7 +98,14 @@ export default function UnifiedReport() {
     const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
-    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca && !c.datajud_encerrado_tribunal).length;
+
+    // HEURÍSTICA DE CUMPRIMENTO (v60.0): Flag OU Texto em ativos
+    const countCumprimento = ativos.filter(c => {
+      if (c.datajud_encerrado_tribunal) return false;
+      if (c.em_cumprimento_sentenca) return true;
+      const text = `${c.datajud_ultimo_nome || ''} ${c.observacao || ''}`.toUpperCase();
+      return /CUMPRIMENTO DE SENTEN[CÇ]A|FASE DE CUMPRIMENTO|IN[IÍ]CIO DO CUMPRIMENTO|EXECU[ÇC][AÃ]O DE SENTEN[CÇ]A|CUMPRIMENTO PROVIS[OÓ]RIO/.test(text);
+    }).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
@@ -167,7 +174,7 @@ export default function UnifiedReport() {
       .slice(0, isMaster ? 12 : 6);
 
     const notesTotal = notes.length;
-    const notesComEvidencia = notes.filter(n => !!n.imageUrl).length;
+    const notesComEvidencia = notes.filter(n => !!(n as any).imageUrl).length;
 
     return {
       totalRepo, 
@@ -216,10 +223,6 @@ export default function UnifiedReport() {
             print-color-adjust: exact !important; 
           }
           * { box-shadow: none !important; }
-          .shadow-\[12px_12px_0px_#000\] { box-shadow: none !important; }
-          .shadow-\[6px_6px_0px_#000\] { box-shadow: none !important; }
-          .shadow-\[4px_4px_0px_#00D1FF\] { box-shadow: none !important; }
-          .shadow-\[8px_8px_0px_#000\] { box-shadow: none !important; }
           .break-avoid { break-inside: avoid; page-break-inside: avoid; }
           @page { size: A4; margin: 12mm; }
         }
@@ -353,7 +356,6 @@ export default function UnifiedReport() {
               )}
             </div>
 
-            {/* Tabela para Impressão (Substitui o gráfico no PDF) */}
             <div className="hidden print:block border-2 border-black">
               <table className="w-full text-left text-[9px] font-black uppercase">
                 <thead className="bg-black text-white">
@@ -403,7 +405,7 @@ export default function UnifiedReport() {
                   <Badge className="bg-primary text-black rounded-none text-[8px]">Histórico v3.1</Badge>
                </div>
                <div className="divide-y-2 divide-black/5">
-                  {(window.matchMedia('print').matches ? notes.slice(0, 12) : notes.slice(0, 20)).map((note, idx) => (
+                  {(notes.slice(0, 12)).map((note, idx) => (
                     <div key={idx} className="p-5 bg-white space-y-1 break-avoid">
                        <div className="flex justify-between items-start">
                           <h4 className="text-[10px] font-black uppercase text-black">{note.title}</h4>
@@ -453,7 +455,7 @@ export default function UnifiedReport() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-2 gap-8">
                      {metrics.topChance.map((item, idx) => (
-                       <div key={idx} className="bg-white border-2 border-black shadow-[8px_8px_0px_#000] rounded-none overflow-hidden flex flex-col break-avoid">
+                       <div key={idx} className="bg-white border-2 border-black rounded-none overflow-hidden flex flex-col break-avoid">
                           <div className="px-4 py-3 border-b-2 border-black bg-[#f8f9fb]">
                              <p className="text-[10px] font-black uppercase text-black truncate tracking-tight">{item.cliente}</p>
                              <p className="text-[8px] font-mono text-black/40 uppercase tracking-widest">{item.protocolo}</p>

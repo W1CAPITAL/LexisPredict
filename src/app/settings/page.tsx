@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -64,6 +65,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -489,6 +491,7 @@ export default function SettingsPage() {
                     <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
                        <User size={16} className="text-primary"/> Perfil de Advogado Banca
                     </DialogTitle>
+                    <DialogDescription className="sr-only">Gerencie os dados técnicos e inscrições na OAB dos advogados da banca.</DialogDescription>
                  </DialogHeader>
                  <div className="space-y-6 py-6">
                     <div className="grid grid-cols-4 gap-4">

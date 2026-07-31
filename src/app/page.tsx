@@ -120,7 +120,14 @@ export default function Dashboard() {
     const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
-    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca && !c.datajud_encerrado_tribunal).length;
+
+    // HEURÍSTICA DE CUMPRIMENTO (v60.0): Flag OU Texto em ativos
+    const countCumprimento = ativos.filter(c => {
+      if (c.datajud_encerrado_tribunal) return false;
+      if (c.em_cumprimento_sentenca) return true;
+      const text = `${c.datajud_ultimo_nome || ''} ${c.observacao || ''}`.toUpperCase();
+      return /CUMPRIMENTO DE SENTEN[CÇ]A|FASE DE CUMPRIMENTO|IN[IÍ]CIO DO CUMPRIMENTO|EXECU[ÇC][AÃ]O DE SENTEN[CÇ]A|CUMPRIMENTO PROVIS[OÓ]RIO/.test(text);
+    }).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
@@ -176,6 +183,14 @@ export default function Dashboard() {
       })
       .slice(0, 6);
   }, [cases]);
+
+  const statsPills = [
+    { label: "Vencidos", count: metrics.countVencido, total: metrics.activeTotal, color: "bg-red-500" },
+    { label: "Hoje", count: metrics.countHoje, total: metrics.activeTotal, color: "bg-blue-500" },
+    { label: "Atenção", count: metrics.countAtencao, total: metrics.activeTotal, color: "bg-orange-500" },
+    { label: "Saudáveis", count: metrics.countSaudavel, total: metrics.activeTotal, color: "bg-emerald-500" },
+    { label: "Sem Prazo", count: metrics.countSemPrazo, total: metrics.activeTotal, color: "bg-slate-400" }
+  ];
 
   if (!mounted) return null;
 
@@ -274,7 +289,7 @@ export default function Dashboard() {
                                <span className="text-xl font-black text-indigo-400 tabular-nums">({metrics.rateCumprimento}%)</span>
                             </div>
                             <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                              Processos em fase de execução/cumprimento de sentença identificados pelo scanner.
+                              Processos em fase de execução/cumprimento de sentença identificados pelo motor heurístico.
                             </p>
                          </div>
                       </div>
@@ -389,11 +404,9 @@ export default function Dashboard() {
                         <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição da Carteira</h3>
                       </div>
                       <div className="space-y-6">
-                        <StatusPillDashboard label="Vencidos" count={metrics.countVencido} total={metrics.activeTotal} color="bg-red-500" />
-                        <StatusPillDashboard label="Hoje" count={metrics.countHoje} total={metrics.activeTotal} color="bg-blue-500" />
-                        <StatusPillDashboard label="Atenção" count={metrics.countAtencao} total={metrics.activeTotal} color="bg-orange-500" />
-                        <StatusPillDashboard label="Saudáveis" count={metrics.countSaudavel} total={metrics.activeTotal} color="bg-emerald-500" />
-                        <StatusPillDashboard label="Sem Prazo" count={metrics.countSemPrazo} total={metrics.activeTotal} color="bg-slate-400" />
+                        {statsPills.map((pill) => (
+                           <StatusPillDashboard key={pill.label} label={pill.label} count={pill.count} total={metrics.activeTotal} color={pill.color} />
+                        ))}
                         <div className="pt-4 border-t border-border/30">
                           <StatusPillDashboard label="Ativos Totais" count={metrics.activeTotal} total={metrics.totalRepo} color="bg-black" isTotalBase />
                         </div>
@@ -402,7 +415,7 @@ export default function Dashboard() {
 
                    {/* GRÁFICO DE STATUS */}
                    <section className="premium-card p-8 h-[380px] flex flex-col">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-10">Proporção de Ativos</h3>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-10">Proportion of Active Assets</h3>
                       <div className="flex-1 min-h-0">
                         {metrics.statusData.length > 0 ? (
                           <ResponsiveContainer width="100%" height="100%">

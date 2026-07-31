@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -23,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { TermsOfServiceContent } from '@/components/legal/TermsOfServiceContent';
 
@@ -248,6 +250,7 @@ export default function SignupPage() {
                         <DialogTitle className="font-black uppercase flex items-center gap-2">
                            <ShieldCheck size={20} className="text-primary" /> Acordo de Licenciamento
                         </DialogTitle>
+                        <DialogDescription className="text-[10px] font-bold uppercase">Termos e condições de uso da plataforma LexisPredict Elite.</DialogDescription>
                       </DialogHeader>
                       <TermsOfServiceContent />
                     </DialogContent>

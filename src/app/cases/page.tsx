@@ -45,6 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
@@ -82,6 +83,14 @@ const CaseRow = React.memo(({
 
   const [loading, setLoading] = useState(false);
 
+  // HEURÍSTICA DE CUMPRIMENTO (v60.0)
+  const isExecutionPhase = useMemo(() => {
+    if (c.datajud_encerrado_tribunal) return false;
+    if (c.em_cumprimento_sentenca) return true;
+    const text = `${c.datajud_ultimo_nome || ''} ${c.observacao || ''}`.toUpperCase();
+    return /CUMPRIMENTO DE SENTEN[CÇ]A|FASE DE CUMPRIMENTO|IN[IÍ]CIO DO CUMPRIMENTO|EXECU[ÇC][AÃ]O DE SENTEN[CÇ]A|CUMPRIMENTO PROVIS[OÓ]RIO/.test(text);
+  }, [c]);
+
   return (
     <tr className="hover:bg-secondary/30 transition-all border-b border-border/50 group">
       <td className="px-8 py-5">
@@ -101,9 +110,9 @@ const CaseRow = React.memo(({
               </Badge>
             )}
 
-            {c.em_cumprimento_sentenca && !c.datajud_encerrado_tribunal && (
+            {isExecutionPhase && (
               <Badge 
-                title={c.cumprimento_sentenca_motivo || "Fase Executiva"}
+                title={c.cumprimento_sentenca_motivo || "Fase Executiva Detectada"}
                 className="h-5 px-2 rounded-md bg-indigo-900 text-white font-black uppercase text-[8px] border-2 border-indigo-500"
               >
                 <Scale size={10} className="mr-1" /> CUMPRIMENTO DE SENTENÇA
@@ -523,7 +532,7 @@ function CasesContent() {
                 disabled={isScanning || loading}
                 className="h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5"
               >
-                {isScanning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap size={16} className="mr-2 text-primary" />}
+                {isScanning ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Zap size={16} className="mr-2 text-primary" />}
                 Varredura DataJud
               </Button>
             )}
@@ -674,6 +683,7 @@ function CasesContent() {
                       <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
                    </div>
                 </div>
+                <DialogDescription className="sr-only">Visualização detalhada da cronologia processual do tribunal.</DialogDescription>
               </DialogHeader>
               <div className="p-0">
                  <div className="p-6 bg-secondary/20 border-b flex items-center justify-between">
@@ -707,7 +717,7 @@ function CasesContent() {
                                 <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
                              </div>
                              <div className="flex-1 pt-1 space-y-1 pb-6">
-                                <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: 'digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                                <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
                                 <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
                              </div>
                           </div>
@@ -735,6 +745,7 @@ function CasesContent() {
                 <DialogTitle className="font-black uppercase tracking-tight">
                   {editingCase ? 'Editar Registro' : 'Novo Registro de Gabinete'}
                 </DialogTitle>
+                <DialogDescription className="sr-only">Formulário para cadastro ou edição de processos no gabinete.</DialogDescription>
               </DialogHeader>
               <div className="p-6 space-y-4">
                 <div className="grid gap-2">

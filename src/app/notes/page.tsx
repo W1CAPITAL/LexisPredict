@@ -20,6 +20,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 export default function NotesPage() {
@@ -243,6 +244,10 @@ export default function NotesPage() {
 
         <Dialog open={!!fullscreenImage} onOpenChange={(open) => !open && setFullscreenImage(null)}>
           <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 bg-black/95 border-none flex items-center justify-center">
+            <DialogHeader className="sr-only">
+               <DialogTitle>Visualização de Imagem</DialogTitle>
+               <DialogDescription>Imagem da evidência em tela cheia.</DialogDescription>
+            </DialogHeader>
             {fullscreenImage && (
               <div className="relative w-full h-full flex items-center justify-center">
                 <img src={fullscreenImage} alt="Evidência" className="max-w-full max-h-full object-contain" />

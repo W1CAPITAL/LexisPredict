@@ -47,6 +47,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -379,7 +380,10 @@ export default function TeamManagement() {
 
         <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
            <DialogContent className="sm:max-w-[650px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
-              <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Ficha de Desempenho Real</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Ficha de Desempenho Real</DialogTitle>
+                <DialogDescription className="sr-only">Detalhamento dos pontos de performance e produtividade do operador ou advogado.</DialogDescription>
+              </DialogHeader>
               <div className="py-6 space-y-6">
                  <div className="flex justify-between items-center bg-secondary/20 p-4 border border-black/5">
                     <div>
@@ -435,6 +439,7 @@ export default function TeamManagement() {
               <form onSubmit={handleAddUser}>
                  <DialogHeader className="p-6 bg-secondary/20 border-b">
                     <DialogTitle className="font-black uppercase tracking-tight">Provisionar Operador</DialogTitle>
+                    <DialogDescription className="sr-only">Preencha os dados abaixo para criar um novo usuário no gabinete.</DialogDescription>
                  </DialogHeader>
                  <div className="p-6 space-y-4">
                     <div className="grid gap-2">

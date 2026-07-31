@@ -491,6 +491,7 @@ export default function TarefasPage() {
                     <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
                  </div>
               </div>
+              <DialogDescription className="sr-only">Listagem cronológica das movimentações oficiais capturadas via DataJud.</DialogDescription>
             </DialogHeader>
             <div className="p-0">
                <div className="p-6 bg-secondary/20 border-b flex items-center justify-between">
