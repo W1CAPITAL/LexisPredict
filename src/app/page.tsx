@@ -35,7 +35,8 @@ import {
   Signal,
   Globe,
   Network,
-  Loader2
+  Loader2,
+  Scale
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -119,10 +120,12 @@ export default function Dashboard() {
     const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
+    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca && !c.datajud_encerrado_tribunal).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
     const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
+    const rateCumprimento = activeTotal > 0 ? Math.round((countCumprimento / activeTotal) * 100) : 0;
    
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -156,7 +159,8 @@ export default function Dashboard() {
       riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos,
       countNovoAndamento, rateAndamento,
       countEncerradoTribunal, rateEncerrado,
-      countBA, rateBA
+      countBA, rateBA,
+      countCumprimento, rateCumprimento
     };
   }, [cases, t]);
 
@@ -218,11 +222,12 @@ export default function Dashboard() {
           <ScrollArea className="flex-1 overflow-auto">
             <TabsContent value="overview" className="p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
               {/* TOP KPI CARDS */}
-              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                 <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
                 <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
                 <StatCard title="Novos Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} trend={`${metrics.rateAndamento}%`} trendUp={true} />
                 <StatCard title="Encerrados Tribunal" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color={metrics.countEncerradoTribunal > 0 ? "success" : "primary"} trend={`${metrics.rateEncerrado}%`} trendUp={true} />
+                <StatCard title="Fase Executiva" value={loading ? "..." : metrics.countCumprimento} icon={<Scale />} color="primary" trend={`${metrics.rateCumprimento}%`} trendUp={true} />
               </section>
               
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
@@ -261,15 +266,15 @@ export default function Dashboard() {
                             </p>
                          </div>
                          <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Indícios de Busca e Apreensão</p>
+                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Cumprimento de Sentença Ativo</p>
                             <div className="flex items-baseline gap-4">
                                <span className="text-4xl font-black tabular-nums tracking-tighter">
-                                 {metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
+                                 {metrics.countCumprimento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
                                </span>
-                               <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
+                               <span className="text-xl font-black text-indigo-400 tabular-nums">({metrics.rateCumprimento}%)</span>
                             </div>
                             <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                              Riscos possessórios detectados via análise neural de movimentos e processos relacionados.
+                              Processos em fase de execução/cumprimento de sentença identificados pelo scanner.
                             </p>
                          </div>
                       </div>

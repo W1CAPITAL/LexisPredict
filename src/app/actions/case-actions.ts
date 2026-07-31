@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase/server';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
-import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria } from '@/lib/datajud-sync';
+import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { headers } from 'next/headers';
 
@@ -111,13 +111,14 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
       const enc = detectarEncerradoNoTribunal(movimentos);
       const ba = analisarBuscaApreensao(dataJud);
+      const cump = detectarCumprimentoSentenca(movimentos);
       const newHash = gerarHashAuditoria(movimentos);
       
       const patch = {
         datajud_ultimo_movimento: check.dataUltimo,
         datajud_ultimo_nome: check.nomeUltimo,
         datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: !!check.alerta, // Recalculado do zero (soberania cronológica)
+        tem_atualizacao_pos_retorno: !!check.alerta, 
         datajud_encerrado_tribunal: !!enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
         datajud_hash: newHash,
@@ -125,6 +126,9 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         busca_apreensao_confianca: ba.confianca,
         busca_apreensao_motivo: ba.motivo,
         busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
+        em_cumprimento_sentenca: !enc.encerrado && cump.ativo,
+        cumprimento_sentenca_motivo: !enc.encerrado ? cump.motivo : null,
+        cumprimento_sentenca_consultado_em: new Date().toISOString(),
         tribunal: dataJud.tribunal || target.tribunal
       };
 
@@ -190,7 +194,10 @@ export async function clearDataJudAuditAction() {
       indicio_busca_apreensao: false,
       busca_apreensao_confianca: null,
       busca_apreensao_motivo: null,
-      busca_apreensao_consultado_em: null
+      busca_apreensao_consultado_em: null,
+      em_cumprimento_sentenca: false,
+      cumprimento_sentenca_motivo: null,
+      cumprimento_sentenca_consultado_em: null
     }));
     await saveStoredCasesForEmpresa(updated, empresa_id);
     return { success: true };

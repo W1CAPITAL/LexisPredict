@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -28,7 +29,8 @@ import {
   AlertCircle,
   FileSearch,
   FileDown,
-  ShieldAlert
+  ShieldAlert,
+  Scale
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -96,6 +98,15 @@ const CaseRow = React.memo(({
                 )}
               >
                 <ShieldAlert size={10} className="mr-1" /> BUSCA E APREENSÃO
+              </Badge>
+            )}
+
+            {c.em_cumprimento_sentenca && !c.datajud_encerrado_tribunal && (
+              <Badge 
+                title={c.cumprimento_sentenca_motivo || "Fase Executiva"}
+                className="h-5 px-2 rounded-md bg-indigo-900 text-white font-black uppercase text-[8px] border-2 border-indigo-500"
+              >
+                <Scale size={10} className="mr-1" /> CUMPRIMENTO DE SENTENÇA
               </Badge>
             )}
 
@@ -442,18 +453,11 @@ function CasesContent() {
     const headers = [
       'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
       'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
-      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'PROB_ENCERRAMENTO',
+      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'CUMPRIMENTO_SENTENCA',
       'DATAJUD_ULTIMO_MOV', 'DATAJUD_DATA_MOV'
     ];
 
     const rows = filtered.map(c => {
-      const prob = calcularProbabilidadeEncerramento({
-        status: c.status,
-        situacao: c.situacao,
-        observacao: c.observacao,
-        diasVencidos: c.diasFaltando && c.diasFaltando < 0 ? Math.abs(c.diasFaltando) : 0
-      });
-
       return [
         c.cliente,
         c.protocolo,
@@ -468,7 +472,7 @@ function CasesContent() {
         c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
         c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
         c.indicio_busca_apreensao ? 'SIM' : 'NÃO',
-        `${prob}%`,
+        c.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
         c.datajud_ultimo_nome || '',
         c.datajud_ultimo_movimento ? format(new Date(c.datajud_ultimo_movimento), 'dd/MM/yyyy') : ''
       ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
@@ -703,7 +707,7 @@ function CasesContent() {
                                 <Clock size={16} className="text-muted-foreground group-hover:text-primary" />
                              </div>
                              <div className="flex-1 pt-1 space-y-1 pb-6">
-                                <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
+                                <p className="text-[10px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR', { day: 'digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Data não informada'}</p>
                                 <p className="text-[13px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
                              </div>
                           </div>

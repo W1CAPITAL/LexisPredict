@@ -11,7 +11,7 @@ import {
   updateCaseDataJudSystem
 } from '@/lib/server-db';
 import { fetchDataJud } from '@/lib/datajud';
-import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria } from '@/lib/datajud-sync';
+import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 
 export const dynamic = 'force-dynamic';
@@ -90,13 +90,14 @@ async function auditSingleProcess(c: any): Promise<boolean> {
     const enc = detectarEncerradoNoTribunal(movimentos);
     const upd = detectarAtualizacaoPosRetorno(c.ultimoRetorno, movimentos);
     const ba = analisarBuscaApreensao(dataJud);
+    const cump = detectarCumprimentoSentenca(movimentos);
     const newHash = gerarHashAuditoria(movimentos);
 
     const patch: any = {
       datajud_ultimo_movimento: upd.dataUltimo,
       datajud_ultimo_nome: upd.nomeUltimo,
       datajud_consultado_em: new Date().toISOString(),
-      tem_atualizacao_pos_retorno: !!upd.alerta, // Overwrite estrito (sem OR)
+      tem_atualizacao_pos_retorno: !!upd.alerta, 
       datajud_encerrado_tribunal: !!enc.encerrado,
       datajud_encerrado_motivo: enc.motivo,
       datajud_hash: newHash,
@@ -104,6 +105,9 @@ async function auditSingleProcess(c: any): Promise<boolean> {
       busca_apreensao_confianca: ba.confianca,
       busca_apreensao_motivo: ba.motivo,
       busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
+      em_cumprimento_sentenca: !enc.encerrado && cump.ativo,
+      cumprimento_sentenca_motivo: !enc.encerrado ? cump.motivo : null,
+      cumprimento_sentenca_consultado_em: new Date().toISOString(),
       tribunal: dataJud.tribunal || c.tribunal
     };
 

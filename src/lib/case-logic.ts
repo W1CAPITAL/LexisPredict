@@ -67,6 +67,11 @@ export interface LegalCase {
   busca_apreensao_confianca?: 'alta' | 'media' | 'baixa' | null;
   busca_apreensao_motivo?: string | null;
   busca_apreensao_consultado_em?: string | null;
+
+  // Fase Executiva
+  em_cumprimento_sentenca?: boolean;
+  cumprimento_sentenca_motivo?: string | null;
+  cumprimento_sentenca_consultado_em?: string | null;
 }
 
 export type CaseNote = {
@@ -249,6 +254,10 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     indicio_busca_apreensao: toBool(data.indicio_busca_apreensao),
     busca_apreensao_confianca: data.busca_apreensao_confianca,
     busca_apreensao_motivo: data.busca_apreensao_motivo,
-    busca_apreensao_consultado_em: data.busca_apreensao_consultado_em
+    busca_apreensao_consultado_em: data.busca_apreensao_consultado_em,
+
+    em_cumprimento_sentenca: toBool(data.em_cumprimento_sentenca),
+    cumprimento_sentenca_motivo: data.cumprimento_sentenca_motivo,
+    cumprimento_sentenca_consultado_em: data.cumprimento_sentenca_consultado_em
   };
 }

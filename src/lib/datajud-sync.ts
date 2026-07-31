@@ -85,6 +85,41 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 }
 
 /**
+ * Detecta se o processo está em fase de Cumprimento de Sentença / Execução.
+ */
+export function detectarCumprimentoSentenca(movimentos: any[]): {
+  ativo: boolean;
+  motivo: string | null;
+} {
+  if (!movimentos || movimentos.length === 0) {
+    return { ativo: false, motivo: null };
+  }
+
+  const allText = movimentos.slice(0, 30).map(m => 
+    `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
+  ).join(' ');
+
+  const patterns = [
+    'CUMPRIMENTO DE SENTENÇA',
+    'CUMPRIMENTO DE SENTENCA',
+    'FASE DE CUMPRIMENTO',
+    'INÍCIO DO CUMPRIMENTO',
+    'INICIO DO CUMPRIMENTO',
+    'EXECUÇÃO DE SENTENÇA',
+    'EXECUCAO DE SENTENCA',
+    'CUMPRIMENTO PROVISÓRIO'
+  ];
+
+  for (const p of patterns) {
+    if (allText.includes(p)) {
+      return { ativo: true, motivo: p };
+    }
+  }
+
+  return { ativo: false, motivo: null };
+}
+
+/**
  * Detecta se houve atualização no tribunal após o último retorno do usuário.
  * REGRA LEXIS: Alerta somente se DataMov > Fim do dia do Retorno.
  * Se não houver data, retorna false.

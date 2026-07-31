@@ -98,10 +98,12 @@ export default function UnifiedReport() {
     const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
+    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca && !c.datajud_encerrado_tribunal).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
     const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
+    const rateCumprimento = activeTotal > 0 ? Math.round((countCumprimento / activeTotal) * 100) : 0;
 
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -184,6 +186,7 @@ export default function UnifiedReport() {
       countNovoAndamento, rateAndamento,
       countEncerradoTribunal, rateEncerrado,
       countBA, rateBA,
+      countCumprimento, rateCumprimento,
       topChance,
       notesTotal,
       notesComEvidencia,
@@ -204,6 +207,24 @@ export default function UnifiedReport() {
 
   return (
     <div className="min-h-screen bg-[#f3f2f2] text-black font-sans selection:bg-black/5">
+      <style jsx global>{`
+        @media print {
+          body { 
+            background-color: white !important; 
+            color: black !important; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important; 
+          }
+          * { box-shadow: none !important; }
+          .shadow-\[12px_12px_0px_#000\] { box-shadow: none !important; }
+          .shadow-\[6px_6px_0px_#000\] { box-shadow: none !important; }
+          .shadow-\[4px_4px_0px_#00D1FF\] { box-shadow: none !important; }
+          .shadow-\[8px_8px_0px_#000\] { box-shadow: none !important; }
+          .break-avoid { break-inside: avoid; page-break-inside: avoid; }
+          @page { size: A4; margin: 12mm; }
+        }
+      `}</style>
+
       <div className="print:hidden sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-black/10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -211,7 +232,7 @@ export default function UnifiedReport() {
               <Link href="/"><ArrowLeft size={14} className="mr-2" /> Voltar ao Gabinete</Link>
             </Button>
             <div className="h-6 w-px bg-black/10 hidden sm:block" />
-            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Unified Report v4.0</Badge>
+            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Unified Report v5.0</Badge>
           </div>
           <Button onClick={handleExportPDF} className="bg-black hover:bg-black/90 text-white font-black uppercase text-[10px] tracking-widest h-11 px-7 rounded-none transition-all shadow-[4px_4px_0px_#00D1FF] hover:shadow-none">
             <Printer size={14} className="mr-2" /> Imprimir Dossiê Completo
@@ -244,38 +265,42 @@ export default function UnifiedReport() {
           </header>
 
           <section className="px-10 py-10 bg-[#f8f9fb]">
-             <div className="mb-10 p-8 border-4 border-black bg-black text-white shadow-[10px_10px_0px_#00D1FF]">
+             <div className="mb-10 p-8 border-4 border-black bg-black text-white shadow-[10px_10px_0px_#00D1FF] break-avoid">
                 <h3 className="text-xs font-black uppercase tracking-[0.4em] mb-6 flex items-center gap-3"><Zap className="text-primary" size={14}/> Telemetria Forense (DataJud)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase opacity-60">Andamentos Judiciais não atendidos</p>
-                      <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
-                         <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
+                      <p className="text-[10px] font-black uppercase opacity-60">Novos Andamentos</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black tabular-nums">{metrics.countNovoAndamento}</span>
+                         <span className="text-sm font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
                       </div>
-                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de vigilância: processos com movimentos novos após o último retorno.</p>
                    </div>
                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase opacity-60">Baixas identificadas no Tribunal</p>
-                      <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
-                         <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
+                      <p className="text-[10px] font-black uppercase opacity-60">Baixas Tribunal</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black tabular-nums">{metrics.countEncerradoTribunal}</span>
+                         <span className="text-sm font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
                       </div>
-                      <p className="text-[8px] font-bold uppercase italic opacity-40">Métrica de resolutividade: ritos de encerramento detectados via auditoria unificada.</p>
                    </div>
                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase opacity-60">Indícios de Busca e Apreensão</p>
-                      <div className="flex items-baseline gap-4">
-                         <span className="text-4xl font-black tabular-nums">{metrics.countBA} <span className="text-lg opacity-40">de {metrics.activeTotal}</span></span>
-                         <span className="text-xl font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
+                      <p className="text-[10px] font-black uppercase opacity-60">Fase Executiva</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black tabular-nums">{metrics.countCumprimento}</span>
+                         <span className="text-sm font-black text-indigo-400 tabular-nums">({metrics.rateCumprimento}%)</span>
                       </div>
-                      <p className="text-[8px] font-bold uppercase italic opacity-40">Riscos detectados via análise neural de movimentos processuais.</p>
+                   </div>
+                   <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase opacity-60">Indícios de B.A.</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black tabular-nums">{metrics.countBA}</span>
+                         <span className="text-sm font-black text-red-400 tabular-nums">({metrics.rateBA}%)</span>
+                      </div>
                    </div>
                 </div>
              </div>
 
             <div className="grid grid-cols-12 gap-6">
-              <div className="col-span-12 md:col-span-4 bg-white border-2 border-black p-7 flex flex-col justify-between min-h-[220px] shadow-[6px_6px_0px_#000]">
+              <div className="col-span-12 md:col-span-4 bg-white border-2 border-black p-7 flex flex-col justify-between min-h-[220px] shadow-[6px_6px_0px_#000] break-avoid">
                 <div>
                   <p className="text-[10px] tracking-[0.3em] uppercase text-black/40 mb-4 font-black">Índice de Risco Calculado</p>
                   <div className="flex items-end gap-3">
@@ -299,12 +324,13 @@ export default function UnifiedReport() {
             </div>
           </section>
 
-          <section className="px-10 pb-12">
+          <section className="px-10 pb-12 break-avoid">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-1 h-5 bg-black" />
               <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Volumetria de Processos por Tribunal (Top 8)</h2>
             </div>
-            <div className="bg-white border-2 border-black p-8 h-[350px]">
+            
+            <div className="print:hidden bg-white border-2 border-black p-8 h-[350px]">
               {metrics.chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={metrics.chartData}>
@@ -326,6 +352,26 @@ export default function UnifiedReport() {
                 <div className="h-full flex items-center justify-center opacity-20 uppercase font-black text-xs">Dados insuficientes para renderização gráfica</div>
               )}
             </div>
+
+            {/* Tabela para Impressão (Substitui o gráfico no PDF) */}
+            <div className="hidden print:block border-2 border-black">
+              <table className="w-full text-left text-[9px] font-black uppercase">
+                <thead className="bg-black text-white">
+                  <tr>
+                    <th className="p-2 px-4">Tribunal</th>
+                    <th className="p-2 px-4 text-right">Volume</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/5">
+                  {metrics.chartData.map((d, i) => (
+                    <tr key={i}>
+                      <td className="p-2 px-4">{d.name}</td>
+                      <td className="p-2 px-4 text-right">{d.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section className="px-10 pb-12">
@@ -334,7 +380,7 @@ export default function UnifiedReport() {
               <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Notas, Anotações e Evidências</h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 break-avoid">
                <div className="bg-white border-2 border-black p-6 flex flex-col justify-center shadow-[4px_4px_0px_#000]">
                   <p className="text-[8px] font-black uppercase text-black/40 tracking-widest mb-1">Total de Anotações</p>
                   <div className="flex items-center gap-3">
@@ -351,14 +397,14 @@ export default function UnifiedReport() {
                </div>
             </div>
 
-            <div className="border-2 border-black overflow-hidden bg-gray-50">
+            <div className="border-2 border-black overflow-hidden bg-gray-50 break-avoid">
                <div className="bg-black text-white p-3 font-black text-[9px] uppercase tracking-widest flex items-center justify-between">
                   <span>Últimos Registros do Livro de Evidências</span>
                   <Badge className="bg-primary text-black rounded-none text-[8px]">Histórico v3.1</Badge>
                </div>
                <div className="divide-y-2 divide-black/5">
-                  {notes.slice(0, 20).map((note, idx) => (
-                    <div key={idx} className="p-5 bg-white space-y-1">
+                  {(window.matchMedia('print').matches ? notes.slice(0, 12) : notes.slice(0, 20)).map((note, idx) => (
+                    <div key={idx} className="p-5 bg-white space-y-1 break-avoid">
                        <div className="flex justify-between items-start">
                           <h4 className="text-[10px] font-black uppercase text-black">{note.title}</h4>
                           <span className="text-[8px] font-black text-black/30 uppercase tabular-nums">{note.updatedAt}</span>
@@ -378,7 +424,7 @@ export default function UnifiedReport() {
             </div>
           </section>
 
-          <section className="px-10 pb-12">
+          <section className="px-10 pb-12 break-avoid">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-1 h-5 bg-black" />
               <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Distribuição Operacional dos Ativos</h2>
@@ -396,7 +442,7 @@ export default function UnifiedReport() {
           <section className="px-10 pb-12 space-y-12">
              {metrics.topChance.length > 0 && (
                <div className="space-y-6">
-                  <div className="flex items-center justify-between border-b-2 border-black pb-2">
+                  <div className="flex items-center justify-between border-b-2 border-black pb-2 break-avoid">
                     <div className="flex items-center gap-3">
                       <TrendingUp size={18} className="text-emerald-600" />
                       <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">
@@ -405,9 +451,9 @@ export default function UnifiedReport() {
                     </div>
                     <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px]">Top {metrics.topChance.length}</Badge>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-2 gap-8">
                      {metrics.topChance.map((item, idx) => (
-                       <div key={idx} className="bg-white border-2 border-black shadow-[8px_8px_0px_#000] rounded-none overflow-hidden flex flex-col">
+                       <div key={idx} className="bg-white border-2 border-black shadow-[8px_8px_0px_#000] rounded-none overflow-hidden flex flex-col break-avoid">
                           <div className="px-4 py-3 border-b-2 border-black bg-[#f8f9fb]">
                              <p className="text-[10px] font-black uppercase text-black truncate tracking-tight">{item.cliente}</p>
                              <p className="text-[8px] font-mono text-black/40 uppercase tracking-widest">{item.protocolo}</p>
@@ -419,7 +465,7 @@ export default function UnifiedReport() {
                </div>
              )}
 
-             <div className="space-y-6">
+             <div className="space-y-6 break-avoid">
                 <div className="flex items-center gap-3">
                    <Building2 size={18} className="text-primary" />
                    <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Performance por Escritório / Unidade</h2>
@@ -452,7 +498,7 @@ export default function UnifiedReport() {
                 </div>
              </div>
 
-             <div className="space-y-6">
+             <div className="space-y-6 break-avoid">
                 <div className="flex items-center gap-3">
                    <Gavel size={18} className="text-primary" />
                    <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Performance por Advogado Responsável</h2>
@@ -487,7 +533,7 @@ export default function UnifiedReport() {
           </section>
 
           {iaInsights && (
-            <section className="px-10 pb-12">
+            <section className="px-10 pb-12 break-avoid">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-1 h-5 bg-black" />
                 <h2 className="text-[10px] font-black tracking-[0.3em] uppercase text-black/60">Parecer Estratégico da Unidade Neural</h2>
@@ -513,7 +559,7 @@ export default function UnifiedReport() {
             </section>
           )}
 
-          <footer className="px-10 py-10 border-t-2 border-black">
+          <footer className="px-10 py-10 border-t-2 border-black break-avoid">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 border-2 border-black flex items-center justify-center bg-black"><Zap size={16} className="text-white" /></div>
@@ -530,29 +576,13 @@ export default function UnifiedReport() {
           </footer>
         </div>
       </div>
-
-      <style jsx global>{`
-        @media print {
-          body { 
-            background-color: white !important; 
-            color: black !important; 
-            -webkit-print-color-adjust: exact !important; 
-            print-color-adjust: exact !important; 
-          }
-          .shadow-\[12px_12px_0px_#000\] { box-shadow: none !important; }
-          .shadow-\[6px_6px_0px_#000\] { box-shadow: none !important; }
-          .shadow-\[4px_4px_0px_#00D1FF\] { box-shadow: none !important; }
-          .shadow-\[8px_8px_0px_#000\] { box-shadow: none !important; }
-          @page { size: A4; margin: 10mm; }
-        }
-      `}</style>
     </div>
   );
 }
 
 function KpiCard({ icon, label, value, accent, highlight = false }: { icon: React.ReactNode; label: string; value: number; accent: string; highlight?: boolean; }) {
   return (
-    <div className={cn("bg-white border-2 p-5 flex flex-col justify-between min-h-[140px] shadow-[4px_4px_0px_#00D1FF]", highlight ? "border-red-600" : "border-black")}>
+    <div className={cn("bg-white border-2 p-5 flex flex-col justify-between min-h-[140px] shadow-[4px_4px_0px_#00D1FF] break-avoid", highlight ? "border-red-600" : "border-black")}>
       <div className={cn("mb-4", accent)}>{icon}</div>
       <div>
         <p className="text-3xl font-black tracking-tighter text-black tabular-nums">{value}</p>
@@ -566,7 +596,7 @@ function StatusPill({ label, count, total, color }: { label: string; count: numb
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   const isTotalBase = label === "Ativos Totais";
   return (
-    <div className="bg-white border-2 border-black p-4 shadow-[3px_3px_0px_#00D1FF]">
+    <div className="bg-white border-2 border-black p-4 shadow-[3px_3px_0px_#00D1FF] break-avoid">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[9px] font-black tracking-wide text-black/40 uppercase">{label}</span>
         <span className="text-xl font-black text-black tabular-nums">{count}</span>

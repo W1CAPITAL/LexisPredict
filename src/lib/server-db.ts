@@ -1,3 +1,4 @@
+
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
@@ -112,7 +113,10 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       indicio_busca_apreensao: item.indicio_busca_apreensao,
       busca_apreensao_confianca: item.busca_apreensao_confianca,
       busca_apreensao_motivo: item.busca_apreensao_motivo,
-      busca_apreensao_consultado_em: item.busca_apreensao_consultado_em
+      busca_apreensao_consultado_em: item.busca_apreensao_consultado_em,
+      em_cumprimento_sentenca: item.em_cumprimento_sentenca,
+      cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
+      cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em
     }));
   } catch (error) {
     return [];
@@ -152,7 +156,10 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     indicio_busca_apreensao: item.indicio_busca_apreensao,
     busca_apreensao_confianca: item.busca_apreensao_confianca,
     busca_apreensao_motivo: item.busca_apreensao_motivo,
-    busca_apreensao_consultado_em: item.busca_apreensao_consultado_em
+    busca_apreensao_consultado_em: item.busca_apreensao_consultado_em,
+    em_cumprimento_sentenca: item.em_cumprimento_sentenca,
+    cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
+    cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em
   }));
 }
 
@@ -271,6 +278,9 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
         busca_apreensao_confianca: c.busca_apreensao_confianca,
         busca_apreensao_motivo: c.busca_apreensao_motivo,
         busca_apreensao_consultado_em: c.busca_apreensao_consultado_em,
+        em_cumprimento_sentenca: !!c.em_cumprimento_sentenca,
+        cumprimento_sentenca_motivo: c.cumprimento_sentenca_motivo,
+        cumprimento_sentenca_consultado_em: c.cumprimento_sentenca_consultado_em,
         dados: { ...c }
       };
     });

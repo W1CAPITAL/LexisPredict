@@ -1,3 +1,4 @@
+
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -224,7 +225,7 @@ export default function MasterExportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y-2 divide-black/5">
-                   {cases.filter(c => c.status === 'Vencido' || c.status === 'É Hoje').slice(0, 15).map((c, i) => (
+                   {cases.filter(c => c.status === 'Vencido' || c.status === 'É Hoje').slice(0, 100).map((c, i) => (
                      <tr key={i} className="hover:bg-gray-50 transition-colors font-bold uppercase text-[10px]">
                         <td className="p-5">{c.cliente}</td>
                         <td className="p-5 font-mono text-[9px] opacity-60">{c.protocolo}</td>
@@ -254,7 +255,7 @@ export default function MasterExportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y-2 divide-black/5">
-                   {cases.slice(0, 40).map((c, i) => (
+                   {cases.slice(0, 5000).map((c, i) => (
                      <tr key={i} className="text-[9px] font-black uppercase">
                         <td className="p-4">
                            <div>{c.cliente}</div>
@@ -308,8 +309,8 @@ export default function MasterExportPage() {
                           <th className="p-3">Escritório</th>
                           <th className="p-3 text-center">Total</th>
                           <th className="p-3 text-center">Ativos</th>
-                          <th className="p-3 text-center">Vencidos</th>
-                          <th className="p-3 text-center">Hoje</th>
+                          <th className="p-3 text-center text-red-400">Vencidos</th>
+                          <th className="p-3 text-center text-orange-400">Hoje</th>
                        </tr>
                     </thead>
                     <tbody className="divide-y-2 divide-black/5">
@@ -336,8 +337,8 @@ export default function MasterExportPage() {
                           <th className="p-3">Advogado</th>
                           <th className="p-3 text-center">Total</th>
                           <th className="p-3 text-center">Ativos</th>
-                          <th className="p-3 text-center">Vencidos</th>
-                          <th className="p-3 text-center">Hoje</th>
+                          <th className="p-3 text-center text-red-400">Vencidos</th>
+                          <th className="p-3 text-center text-orange-400">Hoje</th>
                        </tr>
                     </thead>
                     <tbody className="divide-y-2 divide-black/5">
@@ -381,7 +382,7 @@ export default function MasterExportPage() {
         <section className="space-y-12 page-break-after px-10">
            <SectionLegend icon={StickyNote} label="Módulo: Livro de Evidências (Notas)" />
            <div className="grid grid-cols-2 gap-8">
-              {notes.slice(0, 20).map((n, i) => (
+              {notes.slice(0, 100).map((n, i) => (
                 <div key={i} className="p-8 border-2 border-black bg-white space-y-4 flex flex-col h-full">
                    {n.imageUrl && (
                      <div className="w-full h-40 border-2 border-black relative mb-4">
