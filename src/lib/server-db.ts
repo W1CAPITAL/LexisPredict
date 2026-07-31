@@ -134,28 +134,47 @@ export async function listKnowledgeDocs(empresaId: string) {
 
 export async function deleteKnowledgeDoc(docId: string, empresaId: string) {
   const admin = await getSupabaseAdmin();
-  // Deletar chunks primeiro
   await admin.from('knowledge_chunks').delete().eq('doc_id', docId).eq('empresa_id', empresaId);
-  // Deletar doc
   const { error } = await admin.from('knowledge_docs').delete().eq('id', docId).eq('empresa_id', empresaId);
   return { success: !error };
 }
 
 export async function saveKnowledgeDocSystem(doc: any) {
   const admin = await getSupabaseAdmin();
-  const { data, error } = await admin.from('knowledge_docs').insert(doc).select().single();
+  // Alinhamento estrito com schema real (Portuguese)
+  const payload = {
+    titulo: doc.titulo,
+    tipo: doc.tipo,
+    tags: doc.tags,
+    uso_despacho: !!doc.uso_despacho,
+    storage_path: doc.storage_path,
+    empresa_id: doc.empresa_id,
+    created_by: doc.created_by,
+    ativo: doc.ativo ?? true
+  };
+  
+  const { data, error } = await admin.from('knowledge_docs').insert(payload).select().single();
   return { success: !error, data, error };
 }
 
 export async function saveKnowledgeChunksSystem(chunks: any[]) {
   const admin = await getSupabaseAdmin();
-  const { error } = await admin.from('knowledge_chunks').insert(chunks);
+  // Alinhamento estrito com schema real (Portuguese)
+  const payload = chunks.map(c => ({
+    doc_id: c.doc_id,
+    empresa_id: c.empresa_id,
+    secao: c.secao,
+    texto: c.texto,
+    tags: c.tags,
+    uso_despacho: !!c.uso_despacho
+  }));
+  
+  const { error } = await admin.from('knowledge_chunks').insert(payload);
   return { success: !error, error };
 }
 
 export async function searchKnowledgeChunksSystem(keywords: string[], empresaId: string) {
   const admin = await getSupabaseAdmin();
-  // Busca simples por tags que contenham as keywords
   const { data, error } = await admin
     .from('knowledge_chunks')
     .select('*')
@@ -166,7 +185,6 @@ export async function searchKnowledgeChunksSystem(keywords: string[], empresaId:
   return { success: !error, data, error };
 }
 
-// ... (resto das funções mantidas)
 export async function getGlobalPendingProcessesSystem(limit: number, empresaId: string): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
