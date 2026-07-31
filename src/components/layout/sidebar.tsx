@@ -4,7 +4,7 @@
  */
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -34,7 +34,8 @@ import {
   CheckCircle,
   Printer,
   HelpCircle,
-  PlayCircle
+  PlayCircle,
+  Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,7 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>('pt');
   const { profile, signOut } = useAuth();
-  const { isDarkMode, setDarkMode, setTutorialActive } = useAppStore();
+  const { isDarkMode, setDarkMode, setTutorialActive, cases } = useAppStore();
   const { status, toggleMinimize } = useDataJudScanStore();
   
   const t = getTranslation(locale);
@@ -82,11 +83,30 @@ export function Sidebar() {
     setIsMobileOpen(false);
   };
 
+  // Cálculo de Notificações Ativas
+  const notificationCount = useMemo(() => {
+    return cases.filter(c => 
+      c.status === 'Vencido' || 
+      c.status === 'É Hoje' || 
+      c.status === 'Caso CrÍTico' ||
+      !!c.tem_atualizacao_pos_retorno ||
+      !!c.datajud_encerrado_tribunal ||
+      !!c.djen_nova_comunicacao ||
+      !!c.indicio_busca_apreensao
+    ).length;
+  }, [cases]);
+
   const navGroups = [
     {
       title: t.management,
       items: [
         { label: t.dashboard, href: '/', icon: LayoutDashboard },
+        { 
+          label: "Notificações", 
+          href: '/notificacoes', 
+          icon: Bell, 
+          badge: notificationCount > 0 ? notificationCount : undefined 
+        },
         { label: t.tasks, href: '/tarefas', icon: CheckCircle },
         { label: t.cases, href: '/cases', icon: Briefcase },
         ...(isAdmin ? [{ label: t.team, href: '/team', icon: UserPlus }] : []),
@@ -165,7 +185,16 @@ export function Sidebar() {
                 )}
               >
                 <item.icon className={cn("w-4 h-4 shrink-0", pathname === item.href ? "opacity-100" : "opacity-60")} />
-                {!collapsed && <span className="text-[11px] font-bold tracking-tight uppercase">{item.label}</span>}
+                {!collapsed && (
+                  <>
+                    <span className="text-[11px] font-bold tracking-tight uppercase flex-1">{item.label}</span>
+                    {item.badge !== undefined && (
+                      <span className="bg-red-600 text-white text-[8px] font-black h-4 px-1.5 rounded-full flex items-center justify-center animate-pulse">
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
+                )}
               </Link>
             ))}
           </div>

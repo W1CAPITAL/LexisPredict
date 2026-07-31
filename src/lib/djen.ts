@@ -1,7 +1,7 @@
 /**
- * @fileOverview Motor de Consulta DJEN v3.0 — PROTOCOLO BRASIL (gru1)
+ * @fileOverview Motor de Consulta DJEN v3.2 — PROTOCOLO BRASIL (gru1)
  * Consulta a API pública do PJe para localizar comunicações oficiais.
- * Respeita tetos de 50 itens/página e geo-blocking.
+ * Inclui utilitário de sanitização de HTML para texto puro.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -30,6 +30,39 @@ export interface DjenFetchResult {
 }
 
 /**
+ * Converte HTML bruto do DJEN em texto puro legível.
+ * Remove scripts, estilos e tags, decodificando entidades HTML.
+ */
+export function plainTextFromDjen(html: string): string {
+  if (!html) return "";
+  let s = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
+    .replace(/<\/(p|div|tr|br|li|h[1-6]|section|article)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&ordm;/gi, "º")
+    .replace(/&iacute;/gi, "í")
+    .replace(/&eacute;/gi, "é")
+    .replace(/&aacute;/gi, "á")
+    .replace(/&atilde;/gi, "ã")
+    .replace(/&ccedil;/gi, "ç")
+    .replace(/&otilde;/gi, "õ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  return s;
+}
+
+/**
  * Realiza o fetch na API pública do DJEN com detecção de geo-block e limite de 50 itens.
  */
 export async function fetchDjenComunicacoes(
@@ -46,7 +79,6 @@ export async function fetchDjenComunicacoes(
     return { success: false, error: "CNJ Inválido (requer 20 dígitos)", count: 0, items: [] };
   }
 
-  // Datas no fuso Brasil (America/Sao_Paulo)
   const now = new Date();
   const getBrDate = (d: Date) => {
     const offset = -3; // UTC-3
@@ -55,14 +87,13 @@ export async function fetchDjenComunicacoes(
   };
 
   const todayBR = getBrDate(now);
-  const lastYear = new Date();
-  lastYear.setFullYear(now.getFullYear() - 1);
-  const lastYearBR = getBrDate(lastYear);
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(now.getFullYear() - 1);
+  const oneYearAgoBR = getBrDate(oneYearAgo);
 
   const dataFim = opts?.dataFim || todayBR;
-  const dataInicio = opts?.dataInicio || lastYearBR;
+  const dataInicio = opts?.dataInicio || oneYearAgoBR;
 
-  // Tentativas: 1. Dígitos (Preferencial), 2. Mascarado
   const masked = `${digits.substring(0,7)}-${digits.substring(7,9)}.${digits.substring(9,13)}.${digits.substring(13,14)}.${digits.substring(14,16)}.${digits.substring(16,20)}`;
   const cnjOptions = [digits, masked];
 
@@ -75,7 +106,7 @@ export async function fetchDjenComunicacoes(
         dataDisponibilizacaoInicio: dataInicio,
         dataDisponibilizacaoFim: dataFim,
         pagina: '1',
-        itensPorPagina: '50' // MÁXIMO REAL SUPORTADO. >50 = Itens vazios.
+        itensPorPagina: '50'
       });
 
       if (opts?.siglaTribunal && !/^outros$/i.test(opts.siglaTribunal)) {
@@ -84,7 +115,7 @@ export async function fetchDjenComunicacoes(
       if (opts?.meio) params.append('meio', opts.meio);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       const response = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`, {
         method: 'GET',
@@ -105,14 +136,14 @@ export async function fetchDjenComunicacoes(
         return { 
           success: false, 
           isGeoBlocked: true, 
-          error: "Bloqueio regional (403). O servidor deve estar no Brasil (gru1).", 
+          error: "Bloqueio regional (403). Use região gru1 (São Paulo).", 
           count: 0, 
           items: [] 
         };
       }
 
       if (response.status === 429) {
-        return { success: false, isRateLimited: true, error: "Rate limit DJEN (429).", count: 0, items: [] };
+        return { success: false, isRateLimited: true, error: "Rate limit DJEN (429). Aguarde 1 minuto.", count: 0, items: [] };
       }
 
       if (!response.ok) {
@@ -144,7 +175,7 @@ export async function fetchDjenComunicacoes(
         items: mappedItems
       };
     } catch (e: any) {
-      if (e.name === 'AbortError') return { success: false, error: "Tempo esgotado (15s).", count: 0, items: [] };
+      if (e.name === 'AbortError') return { success: false, error: "Tempo esgotado no DJEN.", count: 0, items: [] };
       lastError = e.message || "Erro de conexão";
     }
   }

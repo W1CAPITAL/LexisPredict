@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -23,19 +22,24 @@ import {
   Terminal,
   AlertCircle,
   Search,
-  Monitor
+  Monitor,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 export function DataJudScannerPanel() {
   const { 
     status, total, done, alerts, closed, pending, cycles,
     manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, lastLogs,
-    isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, startManualScan, pauseManualScan, resetScan 
+    isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
+    startManualScan, pauseManualScan, resetScan,
+    includeDjen24h, setIncludeDjen24h
   } = useDataJudScanStore();
   
   const cloudPct = Math.round((done / (total || 1)) * 100);
@@ -63,7 +67,7 @@ export function DataJudScannerPanel() {
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black shrink-0">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v9.0</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v9.5</h3>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -73,6 +77,24 @@ export function DataJudScannerPanel() {
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-8">
+          {/* CONFIGURAÇÃO GLOBAL */}
+          <section className="p-4 bg-primary/5 border-2 border-primary/20 rounded-none space-y-4">
+             <div className="flex items-center space-x-3">
+                <Checkbox 
+                  id="includeDjen" 
+                  checked={includeDjen24h} 
+                  onCheckedChange={(checked) => setIncludeDjen24h(!!checked)}
+                  className="border-black rounded-none data-[state=checked]:bg-black"
+                />
+                <Label htmlFor="includeDjen" className="text-[10px] font-black uppercase flex items-center gap-2 cursor-pointer">
+                   <Globe size={14} className="text-blue-600" /> Também auditar DJEN (Janela 24h)
+                </Label>
+             </div>
+             <p className="text-[8px] font-bold text-muted-foreground uppercase leading-relaxed">
+               Ativa a consulta ao Diário Oficial após cada auditoria do Tribunal. Aumenta a latência em ~1s por item.
+             </p>
+          </section>
+
           {/* ENGINE 1: CLOUD AUDIT */}
           <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-6">
              <div className="flex items-center justify-between">
@@ -197,7 +219,7 @@ export function DataJudScannerPanel() {
       </ScrollArea>
       
       <div className="p-3 bg-black text-white text-[8px] font-black uppercase text-center border-t-2 border-black shrink-0 flex items-center justify-center gap-4">
-        <span>Authority System • v9.0</span>
+        <span>Authority System • v9.5</span>
         <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> Rede Ativa</div>
       </div>
     </div>

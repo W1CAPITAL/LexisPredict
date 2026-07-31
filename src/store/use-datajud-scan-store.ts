@@ -1,11 +1,10 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v9.0 — DUAL ENGINE (CLOUD + MANUAL)
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v9.5 — DUAL ENGINE (CLOUD + MANUAL) + DJEN INTEGRATION
  * Agora com suporte a logs detalhados e ritos processuais (Baixa, Novidade, Erro).
  */
 import { create } from 'zustand';
-import { scanOneDataJudAction } from '@/app/actions/case-actions';
+import { scanOneDataJudAction, scanOneDjenAction } from '@/app/actions/case-actions';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
@@ -47,6 +46,10 @@ interface DataJudScanState {
   manualClosed: number;
   manualErrors: number;
   
+  // Opções
+  includeDjen24h: boolean;
+  setIncludeDjen24h: (val: boolean) => void;
+
   // Registro Unificado
   lastLogs: ScanLog[];
 
@@ -85,13 +88,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   manualErrors: 0,
   lastLogs: [],
 
+  includeDjen24h: false,
+  setIncludeDjen24h: (includeDjen24h) => set({ includeDjen24h }),
+
   isMinimized: true,
   courtHealthMap: {},
 
   toggleMinimize: () => set((state) => ({ isMinimized: !state.isMinimized })),
 
   addLog: (log) => set(state => {
-    // Evita duplicatas de CNJ no log recente se for o mesmo motor
     const filtered = state.lastLogs.filter(l => l.protocolo !== log.protocolo || l.engine !== log.engine);
     return { lastLogs: [log, ...filtered].slice(0, 50) };
   }),
@@ -143,6 +148,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
     set({ manualStatus: 'running', manualTotal: cases.length, manualDone: 0, manualAlerts: 0, manualClosed: 0, manualErrors: 0 });
 
+    const includeDjen = get().includeDjen24h;
+
     for (const c of cases) {
       if (get().manualStatus !== 'running') break;
       
@@ -157,12 +164,25 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         if (isUpdate) set(s => ({ manualAlerts: s.manualAlerts + 1 }));
         if (isClosed) set(s => ({ manualClosed: s.manualClosed + 1 }));
         
+        let combinedMessage = isClosed ? 'BAIXA NO TRIBUNAL' : isUpdate ? 'NOVA MOVIMENTAÇÃO' : 'Sem Alterações';
+        let logType: ScanLog['type'] = isClosed ? 'closed' : isUpdate ? 'update' : 'ok';
+
+        // Auditoria Complementar DJEN (Janela 24h)
+        if (includeDjen && !isClosed) {
+           await new Promise(r => setTimeout(r, 800));
+           const djenRes = await scanOneDjenAction(c.protocolo);
+           if (djenRes.success && djenRes.casePatch?.djen_nova_comunicacao) {
+              combinedMessage += " + PUBLICAÇÃO DJEN";
+              logType = 'update';
+           }
+        }
+
         get().addLog({ 
           protocolo: c.protocolo, 
-          message: isClosed ? 'BAIXA NO TRIBUNAL' : isUpdate ? 'NOVA MOVIMENTAÇÃO' : 'Sem Alterações', 
+          message: combinedMessage, 
           latency, 
           success: true,
-          type: isClosed ? 'closed' : isUpdate ? 'update' : 'ok',
+          type: logType,
           engine: 'Local'
         });
         
@@ -208,11 +228,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
     try {
       set(s => ({ cycles: s.cycles + 1 }));
-      
-      // Gatilho via API Scoped
       fetch('/api/datajud-trigger', { method: 'POST' }).catch(() => {});
 
-      // Telemetria via Snapshot de DB
       const res = await fetch('/api/datajud-status');
       if (!res.ok) throw new Error();
       const metrics = await res.json();
@@ -225,7 +242,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         closed: metrics.closed
       });
 
-      // Incorpora logs da nuvem se houver novidades
       if (metrics.recentLogs && metrics.recentLogs.length > 0) {
         metrics.recentLogs.forEach((log: ScanLog) => get().addLog(log));
       }
