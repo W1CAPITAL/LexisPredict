@@ -1,4 +1,3 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -50,7 +49,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Label } from '@/components/label';
+import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
 import { format, parseISO, startOfDay, isAfter, parse, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
