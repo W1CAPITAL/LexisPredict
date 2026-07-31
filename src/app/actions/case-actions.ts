@@ -4,7 +4,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v450.0 ELITE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v460.0 ELITE
  */
 
 import { 
@@ -68,7 +68,7 @@ export async function fetchTeamPerformanceAction() {
 
 /**
  * Realiza a auditoria de um único protocolo via DataJud.
- * Sempre persiste o patch de telemetria completo após scan bem sucedido.
+ * Sempre persiste o patch de telemetria completo (soberania do dado atual).
  */
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
@@ -99,6 +99,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       datajud_hash: dbItem.datajud_hash
     });
 
+    // Se já está encerrado internamente, não gasta banda de API pública
     if (isCasoEncerrado(target)) {
       return { success: true, protocolo, message: "Já encerrado internamente", skipped: true };
     }
@@ -116,7 +117,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         datajud_ultimo_movimento: check.dataUltimo,
         datajud_ultimo_nome: check.nomeUltimo,
         datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: !!check.alerta, // Apenas comparação de datas
+        tem_atualizacao_pos_retorno: !!check.alerta, // Recalculado do zero (soberania cronológica)
         datajud_encerrado_tribunal: !!enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
         datajud_hash: newHash,
@@ -127,7 +128,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         tribunal: dataJud.tribunal || target.tribunal
       };
 
-      // Persistência Integral: Flags, Movimentos e Metadados
+      // Persistência Integral do Patch auditado
       await updateCaseDataJudSystem(dbItem.id, patch);
       
       return { 
@@ -159,6 +160,7 @@ export async function runDataJudScanAction(targetEmpresaId?: string) {
     const cases = await getStoredCasesForEmpresa(empresa_id);
     if (!cases || cases.length === 0) return { success: true, scanned: 0, updated: 0, message: "Nenhum processo." };
 
+    // Lote de 30 para evitar gateway timeout em execuções manuais
     const batch = cases.filter(c => !isCasoEncerrado(c)).slice(0, 30);
     let updatedCount = 0;
     for (const c of batch) {
@@ -210,6 +212,7 @@ export async function runCloudWorkerAction() {
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
 
+    // Disparo Fire-and-Forget
     fetch(`${baseUrl}/api/datajud-worker?empresa_id=${empresa_id}`, {
       method: 'POST',
       headers: {
