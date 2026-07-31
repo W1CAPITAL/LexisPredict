@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SUGESTÃO DE SCRIPTS v1.7 - ANÁLISE PROFUNDA E ANTI-RUÍDO
+ * MOTOR DE SUGESTÃO DE SCRIPTS v2.0 - ALGORITMO DE RECÊNCIA E RELEVÂNCIA
  */
 
 import { parseISO, parse, isAfter, isValid, startOfDay, format } from 'date-fns';
@@ -50,16 +50,9 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     } catch (e) { dateRetorno = null; }
   }
 
-  // 2. Definição da Janela de Análise (Mínimo 10, Máximo 20 ou Pós-Retorno)
+  // 2. Janela de Análise (Até 20 movimentos)
   const windowLimit = 20;
-  const movsInWindow = sortedMovs.filter((m, idx) => {
-    if (idx < 10) return true; 
-    if (idx >= windowLimit) return false;
-    if (dateRetorno && isValid(dateRetorno) && m.dataHora) {
-       return isAfter(parseISO(m.dataHora), dateRetorno);
-    }
-    return true;
-  });
+  const movsInWindow = sortedMovs.slice(0, windowLimit);
 
   if (movsInWindow.length === 0) {
     const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
@@ -77,59 +70,53 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     if (template) return [createSuggestion(template, clienteNome, protocolo, ultimoRetorno)];
   }
 
-  // 4. Coleta de Correspondências (Deduplicada por ID)
-  const matchedTemplates = new Map<string, { template: ScriptTemplate, recencia: number }>();
+  // 4. Coleta de Correspondências com Regra de Recência (Recency Cap)
+  const matchedTemplates = new Map<string, { template: ScriptTemplate, recencia: number, dataMov: string }>();
   
   const fullWindowText = movsInWindow.map(m => 
     `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
   ).join(' || ');
 
-  // --- CASOS ESPECIAIS E PREFERÊNCIAS ---
-  
-  // A. Liminar + JG Combinado (Vence individuais)
+  // A. Caso Especial: Liminar + JG Combinado
   const hasLiminar = fullWindowText.includes('LIMINAR') || fullWindowText.includes('TUTELA');
   const hasJG = /(JUSTIÇA GRATUITA|ASSISTÊNCIA JUDICIÁRIA|GRATUIDADE)/.test(fullWindowText);
-  
   if (hasLiminar && hasJG) {
     const combined = SCRIPT_CATALOG.find(s => s.id === 'liminar_e_jg');
-    if (combined) matchedTemplates.set(combined.id, { template: combined, recencia: -1 });
+    if (combined) matchedTemplates.set(combined.id, { template: combined, recencia: -1, dataMov: movsInWindow[0]?.dataHora || '' });
   }
 
-  // Varredura Geral
+  // B. Varredura Geral com Regra de Recência para P3+
   movsInWindow.forEach((m, idx) => {
     const text = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
     
     for (const template of SCRIPT_CATALOG) {
-      // Ignora templates automáticos ou já processados no caso especial
       if (template.id === 'rotina_pos_retorno' || template.id === 'liminar_e_jg') continue;
       
-      // Conflito Liminar/JG: Se já temos o combinado, ignora as partes individuais
-      if (matchedTemplates.has('liminar_e_jg')) {
-        if (['liminar_analisada', 'justica_gratuita', 'liminar_deferida', 'liminar_indeferida'].includes(template.id)) continue;
-      }
+      // REGRA DE OURO v2.0: Eventos de prioridade Média/Baixa (P3, P4, P5) 
+      // só são considerados se forem MUITO recentes (top 5 movimentos).
+      if (template.prioridade >= 3 && idx >= 5) continue;
 
-      // Conflito Específico vs Neutro: liminar_deferida vence liminar_analisada
+      // Conflito Específico vs Neutro (Deferida/Indeferida sempre vencem Analisada)
       if (template.keywords.some(kw => text.includes(kw))) {
-        // Se for neutro mas já temos específico na janela, pula
         if (template.id === 'liminar_analisada' && (fullWindowText.includes('DEFERIDA') || fullWindowText.includes('INDEFERIDA'))) continue;
         if (template.id === 'justica_gratuita' && (fullWindowText.includes('INDEFERIDA') || fullWindowText.includes('INDEFERIMENTO'))) continue;
+        if (matchedTemplates.has('liminar_e_jg') && ['liminar_analisada', 'justica_gratuita'].includes(template.id)) continue;
 
         if (!matchedTemplates.has(template.id)) {
-          matchedTemplates.set(template.id, { template, recencia: idx });
+          matchedTemplates.set(template.id, { template, recencia: idx, dataMov: m.dataHora || '' });
         }
       }
     }
   });
 
-  // 5. Filtro Anti-Ruído e Ordenação
+  // 5. Ordenação e Filtro Anti-Ruído
   let finalMatches = Array.from(matchedTemplates.values());
 
-  // Regra Anti-Ruído: Se houver P0-P2, remove scripts de rotina pura
+  // Se houver rito de Alta Prioridade (P0-P2), remove sugestões de rotina
   if (finalMatches.some(m => m.template.prioridade <= 2)) {
     finalMatches = finalMatches.filter(m => m.template.id !== 'rotina' && m.template.id !== 'rotina_pos_retorno');
   }
 
-  // Ordenação: Prioridade ASC, Recência ASC (idx menor = mais recente)
   finalMatches.sort((a, b) => {
     if (a.template.prioridade !== b.template.prioridade) {
       return a.template.prioridade - b.template.prioridade;
@@ -137,22 +124,30 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     return a.recencia - b.recencia;
   });
 
-  // Fallback final
   if (finalMatches.length === 0) {
     const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
-    if (fallback) finalMatches.push({ template: fallback, recencia: 0 });
+    if (fallback) finalMatches.push({ template: fallback, recencia: 0, dataMov: movsInWindow[0]?.dataHora || '' });
   }
 
-  return finalMatches.slice(0, 3).map(m => createSuggestion(m.template, clienteNome, protocolo, ultimoRetorno));
+  return finalMatches.slice(0, 3).map(m => createSuggestion(m.template, clienteNome, protocolo, ultimoRetorno, m.dataMov));
 }
 
-function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateStr: string | null | undefined): ScriptSuggestion {
-  let displayDate = 'últimos dias';
-  if (dateStr) {
+function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateRetornoStr: string | null | undefined, dataMovStr: string): ScriptSuggestion {
+  let displayRetorno = 'últimos dias';
+  let displayMov = '';
+
+  if (dateRetornoStr) {
     try {
-      const cleanStr = dateStr.trim();
+      const cleanStr = dateRetornoStr.trim();
       const d = cleanStr.includes('/') ? parse(cleanStr, 'dd/MM/yyyy', new Date()) : parseISO(cleanStr);
-      if (isValid(d)) displayDate = format(d, 'dd/MM/yyyy');
+      if (isValid(d)) displayRetorno = format(d, 'dd/MM/yyyy');
+    } catch (e) {}
+  }
+
+  if (dataMovStr) {
+    try {
+      const d = parseISO(dataMovStr);
+      if (isValid(d)) displayMov = format(d, 'dd/MM/yyyy');
     } catch (e) {}
   }
 
@@ -163,6 +158,7 @@ function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateStr:
     texto: s.texto
       .replace(/\[Nome\]/g, nome)
       .replace(/\[CNJ\]/g, cnj)
-      .replace(/\[Data\]/g, displayDate)
+      .replace(/\[Data\]/g, displayRetorno)
+      .replace(/\[DataMov\]/g, displayMov || 'recentemente')
   };
 }
