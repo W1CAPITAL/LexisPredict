@@ -9,7 +9,6 @@ import { fetchDataJud } from '@/lib/datajud';
 
 const API_KEYS = {
   XAI: process.env.XAI_API_KEY,
-  AIRFORCE: process.env.AIRFORCE_API_KEY,
   GROQ: process.env.GROQ_API_KEY
 };
 
@@ -102,7 +101,7 @@ export const vereditoAIFlow = ai.defineFlow(
   async input => {
     const { cnj, preferredModel = 'xai' } = input;
     
-    if (!API_KEYS.XAI && !API_KEYS.GROQ && !API_KEYS.AIRFORCE) {
+    if (!API_KEYS.XAI && !API_KEYS.GROQ) {
        return { 
          resumoTecnico: "Nenhuma API key configurada.",
          analiseRisco: "Motores offline.",
@@ -143,7 +142,6 @@ export const vereditoAIFlow = ai.defineFlow(
     
     const engines = [
       { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: XAI_MODEL },
-      { id: 'airforce', url: 'https://api.airforce/v1/chat/completions', key: API_KEYS.AIRFORCE, model: 'llama-3.3-70b' },
       { id: 'groq', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
     ];
 
@@ -174,7 +172,7 @@ export const vereditoAIFlow = ai.defineFlow(
       analiseRisco: "Indisponível.",
       proximosPassos: "Consultar autos.",
       mensagemCliente: "",
-      success: false,
+      success: false, 
       error: true
     };
   }

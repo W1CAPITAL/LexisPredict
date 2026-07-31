@@ -91,7 +91,6 @@ const CaseRow = React.memo(({
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
 
-  // HEURÍSTICA DE CUMPRIMENTO (v60.0)
   const isExecutionPhase = useMemo(() => {
     if (c.datajud_encerrado_tribunal) return false;
     if (c.em_cumprimento_sentenca) return true;
@@ -178,7 +177,6 @@ const CaseRow = React.memo(({
       </td>
       <td className="px-8 py-5">
         <div className="flex flex-col gap-4">
-          {/* Retorno Manual */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg border border-border/50 flex items-center justify-center bg-secondary/50 group-hover:bg-background transition-all">
               <CheckCircle2 size={16} className="text-emerald-500" />
@@ -191,7 +189,6 @@ const CaseRow = React.memo(({
             </div>
           </div>
 
-          {/* Última Movimentação DataJud (Visível) */}
           {c.datajud_ultimo_nome && (
             <div className="flex items-center gap-3 pl-0.5">
               <div className="w-7 h-7 rounded-lg border border-border/30 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-all">
@@ -292,10 +289,10 @@ function CasesContent() {
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
-  const [selectedMotor, setSelectedMotor] = useState<string>('xai');
+  const [selectedMotor, setSelectedMotor] = useState<string>('local_only');
 
   const [mounted, setMounted] = useState(false);
-  const { isOperador } = useAdmin();
+  const { isOperador, profile } = useAdmin();
   const { toast } = useToast();
 
   const [formState, setFormState] = useState({
@@ -376,7 +373,6 @@ function CasesContent() {
         setHistoryResult({ case: res.case, movimentos: moves });
         setAiDraft(null);
         
-        // Gera scripts imediatamente
         const suggestions = suggestScripts({
           clienteNome: res.case.cliente,
           protocolo: res.case.protocolo,
@@ -416,12 +412,13 @@ function CasesContent() {
         protocolo: historyResult.case.protocolo,
         ultimoRetorno: historyResult.case.ultimoRetorno,
         movimentos: historyResult.movimentos,
-        preferredModel: selectedMotor
+        preferredModel: selectedMotor,
+        empresaId: profile?.empresa_id
       });
       
       if (res.rascunho) {
         setAiDraft(res.rascunho);
-        toast({ title: "Rascunho Motor Lexis Gerado" });
+        toast({ title: selectedMotor === 'local_only' ? "Rascunho Local Gerado" : "Rascunho Motor Lexis Gerado" });
       }
     } catch (e) {
       toast({ title: "Falha no Motor Lexis", variant: "destructive" });
@@ -478,7 +475,6 @@ function CasesContent() {
         telefone: formState.telefone
       };
 
-      // REGRA DE OURO v65.0: Desarme cronológico de alertas
       let newFlagStatus = editingCase?.tem_atualizacao_pos_retorno;
       if (formState.ultimoRetorno && editingCase?.datajud_ultimo_movimento) {
         try {
@@ -510,18 +506,10 @@ function CasesContent() {
         setEditingCase(null);
         toast({ title: "Registro Sincronizado" });
       } else {
-        toast({ 
-          title: "Falha na Gravação", 
-          description: result.message || "Erro desconhecido no servidor.", 
-          variant: "destructive" 
-        });
+        toast({ title: "Falha na Gravação", description: result.message || "Erro desconhecido.", variant: "destructive" });
       }
     } catch (err: any) {
-      toast({ 
-        title: "Erro Crítico", 
-        description: "Falha ao processar dados do formulário.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Erro Crítico", variant: "destructive" });
     }
   };
 
@@ -533,7 +521,6 @@ function CasesContent() {
     const todayDate = new Date();
     const todayStr = format(todayDate, 'dd/MM/yyyy');
     
-    // REGRA DE OURO v65.0: Só remove a flag se hoje >= data do último movimento
     let shouldClearFlag = false;
     if (target.datajud_ultimo_movimento) {
       const lastMovDate = startOfDay(parseISO(target.datajud_ultimo_movimento));
@@ -582,15 +569,14 @@ function CasesContent() {
 
   const handleExportCSV = useCallback(() => {
     if (filtered.length === 0) {
-      toast({ title: "Lista vazia", description: "Não há dados filtrados para exportar.", variant: "destructive" });
+      toast({ title: "Lista vazia", variant: "destructive" });
       return;
     }
 
     const headers = [
       'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
       'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
-      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'CUMPRIMENTO_SENTENCA',
-      'DATAJUD_ULTIMO_MOV', 'DATAJUD_DATA_MOV'
+      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'CUMPRIMENTO_SENTENCA'
     ];
 
     const rows = filtered.map(c => {
@@ -608,9 +594,7 @@ function CasesContent() {
         c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
         c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
         c.indicio_busca_apreensao ? 'SIM' : 'NÃO',
-        c.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
-        c.datajud_ultimo_nome || '',
-        c.datajud_ultimo_movimento ? format(new Date(c.datajud_ultimo_movimento), 'dd/MM/yyyy') : ''
+        c.em_cumprimento_sentenca ? 'SIM' : 'NÃO'
       ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
     });
 
@@ -625,7 +609,7 @@ function CasesContent() {
     link.click();
     document.body.removeChild(link);
     
-    toast({ title: "Exportação Concluída", description: `${filtered.length} registros processados.` });
+    toast({ title: "Exportação Concluída" });
   }, [filtered, toast]);
 
   if (!mounted) return null;
@@ -852,7 +836,6 @@ function CasesContent() {
                 </div>
 
                 <div className="flex-1 overflow-hidden flex">
-                  {/* Lado Esquerdo: Cronologia */}
                   <ScrollArea className={cn("bg-white transition-all duration-300", showScripts ? "w-1/2 border-r" : "w-full")}>
                     <div className="p-6 space-y-6">
                       {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
@@ -881,7 +864,6 @@ function CasesContent() {
                     </div>
                   </ScrollArea>
 
-                  {/* Lado Direito: Sugestões de Script */}
                   {showScripts && (
                     <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
                       <div className="p-6 space-y-6">
@@ -892,7 +874,6 @@ function CasesContent() {
                            <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
                         </div>
 
-                        {/* IA DRAFT AREA (Opcional via Motor Lexis) */}
                         <div className="bg-black text-white p-5 space-y-4 mb-8">
                            <div className="flex flex-col gap-3">
                               <div className="flex items-center justify-between">
@@ -909,9 +890,9 @@ function CasesContent() {
                                     </div>
                                   </SelectTrigger>
                                   <SelectContent className="bg-white border-2 border-black rounded-none">
+                                    <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                                     <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 4.5</SelectItem>
                                     <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
-                                    <SelectItem value="airforce" className="text-[9px] font-black uppercase">Airforce Ultra</SelectItem>
                                   </SelectContent>
                                 </Select>
 
@@ -930,7 +911,7 @@ function CasesContent() {
                                 <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
                                    <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
                                 </div>
-                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
+                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho</Button>
                              </div>
                            ) : !isGeneratingAIDraft && (
                              <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta baseada na Base de Conhecimento.</p>
@@ -1024,7 +1005,7 @@ function CasesContent() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Status Especial (Sobreescrever Motor)</Label>
+                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Status Especial</Label>
                     <Select value={formState.statusManual} onValueChange={val => setFormState({...formState, statusManual: val})}>
                       <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>

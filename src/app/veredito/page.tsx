@@ -72,7 +72,7 @@ export default function VereditoPage() {
   useEffect(() => {
     isMounted.current = true;
     const savedIA = localStorage.getItem('lexisPredict_preferred_ia') || 'xai';
-    setModel(savedIA);
+    setModel(savedIA === 'airforce' ? 'xai' : savedIA);
     
     fetchRepoCases().then(data => {
       if (isMounted.current) setRepoCases(data || []);
@@ -100,7 +100,7 @@ export default function VereditoPage() {
       const data = await executarVereditoAI({ cnj, preferredModel: model });
       if (isMounted.current) {
         if (!data.success && !data.dataJudRaw) {
-           setApiError({ engine: model, message: data.message || "CNJ não localizado ou erro de configuração de chaves." });
+           setApiError({ engine: model, message: data.message || "CNJ não localizado." });
            toast({ title: "Falha na Triagem", description: data.message, variant: "destructive" });
         } else {
            setResult(data);
@@ -122,7 +122,7 @@ export default function VereditoPage() {
   };
 
   const handleSwitchAndRetry = () => {
-    const engines = ['xai', 'airforce', 'groq'];
+    const engines = ['xai', 'groq'];
     const currentIndex = engines.indexOf(model);
     const nextIA = engines[(currentIndex + 1) % engines.length];
     
@@ -166,7 +166,7 @@ export default function VereditoPage() {
     
     const phone = result.dataJudRaw?.contatoTelefone || "";
     if (!phone) {
-      toast({ title: "Aviso de Envio", description: "Telefone não identificado. Use o link manual.", variant: "destructive" });
+      toast({ title: "Aviso de Envio", description: "Telefone não identificado.", variant: "destructive" });
       return;
     }
 
@@ -174,9 +174,9 @@ export default function VereditoPage() {
     try {
       const res = await sendWhatsAppAction(phone, result.mensagemCliente);
       if (res.success) {
-        toast({ title: "Evolution API: Sucesso", description: "Despacho entregue." });
+        toast({ title: "Evolution API: Sucesso" });
       } else {
-        toast({ title: "Falha no Envio API", description: res.message, variant: "destructive" });
+        toast({ title: "Falha no Envio", description: res.message, variant: "destructive" });
       }
     } catch (err) {
       toast({ title: "Erro de Conexão", variant: "destructive" });
@@ -192,18 +192,15 @@ export default function VereditoPage() {
 
   const chanceAnalysis = useMemo(() => {
     if (!result || !result.dataJudRaw) return null;
-
     const processNumber = result.dataJudRaw.numeroProcesso;
     const existingCase = repoCases.find(c => c.protocolo === processNumber);
     const lawyerName = existingCase?.advogado;
-
     let performanceRate = 0;
     if (lawyerName) {
       const lawyerCases = repoCases.filter(c => c.advogado === lawyerName);
       const closedCases = lawyerCases.filter(c => isCasoEncerrado(c));
       performanceRate = lawyerCases.length > 0 ? closedCases.length / lawyerCases.length : 0;
     }
-
     return analisarChanceEncerramento({
       situacao: result.dataJudRaw.classe || '',
       observacao: result.resumoTecnico || ''
@@ -246,7 +243,6 @@ export default function VereditoPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-white border-2 border-black rounded-none">
                   <SelectItem value="xai" className="font-black uppercase text-[10px]">xAI Grok Elite</SelectItem>
-                  <SelectItem value="airforce" className="font-black uppercase text-[10px]">Airforce DeepSeek</SelectItem>
                   <SelectItem value="groq" className="font-black uppercase text-[10px]">Groq Llama 3.3</SelectItem>
                 </SelectContent>
               </Select>
@@ -270,7 +266,7 @@ export default function VereditoPage() {
                     <AlertDescription className="mt-2 space-y-3">
                       <p className="text-[10px] font-bold uppercase">{apiError.message}</p>
                       <Button onClick={handleSwitchAndRetry} className="bg-black text-white border-2 border-black h-10 font-black uppercase text-[9px] rounded-none hover:bg-white hover:text-black transition-all px-6">
-                        Alternar Motor Neural & Tentar Novamente
+                        Alternar Motor Neural
                       </Button>
                     </AlertDescription>
                   </Alert>
@@ -297,13 +293,11 @@ export default function VereditoPage() {
             {result && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Aviso de Transparência DataJud vs PJe */}
                   <Alert className="border-2 border-amber-500 bg-amber-50 rounded-none shadow-[4px_4px_0px_#f59e0b]">
                     <Info className="h-5 w-5 text-amber-600" />
                     <AlertTitle className="text-[10px] font-black uppercase tracking-widest text-amber-800">Protocolo de Integridade de Fonte</AlertTitle>
                     <AlertDescription className="text-[10px] font-bold uppercase text-amber-700 leading-relaxed mt-1">
-                      Fonte: DataJud (CNJ). Esta base pode estar atrasada ou incompleta em relação ao site oficial do tribunal. 
-                      Custas, cancelamentos e petições de hoje podem não aparecer aqui. Use para triagem rápida; confira o tribunal para a verdade operacional final.
+                      Fonte: DataJud (CNJ). Use para triagem rápida; confira o tribunal para a verdade operacional final.
                     </AlertDescription>
                   </Alert>
 
@@ -312,9 +306,6 @@ export default function VereditoPage() {
                         <Cpu size={16} className="text-primary" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Motor Processual: {result.engineUsed || "N/A"}</span>
                      </div>
-                     {result.isDeterministic && (
-                       <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">MODO SEGURANÇA LOCAL</Badge>
-                     )}
                   </div>
 
                   <Tabs defaultValue="details" className="w-full">
@@ -349,12 +340,8 @@ export default function VereditoPage() {
                             </div>
                           </CardContent>
                         </Card>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                           {chanceAnalysis && (
-                             <ChanceEncerramentoCard analysis={chanceAnalysis} />
-                           )}
-                           
+                           {chanceAnalysis && <ChanceEncerramentoCard analysis={chanceAnalysis} />}
                            {result.conclusaoEncerramento && (
                              <Card className="bg-primary/5 border-2 border-black shadow-[8px_8px_0px_#000] rounded-none">
                                <CardHeader className="bg-black text-white p-4">
@@ -363,9 +350,7 @@ export default function VereditoPage() {
                                   </CardTitle>
                                </CardHeader>
                                <CardContent className="p-6">
-                                  <p className="text-[11px] font-black uppercase leading-relaxed text-black/80 italic">
-                                    {result.conclusaoEncerramento}
-                                  </p>
+                                  <p className="text-[11px] font-black uppercase leading-relaxed text-black/80 italic">{result.conclusaoEncerramento}</p>
                                </CardContent>
                              </Card>
                            )}
@@ -453,9 +438,7 @@ export default function VereditoPage() {
                             )) : (
                               <div className="p-10 text-center space-y-4 opacity-40">
                                  <Gavel size={32} className="mx-auto" />
-                                 <p className="text-[10px] font-black uppercase">
-                                   {result.dataJudRaw?.message || "Sem histórico cronológico disponível."}
-                                 </p>
+                                 <p className="text-[10px] font-black uppercase">{result.dataJudRaw?.message || "Sem histórico disponível."}</p>
                               </div>
                             )}
                          </div>

@@ -93,7 +93,6 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Hardware');
   const { profile } = useAuth();
   
-  // Banca
   const [advogados, setAdvogados] = useState<any[]>([]);
   const [loadingBanca, setLoadingBanca] = useState(false);
   const [isAdvModalOpen, setIsAdvModalOpen] = useState(false);
@@ -110,7 +109,6 @@ export default function SettingsPage() {
     oabs: [] as { uf: string, num: string }[]
   });
 
-  // Base de Conhecimento
   const [knowledgeDocs, setKnowledgeDocs] = useState<any[]>([]);
   const [loadingKnowledge, setLoadingKnowledge] = useState(false);
   const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
@@ -127,7 +125,6 @@ export default function SettingsPage() {
   const [knowledgeInputType, setKnowledgeInputType] = useState('file');
   const knowledgeFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Cores
   const [bgColor, setBgColor] = useState('#FFFFFF');
   const [bgSecondaryColor, setBgSecondaryColor] = useState('#F3F4F6');
   const [fontColor, setFontColor] = useState('#0A0A0A');
@@ -136,17 +133,14 @@ export default function SettingsPage() {
   const [accentColor, setAccentColor] = useState('#E5E7EB');
   const [radius, setRadius] = useState(4);
   
-  // Atmosfera
   const [bgOpacity, setBgOpacity] = useState(85);
   const [sidebarOpacity, setSidebarOpacity] = useState(90);
   const [glassBlur, setGlassBlur] = useState(8);
   const [wallpaper, setWallpaper] = useState('');
   
-  // IA
   const [iaModel, setIaModel] = useState('xai');
   const [isMasterUnlocked, setIsMasterUnlocked] = useState(false);
 
-  // Export
   const [exportPassword, setExportPassword] = useState('');
   const [isExportUnlocked, setIsExportUnlocked] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -160,7 +154,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    setIaModel(localStorage.getItem('lexisPredict_preferred_ia') || 'xai');
+    const savedIA = localStorage.getItem('lexisPredict_preferred_ia') || 'xai';
+    setIaModel(savedIA === 'airforce' ? 'xai' : savedIA);
     setIsMasterUnlocked(localStorage.getItem('lexis_master_unlock') === 'true');
     
     setBgColor(localStorage.getItem('lexisPredict_bg_color') || '#FFFFFF');
@@ -232,7 +227,7 @@ export default function SettingsPage() {
 
     const res = await uploadKnowledgeDocAction(formData);
     if (res.success) {
-      toast({ title: "Conhecimento Sincronizado", description: `A IA absorveu ${res.chunks} fragmentos técnicos.` });
+      toast({ title: "Conhecimento Sincronizado" });
       setIsKnowledgeModalOpen(false);
       setKnowledgeForm({ title: '', type: 'script', tags: '', useInDispatch: true, rawText: '' });
       fetchKnowledge();
@@ -244,10 +239,10 @@ export default function SettingsPage() {
 
   const handleDeleteKnowledge = async (docId: string) => {
     if (!knowledgeUnlocked) {
-      toast({ title: "Desbloqueie a aba para realizar alterações", variant: "destructive" });
+      toast({ title: "Desbloqueie para alterar", variant: "destructive" });
       return;
     }
-    if (!confirm('Deseja remover este documento? A IA esquecerá esse conteúdo.')) return;
+    if (!confirm('Deseja remover este documento?')) return;
     const res = await deleteKnowledgeDocAction(docId);
     if (res.success) {
       toast({ title: "Conhecimento Removido" });
@@ -258,17 +253,13 @@ export default function SettingsPage() {
   const handleUserAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-
     const res = await uploadUserAvatarAction(formData);
     if (res.success) {
-      toast({ title: "Foto de Perfil Atualizada" });
+      toast({ title: "Foto Atualizada" });
       window.location.reload();
-    } else {
-      toast({ title: "Erro no Upload", description: res.error, variant: "destructive" });
     }
     setIsUploading(false);
   };
@@ -276,17 +267,13 @@ export default function SettingsPage() {
   const handleAdvogadoAvatarUpload = async (advId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-
     const res = await uploadAdvogadoAvatarAction(advId, formData);
     if (res.success) {
       toast({ title: "Foto do Advogado Atualizada" });
       fetchBanca();
-    } else {
-      toast({ title: "Erro no Upload", description: res.error, variant: "destructive" });
     }
     setIsUploading(false);
   };
@@ -295,12 +282,7 @@ export default function SettingsPage() {
     e.preventDefault();
     const oabsJson: Record<string, string> = {};
     advForm.oabs.forEach(o => { if(o.uf && o.num) oabsJson[o.uf] = o.num; });
-
-    if (!advForm.nome || Object.keys(oabsJson).length === 0) {
-      toast({ title: "Dados incompletos", description: "Informe o nome e ao menos uma OAB.", variant: "destructive" });
-      return;
-    }
-
+    if (!advForm.nome || Object.keys(oabsJson).length === 0) return;
     const res = await upsertAdvogadoBanca({
       id: editingAdv?.id,
       nome: advForm.nome,
@@ -311,27 +293,16 @@ export default function SettingsPage() {
       email: advForm.email,
       oabs: oabsJson
     });
-
     if (res.success) {
       toast({ title: "Advogado Sincronizado" });
       setIsAdvModalOpen(false);
       fetchBanca();
-    } else {
-      toast({ title: "Erro ao salvar", description: res.error, variant: "destructive" });
     }
   };
 
   const openAddAdv = () => {
     setEditingAdv(null);
-    setAdvForm({ 
-      nome: '', 
-      genero: 'M', 
-      nacionalidade: 'brasileiro', 
-      estadoCivil: 'casado', 
-      endereco: '', 
-      email: '', 
-      oabs: [{ uf: 'SP', num: '' }] 
-    });
+    setAdvForm({ nome: '', genero: 'M', nacionalidade: 'brasileiro', estadoCivil: 'casado', endereco: '', email: '', oabs: [{ uf: 'SP', num: '' }] });
     setIsAdvModalOpen(true);
   };
 
@@ -351,15 +322,7 @@ export default function SettingsPage() {
   };
 
   const handleApplyHardware = () => {
-    const customColors = {
-      background: bgColor,
-      bgSecondary: bgSecondaryColor,
-      foreground: fontColor,
-      fontMuted: fontMutedColor,
-      primary: primaryColor,
-      accent: accentColor,
-      border: fontColor
-    };
+    const customColors = { background: bgColor, bgSecondary: bgSecondaryColor, foreground: fontColor, fontMuted: fontMutedColor, primary: primaryColor, accent: accentColor, border: fontColor };
     applyGlobalTheme(customColors, radius, bgOpacity / 100, sidebarOpacity / 100, glassBlur);
     if (wallpaper) applyWallpaperUrl(wallpaper);
     toast({ title: "Hardware Visual Aplicado" });
@@ -413,10 +376,7 @@ export default function SettingsPage() {
                        <AvatarImage src={profile?.avatar_url || ''} />
                        <AvatarFallback className="bg-black text-primary font-black text-xl">{profile?.nome?.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <button 
-                      onClick={() => userAvatarInputRef.current?.click()}
-                      className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
+                    <button onClick={() => userAvatarInputRef.current?.click()} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                        {isUploading ? <Loader2 className="animate-spin" /> : <Camera size={24} />}
                     </button>
                     <input type="file" className="hidden" ref={userAvatarInputRef} onChange={handleUserAvatarUpload} accept="image/*" />
@@ -425,21 +385,14 @@ export default function SettingsPage() {
                     <p className="font-black text-xs uppercase">{profile?.nome}</p>
                     <p className="text-[9px] font-bold text-muted-foreground uppercase">{profile?.cargo}</p>
                  </div>
-                 {profile?.avatar_url && (
-                    <Button variant="ghost" size="sm" onClick={() => removeAvatarAction('user')} className="h-6 text-[8px] font-black uppercase text-red-500 hover:bg-red-50">Remover Foto</Button>
-                 )}
               </section>
 
               <nav className="space-y-1">
                 <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
                 <NavButton active={activeTab === 'Banca'} onClick={() => setActiveTab('Banca')} icon={<Gavel size={14}/>} label="Banca de Advogados" />
-                {isAdmin && (
-                  <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
-                )}
+                {isAdmin && <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />}
                 <NavButton active={activeTab === 'Engine'} onClick={() => setActiveTab('Engine')} icon={<Cpu size={14}/>} label="Núcleo Neural" />
-                {isMasterUnlocked && (
-                  <NavButton active={activeTab === 'Export'} onClick={() => setActiveTab('Export')} icon={<Archive size={14}/>} label="Exportação Master" />
-                )}
+                {isMasterUnlocked && <NavButton active={activeTab === 'Export'} onClick={() => setActiveTab('Export')} icon={<Archive size={14}/>} label="Exportação Master" />}
               </nav>
             </aside>
 
@@ -449,20 +402,12 @@ export default function SettingsPage() {
                   <section className="space-y-6">
                     <div className="flex items-center justify-between">
                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Authority Presets</Label>
-                       <Button variant="ghost" onClick={handleApplyHardware} className="h-8 text-[10px] font-black uppercase hover:bg-primary hover:text-black">
-                         <RefreshCcw size={12} className="mr-2"/> Sincronizar Tudo
-                       </Button>
+                       <Button variant="ghost" onClick={handleApplyHardware} className="h-8 text-[10px] font-black uppercase hover:bg-primary hover:text-black"><RefreshCcw size={12} className="mr-2"/> Sincronizar Tudo</Button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                        {AUTHORITY_PRESETS.map((p) => (
                          <button key={p.id} onClick={() => {
-                             setBgColor(p.colors.background);
-                             setBgSecondaryColor(p.colors.bgSecondary);
-                             setFontColor(p.colors.foreground);
-                             setFontMutedColor(p.colors.fontMuted);
-                             setPrimaryColor(p.colors.primary);
-                             setAccentColor(p.colors.accent);
-                             setRadius(p.radius);
+                             setBgColor(p.colors.background); setBgSecondaryColor(p.colors.bgSecondary); setFontColor(p.colors.foreground); setFontMutedColor(p.colors.fontMuted); setPrimaryColor(p.colors.primary); setAccentColor(p.colors.accent); setRadius(p.radius);
                              applyGlobalTheme(p.colors, p.radius, bgOpacity / 100, sidebarOpacity / 100, glassBlur);
                              toast({ title: `Tema ${p.name} Ativado` });
                          }} className={cn("p-4 border border-border hover:border-primary/50 transition-all flex flex-col items-center gap-3 bg-background/20 backdrop-blur-md rounded-lg relative overflow-hidden group", bgColor === p.colors.background && "border-primary")}>
@@ -474,7 +419,6 @@ export default function SettingsPage() {
                        ))}
                     </div>
                   </section>
-
                   <section className="space-y-6">
                     <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera & Vidro</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl">
@@ -498,21 +442,13 @@ export default function SettingsPage() {
                 <div className="space-y-8 animate-in fade-in duration-500">
                    {!knowledgeUnlocked ? (
                      <div className="p-16 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center space-y-6 bg-background/10 backdrop-blur-md">
-                        <div className="w-16 h-16 bg-black text-primary flex items-center justify-center rounded-full shadow-2xl">
-                           <Lock size={32} />
-                        </div>
+                        <div className="w-16 h-16 bg-black text-primary flex items-center justify-center rounded-full shadow-2xl"><Lock size={32} /></div>
                         <div className="text-center space-y-2">
                            <h3 className="font-black uppercase text-sm tracking-widest">Acesso de Gabinete Requerido</h3>
                            <p className="text-[10px] font-bold uppercase text-muted-foreground">Insira a senha mestre para gerenciar o conhecimento da IA.</p>
                         </div>
                         <div className="flex gap-2 w-full max-w-xs">
-                           <Input 
-                             type="password" 
-                             placeholder="SENHA MASTER..." 
-                             value={knowledgePassword} 
-                             onChange={(e) => setKnowledgePassword(e.target.value)} 
-                             className="border-2 border-black rounded-none h-11 uppercase font-black text-xs text-center"
-                           />
+                           <Input type="password" placeholder="SENHA MASTER..." value={knowledgePassword} onChange={(e) => setKnowledgePassword(e.target.value)} className="border-2 border-black rounded-none h-11 uppercase font-black text-xs text-center" />
                            <Button onClick={handleUnlockKnowledge} className="bg-black text-white h-11 px-6 rounded-none font-black uppercase text-[10px]">Liberar</Button>
                         </div>
                      </div>
@@ -521,53 +457,31 @@ export default function SettingsPage() {
                        <div className="flex items-center justify-between">
                           <div className="space-y-1">
                              <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Base de Dados & Scripts</Label>
-                             <div className="flex items-center gap-2 text-emerald-500 text-[8px] font-black uppercase">
-                                <Unlock size={10} /> Ashley Protocol Active
-                             </div>
+                             <div className="flex items-center gap-2 text-emerald-500 text-[8px] font-black uppercase"><Unlock size={10} /> Ashley Protocol Active</div>
                           </div>
-                          <Button onClick={() => setIsKnowledgeModalOpen(true)} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all">
-                            <Plus size={14} className="mr-2"/> Ensinar IA
-                          </Button>
+                          <Button onClick={() => setIsKnowledgeModalOpen(true)} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all"><Plus size={14} className="mr-2"/> Ensinar IA</Button>
                        </div>
-
                        <div className="grid gap-4">
                           {loadingKnowledge ? <Loader2 className="animate-spin mx-auto"/> : 
                             knowledgeDocs.map((doc) => (
                             <div key={doc.id} className="p-6 border border-border rounded-lg bg-background/20 backdrop-blur-xl flex items-center justify-between group hover:border-primary/50 transition-all">
                                <div className="flex items-center gap-4">
-                                  <div className="w-12 h-12 bg-black flex items-center justify-center text-primary rounded-lg border-2 border-black shadow-sm group-hover:shadow-primary/20">
-                                     <BookOpen size={24} />
-                                  </div>
+                                  <div className="w-12 h-12 bg-black flex items-center justify-center text-primary rounded-lg border-2 border-black shadow-sm group-hover:shadow-primary/20"><BookOpen size={24} /></div>
                                   <div>
                                      <div className="flex items-center gap-2">
                                         <p className="font-black text-sm uppercase tracking-tight">{doc.titulo}</p>
                                         <Badge variant="outline" className="text-[7px] font-black uppercase px-1.5 py-0 border-black/10">{doc.tipo}</Badge>
                                      </div>
                                      <div className="flex items-center gap-2 mt-1">
-                                        <div className="flex gap-1">
-                                           {doc.tags?.slice(0, 3).map((t: string) => (
-                                              <span key={t} className="text-[7px] bg-secondary/50 text-muted-foreground px-1 py-0.5 rounded-sm font-black uppercase">{t}</span>
-                                           ))}
-                                        </div>
+                                        <div className="flex gap-1">{doc.tags?.slice(0, 3).map((t: string) => (<span key={t} className="text-[7px] bg-secondary/50 text-muted-foreground px-1 py-0.5 rounded-sm font-black uppercase">{t}</span>))}</div>
                                         <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
-                                        {doc.uso_despacho ? (
-                                           <Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><Eye size={8}/> Despacho Ativo</Badge>
-                                        ) : (
-                                           <Badge className="bg-slate-500/10 text-slate-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><EyeOff size={8}/> Apenas Interno</Badge>
-                                        )}
+                                        {doc.uso_despacho ? (<Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><Eye size={8}/> Despacho Ativo</Badge>) : (<Badge className="bg-slate-500/10 text-slate-500 border-none text-[7px] font-black uppercase flex items-center gap-1"><EyeOff size={8}/> Apenas Interno</Badge>)}
                                      </div>
                                   </div>
                                </div>
-                               <div className="flex gap-2">
-                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteKnowledge(doc.id)} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
-                               </div>
+                               <div className="flex gap-2"><Button variant="ghost" size="icon" onClick={() => handleDeleteKnowledge(doc.id)} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button></div>
                             </div>
                           ))}
-                          {knowledgeDocs.length === 0 && !loadingKnowledge && (
-                            <div className="p-12 text-center border-2 border-dashed border-border/20 rounded-lg">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground">Nenhum conhecimento externo cadastrado para a IA.</p>
-                            </div>
-                          )}
                        </div>
                      </>
                    )}
@@ -578,11 +492,8 @@ export default function SettingsPage() {
                 <div className="space-y-8 animate-in fade-in duration-500">
                    <div className="flex items-center justify-between">
                       <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Advogados Ativos</Label>
-                      <Button onClick={openAddAdv} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all">
-                        <Plus size={14} className="mr-2"/> Cadastrar Novo
-                      </Button>
+                      <Button onClick={openAddAdv} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all"><Plus size={14} className="mr-2"/> Cadastrar Novo</Button>
                    </div>
-
                    <div className="grid gap-4">
                       {loadingBanca ? <Loader2 className="animate-spin mx-auto"/> : 
                         advogados.map((adv) => (
@@ -593,25 +504,18 @@ export default function SettingsPage() {
                                    <AvatarImage src={adv.avatar_url || ''} />
                                    <AvatarFallback className="bg-black text-primary font-black text-sm">{adv.nome.substring(0, 2).toUpperCase()}</AvatarFallback>
                                 </Avatar>
-                                <button 
-                                  onClick={() => { setEditingAdv(adv); advAvatarInputRef.current?.click(); }}
-                                  className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
-                                >
-                                   <Camera size={14} />
-                                </button>
+                                <button onClick={() => { setEditingAdv(adv); advAvatarInputRef.current?.click(); }} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"><Camera size={14} /></button>
                               </div>
                               <div>
                                  <p className="font-black text-sm uppercase tracking-tight">{adv.nome}</p>
                                  <div className="flex items-center gap-2 mt-1">
                                     <p className="text-[9px] text-muted-foreground uppercase font-bold">OAB: {Object.values(adv.oabs || {}).join(' | ')}</p>
-                                    <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
-                                    <p className="text-[9px] text-muted-foreground uppercase italic">{adv.nacionalidade || 'brasileiro'} · {adv.estado_civil || 'casado'}</p>
                                  </div>
                               </div>
                            </div>
                            <div className="flex gap-2">
                               <Button variant="ghost" size="icon" onClick={() => openEditAdv(adv)} className="h-8 w-8 hover:bg-primary hover:text-black rounded-sm"><Edit2 size={14}/></Button>
-                              <Button variant="ghost" size="icon" onClick={async () => { if(confirm('Remover advogado?')) { await desativarAdvogadoBanca(adv.id); fetchBanca(); } }} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
+                              <Button variant="ghost" size="icon" onClick={async () => { if(confirm('Remover?')) { await desativarAdvogadoBanca(adv.id); fetchBanca(); } }} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
                            </div>
                         </div>
                       ))}
@@ -631,9 +535,7 @@ export default function SettingsPage() {
                          <ShieldCheck className="text-amber-500 mt-1 shrink-0" size={18} />
                          <div>
                             <p className="text-[10px] font-black uppercase text-amber-700">Protocolo de Sigilo Ativo</p>
-                            <p className="text-[9px] font-bold text-amber-600/80 uppercase leading-relaxed mt-1">
-                               As IAs estão instruídas a nunca citar nomes de empresas. Todo despacho é gerado em tom institucional neutro (Setor Processual / Escritório).
-                            </p>
+                            <p className="text-[9px] font-bold text-amber-600/80 uppercase leading-relaxed mt-1">As IAs estão instruídas a nunca citar nomes de empresas. Todo despacho é gerado em tom institucional neutro.</p>
                          </div>
                       </div>
                       <RadioGroup value={iaModel} onValueChange={(val) => { setIaModel(val); localStorage.setItem('lexisPredict_preferred_ia', val); toast({ title: "Prioridade Alterada" }); }}>
@@ -659,8 +561,7 @@ export default function SettingsPage() {
                     <Card className="bg-background/40 backdrop-blur-xl border border-border rounded-lg shadow-2xl">
                          <CardContent className="p-8">
                             <Button onClick={handleFullBackupZip} disabled={isExporting} className="w-full h-16 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-[0.2em] shadow-[8px_8px_0px_#00D1FF] border-2 border-black rounded-none">
-                                {isExporting ? <Loader2 className="animate-spin mr-3" /> : <FileArchive className="mr-3" />}
-                                Baixar Código-Fonte SaaS
+                                {isExporting ? <Loader2 className="animate-spin mr-3" /> : <FileArchive className="mr-3" />} Baixar Código-Fonte SaaS
                             </Button>
                          </CardContent>
                     </Card>
@@ -671,82 +572,55 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* MODAL CONHECIMENTO */}
         <Dialog open={isKnowledgeModalOpen} onOpenChange={setIsKnowledgeModalOpen}>
            <DialogContent className="sm:max-w-[500px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000] p-0 overflow-hidden">
               <form onSubmit={handleKnowledgeUpload}>
                  <DialogHeader className="p-6 bg-black text-white">
-                    <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3">
-                       <Zap size={20} className="text-primary"/> Ensinar Unidade Neural
-                    </DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase text-white/60 mt-2">
-                       Alimente o cérebro da IA com novos scripts ou políticas de atendimento.
-                    </DialogDescription>
+                    <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={20} className="text-primary"/> Ensinar Unidade Neural</DialogTitle>
                  </DialogHeader>
-                 
                  <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
                     <div className="space-y-2">
-                       <Label className="text-[9px] font-black uppercase">Título do Conhecimento</Label>
+                       <Label className="text-[9px] font-black uppercase">Título</Label>
                        <Input value={knowledgeForm.title} onChange={e => setKnowledgeForm({...knowledgeForm, title: e.target.value.toUpperCase()})} placeholder="EX: MANUAL DE CUSTAS 2026" className="border-black rounded-none h-11 uppercase font-black text-xs" required />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Tipo de Documento</Label>
+                          <Label className="text-[9px] font-black uppercase">Tipo</Label>
                           <Select value={knowledgeForm.type} onValueChange={v => setKnowledgeForm({...knowledgeForm, type: v})}>
                              <SelectTrigger className="border-black rounded-none h-11"><SelectValue /></SelectTrigger>
-                             <SelectContent>
-                                <SelectItem value="script">Script de Despacho</SelectItem>
-                                <SelectItem value="politica">Política Interna</SelectItem>
-                                <SelectItem value="manual">Manual Técnico</SelectItem>
-                                <SelectItem value="modelo">Modelo de Peça</SelectItem>
-                             </SelectContent>
+                             <SelectContent><SelectItem value="script">Script</SelectItem><SelectItem value="politica">Política</SelectItem><SelectItem value="manual">Manual</SelectItem></SelectContent>
                           </Select>
                        </div>
                        <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Tags (Keywords)</Label>
-                          <Input value={knowledgeForm.tags} onChange={e => setKnowledgeForm({...knowledgeForm, tags: e.target.value})} placeholder="JG, CUSTAS, TJSP" className="border-black rounded-none h-11 uppercase font-bold text-xs" />
+                          <Label className="text-[9px] font-black uppercase">Tags</Label>
+                          <Input value={knowledgeForm.tags} onChange={e => setKnowledgeForm({...knowledgeForm, tags: e.target.value})} placeholder="JG, CUSTAS" className="border-black rounded-none h-11 uppercase font-bold text-xs" />
                        </div>
                     </div>
-
                     <div className="p-4 bg-secondary/20 border border-black/5 flex items-center justify-between">
-                       <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase">Autorizar uso em Despacho?</Label>
-                          <p className="text-[8px] font-bold uppercase text-muted-foreground">Se ativo, a IA usará este texto para redigir mensagens ao cliente.</p>
-                       </div>
+                       <Label className="text-[10px] font-black uppercase">Usar em Despacho?</Label>
                        <Switch checked={knowledgeForm.useInDispatch} onCheckedChange={v => setKnowledgeForm({...knowledgeForm, useInDispatch: v})} />
                     </div>
-
                     <div className="space-y-4">
-                      <Label className="text-[9px] font-black uppercase">Fonte de Dados</Label>
                       <Tabs value={knowledgeInputType} onValueChange={setKnowledgeInputType} className="w-full">
                          <TabsList className="grid w-full grid-cols-2 bg-gray-100 border-2 border-black rounded-none p-1">
-                            <TabsTrigger value="file" className="rounded-none font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Carregar Arquivo</TabsTrigger>
-                            <TabsTrigger value="text" className="rounded-none font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Colar Texto</TabsTrigger>
+                            <TabsTrigger value="file" className="rounded-none font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Arquivo</TabsTrigger>
+                            <TabsTrigger value="text" className="rounded-none font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Texto</TabsTrigger>
                          </TabsList>
                          <TabsContent value="file" className="pt-4">
                             <div className="border-2 border-dashed border-black/20 p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-black group transition-all" onClick={() => knowledgeFileInputRef.current?.click()}>
                                <FileUp className="text-black/20 group-hover:text-white mb-2" size={32} />
-                               <p className="text-[9px] font-black uppercase group-hover:text-white">PDF, MD ou TXT</p>
                                <input type="file" ref={knowledgeFileInputRef} accept=".pdf,.md,.txt" className="hidden" />
                             </div>
                          </TabsContent>
                          <TabsContent value="text" className="pt-4">
-                            <Textarea 
-                              value={knowledgeForm.rawText} 
-                              onChange={e => setKnowledgeForm({...knowledgeForm, rawText: e.target.value})} 
-                              placeholder="COLE O CONTEÚDO TÉCNICO AQUI..."
-                              className="min-h-[200px] border-2 border-black rounded-none uppercase font-bold text-[10px] resize-none"
-                            />
+                            <Textarea value={knowledgeForm.rawText} onChange={e => setKnowledgeForm({...knowledgeForm, rawText: e.target.value})} placeholder="COLE O CONTEÚDO AQUI..." className="min-h-[200px] border-2 border-black rounded-none uppercase font-bold text-[10px]" />
                          </TabsContent>
                       </Tabs>
                     </div>
                  </div>
-                 
                  <DialogFooter className="p-6 bg-[#f8f9fb] border-t-2 border-black">
-                    <Button type="submit" disabled={isUploadingKnowledge} className="w-full h-14 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#22c55e] transition-all">
-                       {isUploadingKnowledge ? <Loader2 className="animate-spin mr-2"/> : <Zap size={14} className="mr-2"/>}
-                       Processar Conhecimento Neural
+                    <Button type="submit" disabled={isUploadingKnowledge} className="w-full h-14 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[11px] tracking-widest rounded-none shadow-[6px_6px_0px_#22c55e]">
+                       {isUploadingKnowledge ? <Loader2 className="animate-spin mr-2"/> : <Zap size={14} className="mr-2"/>} Processar
                     </Button>
                  </DialogFooter>
               </form>
@@ -756,79 +630,26 @@ export default function SettingsPage() {
         <Dialog open={isAdvModalOpen} onOpenChange={setIsAdvModalOpen}>
            <DialogContent className="sm:max-w-[550px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
               <form onSubmit={handleSaveAdvogado}>
-                 <DialogHeader>
-                    <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
-                       <User size={16} className="text-primary"/> Perfil de Advogado Banca
-                    </DialogTitle>
-                 </DialogHeader>
+                 <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm">Perfil de Advogado</DialogTitle></DialogHeader>
                  <div className="space-y-6 py-6">
-                    <div className="grid grid-cols-4 gap-4">
-                       <div className="col-span-3 space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Nome Completo</Label>
-                          <Input value={advForm.nome} onChange={e => setAdvForm({...advForm, nome: e.target.value.toUpperCase()})} className="border-black rounded-none h-11 uppercase font-black text-xs" required />
-                       </div>
-                       <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Gênero</Label>
-                          <Select value={advForm.genero} onValueChange={v => setAdvForm({...advForm, genero: v})}>
-                             <SelectTrigger className="border-black rounded-none h-11"><SelectValue /></SelectTrigger>
-                             <SelectContent><SelectItem value="M">MASC</SelectItem><SelectItem value="F">FEM</SelectItem></SelectContent>
-                          </Select>
-                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Nacionalidade</Label>
-                          <Input value={advForm.nacionalidade} onChange={e => setAdvForm({...advForm, nacionalidade: e.target.value.toLowerCase()})} className="border-black rounded-none h-11 lowercase font-bold text-xs" />
-                       </div>
-                       <div className="space-y-2">
-                          <Label className="text-[9px] font-black uppercase">Estado Civil</Label>
-                          <Input value={advForm.estadoCivil} onChange={e => setAdvForm({...advForm, estadoCivil: e.target.value.toLowerCase()})} className="border-black rounded-none h-11 lowercase font-bold text-xs" />
-                       </div>
-                    </div>
-
                     <div className="space-y-2">
-                       <Label className="text-[9px] font-black uppercase">Endereço Profissional</Label>
-                       <Input value={advForm.endereco} onChange={e => setAdvForm({...advForm, endereco: e.target.value.toUpperCase()})} className="border-black rounded-none h-11 font-bold text-xs" />
+                       <Label className="text-[9px] font-black uppercase">Nome Completo</Label>
+                       <Input value={advForm.nome} onChange={e => setAdvForm({...advForm, nome: e.target.value.toUpperCase()})} className="border-black rounded-none h-11 uppercase font-black text-xs" required />
                     </div>
-
-                    <div className="space-y-2">
-                       <Label className="text-[9px] font-black uppercase">E-mail de Intimação</Label>
-                       <Input value={advForm.email} onChange={e => setAdvForm({...advForm, email: e.target.value.toLowerCase()})} className="border-black rounded-none h-11 lowercase font-bold text-xs" />
-                    </div>
-
                     <div className="space-y-4">
-                       <div className="flex justify-between items-center">
-                          <Label className="text-[9px] font-black uppercase">Registros OAB (UF / Número)</Label>
-                          <Button type="button" onClick={() => setAdvForm({...advForm, oabs: [...advForm.oabs, { uf: 'SP', num: '' }]})} variant="ghost" className="h-6 text-[8px] font-black uppercase">Add UF</Button>
-                       </div>
-                       <div className="space-y-2">
-                          {advForm.oabs.map((o, idx) => (
-                             <div key={idx} className="flex gap-2">
-                                <Select value={o.uf} onValueChange={(v) => {
-                                   const newOabs = [...advForm.oabs];
-                                   newOabs[idx].uf = v;
-                                   setAdvForm({...advForm, oabs: newOabs});
-                                }}>
-                                   <SelectTrigger className="w-20 border-black rounded-none"><SelectValue /></SelectTrigger>
-                                   <SelectContent>
-                                      {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}
-                                   </SelectContent>
-                                </Select>
-                                <Input value={o.num} onChange={e => {
-                                   const newOabs = [...advForm.oabs];
-                                   newOabs[idx].num = e.target.value;
-                                   setAdvForm({...advForm, oabs: newOabs});
-                                }} placeholder="000.000" className="border-black rounded-none font-mono" />
-                                <Button type="button" onClick={() => setAdvForm({...advForm, oabs: advForm.oabs.filter((_, i) => i !== idx)})} variant="ghost" size="icon" className="h-11 w-11"><X size={14}/></Button>
-                             </div>
-                          ))}
-                       </div>
+                       <div className="flex justify-between items-center"><Label className="text-[9px] font-black uppercase">OABs</Label><Button type="button" onClick={() => setAdvForm({...advForm, oabs: [...advForm.oabs, { uf: 'SP', num: '' }]})} variant="ghost" className="h-6 text-[8px] font-black uppercase">Add UF</Button></div>
+                       {advForm.oabs.map((o, idx) => (
+                          <div key={idx} className="flex gap-2">
+                             <Select value={o.uf} onValueChange={(v) => { const newOabs = [...advForm.oabs]; newOabs[idx].uf = v; setAdvForm({...advForm, oabs: newOabs}); }}>
+                                <SelectTrigger className="w-20 border-black rounded-none"><SelectValue /></SelectTrigger>
+                                <SelectContent>{["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}</SelectContent>
+                             </Select>
+                             <Input value={o.num} onChange={e => { const newOabs = [...advForm.oabs]; newOabs[idx].num = e.target.value; setAdvForm({...advForm, oabs: newOabs}); }} className="border-black rounded-none" />
+                          </div>
+                       ))}
                     </div>
                  </div>
-                 <DialogFooter>
-                    <Button type="submit" className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] tracking-widest rounded-none shadow-[6px_6px_0px_#22c55e]">Sincronizar Advogado</Button>
-                 </DialogFooter>
+                 <DialogFooter><Button type="submit" className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none shadow-[6px_6px_0px_#22c55e]">Salvar Advogado</Button></DialogFooter>
               </form>
            </DialogContent>
         </Dialog>

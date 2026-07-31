@@ -78,6 +78,7 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
+import { useAuth } from '@/components/auth/auth-provider';
 
 interface TaskGroup {
   cliente: string;
@@ -90,15 +91,11 @@ interface TaskGroup {
   advogado: string;
   escritorio: string;
   cases: LegalCase[];
-  
-  // Metadados de Prioridade v260.0
   hasBA: boolean;
   hasClosedCourt: boolean;
   hasUpdate: boolean;
   statusScore: number;
   oldestReturnGap: number;
-
-  // Telemetria v52.0
   lastMovementName?: string | null;
   lastMovementDate?: string | null;
 }
@@ -122,15 +119,15 @@ export default function TarefasPage() {
     applyToAll: true
   });
 
-  // DataJud State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
-  const [selectedMotor, setSelectedMotor] = useState<string>('xai');
+  const [selectedMotor, setSelectedMotor] = useState<string>('local_only');
 
+  const { profile } = useAuth();
   const { toast } = useToast();
 
   const getTodayKey = () => {
@@ -233,12 +230,13 @@ export default function TarefasPage() {
         protocolo: historyResult.case.protocolo,
         ultimoRetorno: historyResult.case.ultimoRetorno,
         movimentos: historyResult.movimentos,
-        preferredModel: selectedMotor
+        preferredModel: selectedMotor,
+        empresaId: profile?.empresa_id
       });
       
       if (res.rascunho) {
         setAiDraft(res.rascunho);
-        toast({ title: "Rascunho Motor Lexis Gerado" });
+        toast({ title: selectedMotor === 'local_only' ? "Rascunho Local Gerado" : "Rascunho Motor Lexis Gerado" });
       }
     } catch (e) {
       toast({ title: "Falha no Motor Lexis", variant: "destructive" });
@@ -558,7 +556,6 @@ export default function TarefasPage() {
           </div>
         </div>
 
-        {/* Modal de Cronologia DataJud + Sugestões */}
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
           <DialogContent className="sm:max-w-[750px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="p-6 bg-black text-white">
@@ -613,7 +610,6 @@ export default function TarefasPage() {
               </div>
 
               <div className="flex-1 overflow-hidden flex">
-                {/* Lado Esquerdo: Cronologia */}
                 <ScrollArea className={cn("bg-white transition-all duration-300", showScripts ? "w-1/2 border-r" : "w-full")}>
                   <div className="p-6 space-y-6">
                     {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
@@ -642,7 +638,6 @@ export default function TarefasPage() {
                   </div>
                 </ScrollArea>
 
-                {/* Lado Direito: Sugestões de Script */}
                 {showScripts && (
                   <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
                     <div className="p-6 space-y-6">
@@ -653,7 +648,6 @@ export default function TarefasPage() {
                          <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
                       </div>
 
-                      {/* IA DRAFT AREA (Opcional via Motor Lexis) */}
                       <div className="bg-black text-white p-5 space-y-4 mb-8">
                          <div className="flex flex-col gap-3">
                             <div className="flex items-center justify-between">
@@ -670,9 +664,9 @@ export default function TarefasPage() {
                                   </div>
                                 </SelectTrigger>
                                 <SelectContent className="bg-white border-2 border-black rounded-none">
+                                  <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                                   <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 4.5</SelectItem>
                                   <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
-                                  <SelectItem value="airforce" className="text-[9px] font-black uppercase">Airforce Ultra</SelectItem>
                                 </SelectContent>
                               </Select>
 
@@ -691,7 +685,7 @@ export default function TarefasPage() {
                               <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
                                  <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
                               </div>
-                              <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho IA</Button>
+                              <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho</Button>
                            </div>
                          ) : !isGeneratingAIDraft && (
                            <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta personalizada.</p>

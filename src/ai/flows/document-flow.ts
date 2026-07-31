@@ -9,7 +9,6 @@ import {z} from 'genkit';
 
 const API_KEYS = {
   XAI: process.env.XAI_API_KEY,
-  AIRFORCE: process.env.AIRFORCE_API_KEY,
   GROQ: process.env.GROQ_API_KEY
 };
 
@@ -53,7 +52,6 @@ function dumbExtract(text: string) {
   let endereco = "REVISAR MANUALMENTE";
   let dataNasc = dateMatch ? dateMatch[0] : "";
 
-  // Tenta capturar nome na primeira linha significativa
   for (const line of lines) {
     if (line.length > 10 && !line.includes('|') && !line.includes('http') && !line.includes(':')) {
       nome = line.split(/\d/)[0].trim().toUpperCase();
@@ -61,7 +59,6 @@ function dumbExtract(text: string) {
     }
   }
 
-  // Tenta capturar endereço
   for (const line of lines) {
     if ((line.toUpperCase().includes('RUA') || line.toUpperCase().includes('AV')) && line.includes(',')) {
       endereco = line.toUpperCase();
@@ -95,7 +92,7 @@ function dumbExtract(text: string) {
 async function callNeuralEngine(text: string) {
   const engines = [
     { id: 'xai-grok', url: 'https://api.x.ai/v1/responses', key: API_KEYS.XAI, model: 'grok-4.5' },
-    { id: 'airforce-deepseek', url: 'https://api.airforce/v1/chat/completions', key: API_KEYS.AIRFORCE, model: 'deepseek-v3' }
+    { id: 'groq-llama', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
   ];
 
   for (const engine of engines) {

@@ -8,7 +8,6 @@ import { ai, z } from '@/ai/genkit';
 
 const API_KEYS = {
   XAI: process.env.XAI_API_KEY,
-  AIRFORCE: process.env.AIRFORCE_API_KEY,
   GROQ: process.env.GROQ_API_KEY
 };
 
@@ -93,8 +92,7 @@ export const chatAIFlow = ai.defineFlow(
 
     const engines = [
       { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-beta' },
-      { id: 'groq-llama', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' },
-      { id: 'airforce', url: 'https://api.airforce/v1/chat/completions', key: API_KEYS.AIRFORCE, model: 'llama-3.3-70b' }
+      { id: 'groq-llama', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
     ];
 
     const prioritizedEngines = [...engines];

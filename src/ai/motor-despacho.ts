@@ -1,6 +1,6 @@
 /**
- * @fileOverview MOTOR LEXIS DE DESPACHO v7.0 (FIDELIDADE DE MÉRITO)
- * Orquestrador principal que prioriza Base de Conhecimento e aplica Transparência de Decisão.
+ * @fileOverview MOTOR LEXIS DE DESPACHO v8.0 (FIDELIDADE DE MÉRITO + SOBERANIA LOCAL)
+ * Orquestrador principal que prioriza Base de Conhecimento e permite rascunho determinístico.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -14,7 +14,7 @@ export interface MotorDespachoInput {
   protocolo: string;
   ultimoRetorno?: string | null;
   movimentos: any[];
-  preferredModel?: string;
+  preferredModel?: string; // 'xai' | 'groq-llama' | 'local_only'
   empresaId?: string;
 }
 
@@ -51,6 +51,15 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
   const baseScript = suggestions[0]?.texto || "";
   const categoria = suggestions[0]?.categoria || "geral";
 
+  // MODO DETERMINÍSTICO (LOCAL ONLY)
+  if (preferredModel === 'local_only') {
+    return {
+      sucesso: true,
+      rascunho: cleanBannedTerms(baseScript),
+      engine: "MOTOR_LEXIS_SOBERANO"
+    };
+  }
+
   const keywords = [categoria, ...(movimentos[0]?.nome?.split(' ') || [])].slice(0, 8);
   const staticChunks = retrieveKnowledge(keywords);
   
@@ -64,7 +73,7 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
   const contextKnowledge = allChunks.map(c => `[REGRA OFICIAL]: ${c.texto}`).join('\n\n');
 
   const systemPrompt = `
-    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v7.0.
+    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v8.0.
     MISSÃO: REDIGIR ATENDIMENTO TRANSPARENTE E PROFISSIONAL.
     
     DIRETRIZES CRÍTICAS DE FIDELIDADE:
