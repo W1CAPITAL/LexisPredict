@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -12,9 +13,9 @@ import {
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview Unidade de Ingestão de Conhecimento v8.2
+ * @fileOverview Unidade de Ingestão de Conhecimento v8.5
  * Gerencia o ciclo de vida de documentos e fragmentação de PDFs/Texto para aprendizado da IA.
- * Protocolo de Integridade: Extensão Soberana + Suporte a Texto Manual.
+ * Protocolo de Integridade: Extensão Soberana + Suporte a Texto Manual + Visibilidade de Empresa.
  */
 
 const BANNED_TERMS = ['GET ASSESSORIA', 'GETASSESSORIA', 'W1 CAPITAL', 'W1CAPITAL', 'W1', 'GET'];
@@ -50,23 +51,26 @@ export async function extractTextResilient(buffer: Buffer, fileName: string): Pr
   throw new Error(`Formato não suportado para extração: ${fileName}`);
 }
 
+/**
+ * Recupera documentos para visibilidade de toda a empresa.
+ */
 export async function fetchKnowledgeDocsAction() {
-  const { empresa_id, isMasterView } = await getUserContext();
-  if (!empresa_id || !isMasterView) return { success: false, error: "Acesso negado." };
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, error: "Sessão expirada." };
   const docs = await listKnowledgeDocs(empresa_id);
   return { success: true, docs };
 }
 
 export async function deleteKnowledgeDocAction(docId: string) {
   const { empresa_id, isMasterView } = await getUserContext();
-  if (!empresa_id || !isMasterView) return { success: false, error: "Acesso negado." };
+  if (!empresa_id || !isMasterView) return { success: false, error: "Acesso negado. Apenas supervisores podem excluir conhecimento." };
   return await deleteKnowledgeDoc(docId, empresa_id);
 }
 
 export async function uploadKnowledgeDocAction(formData: FormData) {
   try {
     const { empresa_id, isMasterView, auth_id } = await getUserContext();
-    if (!empresa_id || !isMasterView) throw new Error("Permissão insuficiente.");
+    if (!empresa_id || !isMasterView) throw new Error("Permissão insuficiente. Apenas supervisores podem ensinar a IA.");
 
     const file = formData.get('file') as File | null;
     const rawTextContent = formData.get('rawText') as string | null;
@@ -108,14 +112,14 @@ export async function uploadKnowledgeDocAction(formData: FormData) {
     const uniqueFileName = `${Date.now()}_${fileName}`;
     const storagePath = `${empresa_id}/knowledge/${uniqueFileName}`;
 
-    // Upload Storage (Mantém consistência mesmo para texto manual)
+    // Upload Storage
     const { error: uploadError } = await admin.storage
       .from('knowledge')
       .upload(storagePath, fileToUpload);
 
     if (uploadError) throw new Error(`Falha no Storage: ${uploadError.message}`);
 
-    // Persistência com Schema em Português
+    // Persistência com Schema Oficial
     const docRes = await saveKnowledgeDocSystem({
       empresa_id,
       created_by: auth_id,
