@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * @fileOverview Módulo de Onboarding Interativo v460.0 - Corrigida tipagem de cloneElement
+ * @fileOverview Módulo de Onboarding Interativo v250.0 ELITE
+ * Conduz o usuário por TODAS as abas estratégicas com suporte a VÍDEO INTEGRADO.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -54,65 +55,65 @@ interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     title: "Mission Control (Dashboard)",
-    content: "O centro nervoso da sua operação. Aqui você enxerga a saúde global do gabinete em tempo real.",
+    content: "O centro nervoso da sua operação. Aqui você enxerga a telemetria forense e os cards de prognóstico de encerramento em tempo real.",
     icon: <Zap />,
     route: "/",
     porQue: "Centralizar a telemetria e o briefing neural diário.",
-    rotina: "Verificar processos vencidos e ler o briefing da IA.",
+    rotina: "Verificar andamentos não atendidos e analisar chances de baixa (Alta/Muito Alta).",
     ganho: "Visão estratégica em menos de 30 segundos.",
     metrica: "Redução de 90% no tempo de triagem matinal.",
     tempo: "30 seg"
   },
   {
     title: "Fila de Atendimento",
-    content: "Organização automática de contatos baseada em prazos e criticidade.",
+    content: "Organização automática de contatos baseada em prioridade DataJud (Prazos + Carência).",
     icon: <Target />,
     route: "/tarefas",
     porQue: "Garantir que nenhum cliente fique sem retorno nos prazos críticos.",
-    rotina: "Executar ligações e WhatsApp da lista prioritária.",
+    rotina: "Executar o topo da fila, que prioriza indícios de Busca e Apreensão e Baixas.",
     ganho: "Foco total na execução, sem perder tempo escolhendo quem ligar.",
     metrica: "Aumento de 40% na taxa de conversão de acordos.",
     tempo: "1 min"
   },
   {
     title: "Gestão de Carteira",
-    content: "Repositório completo de processos com filtros dinâmicos e controle de banca.",
+    content: "Repositório completo com scanner em lote (Resume vs Full) e consulta pontual 1 a 1.",
     icon: <Briefcase />,
     route: "/cases",
-    porQue: "Eliminar planilhas isoladas e centralizar o histórico jurídico.",
-    rotina: "Cadastrar novos casos e atualizar andamentos manuais.",
-    ganho: "Localização instantânea de qualquer processo ou cliente.",
-    metrica: "Capacidade de gerir até 10x mais casos por operador.",
+    porQue: "Centralizar o histórico jurídico e monitorar badges de alerta.",
+    rotina: "Usar o scanner em lote para varredura geral e o botão de andamento na linha para consultas robustas.",
+    ganho: "Localização instantânea. 'Tempo esgotado' no lote? Use a consulta pontual.",
+    metrica: "Zero processos esquecidos sem monitoramento ativo.",
     tempo: "2 min"
   },
   {
     title: "Diretório de Equipe",
-    content: "Gestão de autoridade e níveis de acesso da sua banca.",
+    content: "Gestão de autoridade e Ranking Operacional. Supervisores veem tudo; operadores veem sua própria meta.",
     icon: <Users />,
     route: "/team",
-    porQue: "Controlar quem acessa o quê e visualizar o ranking de produtividade.",
-    rotina: "Auditar sessões ativas e promover operadores de destaque.",
-    ganho: "Segurança de dados (LGPD) e meritocracia operacional.",
+    porQue: "Controlar níveis de acesso (Management) e visualizar o Ranking/KPI da banca.",
+    rotina: "Auditar o desempenho líquido e produtividade por cargo.",
+    ganho: "Segurança de dados e meritocracia baseada em Score real.",
     metrica: "Isolamento total de carteiras entre assistentes.",
     tempo: "1 min"
   },
   {
     title: "Auditoria 3D Elite",
-    content: "Triagem neural profunda via DataJud com parecer estratégico automático.",
+    content: "Triagem neural profunda. O DataJud pode diferir do PJe; use como apoio, não como substituto dos autos.",
     icon: <FileSearch />,
     route: "/veredito",
-    porQue: "Entender o status real de um processo sem ler páginas de andamentos.",
-    rotina: "Consultar CNJs de processos complexos ou duvidosos.",
-    ganho: "Parecer de gabinete pronto para enviar ao cliente.",
+    porQue: "Entender o status real sem ler páginas de andamentos.",
+    rotina: "Consultar CNJs para gerar pareceres técnicos de gabinete.",
+    ganho: "Estratégia operacional pronta para despachar ao cliente.",
     metrica: "Economia de 15 minutos por consulta técnica.",
     tempo: "2 min"
   },
   {
     title: "Gerador de Procurações",
-    content: "Automação de documentos 'Ad Judicia' com extração inteligente de dados.",
+    content: "Automação 'Ad Judicia' com extração inteligente de dados via IA.",
     icon: <FileText />,
     route: "/documents",
-    porQue: "Reduzir erros de digitação e acelerar o onboarding de clientes.",
+    porQue: "Reduzir erros de digitação e acelerar o onboarding.",
     rotina: "Subir o contrato/lead e gerar o PDF selado.",
     ganho: "Peça pronta em segundos, formatada e profissional.",
     metrica: "Redução de 80% no tempo de preenchimento manual.",
@@ -141,8 +142,19 @@ const TOUR_STEPS: TourStep[] = [
     tempo: "1 min"
   },
   {
+    title: "Subst. Sem Reserva",
+    content: "Instrumentos rápidos com opção de exclusão de contracapa conforme Art. 272 CPC.",
+    icon: <Repeat />,
+    route: "/substabelecimento-simples",
+    porQue: "Transferir poderes rapidamente sem necessidade de peça petição.",
+    rotina: "Escolher entre o Modelo Padrão ou o Modelo CPC para exclusão da banca anterior.",
+    ganho: "Flexibilidade na gestão de correspondentes.",
+    metrica: "Agilidade total na transição de banca.",
+    tempo: "1 min"
+  },
+  {
     title: "Peça de Substabelecimento",
-    content: "Documentação técnica para peticionamento imediato.",
+    content: "Documentação técnica para peticionamento imediato e atualização de intimações.",
     icon: <FileStack />,
     route: "/substabelecimento-peca",
     porQue: "Garantir a atualização do nome do advogado na contracapa dos autos.",
@@ -153,10 +165,10 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     title: "Terminal WhatsApp",
-    content: "Comunicação estratégica com disparos via Evolution API.",
+    content: "Comunicação estratégica com disparos via Evolution API e histórico real.",
     icon: <MessageCircle />,
     route: "/whatsapp",
-    porQue: "Falar com o cliente sem sair da plataforma, mantendo o histórico.",
+    porQue: "Falar com o cliente mantendo a centralização dos dados.",
     rotina: "Enviar despachos da IA e scripts prontos de atendimento.",
     ganho: "Centralização total da comunicação da empresa.",
     metrica: "Média de 100 atendimentos diários por operador.",
@@ -164,22 +176,22 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     title: "Unidade de Ingestão",
-    content: "Importação massiva de dados com correção automática de erros.",
+    content: "Importação massiva de dados com correção automática de encoding e datas.",
     icon: <Upload />,
     route: "/import",
     porQue: "Migrar do Excel ou sistemas antigos para o LexisPredict.",
     rotina: "Subir dumps mensais ou novas carteiras de parceiros.",
-    ganho: "Saneamento automático de datas e tribunais.",
+    ganho: "Saneamento automático de bases 'sujas'.",
     metrica: "Processamento de até 5.000 registros por minuto.",
     tempo: "5 min"
   },
   {
     title: "Livro de Evidências",
-    content: "Registro de notas, fotos e andamentos estratégicos.",
+    content: "Registro de notas, fotos e andamentos estratégicos com auditoria neural.",
     icon: <StickyNote />,
     route: "/notes",
     porQue: "Guardar fatos que não constam no processo judicial.",
-    rotina: "Registrar feedbacks de clientes e anexar fotos de bens.",
+    rotina: "Anexar evidências de mídias e feedbacks de clientes.",
     ganho: "Memória institucional inabalável.",
     metrica: "IA analisa pontos fortes e riscos das suas notas.",
     tempo: "2 min"
@@ -197,46 +209,35 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     title: "Business Intelligence",
-    content: "Gráficos e indicadores de performance global.",
+    content: "Gráficos de volumetria e performance global da carteira.",
     icon: <BarChart3 />,
     route: "/analytics",
     porQue: "Identificar gargalos operacionais antes que virem problemas.",
-    rotina: "Analisar volumetria por tribunal e resolutividade da banca.",
-    ganho: "Decisões baseadas em dados, não em palpites.",
-    metrica: "Dashboards prontos para reuniões de diretoria.",
+    rotina: "Analisar resolutividade por unidade e advogado.",
+    ganho: "Decisões baseadas em dados (BI).",
+    metrica: "Dashboards prontos para auditoria executiva.",
     tempo: "2 min"
   },
   {
-    title: "Algoritmo de Urgência",
-    content: "Calibração dos pesos matemáticos de alerta.",
-    icon: <ShieldAlert />,
-    route: "/urgency",
-    porQue: "Personalizar quando um processo deve ser considerado crítico.",
-    rotina: "Ajustar os buffers de segurança do motor de prioridade.",
-    ganho: "Sistema de alerta adaptado à velocidade da sua equipe.",
-    metrica: "Configuração em milissegundos para toda a rede.",
-    tempo: "1 min"
-  },
-  {
-    title: "Omni Export Master",
-    content: "Geração de Dossiê Omnipresente com todas as abas do app.",
+    title: "Dossiê Operacional (Relatório)",
+    content: "Relatório consolidado com telemetria forense, evidências e prognósticos.",
     icon: <Printer />,
-    route: "/master-export",
-    porQue: "Entregar um relatório consolidado e irrefutável para investidores.",
-    rotina: "Gerar fechamentos mensais da operação.",
-    ganho: "Transparência total e status de autoridade máxima.",
-    metrica: "Renderização global de 100% da infraestrutura.",
-    tempo: "3 min"
+    route: "/report",
+    porQue: "Gerar um documento de integridade total para impressão ou exportação.",
+    rotina: "Gerar fechamentos periódicos com visão 360 da carteira.",
+    ganho: "Relatório profissional completo em um clique.",
+    metrica: "Transparência total para investidores e clientes.",
+    tempo: "2 min"
   },
   {
     title: "Hardware Visual",
-    content: "Personalização da atmosfera e interface do seu gabinete.",
+    content: "Personalização da atmosfera e calibração do Algoritmo de Urgência.",
     icon: <Palette />,
     route: "/settings",
-    porQue: "Ajustar o ambiente de trabalho para máximo conforto visual.",
-    rotina: "Trocar temas, wallpapers e níveis de desfoque (blur).",
-    ganho: "Interface executiva exclusiva e agradável.",
-    metrica: "100% de conformidade com contraste WCAG AAA.",
+    porQue: "Ajustar o ambiente de trabalho e as regras de prioridade do motor.",
+    rotina: "Trocar temas e ajustar buffers de segurança de prazos.",
+    ganho: "Interface exclusiva e alerta adaptado à sua equipe.",
+    metrica: "100% de conformidade com conforto visual.",
     tempo: "2 min"
   }
 ];
@@ -255,10 +256,10 @@ export function GuidedTour() {
   const [showVideo, setShowVideo] = useState(false);
 
   const currentLevel = useMemo(() => {
-    if (tutorialStep <= 3) return { label: "Nível 1", sub: "Primeiros Passos", color: "text-blue-500", bg: "bg-blue-500/10" };
+    if (tutorialStep <= 4) return { label: "Nível 1", sub: "Primeiros Passos", color: "text-blue-500", bg: "bg-blue-500/10" };
     if (tutorialStep <= 12) return { label: "Nível 2", sub: "Automação Neural", color: "text-emerald-500", bg: "bg-emerald-500/10" };
-    if (tutorialStep <= 14) return { label: "Nível 3", sub: "Produtividade", color: "text-orange-500", bg: "bg-orange-500/10" };
-    return { label: "Nível 4", sub: "Especialista", color: "text-purple-500", bg: "bg-purple-500/10" };
+    if (tutorialStep <= 15) return { label: "Nível 3", sub: "Alta Performance", color: "text-orange-500", bg: "bg-orange-500/10" };
+    return { label: "Nível 4", sub: "Especialista Master", color: "text-purple-500", bg: "bg-purple-500/10" };
   }, [tutorialStep]);
 
   useEffect(() => {
@@ -403,7 +404,7 @@ export function GuidedTour() {
                  <div className="p-16 space-y-12">
                     <div className="flex items-center gap-8">
                        <div className="w-24 h-24 bg-black flex items-center justify-center text-white border-4 border-black shadow-[10px_10px_0px_#00D1FF] shrink-0">
-                          {React.isValidElement(step.icon) && React.cloneElement(step.icon as React.ReactElement<any>, { size: 48 } as any)}
+                          {React.cloneElement(step.icon as React.ReactElement<any>, { size: 48 })}
                        </div>
                        <p className="text-xl font-bold uppercase leading-relaxed tracking-tight text-black/80">
                           {step.content}
