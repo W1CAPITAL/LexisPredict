@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -39,7 +40,11 @@ import {
   Building2,
   Filter,
   FileSearch,
-  History
+  History,
+  MessageSquareQuote,
+  MessageSquare,
+  Copy,
+  EyeOff
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -72,6 +77,7 @@ import {
 import { format, parseISO, startOfDay, differenceInDays, isAfter, isValid, parse } from 'date-fns';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
+import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 
 interface TaskGroup {
   cliente: string;
@@ -119,6 +125,8 @@ export default function TarefasPage() {
   // DataJud State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[] } | null>(null);
+  const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
+  const [showScripts, setShowScripts] = useState(false);
 
   const { toast } = useToast();
 
@@ -171,6 +179,8 @@ export default function TarefasPage() {
       if (res.success && res.case) {
         setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
         setIsHistoryModalOpen(true);
+        setShowScripts(false);
+        setSuggestedScripts([]);
         setCases(prev => prev.map(c => c.protocolo === protocolo ? res.case! : c));
       } else {
         toast({ title: "Andamento não localizado", description: res.message || "Tribunal offline", variant: "destructive" });
@@ -178,6 +188,38 @@ export default function TarefasPage() {
     } catch (e) {
       toast({ title: "Erro na consulta", variant: "destructive" });
     }
+  };
+
+  const handleSuggestClick = async (protocolo: string, cliente: string, ultimoRetorno: string | null) => {
+    try {
+      const res = await scanSingleCaseAction(protocolo);
+      if (res.success && res.case) {
+        const moves = res.movimentos || [];
+        setHistoryResult({ case: res.case, movimentos: moves });
+        
+        const suggestions = suggestScripts({
+          clienteNome: cliente,
+          protocolo: protocolo,
+          ultimoRetorno: ultimoRetorno,
+          movimentos: moves
+        });
+        
+        setSuggestedScripts(suggestions);
+        setShowScripts(true);
+        setIsHistoryModalOpen(true);
+        
+        setCases(prev => prev.map(c => c.protocolo === protocolo ? res.case! : c));
+      } else {
+        toast({ title: "Sugestão Indisponível", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Erro na consulta", variant: "destructive" });
+    }
+  };
+
+  const copyScript = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copiado para o Clipboard", description: "Revise antes de enviar." });
   };
 
   const offices = useMemo(() => {
@@ -190,10 +232,8 @@ export default function TarefasPage() {
     const contactedSet = new Set(contatadosHoje);
     const today = startOfDay(new Date());
 
-    // 1. Filtrar Ativos
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
 
-    // 2. Agrupar por Cliente e Identificar Gravidade
     activeCases.forEach(c => {
       const nome = c.cliente || 'NÃO IDENTIFICADO';
       if (!groups[nome]) {
@@ -222,23 +262,20 @@ export default function TarefasPage() {
       g.totalAtivos++;
       g.cases.push(c);
 
-      // Track latest movement cross cases
       if (c.datajud_ultimo_movimento) {
         const currentLatest = g.lastMovementDate ? new Date(g.lastMovementDate).getTime() : 0;
         const caseLatest = new Date(c.datajud_ultimo_movimento).getTime();
         if (caseLatest > currentLatest) {
           g.lastMovementDate = c.datajud_ultimo_movimento;
           g.lastMovementName = c.datajud_ultimo_nome;
-          g.protocoloReferencia = c.protocolo; // Sincroniza o protocolo com o movimento mais recente
+          g.protocoloReferencia = c.protocolo;
         }
       }
 
-      // Flags DataJud
       if (c.indicio_busca_apreensao) g.hasBA = true;
       if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
       if (c.tem_atualizacao_pos_retorno) g.hasUpdate = true;
 
-      // Ranking de Status (Maior Score = Mais Urgente)
       let currentScore = 0;
       if (c.status === 'Caso Crítico') currentScore = 50;
       else if (c.status === 'Vencido') currentScore = 40;
@@ -248,7 +285,6 @@ export default function TarefasPage() {
       
       if (currentScore > g.statusScore) g.statusScore = currentScore;
 
-      // Dias de atraso (para desempate secundário)
       if (c.status === 'Vencido' || c.status === 'Caso Crítico') {
         g.vencidos++;
         const atraso = c.diasFaltando ? Math.abs(c.diasFaltando) : 0;
@@ -256,18 +292,15 @@ export default function TarefasPage() {
       }
       if (c.status === 'É Hoje') g.hoje++;
 
-      // Carência de Retorno (Tempo sem atendimento)
       const isoRetorno = formatDateToISO(c.ultimoRetorno);
       if (isoRetorno) {
         const gap = differenceInDays(today, startOfDay(parseISO(isoRetorno)));
         if (gap > g.oldestReturnGap) g.oldestReturnGap = gap;
       } else {
-        // Sem retorno = Carência máxima (tratar como 365 dias para subir na fila)
         if (365 > g.oldestReturnGap) g.oldestReturnGap = 365;
       }
     });
 
-    // 3. Ordenação Estratégica v260.0
     const sortedAll = Object.values(groups)
       .filter(g => {
         const matchesSearch = g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search);
@@ -275,18 +308,11 @@ export default function TarefasPage() {
         return matchesSearch && matchesOffice;
       })
       .sort((a, b) => {
-        // NÍVEL 1: SOBERANIA DATAJUD
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
         if (a.hasUpdate !== b.hasUpdate) return a.hasUpdate ? -1 : 1;
-
-        // NÍVEL 2: URGÊNCIA DE PRAZO
         if (b.statusScore !== a.statusScore) return b.statusScore - a.statusScore;
-
-        // NÍVEL 3: CARÊNCIA DE ATENDIMENTO (Quem está há mais tempo sem retorno)
         if (b.oldestReturnGap !== a.oldestReturnGap) return b.oldestReturnGap - a.oldestReturnGap;
-
-        // NÍVEL 4: DESEMPATE TÉCNICO
         return b.diasAtrasoMax - a.diasAtrasoMax;
       });
 
@@ -328,7 +354,6 @@ export default function TarefasPage() {
           : activeGroup.cases.some(ac => ac.protocolo === c.protocolo);
 
         if (isMatch) {
-          // REGRA DE OURO v65.0: Desarme cronológico de alertas
           let newFlagStatus = c.tem_atualizacao_pos_retorno;
           if (c.datajud_ultimo_movimento) {
             const lastMovDate = startOfDay(parseISO(c.datajud_ultimo_movimento));
@@ -457,7 +482,14 @@ export default function TarefasPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.map((group) => (
-                <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => openAttendance(group)} onScan={handleSingleScan} />
+                <TaskCard 
+                  key={group.cliente} 
+                  group={group} 
+                  isFocus 
+                  onMarkContacted={() => openAttendance(group)} 
+                  onScan={handleSingleScan}
+                  onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)}
+                />
               ))}
               {taskData.focus.length === 0 && !loading && (
                 <div className="col-span-full py-20 flex items-center justify-center">
@@ -481,7 +513,13 @@ export default function TarefasPage() {
                 {showBacklog && (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6 animate-in slide-in-from-top-2">
                     {taskData.backlog.map((group) => (
-                      <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendance(group)} onScan={handleSingleScan} />
+                      <TaskCard 
+                        key={group.cliente} 
+                        group={group} 
+                        onMarkContacted={() => openAttendance(group)} 
+                        onScan={handleSingleScan}
+                        onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)}
+                      />
                     ))}
                   </div>
                 )}
@@ -490,37 +528,63 @@ export default function TarefasPage() {
           </div>
         </div>
 
-        {/* Modal de Cronologia DataJud */}
+        {/* Modal de Cronologia DataJud + Sugestões */}
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[700px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+          <DialogContent className="sm:max-w-[750px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="p-6 bg-black text-white">
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
-                    <History size={28} />
-                 </div>
-                 <div>
-                    <DialogTitle className="font-black uppercase tracking-tight text-xl">Cronologia do Tribunal</DialogTitle>
-                    <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
-                 </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                      <History size={28} />
+                  </div>
+                  <div>
+                      <DialogTitle className="font-black uppercase tracking-tight text-xl">Andamentos Oficiais</DialogTitle>
+                      <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    onClick={() => {
+                      if (historyResult) {
+                        const suggestions = suggestScripts({
+                          clienteNome: historyResult.case.cliente,
+                          protocolo: historyResult.case.protocolo,
+                          ultimoRetorno: historyResult.case.ultimoRetorno,
+                          movimentos: historyResult.movimentos
+                        });
+                        setSuggestedScripts(suggestions);
+                        setShowScripts(true);
+                      }
+                    }} 
+                    variant="outline" 
+                    className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] rounded-xl h-10 px-4"
+                  >
+                    <MessageSquare size={14} className="mr-2" /> Sugerir Resposta
+                  </Button>
+                </div>
               </div>
-              <DialogDescription className="sr-only">Listagem cronológica das movimentações oficiais capturadas via DataJud.</DialogDescription>
+              <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visualização detalhada da cronologia processual e ferramentas de despacho.</DialogDescription>
             </DialogHeader>
-            <div className="p-0">
-               <div className="p-6 bg-secondary/20 border-b flex items-center justify-between">
-                  <div className="space-y-1">
-                     <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
-                     <p className="text-sm font-black uppercase">{historyResult?.case.cliente}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {historyResult?.case.datajud_encerrado_tribunal && (
-                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
-                    )}
-                    {historyResult?.case.tem_atualizacao_pos_retorno && !historyResult?.case.datajud_encerrado_tribunal && (
-                      <Badge variant="destructive" className="font-black uppercase text-[10px] px-4 py-2 animate-bounce">Ação Requerida: Novo Movimento</Badge>
-                    )}
-                  </div>
-               </div>
-               <ScrollArea className="h-[450px] bg-white">
+            
+            <div className="flex flex-col h-[550px]">
+              <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
+                <div className="space-y-1">
+                    <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
+                    <p className="text-sm font-black uppercase">{historyResult?.case?.cliente}</p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  {historyResult?.case?.indicio_busca_apreensao && (
+                    <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício Busca e Apreensão</Badge>
+                  )}
+                  {historyResult?.case?.datajud_encerrado_tribunal && (
+                    <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Encerrado no Tribunal</Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-hidden flex">
+                {/* Lado Esquerdo: Cronologia */}
+                <ScrollArea className={cn("bg-white transition-all duration-300", showScripts ? "w-1/2 border-r" : "w-full")}>
                   <div className="p-6 space-y-6">
                     {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
                       [...historyResult.movimentos].sort((a,b) => {
@@ -542,12 +606,53 @@ export default function TarefasPage() {
                     ) : (
                       <div className="py-20 text-center space-y-4 opacity-40">
                          <FileSearch size={48} className="mx-auto" />
-                         <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada para este protocolo.</p>
+                         <p className="text-xs font-black uppercase">Nenhuma movimentação detalhada.</p>
                       </div>
                     )}
                   </div>
-               </ScrollArea>
+                </ScrollArea>
+
+                {/* Lado Direito: Sugestões de Script */}
+                {showScripts && (
+                  <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
+                    <div className="p-6 space-y-6">
+                      <div className="flex items-center justify-between mb-4">
+                         <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                           <Zap size={14} /> Sugestões de Resposta
+                         </h3>
+                         <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
+                      </div>
+                      
+                      {suggestedScripts.map((script, idx) => (
+                        <div key={idx} className="bg-white border-2 border-black p-5 rounded-none shadow-[6px_6px_0px_rgba(0,0,0,0.05)] space-y-4">
+                           <div className="space-y-1">
+                              <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none px-2 mb-1">{script.titulo}</Badge>
+                              <p className="text-[11px] font-black uppercase leading-tight">{script.quandoUsar}</p>
+                           </div>
+                           <div className="p-4 bg-slate-50 border border-black/5 relative">
+                              <p className="text-[11px] font-bold text-black/70 leading-relaxed italic">"{script.texto}"</p>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => copyScript(script.texto)}
+                                className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all"
+                              >
+                                <Copy size={14} />
+                              </Button>
+                           </div>
+                        </div>
+                      ))}
+                      
+                      <div className="p-4 bg-amber-50 border border-amber-200 flex items-start gap-3">
+                         <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                         <p className="text-[9px] font-bold text-amber-800 uppercase leading-relaxed">Atenção: Revise o texto e placeholders antes de realizar o envio oficial.</p>
+                      </div>
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
             </div>
+
             <DialogFooter className="p-4 bg-secondary/10 border-t">
                <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
             </DialogFooter>
@@ -612,14 +717,17 @@ function TaskCard({
   group, 
   isFocus = false, 
   onMarkContacted,
-  onScan 
+  onScan,
+  onSuggest
 }: { 
   group: TaskGroup, 
   isFocus?: boolean, 
   onMarkContacted: () => void,
-  onScan: (protocolo: string) => void
+  onScan: (protocolo: string) => void,
+  onSuggest: () => void
 }) {
   const [isScanning, setIsScanning] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   
   const prob = calcularProbabilidadeEncerramento({
     status: group.vencidos > 0 ? "Vencido" : "No Prazo",
@@ -670,7 +778,6 @@ function TaskCard({
         <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate group-hover:text-primary transition-colors">{group.cliente}</h3>
         <p className="text-[9px] font-bold text-muted-foreground uppercase">Ref: {group.protocoloReferencia}</p>
 
-        {/* Última Movimentação Tribunal v52.0 */}
         {group.lastMovementName && (
           <div className="mt-4 p-3 bg-secondary/30 rounded-xl border border-border/20 group-hover:border-primary/20 transition-all">
              <div className="flex items-center gap-2 mb-1.5">
@@ -702,6 +809,20 @@ function TaskCard({
 
       <div className="mt-8 pt-6 border-t border-border/30 flex items-center justify-between">
         <div className="flex items-center gap-2">
+           <Button 
+              title="Sugerir Resposta" 
+              variant="ghost" 
+              size="icon" 
+              disabled={isSuggesting}
+              onClick={async () => {
+                setIsSuggesting(true);
+                await onSuggest();
+                setIsSuggesting(false);
+              }}
+              className="h-9 w-9 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
+           >
+             {isSuggesting ? <Loader2 className="animate-spin" /> : <MessageSquareQuote size={18} />}
+           </Button>
            <Button 
               title="Andamentos DataJud" 
               variant="ghost" 
