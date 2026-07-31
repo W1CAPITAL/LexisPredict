@@ -92,6 +92,10 @@ interface TaskGroup {
   hasUpdate: boolean;
   statusScore: number;
   oldestReturnGap: number;
+
+  // Telemetria v52.0
+  lastMovementName?: string | null;
+  lastMovementDate?: string | null;
 }
 
 export default function TarefasPage() {
@@ -209,13 +213,26 @@ export default function TarefasPage() {
           hasClosedCourt: false,
           hasUpdate: false,
           statusScore: 0,
-          oldestReturnGap: 0
+          oldestReturnGap: 0,
+          lastMovementName: c.datajud_ultimo_nome,
+          lastMovementDate: c.datajud_ultimo_movimento
         };
       }
 
       const g = groups[nome];
       g.totalAtivos++;
       g.cases.push(c);
+
+      // Track latest movement cross cases
+      if (c.datajud_ultimo_movimento) {
+        const currentLatest = g.lastMovementDate ? new Date(g.lastMovementDate).getTime() : 0;
+        const caseLatest = new Date(c.datajud_ultimo_movimento).getTime();
+        if (caseLatest > currentLatest) {
+          g.lastMovementDate = c.datajud_ultimo_movimento;
+          g.lastMovementName = c.datajud_ultimo_nome;
+          g.protocoloReferencia = c.protocolo; // Sincroniza o protocolo com o movimento mais recente
+        }
+      }
 
       // Flags DataJud
       if (c.indicio_busca_apreensao) g.hasBA = true;
@@ -639,6 +656,22 @@ function TaskCard({
       <div className="space-y-1 flex-1">
         <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate group-hover:text-primary transition-colors">{group.cliente}</h3>
         <p className="text-[9px] font-bold text-muted-foreground uppercase">Ref: {group.protocoloReferencia}</p>
+
+        {/* Última Movimentação Tribunal v52.0 */}
+        {group.lastMovementName && (
+          <div className="mt-4 p-3 bg-secondary/30 rounded-xl border border-border/20 group-hover:border-primary/20 transition-all">
+             <div className="flex items-center gap-2 mb-1.5">
+                <History size={12} className="text-primary/60" />
+                <span className="text-[8px] font-black text-primary/60 uppercase tracking-widest">Último Andamento Tribunal</span>
+             </div>
+             <p className="text-[10px] font-black text-foreground uppercase leading-tight line-clamp-2" title={group.lastMovementName}>
+                {group.lastMovementName}
+             </p>
+             <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 uppercase">
+                {group.lastMovementDate ? format(new Date(group.lastMovementDate), 'dd/MM/yyyy') : 'S/ Data'}
+             </p>
+          </div>
+        )}
         
         <div className="flex flex-col gap-2 mt-4">
            <div className="flex items-center gap-1.5 text-primary font-black uppercase text-[8px] tracking-widest bg-primary/5 px-2 py-1 rounded-md w-fit">
@@ -668,7 +701,7 @@ function TaskCard({
               }}
               className="h-9 w-9 rounded-lg text-primary hover:bg-primary/10 transition-colors"
            >
-             {isScanning ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
+             {isScanning ? <Loader2 className="animate-spin" /> : <FileSearch size={18} />}
            </Button>
            <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-lg text-emerald-600 hover:bg-emerald-50"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
            <Button title="Registrar Atendimento" variant="ghost" size="icon" onClick={onMarkContacted} className="h-9 w-9 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"><UserCheck size={18} /></Button>
@@ -678,4 +711,3 @@ function TaskCard({
     </div>
   );
 }
-
