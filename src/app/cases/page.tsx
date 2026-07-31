@@ -51,7 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, recalibrateCasesAction, runDataJudScanAction, scanSingleCaseAction } from '@/app/actions/case-actions';
-import { format } from 'date-fns';
+import { format, parseISO, startOfDay, isAfter, parse, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
@@ -461,7 +461,25 @@ function CasesContent() {
         telefone: formState.telefone
       };
 
-      const processed = processarCaso(rawData, thresholds);
+      // REGRA DE OURO v65.0: Desarme cronológico de alertas
+      let newFlagStatus = editingCase?.tem_atualizacao_pos_retorno;
+      if (formState.ultimoRetorno && editingCase?.datajud_ultimo_movimento) {
+        try {
+          const cleanStr = formState.ultimoRetorno.trim();
+          let dateRet;
+          if (cleanStr.includes('/')) {
+            dateRet = startOfDay(parse(cleanStr, 'dd/MM/yyyy', new Date()));
+          } else {
+            dateRet = startOfDay(parseISO(cleanStr));
+          }
+          const dateMov = startOfDay(parseISO(editingCase.datajud_ultimo_movimento));
+          if (isValid(dateRet) && !isAfter(dateMov, dateRet)) {
+            newFlagStatus = false;
+          }
+        } catch (e) {}
+      }
+
+      const processed = processarCaso({ ...rawData, tem_atualizacao_pos_retorno: newFlagStatus }, thresholds);
       const result = await syncRepoCases([processed]);
       
       if (result.success) {
@@ -495,16 +513,30 @@ function CasesContent() {
     const target = cases.find(c => c.protocolo === protocolo);
     if (!target) return;
 
-    const today = format(new Date(), 'dd/MM/yyyy');
+    const todayDate = new Date();
+    const todayStr = format(todayDate, 'dd/MM/yyyy');
+    
+    // REGRA DE OURO v65.0: Só remove a flag se hoje >= data do último movimento
+    let shouldClearFlag = false;
+    if (target.datajud_ultimo_movimento) {
+      const lastMovDate = startOfDay(parseISO(target.datajud_ultimo_movimento));
+      const returnDate = startOfDay(todayDate);
+      if (!isAfter(lastMovDate, returnDate)) {
+        shouldClearFlag = true;
+      }
+    } else {
+      shouldClearFlag = true;
+    }
+
     const updatedCase = { 
       ...target, 
-      ultimoRetorno: today,
-      tem_atualizacao_pos_retorno: false 
+      ultimoRetorno: todayStr,
+      tem_atualizacao_pos_retorno: shouldClearFlag ? false : target.tem_atualizacao_pos_retorno 
     };
     
     const result = await syncRepoCases([updatedCase]);
     if (result.success) {
-      updateCaseByProtocolo(protocolo, { ultimoRetorno: today, tem_atualizacao_pos_retorno: false });
+      updateCaseByProtocolo(protocolo, { ultimoRetorno: todayStr, tem_atualizacao_pos_retorno: updatedCase.tem_atualizacao_pos_retorno });
       toast({ title: "Atendimento Registrado" });
     }
   }, [cases, isOperador, toast, updateCaseByProtocolo]);
@@ -702,7 +734,6 @@ function CasesContent() {
                     <th className="px-8 py-5">Tribunal</th>
                     <th className="px-8 py-5">Advocacia</th>
                     <th className="px-8 py-5">Prazo Final</th>
-                    <th className="px-8 py-5">Contatos & Tribunal</th>
                     <th className="px-8 py-5 text-right">Ações</th>
                   </tr>
                 </thead>
