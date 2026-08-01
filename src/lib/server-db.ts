@@ -205,6 +205,7 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     db_id: item.id.toString(),
     empresa_id: item.empresa_id,
     created_by: item.created_by,
+    ultimoRetorno: item.ultimo_retorno, // Crucial para o DJEN check
     datajud_ultimo_movimento: item.datajud_ultimo_movimento,
     datajud_ultimo_nome: item.datajud_ultimo_nome,
     datajud_consultado_em: item.datajud_consultado_em,
@@ -243,6 +244,12 @@ export async function getScanStatusMetrics(empresaId: string) {
     .eq('empresa_id', empresaId)
     .eq('tem_atualizacao_pos_retorno', true);
 
+  const { count: djenAlerts } = await admin
+    .from('processos')
+    .select('*', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .eq('djen_nova_comunicacao', true);
+
   const { count: closed } = await admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
@@ -251,7 +258,7 @@ export async function getScanStatusMetrics(empresaId: string) {
 
   const { data: recent } = await admin
     .from('processos')
-    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, datajud_ultimo_nome, datajud_consultado_em')
+    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao, datajud_ultimo_nome, datajud_consultado_em')
     .eq('empresa_id', empresaId)
     .order('datajud_consultado_em', { ascending: false })
     .limit(10);
@@ -260,14 +267,15 @@ export async function getScanStatusMetrics(empresaId: string) {
     total: total || 0,
     pending: pending || 0,
     alerts: alerts || 0,
+    djenAlerts: djenAlerts || 0,
     closed: closed || 0,
     audited: (total || 0) - (pending || 0),
     recentLogs: recent?.filter(r => r.datajud_consultado_em).map(r => ({
       protocolo: r.protocolo_ref,
-      message: r.datajud_encerrado_tribunal ? 'BAIXA NO TRIBUNAL' : r.tem_atualizacao_pos_retorno ? 'NOVA MOVIMENTAÇÃO' : 'Monitoramento Regular',
+      message: r.datajud_encerrado_tribunal ? 'BAIXA NO TRIBUNAL' : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao) ? 'NOVA MOVIMENTAÇÃO' : 'Monitoramento Regular',
       success: true,
       latency: 0,
-      type: r.datajud_encerrado_tribunal ? 'closed' : r.tem_atualizacao_pos_retorno ? 'update' : 'ok',
+      type: r.datajud_encerrado_tribunal ? 'closed' : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao) ? 'update' : 'ok',
       engine: 'Nuvem'
     })) || []
   };

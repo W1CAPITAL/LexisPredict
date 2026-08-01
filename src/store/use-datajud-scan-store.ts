@@ -35,6 +35,7 @@ interface DataJudScanState {
   total: number;
   done: number;
   alerts: number;
+  cloudDjenAlerts: number;
   closed: number;
   pending: number;
   cycles: number;
@@ -80,6 +81,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   total: 0,
   done: 0,
   alerts: 0,
+  cloudDjenAlerts: 0,
   closed: 0,
   pending: 0,
   cycles: 0,
@@ -244,7 +246,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   resetScan: () => {
     if (pollTimer) clearInterval(pollTimer);
     set({ 
-      status: 'idle', total: 0, done: 0, alerts: 0, closed: 0, pending: 0, cycles: 0,
+      status: 'idle', total: 0, done: 0, alerts: 0, cloudDjenAlerts: 0, closed: 0, pending: 0, cycles: 0,
       manualStatus: 'idle', manualDone: 0, manualTotal: 0, manualErrors: 0, manualAlerts: 0, manualClosed: 0, manualDjenAlerts: 0, lastLogs: []
     });
   },
@@ -265,6 +267,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         done: metrics.audited,
         pending: metrics.pending,
         alerts: metrics.alerts,
+        cloudDjenAlerts: metrics.djenAlerts,
         closed: metrics.closed
       });
 

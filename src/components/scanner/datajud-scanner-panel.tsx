@@ -37,7 +37,7 @@ import { Label } from '@/components/ui/label';
 
 export function DataJudScannerPanel() {
   const { 
-    status, total, done, alerts, closed, pending, cycles,
+    status, total, done, alerts, cloudDjenAlerts, closed, pending, cycles,
     manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
     isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
     startManualScan, pauseManualScan, resetScan,
@@ -118,19 +118,19 @@ export function DataJudScannerPanel() {
              </RadioGroup>
           </section>
 
-          {/* ENGINE 1: CLOUD AUDIT (DATAJUD ONLY) */}
+          {/* ENGINE 1: CLOUD AUDIT (DATAJUD + DJEN) */}
           <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-6">
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                    <CloudLightning className={cn("text-primary", status === 'running' && "animate-pulse")} size={16} />
-                   <p className="text-[10px] font-black uppercase">Ciclo de Nuvem (Tribunal)</p>
+                   <p className="text-[10px] font-black uppercase">Ciclo de Nuvem (Hybrid Audit)</p>
                 </div>
              </div>
              
              {status === 'idle' ? (
                <div className="space-y-4">
                   <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
-                    Auditoria assíncrona DataJud via servidor. Opera em background.
+                    Auditoria assíncrona 3D via servidor. Agora varre Tribunal + DJEN simultaneamente.
                   </p>
                   <Button onClick={startCloudScan} className="w-full h-11 bg-black text-white font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
                     Ativar Ciclo de Nuvem
@@ -144,9 +144,10 @@ export function DataJudScannerPanel() {
                   </div>
                   <Progress value={cloudPct} className="h-2 border-2 border-black bg-white [&>div]:bg-black" />
                   
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <DashboardMiniKpi label="Tribunal Alertas" value={alerts} color="text-red-600" />
+                    <DashboardMiniKpi label="DJEN Alertas" value={cloudDjenAlerts} color="text-blue-600" />
                     <DashboardMiniKpi label="Sucessos" value={done} color="text-emerald-600" />
-                    <DashboardMiniKpi label="Alertas" value={alerts} color="text-blue-600" />
                     <DashboardMiniKpi label="Restante" value={pending} color="text-slate-400" />
                   </div>
 

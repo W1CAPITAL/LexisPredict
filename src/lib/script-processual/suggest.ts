@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SUGESTÃO DE SCRIPTS v2.5 - FIDELIDADE DE MÉRITO E PROTEÇÃO DE PASSIVO
+ * MOTOR DE SUGESTÃO DE SCRIPTS v3.0 - FIDELIDADE DE MÉRITO E PROTEÇÃO DE PASSIVO (DETECTA REVERSÃO)
  */
 
 import { parseISO, parse, isAfter, isValid, startOfDay, format } from 'date-fns';
@@ -42,22 +42,26 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
 
   const matchedTemplates = new Map<string, { template: ScriptTemplate, recencia: number, dataMov: string }>();
   
-  // PROTOCOLO DE FIDELIDADE v2.5
+  // PROTOCOLO DE FIDELIDADE v3.0
   const isLoss = /(IMPROCEDENTE|IMPROCEDÊNCIA|DESERTO|NÃO CONHECIDO|RECURSO NÃO CONHECIDO|FALTA DE PREPARO)/.test(fullWindowText);
+  const isReversal = /(REFORMA DA SENTENÇA|REFORMAR A RESPEITÁVEL SENTENÇA|DAR PROVIMENTO AO RECURSO)/.test(fullWindowText);
   const hasGratuidade = /(GRATUIDADE DA JUSTIÇA|ASSISTÊNCIA JUDICIÁRIA GRATUITA|JG DEFERIDA|GRATUIDADE DEFERIDA|CONCEDIDA A GRATUIDADE)/.test(fullWindowText);
 
   movsInWindow.forEach((m, idx) => {
     const text = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
     
     for (const template of SCRIPT_CATALOG) {
+      // Regra Especial: Reversão (Placar Mudou)
+      if (template.id === 'baixa_reversao_derrota' && !isReversal) continue;
+
       // Regra Especial: Se tem Gratuidade + Derrota, prioriza 'baixa_derrota_jg'
       if (template.id === 'baixa_derrota_jg' && (!isLoss || !hasGratuidade)) continue;
       
-      // Bloqueio de Baixa Neutra se houver indício de Derrota
-      if (template.id === 'baixa_definitiva' && isLoss) continue;
+      // Bloqueio de Baixa Neutra se houver indício de Derrota ou Reversão
+      if (template.id === 'baixa_definitiva' && (isLoss || isReversal)) continue;
 
       if (template.keywords.some(kw => text.includes(kw))) {
-        // Se já tem um P0 (Encerramento desfavorável), evita ritos secundários
+        // Se já tem um P0 (Encerramento desfavorável ou Reversão), evita ritos secundários
         const hasP0Matched = Array.from(matchedTemplates.values()).some(match => match.template.prioridade === 0);
         if (hasP0Matched && template.prioridade > 0) continue;
 
@@ -70,7 +74,7 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
 
   let finalMatches = Array.from(matchedTemplates.values());
 
-  // Limpeza de ritos intermediários se houver um P0 (Encerramento)
+  // Limpeza de ritos intermediários se houver um P0 (Encerramento/Reversão)
   if (finalMatches.some(m => m.template.prioridade === 0)) {
     finalMatches = finalMatches.filter(m => m.template.prioridade === 0);
   }
@@ -104,6 +108,9 @@ function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateReto
     } catch (e) {}
   }
 
+  // Identificação do banco para o script de reversão
+  const banco = "Instituição Financeira";
+
   return {
     categoria: s.categoria,
     titulo: s.titulo,
@@ -115,5 +122,6 @@ function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateReto
       .replace(/\[PROTOCOLO\]/g, cnj)
       .replace(/\[Data\]/g, displayRetorno)
       .replace(/\[DataMov\]/g, displayMov || 'recentemente')
+      .replace(/\[BANCO\]/g, banco)
   };
 }

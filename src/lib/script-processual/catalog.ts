@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * CATÁLOGO DE SCRIPTS DE GABINETE v9.0 - FIDELIDADE E PROTEÇÃO FINANCEIRA
+ * CATÁLOGO DE SCRIPTS DE GABINETE v10.0 - FIDELIDADE E PROTEÇÃO FINANCEIRA (ANTI-ALUCINAÇÃO)
  */
 
 export interface ScriptTemplate {
@@ -15,6 +15,15 @@ export interface ScriptTemplate {
 }
 
 export const SCRIPT_CATALOG: ScriptTemplate[] = [
+  {
+    id: 'baixa_reversao_derrota',
+    categoria: 'baixa',
+    titulo: 'Derrota em 2ª Instância: Reversão de Mérito (Com AJG)',
+    texto: 'Olá, [CLIENTE]! Tudo bem? Passando para atualizar você sobre as últimas movimentações do seu processo ([PROTOCOLO]) contra o [BANCO]. Infelizmente, tivemos uma decisão desfavorável no Tribunal de Justiça. O Banco recorreu daquela vitória inicial que havíamos conquistado (referente à devolução de valores) e os Desembargadores acabaram dando razão ao banco, reformando a sentença para julgar o pedido improcedente. Ou seja, o tribunal entendeu que a cobrança deles foi válida e reverteu a nossa vitória. Apesar dessa má notícia sobre o resultado, há um ponto de total tranquilidade para você: como garantimos o seu benefício da Justiça Gratuita logo no início, você está blindado. Você não terá que pagar as custas do tribunal nem os honorários dos advogados do banco. A cobrança desses valores permanece suspensa por lei e você não deve nada. Nossa equipe segue analisando se cabe algum último recurso, mas o cenário atual é de encerramento sem custos para o senhor(a).',
+    quandoUsar: 'CRÍTICO. Usar quando o Tribunal der provimento ao recurso do réu e reformar a sentença para improcedente.',
+    keywords: ['REFORMA DA SENTENÇA', 'REFORMAR A RESPEITÁVEL SENTENÇA', 'DAR PROVIMENTO AO RECURSO DO RÉU', 'DAR PROVIMENTO AO RECURSO DA RÉ', 'AFASTAR O RECONHECIMENTO DA ABUSIVIDADE'],
+    prioridade: 0
+  },
   {
     id: 'baixa_indeferimento',
     categoria: 'baixa',
