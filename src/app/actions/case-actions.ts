@@ -1,44 +1,30 @@
 'use server';
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE — NÚCLEO SYSTEM IDEMPOTENTE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v600.0 ELITE - NÚCLEO SYSTEM IDEMPOTENTE
  */
-
 import {
   getStoredCasesForEmpresa,
   saveStoredCasesForEmpresa,
   getUserContext,
   updateCaseDataJudSystem,
-  getSupabaseAdmin,
+  getSupabaseAdmin
 } from '@/lib/server-db';
 import { createClient } from '@/lib/supabase/server';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
-import {
-  detectarAtualizacaoPosRetorno,
-  detectarEncerradoNoTribunal,
-  detectarCumprimentoSentenca,
-} from '@/lib/datajud-sync';
+import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
-import {
-  fetchDjenComunicacoes,
-  classifyEventFromText,
-  summarizeDjenKeywords,
-} from '@/lib/djen';
+import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
 import { detectarNovaComunicacaoDjen } from '@/lib/djen-sync';
-import { parseISO, isAfter, parse, isValid, startOfDay } from 'date-fns';
+import { isAfter, parse, isValid, parseISO } from 'date-fns';
 
 /**
  * Helper para validar se uma data de evento ainda é posterior ao retorno humano.
- * Aceita diversos formatos de data de forma resiliente.
  */
-function movimentoAindaPosRetorno(
-  dataEventoStr: string | null | undefined,
-  ultimoRetornoStr: string | null | undefined
-): boolean {
+function movimentoAindaPosRetorno(dataEventoStr: string | null | undefined, ultimoRetornoStr: string | null | undefined): boolean {
   if (!dataEventoStr) return false;
   if (!ultimoRetornoStr || !String(ultimoRetornoStr).trim() || ultimoRetornoStr === '-') return true;
   
@@ -69,21 +55,22 @@ function movimentoAindaPosRetorno(
 function getWeight(t: string | null | undefined): number {
   if (!t) return 0;
   const weights: Record<string, number> = {
-    ba: 100,
-    transito_ou_baixa: 90,
-    transito_baixa: 90,
-    sentenca_procedente: 85,
-    sentenca_improcedente: 85,
-    sentenca_parcial: 84,
-    liminar: 83,
-    audiencia_julgamento: 80,
-    audiencia_instrucao: 79,
-    audiencia_conciliacao: 78,
-    cumprimento_sentenca: 70,
-    novo_andamento_relevante: 50,
-    rotina: 10,
+    'ba': 100,
+    'transito_ou_baixa': 90, 
+    'transito_baixa': 90,
+    'sentenca_procedente': 85, 
+    'sentenca_improcedente': 85, 
+    'sentenca_parcial': 84, 
+    'liminar': 83,
+    'audiencia_julgamento': 80, 
+    'audiencia_instrucao': 79, 
+    'audiencia_conciliacao': 78,
+    'cancelamento_distribuicao': 75,
+    'cumprimento_sentenca': 70,
+    'novo_andamento_relevante': 50,
+    'rotina': 10
   };
-  return weights[t] ?? 0;
+  return weights[t] || 0;
 }
 
 export async function fetchRepoCases() {
@@ -94,23 +81,18 @@ export async function fetchRepoCases() {
 
 export async function syncRepoCases(cases: LegalCase[]) {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false, message: 'Sessão expirada.' };
+  if (!empresa_id) return { success: false, message: "Sessão expirada." };
   return await saveStoredCasesForEmpresa(cases, empresa_id);
 }
 
-export async function fetchRepoNotes() {
-  const { getStoredNotes } = await import('@/lib/server-db');
-  return await getStoredNotes();
-}
-
 /**
- * NÚCLEO SOBERANO — Sincronia Tribunal + Diário Oficial.
- * Implementa persistência idempotente de mérito e flags de novidade.
+ * NÚCLEO SOBERANO DE AUDITORIA (SYSTEM MODE)
+ * Unifica Tribunal + Diário e garante persistência idempotente.
  */
 export async function auditCaseCoreSystem(
-  protocolo: string,
-  empresaId: string,
-  mode: 'datajud' | 'djen' | 'both' = 'both',
+  protocolo: string, 
+  empresaId: string, 
+  mode: 'datajud' | 'djen' | 'both' = 'both', 
   options: { fast?: boolean } = {}
 ) {
   const admin = await getSupabaseAdmin();
@@ -121,40 +103,28 @@ export async function auditCaseCoreSystem(
     .eq('empresa_id', empresaId)
     .maybeSingle();
 
-  if (!dbItem) return { success: false, error: 'NOT_FOUND' };
+  if (!dbItem) return { success: false, error: "NOT_FOUND" };
 
-  // Carregar estado atual para garantir o merge inteligente
-  const target = processarCaso({
-    ...(dbItem.dados as any),
-    id: dbItem.id.toString(),
-    ultimoRetorno: dbItem.ultimo_retorno ?? (dbItem.dados as any)?.ultimoRetorno,
-    tem_atualizacao_pos_retorno: dbItem.tem_atualizacao_pos_retorno ?? (dbItem.dados as any)?.tem_atualizacao_pos_retorno,
-    djen_nova_comunicacao: dbItem.djen_nova_comunicacao ?? (dbItem.dados as any)?.djen_nova_comunicacao,
-    datajud_ultimo_movimento: dbItem.datajud_ultimo_movimento ?? (dbItem.dados as any)?.datajud_ultimo_movimento,
-    datajud_encerrado_tribunal: dbItem.datajud_encerrado_tribunal ?? (dbItem.dados as any)?.datajud_encerrado_tribunal,
-    indicio_busca_apreensao: dbItem.indicio_busca_apreensao ?? (dbItem.dados as any)?.indicio_busca_apreensao,
-    em_cumprimento_sentenca: dbItem.em_cumprimento_sentenca ?? (dbItem.dados as any)?.em_cumprimento_sentenca,
-    evento_tipo: (dbItem.dados as any)?.evento_tipo,
-    evento_resumo: (dbItem.dados as any)?.evento_resumo,
+  const target = processarCaso({ 
+    ...(dbItem.dados as any), 
+    id: dbItem.id.toString(), 
+    ultimoRetorno: dbItem.ultimo_retorno 
   });
 
-  // Se já está encerrado no app, pulamos a varredura
-  if (isCasoEncerrado(target)) {
-    return { success: true, skipped: true, case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
-  }
+  if (isCasoEncerrado(target)) return { success: true, skipped: true };
 
   const patch: Record<string, any> = {};
   let movimentos: any[] = [];
   let comunicacoes: any[] = [];
   
-  // Preservar informação anterior se ela for de maior peso
+  // Inicialização de mérito a partir do existente
   let eventTipo: EventoTipo = (target.evento_tipo as EventoTipo) || 'rotina';
-  let eventResumo: string | null = target.evento_resumo ?? null;
-  
+  let eventResumo: string | null = target.evento_resumo || null;
+
   let datajudOk = false;
   let djenOk = false;
 
-  // --- DATAJUD (Tribunal) ---
+  // --- BLOCO DATAJUD ---
   if (mode === 'datajud' || mode === 'both') {
     try {
       const dataJud = await fetchDataJud(protocolo, 1, options);
@@ -168,15 +138,13 @@ export async function auditCaseCoreSystem(
 
         const dataMovRef = upd.dataUltimo || target.datajud_ultimo_movimento || null;
         
-        // Idempotência: Se já havia alerta e o evento ainda é pós-retorno, mantemos true
-        patch.tem_atualizacao_pos_retorno =
-          upd.alerta === true ||
+        // Idempotência: Mantém true se já era true e o evento continua válido
+        patch.tem_atualizacao_pos_retorno = upd.alerta === true || 
           (!!target.tem_atualizacao_pos_retorno && movimentoAindaPosRetorno(dataMovRef, target.ultimoRetorno));
 
         Object.assign(patch, {
           datajud_ultimo_movimento: upd.dataUltimo || target.datajud_ultimo_movimento || null,
           datajud_ultimo_nome: upd.nomeUltimo || target.datajud_ultimo_nome || null,
-          // Baixa só desmarca se encerrado no app (regra do usuário)
           datajud_encerrado_tribunal: enc.encerrado || (!!target.datajud_encerrado_tribunal && !isCasoEncerrado(target)),
           datajud_encerrado_motivo: enc.motivo || target.datajud_encerrado_motivo || null,
           indicio_busca_apreensao: ba.indicio || !!target.indicio_busca_apreensao,
@@ -184,10 +152,10 @@ export async function auditCaseCoreSystem(
           busca_apreensao_motivo: ba.motivo || target.busca_apreensao_motivo || null,
           em_cumprimento_sentenca: cump.ativo || !!target.em_cumprimento_sentenca,
           datajud_consultado_em: new Date().toISOString(),
-          tribunal: dataJud.tribunal || target.tribunal,
+          tribunal: dataJud.tribunal || target.tribunal
         });
 
-        // Hierarquia de mérito (Tribunal)
+        // Hierarquia de mérito DataJud
         if (ba.indicio && getWeight('ba') >= getWeight(eventTipo)) {
           eventTipo = 'ba';
           eventResumo = ba.motivo || eventResumo;
@@ -207,7 +175,7 @@ export async function auditCaseCoreSystem(
     }
   }
 
-  // --- DJEN (Diário Oficial) ---
+  // --- BLOCO DJEN ---
   if (mode === 'djen' || mode === 'both') {
     try {
       const djenRes = await fetchDjenComunicacoes(protocolo);
@@ -218,8 +186,7 @@ export async function auditCaseCoreSystem(
         const dataDjenRef = djenSync.dataUltima || target.djen_ultima_data || null;
 
         // Idempotência DJEN
-        patch.djen_nova_comunicacao =
-          djenSync.alerta === true ||
+        patch.djen_nova_comunicacao = djenSync.alerta === true || 
           (!!target.djen_nova_comunicacao && movimentoAindaPosRetorno(dataDjenRef, target.ultimoRetorno));
 
         const resumoKw = djenSync.resumo || (comunicacoes[0]?.texto ? summarizeDjenKeywords(comunicacoes[0].texto) : null) || target.djen_ultimo_resumo || null;
@@ -229,10 +196,9 @@ export async function auditCaseCoreSystem(
           djen_ultimo_resumo: resumoKw,
           djen_ultimo_link: djenSync.link || target.djen_ultimo_link || null,
           djen_count: djenRes.count ?? target.djen_count ?? comunicacoes.length,
-          djen_consultado_em: new Date().toISOString(),
+          djen_consultado_em: new Date().toISOString()
         });
 
-        // Hierarquia de mérito (Diário)
         if (djenSync.alerta && comunicacoes[0]) {
           const djenClass = classifyEventFromText(comunicacoes[0]?.texto);
           if (getWeight(djenClass.tipo) >= getWeight(eventTipo)) {
@@ -247,27 +213,40 @@ export async function auditCaseCoreSystem(
   }
 
   if (!datajudOk && !djenOk) {
-    return { success: false, error: 'Nenhuma fonte respondeu', case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
+    return { success: false, error: "Nenhuma fonte respondeu.", case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
   }
 
-  // Sincronizar Mérito Final
   patch.evento_tipo = eventTipo;
   patch.evento_resumo = eventResumo;
   patch.evento_fonte = (patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao) ? 'ambos' : patch.tem_atualizacao_pos_retorno ? 'datajud' : 'djen';
-
+  
   await updateCaseDataJudSystem(dbItem.id, patch);
   const updatedCase = processarCaso({ ...target, ...patch });
 
-  return { success: true, casePatch: patch, case: updatedCase, movimentos, comunicacoes };
+  return {
+    success: true,
+    casePatch: patch,
+    case: updatedCase,
+    movimentos,
+    comunicacoes
+  };
 }
 
-export async function scanSingleCaseAction(
-  protocolo: string,
-  options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean } = {}
-) {
+/**
+ * Action da UI: Valida sessão e chama o núcleo system.
+ */
+export async function scanSingleCaseAction(protocolo: string, options: { mode?: 'datajud'|'djen'|'both', fast?: boolean } = {}) {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false, error: '401' };
+  if (!empresa_id) return { success: false, error: "401" };
   return await auditCaseCoreSystem(protocolo, empresa_id, options.mode || 'both', { fast: options.fast });
+}
+
+export async function scanOneDataJudAction(protocolo: string) {
+  return scanSingleCaseAction(protocolo, { mode: 'datajud', fast: true });
+}
+
+export async function scanOneDjenAction(protocolo: string) {
+  return scanSingleCaseAction(protocolo, { mode: 'djen', fast: true });
 }
 
 export async function runDataJudScanAction(empresaId?: string) {
@@ -275,12 +254,13 @@ export async function runDataJudScanAction(empresaId?: string) {
     let id = empresaId;
     if (!id) {
       const ctx = await getUserContext();
-      if (!ctx.empresa_id) return { success: false, error: 'Sessão expirada.' };
+      if (!ctx.empresa_id) return { success: false, error: "Sessão expirada." };
       id = ctx.empresa_id;
     }
     const cases = await getStoredCasesForEmpresa(id, true);
-    const targetCases = cases.filter((c) => !isCasoEncerrado(c)).slice(0, 20);
+    const activeCases = cases.filter(c => !isCasoEncerrado(c));
     let updated = 0;
+    const targetCases = activeCases.slice(0, 20);
     for (const c of targetCases) {
       const res = await auditCaseCoreSystem(c.protocolo, id, 'both', { fast: true });
       if (res.success && (res.casePatch?.tem_atualizacao_pos_retorno || res.casePatch?.djen_nova_comunicacao)) {
@@ -293,13 +273,18 @@ export async function runDataJudScanAction(empresaId?: string) {
   }
 }
 
+export async function fetchRepoNotes() {
+  const { getStoredNotes } = await import('@/lib/server-db');
+  return await getStoredNotes();
+}
+
 export async function fetchTeamPerformanceAction() {
-  const { getEmpresaUsers } = await import('@/lib/server-db');
+  const { getEmpresaUsers, getStoredCasesForEmpresa, getUserContext } = await import('@/lib/server-db');
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { users: [], cases: [] };
   const [users, cases] = await Promise.all([
     getEmpresaUsers(),
-    getStoredCasesForEmpresa(empresa_id, true),
+    getStoredCasesForEmpresa(empresa_id, true)
   ]);
   return { users, cases };
 }
@@ -308,18 +293,10 @@ export async function clearDataJudAuditAction(protocolo: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false };
   const supabase = await createClient();
-  const { data: dbItem } = await supabase
-    .from('processos')
-    .select('id, dados')
-    .eq('protocolo_ref', protocolo)
-    .eq('empresa_id', empresa_id)
-    .maybeSingle();
+  const { data: dbItem } = await supabase.from('processos').select('id, dados').eq('protocolo_ref', protocolo).eq('empresa_id', empresa_id).single();
   if (!dbItem) return { success: false };
   const patch = { tem_atualizacao_pos_retorno: false, djen_nova_comunicacao: false, tem_novo_andamento: false };
   const updatedDados = { ...(dbItem.dados as any), ...patch };
-  const { error } = await supabase
-    .from('processos')
-    .update({ ...patch, dados: updatedDados })
-    .eq('id', dbItem.id);
+  const { error } = await supabase.from('processos').update({ ...patch, dados: updatedDados }).eq('id', dbItem.id);
   return { success: !error };
 }
