@@ -1,7 +1,6 @@
 /**
  * @fileOverview Motor de Consulta e Higiene DJEN v7.8 — PROTOCOLO DE PRECISÃO
  * Consulta a API pública do PJe para localizar comunicações oficiais.
- * Inclui motor de classificação mútua, sanitização agressiva e detecção de geo-bloqueio.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -32,7 +31,7 @@ export interface DjenFetchResult {
 }
 
 /**
- * Consulta a API pública do DJEN (PJe)
+ * Consulta a API pública do DJEN (PJe) com timeout e resiliência.
  */
 export async function fetchDjenComunicacoes(
   protocolo: string,
@@ -56,13 +55,18 @@ export async function fetchDjenComunicacoes(
     if (options.dataInicio) params.append('dataInicio', options.dataInicio);
     if (options.dataFim) params.append('dataFim', options.dataFim);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     const response = await fetch(`${url}?${params.toString()}`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: controller.signal
     });
 
-    // Tratamento de Erros de Infraestrutura PJe
+    clearTimeout(timeoutId);
+
     if (response.status === 429) return { success: false, isRateLimited: true, count: 0, items: [] };
     if (response.status === 403) return { success: false, isGeoBlocked: true, count: 0, items: [] };
 
@@ -89,8 +93,9 @@ export async function fetchDjenComunicacoes(
       items
     };
   } catch (e: any) {
-    console.error("[DJEN Fetch Fail]", e.message);
-    return { success: false, error: e.message, count: 0, items: [] };
+    const isTimeout = e.name === 'AbortError';
+    console.error("[DJEN Fetch Fail]", isTimeout ? "Timeout 30s" : e.message);
+    return { success: false, error: isTimeout ? "Tempo esgotado (30s)" : e.message, count: 0, items: [] };
   }
 }
 
@@ -127,7 +132,6 @@ export function plainTextFromDjen(html: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&ndash;/gi, "-")
     .replace(/&mdash;/gi, "—")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/\s+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
@@ -137,24 +141,20 @@ export function plainTextFromDjen(html: string): string {
 
 /**
  * Classifica a natureza jurídica de um texto (DataJud ou DJEN).
- * Garante exclusividade de mérito (Nunca Procedente e Improcedente juntos).
  */
 export function classifyEventFromText(text: string | null | undefined): { tipo: EventoTipo; label: string } {
   if (!text) return { tipo: 'rotina', label: 'ANDAMENTO DE ROTINA' };
   
   const clean = plainTextFromDjen(text).toUpperCase();
 
-  // 1. PRIORIDADE MÁXIMA: BUSCA E APREENSÃO
   if (/MANDADO\s+DE\s+BUSCA|EXPEDI[ÇC][AÃ]O\s+DE\s+MANDADO\s+DE\s+BUSCA|BUSCA\s+E\s+APREENS[AÃ]O\s+DEFERIDA/.test(clean)) {
     return { tipo: 'ba', label: 'BUSCA E APREENSÃO' };
   }
 
-  // 2. BAIXA E TRÂNSITO (TERMINATIVO)
   if (/BAIXA\s+DEFINITIVA|PROCESSO\s+BAIXADO|DETERMINADA\s+A\s+BAIXA|ARQUIVADO\s+DEFINITIVAMENTE|TR[AÂ]NSITO\s+EM\s+JULGADO/.test(clean)) {
     return { tipo: 'transito_ou_baixa', label: 'BAIXA DEFINITIVA' };
   }
 
-  // 3. SENTENÇAS (MÉRITO EXCLUSIVO)
   if (/(POSTO\s+ISTO|DISPOSITIVO|DECIDO).*IMPROCEDENTE|JULG[OA]\s+IMPROCEDENTE|TOTALMENTE\s+IMPROCEDENTE/.test(clean)) {
     return { tipo: 'sentenca_improcedente', label: 'SENTENÇA IMPROCEDENTE' };
   }
@@ -167,12 +167,10 @@ export function classifyEventFromText(text: string | null | undefined): { tipo: 
     return { tipo: 'sentenca_procedente', label: 'SENTENÇA PROCEDENTE' };
   }
 
-  // 4. RITOS DE URGÊNCIA (DISTINGUE DEFERIDO DE INDEFERIDO)
   if (/LIMINAR\s+DEFERIDA|TUTELA\s+DEFERIDA|TUTELA\s+CONCEDIDA|CONCEDO\s+A\s+LIMINAR|AUTORIZO\s+O\s+DEP[OÓ]SITO/.test(clean)) {
     return { tipo: 'liminar', label: 'LIMINAR DEFERIDA' };
   }
 
-  // 5. CUMPRIMENTO
   if (/CUMPRIMENTO\s+DE\s+SENTEN|EXECU[CÇ][AÃ]O\s+DE\s+SENTEN/.test(clean)) {
     return { tipo: 'cumprimento_sentenca', label: 'CUMPRIMENTO DE SENTENÇA' };
   }
@@ -181,37 +179,30 @@ export function classifyEventFromText(text: string | null | undefined): { tipo: 
 }
 
 /**
- * Motor de Extração de Keywords Críticas v8.2 — RESUMO SÓ COM PALAVRAS-CHAVE
+ * Motor de Extração de Keywords Críticas v8.2
  */
 export function summarizeDjenKeywords(raw: string | null | undefined): string {
   const plain = plainTextFromDjen(raw || "").toUpperCase();
   if (!plain.trim()) return "PUBLICAÇÃO DJEN";
 
-  // Ordem = prioridade de exibição (mais grave primeiro)
   const rules: { re: RegExp; label: string }[] = [
+    { re: /BUSCA\s+E\s+APREEN|APREENSAO\s+DO\s+VE[IÍ]CULO|ALIENA[CÇ][AÃ]O\s+FIDUCI[AÁ]RIA.*APREEN/, label: "BUSCA E APREENSÃO" },
     { re: /INDEFIRO\s+A\s+TUTELA|LIMINAR\s+INDEFERIDA|N[AÃ]O\s+CONCEDO\s+A\s+TUTELA|INDEFERIR\s+A\s+LIMINAR/, label: "LIMINAR INDEFERIDA" },
     { re: /TUTELA\s+DEFERIDA|LIMINAR\s+CONCEDIDA|CONCEDO\s+A\s+TUTELA|ANTECIPAÇÃO\s+DEFERIDA/, label: "LIMINAR DEFERIDA" },
     { re: /AUTORIZO\s+O\s+DEP[OÓ]SITO|AUTORIZA-SE\s+O\s+DEP[OÓ]SITO|AUTORIZO\s+A\s+CONSIGNA[ÇC][AÃ]O/, label: "DEPÓSITO AUTORIZADO" },
     { re: /BAIXA\s+DEFINITIVA|PROCESSO\s+BAIXADO|DETERMINADA\s+A\s+BAIXA/, label: "BAIXA DEFINITIVA" },
     { re: /TR[AÂ]NSITO\s+EM\s+JULGADO/, label: "TRÂNSITO EM JULGADO" },
-    { re: /MANDADO\s+DE\s+BUSCA|EXPEDI[ÇC][AÃ]O\s+DE\s+MANDADO\s+DE\s+BUSCA/, label: "BUSCA E APREENSÃO" },
     { re: /JULG[OA]\s+IMPROCEDENTE|TOTALMENTE\s+IMPROCEDENTE|SENTENÇA\s+IMPROCEDENTE/, label: "SENTENÇA IMPROCEDENTE" },
     { re: /JULG[OA]\s+PROCEDENTE|TOTALMENTE\s+PROCEDENTE|SENTENÇA\s+PROCEDENTE/, label: "SENTENÇA PROCEDENTE" },
     { re: /CUMPRIMENTO\s+DE\s+SENTEN|EXECU[CÇ][AÃ]O\s+DE\s+SENTEN/, label: "CUMPRIMENTO DE SENTENÇA" },
-    { re: /EMENDA\s+[AÀ]\s+INICIAL|EMENDE|EMENDA\s+DA\s+INICIAL/, label: "EMENDA À INICIAL" },
-    { re: /IN[EÉ]PCIA|INDEFER.*INICIAL|INDEFERIMENTO\s+DA\s+PETI/, label: "INDEFERIMENTO / INÉPCIA" },
     { re: /JUSTI[CÇ]A\s+GRATUITA|AJG|ASSIST[EÊ]NCIA\s+JUDICI[AÁ]RIA/, label: "AJG" },
     { re: /CUSTAS|PREPARO|RECOLHIMENTO|UFESP/, label: "CUSTAS" },
     { re: /CONTESTA[CÇ][AÃ]O/, label: "CONTESTAÇÃO" },
     { re: /AUDI[EÊ]NCIA/, label: "AUDIÊNCIA" },
-    { re: /REDISTRIBUI|DISTRIBUI[CÇ][AÃ]O/, label: "DISTRIBUIÇÃO" },
     { re: /RECURSO|APELA[CÇ][AÃ]O|AGRAVO/, label: "RECURSO" },
-    { re: /HOMOLOG.*ACORDO|ACORDO/, label: "ACORDO" },
   ];
 
   const hits: string[] = [];
-  
-  // Extraímos apenas o trecho final (dispositivo) para análise se o texto for muito longo
   const lowerPlain = plain.toLowerCase();
   const indexDispositivo = Math.max(lowerPlain.lastIndexOf("decido"), lowerPlain.lastIndexOf("posto isto"), lowerPlain.lastIndexOf("julgo"));
   const relevantText = indexDispositivo !== -1 ? plain.substring(indexDispositivo) : plain;

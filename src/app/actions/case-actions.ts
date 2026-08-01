@@ -2,7 +2,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v600.0 ELITE - NÚCLEO SYSTEM IDEMPOTENTE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v600.0 ELITE - NÚCLEO SYSTEM UNIFICADO
  */
 import {
   getStoredCasesForEmpresa,
@@ -111,7 +111,7 @@ export async function auditCaseCoreSystem(
     ultimoRetorno: dbItem.ultimo_retorno 
   });
 
-  if (isCasoEncerrado(target)) return { success: true, skipped: true };
+  if (isCasoEncerrado(target)) return { success: true, skipped: true, case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
 
   const patch: Record<string, any> = {};
   let movimentos: any[] = [];
@@ -145,12 +145,12 @@ export async function auditCaseCoreSystem(
         Object.assign(patch, {
           datajud_ultimo_movimento: upd.dataUltimo || target.datajud_ultimo_movimento || null,
           datajud_ultimo_nome: upd.nomeUltimo || target.datajud_ultimo_nome || null,
-          datajud_encerrado_tribunal: enc.encerrado || (!!target.datajud_encerrado_tribunal && !isCasoEncerrado(target)),
+          datajud_encerrado_tribunal: !!(enc.encerrado || target.datajud_encerrado_tribunal),
           datajud_encerrado_motivo: enc.motivo || target.datajud_encerrado_motivo || null,
-          indicio_busca_apreensao: ba.indicio || !!target.indicio_busca_apreensao,
+          indicio_busca_apreensao: !!(ba.indicio || target.indicio_busca_apreensao),
           busca_apreensao_confianca: ba.confianca ?? target.busca_apreensao_confianca ?? null,
           busca_apreensao_motivo: ba.motivo || target.busca_apreensao_motivo || null,
-          em_cumprimento_sentenca: cump.ativo || !!target.em_cumprimento_sentenca,
+          em_cumprimento_sentenca: !!(cump.ativo || target.em_cumprimento_sentenca),
           datajud_consultado_em: new Date().toISOString(),
           tribunal: dataJud.tribunal || target.tribunal
         });
@@ -257,13 +257,14 @@ export async function runDataJudScanAction(empresaId?: string) {
       if (!ctx.empresa_id) return { success: false, error: "Sessão expirada." };
       id = ctx.empresa_id;
     }
-    const cases = await getStoredCasesForEmpresa(id, true);
+    const cases = await getStoredCasesForEmpresa(id as string, true);
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
     let updated = 0;
     const targetCases = activeCases.slice(0, 20);
     for (const c of targetCases) {
-      const res = await auditCaseCoreSystem(c.protocolo, id, 'both', { fast: true });
-      if (res.success && (res.casePatch?.tem_atualizacao_pos_retorno || res.casePatch?.djen_nova_comunicacao)) {
+      const res = await auditCaseCoreSystem(c.protocolo, id as string, 'both', { fast: true });
+      const patch = (res.casePatch as Record<string, any>) || {};
+      if (res.success && (patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao)) {
         updated++;
       }
     }

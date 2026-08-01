@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Trigger Assíncrono de Auditoria DataJud v1.0
  * Dispara micro-lotes no worker e responde imediatamente.
@@ -9,6 +8,7 @@ import { getUserContext } from '@/lib/server-db';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
+export const preferredRegion = 'gru1';
 
 export async function POST(request: Request) {
   try {

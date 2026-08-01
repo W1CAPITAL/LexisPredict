@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview API de Telemetria de Auditoria v1.0
  * Retorna o status atual dos processos ativos da empresa.
@@ -8,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { getUserContext, getScanStatusMetrics } from '@/lib/server-db';
 
 export const dynamic = 'force-dynamic';
+export const preferredRegion = 'gru1';
 
 export async function GET() {
   try {

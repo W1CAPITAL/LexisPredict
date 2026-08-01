@@ -7,6 +7,7 @@ import { getGlobalPendingProcessesSystem } from '@/lib/server-db';
 import { auditCaseCoreSystem } from '@/app/actions/case-actions';
 
 export const dynamic = 'force-dynamic';
+export const preferredRegion = 'gru1'; // CRÍTICO: Executa em SP para evitar bloqueio DJEN
 
 const BATCH_SIZE = 5;
 const CONCURRENCY = 2;

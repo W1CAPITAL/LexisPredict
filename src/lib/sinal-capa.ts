@@ -28,7 +28,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: 'ALERTA: BUSCA E APREENSÃO',
       detalhe: c.evento_resumo || c.datajud_ultimo_nome || 'Identificado indício de rito de apreensão de bem.',
       fonte: 'datajud',
-      data: c.busca_apreensao_consultado_em || dataDj || null,
+      data: (c.busca_apreensao_consultado_em || dataDj || null) ?? null,
       prioridade: 100
     };
   }
@@ -39,7 +39,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: 'BAIXA / TRÂNSITO JULGADO',
       detalhe: c.evento_resumo || c.datajud_encerrado_motivo || 'Processo finalizado no tribunal.',
       fonte: 'datajud',
-      data: dataDj || null,
+      data: (dataDj || null) ?? null,
       prioridade: 90
     };
   }
@@ -56,7 +56,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: t,
       detalhe: c.evento_resumo || 'Nova decisão de mérito identificada.',
       fonte: c.evento_fonte || 'ambos',
-      data: dataDj || dataDjen || null,
+      data: (dataDj || dataDjen || null) ?? null,
       prioridade: 80
     };
   }
@@ -67,7 +67,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: 'AUDIÊNCIA DESIGNADA',
       detalhe: c.evento_resumo || 'Identificada marcação de audiência nos autos.',
       fonte: c.evento_fonte || 'ambos',
-      data: dataDj || dataDjen || null,
+      data: (dataDj || dataDjen || null) ?? null,
       prioridade: 70
     };
   }
@@ -78,7 +78,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: 'FASE EXECUTIVA',
       detalhe: c.evento_resumo || c.cumprimento_sentenca_motivo || 'Processo em fase de cumprimento de sentença.',
       fonte: 'datajud',
-      data: dataDj || null,
+      data: (dataDj || null) ?? null,
       prioridade: 60
     };
   }
@@ -90,7 +90,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: 'CUSTAS / GESTÃO DE PARTES',
       detalhe: summarizeDjenKeywords(combinedText),
       fonte: c.evento_fonte || 'ambos',
-      data: dataDj || dataDjen || null,
+      data: (dataDj || dataDjen || null) ?? null,
       prioridade: 50
     };
   }
@@ -101,7 +101,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: 'NOVA MOVIMENTAÇÃO',
       detalhe: c.datajud_ultimo_nome,
       fonte: 'datajud',
-      data: dataDj || null,
+      data: (dataDj || null) ?? null,
       prioridade: 40
     };
   }
@@ -112,7 +112,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
       titulo: 'PUBLICAÇÃO DJEN',
       detalhe: c.djen_ultimo_resumo,
       fonte: 'djen',
-      data: dataDjen || null,
+      data: (dataDjen || null) ?? null,
       prioridade: 30
     };
   }
@@ -122,7 +122,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     titulo: 'MONITORAMENTO REGULAR',
     detalhe: c.datajud_ultimo_nome || c.djen_ultimo_resumo || 'Sem novidades relevantes.',
     fonte: 'datajud',
-    data: dataDj || dataDjen || null,
+    data: (dataDj || dataDjen || null) ?? null,
     prioridade: 10
   };
 }
