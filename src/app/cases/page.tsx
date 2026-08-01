@@ -40,7 +40,9 @@ import {
   AlertTriangle,
   Gavel,
   Bell,
-  Bot
+  Bot,
+  FileText,
+  Download
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -73,7 +75,8 @@ import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerrame
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
-import { plainTextFromDjen } from '@/lib/djen';
+import { plainTextFromDjen, summarizeDjenForAlert } from '@/lib/djen';
+import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
 
 const CaseRow = React.memo(({ 
   c, 
@@ -371,60 +374,59 @@ function CasesContent() {
   };
 
   const handleSingleScan = async (caseItem: LegalCase) => {
+    setLoading(true);
     try {
-      const res = await scanSingleCaseAction(caseItem.protocolo);
-      if (res.success && res.case) {
-        setHistoryResult({ case: res.case, movimentos: res.movimentos || [] });
+      // Auditoria Unificada: DataJud + DJEN de uma vez
+      const [resDj, resDjen] = await Promise.all([
+        scanSingleCaseAction(caseItem.protocolo),
+        scanOneDjenAction(caseItem.protocolo)
+      ]);
+
+      if (resDj.success || resDjen.success) {
+        const moves = resDj.movimentos || [];
+        const djenComs = resDjen.comunicacoes || [];
+        
+        setHistoryResult({ 
+          case: resDj.case || caseItem, 
+          movimentos: moves,
+          djenComunicacoes: djenComs
+        });
+        
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setSuggestedScripts([]);
         setAiDraft(null);
-        if (res.casePatch) {
-          updateCaseByProtocolo(caseItem.protocolo, res.casePatch);
-        } else if (res.case) {
-          updateCase(res.case.id || '', res.case);
-        }
+        
+        if (resDj.casePatch) updateCaseByProtocolo(caseItem.protocolo, resDj.casePatch);
+        if (resDjen.casePatch) updateCaseByProtocolo(caseItem.protocolo, resDjen.casePatch);
       } else {
-        toast({ 
-          title: "Auditoria Indisponível", 
-          description: res.message || "Tribunal não retornou andamentos para este CNJ.", 
-          variant: "destructive" 
-        });
+        toast({ title: "Auditoria Indisponível", variant: "destructive" });
       }
     } catch (e) {
       toast({ title: "Erro na consulta", variant: "destructive" });
-    }
-  };
-
-  const handleDjenScan = async () => {
-    if (!historyResult || loadingDjen) return;
-    setLoadingDjen(true);
-    try {
-      const res = await scanOneDjenAction(historyResult.case.protocolo);
-      if (res.success) {
-        setHistoryResult(prev => ({ ...prev!, djenComunicacoes: res.comunicacoes }));
-        if (res.casePatch) updateCaseByProtocolo(historyResult.case.protocolo, res.casePatch);
-        toast({ title: "DJEN Sincronizado", description: res.message });
-      } else {
-        toast({ title: "Falha no DJEN", description: res.message || "Erro regional (403/gru1)", variant: "destructive" });
-      }
     } finally {
-      setLoadingDjen(false);
+      setLoading(false);
     }
   };
 
   const handleSuggestClick = async (caseItem: LegalCase) => {
+    setLoading(true);
     try {
-      const res = await scanSingleCaseAction(caseItem.protocolo);
-      if (res.success && res.case) {
-        const moves = res.movimentos || [];
-        setHistoryResult({ case: res.case, movimentos: moves });
+      const [resDj, resDjen] = await Promise.all([
+        scanSingleCaseAction(caseItem.protocolo),
+        scanOneDjenAction(caseItem.protocolo)
+      ]);
+
+      if (resDj.success) {
+        const moves = resDj.movimentos || [];
+        const djenComs = resDjen.comunicacoes || [];
+        setHistoryResult({ case: resDj.case!, movimentos: moves, djenComunicacoes: djenComs });
         setAiDraft(null);
         
         const suggestions = suggestScripts({
-          clienteNome: res.case.cliente,
-          protocolo: res.case.protocolo,
-          ultimoRetorno: res.case.ultimoRetorno,
+          clienteNome: resDj.case!.cliente,
+          protocolo: resDj.case!.protocolo,
+          ultimoRetorno: resDj.case!.ultimoRetorno,
           movimentos: moves
         });
         
@@ -432,20 +434,30 @@ function CasesContent() {
         setShowScripts(true);
         setIsHistoryModalOpen(true);
         
-        if (res.casePatch) {
-          updateCaseByProtocolo(caseItem.protocolo, res.casePatch);
-        } else if (res.case) {
-          updateCase(res.case.id || '', res.case);
-        }
-      } else {
-        toast({ 
-          title: "Sugestão Indisponível", 
-          description: res.message || "Tribunal não retornou andamentos.", 
-          variant: "destructive" 
-        });
+        if (resDj.casePatch) updateCaseByProtocolo(caseItem.protocolo, resDj.casePatch);
+        if (resDjen.casePatch) updateCaseByProtocolo(caseItem.protocolo, resDjen.casePatch);
       }
-    } catch (e) {
-      toast({ title: "Erro na consulta", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportDjenPDF = async (item: any) => {
+    if (!historyResult) return;
+    toast({ title: "Preparando Selagem", description: "Gerando PDF profissional da publicação..." });
+    const res = await generateDjenPublicationPDFAction({
+      titulo: summarizeDjenForAlert(item.texto, item.tipoComunicacao),
+      protocolo: historyResult.case.protocolo,
+      data: item.data_disponibilizacao ? new Date(item.data_disponibilizacao).toLocaleDateString() : 'S/D',
+      orgao: item.nomeOrgao,
+      tipo: item.tipoComunicacao,
+      texto: item.texto
+    });
+    if (res.success && res.base64) {
+      const link = document.createElement('a');
+      link.href = `data:application/pdf;base64,${res.base64}`;
+      link.download = `Publicacao_${historyResult.case.protocolo}_${Date.now()}.pdf`;
+      link.click();
     }
   };
 
@@ -685,6 +697,29 @@ function CasesContent() {
     }
   };
 
+  // Lógica de Unificação Cronológica (Tribunal + DJEN)
+  const unifiedHistory = useMemo(() => {
+    if (!historyResult) return [];
+    
+    const movs = (historyResult.movimentos || []).map(m => ({
+      type: 'court',
+      date: m.dataHora ? new Date(m.dataHora) : new Date(0),
+      title: m.nome,
+      subtitle: m.complemento || '',
+      raw: m
+    }));
+
+    const djen = (historyResult.djenComunicacoes || []).map(d => ({
+      type: 'djen',
+      date: d.data_disponibilizacao ? new Date(d.data_disponibilizacao) : new Date(0),
+      title: summarizeDjenForAlert(d.texto || "", d.tipoComunicacao || ""),
+      subtitle: d.nomeOrgao || '',
+      raw: d
+    }));
+
+    return [...movs, ...djen].sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [historyResult]);
+
   if (!mounted) return null;
 
   return (
@@ -761,7 +796,6 @@ function CasesContent() {
                 </div>
               </div>
 
-              {/* GRUPO DE AÇÕES À DIREITA */}
               <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
                 {isOperador && (
                   <Button
@@ -861,7 +895,7 @@ function CasesContent() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh]">
+            <DialogContent className="sm:max-w-[950px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh]">
               <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -869,7 +903,7 @@ function CasesContent() {
                         <History size={24} />
                     </div>
                     <div>
-                        <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl">Auditoria Unificada</DialogTitle>
+                        <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl">Auditoria Unificada (Audit 3D)</DialogTitle>
                         <p className="text-[9px] sm:text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
                     </div>
                   </div>
@@ -879,67 +913,63 @@ function CasesContent() {
               <div className="flex flex-col flex-1 bg-white overflow-hidden">
                 <ScrollArea className="flex-1">
                   <div className="p-4 sm:p-6 space-y-10">
-                    <div className="flex flex-col gap-4">
-                      <p className={cn("text-muted-foreground border-b pb-2", ui.label)}>Status Operacional</p>
-                      <div className="flex flex-wrap gap-2 sm:gap-3">
-                        {historyResult?.case?.djen_nova_comunicacao && <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-3 py-1.5">Publicação DJEN</Badge>}
-                        {historyResult?.case?.indicio_busca_apreensao && <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-3 py-1.5">Indício B.A.</Badge>}
-                        {historyResult?.case?.datajud_encerrado_tribunal && <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-3 py-1.5">Baixa Tribunal</Badge>}
-                      </div>
-                    </div>
-
                     <section className="space-y-6">
-                       <h3 className={cn("text-primary flex items-center gap-2 border-b-2 border-primary/10 pb-2", ui.label)}>
-                          <Gavel size={14} /> Movimentações Tribunal (DataJud)
+                       <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}>
+                          <div className="flex items-center gap-2"><Globe size={14} className="text-primary"/> Linha do Tempo Cronológica (Soberania DJEN + DataJud)</div>
+                          <Badge variant="outline" className="text-[8px] border-black/10">Histórico Integral</Badge>
                        </h3>
-                       <div className="space-y-4">
-                         {historyResult?.movimentos?.map((m, i) => (
-                           <div key={i} className="flex gap-4 p-3 hover:bg-secondary/20 rounded-lg transition-colors">
-                             <div className="w-8 h-8 rounded-full border border-border bg-background flex items-center justify-center shrink-0">
-                                 <Clock size={12} className="text-muted-foreground" />
+                       
+                       <div className="space-y-6">
+                         {unifiedHistory.map((item, i) => (
+                           <div key={i} className={cn(
+                             "relative p-5 border-2 rounded-xl transition-all hover:translate-x-1",
+                             item.type === 'djen' ? "border-blue-600 bg-blue-50/10 shadow-[4px_4px_0px_#2563eb]" : "border-slate-200 bg-slate-50/50"
+                           )}>
+                             <div className="flex items-start justify-between mb-3">
+                               <div className="flex items-center gap-3">
+                                 <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>
+                                   {item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}
+                                 </Badge>
+                                 <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
+                               </div>
+                               {item.type === 'djen' && (
+                                 <div className="flex gap-2">
+                                   <Button variant="ghost" size="icon" onClick={() => handleExportDjenPDF(item.raw)} className="h-8 w-8 hover:bg-blue-600 hover:text-white border border-blue-600/20">
+                                      <Download size={14} />
+                                   </Button>
+                                   <a href={item.raw.link} target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-md bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors">
+                                      <ExternalLink size={14} />
+                                   </a>
+                                 </div>
+                               )}
                              </div>
-                             <div className="flex-1">
-                                 <p className="text-[8px] font-black text-primary uppercase">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D'}</p>
-                                 <p className="text-[11px] font-bold text-foreground uppercase leading-tight">{m.nome}</p>
-                                 {m.complemento && <p className="text-[8px] text-muted-foreground uppercase">{m.complemento}</p>}
-                             </div>
+                             
+                             <h4 className="text-sm font-black uppercase text-foreground leading-tight mb-2">{item.title}</h4>
+                             {item.subtitle && <p className="text-[9px] font-bold text-muted-foreground uppercase mb-3">{item.subtitle}</p>}
+                             
+                             {item.type === 'djen' && (
+                               <div className="mt-4 p-4 bg-white border border-blue-100 rounded-lg">
+                                  <p className={cn("text-black leading-relaxed whitespace-pre-wrap italic", ui.readable)}>
+                                    {item.raw.texto}
+                                  </p>
+                               </div>
+                             )}
                            </div>
                          ))}
-                       </div>
-                    </section>
-
-                    <section className="space-y-6">
-                       <div className="flex items-center justify-between border-b-2 border-blue-600/10 pb-2">
-                          <h3 className={cn("text-blue-600 flex items-center gap-2", ui.label)}>
-                            <Globe size={14} /> Diário Oficial Nacional (DJEN)
-                          </h3>
-                          <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-blue-600 text-white font-black uppercase text-[8px] rounded-lg">
-                             {loadingDjen ? <Loader2 className="animate-spin" size={10}/> : <RefreshCcw size={10}/>} Consultar
-                          </Button>
-                       </div>
-                       <div className="space-y-4">
-                          {historyResult?.djenComunicacoes?.map((item, i) => (
-                            <div key={i} className="p-4 sm:p-5 border-2 border-black/5 bg-[#fafafa] rounded-xl space-y-3">
-                               <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600">{item.tipoComunicacao}</Badge>
-                               <p className={cn("text-foreground leading-relaxed italic whitespace-pre-wrap", ui.readable)}>
-                                  "{item.texto ? plainTextFromDjen(item.texto) : ""}"
-                               </p>
-                               <p className="text-[8px] font-black text-muted-foreground uppercase pt-2 border-t">{item.data_disponibilizacao} • {item.nomeOrgao}</p>
-                            </div>
-                          ))}
+                         {unifiedHistory.length === 0 && (
+                           <div className="py-10 text-center opacity-40 italic uppercase text-[10px]">Aguardando dados dos servidores...</div>
+                         )}
                        </div>
                     </section>
 
                     <section className="space-y-6 pt-6 border-t">
-                      <div className="flex items-center justify-between">
-                        <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}>
-                          <Sparkles size={14} /> Sugestões & Rascunho IA
-                        </h3>
-                      </div>
+                      <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}>
+                        <Sparkles size={14} /> Draft Estratégico & Sugestões
+                      </h3>
 
                       <div className="bg-black text-white p-4 sm:p-6 space-y-4 rounded-xl">
                         <div className="flex flex-col gap-3">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Draft Estratégico</p>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
 
                           <div className="flex flex-col sm:flex-row gap-3">
                             <Select value={selectedMotor} onValueChange={setSelectedMotor}>
@@ -948,7 +978,7 @@ function CasesContent() {
                               </SelectTrigger>
                               <SelectContent className="bg-white border-2 border-black rounded-lg">
                                 <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
-                                <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2</SelectItem>
+                                <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2 Elite</SelectItem>
                                 <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
                               </SelectContent>
                             </Select>

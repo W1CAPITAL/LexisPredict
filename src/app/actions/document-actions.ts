@@ -10,13 +10,26 @@ import { extrairDadosProcuracao } from '@/ai/flows/document-flow';
 import { extractTextResilient } from './knowledge-actions';
 
 /**
- * Motor de Selagem Digital v9.1
+ * Motor de Selagem Digital v9.5
  * Unificação de extração e resiliência de parsing.
  */
 
 async function getRenderToBuffer() {
   const { renderToBuffer } = await import('@react-pdf/renderer');
   return renderToBuffer;
+}
+
+export async function generateDjenPublicationPDFAction(data: any) {
+  try {
+    const renderToBuffer = await getRenderToBuffer();
+    const { DjenPublicationPDF } = await import('@/components/pdf/djen-publication-pdf');
+    const element = React.createElement(DjenPublicationPDF as any, { data }) as any;
+    const pdfBuffer = await renderToBuffer(element);
+    return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
+  } catch (e: any) {
+    console.error("[Selagem] Falha no PDF DJEN:", e.message || e);
+    return { error: "Falha técnica ao selar a publicação do Diário." };
+  }
 }
 
 export async function generateSubstabelecimentoSimplesPDFAction(data: any) {
