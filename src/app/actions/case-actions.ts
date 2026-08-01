@@ -29,24 +29,32 @@ import {
   summarizeDjenKeywords,
 } from '@/lib/djen';
 import { detectarNovaComunicacaoDjen } from '@/lib/djen-sync';
-import { parseISO, isAfter, parse, isValid } from 'date-fns';
+import { parseISO, isAfter, parse, isValid, startOfDay } from 'date-fns';
 
+/**
+ * Helper para validar se uma data de evento ainda é posterior ao retorno humano.
+ * Aceita diversos formatos de data de forma resiliente.
+ */
 function movimentoAindaPosRetorno(
   dataEventoStr: string | null | undefined,
   ultimoRetornoStr: string | null | undefined
 ): boolean {
   if (!dataEventoStr) return false;
   if (!ultimoRetornoStr || !String(ultimoRetornoStr).trim() || ultimoRetornoStr === '-') return true;
+  
   try {
     const dataEvento = parseISO(dataEventoStr);
     if (!isValid(dataEvento)) return true;
+    
     const cleanStr = String(ultimoRetornoStr).trim();
     let dataRetorno: Date | undefined;
+    
     if (cleanStr.includes('-') && cleanStr.length >= 10) {
       dataRetorno = parseISO(cleanStr.slice(0, 10));
     } else if (cleanStr.includes('/')) {
       dataRetorno = parse(cleanStr, 'dd/MM/yyyy', new Date());
     }
+    
     if (dataRetorno && isValid(dataRetorno)) {
       const fimDoDiaRetorno = new Date(dataRetorno);
       fimDoDiaRetorno.setHours(23, 59, 59, 999);
@@ -71,7 +79,6 @@ function getWeight(t: string | null | undefined): number {
     audiencia_julgamento: 80,
     audiencia_instrucao: 79,
     audiencia_conciliacao: 78,
-    cancelamento_distribuicao: 75,
     cumprimento_sentenca: 70,
     novo_andamento_relevante: 50,
     rotina: 10,
@@ -97,7 +104,8 @@ export async function fetchRepoNotes() {
 }
 
 /**
- * NÚCLEO SOBERANO — worker (service role) e UI usam o mesmo rito.
+ * NÚCLEO SOBERANO — Sincronia Tribunal + Diário Oficial.
+ * Implementa persistência idempotente de mérito e flags de novidade.
  */
 export async function auditCaseCoreSystem(
   protocolo: string,
@@ -115,6 +123,7 @@ export async function auditCaseCoreSystem(
 
   if (!dbItem) return { success: false, error: 'NOT_FOUND' };
 
+  // Carregar estado atual para garantir o merge inteligente
   const target = processarCaso({
     ...(dbItem.dados as any),
     id: dbItem.id.toString(),
@@ -122,18 +131,14 @@ export async function auditCaseCoreSystem(
     tem_atualizacao_pos_retorno: dbItem.tem_atualizacao_pos_retorno ?? (dbItem.dados as any)?.tem_atualizacao_pos_retorno,
     djen_nova_comunicacao: dbItem.djen_nova_comunicacao ?? (dbItem.dados as any)?.djen_nova_comunicacao,
     datajud_ultimo_movimento: dbItem.datajud_ultimo_movimento ?? (dbItem.dados as any)?.datajud_ultimo_movimento,
-    datajud_ultimo_nome: dbItem.datajud_ultimo_nome ?? (dbItem.dados as any)?.datajud_ultimo_nome,
     datajud_encerrado_tribunal: dbItem.datajud_encerrado_tribunal ?? (dbItem.dados as any)?.datajud_encerrado_tribunal,
-    datajud_encerrado_motivo: dbItem.datajud_encerrado_motivo ?? (dbItem.dados as any)?.datajud_encerrado_motivo,
     indicio_busca_apreensao: dbItem.indicio_busca_apreensao ?? (dbItem.dados as any)?.indicio_busca_apreensao,
     em_cumprimento_sentenca: dbItem.em_cumprimento_sentenca ?? (dbItem.dados as any)?.em_cumprimento_sentenca,
-    djen_ultima_data: dbItem.djen_ultima_data ?? (dbItem.dados as any)?.djen_ultima_data,
-    djen_ultimo_resumo: dbItem.djen_ultimo_resumo ?? (dbItem.dados as any)?.djen_ultimo_resumo,
-    djen_ultimo_link: dbItem.djen_ultimo_link ?? (dbItem.dados as any)?.djen_ultimo_link,
     evento_tipo: (dbItem.dados as any)?.evento_tipo,
     evento_resumo: (dbItem.dados as any)?.evento_resumo,
   });
 
+  // Se já está encerrado no app, pulamos a varredura
   if (isCasoEncerrado(target)) {
     return { success: true, skipped: true, case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
   }
@@ -141,12 +146,15 @@ export async function auditCaseCoreSystem(
   const patch: Record<string, any> = {};
   let movimentos: any[] = [];
   let comunicacoes: any[] = [];
+  
+  // Preservar informação anterior se ela for de maior peso
   let eventTipo: EventoTipo = (target.evento_tipo as EventoTipo) || 'rotina';
   let eventResumo: string | null = target.evento_resumo ?? null;
+  
   let datajudOk = false;
   let djenOk = false;
 
-  // --- DATAJUD ---
+  // --- DATAJUD (Tribunal) ---
   if (mode === 'datajud' || mode === 'both') {
     try {
       const dataJud = await fetchDataJud(protocolo, 1, options);
@@ -159,24 +167,27 @@ export async function auditCaseCoreSystem(
         const cump = detectarCumprimentoSentenca(movimentos);
 
         const dataMovRef = upd.dataUltimo || target.datajud_ultimo_movimento || null;
+        
+        // Idempotência: Se já havia alerta e o evento ainda é pós-retorno, mantemos true
         patch.tem_atualizacao_pos_retorno =
           upd.alerta === true ||
-          (!!target.tem_atualizacao_pos_retorno &&
-            movimentoAindaPosRetorno(dataMovRef, target.ultimoRetorno));
+          (!!target.tem_atualizacao_pos_retorno && movimentoAindaPosRetorno(dataMovRef, target.ultimoRetorno));
 
         Object.assign(patch, {
           datajud_ultimo_movimento: upd.dataUltimo || target.datajud_ultimo_movimento || null,
           datajud_ultimo_nome: upd.nomeUltimo || target.datajud_ultimo_nome || null,
-          datajud_encerrado_tribunal: !!(enc.encerrado || target.datajud_encerrado_tribunal),
+          // Baixa só desmarca se encerrado no app (regra do usuário)
+          datajud_encerrado_tribunal: enc.encerrado || (!!target.datajud_encerrado_tribunal && !isCasoEncerrado(target)),
           datajud_encerrado_motivo: enc.motivo || target.datajud_encerrado_motivo || null,
-          indicio_busca_apreensao: !!(ba.indicio || target.indicio_busca_apreensao),
+          indicio_busca_apreensao: ba.indicio || !!target.indicio_busca_apreensao,
           busca_apreensao_confianca: ba.confianca ?? target.busca_apreensao_confianca ?? null,
           busca_apreensao_motivo: ba.motivo || target.busca_apreensao_motivo || null,
-          em_cumprimento_sentenca: !!(cump.ativo || target.em_cumprimento_sentenca),
+          em_cumprimento_sentenca: cump.ativo || !!target.em_cumprimento_sentenca,
           datajud_consultado_em: new Date().toISOString(),
           tribunal: dataJud.tribunal || target.tribunal,
         });
 
+        // Hierarquia de mérito (Tribunal)
         if (ba.indicio && getWeight('ba') >= getWeight(eventTipo)) {
           eventTipo = 'ba';
           eventResumo = ba.motivo || eventResumo;
@@ -196,7 +207,7 @@ export async function auditCaseCoreSystem(
     }
   }
 
-  // --- DJEN ---
+  // --- DJEN (Diário Oficial) ---
   if (mode === 'djen' || mode === 'both') {
     try {
       const djenRes = await fetchDjenComunicacoes(protocolo);
@@ -206,16 +217,12 @@ export async function auditCaseCoreSystem(
         const djenSync = detectarNovaComunicacaoDjen(target.ultimoRetorno, comunicacoes);
         const dataDjenRef = djenSync.dataUltima || target.djen_ultima_data || null;
 
+        // Idempotência DJEN
         patch.djen_nova_comunicacao =
           djenSync.alerta === true ||
-          (!!target.djen_nova_comunicacao &&
-            movimentoAindaPosRetorno(dataDjenRef, target.ultimoRetorno));
+          (!!target.djen_nova_comunicacao && movimentoAindaPosRetorno(dataDjenRef, target.ultimoRetorno));
 
-        const resumoKw =
-          djenSync.resumo ||
-          (comunicacoes[0]?.texto ? summarizeDjenKeywords(comunicacoes[0].texto) : null) ||
-          target.djen_ultimo_resumo ||
-          null;
+        const resumoKw = djenSync.resumo || (comunicacoes[0]?.texto ? summarizeDjenKeywords(comunicacoes[0].texto) : null) || target.djen_ultimo_resumo || null;
 
         Object.assign(patch, {
           djen_ultima_data: djenSync.dataUltima || target.djen_ultima_data || null,
@@ -225,6 +232,7 @@ export async function auditCaseCoreSystem(
           djen_consultado_em: new Date().toISOString(),
         });
 
+        // Hierarquia de mérito (Diário)
         if (djenSync.alerta && comunicacoes[0]) {
           const djenClass = classifyEventFromText(comunicacoes[0]?.texto);
           if (getWeight(djenClass.tipo) >= getWeight(eventTipo)) {
@@ -239,38 +247,18 @@ export async function auditCaseCoreSystem(
   }
 
   if (!datajudOk && !djenOk) {
-    return {
-      success: false,
-      error: 'Nenhuma fonte respondeu',
-      case: target,
-      casePatch: {},
-      movimentos: [],
-      comunicacoes: [],
-    };
+    return { success: false, error: 'Nenhuma fonte respondeu', case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
   }
 
-  // Nunca rebaixar mérito para rotina/null se já havia sinal forte
+  // Sincronizar Mérito Final
   patch.evento_tipo = eventTipo;
   patch.evento_resumo = eventResumo;
-  patch.evento_fonte =
-    patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao
-      ? 'ambos'
-      : patch.tem_atualizacao_pos_retorno
-        ? 'datajud'
-        : patch.djen_nova_comunicacao
-          ? 'djen'
-          : target.evento_fonte || (datajudOk ? 'datajud' : 'djen');
+  patch.evento_fonte = (patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao) ? 'ambos' : patch.tem_atualizacao_pos_retorno ? 'datajud' : 'djen';
 
   await updateCaseDataJudSystem(dbItem.id, patch);
   const updatedCase = processarCaso({ ...target, ...patch });
 
-  return {
-    success: true,
-    casePatch: patch,
-    case: updatedCase,
-    movimentos,
-    comunicacoes,
-  };
+  return { success: true, casePatch: patch, case: updatedCase, movimentos, comunicacoes };
 }
 
 export async function scanSingleCaseAction(
@@ -279,17 +267,7 @@ export async function scanSingleCaseAction(
 ) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false, error: '401' };
-  return await auditCaseCoreSystem(protocolo, empresa_id, options.mode || 'both', {
-    fast: options.fast,
-  });
-}
-
-/** Wrappers para imports legados — NÃO remover */
-export async function scanOneDataJudAction(protocolo: string) {
-  return scanSingleCaseAction(protocolo, { mode: 'datajud', fast: true });
-}
-export async function scanOneDjenAction(protocolo: string) {
-  return scanSingleCaseAction(protocolo, { mode: 'djen', fast: true });
+  return await auditCaseCoreSystem(protocolo, empresa_id, options.mode || 'both', { fast: options.fast });
 }
 
 export async function runDataJudScanAction(empresaId?: string) {
@@ -305,10 +283,7 @@ export async function runDataJudScanAction(empresaId?: string) {
     let updated = 0;
     for (const c of targetCases) {
       const res = await auditCaseCoreSystem(c.protocolo, id, 'both', { fast: true });
-      if (
-        res.success &&
-        (res.casePatch?.tem_atualizacao_pos_retorno || res.casePatch?.djen_nova_comunicacao)
-      ) {
+      if (res.success && (res.casePatch?.tem_atualizacao_pos_retorno || res.casePatch?.djen_nova_comunicacao)) {
         updated++;
       }
     }
@@ -340,11 +315,7 @@ export async function clearDataJudAuditAction(protocolo: string) {
     .eq('empresa_id', empresa_id)
     .maybeSingle();
   if (!dbItem) return { success: false };
-  const patch = {
-    tem_atualizacao_pos_retorno: false,
-    djen_nova_comunicacao: false,
-    tem_novo_andamento: false,
-  };
+  const patch = { tem_atualizacao_pos_retorno: false, djen_nova_comunicacao: false, tem_novo_andamento: false };
   const updatedDados = { ...(dbItem.dados as any), ...patch };
   const { error } = await supabase
     .from('processos')
