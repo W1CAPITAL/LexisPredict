@@ -1,7 +1,8 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v7.0 — AUDITORIA DE BANCA E TOP 10 DE CRITICIDADE
+ * DOSSIÊ OPERACIONAL v19.0 — AUDITORIA ACIONÁVEL DE MÉRITO E RESPONSABILIDADE
  */
 "use client";
 
@@ -34,7 +35,9 @@ import {
   UserCheck,
   ChevronRight,
   TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon
+  TrendingDown as TrendingDownIcon,
+  FileText,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -42,15 +45,6 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/use-app-store";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Cell,
-  Tooltip
-} from 'recharts';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSinalCapa } from "@/lib/sinal-capa";
@@ -93,33 +87,55 @@ export default function UnifiedReport() {
   }, [mounted, authLoading, setCases]);
 
   const metrics = useMemo(() => {
-    const totalRepo = cases.length;
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     
-    // UNIFICAÇÃO DE NOVIDADES
+    // NOVIDADES UNIFICADAS (Flag Alias)
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
+    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
 
-    // Top 10 Críticos por Movimentação Recente
+    // TOP 10 CRÍTICOS (Por Prioridade de Sinal)
     const topCriticos = ativos
-      .filter(c => !!c.tem_novo_andamento)
       .map(c => ({ case: c, sinal: getSinalCapa(c) }))
-      .sort((a, b) => b.sinal.prioridade - a.sinal.prioridade)
+      .filter(i => i.sinal.prioridade > 10 || i.case.status === 'Vencido')
+      .sort((a, b) => {
+        if (b.sinal.prioridade !== a.sinal.prioridade) return b.sinal.prioridade - a.sinal.prioridade;
+        const dateA = a.sinal.data ? new Date(a.sinal.data).getTime() : 0;
+        const dateB = b.sinal.data ? new Date(b.sinal.data).getTime() : 0;
+        return dateB - dateA;
+      })
       .slice(0, 10);
 
-    // Top 10 Chance de Encerramento
+    // TOP 10 CHANCE DE ENCERRAMENTO (Com Boost de Rito)
     const topChance = ativos
-      .map(c => ({ case: c, prob: calcularProbabilidadeEncerramento({ status: c.status, situacao: c.situacao, observacao: c.observacao, diasVencidos: c.diasFaltando ? Math.abs(c.diasFaltando) : 0 }) }))
-      .filter(i => i.prob < 100) // Ignorar o que já está tecnicamente fechado
+      .map(c => {
+        let prob = calcularProbabilidadeEncerramento({ 
+          status: c.status, 
+          situacao: c.situacao, 
+          observacao: c.observacao, 
+          diasVencidos: c.diasFaltando ? Math.abs(c.diasFaltando) : 0 
+        });
+        // Boost por flags oficiais
+        if (c.datajud_encerrado_tribunal) prob = 98;
+        else if (c.em_cumprimento_sentenca) prob = Math.max(prob, 85);
+        else if (c.evento_tipo?.startsWith('sentenca')) prob = Math.max(prob, 70);
+
+        return { case: c, prob };
+      })
       .sort((a, b) => b.prob - a.prob)
       .slice(0, 10);
 
-    // Ranking de Advogados (Top 3 e Bottom 3)
+    // LISTAS DE MÉRITO
+    const listCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).slice(0, 10);
+    const listProcedente = ativos.filter(c => c.evento_tipo === 'sentenca_procedente').slice(0, 10);
+    const listImprocedente = ativos.filter(c => c.evento_tipo === 'sentenca_improcedente').slice(0, 10);
+
+    // RANKING DE BANCA (Master)
     const lawyerGroups: Record<string, LegalCase[]> = {};
     cases.forEach(c => {
       const name = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
@@ -132,37 +148,40 @@ export default function UnifiedReport() {
       return { name, score: result.score };
     }).sort((a, b) => b.score - a.score);
 
-    const top3Lawyers = lawyerRank.slice(0, 3);
-    const bottom3Lawyers = lawyerRank.length > 3 ? lawyerRank.slice(-3).reverse() : [];
-
     const isMaster = checkIfSuperAdmin(profile) || checkIfSupervisor(profile);
 
-    // Auditoria Individual
+    // AUDITORIA INDIVIDUAL (Fila do Dono)
     const myAtivos = cases.filter(c => c.created_by === profile?.auth_user_id && !isCasoEncerrado(c));
-    const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico');
-    const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento);
+    const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').slice(0, 10);
+    const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento).slice(0, 10);
+
+    // Risco Global: (Vencidos * 1 + BA * 2 + Novidades * 0.5) / Ativos
+    const riskScore = activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countBA * 2 + countNovoAndamento * 0.5) / activeTotal) * 100)) : 0;
 
     return {
-      totalRepo,
       activeTotal,
       countVencido,
       countHoje,
-      riskScore: activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countHoje * 0.8) / activeTotal) * 100)) : 0,
       countNovoAndamento,
       countEncerradoTribunal,
       countBA,
+      countCumprimento,
+      riskScore,
       isMaster,
-      myVencidos: myVencidos.slice(0, 10),
-      myNovidades: myNovidades.slice(0, 10),
+      myVencidos,
+      myNovidades,
       topCriticos,
       topChance,
-      top3Lawyers,
-      bottom3Lawyers
+      listCumprimento,
+      listProcedente,
+      listImprocedente,
+      top3Lawyers: lawyerRank.slice(0, 3),
+      bottom3Lawyers: lawyerRank.length > 3 ? lawyerRank.slice(-3).reverse() : []
     };
   }, [cases, profile]);
 
-  const handleExportPDF = () => {
-    document.title = `Dossie_LexisPredict_${new Date().toISOString().split('T')[0]}`;
+  const handlePrint = () => {
+    document.title = `Dossie_Lexis_${new Date().toISOString().split('T')[0]}`;
     window.print();
   };
 
@@ -176,227 +195,230 @@ export default function UnifiedReport() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f2f2] text-black font-sans selection:bg-black/5">
-      <style jsx global>{`
-        @media print {
-          body { background-color: white !important; color: black !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .print-root { margin: 0 !important; border: 0 !important; width: 100% !important; max-width: none !important; }
-          .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
-          .print-hidden { display: none !important; }
-          @page { size: A4; margin: 12mm 14mm; }
-        }
-      `}</style>
-
-      {/* HEADER CONTROLE */}
-      <div className="print-hidden sticky top-0 z-[100] bg-white/80 backdrop-blur-xl border-b border-black/10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[#f3f2f2] text-black font-sans">
+      
+      {/* HEADER DE CONTROLE */}
+      <div className="print:hidden sticky top-0 z-[100] bg-white/80 backdrop-blur-xl border-b-2 border-black p-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Button variant="ghost" asChild className="text-black/70 hover:text-black font-black tracking-widest text-[10px] uppercase rounded-none h-10 px-4">
-              <Link href="/"><ArrowLeft size={14} className="mr-2" /> Voltar ao Gabinete</Link>
+            <Button variant="ghost" asChild className="h-10 px-4 font-black uppercase text-[10px] border-2 border-transparent hover:border-black rounded-none">
+              <Link href="/"><ArrowLeft size={16} className="mr-2" /> Gabinete</Link>
             </Button>
-            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Enterprise v18.0</Badge>
+            <Badge className="bg-black text-primary font-black uppercase text-[10px] px-4 rounded-none h-8">Sincronia Omni 100%</Badge>
           </div>
-          <Button onClick={handleExportPDF} className="bg-black text-white font-black uppercase text-[10px] h-11 px-7 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
-            <Printer size={14} className="mr-2" /> Gerar PDF / Imprimir
+          <Button onClick={handlePrint} className="bg-black hover:bg-black/90 text-white font-black uppercase text-[10px] h-10 px-8 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
+            <Printer size={16} className="mr-2" /> Imprimir Dossiê PDF
           </Button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-10 print:px-0 print:py-0">
-        <div className="bg-white border-2 border-black print:border-0 shadow-[12px_12px_0px_#000] print-root">
-          
-          {/* CAPA REPORT */}
-          <header className="relative overflow-hidden border-b-2 border-black break-inside-avoid">
-            <div className="px-10 pt-16 pb-12 flex justify-between items-end">
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-black flex items-center justify-center"><Layers size={20} className="text-white" /></div>
-                  <span className="text-[10px] tracking-[0.4em] uppercase text-black font-black">LexisPredict • Elite Reporting</span>
-                </div>
-                <h1 className="text-5xl md:text-6xl font-black tracking-tighter leading-[0.85] text-black">
-                  DOSSIÊ MASTER<br /><span className="text-black/30 uppercase">DA CARTEIRA</span>
-                </h1>
-                <p className="text-[10px] font-black uppercase tracking-[0.6em] text-black/40">Consolidação Operacional de Mérito</p>
+      <div className="max-w-5xl mx-auto py-10 print:py-0 space-y-12">
+        
+        {/* CAPA REPORT */}
+        <section className="bg-white border-8 border-black p-16 relative overflow-hidden break-inside-avoid">
+           <div className="absolute top-0 right-0 p-10 opacity-[0.03] rotate-12 scale-150"><Layers size={300} /></div>
+           <div className="space-y-10 relative z-10">
+              <div className="flex items-center gap-6">
+                 <div className="w-12 h-12 bg-black flex items-center justify-center text-primary"><Layers size={28} /></div>
+                 <div>
+                    <h2 className="text-xl font-black uppercase tracking-[0.4em]">LexisPredict Elite</h2>
+                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] opacity-40">W1 Capital • Advanced Legal Operations</p>
+                 </div>
               </div>
-              <div className="text-right space-y-3">
-                <div className="text-[10px] font-black uppercase opacity-40">Emissão por</div>
-                <p className="text-lg font-black uppercase tracking-tight leading-none">{profile?.nome}</p>
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 border-2 border-green-600 text-green-700 text-[9px] font-black tracking-widest uppercase">
-                  <ShieldCheck size={12} /> Auditado
-                </div>
+              <div className="pt-10">
+                 <h1 className="text-6xl font-black uppercase tracking-tighter leading-[0.85] text-black">
+                    Dossiê<br />Operacional<br /><span className="text-primary">Master</span>
+                 </h1>
+                 <p className="text-[10px] font-bold uppercase tracking-[0.5em] opacity-60 mt-4">Relatório Consolidado de Mérito e Responsabilidade</p>
               </div>
-            </div>
-            <div className="bg-black text-white px-10 py-3 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <span className="text-primary">Status: Auditoria Sincronizada</span>
-            </div>
-          </header>
+           </div>
+           <div className="flex justify-between items-end border-t-4 border-black mt-20 pt-8">
+              <div className="space-y-1">
+                 <p className="text-[9px] font-black uppercase tracking-widest opacity-40">Auditado por</p>
+                 <p className="text-lg font-black uppercase tracking-tight">{profile?.nome}</p>
+              </div>
+              <div className="text-right">
+                 <p className="text-2xl font-black tracking-tighter uppercase">{new Date().getFullYear()}</p>
+                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.19.0 ELITE</Badge>
+              </div>
+           </div>
+        </section>
 
-          {/* TELEMETRIA GLOBAL */}
-          <section className="p-10 bg-[#f8f9fb] border-b-2 border-black break-inside-avoid">
-            <div className="mb-10 p-8 border-4 border-black bg-black text-white shadow-[10px_10px_0px_#00D1FF]">
-               <h3 className="text-[11px] font-black uppercase tracking-[0.4em] mb-8 flex items-center gap-3">
-                  <Zap className="text-primary animate-pulse" size={16}/> Telemetria Unificada de Gabinete
-               </h3>
-               <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-                  <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Sinais de Novidade</p>
-                     <p className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento}</p>
-                  </div>
-                  <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Baixas Reais</p>
-                     <p className="text-4xl font-black tabular-nums text-emerald-400">{metrics.countEncerradoTribunal}</p>
-                  </div>
-                  <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Indícios B.A.</p>
-                     <p className="text-4xl font-black tabular-nums text-red-500">{metrics.countBA}</p>
-                  </div>
-                  <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Risco Global</p>
-                     <p className="text-4xl font-black tabular-nums text-orange-400">{metrics.riskScore}%</p>
-                  </div>
-               </div>
-            </div>
-          </section>
+        {/* TELEMETRIA DE REUNIÃO */}
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-6 break-inside-avoid">
+           <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} color="text-black" />
+           <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} color="text-red-600" />
+           <KpiCard label="Novidades (DataJud/DJEN)" value={metrics.countNovoAndamento} color="text-blue-600" />
+           <KpiCard label="Risco Global" value={`${metrics.riskScore}%`} color={metrics.riskScore > 50 ? "text-red-600" : "text-emerald-600"} />
+        </section>
 
-          {/* TOP 10 CRÍTICOS POR MOVIMENTAÇÃO */}
-          <section className="p-10 border-b-2 border-black break-inside-avoid">
-             <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
-                <Target size={18} className="text-primary" />
-                <h3 className="text-xs font-black uppercase tracking-widest">Top 10: Criticidade por Movimentação</h3>
-             </div>
-             <div className="border-2 border-black">
-                <table className="w-full text-left text-[9px] font-black uppercase">
-                   <thead className="bg-black text-white">
-                      <tr>
-                         <th className="p-3">Cliente / CNJ</th>
-                         <th className="p-3">Natureza do Sinal</th>
-                         <th className="p-3 text-center">Fonte</th>
-                         <th className="p-3 text-right">Data Evento</th>
+        {/* TOP 10 CRÍTICOS POR SINAL */}
+        <section className="bg-white border-2 border-black break-inside-avoid">
+           <div className="bg-black text-white p-5 flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Zap className="text-primary" size={14}/> Top 10: Criticidade por Movimentação</h3>
+              <Badge variant="outline" className="text-white border-white/20 text-[8px]">Sinal Híbrido Ativo</Badge>
+           </div>
+           <div className="p-0 overflow-hidden">
+              <table className="w-full text-left text-[9px] font-black uppercase">
+                 <thead className="bg-[#f8f9fb] border-b-2 border-black">
+                    <tr>
+                       <th className="p-4">Cliente / Protocolo</th>
+                       <th className="p-4">Natureza do Sinal</th>
+                       <th className="p-4 text-center">Fonte</th>
+                       <th className="p-4 text-right">Data</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-black/5">
+                    {metrics.topCriticos.length > 0 ? metrics.topCriticos.map((item, i) => (
+                      <tr key={i} className="hover:bg-gray-50 group">
+                         <td className="p-4">
+                            <p className="text-[10px]">{item.case.cliente}</p>
+                            <p className="text-[8px] opacity-40 font-mono">{item.case.protocolo}</p>
+                         </td>
+                         <td className="p-4">
+                            <p className={cn(item.sinal.prioridade >= 80 ? "text-red-600" : "text-black")}>{item.sinal.titulo}</p>
+                            <p className="text-[8px] font-bold opacity-40 lowercase italic line-clamp-1">{item.sinal.detalhe}</p>
+                         </td>
+                         <td className="p-4 text-center">
+                            <Badge variant="outline" className="text-[7px] font-black border-black/10 uppercase">{item.sinal.fonte}</Badge>
+                         </td>
+                         <td className="p-4 text-right opacity-60">
+                           {item.sinal.data ? new Date(item.sinal.data).toLocaleDateString('pt-BR') : '---'}
+                         </td>
                       </tr>
-                   </thead>
-                   <tbody className="divide-y-2 divide-black/5">
-                      {metrics.topCriticos.map((item, i) => (
-                        <tr key={i} className="hover:bg-secondary/10">
-                           <td className="p-3">
-                              <p className="text-[10px]">{item.case.cliente}</p>
-                              <p className="text-[8px] opacity-40 font-mono">{item.case.protocolo}</p>
-                           </td>
-                           <td className="p-3">
-                              <p className={cn(item.sinal.prioridade >= 80 ? "text-red-600" : "text-black")}>{item.sinal.titulo}</p>
-                              <p className="text-[8px] font-bold opacity-40 lowercase italic line-clamp-1">{item.sinal.detalhe}</p>
-                           </td>
-                           <td className="p-3 text-center">
-                              <Badge variant="outline" className="text-[7px] font-black border-black/10 uppercase">
-                                {item.sinal.fonte}
-                              </Badge>
-                           </td>
-                           <td className="p-3 text-right opacity-60">
-                             {item.sinal.data ? new Date(item.sinal.data).toLocaleDateString('pt-BR') : '---'}
-                           </td>
-                        </tr>
-                      ))}
-                   </tbody>
-                </table>
-             </div>
-          </section>
+                    )) : (
+                      <tr><td colSpan={4} className="p-10 text-center opacity-40">Nenhum sinal crítico pós-auditoria</td></tr>
+                    )}
+                 </tbody>
+              </table>
+           </div>
+        </section>
 
-          {/* TOP 10 CHANCE DE ENCERRAMENTO */}
-          <section className="p-10 border-b-2 border-black break-inside-avoid">
-             <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
-                <TrendingUpIcon size={18} className="text-emerald-600" />
-                <h3 className="text-xs font-black uppercase tracking-widest">Top 10: Maior Chance de Encerramento</h3>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {metrics.topChance.map((item, i) => (
-                   <div key={i} className="p-4 border-2 border-black flex items-center justify-between group hover:bg-black transition-all">
-                      <div className="min-w-0">
-                         <p className="text-[10px] font-black uppercase truncate group-hover:text-white">{item.case.cliente}</p>
-                         <p className="text-[8px] font-mono opacity-40 group-hover:text-white/40">{item.case.protocolo}</p>
-                      </div>
-                      <div className="text-right">
-                         <p className="text-xl font-black text-emerald-600 group-hover:text-primary">{item.prob}%</p>
-                         <p className="text-[7px] font-black uppercase opacity-40 group-hover:text-white/40">Probability</p>
-                      </div>
-                   </div>
-                ))}
-             </div>
-          </section>
+        {/* TOP 10 CHANCE DE ENCERRAMENTO */}
+        <section className="bg-white border-2 border-black break-inside-avoid">
+           <div className="bg-emerald-600 text-white p-5 flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Target size={16}/> Top 10: Maior Chance de Encerramento</h3>
+              <Badge variant="outline" className="text-white border-white/20 text-[8px]">Previsão Algorítmica</Badge>
+           </div>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-x-2 divide-y-2 divide-black/10">
+              {metrics.topChance.length > 0 ? metrics.topChance.map((item, i) => (
+                 <div key={i} className="p-5 flex items-center justify-between hover:bg-emerald-50 transition-all group">
+                    <div className="min-w-0">
+                       <p className="text-[10px] font-black uppercase truncate">{item.case.cliente}</p>
+                       <p className="text-[8px] font-mono opacity-40">{item.case.protocolo}</p>
+                    </div>
+                    <div className="text-right">
+                       <p className="text-2xl font-black text-emerald-600">{item.prob}%</p>
+                       <p className="text-[7px] font-black uppercase opacity-40">Chance</p>
+                    </div>
+                 </div>
+              )) : (
+                <div className="p-10 text-center col-span-2 opacity-40">Sem previsões de encerramento ativas</div>
+              )}
+           </div>
+        </section>
 
-          {/* RANKING DE BANCA (BEST & WORST) */}
-          {metrics.isMaster && (
-             <section className="p-10 border-b-2 border-black break-inside-avoid">
-                <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
-                   <Gavel size={18} className="text-primary" />
-                   <h3 className="text-xs font-black uppercase tracking-widest">Governança de Banca: Performance de Advogados</h3>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                   <div className="space-y-6">
-                      <p className="text-[9px] font-black uppercase text-emerald-600 tracking-[0.2em] flex items-center gap-2">
-                        <TrendingUpIcon size={12}/> Top 3 Efficiency (Líderes)
-                      </p>
-                      <div className="space-y-3">
-                         {metrics.top3Lawyers.map((l, i) => (
-                           <div key={i} className="p-4 bg-emerald-50/20 border-2 border-emerald-200 flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
-                              <span className="text-lg font-black text-emerald-600">+{new Intl.NumberFormat('pt-BR').format(l.score)}</span>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
+        {/* BLOCOS DE MÉRITO E EXECUÇÃO */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 break-inside-avoid">
+           <MeritList title="Fase Executiva" data={metrics.listCumprimento} icon={<Activity size={14}/>} color="bg-blue-600" />
+           <MeritList title="Vitórias (Procedente)" data={metrics.listProcedente} icon={<CheckCircle2 size={14}/>} color="bg-emerald-600" />
+           <MeritList title="Revisões (Improcedente)" data={metrics.listImprocedente} icon={<AlertTriangle size={14}/>} color="bg-red-600" />
+        </section>
 
-                   <div className="space-y-6">
-                      <p className="text-[9px] font-black uppercase text-red-600 tracking-[0.2em] flex items-center gap-2">
-                        <TrendingDownIcon size={12}/> Bottom 3 Performance (Revisão)
-                      </p>
-                      <div className="space-y-3">
-                         {metrics.bottom3Lawyers.map((l, i) => (
-                           <div key={i} className="p-4 bg-red-50/20 border-2 border-red-200 flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
-                              <span className={cn("text-lg font-black", l.score < 0 ? "text-red-600" : "text-orange-600")}>
-                                {new Intl.NumberFormat('pt-BR').format(l.score)}
-                              </span>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-                </div>
-             </section>
-          )}
+        {/* AUDITORIA DE RESPONSABILIDADE (RENDERIZADA) */}
+        <section className="bg-white border-2 border-black break-inside-avoid">
+           <div className="bg-black text-white p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                 <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-3"><UserCheck className="text-primary" size={18}/> Auditoria de Responsabilidade</h3>
+                 <p className="text-[9px] font-bold uppercase opacity-60">Status da carteira atribuída ao perfil atual: {profile?.nome}</p>
+              </div>
+              <div className="flex gap-4">
+                 <Badge className="bg-red-600 text-white font-black text-[9px] px-3 py-1 uppercase">{metrics.myVencidos.length} Vencidos</Badge>
+                 <Badge className="bg-blue-600 text-white font-black text-[9px] px-3 py-1 uppercase">{metrics.myNovidades.length} Novidades</Badge>
+              </div>
+           </div>
+           
+           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-red-600 flex items-center gap-2"><Clock size={12}/> Prazos Vencidos DELE</h4>
+                 <div className="space-y-3">
+                    {metrics.myVencidos.map((c, i) => (
+                      <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-red-50 border-l-4 border-red-600 hover:translate-x-1 transition-transform">
+                         <p className="text-[10px] font-black uppercase text-red-900">{c.cliente}</p>
+                         <p className="text-[8px] font-bold text-red-600/60 uppercase">Vencido em: {c.proximoPrazo}</p>
+                      </Link>
+                    ))}
+                    {metrics.myVencidos.length === 0 && <p className="text-[9px] font-black uppercase opacity-30 italic">Nenhum prazo vencido no escopo.</p>}
+                 </div>
+              </div>
+              
+              <div className="space-y-6">
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Novidades Pendentes DELE</h4>
+                 <div className="space-y-3">
+                    {metrics.myNovidades.map((c, i) => {
+                      const sinal = getSinalCapa(c);
+                      return (
+                        <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-blue-50 border-l-4 border-blue-600 hover:translate-x-1 transition-transform">
+                           <p className="text-[10px] font-black uppercase text-blue-900">{c.cliente}</p>
+                           <p className="text-[8px] font-bold text-blue-600/60 uppercase">{sinal.titulo}</p>
+                        </Link>
+                      );
+                    })}
+                    {metrics.myNovidades.length === 0 && <p className="text-[9px] font-black uppercase opacity-30 italic">Nenhuma novidade pendente de triagem.</p>}
+                 </div>
+              </div>
+           </div>
+        </section>
 
-          {/* BRIEFING NEURAL */}
-          {iaInsights && (
-             <section className="p-10 border-b-2 border-black bg-[#fafafa] break-inside-avoid">
-                <div className="flex items-center gap-3 mb-8">
-                   <Sparkles className="text-primary" size={18} />
-                   <h3 className="text-xs font-black uppercase tracking-widest">Análise Neural Global</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                   <div className="space-y-3">
-                      <p className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-2"><TrendingUp size={12}/> Vantagens Técnicas</p>
-                      <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
-                          "{iaInsights.pontosFortes?.[0] || "Monitoramento regular mantido."}"
-                      </p>
-                   </div>
-                   <div className="space-y-3">
-                      <p className="text-[9px] font-black uppercase text-red-600 flex items-center gap-2"><TrendingDown size={12}/> Riscos Operacionais</p>
-                      <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
-                          "{iaInsights.riscosDetectados?.[0] || "Nenhum risco crítico identificado."}"
-                      </p>
-                   </div>
-                </div>
-             </section>
-          )}
+        {/* RANKING DE BANCA (SOMENTE SUPERVISOR/SUPERADMIN) */}
+        {metrics.isMaster && (
+           <section className="p-10 border-4 border-black break-inside-avoid bg-[#fafafa]">
+              <div className="flex items-center gap-3 mb-10 border-b-2 border-black pb-4">
+                 <Gavel size={20} className="text-primary" />
+                 <h3 className="text-sm font-black uppercase tracking-widest">Governança de Banca: Performance de Advogados</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                 <div className="space-y-6">
+                    <p className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.2em] flex items-center gap-2"><TrendingUpIcon size={14}/> Top 3 Efficiency (Líderes)</p>
+                    <div className="space-y-3">
+                       {metrics.top3Lawyers.length > 0 ? metrics.top3Lawyers.map((l, i) => (
+                         <div key={i} className="p-4 bg-white border-2 border-emerald-600 flex justify-between items-center shadow-[4px_4px_0px_#10b981]">
+                            <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
+                            <span className="text-lg font-black text-emerald-600">+{new Intl.NumberFormat('pt-BR').format(l.score)}</span>
+                         </div>
+                       )) : <p className="text-[9px] opacity-40 uppercase">Aguardando dados de score...</p>}
+                    </div>
+                 </div>
 
-          <footer className="p-10 border-t-2 border-black flex justify-between items-center break-inside-avoid">
-             <div className="flex items-center gap-4">
-                <div className="w-8 h-8 border-2 border-black flex items-center justify-center bg-black"><Zap size={14} className="text-white" /></div>
-                <p className="text-[9px] tracking-[0.4em] uppercase text-black/40 font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
-             </div>
-             <p className="text-[10px] font-black uppercase text-black/60">Copyright © 2026 LexisPredict Elite</p>
-          </footer>
-        </div>
+                 <div className="space-y-6">
+                    <p className="text-[10px] font-black uppercase text-red-600 tracking-[0.2em] flex items-center gap-2"><TrendingDownIcon size={14}/> Bottom 3 Performance (Revisão)</p>
+                    <div className="space-y-3">
+                       {metrics.bottom3Lawyers.length > 0 ? metrics.bottom3Lawyers.map((l, i) => (
+                         <div key={i} className="p-4 bg-white border-2 border-red-600 flex justify-between items-center shadow-[4px_4px_0px_#ef4444]">
+                            <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
+                            <span className={cn("text-lg font-black", l.score < 0 ? "text-red-600" : "text-orange-600")}>
+                              {new Intl.NumberFormat('pt-BR').format(l.score)}
+                            </span>
+                         </div>
+                       )) : <p className="text-[9px] opacity-40 uppercase">Aguardando dados de score...</p>}
+                    </div>
+                 </div>
+              </div>
+           </section>
+        )}
+
+        {/* FOOTER MASTER */}
+        <footer className="p-10 border-t-8 border-black flex justify-between items-center break-inside-avoid">
+           <div className="flex items-center gap-6">
+              <div className="w-10 h-10 border-4 border-black flex items-center justify-center bg-black"><Zap size={20} className="text-primary" /></div>
+              <div>
+                <p className="text-[10px] tracking-[0.4em] uppercase text-black font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
+                <p className="text-[7px] font-bold uppercase opacity-30 tracking-[0.2em]">Relatório consolidado de integridade atômica</p>
+              </div>
+           </div>
+           <p className="text-[9px] font-black uppercase text-black/60">Copyright © 2026 LexisPredict Elite</p>
+        </footer>
       </div>
     </div>
   );
@@ -404,9 +426,29 @@ export default function UnifiedReport() {
 
 function KpiCard({ label, value, color }: { label: string; value: any; color: string }) {
   return (
-    <div className="bg-white border-2 border-black p-6 shadow-[4px_4px_0px_#000] break-inside-avoid group hover:bg-black transition-all">
+    <div className="bg-white border-2 border-black p-6 shadow-[8px_8px_0px_#000] group hover:bg-black transition-all">
       <p className="text-[9px] font-black uppercase text-black/40 mb-2 group-hover:text-white/40 tracking-widest">{label}</p>
       <p className={cn("text-3xl font-black tabular-nums group-hover:text-white transition-all", color)}>{value}</p>
+    </div>
+  );
+}
+
+function MeritList({ title, data, icon, color }: { title: string, data: LegalCase[], icon: any, color: string }) {
+  return (
+    <div className="bg-white border-2 border-black flex flex-col h-full">
+       <div className={cn("text-white p-3 flex items-center justify-between", color)}>
+          <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">{icon} {title}</span>
+          <Badge variant="outline" className="text-white border-white/30 text-[7px]">{data.length}</Badge>
+       </div>
+       <div className="p-4 space-y-3 flex-1">
+          {data.map((c, i) => (
+            <Link key={i} href={`/cases?search=${c.protocolo}`} className="block border-b border-black/5 pb-2 hover:opacity-70">
+               <p className="text-[9px] font-black uppercase truncate">{c.cliente}</p>
+               <p className="text-[7px] font-mono opacity-40">{c.protocolo}</p>
+            </Link>
+          ))}
+          {data.length === 0 && <p className="text-[8px] font-black uppercase opacity-20 py-10 text-center">Nenhum caso nesta categoria</p>}
+       </div>
     </div>
   );
 }
