@@ -22,7 +22,6 @@ import {
   ArrowRight,
   Activity,
   AlertCircle,
-  AlertTriangle,
   Gavel,
   CheckCircle2,
   PieChart as PieChartIcon,
@@ -217,7 +216,7 @@ export default function Dashboard() {
             )}
             <Button variant="outline" size="sm" asChild className={cn("premium-card h-10 px-4 sm:px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none", ui.touch)}>
               <Link href="/report">
-                <FileDown size={16} className="mr-2 hidden sm:inline" /> {t.audit}
+                <FileDown size={16} className="mr-2 hidden sm:inline" /> Dossiê Operacional
               </Link>
             </Button>
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
@@ -507,7 +506,7 @@ export default function Dashboard() {
           </ScrollArea>
         </Tabs>
         
-        <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/60 items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
+        <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Advanced Monitoring • Davi Alves Figueredo</span>
         </footer>

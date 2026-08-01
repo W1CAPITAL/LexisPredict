@@ -33,7 +33,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/empty-state';
 import Link from 'next/link';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
-import { plainTextFromDjen } from '@/lib/djen';
+import { summarizeDjenKeywords } from '@/lib/djen';
 
 export default function NotificationsPage() {
   const { cases } = useAppStore();
@@ -101,10 +101,9 @@ export default function NotificationsPage() {
         });
       }
 
-      // 3. Alertas DJEN (Texto Sanitizado)
+      // 3. Alertas DJEN (Somente Keywords)
       if (c.djen_nova_comunicacao) {
-        // Defesa contra HTML antigo no banco
-        const cleanSummary = plainTextFromDjen(c.djen_ultimo_resumo || "Nova intimação oficial no Diário Nacional.");
+        const cleanSummary = c.djen_ultimo_resumo || summarizeDjenKeywords(c.djen_ultimo_resumo);
         
         alerts.push({
           id: `djen-${c.protocolo}`,

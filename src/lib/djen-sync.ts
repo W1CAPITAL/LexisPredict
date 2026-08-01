@@ -6,7 +6,7 @@
  */
 
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
-import { DjenComunicacao, summarizeDjenForAlert } from './djen';
+import { DjenComunicacao, summarizeDjenKeywords, plainTextFromDjen } from './djen';
 
 export interface DjenSyncResult {
   alerta: boolean;
@@ -37,8 +37,10 @@ export function detectarNovaComunicacaoDjen(
 
   const dataUltimaStr = dataPub.toISOString();
   
-  // MOTOR DE RESUMO v2.0 (Zero HTML)
-  const resumo = summarizeDjenForAlert(ultima.texto || "", ultima.tipoComunicacao || "");
+  // MOTOR DE KEYWORDS v5.0 (Somente o essencial para filas e alertas)
+  const resumo = summarizeDjenKeywords(ultima.texto) 
+    || ultima.tipoComunicacao 
+    || "PUBLICAÇÃO DJEN";
 
   // Se nunca houve retorno, alerta se for recente (últimos 30 dias)
   if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-" || ultimoRetornoStr === "0") {

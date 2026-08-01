@@ -44,12 +44,19 @@ export function plainTextFromDjen(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&ordm;/gi, "º")
+    .replace(/&ordf;/gi, "ª")
     .replace(/&iacute;/gi, "í")
+    .replace(/&Iacute;/gi, "Í")
     .replace(/&eacute;/gi, "é")
+    .replace(/&Eacute;/gi, "É")
     .replace(/&aacute;/gi, "á")
+    .replace(/&Aacute;/gi, "Á")
     .replace(/&atilde;/gi, "ã")
+    .replace(/&Atilde;/gi, "Ã")
     .replace(/&ccedil;/gi, "ç")
+    .replace(/&Ccedil;/gi, "Ç")
     .replace(/&otilde;/gi, "õ")
+    .replace(/&Otilde;/gi, "Õ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
@@ -63,40 +70,59 @@ export function plainTextFromDjen(html: string): string {
 }
 
 /**
- * Gera um resumo curto e operacional para alertas e telemetria.
+ * Motor de Extração de Keywords Críticas v5.0
+ * Retorna apenas termos essenciais para visualização em cards e alertas.
+ */
+export function summarizeDjenKeywords(raw: string | null | undefined): string {
+  const plain = plainTextFromDjen(raw || "").toUpperCase();
+  if (!plain.trim()) return "PUBLICAÇÃO DJEN";
+
+  // Ordem = prioridade de exibição (mais grave primeiro)
+  const rules: { re: RegExp; label: string }[] = [
+    { re: /BUSCA\s+E\s+APREEN|APREENSAO\s+DO\s+VE[IÍ]CULO|ALIENA[CÇ][AÃ]O\s+FIDUCI[AÁ]RIA.*APREEN/, label: "BUSCA E APREENSÃO" },
+    { re: /BAIXA\s+DEFINITIVA|PROCESSO\s+BAIXADO|DETERMINADA\s+A\s+BAIXA/, label: "BAIXA DEFINITIVA" },
+    { re: /TR[AÂ]NSITO\s+EM\s+JULGADO/, label: "TRÂNSITO EM JULGADO" },
+    { re: /EXTINT|EXTIN[CÇ][AÃ]O|ART\.?\s*485|ABANDONO\s+DA\s+CAUSA|CANCELAMENTO\s+DA\s+DISTRIBUI/, label: "EXTINÇÃO" },
+    { re: /IMPROCEDENTE/, label: "IMPROCEDENTE" },
+    { re: /PROCEDENTE(?!\s+EM\s+PARTE)/, label: "PROCEDENTE" },
+    { re: /PROCEDENTE\s+EM\s+PARTE|PARCIALMENTE\s+PROCEDENTE/, label: "PROCEDENTE EM PARTE" },
+    { re: /SENTEN[CÇ]A/, label: "SENTENÇA" },
+    { re: /CUMPRIMENTO\s+DE\s+SENTEN|EXECU[CÇ][AÃ]O\s+DE\s+SENTEN/, label: "CUMPRIMENTO DE SENTENÇA" },
+    { re: /EMENDA\s+[AÀ]\s+INICIAL|EMENDE|EMENDA\s+DA\s+INICIAL/, label: "EMENDA À INICIAL" },
+    { re: /IN[EÉ]PCIA|INDEFER.*INICIAL|INDEFERIMENTO\s+DA\s+PETI/, label: "INDEFERIMENTO / INÉPCIA" },
+    { re: /JUSTI[CÇ]A\s+GRATUITA|AJG|ASSIST[EÊ]NCIA\s+JUDICI[AÁ]RIA/, label: "AJG" },
+    { re: /CUSTAS|PREPARO|RECOLHIMENTO|UFESP/, label: "CUSTAS" },
+    { re: /INTIMA[CÇ][AÃ]O|INTIME-SE/, label: "INTIMAÇÃO" },
+    { re: /DESPACHO|DECIS[AÃ]O/, label: "DESPACHO / DECISÃO" },
+    { re: /CONTESTA[CÇ][AÃ]O/, label: "CONTESTAÇÃO" },
+    { re: /AUDI[EÊ]NCIA/, label: "AUDIÊNCIA" },
+    { re: /REDISTRIBUI|DISTRIBUI[CÇ][AÃ]O/, label: "DISTRIBUIÇÃO" },
+    { re: /RECURSO|APELA[CÇ][AÃ]O|AGRAVO/, label: "RECURSO" },
+    { re: /HOMOLOG.*ACORDO|ACORDO/, label: "ACORDO" },
+  ];
+
+  const hits: string[] = [];
+  for (const r of rules) {
+    if (r.re.test(plain) && !hits.includes(r.label)) {
+      hits.push(r.label);
+    }
+    if (hits.length >= 4) break; // no máximo 4 keywords para não quebrar o layout
+  }
+
+  if (hits.length === 0) {
+    // fallback curto para evitar texto longo
+    const tipo = plain.slice(0, 40).replace(/\s+/g, " ").trim();
+    return tipo ? `DJEN · ${tipo}…` : "PUBLICAÇÃO DJEN";
+  }
+
+  return hits.join(" · ");
+}
+
+/**
+ * Gera um resumo operacional baseado em keywords.
  */
 export function summarizeDjenForAlert(plainText: string, type?: string): string {
-  if (!plainText) return "Publicação oficial sem conteúdo legível.";
-  
-  const upper = plainText.toUpperCase();
-  let summary = "";
-
-  // Prioridade 1: Extinção / Cancelamento
-  if (/(EXTINÇÃO|EXTINTO|485|290|CANCELAMENTO DA DISTRIBUIÇÃO)/.test(upper)) {
-    summary = "RITO DE EXTINÇÃO: Identificada sentença de extinção ou cancelamento da distribuição.";
-  }
-  // Prioridade 2: Emenda
-  else if (/(EMENDA|EMENDE|ADITE|ADITAMENTO)/.test(upper)) {
-    summary = "EMENDA À INICIAL: Juiz determinou adequação ou aditamento da petição inicial.";
-  }
-  // Prioridade 3: AJG / Gratuidade
-  else if (/(AJG|GRATUIDADE|HIPOSSUFICIÊNCIA|REGISTRATO)/.test(upper)) {
-    summary = "COMPROVAÇÃO AJG: Intimação referente ao benefício de Justiça Gratuita.";
-  }
-  // Prioridade 4: Competência
-  else if (/(REDISTRIBUIÇÃO|DECLÍNIO|INCOMPETÊNCIA)/.test(upper)) {
-    summary = "REDISTRIBUIÇÃO: Processo movido para nova vara ou declínio de competência.";
-  }
-  // Prioridade 5: Baixa / Trânsito
-  else if (/(TRÂNSITO|BAIXA DEFINITIVA|ARQUIVAMENTO)/.test(upper)) {
-    summary = "BAIXA/TRÂNSITO: Publicação confirma o encerramento definitivo do caso.";
-  }
-  // Fallback: Resumo Genérico
-  else {
-    summary = `Publicação DJEN (${type || 'Comunicação'}): ` + plainText.substring(0, 180).trim() + "...";
-  }
-
-  return summary;
+  return summarizeDjenKeywords(plainText);
 }
 
 /**
@@ -188,7 +214,7 @@ export async function fetchDjenComunicacoes(
           siglaTribunal: item.siglaTribunal || item.siglatribunal || null,
           tipoComunicacao: item.tipoComunicacao || item.tipocomunicacao || null,
           nomeOrgao: item.nomeOrgao || item.nomeorgao || null,
-          texto: plainText, // JÁ SALVA SANITIZADO
+          texto: plainText, 
           numero_processo: item.numeroProcesso || item.numeroprocessocommascara || null,
           meio: item.meio || null,
           link: item.link || null,
