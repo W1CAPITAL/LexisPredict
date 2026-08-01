@@ -133,6 +133,7 @@ export function Sidebar() {
       items: [
         { label: t.analytics, href: '/analytics', icon: BarChart3 },
         { label: t.urgency, href: '/urgency', icon: ShieldAlert },
+        { label: "Dossiê / Relatório", href: '/report', icon: FileText },
         { label: t.settings, href: '/settings', icon: Settings },
         { label: "Omni Export", href: '/master-export', icon: Printer },
       ]
