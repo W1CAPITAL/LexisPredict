@@ -1,8 +1,7 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v19.0 — AUDITORIA ACIONÁVEL DE MÉRITO E RESPONSABILIDADE
+ * DOSSIÊ OPERACIONAL v22.0 — AUDITORIA ACIONÁVEL DE MÉRITO E RESPONSABILIDADE
  */
 "use client";
 
@@ -21,23 +20,17 @@ import {
   CheckCircle2,
   Scale,
   Zap,
-  TrendingUp,
-  Sparkles,
-  TrendingDown,
-  Layers,
-  Users,
-  Loader2,
-  Building2,
-  Gavel,
-  StickyNote,
-  Globe,
   Target,
+  Layers,
+  Loader2,
+  Gavel,
   UserCheck,
   ChevronRight,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Globe
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -93,13 +86,13 @@ export default function UnifiedReport() {
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     
-    // NOVIDADES UNIFICADAS (Flag Alias)
+    // NOVIDADES UNIFICADAS
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
 
-    // TOP 10 CRÍTICOS (Por Prioridade de Sinal)
+    // TOP 10 CRÍTICOS
     const topCriticos = ativos
       .map(c => ({ case: c, sinal: getSinalCapa(c) }))
       .filter(i => i.sinal.prioridade > 10 || i.case.status === 'Vencido')
@@ -120,7 +113,7 @@ export default function UnifiedReport() {
           observacao: c.observacao, 
           diasVencidos: c.diasFaltando ? Math.abs(c.diasFaltando) : 0 
         });
-        // Boost por flags oficiais
+        // Boost por flags oficiais DataJud/DJEN
         if (c.datajud_encerrado_tribunal) prob = 98;
         else if (c.em_cumprimento_sentenca) prob = Math.max(prob, 85);
         else if (c.evento_tipo?.startsWith('sentenca')) prob = Math.max(prob, 70);
@@ -135,7 +128,7 @@ export default function UnifiedReport() {
     const listProcedente = ativos.filter(c => c.evento_tipo === 'sentenca_procedente').slice(0, 10);
     const listImprocedente = ativos.filter(c => c.evento_tipo === 'sentenca_improcedente').slice(0, 10);
 
-    // RANKING DE BANCA (Master)
+    // RANKING DE BANCA
     const lawyerGroups: Record<string, LegalCase[]> = {};
     cases.forEach(c => {
       const name = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
@@ -150,12 +143,12 @@ export default function UnifiedReport() {
 
     const isMaster = checkIfSuperAdmin(profile) || checkIfSupervisor(profile);
 
-    // AUDITORIA INDIVIDUAL (Fila do Dono)
+    // AUDITORIA INDIVIDUAL
     const myAtivos = cases.filter(c => c.created_by === profile?.auth_user_id && !isCasoEncerrado(c));
     const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').slice(0, 10);
     const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento).slice(0, 10);
 
-    // Risco Global: (Vencidos * 1 + BA * 2 + Novidades * 0.5) / Ativos
+    // Risco Global (Algoritmo: BA e Novidades têm peso maior que prazos comuns)
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countBA * 2 + countNovoAndamento * 0.5) / activeTotal) * 100)) : 0;
 
     return {
@@ -239,17 +232,20 @@ export default function UnifiedReport() {
               </div>
               <div className="text-right">
                  <p className="text-2xl font-black tracking-tighter uppercase">{new Date().getFullYear()}</p>
-                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.19.0 ELITE</Badge>
+                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.22.0 ELITE</Badge>
               </div>
            </div>
         </section>
 
-        {/* TELEMETRIA DE REUNIÃO */}
-        <section className="grid grid-cols-1 md:grid-cols-4 gap-6 break-inside-avoid">
+        {/* TELEMETRIA DE REUNIÃO - KPIs ACIONÁVEIS */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} color="text-black" />
            <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} color="text-red-600" />
-           <KpiCard label="Novidades (DataJud/DJEN)" value={metrics.countNovoAndamento} color="text-blue-600" />
-           <KpiCard label="Risco Global" value={`${metrics.riskScore}%`} color={metrics.riskScore > 50 ? "text-red-600" : "text-emerald-600"} />
+           <KpiCard label="Novidades de Mérito" value={metrics.countNovoAndamento} color="text-blue-600" />
+           <KpiCard label="Risco da Carteira" value={`${metrics.riskScore}%`} color={metrics.riskScore > 50 ? "text-red-600" : "text-emerald-600"} />
+           <KpiCard label="Busca e Apreensão" value={metrics.countBA} color="text-red-700" />
+           <KpiCard label="Baixas no Tribunal" value={metrics.countEncerradoTribunal} color="text-emerald-600" />
+           <KpiCard label="Em Fase Executiva" value={metrics.countCumprimento} color="text-blue-500" />
         </section>
 
         {/* TOP 10 CRÍTICOS POR SINAL */}
@@ -272,7 +268,7 @@ export default function UnifiedReport() {
                     {metrics.topCriticos.length > 0 ? metrics.topCriticos.map((item, i) => (
                       <tr key={i} className="hover:bg-gray-50 group">
                          <td className="p-4">
-                            <p className="text-[10px]">{item.case.cliente}</p>
+                            <p className="text-[10px] font-black">{item.case.cliente}</p>
                             <p className="text-[8px] opacity-40 font-mono">{item.case.protocolo}</p>
                          </td>
                          <td className="p-4">
@@ -287,7 +283,7 @@ export default function UnifiedReport() {
                          </td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={4} className="p-10 text-center opacity-40">Nenhum sinal crítico pós-auditoria</td></tr>
+                      <tr><td colSpan={4} className="p-10 text-center opacity-40 uppercase font-black">Nenhum sinal crítico pós-auditoria</td></tr>
                     )}
                  </tbody>
               </table>
@@ -313,7 +309,7 @@ export default function UnifiedReport() {
                     </div>
                  </div>
               )) : (
-                <div className="p-10 text-center col-span-2 opacity-40">Sem previsões de encerramento ativas</div>
+                <div className="p-10 text-center col-span-2 opacity-40 uppercase font-black">Sem previsões de encerramento ativas</div>
               )}
            </div>
         </section>
@@ -325,12 +321,12 @@ export default function UnifiedReport() {
            <MeritList title="Revisões (Improcedente)" data={metrics.listImprocedente} icon={<AlertTriangle size={14}/>} color="bg-red-600" />
         </section>
 
-        {/* AUDITORIA DE RESPONSABILIDADE (RENDERIZADA) */}
+        {/* AUDITORIA DE RESPONSABILIDADE */}
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-black text-white p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
                  <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-3"><UserCheck className="text-primary" size={18}/> Auditoria de Responsabilidade</h3>
-                 <p className="text-[9px] font-bold uppercase opacity-60">Status da carteira atribuída ao perfil atual: {profile?.nome}</p>
+                 <p className="text-[9px] font-bold uppercase opacity-60">Status da carteira atribuída ao perfil: {profile?.nome}</p>
               </div>
               <div className="flex gap-4">
                  <Badge className="bg-red-600 text-white font-black text-[9px] px-3 py-1 uppercase">{metrics.myVencidos.length} Vencidos</Badge>
@@ -340,7 +336,7 @@ export default function UnifiedReport() {
            
            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-red-600 flex items-center gap-2"><Clock size={12}/> Prazos Vencidos DELE</h4>
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-red-600 flex items-center gap-2"><Clock size={12}/> Prazos Vencidos</h4>
                  <div className="space-y-3">
                     {metrics.myVencidos.map((c, i) => (
                       <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-red-50 border-l-4 border-red-600 hover:translate-x-1 transition-transform">
@@ -353,7 +349,7 @@ export default function UnifiedReport() {
               </div>
               
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Novidades Pendentes DELE</h4>
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Novidades Pendentes</h4>
                  <div className="space-y-3">
                     {metrics.myNovidades.map((c, i) => {
                       const sinal = getSinalCapa(c);
@@ -370,7 +366,7 @@ export default function UnifiedReport() {
            </div>
         </section>
 
-        {/* RANKING DE BANCA (SOMENTE SUPERVISOR/SUPERADMIN) */}
+        {/* RANKING DE BANCA */}
         {metrics.isMaster && (
            <section className="p-10 border-4 border-black break-inside-avoid bg-[#fafafa]">
               <div className="flex items-center gap-3 mb-10 border-b-2 border-black pb-4">
@@ -420,6 +416,15 @@ export default function UnifiedReport() {
            <p className="text-[9px] font-black uppercase text-black/60">Copyright © 2026 LexisPredict Elite</p>
         </footer>
       </div>
+      
+      <style jsx global>{`
+        @media print {
+          body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .break-inside-avoid { break-inside: avoid !important; }
+          .print-hidden { display: none !important; }
+          @page { size: A4; margin: 10mm; }
+        }
+      `}</style>
     </div>
   );
 }

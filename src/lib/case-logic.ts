@@ -260,7 +260,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   // UNIFICAÇÃO DE FLAG: tem_novo_andamento é um alias para qualquer novidade não atendida
   const temAndamentoDataJud = toBool(data.tem_atualizacao_pos_retorno);
   const temAndamentoDjen = toBool(data.djen_nova_comunicacao);
-  const novidadeUnificada = temAndamentoDataJud || temAndamentoDjen;
+  const novidadeUnificada = temAndamentoDataJud || temAndamentoDjen || toBool(data.tem_novo_andamento);
 
   return {
     id: raw.id || crypto.randomUUID(),

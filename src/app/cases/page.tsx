@@ -9,7 +9,6 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Search, 
   Trash2, 
-  ExternalLink, 
   RefreshCcw, 
   Plus, 
   Edit2, 
@@ -31,7 +30,8 @@ import {
   UserCheck,
   User,
   Briefcase,
-  Gavel
+  Gavel,
+  ExternalLink
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -404,8 +404,10 @@ function CasesContent() {
   };
 
   const copyScript = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "Copiado" });
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      toast({ title: "Copiado para o Gabinete" });
+    }
   };
 
   const filtered = useMemo(() => {
@@ -523,8 +525,8 @@ function CasesContent() {
                             <div className="flex items-start justify-between mb-3">
                                <div className="flex items-center gap-2">
                                   <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
-                                  {(item.type === 'djen' && (item.raw.link || historyResult.case.djen_ultimo_link)) && (
-                                    <a href={item.raw.link || historyResult.case.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
+                                  {(item.type === 'djen' && (item.raw.link || historyResult?.case.djen_ultimo_link)) && (
+                                    <a href={item.raw.link || historyResult?.case.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
                                       <Globe size={10} /> Abrir no D.O.
                                     </a>
                                   )}
@@ -552,7 +554,7 @@ function CasesContent() {
                             <SelectContent className="bg-white border-2 border-black rounded-lg">
                               <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                               <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2 Elite</SelectItem>
-                              <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
+                              <SelectItem value="groq" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
                             </SelectContent>
                           </Select>
                           <Button onClick={handleGenerateAIDraft} disabled={isGeneratingAIDraft} className="h-10 px-6 bg-white text-black font-black uppercase text-[10px] rounded-lg shadow-lg">

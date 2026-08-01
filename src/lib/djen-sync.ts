@@ -6,7 +6,7 @@
  */
 
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
-import { DjenComunicacao, summarizeDjenKeywords, plainTextFromDjen } from './djen';
+import { DjenComunicacao, summarizeDjenKeywords } from './djen';
 
 export interface DjenSyncResult {
   alerta: boolean;
@@ -37,7 +37,7 @@ export function detectarNovaComunicacaoDjen(
 
   const dataUltimaStr = dataPub.toISOString();
   
-  // MOTOR DE KEYWORDS v5.0 (Somente o essencial para filas e alertas)
+  // MOTOR DE KEYWORDS v8.0 (Extração Cirúrgica de Tags)
   const resumo = summarizeDjenKeywords(ultima.texto) 
     || ultima.tipoComunicacao 
     || "PUBLICAÇÃO DJEN";

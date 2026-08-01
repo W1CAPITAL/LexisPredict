@@ -140,20 +140,49 @@ export function classifyEventFromText(text: string | null | undefined): { tipo: 
 }
 
 /**
- * Motor de Extração de Keywords Críticas v7.0
- * Utiliza o classificador soberano para garantir fidelidade.
+ * Motor de Extração de Keywords Críticas v8.0 — RESUMO SÓ COM PALAVRAS-CHAVE
+ * Utilizado para Tarefas e Notificações.
  */
 export function summarizeDjenKeywords(raw: string | null | undefined): string {
-  if (!raw) return "PUBLICAÇÃO DJEN";
-  const { label } = classifyEventFromText(raw);
-  
-  if (label === 'INTIMAÇÃO DE ROTINA') {
-     const plain = plainTextFromDjen(raw);
-     const snippet = plain.slice(0, 50).replace(/\s+/g, " ").trim();
-     return snippet ? `DJEN · ${snippet}…` : "PUBLICAÇÃO DJEN";
+  const plain = plainTextFromDjen(raw || "").toUpperCase();
+  if (!plain.trim()) return "PUBLICAÇÃO DJEN";
+
+  // Ordem = prioridade de exibição (mais grave primeiro)
+  const rules: { re: RegExp; label: string }[] = [
+    { re: /BUSCA\s+E\s+APREEN|APREENSAO\s+DO\s+VE[IÍ]CULO|ALIENA[CÇ][AÃ]O\s+FIDUCI[AÁ]RIA.*APREEN/, label: "BUSCA E APREENSÃO" },
+    { re: /BAIXA\s+DEFINITIVA|PROCESSO\s+BAIXADO|DETERMINADA\s+A\s+BAIXA/, label: "BAIXA DEFINITIVA" },
+    { re: /TR[AÂ]NSITO\s+EM\s+JULGADO/, label: "TRÂNSITO EM JULGADO" },
+    { re: /EXTINT|EXTIN[CÇ][AÃ]O|ART\.?\s*485|ABANDONO\s+DA\s+CAUSA|CANCELAMENTO\s+DA\s+DISTRIBUI/, label: "EXTINÇÃO" },
+    { re: /IMPROCEDENTE/, label: "IMPROCEDENTE" },
+    { re: /PROCEDENTE(?!\s+EM\s+PARTE)/, label: "PROCEDENTE" },
+    { re: /PROCEDENTE\s+EM\s+PARTE|PARCIALMENTE\s+PROCEDENTE/, label: "PROCEDENTE EM PARTE" },
+    { re: /SENTEN[CÇ]A/, label: "SENTENÇA" },
+    { re: /CUMPRIMENTO\s+DE\s+SENTEN|EXECU[CÇ][AÃ]O\s+DE\s+SENTEN/, label: "CUMPRIMENTO DE SENTENÇA" },
+    { re: /EMENDA\s+[AÀ]\s+INICIAL|EMENDE|EMENDA\s+DA\s+INICIAL/, label: "EMENDA À INICIAL" },
+    { re: /IN[EÉ]PCIA|INDEFER.*INICIAL|INDEFERIMENTO\s+DA\s+PETI/, label: "INDEFERIMENTO / INÉPCIA" },
+    { re: /JUSTI[CÇ]A\s+GRATUITA|AJG|ASSIST[EÊ]NCIA\s+JUDICI[AÁ]RIA/, label: "AJG" },
+    { re: /CUSTAS|PREPARO|RECOLHIMENTO|UFESP/, label: "CUSTAS" },
+    { re: /INTIMA[CÇ][AÃ]O|INTIME-SE/, label: "INTIMAÇÃO" },
+    { re: /DESPACHO|DECIS[AÃ]O/, label: "DESPACHO / DECISÃO" },
+    { re: /CONTESTA[CÇ][AÃ]O/, label: "CONTESTAÇÃO" },
+    { re: /AUDI[EÊ]NCIA/, label: "AUDIÊNCIA" },
+    { re: /REDISTRIBUI|DISTRIBUI[CÇ][AÃ]O/, label: "DISTRIBUIÇÃO" },
+    { re: /RECURSO|APELA[CÇ][AÃ]O|AGRAVO/, label: "RECURSO" },
+    { re: /HOMOLOG.*ACORDO|ACORDO/, label: "ACORDO" },
+  ];
+
+  const hits: string[] = [];
+  for (const r of rules) {
+    if (r.re.test(plain) && !hits.includes(r.label)) hits.push(r.label);
+    if (hits.length >= 4) break; 
   }
 
-  return label;
+  if (hits.length === 0) {
+    const tipo = plain.slice(0, 40).replace(/\s+/g, " ").trim();
+    return tipo ? `DJEN · ${tipo}…` : "PUBLICAÇÃO DJEN";
+  }
+
+  return hits.join(" · ");
 }
 
 export async function fetchDjenComunicacoes(
@@ -185,7 +214,7 @@ export async function fetchDjenComunicacoes(
         dataDisponibilizacaoInicio: dataInicio,
         dataDisponibilizacaoFim: dataFim,
         pagina: '1',
-        itensPorPagina: '50' // Respeita limite prático de página
+        itensPorPagina: '50' 
       });
 
       if (opts?.siglaTribunal && !/^outros$/i.test(opts.siglaTribunal)) {
@@ -202,11 +231,8 @@ export async function fetchDjenComunicacoes(
         cache: 'no-store'
       });
 
-      // Detecção de Geo-Bloqueio (Egress fora do BR)
       if (response.status === 403) return { success: false, isGeoBlocked: true, error: "Acesso Negado (Geo-Block). Use Proxy BR.", count: 0, items: [] };
-      
       if (response.status === 429) return { success: false, isRateLimited: true, error: "Limite excedido na API PJe.", count: 0, items: [] };
-      
       if (!response.ok) { lastError = `HTTP ${response.status}`; continue; }
 
       const data = await response.json();
@@ -219,7 +245,7 @@ export async function fetchDjenComunicacoes(
         siglaTribunal: item.siglaTribunal || item.siglatribunal || null,
         tipoComunicacao: item.tipoComunicacao || item.tipocomunicacao || null,
         nomeOrgao: item.nomeOrgao || item.nomeorgao || null,
-        texto: plainTextFromDjen(item.texto || ""), // Garantir texto limpo na persistência
+        texto: plainTextFromDjen(item.texto || ""), 
         numero_processo: item.numeroProcesso || item.numeroprocessocommascara || null,
         meio: item.meio || null,
         link: item.link || null,
