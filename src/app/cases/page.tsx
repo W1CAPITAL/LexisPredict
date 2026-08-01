@@ -62,6 +62,7 @@ import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
+import { getSinalCapa } from '@/lib/sinal-capa';
 
 const CaseRow = React.memo(({ 
   c, 
@@ -82,52 +83,51 @@ const CaseRow = React.memo(({
 }) => {
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const sinal = useMemo(() => getSinalCapa(c), [c]);
 
   return (
     <tr className="hover:bg-secondary/30 transition-all border-b border-border/50 group">
-      <td className="px-8 py-5">
-        <div className="flex flex-col gap-1">
+      <td className="px-8 py-6">
+        <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-foreground font-black text-[13px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
+            <span className="text-foreground font-black text-[14px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
             {c.indicio_busca_apreensao && <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-bounce"><ShieldAlert size={10} className="mr-1" /> B.A.</Badge>}
-            {c.datajud_encerrado_tribunal && <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">Encerrado Tribunal</Badge>}
-            {c.tem_novo_andamento && <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">Novo Evento</Badge>}
-            {c.em_cumprimento_sentenca && <Badge className="h-5 px-2 rounded-md bg-blue-600 text-white font-black uppercase text-[8px]">Execução</Badge>}
+            {c.datajud_encerrado_tribunal && <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">Encerrado</Badge>}
+            {c.tem_novo_andamento && <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">Novidade</Badge>}
           </div>
           <span className={cn("text-[10px] font-mono text-muted-foreground uppercase tracking-widest", ui.cnj)}>{c.protocolo}</span>
           
-          {/* ÚLTIMO MOVIMENTO TRIBUNAL */}
-          {c.datajud_ultimo_nome && (
-            <div className="mt-2 flex items-center gap-2 text-[9px] font-bold text-black/40 uppercase">
-              <Gavel size={10} className="text-primary" />
-              <span>{c.datajud_ultimo_nome} ({c.datajud_ultimo_movimento ? format(parseISO(c.datajud_ultimo_movimento), 'dd/MM/yy') : 'S/D'})</span>
-            </div>
-          )}
-
-          {/* ÚLTIMO RESUMO DJEN */}
-          {c.djen_ultimo_resumo && (
-            <div className="mt-1 flex items-center gap-2 text-[9px] font-bold text-blue-600 uppercase italic">
-              <Globe size={10} />
-              <span className="truncate max-w-[300px]">DJEN: {c.djen_ultimo_resumo}</span>
-            </div>
-          )}
+          {/* SINAL DE CAPA SOBERANO */}
+          <div className="mt-3 space-y-1.5 max-w-[450px]">
+             <div className="flex items-center gap-2">
+                <Badge variant="outline" className={cn(
+                  "text-[8px] font-black uppercase h-5 px-2 rounded-none border-2",
+                  sinal.prioridade >= 80 ? "border-red-600 text-red-600 bg-red-50" : "border-black/10 text-black/40"
+                )}>
+                  {sinal.fonte === 'datajud' ? 'Tribunal' : sinal.fonte === 'djen' ? 'Diário Oficial' : 'Híbrido'}
+                </Badge>
+                <span className="text-[9px] font-black text-black/60 uppercase">{sinal.titulo}</span>
+                {sinal.data && <span className="text-[8px] font-bold text-black/30 ml-auto">{format(parseISO(sinal.data), 'dd/MM/yy')}</span>}
+             </div>
+             <p className="text-[11px] font-bold text-foreground/80 uppercase italic leading-tight line-clamp-2">
+               {sinal.detalhe}
+             </p>
+             {c.djen_ultimo_link && (
+                <a href={c.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase hover:underline mt-1">
+                   <Globe size={10} /> Abrir no Diário Oficial
+                </a>
+             )}
+          </div>
         </div>
       </td>
       <td className="px-8 py-5">
-        <div className="flex flex-col gap-1">
-          <Badge variant="outline" className="bg-card border-border/50 font-black text-[9px] text-muted-foreground uppercase rounded-md h-7 px-3 w-fit">{c.tribunal}</Badge>
-          {c.djen_ultimo_link && (
-            <a href={c.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-500 uppercase mt-1 hover:underline">
-              <Globe size={10} /> Abrir no D.O.
-            </a>
-          )}
-        </div>
+        <Badge variant="outline" className="bg-card border-border/50 font-black text-[9px] text-muted-foreground uppercase rounded-md h-7 px-3 w-fit">{c.tribunal}</Badge>
       </td>
-      <td className="px-8 py-5 text-[11px] text-foreground font-bold uppercase"><span>{c.advogado}</span></td>
+      <td className="px-8 py-5 text-[11px] text-foreground font-bold uppercase truncate max-w-[120px]"><span>{c.advogado}</span></td>
       <td className="px-8 py-5">
         <div className="flex flex-col gap-2">
           <Badge variant="outline" className={cn("px-3 py-1 text-[10px] font-black uppercase rounded-lg border-none", (c.status === 'Vencido' || c.status === 'Caso Crítico') ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>{c.status}</Badge>
-          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-foreground"><CalendarDays size={14} className="text-primary" /><span>Prazo: {c.proximoPrazo || 'Sem Registro'}</span></div>
+          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-foreground"><CalendarDays size={14} className="text-primary" /><span>{c.proximoPrazo || 'S/ Prazo'}</span></div>
         </div>
       </td>
       <td className="px-8 py-5">
@@ -136,25 +136,24 @@ const CaseRow = React.memo(({
             <div className="w-8 h-8 rounded-lg border border-border/50 flex items-center justify-center bg-secondary/50 group-hover:bg-background transition-all"><CheckCircle2 size={16} className="text-emerald-500" /></div>
             <div className="flex flex-col">
               <span className="text-[9px] font-black text-muted-foreground uppercase leading-none mb-1 tracking-widest">Retorno</span>
-              <span className="text-11px text-foreground font-bold uppercase">{c.ultimoRetorno || 'S/ Atendimento'}</span>
+              <span className="text-[11px] text-foreground font-bold uppercase">{c.ultimoRetorno || 'S/ Registro'}</span>
             </div>
           </div>
         </div>
       </td>
       <td className="px-8 py-5 text-right">
         <div className="flex items-center justify-end gap-2">
-          <button disabled={suggestLoading} onClick={async () => { setSuggestLoading(true); await onSuggest(c); setSuggestLoading(false); }} className={cn("text-amber-600 hover:bg-amber-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)} title="Sugerir Resposta">
+          <button disabled={suggestLoading} onClick={async () => { setSuggestLoading(true); await onSuggest(c); setSuggestLoading(false); }} className={cn("text-amber-600 hover:bg-amber-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Sugerir Resposta">
             {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
           </button>
-          <button disabled={loading} onClick={async () => { setLoading(true); await onScan(c); setLoading(false); }} className={cn("text-primary hover:bg-primary/10 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)} title="Auditoria 3D">
+          <button disabled={loading} onClick={async () => { setLoading(true); await onScan(c); setLoading(false); }} className={cn("text-primary hover:bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Auditoria 3D">
             {loading ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
           </button>
-          {isOperador && <button onClick={() => onLogReturn(c)} className={cn("text-emerald-600 hover:bg-emerald-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)} title="Log de Retorno"><UserCheck size={18} /></button>}
-          <a href={c.linkConsulta} target="_blank" rel="noopener noreferrer" className={cn("text-muted-foreground hover:bg-secondary w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}><ExternalLink size={18} /></a>
+          {isOperador && <button onClick={() => onLogReturn(c)} className={cn("text-emerald-600 hover:bg-emerald-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Log de Retorno"><UserCheck size={18} /></button>}
           {isOperador && (
             <>
-              <button onClick={() => onEdit(c)} className={cn("text-muted-foreground hover:bg-secondary w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)} title="Editar"><Edit2 size={18} /></button>
-              <button onClick={() => onDelete(c.id)} className={cn("text-muted-foreground hover:text-red-600 hover:bg-red-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)} title="Excluir"><Trash2 size={18} /></button>
+              <button onClick={() => onEdit(c)} className={cn("text-muted-foreground hover:bg-secondary w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Editar"><Edit2 size={18} /></button>
+              <button onClick={() => onDelete(c.id)} className={cn("text-muted-foreground hover:text-red-600 hover:bg-red-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Excluir"><Trash2 size={18} /></button>
             </>
           )}
         </div>
@@ -446,7 +445,7 @@ function CasesContent() {
         <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between p-4 sm:px-10 shrink-0 z-40">
           <div className="flex items-center gap-4">
              <Briefcase size={20} className="text-primary" />
-             <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Processos do Gabinete</h1>
+             <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Carteira do Gabinete</h1>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl"><RefreshCcw className={cn("w-5 h-5", loading && "animate-spin")} /></Button>
@@ -458,24 +457,24 @@ function CasesContent() {
             <div className="p-4 border-b border-border/30 flex flex-col lg:flex-row items-center justify-between gap-4">
               <div className="relative flex-1 w-full">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input placeholder="Pesquisar por nome ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-11 bg-secondary/30 border-none rounded-xl" />
+                <Input placeholder="Pesquisar por nome ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" />
               </div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
-                <SelectTrigger className="h-11 w-48 bg-secondary/30 border-none rounded-xl font-black uppercase text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-black uppercase text-[10px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="active">Ativos</SelectItem>
-                  <SelectItem value="updated">Novas Novidades</SelectItem>
+                  <SelectItem value="updated">Com Novidade</SelectItem>
                   <SelectItem value="closed">Arquivados</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className={cn("flex-1", ui.tableWrap)}>
-              <table className="w-full text-left border-collapse min-w-[1000px]">
+              <table className="w-full text-left border-collapse min-w-[1100px]">
                 <thead className="sticky top-0 bg-white z-20 border-b border-border">
                   <tr className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">
-                    <th className="px-8 py-5">Identificação</th>
+                    <th className="px-8 py-5">Identificação & Sinal de Capa</th>
                     <th className="px-8 py-5">Tribunal</th>
                     <th className="px-8 py-5">Advogado</th>
                     <th className="px-8 py-5">Status / Prazo</th>
@@ -524,8 +523,8 @@ function CasesContent() {
                             <div className="flex items-start justify-between mb-3">
                                <div className="flex items-center gap-2">
                                   <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
-                                  {item.type === 'djen' && item.raw.link && (
-                                    <a href={item.raw.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
+                                  {(item.type === 'djen' && (item.raw.link || historyResult.case.djen_ultimo_link)) && (
+                                    <a href={item.raw.link || historyResult.case.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
                                       <Globe size={10} /> Abrir no D.O.
                                     </a>
                                   )}
@@ -535,7 +534,7 @@ function CasesContent() {
                                   {item.type === 'djen' && <Button variant="ghost" size="icon" onClick={() => handleExportDjenPDF(item.raw)} className="h-8 w-8 hover:bg-blue-600 hover:text-white border border-blue-600/20 ml-auto"><Download size={14} /></Button>}
                                </div>
                             </div>
-                            <h4 className="text-sm font-black uppercase text-foreground mb-1">{item.title}</h4>
+                            <h4 className="text-sm font-black uppercase text-foreground mb-1 leading-tight">{item.title}</h4>
                             <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.subtitle}</p>
                             {item.type === 'djen' && <div className="mt-4 p-4 bg-white border border-blue-100 rounded-lg"><p className={cn("text-black italic leading-relaxed", ui.readable)}>{plainTextFromDjen(item.raw.texto)}</p></div>}
                           </div>
@@ -568,7 +567,7 @@ function CasesContent() {
                           {suggestedScripts.map((script, idx) => (
                             <div key={idx} className="bg-white border-2 border-black p-5 rounded-xl space-y-4 shadow-sm">
                               <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none">{script.titulo}</Badge>
-                              <p className="text-xs font-black uppercase">{script.quandoUsar}</p>
+                              <p className="text-xs font-black uppercase leading-tight">{script.quandoUsar}</p>
                               <div className="p-4 bg-slate-50 border border-black/5 relative rounded-lg">
                                 <p className={cn("text-black/70 italic", ui.readable)}>"{script.texto}"</p>
                                 <Button variant="ghost" size="icon" onClick={() => copyScript(script.texto)} className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all">

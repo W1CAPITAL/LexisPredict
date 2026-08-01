@@ -22,7 +22,9 @@ import {
   AlertCircle,
   Copyright,
   Scale,
-  Briefcase
+  Briefcase,
+  FileSearch,
+  History as HistoryIcon
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { LegalCase } from '@/lib/case-logic';
@@ -35,7 +37,8 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/empty-state';
 import Link from 'next/link';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
-import { summarizeDjenKeywords } from '@/lib/djen';
+import { getSinalCapa } from '@/lib/sinal-capa';
+import { format, parseISO } from 'date-fns';
 
 export default function NotificationsPage() {
   const { cases } = useAppStore();
@@ -51,61 +54,46 @@ export default function NotificationsPage() {
     const alerts: any[] = [];
 
     cases.forEach(c => {
-      const isEncerrado = isCasoEncerrado(c);
-      if (isEncerrado) return;
+      if (isCasoEncerrado(c)) return;
       
-      const res = c.evento_resumo || c.djen_ultimo_resumo || c.datajud_ultimo_nome;
-      const type = c.evento_tipo || 'rotina';
-
-      // Filtragem: SOMENTE MÉRITO OPERACIONAL (Ignorar Prazos Vencidos)
-      const isRelevant = c.tem_novo_andamento && (
-        type !== 'rotina' || 
-        c.indicio_busca_apreensao || 
-        c.datajud_encerrado_tribunal ||
-        c.em_cumprimento_sentenca ||
-        /(CUSTAS|GUIA|PREPARO|HABILITA|SUBSTAB|EXCLU|SENTENCA|PROCEDENTE|IMPROCEDENTE|AUDIENCIA|LIMINAR|TUTELA)/i.test(res || '')
-      );
-
-      if (!isRelevant) return;
+      const sinal = getSinalCapa(c);
+      
+      // Filtragem: SOMENTE EVENTOS DE MÉRITO/RITO RELEVANTES (Ignore priority < 40 e prazos crus)
+      if (sinal.prioridade < 40) return;
+      if (!c.tem_novo_andamento) return;
 
       let icon = <Zap className="text-blue-600" size={18} />;
-      let priority = 50;
       let category: 'merito' | 'ba' | 'audiencia' | 'execucao' | 'partes_custas' = 'merito';
 
-      if (c.indicio_busca_apreensao) {
+      if (sinal.prioridade === 100) {
         icon = <ShieldAlert className="text-red-600 animate-pulse" size={18} />;
-        priority = 110;
         category = 'ba';
-      } else if (c.datajud_encerrado_tribunal || type.includes('transito')) {
+      } else if (sinal.prioridade === 90) {
         icon = <Gavel className="text-emerald-600" size={18} />;
-        priority = 90;
         category = 'merito';
-      } else if (type.includes('sentenca')) {
+      } else if (sinal.prioridade === 80) {
         icon = <Scale className="text-primary" size={18} />;
-        priority = 85;
         category = 'merito';
-      } else if (type.includes('audiencia')) {
+      } else if (sinal.prioridade === 70) {
         icon = <Clock className="text-orange-500" size={18} />;
-        priority = 80;
         category = 'audiencia';
-      } else if (c.em_cumprimento_sentenca || type === 'cumprimento_sentenca') {
+      } else if (sinal.prioridade === 60) {
         icon = <Briefcase className="text-blue-500" size={18} />;
-        priority = 70;
         category = 'execucao';
-      } else if (/(HABILITA|SUBSTAB|PARTES|CUSTAS|GUIA)/i.test(res || '')) {
-        icon = <History size={18} className="text-slate-500" />;
-        priority = 60;
+      } else if (sinal.prioridade === 50) {
+        icon = <HistoryIcon size={18} className="text-slate-500" />;
         category = 'partes_custas';
       }
 
       alerts.push({
         id: `alert-${c.protocolo}`,
         type: category,
-        priority,
-        title: c.indicio_busca_apreensao ? "ALERTA: Busca e Apreensão" : (c.evento_resumo || "Nova Movimentação"),
-        description: res ? summarizeDjenKeywords(res) : "Identificada novidade técnica no processo.",
+        priority: sinal.prioridade,
+        title: sinal.titulo,
+        description: sinal.detalhe,
         case: c,
-        icon
+        icon,
+        data: sinal.data
       });
     });
 
@@ -115,7 +103,12 @@ export default function NotificationsPage() {
         const matchesType = filterType === 'all' || a.type === filterType;
         return matchesSearch && matchesType;
       })
-      .sort((a, b) => b.priority - a.priority);
+      .sort((a, b) => {
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        const dateA = a.data ? new Date(a.data).getTime() : 0;
+        const dateB = b.data ? new Date(b.data).getTime() : 0;
+        return dateB - dateA;
+      });
   }, [cases, search, filterType]);
 
   if (!mounted) return null;
@@ -133,7 +126,7 @@ export default function NotificationsPage() {
           </div>
           <div className="flex items-center gap-3">
              <Badge className="bg-primary/10 text-primary border-none font-black text-[10px] px-4 py-2 uppercase rounded-xl">
-               {notifications.length} Novidades
+               {notifications.length} Eventos Ativos
              </Badge>
           </div>
         </header>
@@ -142,7 +135,7 @@ export default function NotificationsPage() {
            <div className="mb-6 flex flex-col gap-4 bg-white border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
              <div className="relative w-full">
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-               <Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl" />
+               <Input placeholder="Pesquisar por cliente ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl" />
              </div>
              
              <ScrollArea className="w-full">
@@ -152,7 +145,7 @@ export default function NotificationsPage() {
                    <FilterButton active={filterType === 'merito'} onClick={() => setFilterType('merito')} label="Mérito" />
                    <FilterButton active={filterType === 'audiencia'} onClick={() => setFilterType('audiencia')} label="Audiência" />
                    <FilterButton active={filterType === 'execucao'} onClick={() => setFilterType('execucao')} label="Execução" />
-                   <FilterButton active={filterType === 'partes_custas'} onClick={() => setFilterType('partes_custas')} label="Custas/Partes" />
+                   <FilterButton active={filterType === 'partes_custas'} onClick={() => setFilterType('partes_custas')} label="Gestão" />
                 </div>
                 <ScrollBar orientation="horizontal" />
              </ScrollArea>
@@ -163,14 +156,14 @@ export default function NotificationsPage() {
                 {notifications.map((alert) => (
                   <div key={alert.id} className={cn(
                     "p-4 sm:p-6 bg-white border border-border/50 rounded-2xl hover:border-black transition-all group flex flex-col sm:flex-row items-start justify-between gap-6",
-                    alert.priority >= 100 && "border-red-600/30 bg-red-50/10"
+                    alert.priority >= 90 && "border-red-600/30 bg-red-50/10"
                   )}>
                     <div className="flex items-start gap-4 sm:gap-5">
                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-secondary/50 flex items-center justify-center shrink-0">
                           {alert.icon}
                        </div>
                        <div className="space-y-2">
-                          <h3 className="font-black text-sm uppercase tracking-tight text-foreground">{alert.title}</h3>
+                          <h3 className="font-black text-[13px] uppercase tracking-tight text-foreground">{alert.title}</h3>
                           <p className={cn("text-muted-foreground uppercase leading-relaxed max-w-2xl font-bold text-[11px]", ui.readable)}>
                             {alert.description}
                           </p>
@@ -178,7 +171,12 @@ export default function NotificationsPage() {
                              <div className="flex items-center gap-1.5 text-[9px] font-black text-black/40 uppercase">
                                 <History size={12} /> {alert.case.cliente}
                              </div>
-                             <div className={cn("text-black/20 uppercase", ui.cnj)}>{alert.case.protocolo}</div>
+                             <div className={cn("text-black/20 uppercase text-[9px] font-mono", ui.cnj)}>{alert.case.protocolo}</div>
+                             {alert.data && (
+                               <div className="text-[9px] font-black text-primary/60 uppercase ml-auto">
+                                 {format(parseISO(alert.data), 'dd/MM/yyyy HH:mm')}
+                               </div>
+                             )}
                           </div>
                        </div>
                     </div>
@@ -189,7 +187,7 @@ export default function NotificationsPage() {
                   </div>
                 ))}
                 {notifications.length === 0 && (
-                  <div className="py-20"><EmptyState icon={CheckCircle2} title="Tudo sob controle" description="Não há alertas de mérito pendentes no momento." /></div>
+                  <div className="py-20"><EmptyState icon={CheckCircle2} title="Tudo sob controle" description="Nenhuma novidade de mérito pendente de triagem." /></div>
                 )}
               </div>
            </ScrollArea>

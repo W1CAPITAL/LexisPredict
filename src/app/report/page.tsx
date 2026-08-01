@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v6.5 - SELAGEM PDF E AUDITORIA DE PERFORMANCE
+ * DOSSIÊ OPERACIONAL v7.0 — AUDITORIA DE BANCA E TOP 10 DE CRITICIDADE
  */
 "use client";
 
@@ -31,7 +31,10 @@ import {
   StickyNote,
   Globe,
   Target,
-  UserCheck
+  UserCheck,
+  ChevronRight,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -50,6 +53,9 @@ import {
 } from 'recharts';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
+import { getSinalCapa } from "@/lib/sinal-capa";
+import { calcularProbabilidadeEncerramento } from "@/lib/probabilidade-encerramento";
+import { calcularScoreAdvogado } from "@/lib/score-engine";
 
 export default function UnifiedReport() {
   const { setCases } = useAppStore();
@@ -75,9 +81,7 @@ export default function UnifiedReport() {
        
         const savedInsights = localStorage.getItem('lexisPredict_notes_analysis');
         if (savedInsights) {
-           try {
-             setIaInsights(JSON.parse(savedInsights));
-           } catch(e) {}
+           try { setIaInsights(JSON.parse(savedInsights)); } catch(e) {}
         }
       } catch (e) {
         console.error("Report extraction failure:", e);
@@ -95,50 +99,41 @@ export default function UnifiedReport() {
    
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
-    const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
-    const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
-    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
-   
+    
     // UNIFICAÇÃO DE NOVIDADES
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
 
-    const tribCounts: Record<string, number> = {};
+    // Top 10 Críticos por Movimentação Recente
+    const topCriticos = ativos
+      .filter(c => !!c.tem_novo_andamento)
+      .map(c => ({ case: c, sinal: getSinalCapa(c) }))
+      .sort((a, b) => b.sinal.prioridade - a.sinal.prioridade)
+      .slice(0, 10);
+
+    // Top 10 Chance de Encerramento
+    const topChance = ativos
+      .map(c => ({ case: c, prob: calcularProbabilidadeEncerramento({ status: c.status, situacao: c.situacao, observacao: c.observacao, diasVencidos: c.diasFaltando ? Math.abs(c.diasFaltando) : 0 }) }))
+      .filter(i => i.prob < 100) // Ignorar o que já está tecnicamente fechado
+      .sort((a, b) => b.prob - a.prob)
+      .slice(0, 10);
+
+    // Ranking de Advogados (Top 3 e Bottom 3)
+    const lawyerGroups: Record<string, LegalCase[]> = {};
     cases.forEach(c => {
-      const name = c.tribunal || 'Outros';
-      tribCounts[name] = (tribCounts[name] || 0) + 1;
+      const name = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
+      if (!lawyerGroups[name]) lawyerGroups[name] = [];
+      lawyerGroups[name].push(c);
     });
 
-    const chartData = Object.entries(tribCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([name, count]) => ({ name: name.split(' - ')[0], count }));
+    const lawyerRank = Object.entries(lawyerGroups).map(([name, lCases]) => {
+      const result = calcularScoreAdvogado(lCases);
+      return { name, score: result.score };
+    }).sort((a, b) => b.score - a.score);
 
-    // Estatísticas por Escritório e Advogado
-    const offices: Record<string, any> = {};
-    const lawyers: Record<string, any> = {};
-
-    cases.forEach(c => {
-      const officeName = (c.escritorio || "Sem Escritório").trim().toUpperCase();
-      const lawyerName = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
-      const isAtivo = !isCasoEncerrado(c);
-
-      if (!offices[officeName]) offices[officeName] = { name: officeName, total: 0, ativos: 0, vencidos: 0, hoje: 0 };
-      if (!lawyers[lawyerName]) lawyers[lawyerName] = { name: lawyerName, total: 0, ativos: 0, vencidos: 0, hoje: 0 };
-
-      offices[officeName].total++;
-      lawyers[lawyerName].total++;
-
-      if (isAtivo) {
-        offices[officeName].ativos++;
-        lawyers[lawyerName].ativos++;
-        if (c.status === 'Vencido' || c.status === 'Caso Crítico') { offices[officeName].vencidos++; lawyers[lawyerName].vencidos++; }
-        if (c.status === 'É Hoje') { offices[officeName].hoje++; lawyers[lawyerName].hoje++; }
-      }
-    });
-
-    const sortedOffices = Object.values(offices).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total);
+    const top3Lawyers = lawyerRank.slice(0, 3);
+    const bottom3Lawyers = lawyerRank.length > 3 ? lawyerRank.slice(-3).reverse() : [];
 
     const isMaster = checkIfSuperAdmin(profile) || checkIfSupervisor(profile);
 
@@ -152,19 +147,17 @@ export default function UnifiedReport() {
       activeTotal,
       countVencido,
       countHoje,
-      countAtencao,
-      countSaudavel,
-      countSemPrazo,
       riskScore: activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countHoje * 0.8) / activeTotal) * 100)) : 0,
-      chartData,
       countNovoAndamento,
       countEncerradoTribunal,
       countBA,
-      sortedOffices,
       isMaster,
       myVencidos: myVencidos.slice(0, 10),
       myNovidades: myNovidades.slice(0, 10),
-      myAtivosCount: myAtivos.length
+      topCriticos,
+      topChance,
+      top3Lawyers,
+      bottom3Lawyers
     };
   }, [cases, profile]);
 
@@ -177,7 +170,7 @@ export default function UnifiedReport() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-6">
         <Loader2 className="w-12 h-12 text-black animate-spin" />
-        <p className="font-black tracking-[0.4em] text-[10px] text-black uppercase">Sincronizando Dossiê Estratégico...</p>
+        <p className="font-black tracking-[0.4em] text-[10px] text-black uppercase">Consolidando Dossiê Authority...</p>
       </div>
     );
   }
@@ -187,13 +180,10 @@ export default function UnifiedReport() {
       <style jsx global>{`
         @media print {
           body { background-color: white !important; color: black !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          * { box-shadow: none !important; text-shadow: none !important; }
           .print-root { margin: 0 !important; border: 0 !important; width: 100% !important; max-width: none !important; }
           .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
           .print-hidden { display: none !important; }
           @page { size: A4; margin: 12mm 14mm; }
-          thead { display: table-header-group; }
-          tr { break-inside: avoid; }
         }
       `}</style>
 
@@ -204,7 +194,7 @@ export default function UnifiedReport() {
             <Button variant="ghost" asChild className="text-black/70 hover:text-black font-black tracking-widest text-[10px] uppercase rounded-none h-10 px-4">
               <Link href="/"><ArrowLeft size={14} className="mr-2" /> Voltar ao Gabinete</Link>
             </Button>
-            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Authority v6.5</Badge>
+            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Enterprise v18.0</Badge>
           </div>
           <Button onClick={handleExportPDF} className="bg-black text-white font-black uppercase text-[10px] h-11 px-7 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
             <Printer size={14} className="mr-2" /> Gerar PDF / Imprimir
@@ -224,12 +214,12 @@ export default function UnifiedReport() {
                   <span className="text-[10px] tracking-[0.4em] uppercase text-black font-black">LexisPredict • Elite Reporting</span>
                 </div>
                 <h1 className="text-5xl md:text-6xl font-black tracking-tighter leading-[0.85] text-black">
-                  DOSSIÊ OPERACIONAL<br /><span className="text-black/30 uppercase">DA CARTEIRA</span>
+                  DOSSIÊ MASTER<br /><span className="text-black/30 uppercase">DA CARTEIRA</span>
                 </h1>
-                <p className="text-[10px] font-black uppercase tracking-[0.6em] text-black/40">Sincronia Global • Protocolo W1 Capital</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.6em] text-black/40">Consolidação Operacional de Mérito</p>
               </div>
               <div className="text-right space-y-3">
-                <div className="text-[10px] font-black uppercase opacity-40">Operador Responsável</div>
+                <div className="text-[10px] font-black uppercase opacity-40">Emissão por</div>
                 <p className="text-lg font-black uppercase tracking-tight leading-none">{profile?.nome}</p>
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 border-2 border-green-600 text-green-700 text-[9px] font-black tracking-widest uppercase">
                   <ShieldCheck size={12} /> Auditado
@@ -238,220 +228,166 @@ export default function UnifiedReport() {
             </div>
             <div className="bg-black text-white px-10 py-3 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
               <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <span className="text-primary">Status: Consolidação Master</span>
+              <span className="text-primary">Status: Auditoria Sincronizada</span>
             </div>
           </header>
-
-          {/* AUDITORIA INDIVIDUAL DE RESPONSABILIDADE */}
-          <section className="p-10 border-b-2 border-black break-inside-avoid">
-             <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
-                <UserCheck size={18} className="text-primary" />
-                <h3 className="text-xs font-black uppercase tracking-widest">Auditoria de Responsabilidade: {profile?.nome}</h3>
-             </div>
-             
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="space-y-6">
-                   <p className="text-[9px] font-black uppercase text-red-600 tracking-[0.2em] flex items-center gap-2">
-                     <Clock size={12}/> Prazos Críticos sob Gestão ({metrics.myVencidos.length})
-                   </p>
-                   {metrics.myVencidos.length > 0 ? (
-                     <div className="border-2 border-black divide-y-2 divide-black/5">
-                        {metrics.myVencidos.map(v => (
-                          <div key={v.id} className="p-3 bg-red-50/10 flex justify-between items-center">
-                             <div>
-                                <p className="text-[10px] font-black uppercase">{v.cliente}</p>
-                                <p className="text-[8px] font-mono opacity-40">{v.protocolo}</p>
-                             </div>
-                             <Badge variant="outline" className="text-[8px] font-black uppercase border-red-200 text-red-700">{v.status}</Badge>
-                          </div>
-                        ))}
-                     </div>
-                   ) : <p className="text-[9px] font-bold uppercase opacity-30">Nenhum prazo vencido identificado.</p>}
-                </div>
-
-                <div className="space-y-6">
-                   <p className="text-[9px] font-black uppercase text-blue-600 tracking-[0.2em] flex items-center gap-2">
-                     <Zap size={12}/> Novidades Pendentes de Triagem ({metrics.myNovidades.length})
-                   </p>
-                   {metrics.myNovidades.length > 0 ? (
-                     <div className="border-2 border-black divide-y-2 divide-black/5">
-                        {metrics.myNovidades.map(n => (
-                          <div key={n.id} className="p-3 bg-blue-50/10">
-                             <div className="flex justify-between items-start mb-1">
-                                <p className="text-[10px] font-black uppercase">{n.cliente}</p>
-                                <span className="text-[8px] font-black uppercase text-blue-700">Audit 3D</span>
-                             </div>
-                             <p className="text-[8px] font-bold text-black/40 uppercase truncate">
-                                {n.evento_resumo || n.djen_ultimo_resumo || n.datajud_ultimo_nome}
-                             </p>
-                          </div>
-                        ))}
-                     </div>
-                   ) : <p className="text-[9px] font-bold uppercase opacity-30">Toda a carteira está atendida.</p>}
-                </div>
-             </div>
-          </section>
 
           {/* TELEMETRIA GLOBAL */}
           <section className="p-10 bg-[#f8f9fb] border-b-2 border-black break-inside-avoid">
             <div className="mb-10 p-8 border-4 border-black bg-black text-white shadow-[10px_10px_0px_#00D1FF]">
                <h3 className="text-[11px] font-black uppercase tracking-[0.4em] mb-8 flex items-center gap-3">
-                  <Zap className="text-primary animate-pulse" size={16}/> Vigilância Unificada de Gabinete
+                  <Zap className="text-primary animate-pulse" size={16}/> Telemetria Unificada de Gabinete
                </h3>
                <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
                   <div className="space-y-2">
                      <p className="text-[9px] font-black uppercase opacity-60">Sinais de Novidade</p>
-                     <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento}</span>
-                        <span className="text-xs font-black text-primary">({Math.round((metrics.countNovoAndamento / (metrics.activeTotal || 1)) * 100)}%)</span>
-                     </div>
+                     <p className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento}</p>
                   </div>
                   <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Baixas Reais (CNJ)</p>
-                     <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-black tabular-nums text-emerald-400">{metrics.countEncerradoTribunal}</span>
-                     </div>
+                     <p className="text-[9px] font-black uppercase opacity-60">Baixas Reais</p>
+                     <p className="text-4xl font-black tabular-nums text-emerald-400">{metrics.countEncerradoTribunal}</p>
                   </div>
                   <div className="space-y-2">
                      <p className="text-[9px] font-black uppercase opacity-60">Indícios B.A.</p>
-                     <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-black tabular-nums text-red-500">{metrics.countBA}</span>
-                     </div>
+                     <p className="text-4xl font-black tabular-nums text-red-500">{metrics.countBA}</p>
                   </div>
                   <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Índice de Risco</p>
-                     <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-black tabular-nums text-orange-400">{metrics.riskScore}%</span>
-                     </div>
+                     <p className="text-[9px] font-black uppercase opacity-60">Risco Global</p>
+                     <p className="text-4xl font-black tabular-nums text-orange-400">{metrics.riskScore}%</p>
                   </div>
                </div>
             </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-               <KpiCard label="Ativos" value={metrics.activeTotal} color="text-black" />
-               <KpiCard label="Vencidos" value={metrics.countVencido} color="text-red-600" />
-               <KpiCard label="É Hoje" value={metrics.countHoje} color="text-blue-600" />
-               <KpiCard label="No Prazo" value={metrics.countSaudavel} color="text-emerald-600" />
-               <KpiCard label="Sem Prazo" value={metrics.countSemPrazo} color="text-slate-400" />
-            </div>
           </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
-             <div className="md:col-span-8 p-10 border-r-2 border-black space-y-16">
-                
-                {/* VOLUMETRIA TRIBUNAL */}
-                <section className="space-y-8 break-inside-avoid">
-                   <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Building2 size={16} /> Volumetria por Tribunal</h3>
-                   
-                   <div className="h-64 w-full print:hidden">
-                      <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={metrics.chartData}>
-                            <XAxis dataKey="name" fontSize={9} fontWeight={900} axisLine={false} tickLine={false} />
-                            <YAxis hide />
-                            <Tooltip cursor={{fill: '#f8f9fb'}} contentStyle={{ borderRadius: '0', border: '2px solid black', fontSize: '10px', fontWeight: '900' }} />
-                            <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={35}>
-                               {metrics.chartData.map((_, index) => (
-                                  <Cell key={index} fill={index === 0 ? '#000' : '#00D1FF'} />
-                               ))}
-                            </Bar>
-                         </BarChart>
-                      </ResponsiveContainer>
-                   </div>
-
-                   <div className="hidden print:block border-2 border-black">
-                      <table className="w-full text-left">
-                         <thead className="bg-black text-white text-[9px] font-black uppercase">
-                            <tr>
-                               <th className="p-3">Tribunal</th>
-                               <th className="p-3 text-right">Processos</th>
-                            </tr>
-                         </thead>
-                         <tbody className="divide-y divide-black/10">
-                            {metrics.chartData.map((d, i) => (
-                               <tr key={i} className="text-[10px] font-black uppercase">
-                                  <td className="p-3">{d.name}</td>
-                                  <td className="p-3 text-right">{d.count}</td>
-                               </tr>
-                            ))}
-                         </tbody>
-                      </table>
-                   </div>
-                </section>
-
-                {/* RANKING ESCRITÓRIOS (APENAS PARA MASTER) */}
-                {metrics.isMaster && (
-                   <section className="space-y-6 break-inside-avoid">
-                      <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Target size={16} /> Performance de Unidades</h3>
-                      <div className="border-2 border-black overflow-hidden">
-                         <table className="w-full text-left">
-                            <thead className="bg-black text-white text-[9px] font-black uppercase">
-                               <tr>
-                                  <th className="p-3">Unidade</th>
-                                  <th className="p-3 text-center">Ativos</th>
-                                  <th className="p-3 text-center text-red-400">Vencidos</th>
-                                  <th className="p-3 text-right">Total</th>
-                               </tr>
-                            </thead>
-                            <tbody className="divide-y-2 divide-black/5">
-                               {metrics.sortedOffices.map((off, i) => (
-                                  <tr key={i} className="text-[10px] font-black uppercase hover:bg-gray-50">
-                                     <td className="p-3">{off.name}</td>
-                                     <td className="p-3 text-center">{off.ativos}</td>
-                                     <td className={cn("p-3 text-center", off.vencidos > 0 && "text-red-600 bg-red-50")}>{off.vencidos}</td>
-                                     <td className="p-3 text-right opacity-40">{off.total}</td>
-                                  </tr>
-                               ))}
-                            </tbody>
-                         </table>
-                      </div>
-                   </section>
-                )}
+          {/* TOP 10 CRÍTICOS POR MOVIMENTAÇÃO */}
+          <section className="p-10 border-b-2 border-black break-inside-avoid">
+             <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
+                <Target size={18} className="text-primary" />
+                <h3 className="text-xs font-black uppercase tracking-widest">Top 10: Criticidade por Movimentação</h3>
              </div>
-
-             <div className="md:col-span-4 bg-[#fafafa] flex flex-col">
-                {/* BRIEFING NEURAL */}
-                {iaInsights && (
-                   <div className="p-10 border-b-2 border-black space-y-8 break-inside-avoid">
-                      <div className="flex items-center gap-3">
-                         <Sparkles className="text-primary" size={18} />
-                         <h3 className="text-[11px] font-black uppercase tracking-widest">Análise Neural Global</h3>
-                      </div>
-                      <div className="space-y-6">
-                         <div className="space-y-2">
-                            <p className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-2"><TrendingUp size={12}/> Vantagens</p>
-                            <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
-                               "{iaInsights.pontosFortes?.[0] || "Monitoramento mantido."}"
-                            </p>
-                         </div>
-                         <div className="space-y-2">
-                            <p className="text-[9px] font-black uppercase text-red-600 flex items-center gap-2"><TrendingDown size={12}/> Riscos</p>
-                            <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
-                               "{iaInsights.riscosDetectados?.[0] || "Nenhum risco detectado."}"
-                            </p>
-                         </div>
-                      </div>
-                   </div>
-                )}
-
-                {/* MEMÓRIA DO GABINETE */}
-                <div className="p-10 space-y-8 flex-1">
-                   <div className="flex items-center gap-3">
-                      <StickyNote className="text-black/40" size={18} />
-                      <h3 className="text-[11px] font-black uppercase tracking-widest">Memória do Gabinete</h3>
-                   </div>
-                   <div className="space-y-8">
-                      {notes.slice(0, 5).map((n) => (
-                         <div key={n.id} className="space-y-2 border-b border-black/5 pb-6 break-inside-avoid">
-                            <p className="text-[10px] font-black uppercase tracking-tight">{n.title}</p>
-                            <p className="text-[9px] font-bold uppercase text-black/60 leading-relaxed text-justify line-clamp-3">
-                               {n.content}
-                            </p>
-                         </div>
+             <div className="border-2 border-black">
+                <table className="w-full text-left text-[9px] font-black uppercase">
+                   <thead className="bg-black text-white">
+                      <tr>
+                         <th className="p-3">Cliente / CNJ</th>
+                         <th className="p-3">Natureza do Sinal</th>
+                         <th className="p-3 text-center">Fonte</th>
+                         <th className="p-3 text-right">Data Evento</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y-2 divide-black/5">
+                      {metrics.topCriticos.map((item, i) => (
+                        <tr key={i} className="hover:bg-secondary/10">
+                           <td className="p-3">
+                              <p className="text-[10px]">{item.case.cliente}</p>
+                              <p className="text-[8px] opacity-40 font-mono">{item.case.protocolo}</p>
+                           </td>
+                           <td className="p-3">
+                              <p className={cn(item.sinal.prioridade >= 80 ? "text-red-600" : "text-black")}>{item.sinal.titulo}</p>
+                              <p className="text-[8px] font-bold opacity-40 lowercase italic line-clamp-1">{item.sinal.detalhe}</p>
+                           </td>
+                           <td className="p-3 text-center">
+                              <Badge variant="outline" className="text-[7px] font-black border-black/10 uppercase">
+                                {item.sinal.fonte}
+                              </Badge>
+                           </td>
+                           <td className="p-3 text-right opacity-60">
+                             {item.sinal.data ? new Date(item.sinal.data).toLocaleDateString('pt-BR') : '---'}
+                           </td>
+                        </tr>
                       ))}
+                   </tbody>
+                </table>
+             </div>
+          </section>
+
+          {/* TOP 10 CHANCE DE ENCERRAMENTO */}
+          <section className="p-10 border-b-2 border-black break-inside-avoid">
+             <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
+                <TrendingUpIcon size={18} className="text-emerald-600" />
+                <h3 className="text-xs font-black uppercase tracking-widest">Top 10: Maior Chance de Encerramento</h3>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {metrics.topChance.map((item, i) => (
+                   <div key={i} className="p-4 border-2 border-black flex items-center justify-between group hover:bg-black transition-all">
+                      <div className="min-w-0">
+                         <p className="text-[10px] font-black uppercase truncate group-hover:text-white">{item.case.cliente}</p>
+                         <p className="text-[8px] font-mono opacity-40 group-hover:text-white/40">{item.case.protocolo}</p>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-xl font-black text-emerald-600 group-hover:text-primary">{item.prob}%</p>
+                         <p className="text-[7px] font-black uppercase opacity-40 group-hover:text-white/40">Probability</p>
+                      </div>
+                   </div>
+                ))}
+             </div>
+          </section>
+
+          {/* RANKING DE BANCA (BEST & WORST) */}
+          {metrics.isMaster && (
+             <section className="p-10 border-b-2 border-black break-inside-avoid">
+                <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
+                   <Gavel size={18} className="text-primary" />
+                   <h3 className="text-xs font-black uppercase tracking-widest">Governança de Banca: Performance de Advogados</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                   <div className="space-y-6">
+                      <p className="text-[9px] font-black uppercase text-emerald-600 tracking-[0.2em] flex items-center gap-2">
+                        <TrendingUpIcon size={12}/> Top 3 Efficiency (Líderes)
+                      </p>
+                      <div className="space-y-3">
+                         {metrics.top3Lawyers.map((l, i) => (
+                           <div key={i} className="p-4 bg-emerald-50/20 border-2 border-emerald-200 flex justify-between items-center">
+                              <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
+                              <span className="text-lg font-black text-emerald-600">+{new Intl.NumberFormat('pt-BR').format(l.score)}</span>
+                           </div>
+                         ))}
+                      </div>
+                   </div>
+
+                   <div className="space-y-6">
+                      <p className="text-[9px] font-black uppercase text-red-600 tracking-[0.2em] flex items-center gap-2">
+                        <TrendingDownIcon size={12}/> Bottom 3 Performance (Revisão)
+                      </p>
+                      <div className="space-y-3">
+                         {metrics.bottom3Lawyers.map((l, i) => (
+                           <div key={i} className="p-4 bg-red-50/20 border-2 border-red-200 flex justify-between items-center">
+                              <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
+                              <span className={cn("text-lg font-black", l.score < 0 ? "text-red-600" : "text-orange-600")}>
+                                {new Intl.NumberFormat('pt-BR').format(l.score)}
+                              </span>
+                           </div>
+                         ))}
+                      </div>
                    </div>
                 </div>
-             </div>
-          </div>
+             </section>
+          )}
+
+          {/* BRIEFING NEURAL */}
+          {iaInsights && (
+             <section className="p-10 border-b-2 border-black bg-[#fafafa] break-inside-avoid">
+                <div className="flex items-center gap-3 mb-8">
+                   <Sparkles className="text-primary" size={18} />
+                   <h3 className="text-xs font-black uppercase tracking-widest">Análise Neural Global</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                   <div className="space-y-3">
+                      <p className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-2"><TrendingUp size={12}/> Vantagens Técnicas</p>
+                      <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
+                          "{iaInsights.pontosFortes?.[0] || "Monitoramento regular mantido."}"
+                      </p>
+                   </div>
+                   <div className="space-y-3">
+                      <p className="text-[9px] font-black uppercase text-red-600 flex items-center gap-2"><TrendingDown size={12}/> Riscos Operacionais</p>
+                      <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
+                          "{iaInsights.riscosDetectados?.[0] || "Nenhum risco crítico identificado."}"
+                      </p>
+                   </div>
+                </div>
+             </section>
+          )}
 
           <footer className="p-10 border-t-2 border-black flex justify-between items-center break-inside-avoid">
              <div className="flex items-center gap-4">
