@@ -3,7 +3,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v510.0 ELITE - PERSISTÊNCIA HÍBRIDA
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v520.0 ELITE - PERSISTÊNCIA HÍBRIDA
  */
 
 import { 
@@ -31,6 +31,31 @@ export async function syncRepoCases(cases: LegalCase[]) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false, message: "Sessão expirada." };
   return await saveStoredCasesForEmpresa(cases, empresa_id);
+}
+
+/**
+ * Wrapper para execução em lote via Cron ou Sistema.
+ */
+export async function runDataJudScanAction(empresaId: string) {
+  try {
+    const cases = await getStoredCasesForEmpresa(empresaId, true);
+    const activeCases = cases.filter(c => !isCasoEncerrado(c));
+    let updated = 0;
+
+    // Executa scan atômico para os 20 mais antigos/prioritários para evitar timeout do cron
+    const targetCases = activeCases.slice(0, 20);
+
+    for (const c of targetCases) {
+      const res = await scanOneDataJudAction(c.protocolo, true);
+      if (res.success && (res.casePatch?.tem_novo_andamento || res.casePatch?.datajud_encerrado_tribunal)) {
+        updated++;
+      }
+    }
+
+    return { success: true, scanned: targetCases.length, updated };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
 export async function scanOneDataJudAction(protocolo: string, fast = true) {

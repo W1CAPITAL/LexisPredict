@@ -20,15 +20,20 @@ export interface MotorDespachoInput {
   eventoResumo?: string | null;
   preferredModel?: string; // 'xai' | 'groq-llama' | 'local_only'
   empresaId?: string;
+  // Flags de sinal unificado
+  tem_novo_andamento?: boolean;
+  datajud_encerrado_tribunal?: boolean;
+  indicio_busca_apreensao?: boolean;
+  em_cumprimento_sentenca?: boolean;
 }
 
 const BANNED_TERMS = [
   'GET ASSESSORIA', 'GETASSESSORIA', 'W1 CAPITAL', 'W1CAPITAL', 
-  'W1', 'GET', 'DAVI ALVES', 'FIGUEREDO', 'W1CAP'
+  'W1', 'GET', 'DAVI ALVES', 'FIGUEREDO', 'W1CAP', 'ASSECOM'
 ];
 
 /**
- * Filtro de Segurança: Garante anonimização e evita termos de vitória em ritos de perda.
+ * Filtro de Segurança: Garante anonimização e evita termos de marca em mensagens institucionais.
  */
 function cleanBannedTerms(text: string): string {
   let cleaned = text;
@@ -43,7 +48,11 @@ function cleanBannedTerms(text: string): string {
  * Gera um rascunho estratégico utilizando o Core Lexis (RAG + Fidelidade de Mérito).
  */
 export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
-  const { clienteNome, protocolo, movimentos, djenTexts = [], eventoTipo, eventoResumo, preferredModel, empresaId } = input;
+  const { 
+    clienteNome, protocolo, movimentos, djenTexts = [], 
+    eventoTipo, eventoResumo, preferredModel, empresaId,
+    tem_novo_andamento, datajud_encerrado_tribunal, indicio_busca_apreensao, em_cumprimento_sentenca
+  } = input;
 
   const suggestions = suggestScripts({
     clienteNome,
@@ -52,7 +61,11 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     movimentos,
     djenTexts,
     eventoTipo,
-    eventoResumo
+    eventoResumo,
+    tem_novo_andamento,
+    datajud_encerrado_tribunal,
+    indicio_busca_apreensao,
+    em_cumprimento_sentenca
   });
 
   const baseScript = suggestions[0]?.texto || "";
@@ -84,33 +97,31 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     MISSÃO: REDIGIR ATENDIMENTO TRANSPARENTE, PROFISSIONAL E FINANCEIRAMENTE SEGURO.
     
     DIRETRIZES CRÍTICAS DE FIDELIDADE:
-    1. REVERSÃO DE MÉRITO (ATENÇÃO MÁXIMA): Se o histórico recente contém 'PROVIMENTO AO RECURSO DO RÉU' ou 'REFORMA DA SENTENÇA' após uma vitória anterior, você DEVE informar que a decisão foi alterada e que o cliente perdeu a causa em segunda instância. Nunca diga que é uma "atualização de rotina".
-    2. INDEFERIMENTO DA INICIAL: Se o histórico indica que a petição inicial foi indeferida ou o processo foi extinto logo no início, explique que o juiz abortou o caso por falta de requisito formal (sem julgar o mérito). 
-    3. IMUNIDADE FINANCEIRA: Se a inicial foi indeferida ou se a Gratuidade foi deferida, você DEVE cravar que o cliente está ISENTO de qualquer custo, honorário ou taxa. Afirme que o risco é ZERO.
-    4. GRATUIDADE DE JUSTIÇA: Se o histórico indica que a gratuidade foi deferida, você DEVE mencionar que a cobrança de honorários sucumbenciais está SUSPENSA.
-    5. VALORES DE HONORÁRIOS: Nunca invente percentuais se não estiverem explícitos no movimento atual.
-    6. PROIBIÇÃO: Nunca cite nome de empresa ou marca. Use "Setor Processual" ou "nosso escritório".
+    1. REVERSÃO DE MÉRITO (ATENÇÃO MÁXIMA): Se o histórico contém 'PROVIMENTO AO RECURSO DO RÉU' ou 'REFORMA DA SENTENÇA', você DEVE informar que a decisão foi alterada e que o cliente perdeu a causa.
+    2. ENCERRAMENTO NO TRIBUNAL: Se houver indício de trânsito ou baixa, informe que o caso atingiu o fim e a equipe está confirmando.
+    3. BUSCA E APREENSÃO: Trate com máxima urgência; peça para resguardar o bem.
+    4. JUSTIÇA GRATUITA (AJG): Se deferida, reforce que o cliente está ISENTO de custas/honorários.
+    5. PROIBIÇÃO ABSOLUTA: Nunca cite nome de empresa ou marca. Use "Setor Processual" ou "nosso escritório".
+    6. SEM INVENÇÃO: Se não houver clareza sobre o mérito, diga apenas que houve novidade e estamos analisando.
     
-    ESTRUTURA OBRIGATÓRIA: Contexto -> Fato Leigo -> Impacto (Financeiro) -> Próximo Passo.
+    ESTRUTURA OBRIGATÓRIA: Contexto -> Fato Simples (conforme input) -> Impacto Seguro -> Próximo Passo.
     
     BASE DE CONHECIMENTO AUTORIZADA:
     ${contextKnowledge}
   `;
 
-  const djenContext = djenTexts.length > 0 ? `\nPUBLICAÇÕES DJEN (LIMPIDAS):\n${djenTexts.join('\n')}` : "";
+  const djenContext = djenTexts.length > 0 ? `\nPUBLICAÇÕES DIÁRIO OFICIAL (LIMPAS):\n${djenTexts.join('\n')}` : "";
 
   const userPrompt = `
     DADOS DO PROCESSO: ${protocolo}
     CLIENTE: ${clienteNome}
     EVENTO UNIFICADO: ${eventoTipo || 'N/A'} - ${eventoResumo || 'N/A'}
-    HISTÓRICO RECENTE DO TRIBUNAL (ORDEM CRONOLÓGICA):
-    ${movimentos.slice(0, 15).map(m => `- ${m.dataHora}: ${m.nome} | ${m.complemento || ''}`).join('\n')}
+    FLAGS: BA=${!!indicio_busca_apreensao}, BAIXA=${!!datajud_encerrado_tribunal}, NOVIDADE=${!!tem_novo_andamento}
+    HISTÓRICO RECENTE (CRONOLÓGICO):
+    ${movimentos.slice(0, 15).map(m => `- ${m.dataHora}: ${m.nome}`).join('\n')}
     ${djenContext}
     
-    SCRIPT BASE SUGERIDO:
-    "${baseScript}"
-    
-    TAREFA: REDIGIR RASCUNHO FINAL RESPEITANDO A FIDELIDADE DA DECISÃO E A IMUNIDADE FINANCEIRA (AJG):
+    TAREFA: REDIGIR RASCUNHO FINAL RESPEITANDO A FIDELIDADE DA DECISÃO E O SIGILO DA MARCA:
   `;
 
   try {

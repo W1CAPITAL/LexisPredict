@@ -1,10 +1,10 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SUGESTÃO DE SCRIPTS v3.5 - FIDELIDADE DE MÉRITO E PROTEÇÃO DE PASSIVO
+ * MOTOR DE SUGESTÃO DE SCRIPTS v4.1 - HIERARQUIA DE EVENTO E FIDELIDADE UNIFICADA
  */
 
-import { parseISO, parse, isAfter, isValid, startOfDay, format } from 'date-fns';
+import { parseISO, parse, isValid, format } from 'date-fns';
 import { SCRIPT_CATALOG, ScriptTemplate } from './catalog';
 import { EventoTipo } from '../case-logic';
 
@@ -23,94 +23,94 @@ export interface ScriptInput {
   eventoResumo?: string | null;
   movimentos?: Array<{ nome?: string; complemento?: string; descricao?: string; dataHora?: string }>;
   djenTexts?: string[];
+  // Flags Operacionais (Prioridade Máxima)
+  tem_novo_andamento?: boolean;
+  datajud_encerrado_tribunal?: boolean;
+  indicio_busca_apreensao?: boolean;
+  em_cumprimento_sentenca?: boolean;
 }
 
+/**
+ * Motor de Sugestão Inteligente. 
+ * Hierarquia: 1. Flags Críticas | 2. Tipo de Evento | 3. Keywords | 4. Fallback
+ */
 export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
-  const { clienteNome = 'Cliente', protocolo, ultimoRetorno, movimentos = [], eventoTipo, eventoResumo, djenTexts = [] } = input;
+  const { 
+    clienteNome = 'Cliente', 
+    protocolo, 
+    ultimoRetorno, 
+    movimentos = [], 
+    eventoTipo, 
+    eventoResumo, 
+    djenTexts = [],
+    tem_novo_andamento,
+    datajud_encerrado_tribunal,
+    indicio_busca_apreensao,
+    em_cumprimento_sentenca
+  } = input;
   
   const sortedMovs = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  // 1. Mapeamento Direto por Evento Unificado (Prioridade Máxima)
-  if (eventoTipo && eventoTipo !== 'rotina') {
-    const matched = SCRIPT_CATALOG.find(s => s.categoria === mapEventoToCategoria(eventoTipo));
-    if (matched) {
-      return [createSuggestion(matched, clienteNome, protocolo, ultimoRetorno, sortedMovs[0]?.dataHora || '')];
-    }
+  const matchedTemplates = new Map<string, { template: ScriptTemplate, dataMov: string }>();
+
+  // 1. NIVEL A: FLAGS E EVENTO TIPO (Peso Máximo - FIDELIDADE DE MÉRITO)
+  if (indicio_busca_apreensao || eventoTipo === 'ba') {
+    addMatch(matchedTemplates, 'alerta_busca_apreensao', sortedMovs[0]?.dataHora || '');
   }
 
-  // 2. Análise de Janela de Movimentos + DJEN (Fallback Heurístico)
-  const windowLimit = 30;
-  const movsInWindow = sortedMovs.slice(0, windowLimit);
-
-  const fullWindowText = (eventoResumo || "") + " || " + djenTexts.join(" || ") + " || " + movsInWindow.map(m => 
-    `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
-  ).join(' || ');
-
-  if (!fullWindowText.trim() && movsInWindow.length === 0) {
-    const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
-    return fallback ? [createSuggestion(fallback, clienteNome, protocolo, ultimoRetorno, '')] : [];
+  if (datajud_encerrado_tribunal || eventoTipo === 'transito_baixa' || eventoTipo === 'transito_ou_baixa') {
+    addMatch(matchedTemplates, 'possivel_baixa_tribunal', sortedMovs[0]?.dataHora || '');
   }
 
-  const matchedTemplates = new Map<string, { template: ScriptTemplate, recencia: number, dataMov: string }>();
-  
-  const isLoss = /(IMPROCEDENTE|IMPROCEDÊNCIA|DESERTO|NÃO CONHECIDO|RECURSO NÃO CONHECIDO|FALTA DE PREPARO)/.test(fullWindowText);
-  const isReversal = /(REFORMA DA SENTENÇA|REFORMAR A RESPEITÁVEL SENTENÇA|DAR PROVIMENTO AO RECURSO)/.test(fullWindowText);
-  const hasGratuidade = /(GRATUIDADE DA JUSTIÇA|ASSISTÊNCIA JUDICIÁRIA GRATUITA|JG DEFERIDA|GRATUIDADE DEFERIDA|CONCEDIDA A GRATUIDADE)/.test(fullWindowText);
+  // Mapeamento direto de mérito para evitar mistura de Procedente/Improcedente
+  if (eventoTipo === 'sentenca_procedente') {
+    addMatch(matchedTemplates, 'sentenca_procedente', sortedMovs[0]?.dataHora || '');
+  } else if (eventoTipo === 'sentenca_improcedente') {
+    addMatch(matchedTemplates, 'sentenca_improcedente', sortedMovs[0]?.dataHora || '');
+  } else if (eventoTipo === 'liminar') {
+    addMatch(matchedTemplates, 'liminar_concedida', sortedMovs[0]?.dataHora || '');
+  } else if (eventoTipo === 'cumprimento_sentenca' || em_cumprimento_sentenca) {
+    addMatch(matchedTemplates, 'cumprimento_sentenca', sortedMovs[0]?.dataHora || '');
+  }
 
-  movsInWindow.forEach((m, idx) => {
-    const text = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
+  if (tem_novo_andamento && matchedTemplates.size < 3) {
+    addMatch(matchedTemplates, 'movimentacao_pos_retorno', sortedMovs[0]?.dataHora || '');
+  }
+
+  // 2. NIVEL B: KEYWORDS (Reforço - Ordenado por Prioridade Numérica)
+  if (matchedTemplates.size < 3) {
+    const fullText = `${eventoResumo || ''} ${djenTexts.join(' ')} ${movimentos.map(m => m.nome).join(' ')}`.toUpperCase();
     
-    for (const template of SCRIPT_CATALOG) {
-      if (template.id === 'baixa_reversao_derrota' && !isReversal) continue;
-      if (template.id === 'baixa_derrota_jg' && (!isLoss || !hasGratuidade)) continue;
-      if (template.id === 'baixa_definitiva' && (isLoss || isReversal)) continue;
+    const catalogSorted = [...SCRIPT_CATALOG].sort((a, b) => a.prioridade - b.prioridade);
 
-      if (template.keywords.some(kw => text.includes(kw))) {
-        const hasP0Matched = Array.from(matchedTemplates.values()).some(match => match.template.prioridade === 0);
-        if (hasP0Matched && template.prioridade > 0) continue;
-
-        if (!matchedTemplates.has(template.id)) {
-          matchedTemplates.set(template.id, { template, recencia: idx, dataMov: m.dataHora || '' });
-        }
+    for (const template of catalogSorted) {
+      if (matchedTemplates.has(template.id)) continue;
+      if (template.keywords.length > 0 && template.keywords.some(kw => fullText.includes(kw))) {
+        addMatch(matchedTemplates, template.id, sortedMovs[0]?.dataHora || '');
       }
+      if (matchedTemplates.size >= 3) break;
     }
-  });
-
-  let finalMatches = Array.from(matchedTemplates.values());
-  if (finalMatches.some(m => m.template.prioridade === 0)) {
-    finalMatches = finalMatches.filter(m => m.template.prioridade === 0);
   }
 
-  finalMatches.sort((a, b) => a.template.prioridade - b.template.prioridade || a.recencia - b.recencia);
-
-  if (finalMatches.length === 0) {
-    const fallback = SCRIPT_CATALOG.find(s => s.id === 'rotina');
-    if (fallback) finalMatches.push({ template: fallback, recencia: 0, dataMov: movsInWindow[0]?.dataHora || '' });
+  // 3. FALLBACK: ROTINA
+  if (matchedTemplates.size === 0) {
+    addMatch(matchedTemplates, 'rotina', sortedMovs[0]?.dataHora || '');
   }
 
-  return finalMatches.slice(0, 3).map(m => createSuggestion(m.template, clienteNome, protocolo, ultimoRetorno, m.dataMov));
+  return Array.from(matchedTemplates.values())
+    .map(m => createSuggestion(m.template, clienteNome, protocolo, ultimoRetorno, m.dataMov));
 }
 
-function mapEventoToCategoria(tipo: EventoTipo): string {
-  switch (tipo) {
-    case 'sentenca_procedente':
-    case 'sentenca_improcedente':
-    case 'sentenca_parcial': return 'sentenca';
-    case 'ba': return 'ba';
-    case 'audiencia_conciliacao':
-    case 'audiencia_instrucao':
-    case 'audiencia_julgamento': return 'audiencia';
-    case 'transito_ou_baixa': return 'baixa';
-    case 'liminar': return 'liminar';
-    default: return 'rotina';
-  }
+function addMatch(map: Map<string, any>, templateId: string, dataMov: string) {
+  const template = SCRIPT_CATALOG.find(s => s.id === templateId);
+  if (template) map.set(templateId, { template, dataMov });
 }
 
 function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateRetornoStr: string | null | undefined, dataMovStr: string): ScriptSuggestion {
-  let displayRetorno = 'últimos dias';
-  let displayMov = '';
+  let displayRetorno = 'nos últimos dias';
+  let displayMov = 'recentemente';
 
   if (dateRetornoStr) {
     try {
@@ -137,7 +137,6 @@ function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateReto
       .replace(/\[CNJ\]/g, cnj)
       .replace(/\[PROTOCOLO\]/g, cnj)
       .replace(/\[Data\]/g, displayRetorno)
-      .replace(/\[DataMov\]/g, displayMov || 'recentemente')
-      .replace(/\[BANCO\]/g, "Instituição Financeira")
+      .replace(/\[DataMov\]/g, displayMov)
   };
 }

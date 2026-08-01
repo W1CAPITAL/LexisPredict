@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * CATÁLOGO DE SCRIPTS DE GABINETE v10.0 - FIDELIDADE E PROTEÇÃO FINANCEIRA (ANTI-ALUCINAÇÃO)
+ * CATÁLOGO DE SCRIPTS DE GABINETE v12.0 - FIDELIDADE E PROTEÇÃO FINANCEIRA (ANTI-ALUCINAÇÃO)
  */
 
 export interface ScriptTemplate {
@@ -16,111 +16,93 @@ export interface ScriptTemplate {
 
 export const SCRIPT_CATALOG: ScriptTemplate[] = [
   {
+    id: 'alerta_busca_apreensao',
+    categoria: 'ba',
+    titulo: 'ALERTA: Indício de Busca e Apreensão',
+    texto: 'Olá, [CLIENTE]! Passando para te dar uma atualização importante. Identificamos um novo andamento no seu processo ([PROTOCOLO]) que indica um possível mandado de busca e apreensão. Nossa equipe jurídica já está em prontidão para as medidas de defesa necessárias. Por segurança, pedimos que mantenha o veículo resguardado e aguarde nosso contato com as orientações técnicas detalhadas ainda hoje.',
+    quandoUsar: 'Prioridade Máxima. Usar quando houver flag de BA ou keywords de apreensão.',
+    keywords: ['BUSCA E APREENSÃO', 'APREENSAO DO VEICULO', 'REINTEGRAÇÃO DE POSSE'],
+    prioridade: 0
+  },
+  {
     id: 'baixa_reversao_derrota',
     categoria: 'baixa',
     titulo: 'Derrota em 2ª Instância: Reversão de Mérito (Com AJG)',
-    texto: 'Olá, [CLIENTE]! Tudo bem? Passando para atualizar você sobre as últimas movimentações do seu processo ([PROTOCOLO]) contra o [BANCO]. Infelizmente, tivemos uma decisão desfavorável no Tribunal de Justiça. O Banco recorreu daquela vitória inicial que havíamos conquistado (referente à devolução de valores) e os Desembargadores acabaram dando razão ao banco, reformando a sentença para julgar o pedido improcedente. Ou seja, o tribunal entendeu que a cobrança deles foi válida e reverteu a nossa vitória. Apesar dessa má notícia sobre o resultado, há um ponto de total tranquilidade para você: como garantimos o seu benefício da Justiça Gratuita logo no início, você está blindado. Você não terá que pagar as custas do tribunal nem os honorários dos advogados do banco. A cobrança desses valores permanece suspensa por lei e você não deve nada. Nossa equipe segue analisando se cabe algum último recurso, mas o cenário atual é de encerramento sem custos para o senhor(a).',
-    quandoUsar: 'CRÍTICO. Usar quando o Tribunal der provimento ao recurso do réu e reformar a sentença para improcedente.',
-    keywords: ['REFORMA DA SENTENÇA', 'REFORMAR A RESPEITÁVEL SENTENÇA', 'DAR PROVIMENTO AO RECURSO DO RÉU', 'DAR PROVIMENTO AO RECURSO DA RÉ', 'AFASTAR O RECONHECIMENTO DA ABUSIVIDADE'],
+    texto: 'Olá, [CLIENTE]! Tudo bem? Passando para atualizar você sobre as últimas movimentações do seu processo ([PROTOCOLO]). Infelizmente, tivemos uma decisão desfavorável no Tribunal de Justiça. O Banco recorreu daquela vitória inicial e os Desembargadores acabaram reformando a sentença para julgar o pedido improcedente. Apesar dessa notícia, há um ponto de tranquilidade: como garantimos o seu benefício da Justiça Gratuita, você está blindado. Você não terá que pagar as custas do tribunal nem os honorários dos advogados do banco. A cobrança desses valores permanece suspensa por lei e você não deve nada. Nossa equipe segue analisando se cabe algum último recurso técnico.',
+    quandoUsar: 'CRÍTICO. Usar quando o Tribunal reformar a sentença para improcedente.',
+    keywords: ['REFORMA DA SENTENÇA', 'DAR PROVIMENTO AO RECURSO DO RÉU', 'AFASTAR O RECONHECIMENTO DA ABUSIVIDADE'],
+    prioridade: 0
+  },
+  {
+    id: 'possivel_baixa_tribunal',
+    categoria: 'baixa',
+    titulo: 'Possível Encerramento (Confirmação em Andamento)',
+    texto: 'Olá, [CLIENTE]! Identificamos uma movimentação de encerramento (Baixa Definitiva / Trânsito em Julgado) no seu processo [PROTOCOLO] no sistema do Tribunal. Nossa equipe jurídica está realizando a conferência final dos autos para confirmar o desfecho completo e se há pendências. Em breve, retornaremos com o parecer conclusivo sobre o arquivamento definitivo do caso.',
+    quandoUsar: 'Usar quando houver flag de baixa real ou trânsito em julgado.',
+    keywords: ['BAIXA DEFINITIVA', 'TRÂNSITO EM JULGADO', 'ARQUIVADO DEFINITIVAMENTE'],
     prioridade: 0
   },
   {
     id: 'baixa_indeferimento',
     categoria: 'baixa',
     titulo: 'Encerramento: Indeferimento da Inicial (Sem Custos)',
-    texto: 'Olá, [CLIENTE]! Tudo bem? Passando para atualizar você sobre a conclusão do processo nº [PROTOCOLO]. O processo atingiu sua fase final e foi oficialmente encerrado no tribunal. No entanto, o encerramento ocorreu devido a uma decisão técnica chamada "indeferimento da petição inicial". Isso significa que o juiz extinguiu a ação logo nos estágios iniciais por entender que faltou o preenchimento de algum requisito formal ou documental para dar seguimento ao caso, não chegando a julgar o mérito do seu pedido. Apesar desse desfecho, você pode ficar totalmente tranquilo em relação a qualquer custo. Como o juiz deferiu o seu pedido de Gratuidade da Justiça e o processo foi encerrado de forma antecipada (antes mesmo da defesa da parte contrária), não há cobrança de custas processuais nem de honorários de sucumbência. Você não terá que desembolsar absolutamente nenhum valor por conta desta decisão. O caso encontra-se agora arquivado de forma definitiva em nossos sistemas.',
-    quandoUsar: 'Prioridade Máxima. Usar quando a inicial for indeferida ou extinta sem mérito logo no início.',
-    keywords: ['INDEFERIMENTO DA PETIÇÃO INICIAL', 'INDEFERIDA A INICIAL', 'INDEFIRO A INICIAL', 'FALTA DE EMENDA', 'EXTINÇÃO SEM RESOLUÇÃO DO MÉRITO'],
-    prioridade: 0
-  },
-  {
-    id: 'baixa_cancelamento',
-    categoria: 'baixa',
-    titulo: 'Encerramento por Falha Técnica/Custas',
-    texto: 'Olá! Passando para atualizar sobre o desfecho do seu processo ([CNJ]). O tribunal oficializou a baixa definitiva do caso, mas infelizmente o juiz determinou o encerramento sem análise do mérito devido a uma falha técnica processual (referente ao não recolhimento de taxas judiciárias/preparo ou ausência de pressupostos). Isso significa que o processo foi cancelado na raiz. Nossa equipe jurídica está à disposição para explicar as consequências desta baixa definitiva.',
-    quandoUsar: 'Prioridade Máxima. Usar quando o processo for morto por falha de custas, deserto ou cancelamento.',
-    keywords: ['CANCELAMENTO DA DISTRIBUIÇÃO', 'AUSÊNCIA DE PRESSUPOSTOS', 'DESERTO', 'NÃO CONHECIDO', 'RECURSO NÃO CONHECIDO', 'FALTA DE PREPARO', 'RECOLHIMENTO DA TAXA'],
-    prioridade: 0
-  },
-  {
-    id: 'baixa_derrota_jg',
-    categoria: 'baixa',
-    titulo: 'Encerramento: Improcedência (Cobrança Suspensa)',
-    texto: 'Olá! Informamos que o processo ([CNJ]) foi encerrado com uma sentença de improcedência. Entretanto, como você possui o benefício da GRATUIDADE DE JUSTIÇA deferido, a cobrança de eventuais honorários à parte contrária fica SUSPENSA por lei. Você não precisa realizar nenhum pagamento agora. O caso está arquivado no tribunal e nossa equipe jurídica segue monitorando.',
-    quandoUsar: 'Usar quando houver improcedência MAS o cliente tem Justiça Gratuita.',
-    keywords: ['GRATUIDADE DA JUSTIÇA', 'ASSISTÊNCIA JUDICIÁRIA GRATUITA', 'JG DEFERIDA', 'GRATUIDADE DEFERIDA'],
-    prioridade: 0
-  },
-  {
-    id: 'baixa_derrota_honorarios',
-    categoria: 'baixa',
-    titulo: 'Encerramento: Sentença de Improcedência',
-    texto: 'Olá! Informamos que o seu processo ([CNJ]) atingiu a etapa final com a baixa definitiva. Contudo, é importante destacar que a decisão final foi de IMPROCEDÊNCIA, e o tribunal fixou honorários sucumbenciais devidos à parte contrária conforme sentença. O caso está encerrado no momento e nossa equipe está pronta para orientar sobre os próximos passos e o impacto desta decisão.',
-    quandoUsar: 'Usar quando houver improcedência confirmada.',
-    keywords: ['IMPROCEDENTE', 'IMPROCEDÊNCIA', 'HONORÁRIOS SUCUMBENCIAIS'],
+    texto: 'Olá, [CLIENTE]! Tudo bem? Passando para atualizar você sobre a conclusão do processo nº [PROTOCOLO]. O processo atingiu sua fase final devido a uma decisão técnica de "indeferimento da petição inicial". Isso significa que o juiz extinguiu a ação logo no início por falta de algum requisito formal. Apesar disso, você pode ficar tranquilo: como garantimos a sua Gratuidade da Justiça, não há cobrança de custas nem honorários. Você não terá que desembolsar nenhum valor por conta desta decisão. O caso encontra-se agora arquivado.',
+    quandoUsar: 'Usar quando a inicial for indeferida ou extinta sem mérito no início.',
+    keywords: ['INDEFERIMENTO DA PETIÇÃO INICIAL', 'FALTA DE EMENDA', 'EXTINÇÃO SEM RESOLUÇÃO DO MÉRITO'],
     prioridade: 1
-  },
-  {
-    id: 'baixa_definitiva',
-    categoria: 'baixa',
-    titulo: 'Processo Finalizado (Baixa)',
-    texto: 'Olá! Informamos que o tribunal oficializou o encerramento do processo [CNJ] através da Baixa Definitiva. Isso indica que o caso atingiu sua etapa final no sistema judicial após o trânsito em julgado. Nossa equipe segue agora com os ritos internos de arquivamento.',
-    quandoUsar: 'Usar APENAS quando não houver indícios de derrota ou falha técnica no histórico recente.',
-    keywords: ['BAIXA DEFINITIVA', 'TRÂNSITO EM JULGADO', 'ARQUIVADO DEFINITIVAMENTE'],
-    prioridade: 2
   },
   {
     id: 'sentenca_procedente',
     categoria: 'sentenca',
     titulo: 'Vitória: Pedido Julgado Procedente',
-    texto: 'Olá! Temos uma atualização importante: o juiz proferiu sentença julgando PROCEDENTE o pedido no processo [CNJ]. O magistrado acolheu a tese apresentada e decidiu favoravelmente à sua demanda. Nossos advogados estão realizando a leitura técnica completa da decisão para os próximos passos.',
+    texto: 'Olá! Temos uma atualização importante: o juiz proferiu sentença julgando PROCEDENTE o pedido no processo [PROTOCOLO]. O magistrado acolheu a tese apresentada e decidiu favoravelmente à sua demanda. Nossos advogados estão realizando a leitura técnica completa da decisão para os próximos passos.',
     quandoUsar: 'Usar quando houver procedência total dos pedidos.',
-    keywords: ['JULGADO PROCEDENTE', 'JULGADA PROCEDENTE', 'PEDIDO ACOLHIDO', 'SENTENÇA DE PROCEDÊNCIA'],
+    keywords: ['JULGADO PROCEDENTE', 'PEDIDO ACOLHIDO', 'SENTENÇA DE PROCEDÊNCIA'],
     prioridade: 2
   },
   {
-    id: 'sentenca_parcial',
+    id: 'sentenca_improcedente',
     categoria: 'sentenca',
-    titulo: 'Vitória Parcial: Pedido Acolhido',
-    texto: 'Olá! Informamos que houve a prolação de sentença PARCIALMENTE PROCEDENTE no processo [CNJ]. Isso significa que o juiz acolheu parte fundamental dos pedidos. O jurídico está analisando os fundamentos para verificar a necessidade de recurso ou se seguiremos para a fase de execução.',
-    quandoUsar: 'Usar quando houver procedência parcial.',
-    keywords: ['PARCIALMENTE PROCEDENTE', 'PROCEDENTE EM PARTE'],
+    titulo: 'Derrota: Pedido Julgado Improcedente',
+    texto: 'Olá, [CLIENTE]. Informamos que o juiz proferiu sentença julgando improcedente o seu pedido no processo [PROTOCOLO]. Trata-se de uma decisão de primeiro grau e nossa equipe jurídica já está analisando os fundamentos da sentença para preparar o recurso adequado. Seguiremos acompanhando o caso para buscar a reversão no Tribunal.',
+    quandoUsar: 'Usar quando o juiz julgar os pedidos como improcedentes.',
+    keywords: ['JULGADO IMPROCEDENTE', 'PEDIDO REJEITADO', 'SENTENÇA DE IMPROCEDÊNCIA'],
     prioridade: 2
   },
   {
-    id: 'busca_apreensao',
-    categoria: 'ba',
-    titulo: 'Alerta de Busca e Apreensão',
-    texto: 'URGENTE: identificamos um novo andamento de Busca e Apreensão no seu processo [CNJ]. O jurídico já está em prontidão para as medidas de defesa. É fundamental que mantenha o veículo em local seguro e aguarde nossas orientações imediatas.',
-    quandoUsar: 'Prioridade Máxima. Usar ao detectar Mandado de Busca ou ritos de apreensão.',
-    keywords: ['BUSCA E APREENSÃO', 'BUSCA E APREENSAO', 'APREENSÃO', 'APREENSAO', 'REINTEGRAÇÃO DE POSSE'],
-    prioridade: 1
-  },
-  {
-    id: 'audiencia_designada',
-    categoria: 'audiencia',
-    titulo: 'Audiência Designada pelo Juízo',
-    texto: 'Olá! Informamos que o tribunal designou uma data para audiência no processo [CNJ]. Trata-se de uma etapa do rito processual para tentativa de conciliação ou instrução. Nossa equipe entrará em contato em breve para passar as instruções e o link de acesso.',
-    quandoUsar: 'Usar quando houver designação de audiência.',
-    keywords: ['AUDIÊNCIA', 'AUDIENCIA', 'CEJUSC', 'CONCILIAÇÃO'],
-    prioridade: 3
-  },
-  {
-    id: 'liminar_deferida',
+    id: 'liminar_concedida',
     categoria: 'liminar',
-    titulo: 'Liminar Deferida pelo Juiz',
-    texto: 'Olá! Temos uma atualização positiva: o juiz DEFERIU o pedido de liminar (tutela) no processo [CNJ]. Esta é uma vitória estratégica inicial que resguarda seus direitos. O jurídico está analisando os detalhes para orientar os próximos passos.',
-    quandoUsar: 'Usar quando houver deferimento de liminar ou tutela.',
-    keywords: ['LIMINAR DEFERIDA', 'TUTELA DEFERIDA', 'TUTELA CONCEDIDA'],
+    titulo: 'Vitória Inicial: Liminar Concedida',
+    texto: 'Ótima notícia, [CLIENTE]! O juiz concedeu a liminar que solicitamos no seu processo [PROTOCOLO]. Essa decisão inicial já garante uma proteção importante para o seu direito enquanto o caso segue para o julgamento final. Estamos monitorando o cumprimento desta ordem pelo banco.',
+    quandoUsar: 'Usar quando o juiz deferir pedido de tutela ou liminar.',
+    keywords: ['TUTELA DEFERIDA', 'LIMINAR CONCEDIDA', 'ANTECIPAÇÃO DE TUTELA'],
+    prioridade: 2
+  },
+  {
+    id: 'cumprimento_sentenca',
+    categoria: 'cumprimento',
+    titulo: 'Fase de Pagamento: Cumprimento de Sentença',
+    texto: 'Olá! Seu processo [PROTOCOLO] entrou na fase de "Cumprimento de Sentença". Isso significa que a discussão sobre quem tem razão acabou e agora estamos cobrando o pagamento dos valores devidos conforme a decisão do juiz. É a reta final para o recebimento.',
+    quandoUsar: 'Usar quando iniciada a fase executiva ou cumprimento de sentença.',
+    keywords: ['CUMPRIMENTO DE SENTENÇA', 'EXECUÇÃO', 'INÍCIO DA FASE EXECUTIVA'],
     prioridade: 3
+  },
+  {
+    id: 'movimentacao_pos_retorno',
+    categoria: 'rotina',
+    titulo: 'Nova Movimentação Pós-Retorno',
+    texto: 'Olá, [CLIENTE]! Desde nossa última conversa em [Data], surgiram novos andamentos técnicos no seu processo [PROTOCOLO]. Nossa equipe já identificou estas atualizações no sistema do Tribunal e elas estão em fase de triagem pelo nosso setor jurídico. Fique tranquilo, estamos acompanhando de perto.',
+    quandoUsar: 'Usar quando houver flag de novo andamento relevante mas sem categoria definida.',
+    keywords: [],
+    prioridade: 5
   },
   {
     id: 'rotina',
     categoria: 'rotina',
     titulo: 'Andamento de Rotina',
-    texto: 'Olá! Houve um novo andamento técnico no seu processo [CNJ]. Trata-se de uma atualização de rotina do tribunal (movimentação de cartório), sem mudança prática no seu caso neste momento. O processo segue seu curso normal.',
+    texto: 'Olá! Houve um novo andamento técnico no seu processo [PROTOCOLO]. Trata-se de uma atualização de rotina do tribunal (movimentação de cartório), sem mudança prática no seu caso neste momento. O processo segue seu curso normal.',
     quandoUsar: 'Usar para andamentos genéricos sem impacto de mérito.',
-    keywords: ['ATO ORDINATÓRIO', 'MERO EXPEDIENTE', 'CERTIDÃO', 'PUBLICAÇÃO', 'REMESSA', 'RECEBIDO'],
-    prioridade: 6
+    keywords: ['ATO ORDINATÓRIO', 'MERO EXPEDIENTE', 'CERTIDÃO', 'PUBLICAÇÃO', 'REMESSA'],
+    prioridade: 10
   }
 ];

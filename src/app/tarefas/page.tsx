@@ -188,8 +188,7 @@ export default function TarefasPage() {
         });
         setAiDraft(null);
         
-        // Contexto DJEN Limpo
-        const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto));
+        const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
 
         const suggestions = suggestScripts({
           clienteNome: cliente,
@@ -198,7 +197,11 @@ export default function TarefasPage() {
           eventoTipo: res.case.evento_tipo,
           eventoResumo: res.case.evento_resumo,
           movimentos: res.movimentos || [],
-          djenTexts
+          djenTexts,
+          tem_novo_andamento: res.case.tem_novo_andamento,
+          datajud_encerrado_tribunal: res.case.datajud_encerrado_tribunal,
+          indicio_busca_apreensao: res.case.indicio_busca_apreensao,
+          em_cumprimento_sentenca: res.case.em_cumprimento_sentenca
         });
         setSuggestedScripts(suggestions);
         setShowScripts(true);
@@ -213,7 +216,7 @@ export default function TarefasPage() {
     setIsGeneratingAIDraft(true);
     setAiDraft(null);
     try {
-      const djenTexts = (historyResult.djenComunicacoes || []).map(d => plainTextFromDjen(d.texto));
+      const djenTexts = (historyResult.djenComunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
       
       const res = await gerarRascunhoEstrategico({
         clienteNome: historyResult.case.cliente,
@@ -224,7 +227,11 @@ export default function TarefasPage() {
         eventoTipo: historyResult.case.evento_tipo,
         eventoResumo: historyResult.case.evento_resumo,
         preferredModel: selectedMotor,
-        empresaId: profile?.empresa_id
+        empresaId: profile?.empresa_id,
+        tem_novo_andamento: historyResult.case.tem_novo_andamento,
+        datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal,
+        indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao,
+        em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca
       });
       if (res.rascunho) {
         setAiDraft(res.rascunho);
@@ -335,13 +342,9 @@ export default function TarefasPage() {
     const sortedAll = Object.values(groups)
       .filter(g => (g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search)) && (officeFilter === 'all' || g.escritorio === officeFilter))
       .sort((a, b) => {
-        // a) hasBA (Sempre Primeiro)
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
-        
-        // b) hasClosedCourt (Baixa Real)
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
         
-        // c) eventoTipo importante (Peso Jurídico)
         const getEventWeight = (type: string | null) => {
            if (!type) return 0;
            if (type === 'ba') return 100;
@@ -355,13 +358,8 @@ export default function TarefasPage() {
         const weightB = getEventWeight(b.eventoTipo);
         if (weightB !== weightA) return weightB - weightA;
 
-        // d) statusScore (Crítico > Vencido > Hoje)
         if (b.statusScore !== a.statusScore) return b.statusScore - a.statusScore;
-        
-        // e) oldestReturnGap (Mais dias sem retorno)
         if (b.oldestReturnGap !== a.oldestReturnGap) return b.oldestReturnGap - a.oldestReturnGap;
-        
-        // f) totalAtivos (Desempate Volume)
         return b.totalAtivos - a.totalAtivos;
       });
 

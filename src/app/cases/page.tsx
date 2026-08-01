@@ -1,11 +1,10 @@
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Search, 
@@ -30,7 +29,8 @@ import {
   Download,
   ChevronRight,
   UserCheck,
-  User
+  User,
+  Briefcase
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction } from '@/app/actions/case-actions';
-import { format, parseISO, isValid, parse } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
@@ -138,7 +138,7 @@ const CaseRow = React.memo(({
 
 CaseRow.displayName = 'CaseRow';
 
-export default function CasesPage() {
+function CasesContent() {
   const { cases, setCases, updateCaseByProtocolo, updateCase, removeCase } = useAppStore();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
@@ -148,7 +148,7 @@ export default function CasesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], comunicacoes?: any[] } | null>(null);
+  const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], djenComunicacoes?: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
@@ -199,7 +199,7 @@ export default function CasesPage() {
         setHistoryResult({ 
           case: res.case, 
           movimentos: res.movimentos || [], 
-          comunicacoes: res.comunicacoes || [] 
+          djenComunicacoes: res.comunicacoes || [] 
         });
         setIsHistoryModalOpen(true);
         setShowScripts(false);
@@ -217,16 +217,24 @@ export default function CasesPage() {
         setHistoryResult({ 
           case: res.case, 
           movimentos: res.movimentos || [], 
-          comunicacoes: res.comunicacoes || [] 
+          djenComunicacoes: res.comunicacoes || [] 
         });
         setAiDraft(null);
+        
+        const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
+
         const suggestions = suggestScripts({
           clienteNome: c.cliente,
           protocolo: c.protocolo,
           ultimoRetorno: c.ultimoRetorno,
           eventoTipo: res.case.evento_tipo,
           eventoResumo: res.case.evento_resumo,
-          movimentos: res.movimentos || []
+          movimentos: res.movimentos || [],
+          djenTexts,
+          tem_novo_andamento: res.case.tem_novo_andamento,
+          datajud_encerrado_tribunal: res.case.datajud_encerrado_tribunal,
+          indicio_busca_apreensao: res.case.indicio_busca_apreensao,
+          em_cumprimento_sentenca: res.case.em_cumprimento_sentenca
         });
         setSuggestedScripts(suggestions);
         setShowScripts(true);
@@ -241,13 +249,22 @@ export default function CasesPage() {
     setIsGeneratingAIDraft(true);
     setAiDraft(null);
     try {
+      const djenTexts = (historyResult.djenComunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
+      
       const res = await gerarRascunhoEstrategico({
         clienteNome: historyResult.case.cliente,
         protocolo: historyResult.case.protocolo,
         ultimoRetorno: historyResult.case.ultimoRetorno,
         movimentos: historyResult.movimentos,
+        djenTexts,
+        eventoTipo: historyResult.case.evento_tipo,
+        eventoResumo: historyResult.case.evento_resumo,
         preferredModel: selectedMotor,
-        empresaId: profile?.empresa_id
+        empresaId: profile?.empresa_id,
+        tem_novo_andamento: historyResult.case.tem_novo_andamento,
+        datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal,
+        indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao,
+        em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca
       });
       if (res.rascunho) { 
         setAiDraft(res.rascunho); 
@@ -297,7 +314,8 @@ export default function CasesPage() {
             ultimoRetorno: todayStr,
             observacao: attendanceForm.observacao || c.observacao,
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno,
-            tem_novo_andamento: false
+            tem_novo_andamento: false,
+            djen_nova_comunicacao: false
           });
         }
         return c;
@@ -381,7 +399,7 @@ export default function CasesPage() {
       subtitle: m.complemento || '', 
       raw: m 
     }));
-    const djen = (historyResult.comunicacoes || []).map(d => ({ 
+    const djen = (historyResult.djenComunicacoes || []).map(d => ({ 
       type: 'djen', 
       date: d.data_disponibilizacao ? new Date(d.data_disponibilizacao) : new Date(0), 
       title: summarizeDjenKeywords(d.texto), 
@@ -592,5 +610,13 @@ export default function CasesPage() {
         </Dialog>
       </main>
     </div>
+  );
+}
+
+export default function CasesPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" size={48} /></div>}>
+      <CasesContent />
+    </Suspense>
   );
 }
