@@ -40,7 +40,7 @@ import {
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 // CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT - TODAS AS LETRAS EM PRETO
-const TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 as const };
+const TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 };
 const TOOLTIP_LIGHT = {
   backgroundColor: '#ffffff',
   borderRadius: '12px',
@@ -144,7 +144,7 @@ export default function AnalyticsPage() {
     <div className="flex h-screen bg-[#f8f9fb] font-sans text-black">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 border-b border-border/50 bg-white/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40 print:hidden">
+        <header className="h-20 border-b border-border/50 bg-white/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
               <BarChart3 size={20} className="text-primary" />
@@ -161,7 +161,7 @@ export default function AnalyticsPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-10 space-y-10 max-w-[1600px] mx-auto w-full print:p-0 print:bg-white pb-32">
+        <div className="flex-1 overflow-auto p-10 space-y-10 max-w-[1600px] mx-auto w-full pb-32">
           {/* TOP CARDS */}
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <MetricCard label="Total da Carteira" value={metrics?.total || 0} icon={<Users />} color="blue" />
@@ -173,7 +173,7 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
             {/* OFFICE PERFORMANCE ANALYSIS - CONVERTIDO PARA LETRAS PRETAS */}
             <div className="xl:col-span-12 premium-card p-8 bg-white text-black min-h-[400px] flex flex-col relative overflow-hidden border-2 border-black">
-              <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none print:hidden">
+              <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
                  <Building2 size={200} className="text-black" />
               </div>
               <div className="flex items-center justify-between mb-10 relative z-10">

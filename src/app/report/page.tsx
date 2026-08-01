@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v6.1 - SELAGEM PDF ANTI-CORTE
+ * DOSSIÊ OPERACIONAL v6.5 - SELAGEM PDF E AUDITORIA DE PERFORMANCE
  */
 "use client";
 
@@ -30,7 +30,8 @@ import {
   Gavel,
   StickyNote,
   Globe,
-  Target
+  Target,
+  UserCheck
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -98,18 +99,10 @@ export default function UnifiedReport() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
    
-    const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
+    // UNIFICAÇÃO DE NOVIDADES
+    const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
-
-    // MÉTRICAS DJEN
-    const countDjenNovo = ativos.filter(c => !!c.djen_nova_comunicacao).length;
-    const countDjenAuditado = cases.filter(c => !!c.djen_consultado_em).length;
-
-    const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
-    const rateDjen = activeTotal > 0 ? Math.round((countDjenNovo / activeTotal) * 100) : 0;
-    
-    const riskScore = activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countHoje * 0.8) / activeTotal) * 100)) : 0;
 
     const tribCounts: Record<string, number> = {};
     cases.forEach(c => {
@@ -146,9 +139,13 @@ export default function UnifiedReport() {
     });
 
     const sortedOffices = Object.values(offices).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total);
-    const sortedLawyers = Object.values(lawyers).sort((a: any, b: any) => b.vencidos - a.vencidos || b.total - a.total);
 
     const isMaster = checkIfSuperAdmin(profile) || checkIfSupervisor(profile);
+
+    // Auditoria Individual
+    const myAtivos = cases.filter(c => c.created_by === profile?.auth_user_id && !isCasoEncerrado(c));
+    const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico');
+    const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento);
 
     return {
       totalRepo,
@@ -158,18 +155,16 @@ export default function UnifiedReport() {
       countAtencao,
       countSaudavel,
       countSemPrazo,
-      riskScore,
+      riskScore: activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countHoje * 0.8) / activeTotal) * 100)) : 0,
       chartData,
       countNovoAndamento,
-      rateAndamento,
       countEncerradoTribunal,
       countBA,
-      countDjenNovo,
-      rateDjen,
-      countDjenAuditado,
       sortedOffices,
-      sortedLawyers,
-      isMaster
+      isMaster,
+      myVencidos: myVencidos.slice(0, 10),
+      myNovidades: myNovidades.slice(0, 10),
+      myAtivosCount: myAtivos.length
     };
   }, [cases, profile]);
 
@@ -209,7 +204,7 @@ export default function UnifiedReport() {
             <Button variant="ghost" asChild className="text-black/70 hover:text-black font-black tracking-widest text-[10px] uppercase rounded-none h-10 px-4">
               <Link href="/"><ArrowLeft size={14} className="mr-2" /> Voltar ao Gabinete</Link>
             </Button>
-            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Authority v6.1</Badge>
+            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Authority v6.5</Badge>
           </div>
           <Button onClick={handleExportPDF} className="bg-black text-white font-black uppercase text-[10px] h-11 px-7 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
             <Printer size={14} className="mr-2" /> Gerar PDF / Imprimir
@@ -243,26 +238,76 @@ export default function UnifiedReport() {
             </div>
             <div className="bg-black text-white px-10 py-3 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
               <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <span className="text-primary">Status: Concluído</span>
+              <span className="text-primary">Status: Consolidação Master</span>
             </div>
           </header>
 
-          {/* TELEMETRIA FORENSE 4D */}
+          {/* AUDITORIA INDIVIDUAL DE RESPONSABILIDADE */}
+          <section className="p-10 border-b-2 border-black break-inside-avoid">
+             <div className="flex items-center gap-3 mb-8 border-b-2 border-black/5 pb-2">
+                <UserCheck size={18} className="text-primary" />
+                <h3 className="text-xs font-black uppercase tracking-widest">Auditoria de Responsabilidade: {profile?.nome}</h3>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="space-y-6">
+                   <p className="text-[9px] font-black uppercase text-red-600 tracking-[0.2em] flex items-center gap-2">
+                     <Clock size={12}/> Prazos Críticos sob Gestão ({metrics.myVencidos.length})
+                   </p>
+                   {metrics.myVencidos.length > 0 ? (
+                     <div className="border-2 border-black divide-y-2 divide-black/5">
+                        {metrics.myVencidos.map(v => (
+                          <div key={v.id} className="p-3 bg-red-50/10 flex justify-between items-center">
+                             <div>
+                                <p className="text-[10px] font-black uppercase">{v.cliente}</p>
+                                <p className="text-[8px] font-mono opacity-40">{v.protocolo}</p>
+                             </div>
+                             <Badge variant="outline" className="text-[8px] font-black uppercase border-red-200 text-red-700">{v.status}</Badge>
+                          </div>
+                        ))}
+                     </div>
+                   ) : <p className="text-[9px] font-bold uppercase opacity-30">Nenhum prazo vencido identificado.</p>}
+                </div>
+
+                <div className="space-y-6">
+                   <p className="text-[9px] font-black uppercase text-blue-600 tracking-[0.2em] flex items-center gap-2">
+                     <Zap size={12}/> Novidades Pendentes de Triagem ({metrics.myNovidades.length})
+                   </p>
+                   {metrics.myNovidades.length > 0 ? (
+                     <div className="border-2 border-black divide-y-2 divide-black/5">
+                        {metrics.myNovidades.map(n => (
+                          <div key={n.id} className="p-3 bg-blue-50/10">
+                             <div className="flex justify-between items-start mb-1">
+                                <p className="text-[10px] font-black uppercase">{n.cliente}</p>
+                                <span className="text-[8px] font-black uppercase text-blue-700">Audit 3D</span>
+                             </div>
+                             <p className="text-[8px] font-bold text-black/40 uppercase truncate">
+                                {n.evento_resumo || n.djen_ultimo_resumo || n.datajud_ultimo_nome}
+                             </p>
+                          </div>
+                        ))}
+                     </div>
+                   ) : <p className="text-[9px] font-bold uppercase opacity-30">Toda a carteira está atendida.</p>}
+                </div>
+             </div>
+          </section>
+
+          {/* TELEMETRIA GLOBAL */}
           <section className="p-10 bg-[#f8f9fb] border-b-2 border-black break-inside-avoid">
             <div className="mb-10 p-8 border-4 border-black bg-black text-white shadow-[10px_10px_0px_#00D1FF]">
                <h3 className="text-[11px] font-black uppercase tracking-[0.4em] mb-8 flex items-center gap-3">
-                  <Zap className="text-primary animate-pulse" size={16}/> Vigilância Unificada (Audit 3D)
+                  <Zap className="text-primary animate-pulse" size={16}/> Vigilância Unificada de Gabinete
                </h3>
                <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
                   <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Movimentos Tribunal</p>
+                     <p className="text-[9px] font-black uppercase opacity-60">Sinais de Novidade</p>
                      <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento}</span>
-                        <span className="text-xs font-black text-primary">({metrics.rateAndamento}%)</span>
+                        <span className="text-xs font-black text-primary">({Math.round((metrics.countNovoAndamento / (metrics.activeTotal || 1)) * 100)}%)</span>
                      </div>
                   </div>
                   <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">Baixas Detectadas</p>
+                     <p className="text-[9px] font-black uppercase opacity-60">Baixas Reais (CNJ)</p>
                      <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-black tabular-nums text-emerald-400">{metrics.countEncerradoTribunal}</span>
                      </div>
@@ -271,14 +316,12 @@ export default function UnifiedReport() {
                      <p className="text-[9px] font-black uppercase opacity-60">Indícios B.A.</p>
                      <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-black tabular-nums text-red-500">{metrics.countBA}</span>
-                        <Badge className="bg-red-500/10 text-red-500 border-none text-[8px] uppercase">Risco</Badge>
                      </div>
                   </div>
                   <div className="space-y-2">
-                     <p className="text-[9px] font-black uppercase opacity-60">DJEN Pendentes</p>
+                     <p className="text-[9px] font-black uppercase opacity-60">Índice de Risco</p>
                      <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-black tabular-nums text-blue-400">{metrics.countDjenNovo}</span>
-                        <span className="text-xs font-black text-blue-400/60">({metrics.rateDjen}%)</span>
+                        <span className="text-4xl font-black tabular-nums text-orange-400">{metrics.riskScore}%</span>
                      </div>
                   </div>
                </div>
@@ -294,33 +337,16 @@ export default function UnifiedReport() {
           </section>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
-             {/* COLUNA ESQUERDA: GRÁFICOS E BI */}
              <div className="md:col-span-8 p-10 border-r-2 border-black space-y-16">
                 
-                {/* ÍNDICE DE RISCO */}
-                <section className="space-y-8 break-inside-avoid">
-                   <div className="flex items-center justify-between border-b-2 border-black/5 pb-4">
-                      <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Activity size={16} /> Índice de Risco Operacional</h3>
-                      <span className="text-3xl font-black tabular-nums">{metrics.riskScore}%</span>
-                   </div>
-                   <div className="h-10 w-full bg-slate-100 border-2 border-black relative overflow-hidden">
-                      <div className="h-full bg-black transition-all duration-1000" style={{ width: `${metrics.riskScore}%` }} />
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase mix-blend-difference text-white">Consolidação de Preclusão</div>
-                   </div>
-                   <p className="text-[10px] font-bold text-black/60 uppercase leading-relaxed text-justify">
-                      O índice de risco é calculado ponderando os prazos vencidos e demandas do dia em relação ao volume total da carteira. Um score acima de 40% exige intervenção imediata da coordenação jurídica.
-                   </p>
-                </section>
-
                 {/* VOLUMETRIA TRIBUNAL */}
                 <section className="space-y-8 break-inside-avoid">
                    <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Building2 size={16} /> Volumetria por Tribunal</h3>
                    
-                   {/* GRÁFICO EM TELA */}
                    <div className="h-64 w-full print:hidden">
                       <ResponsiveContainer width="100%" height="100%">
                          <BarChart data={metrics.chartData}>
-                            <XAxis dataKey="name" fontSize={9} fontWeights={900} axisLine={false} tickLine={false} />
+                            <XAxis dataKey="name" fontSize={9} fontWeight={900} axisLine={false} tickLine={false} />
                             <YAxis hide />
                             <Tooltip cursor={{fill: '#f8f9fb'}} contentStyle={{ borderRadius: '0', border: '2px solid black', fontSize: '10px', fontWeight: '900' }} />
                             <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={35}>
@@ -332,7 +358,6 @@ export default function UnifiedReport() {
                       </ResponsiveContainer>
                    </div>
 
-                   {/* TABELA EM PRINT (SUBSTITUI GRÁFICO) */}
                    <div className="hidden print:block border-2 border-black">
                       <table className="w-full text-left">
                          <thead className="bg-black text-white text-[9px] font-black uppercase">
@@ -353,111 +378,87 @@ export default function UnifiedReport() {
                    </div>
                 </section>
 
-                {/* RANKING ESCRITÓRIOS */}
-                <section className="space-y-6 break-inside-avoid">
-                   <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Target size={16} /> Performance por Escritório</h3>
-                   <div className="border-2 border-black overflow-hidden">
-                      <table className="w-full text-left">
-                         <thead className="bg-black text-white text-[9px] font-black uppercase">
-                            <tr>
-                               <th className="p-3">Unidade</th>
-                               <th className="p-3 text-center">Ativos</th>
-                               <th className="p-3 text-center text-red-400">Vencidos</th>
-                               <th className="p-3 text-right">Total</th>
-                            </tr>
-                         </thead>
-                         <tbody className="divide-y-2 divide-black/5">
-                            {metrics.sortedOffices.map((off, i) => (
-                               <tr key={i} className="text-[10px] font-black uppercase hover:bg-gray-50">
-                                  <td className="p-3">{off.name}</td>
-                                  <td className="p-3 text-center">{off.ativos}</td>
-                                  <td className={cn("p-3 text-center", off.vencidos > 0 && "text-red-600 bg-red-50")}>{off.vencidos}</td>
-                                  <td className="p-3 text-right opacity-40">{off.total}</td>
+                {/* RANKING ESCRITÓRIOS (APENAS PARA MASTER) */}
+                {metrics.isMaster && (
+                   <section className="space-y-6 break-inside-avoid">
+                      <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Target size={16} /> Performance de Unidades</h3>
+                      <div className="border-2 border-black overflow-hidden">
+                         <table className="w-full text-left">
+                            <thead className="bg-black text-white text-[9px] font-black uppercase">
+                               <tr>
+                                  <th className="p-3">Unidade</th>
+                                  <th className="p-3 text-center">Ativos</th>
+                                  <th className="p-3 text-center text-red-400">Vencidos</th>
+                                  <th className="p-3 text-right">Total</th>
                                </tr>
-                            ))}
-                         </tbody>
-                      </table>
-                   </div>
-                </section>
+                            </thead>
+                            <tbody className="divide-y-2 divide-black/5">
+                               {metrics.sortedOffices.map((off, i) => (
+                                  <tr key={i} className="text-[10px] font-black uppercase hover:bg-gray-50">
+                                     <td className="p-3">{off.name}</td>
+                                     <td className="p-3 text-center">{off.ativos}</td>
+                                     <td className={cn("p-3 text-center", off.vencidos > 0 && "text-red-600 bg-red-50")}>{off.vencidos}</td>
+                                     <td className="p-3 text-right opacity-40">{off.total}</td>
+                                  </tr>
+                               ))}
+                            </tbody>
+                         </table>
+                      </div>
+                   </section>
+                )}
              </div>
 
-             {/* COLUNA DIREITA: INSIGHTS E NOTAS */}
              <div className="md:col-span-4 bg-[#fafafa] flex flex-col">
-                
                 {/* BRIEFING NEURAL */}
                 {iaInsights && (
                    <div className="p-10 border-b-2 border-black space-y-8 break-inside-avoid">
                       <div className="flex items-center gap-3">
                          <Sparkles className="text-primary" size={18} />
-                         <h3 className="text-[11px] font-black uppercase tracking-widest">Briefing da Unidade Neural</h3>
+                         <h3 className="text-[11px] font-black uppercase tracking-widest">Análise Neural Global</h3>
                       </div>
                       <div className="space-y-6">
                          <div className="space-y-2">
-                            <p className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-2"><TrendingUp size={12}/> Vantagens Técnicas</p>
-                            <p className="text-[11px] font-bold uppercase text-black/70 leading-relaxed italic">
-                               "{iaInsights.pontosFortes?.[0] || "Monitoramento de rotina mantido."}"
+                            <p className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-2"><TrendingUp size={12}/> Vantagens</p>
+                            <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
+                               "{iaInsights.pontosFortes?.[0] || "Monitoramento mantido."}"
                             </p>
                          </div>
                          <div className="space-y-2">
-                            <p className="text-[9px] font-black uppercase text-red-600 flex items-center gap-2"><TrendingDown size={12}/> Riscos Detectados</p>
-                            <p className="text-[11px] font-bold uppercase text-black/70 leading-relaxed italic">
-                               "{iaInsights.riscosDetectados?.[0] || "Nenhum risco operacional identificado."}"
+                            <p className="text-[9px] font-black uppercase text-red-600 flex items-center gap-2"><TrendingDown size={12}/> Riscos</p>
+                            <p className="text-[10px] font-bold uppercase text-black/70 leading-relaxed italic">
+                               "{iaInsights.riscosDetectados?.[0] || "Nenhum risco detectado."}"
                             </p>
                          </div>
                       </div>
                    </div>
                 )}
 
-                {/* LIVRO DE EVIDÊNCIAS (NOTAS) */}
+                {/* MEMÓRIA DO GABINETE */}
                 <div className="p-10 space-y-8 flex-1">
                    <div className="flex items-center gap-3">
                       <StickyNote className="text-black/40" size={18} />
                       <h3 className="text-[11px] font-black uppercase tracking-widest">Memória do Gabinete</h3>
                    </div>
                    <div className="space-y-8">
-                      {notes.slice(0, 8).map((n) => (
+                      {notes.slice(0, 5).map((n) => (
                          <div key={n.id} className="space-y-2 border-b border-black/5 pb-6 break-inside-avoid">
-                            <div className="flex justify-between items-center">
-                               <p className="text-[10px] font-black uppercase tracking-tight">{n.title}</p>
-                               <span className="text-[8px] font-bold text-black/30">{n.updatedAt.split(',')[0]}</span>
-                            </div>
-                            <p className="text-[10px] font-bold uppercase text-black/60 leading-relaxed text-justify line-clamp-4">
+                            <p className="text-[10px] font-black uppercase tracking-tight">{n.title}</p>
+                            <p className="text-[9px] font-bold uppercase text-black/60 leading-relaxed text-justify line-clamp-3">
                                {n.content}
                             </p>
                          </div>
                       ))}
-                      {notes.length === 0 && <p className="text-[9px] font-black uppercase opacity-20 text-center py-10">Sem evidências recentes.</p>}
                    </div>
-                </div>
-
-                {/* PARECER DJEN */}
-                <div className="p-10 bg-black text-white space-y-6 break-inside-avoid">
-                   <h3 className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-primary"><Globe size={14}/> Parecer DJEN</h3>
-                   <p className="text-[10px] font-bold uppercase leading-relaxed text-white/60">
-                      A vigilância identificou {metrics.countDjenNovo} publicações oficiais relevantes no último ciclo de 24 horas. Itens encontram-se em fila para triagem e baixa no Centro de Alertas.
-                   </p>
                 </div>
              </div>
           </div>
 
-          {/* FOOTER MASTER */}
-          <footer className="p-10 border-t-2 border-black flex flex-col md:flex-row justify-between items-center gap-6 break-inside-avoid">
-             <div className="flex items-center gap-10">
-                <div className="flex items-center gap-2">
-                   <div className="w-8 h-8 border-2 border-black flex items-center justify-center bg-black"><Zap size={14} className="text-white" /></div>
-                   <p className="text-[9px] tracking-[0.4em] uppercase text-black/40 font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
-                </div>
-                <div className="hidden md:flex items-center gap-2">
-                   <ShieldCheck size={16} className="text-emerald-600" />
-                   <span className="text-[8px] font-black uppercase tracking-widest text-black/40">Integridade de Dados Garantida</span>
-                </div>
+          <footer className="p-10 border-t-2 border-black flex justify-between items-center break-inside-avoid">
+             <div className="flex items-center gap-4">
+                <div className="w-8 h-8 border-2 border-black flex items-center justify-center bg-black"><Zap size={14} className="text-white" /></div>
+                <p className="text-[9px] tracking-[0.4em] uppercase text-black/40 font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
              </div>
-             <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-widest text-black/60">Relatório Selado Digitalmente</p>
-                <div className="flex items-center justify-end gap-2 mt-1 font-black text-xs uppercase">
-                   <Copyright size={12} /> 2026 LexisPredict Elite
-                </div>
-             </div>
+             <p className="text-[10px] font-black uppercase text-black/60">Copyright © 2026 LexisPredict Elite</p>
           </footer>
         </div>
       </div>

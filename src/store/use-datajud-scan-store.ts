@@ -71,6 +71,7 @@ interface DataJudScanState {
   resetScan: () => void;
   pollStatus: () => Promise<void>;
   updateCourtHealth: (courtId: string, latency: number, success: boolean) => void;
+  runInitialHealthCheck: (protocols: string[]) => Promise<void>;
   addLog: (log: ScanLog) => void;
 }
 
@@ -135,6 +136,17 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         }
       };
     });
+  },
+
+  runInitialHealthCheck: async (protocols) => {
+    // Implementação simplificada para auditoria inicial de latência
+    for (const proto of protocols.slice(0, 10)) {
+      const start = Date.now();
+      const res = await scanOneDataJudAction(proto, true);
+      const latency = Date.now() - start;
+      const courtId = proto.split('.')[4];
+      if (courtId) get().updateCourtHealth(courtId, latency, res.success);
+    }
   },
 
   startCloudScan: () => {

@@ -1,87 +1,17 @@
-Copyright (c) 2026 Davi Alves Figueredo
-W1 Capital Assessoria Financeira Ltda.
+Copyright (c) 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
 
-All rights reserved. / Todos os direitos reservados.
+Todos os direitos reservados.
 
-================================================================================
-LEXISPREDICT ELITE — PROPRIETARY SOFTWARE LICENSE
-================================================================================
+Este software e seu código-fonte são de propriedade exclusiva de Davi Alves Figueredo e W1 Capital Assessoria Financeira Ltda.
 
-Software: LexisPredict Elite
-Owner:    Davi Alves Figueredo
-Entity:   W1 Capital Assessoria Financeira Ltda.
-Contact:  w1capitalassessoria@protonmail.com
-Year:     2026
+É estritamente proibido:
 
---------------------------------------------------------------------------------
-1. OWNERSHIP
---------------------------------------------------------------------------------
+- Copiar, modificar, distribuir, sublicenciar ou usar comercialmente este software ou qualquer parte dele;
+- Fazer engenharia reversa, descompilar ou desmontar o software;
+- Usar o software para criar produtos derivados sem autorização expressa por escrito.
 
-This software, including but not limited to its source code, object code,
-documentation, design, trademarks, and related materials (the "Software"),
-is the exclusive intellectual property of Davi Alves Figueredo and
-W1 Capital Assessoria Financeira Ltda.
+Qualquer uso não autorizado constituirá violação de direitos autorais e poderá resultar em medidas legais cabíveis.
 
---------------------------------------------------------------------------------
-2. RESTRICTIONS
---------------------------------------------------------------------------------
+Para licenciamento comercial ou parcerias, entre em contato com: w1capitalassessoria@protonmail.com
 
-Without prior express written permission from the Owner, it is strictly
-prohibited to:
-
-  (a) Copy, reproduce, modify, merge, publish, distribute, sublicense,
-      sell, rent, lease, or otherwise commercially exploit the Software
-      or any portion thereof;
-
-  (b) Reverse engineer, decompile, disassemble, or attempt to derive the
-      source code of the Software, except to the extent that such activity
-      is expressly permitted by applicable law notwithstanding this limitation;
-
-  (c) Create derivative works based on the Software;
-
-  (d) Remove, alter, or obscure any copyright, trademark, or proprietary
-      notices contained in the Software;
-
-  (e) Use the Software to provide competing services or products without
-      a valid commercial license from the Owner.
-
---------------------------------------------------------------------------------
-3. AUTHORIZED USE
---------------------------------------------------------------------------------
-
-Access to this repository, when granted, is for evaluation, demonstration,
-or portfolio purposes only, unless a separate written commercial agreement
-has been executed with the Owner.
-
---------------------------------------------------------------------------------
-4. COMMERCIAL LICENSING
---------------------------------------------------------------------------------
-
-For commercial licensing, partnerships, or authorized use, contact:
-
-  w1capitalassessoria@protonmail.com
-
---------------------------------------------------------------------------------
-5. DISCLAIMER OF WARRANTY
---------------------------------------------------------------------------------
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
-FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
---------------------------------------------------------------------------------
-6. GOVERNING LAW
---------------------------------------------------------------------------------
-
-This notice shall be governed by the laws of the Federative Republic of
-Brazil, without regard to conflict-of-law principles. Unauthorized use may
-result in civil and/or criminal liability under applicable copyright law
-(including Law No. 9.610/1998 — Lei de Direitos Autorais).
-
-================================================================================
-© 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
-================================================================================
+Este software é fornecido "como está", sem garantias de qualquer tipo.

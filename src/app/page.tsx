@@ -101,13 +101,12 @@ export default function Dashboard() {
   const handleConnectivityCheck = async () => {
     if (cases.length === 0 || isCheckingConnectivity) return;
     setIsCheckingConnectivity(true);
-    const sample = cases.slice(0, 50).map(c => c.protocolo);
+    const sample = cases.slice(0, 10).map(c => c.protocolo);
     await runInitialHealthCheck(sample);
     setIsCheckingConnectivity(false);
   };
 
   const metrics = useMemo(() => {
-    const totalRepo = cases.length;
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
@@ -117,15 +116,13 @@ export default function Dashboard() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // UNIFICAÇÃO SOBERANA
+    // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
-
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
-    const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
    
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
@@ -137,9 +134,6 @@ export default function Dashboard() {
     else if (riskScore > 40) { riskLabel = "ELEVADO"; riskColor = "text-yellow-600"; }
     else if (riskScore > 20) { riskLabel = "MODERADO"; riskColor = "text-amber-600"; }
 
-    const pctHoje = activeTotal > 0 ? Math.round((countHoje / activeTotal) * 100) : 0;
-    const pctVencidos = activeTotal > 0 ? Math.round((countVencido / activeTotal) * 100) : 0;
-
     const statusData = [
       { name: t.statusCritico, value: countVencido, color: '#ef4444' },
       { name: t.statusHoje, value: countHoje, color: '#3b82f6' },
@@ -149,17 +143,10 @@ export default function Dashboard() {
     ].filter(d => d.value > 0);
 
     return { 
-      totalRepo,
-      activeTotal, 
-      countVencido, 
-      countHoje, 
-      countAtencao, 
-      countSaudavel, 
-      countSemPrazo,
-      riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos,
+      activeTotal, countVencido, countHoje, countAtencao, countSaudavel, countSemPrazo,
+      riskScore, riskLabel, riskColor, statusData,
       countNovoAndamento, rateAndamento,
-      countEncerradoTribunal, rateEncerrado,
-      countBA, countCumprimento
+      countEncerradoTribunal, countBA, countCumprimento
     };
   }, [cases, t]);
 
@@ -167,9 +154,23 @@ export default function Dashboard() {
     return cases
       .filter(c => !isCasoEncerrado(c) && (['Caso Crítico', 'Vencido', 'É Hoje'].includes(c.status) || !!c.tem_novo_andamento))
       .sort((a, b) => {
+        if (!!a.indicio_busca_apreensao !== !!b.indicio_busca_apreensao) return a.indicio_busca_apreensao ? -1 : 1;
+        if (!!a.datajud_encerrado_tribunal !== !!b.datajud_encerrado_tribunal) return a.datajud_encerrado_tribunal ? -1 : 1;
+        
+        const getWeight = (tipo?: string) => {
+           if (!tipo) return 0;
+           if (tipo.includes('sentenca')) return 100;
+           if (tipo.includes('audiencia')) return 80;
+           if (tipo.includes('cumprimento')) return 60;
+           return 0;
+        };
+        const weightDiff = getWeight(b.evento_tipo) - getWeight(a.evento_tipo);
+        if (weightDiff !== 0) return weightDiff;
+
         const order: Record<string, number> = { 'Caso Crítico': 0, 'Vencido': 1, 'É Hoje': 2 };
-        const diff = (order[a.status] ?? 99) - (order[b.status] ?? 99);
-        if (diff !== 0) return diff;
+        const statusDiff = (order[a.status] ?? 99) - (order[b.status] ?? 99);
+        if (statusDiff !== 0) return statusDiff;
+        
         return (a.diasFaltando || 0) - (b.diasFaltando || 0);
       })
       .slice(0, 6);
@@ -192,7 +193,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 sm:gap-4">
             {(metrics.countNovoAndamento > 0 || metrics.countBA > 0) && (
               <Badge variant="destructive" className="animate-pulse h-8 px-3 rounded-xl font-black uppercase text-[8px] sm:text-[10px] flex items-center gap-1.5 sm:gap-2">
-                <AlertCircle size={14} /> Alerta Ativo
+                <AlertCircle size={14} /> Alerta de Mérito Ativo
               </Badge>
             )}
             <Button variant="outline" size="sm" asChild className={cn("premium-card h-10 px-4 sm:px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none", ui.touch)}>
@@ -224,7 +225,7 @@ export default function Dashboard() {
                 <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" />
                 <StatCard title="Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} />
                 <StatCard title="Baixas" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color="success" />
-                <StatCard title="Execução" value={loading ? "..." : metrics.countCumprimento} icon={<Scale />} color="primary" />
+                <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
               </section>
               
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
@@ -232,13 +233,13 @@ export default function Dashboard() {
                    <section className="bg-black text-white p-6 sm:p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF]">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-white/10 pb-4 gap-4">
                         <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
-                           <Zap className="text-primary animate-pulse" size={16}/> Telemetria Unificada (DataJud ∪ DJEN)
+                           <Zap className="text-primary animate-pulse" size={16}/> Telemetria Unificada (Sinal 3D)
                         </h3>
-                        <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Protocolo W1 Elite</Badge>
+                        <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Ambiente Authority v17.5</Badge>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
                          <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Eventos Pendentes</p>
+                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Eventos Híbridos</p>
                             <div className="flex items-baseline gap-2">
                                <span className="text-4xl font-black tabular-nums">{metrics.countNovoAndamento}</span>
                                <span className="text-sm font-black text-primary">({metrics.rateAndamento}%)</span>
@@ -257,7 +258,7 @@ export default function Dashboard() {
                             </div>
                          </div>
                          <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Fase Executiva</p>
+                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Execução Ativa</p>
                             <div className="flex items-baseline gap-2">
                                <span className="text-4xl font-black tabular-nums text-blue-400">{metrics.countCumprimento}</span>
                             </div>
@@ -265,7 +266,7 @@ export default function Dashboard() {
                       </div>
                       <div className="mt-8 pt-6 border-t border-white/5 flex justify-end">
                         <Button asChild variant="ghost" className="h-10 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
-                           <Link href="/notificacoes">Abrir Centro de Alertas <ArrowRight size={12} className="ml-2" /></Link>
+                           <Link href="/notificacoes">Ver Alertas de Mérito <ArrowRight size={12} className="ml-2" /></Link>
                         </Button>
                       </div>
                    </section>
@@ -274,10 +275,10 @@ export default function Dashboard() {
                       <div className="bg-[#f8f9fb] px-6 sm:px-8 py-5 border-b border-border/30 flex items-center justify-between">
                          <div className="flex items-center gap-3">
                             <Target size={18} className="text-primary" />
-                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Sequência Prioritária de Contato</h3>
+                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Fila Prioritária de Gestão</h3>
                          </div>
                          <Button asChild variant="ghost" className="h-8 text-[9px] font-black uppercase tracking-widest hover:text-primary">
-                            <Link href="/tarefas">Ver Fila Completa <ArrowRight size={12} className="ml-2"/></Link>
+                            <Link href="/tarefas">Abrir Fila Completa <ArrowRight size={12} className="ml-2"/></Link>
                          </Button>
                       </div>
                       <div className={ui.tableWrap}>
@@ -285,7 +286,7 @@ export default function Dashboard() {
                             <thead className="bg-white border-b border-border/20">
                                <tr className="text-[9px] font-black uppercase text-muted-foreground/60 tracking-widest">
                                   <th className="px-8 py-3">Cliente / Protocolo</th>
-                                  <th className="px-8 py-3">Evento Unificado</th>
+                                  <th className="px-8 py-3">Natureza do Evento</th>
                                   <th className="px-8 py-3 text-right">Ação</th>
                                </tr>
                             </thead>
@@ -302,16 +303,14 @@ export default function Dashboard() {
                                         <div className="flex flex-col gap-1">
                                           <Badge variant="outline" className={cn(
                                              "text-[8px] font-black uppercase px-2 py-0 border-none w-fit",
-                                             c.status === 'Caso Crítico' ? "bg-red-600 text-white animate-pulse" : 
+                                             c.indicio_busca_apreensao ? "bg-red-600 text-white animate-pulse" : 
                                              c.status === 'Vencido' ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
                                           )}>
-                                             {c.status}
+                                             {c.indicio_busca_apreensao ? 'BUSCA E APREENSÃO' : c.status}
                                           </Badge>
-                                          {c.evento_resumo && (
-                                            <span className="text-[9px] font-bold text-foreground/70 uppercase truncate max-w-[250px]">
-                                              {c.evento_resumo}
-                                            </span>
-                                          )}
+                                          <span className="text-[9px] font-bold text-foreground/70 uppercase truncate max-w-[250px]">
+                                            {c.evento_resumo || c.djen_ultimo_resumo || c.datajud_ultimo_nome || 'Acompanhamento Regular'}
+                                          </span>
                                         </div>
                                      </td>
                                      <td className="px-8 py-4 text-right">
@@ -378,7 +377,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-3">
                           <PieChartIcon size={16} className="text-primary" />
-                          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição de Fila</h3>
+                          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Saúde da Carteira</h3>
                         </div>
                       </div>
                       <div className="h-[200px] w-full mb-6">
@@ -407,11 +406,11 @@ export default function Dashboard() {
                                <span className="text-[9px] font-black tracking-wide text-muted-foreground uppercase">{item.name}</span>
                                <div className="flex items-center gap-2">
                                  <span className="text-[10px] font-black tabular-nums">{item.value}</span>
-                                 <span className="text-[8px] font-bold text-muted-foreground opacity-40">({Math.round((item.value / metrics.activeTotal) * 100)}%)</span>
+                                 <span className="text-[8px] font-bold text-muted-foreground opacity-40">({Math.round((item.value / (metrics.activeTotal || 1)) * 100)}%)</span>
                                </div>
                              </div>
                              <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                               <div className="h-full bg-primary" style={{ width: `${(item.value / metrics.activeTotal) * 100}%`, backgroundColor: item.color }} />
+                               <div className="h-full bg-primary" style={{ width: `${(item.value / (metrics.activeTotal || 1)) * 100}%`, backgroundColor: item.color }} />
                              </div>
                            </div>
                         ))}
@@ -493,7 +492,7 @@ export default function Dashboard() {
         
         <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
-          <span>Advanced Judicial Monitoring • Authority v10.0</span>
+          <span>Advanced Judicial Monitoring • Authority v17.5</span>
         </footer>
       </main>
     </div>

@@ -158,6 +158,7 @@ export default function TarefasPage() {
   useEffect(() => { if (mounted) loadData(); }, [loadData, mounted]);
 
   const handleSingleScan = async (protocolo: string) => {
+    if (!protocolo) return;
     setLoading(true);
     try {
       const res = await scanSingleCaseAction(protocolo);
@@ -177,6 +178,7 @@ export default function TarefasPage() {
   };
 
   const handleSuggestClick = async (protocolo: string, cliente: string, ultimoRetorno: string | null) => {
+    if (!protocolo) return;
     setLoading(true);
     try {
       const res = await scanSingleCaseAction(protocolo);
@@ -264,15 +266,17 @@ export default function TarefasPage() {
     try {
       const todayStr = format(new Date(), 'dd/MM/yyyy');
       const updatedCases = cases.map(c => {
-        if (attendanceForm.applyToAll ? c.cliente === activeGroup.cliente : activeGroup.cases.some(ac => ac.protocolo === c.protocolo)) {
+        const isInGroup = attendanceForm.applyToAll ? c.cliente === activeGroup.cliente : activeGroup.cases.some(ac => ac.protocolo === c.protocolo);
+        if (isInGroup) {
           return processarCaso({
             ...c, 
             situacao: attendanceForm.situacao, 
             ultimoRetorno: todayStr, 
             observacao: attendanceForm.observacao || c.observacao,
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno,
-            tem_novo_andamento: false,
-            djen_nova_comunicacao: false
+            tem_atualizacao_pos_retorno: false,
+            djen_nova_comunicacao: false,
+            tem_novo_andamento: false
           });
         }
         return c;
@@ -317,7 +321,9 @@ export default function TarefasPage() {
       if (c.indicio_busca_apreensao) g.hasBA = true;
       if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
       if (c.tem_novo_andamento) g.hasUpdate = true;
-      if (c.evento_resumo) { g.eventoUnificadoResumo = c.evento_resumo; g.eventoTipo = c.evento_tipo || null; }
+      
+      const res = c.evento_resumo || c.djen_ultimo_resumo || c.datajud_ultimo_nome;
+      if (res) { g.eventoUnificadoResumo = res; g.eventoTipo = c.evento_tipo || null; }
 
       let currentScore = 0;
       const statusUpper = (c.status || '').toUpperCase();
@@ -457,6 +463,11 @@ export default function TarefasPage() {
                            <div className="flex items-start justify-between mb-3">
                              <div className="flex items-center gap-3">
                                <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
+                               {item.type === 'djen' && item.raw.link && (
+                                 <a href={item.raw.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
+                                   <Globe size={10} /> Abrir no D.O.
+                                 </a>
+                               )}
                                <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
                              </div>
                              {item.type === 'djen' && <Button variant="ghost" size="icon" onClick={() => handleExportDjenPDF(item.raw)} className="h-8 w-8 hover:bg-blue-600 hover:text-white border border-blue-600/20 ml-auto"><Download size={14} /></Button>}
@@ -479,6 +490,7 @@ export default function TarefasPage() {
                           <SelectContent className="bg-white border-2 border-black rounded-lg">
                             <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                             <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2 Elite</SelectItem>
+                            <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button onClick={handleGenerateAIDraft} disabled={isGeneratingAIDraft} className="h-10 px-6 bg-white text-black font-black uppercase text-[10px] rounded-lg">{isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}</Button>
@@ -545,7 +557,14 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
            <Building2 size={12} className="text-black/30" />
            <span className="text-[9px] font-black uppercase text-black/40">{group.escritorio || 'GERAL'}</span>
         </div>
-        {group.eventoUnificadoResumo && <div className={cn("mt-4 p-3 rounded-xl border", group.eventoTipo === 'ba' ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100")}><p className={cn("text-[10px] font-black uppercase mb-1", group.eventoTipo === 'ba' ? "text-red-700" : "text-blue-700")}>Novidade Identificada</p><p className={cn("text-foreground/80 leading-relaxed italic line-clamp-3 uppercase font-bold text-[11px]", ui.readable)}>{group.eventoUnificadoResumo}</p></div>}
+        {(group.eventoUnificadoResumo || group.hasUpdate) && (
+          <div className={cn("mt-4 p-3 rounded-xl border", group.hasBA ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100")}>
+            <p className={cn("text-[10px] font-black uppercase mb-1", group.hasBA ? "text-red-700" : "text-blue-700")}>Novidade Identificada</p>
+            <p className={cn("text-foreground/80 leading-relaxed italic line-clamp-3 uppercase font-bold text-[11px]", ui.readable)}>
+              {group.eventoUnificadoResumo || "Identificada novidade técnica no processo."}
+            </p>
+          </div>
+        )}
       </div>
       <div className="mt-6 pt-6 border-t border-border/30 flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1 sm:gap-2">

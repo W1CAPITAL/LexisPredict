@@ -20,7 +20,9 @@ import {
   Filter,
   History,
   AlertCircle,
-  Copyright
+  Copyright,
+  Scale,
+  Briefcase
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { LegalCase } from '@/lib/case-logic';
@@ -38,7 +40,7 @@ import { summarizeDjenKeywords } from '@/lib/djen';
 export default function NotificationsPage() {
   const { cases } = useAppStore();
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'merito' | 'ba' | 'prazos'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'merito' | 'ba' | 'audiencia' | 'execucao' | 'partes_custas'>('all');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -50,62 +52,66 @@ export default function NotificationsPage() {
 
     cases.forEach(c => {
       const isEncerrado = isCasoEncerrado(c);
+      if (isEncerrado) return;
       
-      // 1. Alertas de Prazos
-      if (!isEncerrado && (c.status === 'Vencido' || c.status === 'É Hoje' || c.status === 'Caso Crítico')) {
-        alerts.push({
-          id: `status-${c.protocolo}`,
-          type: 'prazos',
-          priority: c.status === 'Caso Crítico' ? 100 : (c.status === 'Vencido' ? 90 : 80),
-          title: `Urgência: ${c.status}`,
-          description: `Prazo crítico de atendimento atingido: ${c.proximoPrazo || 'S/D'}.`,
-          case: c,
-          icon: <Clock className="text-red-600" size={18} />
-        });
-      }
+      const res = c.evento_resumo || c.djen_ultimo_resumo || c.datajud_ultimo_nome;
+      const type = c.evento_tipo || 'rotina';
 
-      // 2. Alertas de Mérito (Unificados)
-      if (c.tem_novo_andamento && !isEncerrado) {
-        alerts.push({
-          id: `upd-${c.protocolo}`,
-          type: 'merito',
-          priority: 70,
-          title: "Novidade Forense Identificada",
-          description: summarizeDjenKeywords(c.evento_resumo),
-          case: c,
-          icon: <Zap className="text-blue-600" size={18} />
-        });
-      }
+      // Filtragem: SOMENTE MÉRITO OPERACIONAL (Ignorar Prazos Vencidos)
+      const isRelevant = c.tem_novo_andamento && (
+        type !== 'rotina' || 
+        c.indicio_busca_apreensao || 
+        c.datajud_encerrado_tribunal ||
+        c.em_cumprimento_sentenca ||
+        /(CUSTAS|GUIA|PREPARO|HABILITA|SUBSTAB|EXCLU|SENTENCA|PROCEDENTE|IMPROCEDENTE|AUDIENCIA|LIMINAR|TUTELA)/i.test(res || '')
+      );
 
-      if (c.datajud_encerrado_tribunal) {
-        alerts.push({
-          id: `closed-${c.protocolo}`,
-          type: 'merito',
-          priority: 85,
-          title: "Baixa Definitiva Tribunal",
-          description: `Rito de encerramento detectado via auditoria CNJ: ${c.datajud_encerrado_motivo || 'Baixa'}`,
-          case: c,
-          icon: <Gavel className="text-emerald-600" size={18} />
-        });
-      }
+      if (!isRelevant) return;
+
+      let icon = <Zap className="text-blue-600" size={18} />;
+      let priority = 50;
+      let category: 'merito' | 'ba' | 'audiencia' | 'execucao' | 'partes_custas' = 'merito';
 
       if (c.indicio_busca_apreensao) {
-        alerts.push({
-          id: `ba-${c.protocolo}`,
-          type: 'ba',
-          priority: 110,
-          title: "ALERTA: Busca e Apreensão",
-          description: c.busca_apreensao_motivo || 'Indício de mandado de busca detectado.',
-          case: c,
-          icon: <ShieldAlert className="text-red-600 animate-pulse" size={18} />
-        });
+        icon = <ShieldAlert className="text-red-600 animate-pulse" size={18} />;
+        priority = 110;
+        category = 'ba';
+      } else if (c.datajud_encerrado_tribunal || type.includes('transito')) {
+        icon = <Gavel className="text-emerald-600" size={18} />;
+        priority = 90;
+        category = 'merito';
+      } else if (type.includes('sentenca')) {
+        icon = <Scale className="text-primary" size={18} />;
+        priority = 85;
+        category = 'merito';
+      } else if (type.includes('audiencia')) {
+        icon = <Clock className="text-orange-500" size={18} />;
+        priority = 80;
+        category = 'audiencia';
+      } else if (c.em_cumprimento_sentenca || type === 'cumprimento_sentenca') {
+        icon = <Briefcase className="text-blue-500" size={18} />;
+        priority = 70;
+        category = 'execucao';
+      } else if (/(HABILITA|SUBSTAB|PARTES|CUSTAS|GUIA)/i.test(res || '')) {
+        icon = <History size={18} className="text-slate-500" />;
+        priority = 60;
+        category = 'partes_custas';
       }
+
+      alerts.push({
+        id: `alert-${c.protocolo}`,
+        type: category,
+        priority,
+        title: c.indicio_busca_apreensao ? "ALERTA: Busca e Apreensão" : (c.evento_resumo || "Nova Movimentação"),
+        description: res ? summarizeDjenKeywords(res) : "Identificada novidade técnica no processo.",
+        case: c,
+        icon
+      });
     });
 
     return alerts
       .filter(a => {
-        const matchesSearch = a.case.cliente.toLowerCase().includes(search.toLowerCase()) || 
-                            a.case.protocolo.includes(search);
+        const matchesSearch = a.case.cliente.toLowerCase().includes(search.toLowerCase()) || a.case.protocolo.includes(search);
         const matchesType = filterType === 'all' || a.type === filterType;
         return matchesSearch && matchesType;
       })
@@ -123,11 +129,11 @@ export default function NotificationsPage() {
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
               <Bell size={20} className="text-primary" />
             </div>
-            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Centro de Alertas</h1>
+            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Centro de Alertas de Mérito</h1>
           </div>
           <div className="flex items-center gap-3">
              <Badge className="bg-primary/10 text-primary border-none font-black text-[10px] px-4 py-2 uppercase rounded-xl">
-               {notifications.length} Pendentes
+               {notifications.length} Novidades
              </Badge>
           </div>
         </header>
@@ -142,9 +148,11 @@ export default function NotificationsPage() {
              <ScrollArea className="w-full">
                 <div className="flex bg-[#f8f9fb] p-1 rounded-xl w-max sm:w-auto">
                    <FilterButton active={filterType === 'all'} onClick={() => setFilterType('all')} label="Tudo" />
-                   <FilterButton active={filterType === 'ba'} onClick={() => setFilterType('ba')} label="Busca e Apreensão" />
+                   <FilterButton active={filterType === 'ba'} onClick={() => setFilterType('ba')} label="B.A." />
                    <FilterButton active={filterType === 'merito'} onClick={() => setFilterType('merito')} label="Mérito" />
-                   <FilterButton active={filterType === 'prazos'} onClick={() => setFilterType('prazos')} label="Prazos" />
+                   <FilterButton active={filterType === 'audiencia'} onClick={() => setFilterType('audiencia')} label="Audiência" />
+                   <FilterButton active={filterType === 'execucao'} onClick={() => setFilterType('execucao')} label="Execução" />
+                   <FilterButton active={filterType === 'partes_custas'} onClick={() => setFilterType('partes_custas')} label="Custas/Partes" />
                 </div>
                 <ScrollBar orientation="horizontal" />
              </ScrollArea>
@@ -181,7 +189,7 @@ export default function NotificationsPage() {
                   </div>
                 ))}
                 {notifications.length === 0 && (
-                  <div className="py-20"><EmptyState icon={CheckCircle2} title="Tudo sob controle" description="Não há alertas pendentes de triagem no momento." /></div>
+                  <div className="py-20"><EmptyState icon={CheckCircle2} title="Tudo sob controle" description="Não há alertas de mérito pendentes no momento." /></div>
                 )}
               </div>
            </ScrollArea>

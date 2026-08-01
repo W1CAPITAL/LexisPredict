@@ -30,7 +30,8 @@ import {
   ChevronRight,
   UserCheck,
   User,
-  Briefcase
+  Briefcase,
+  Gavel
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -90,12 +91,38 @@ const CaseRow = React.memo(({
             <span className="text-foreground font-black text-[13px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
             {c.indicio_busca_apreensao && <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-bounce"><ShieldAlert size={10} className="mr-1" /> B.A.</Badge>}
             {c.datajud_encerrado_tribunal && <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">Encerrado Tribunal</Badge>}
-            {c.tem_novo_andamento && !c.datajud_encerrado_tribunal && <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">Novo Evento</Badge>}
+            {c.tem_novo_andamento && <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">Novo Evento</Badge>}
+            {c.em_cumprimento_sentenca && <Badge className="h-5 px-2 rounded-md bg-blue-600 text-white font-black uppercase text-[8px]">Execução</Badge>}
           </div>
           <span className={cn("text-[10px] font-mono text-muted-foreground uppercase tracking-widest", ui.cnj)}>{c.protocolo}</span>
+          
+          {/* ÚLTIMO MOVIMENTO TRIBUNAL */}
+          {c.datajud_ultimo_nome && (
+            <div className="mt-2 flex items-center gap-2 text-[9px] font-bold text-black/40 uppercase">
+              <Gavel size={10} className="text-primary" />
+              <span>{c.datajud_ultimo_nome} ({c.datajud_ultimo_movimento ? format(parseISO(c.datajud_ultimo_movimento), 'dd/MM/yy') : 'S/D'})</span>
+            </div>
+          )}
+
+          {/* ÚLTIMO RESUMO DJEN */}
+          {c.djen_ultimo_resumo && (
+            <div className="mt-1 flex items-center gap-2 text-[9px] font-bold text-blue-600 uppercase italic">
+              <Globe size={10} />
+              <span className="truncate max-w-[300px]">DJEN: {c.djen_ultimo_resumo}</span>
+            </div>
+          )}
         </div>
       </td>
-      <td className="px-8 py-5"><Badge variant="outline" className="bg-card border-border/50 font-black text-[9px] text-muted-foreground uppercase rounded-md h-7 px-3 w-fit">{c.tribunal}</Badge></td>
+      <td className="px-8 py-5">
+        <div className="flex flex-col gap-1">
+          <Badge variant="outline" className="bg-card border-border/50 font-black text-[9px] text-muted-foreground uppercase rounded-md h-7 px-3 w-fit">{c.tribunal}</Badge>
+          {c.djen_ultimo_link && (
+            <a href={c.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-500 uppercase mt-1 hover:underline">
+              <Globe size={10} /> Abrir no D.O.
+            </a>
+          )}
+        </div>
+      </td>
       <td className="px-8 py-5 text-[11px] text-foreground font-bold uppercase"><span>{c.advogado}</span></td>
       <td className="px-8 py-5">
         <div className="flex flex-col gap-2">
@@ -139,7 +166,7 @@ const CaseRow = React.memo(({
 CaseRow.displayName = 'CaseRow';
 
 function CasesContent() {
-  const { cases, setCases, updateCaseByProtocolo, updateCase, removeCase } = useAppStore();
+  const { cases, setCases, updateCaseByProtocolo, removeCase } = useAppStore();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [quickFilter, setQuickFilter] = useState('all');
@@ -192,6 +219,7 @@ function CasesContent() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleSingleScan = async (c: LegalCase) => {
+    if (!c.protocolo) return;
     setLoading(true);
     try {
       const res = await scanSingleCaseAction(c.protocolo);
@@ -210,6 +238,7 @@ function CasesContent() {
   };
 
   const handleSuggestClick = async (c: LegalCase) => {
+    if (!c.protocolo) return;
     setLoading(true);
     try {
       const res = await scanSingleCaseAction(c.protocolo);
@@ -314,8 +343,9 @@ function CasesContent() {
             ultimoRetorno: todayStr,
             observacao: attendanceForm.observacao || c.observacao,
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno,
-            tem_novo_andamento: false,
-            djen_nova_comunicacao: false
+            tem_atualizacao_pos_retorno: false,
+            djen_nova_comunicacao: false,
+            tem_novo_andamento: false
           });
         }
         return c;
@@ -473,78 +503,90 @@ function CasesContent() {
         </div>
 
         {/* MODAL AUDITORIA UNIFICADA */}
-        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
-            <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
-              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3">
-                <FileSearch className="text-primary" /> Auditoria Unificada (Audit 3D)
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
-              <ScrollArea className="flex-1 w-full h-full">
-                <div className="p-4 sm:p-6 space-y-10">
-                  <section className="space-y-6">
-                    <h3 className={cn("text-black flex items-center gap-2 border-b-2 border-black/5 pb-2", ui.label)}>
-                      <Globe size={14} className="text-primary"/> Cronologia Unificada
-                    </h3>
-                    <div className="space-y-6">
-                      {unifiedHistory.map((item, i) => (
-                        <div key={i} className={cn("relative p-5 border-2 rounded-xl transition-all", item.type === 'djen' ? "border-blue-600 bg-blue-50/10 shadow-[4px_4px_0px_#2563eb]" : "border-slate-200 bg-slate-50/50")}>
-                          <div className="flex items-start justify-between mb-3">
-                             <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
-                             <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
-                             {item.type === 'djen' && <Button variant="ghost" size="icon" onClick={() => handleExportDjenPDF(item.raw)} className="h-8 w-8 hover:bg-blue-600 hover:text-white border border-blue-600/20 ml-auto"><Download size={14} /></Button>}
-                          </div>
-                          <h4 className="text-sm font-black uppercase text-foreground mb-1">{item.title}</h4>
-                          <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.subtitle}</p>
-                          {item.type === 'djen' && <div className="mt-4 p-4 bg-white border border-blue-100 rounded-lg"><p className={cn("text-black italic leading-relaxed", ui.readable)}>{plainTextFromDjen(item.raw.texto)}</p></div>}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section className="space-y-6 pt-6 border-t">
-                    <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Sugestões Estratégicas</h3>
-                    <div className="bg-black text-white p-6 space-y-4 rounded-xl">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                          <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
-                          <SelectContent className="bg-white border-2 border-black rounded-lg">
-                            <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
-                            <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2 Elite</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button onClick={handleGenerateAIDraft} disabled={isGeneratingAIDraft} className="h-10 px-6 bg-white text-black font-black uppercase text-[10px] rounded-lg shadow-lg">
-                          {isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}
-                        </Button>
-                      </div>
-                      {aiDraft && <div className="space-y-3 animate-in fade-in duration-500 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className={cn("text-white/80 italic", ui.readable)}>"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
-                    </div>
-
-                    {showScripts && suggestedScripts.length > 0 && (
-                      <div className="grid gap-4">
-                        {suggestedScripts.map((script, idx) => (
-                          <div key={idx} className="bg-white border-2 border-black p-5 rounded-xl space-y-4 shadow-sm">
-                            <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none">{script.titulo}</Badge>
-                            <p className="text-xs font-black uppercase">{script.quandoUsar}</p>
-                            <div className="p-4 bg-slate-50 border border-black/5 relative rounded-lg">
-                              <p className={cn("text-black/70 italic", ui.readable)}>"{script.texto}"</p>
-                              <Button variant="ghost" size="icon" onClick={() => copyScript(script.texto)} className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all">
-                                <Copy size={14} />
-                              </Button>
+        <Suspense fallback={null}>
+          <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+            <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
+              <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
+                <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3">
+                  <FileSearch className="text-primary" /> Auditoria Unificada (Audit 3D)
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
+                <ScrollArea className="flex-1 w-full h-full">
+                  <div className="p-4 sm:p-6 space-y-10">
+                    <section className="space-y-6">
+                      <h3 className={cn("text-black flex items-center gap-2 border-b-2 border-black/5 pb-2", ui.label)}>
+                        <Globe size={14} className="text-primary"/> Cronologia Unificada
+                      </h3>
+                      <div className="space-y-6">
+                        {unifiedHistory.map((item, i) => (
+                          <div key={i} className={cn("relative p-5 border-2 rounded-xl transition-all", item.type === 'djen' ? "border-blue-600 bg-blue-50/10 shadow-[4px_4px_0px_#2563eb]" : "border-slate-200 bg-slate-50/50")}>
+                            <div className="flex items-start justify-between mb-3">
+                               <div className="flex items-center gap-2">
+                                  <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
+                                  {item.type === 'djen' && item.raw.link && (
+                                    <a href={item.raw.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
+                                      <Globe size={10} /> Abrir no D.O.
+                                    </a>
+                                  )}
+                               </div>
+                               <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
+                                  {item.type === 'djen' && <Button variant="ghost" size="icon" onClick={() => handleExportDjenPDF(item.raw)} className="h-8 w-8 hover:bg-blue-600 hover:text-white border border-blue-600/20 ml-auto"><Download size={14} /></Button>}
+                               </div>
                             </div>
+                            <h4 className="text-sm font-black uppercase text-foreground mb-1">{item.title}</h4>
+                            <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.subtitle}</p>
+                            {item.type === 'djen' && <div className="mt-4 p-4 bg-white border border-blue-100 rounded-lg"><p className={cn("text-black italic leading-relaxed", ui.readable)}>{plainTextFromDjen(item.raw.texto)}</p></div>}
                           </div>
                         ))}
                       </div>
-                    )}
-                  </section>
-                </div>
-              </ScrollArea>
-              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
-            </div>
-          </DialogContent>
-        </Dialog>
+                    </section>
+
+                    <section className="space-y-6 pt-6 border-t">
+                      <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Sugestões Estratégicas</h3>
+                      <div className="bg-black text-white p-6 space-y-4 rounded-xl">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <Select value={selectedMotor} onValueChange={setSelectedMotor}>
+                            <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-white border-2 border-black rounded-lg">
+                              <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
+                              <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2 Elite</SelectItem>
+                              <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button onClick={handleGenerateAIDraft} disabled={isGeneratingAIDraft} className="h-10 px-6 bg-white text-black font-black uppercase text-[10px] rounded-lg shadow-lg">
+                            {isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}
+                          </Button>
+                        </div>
+                        {aiDraft && <div className="space-y-3 animate-in fade-in duration-500 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className={cn("text-white/80 italic", ui.readable)}>"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
+                      </div>
+
+                      {showScripts && suggestedScripts.length > 0 && (
+                        <div className="grid gap-4">
+                          {suggestedScripts.map((script, idx) => (
+                            <div key={idx} className="bg-white border-2 border-black p-5 rounded-xl space-y-4 shadow-sm">
+                              <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none">{script.titulo}</Badge>
+                              <p className="text-xs font-black uppercase">{script.quandoUsar}</p>
+                              <div className="p-4 bg-slate-50 border border-black/5 relative rounded-lg">
+                                <p className={cn("text-black/70 italic", ui.readable)}>"{script.texto}"</p>
+                                <Button variant="ghost" size="icon" onClick={() => copyScript(script.texto)} className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all">
+                                  <Copy size={14} />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </ScrollArea>
+                <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </Suspense>
 
         {/* MODAL REGISTRO DE ATENDIMENTO */}
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>

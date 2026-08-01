@@ -3,7 +3,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v520.0 ELITE - PERSISTÊNCIA HÍBRIDA
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v550.0 ELITE - PERSISTÊNCIA HÍBRIDA UNIFICADA
  */
 
 import { 
@@ -42,12 +42,12 @@ export async function runDataJudScanAction(empresaId: string) {
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
     let updated = 0;
 
-    // Executa scan atômico para os 20 mais antigos/prioritários para evitar timeout do cron
+    // Executa scan atômico para os 20 mais prioritários para evitar timeout do cron
     const targetCases = activeCases.slice(0, 20);
 
     for (const c of targetCases) {
-      const res = await scanOneDataJudAction(c.protocolo, true);
-      if (res.success && (res.casePatch?.tem_novo_andamento || res.casePatch?.datajud_encerrado_tribunal)) {
+      const res = await scanOneDataJudAction(c.protocolo, { fast: true });
+      if (res.success && (res.casePatch?.tem_atualizacao_pos_retorno || res.casePatch?.djen_nova_comunicacao)) {
         updated++;
       }
     }
@@ -58,7 +58,10 @@ export async function runDataJudScanAction(empresaId: string) {
   }
 }
 
-export async function scanOneDataJudAction(protocolo: string, fast = true) {
+/**
+ * Auditoria Atômica Independente (Híbrida)
+ */
+export async function scanOneDataJudAction(protocolo: string, options: { fast?: boolean } = {}) {
   try {
     const { empresa_id } = await getUserContext();
     if (!empresa_id) return { success: false, error: "401" };
@@ -70,7 +73,9 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     const target = processarCaso({ ...(dbItem.dados as any), id: dbItem.id.toString(), ultimoRetorno: dbItem.ultimo_retorno });
     if (isCasoEncerrado(target)) return { success: true, skipped: true };
 
-    // 1. Auditoria Atômica Independente
+    const fast = !!options.fast;
+
+    // 1. Execução Paralela (Tribunal + Diário)
     const [dataJud, djenRes] = await Promise.all([
       fetchDataJud(protocolo, 1, { fast }),
       fetchDjenComunicacoes(protocolo)
@@ -110,7 +115,7 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
         eventTipo = 'novo_andamento_relevante';
       }
       if (ba.indicio) eventTipo = 'ba';
-      if (enc.encerrado) { eventTipo = 'transito_ou_baixa'; patch.status = 'Arquivado'; }
+      if (enc.encerrado) eventTipo = 'transito_ou_baixa';
       
       hasSuccess = true;
     }
@@ -141,13 +146,12 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
     }
 
     if (hasSuccess) {
-      patch.tem_novo_andamento = (patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao);
       patch.evento_tipo = eventTipo;
       patch.evento_resumo = eventResumo;
       patch.evento_fonte = (patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao) ? 'ambos' : patch.tem_atualizacao_pos_retorno ? 'datajud' : 'djen';
 
       await updateCaseDataJudSystem(dbItem.id, patch);
-      const updatedCase = { ...target, ...patch };
+      const updatedCase = processarCaso({ ...target, ...patch });
       return { 
         success: true, 
         casePatch: patch, 
@@ -157,18 +161,18 @@ export async function scanOneDataJudAction(protocolo: string, fast = true) {
       };
     }
     
-    return { success: false, message: dataJud?.message || djenRes.error || "Erro no tribunal" };
+    return { success: false, message: dataJud?.message || djenRes.error || "Erro de conexão com os tribunais" };
   } catch (e: any) {
-    return { success: false, message: `Falha técnica na auditoria` };
+    return { success: false, message: `Falha na auditoria técnica: ${e.message}` };
   }
 }
 
 export async function scanOneDjenAction(protocolo: string) {
-  return await scanOneDataJudAction(protocolo, true);
+  return await scanOneDataJudAction(protocolo, { fast: true });
 }
 
 export async function scanSingleCaseAction(protocolo: string) {
-  return await scanOneDataJudAction(protocolo, false);
+  return await scanOneDataJudAction(protocolo, { fast: false });
 }
 
 export async function recalibrateCasesAction(alertLimit: number) {
