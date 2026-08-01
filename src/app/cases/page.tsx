@@ -75,7 +75,7 @@ import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerrame
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
-import { plainTextFromDjen, summarizeDjenForAlert } from '@/lib/djen';
+import { summarizeDjenForAlert } from '@/lib/djen';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
 
 const CaseRow = React.memo(({ 
@@ -311,7 +311,6 @@ function CasesContent() {
   const [showClosed, setShowClosed] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [loadingDjen, setLoadingDjen] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
@@ -376,7 +375,7 @@ function CasesContent() {
   const handleSingleScan = async (caseItem: LegalCase) => {
     setLoading(true);
     try {
-      // Auditoria Unificada: DataJud + DJEN de uma vez
+      // Auditoria Unificada Atômica
       const [resDj, resDjen] = await Promise.all([
         scanSingleCaseAction(caseItem.protocolo),
         scanOneDjenAction(caseItem.protocolo)
@@ -895,7 +894,7 @@ function CasesContent() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[950px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh]">
+            <DialogContent className="sm:max-w-[950px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
               <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -973,7 +972,7 @@ function CasesContent() {
 
                           <div className="flex flex-col sm:flex-row gap-3">
                             <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                              <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-lg flex-1">
+                              <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="bg-white border-2 border-black rounded-lg">
@@ -1090,7 +1089,7 @@ function CasesContent() {
                 </div>
                 <div className="grid gap-2">
                   <Label className={ui.label}>Observações</Label>
-                  <Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-base sm:text-sm uppercase resize-none" />
+                  <Textarea value={formState.observacao} onChange={(e) => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-base sm:text-sm uppercase resize-none" />
                 </div>
               </div>
               <DialogFooter className="p-6 pt-0 shrink-0">
