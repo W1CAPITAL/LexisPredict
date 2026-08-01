@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v22.0 — AUDITORIA ACIONÁVEL DE MÉRITO E RESPONSABILIDADE
+ * DOSSIÊ OPERACIONAL v24.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
  */
 "use client";
 
@@ -30,7 +30,8 @@ import {
   TrendingDown as TrendingDownIcon,
   FileText,
   AlertCircle,
-  Globe
+  StickyNote,
+  User
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -43,6 +44,7 @@ import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSinalCapa } from "@/lib/sinal-capa";
 import { calcularProbabilidadeEncerramento } from "@/lib/probabilidade-encerramento";
 import { calcularScoreAdvogado } from "@/lib/score-engine";
+import Image from "next/image";
 
 export default function UnifiedReport() {
   const { setCases } = useAppStore();
@@ -104,7 +106,7 @@ export default function UnifiedReport() {
       })
       .slice(0, 10);
 
-    // TOP 10 CHANCE DE ENCERRAMENTO (Com Boost de Rito)
+    // TOP 10 CHANCE DE ENCERRAMENTO
     const topChance = ativos
       .map(c => {
         let prob = calcularProbabilidadeEncerramento({ 
@@ -113,7 +115,6 @@ export default function UnifiedReport() {
           observacao: c.observacao, 
           diasVencidos: c.diasFaltando ? Math.abs(c.diasFaltando) : 0 
         });
-        // Boost por flags oficiais DataJud/DJEN
         if (c.datajud_encerrado_tribunal) prob = 98;
         else if (c.em_cumprimento_sentenca) prob = Math.max(prob, 85);
         else if (c.evento_tipo?.startsWith('sentenca')) prob = Math.max(prob, 70);
@@ -148,7 +149,6 @@ export default function UnifiedReport() {
     const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').slice(0, 10);
     const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento).slice(0, 10);
 
-    // Risco Global (Algoritmo: BA e Novidades têm peso maior que prazos comuns)
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countBA * 2 + countNovoAndamento * 0.5) / activeTotal) * 100)) : 0;
 
     return {
@@ -232,27 +232,26 @@ export default function UnifiedReport() {
               </div>
               <div className="text-right">
                  <p className="text-2xl font-black tracking-tighter uppercase">{new Date().getFullYear()}</p>
-                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.22.0 ELITE</Badge>
+                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.24.0 ELITE</Badge>
               </div>
            </div>
         </section>
 
-        {/* TELEMETRIA DE REUNIÃO - KPIs ACIONÁVEIS */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 break-inside-avoid">
+        {/* TELEMETRIA DE REUNIÃO */}
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-6 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} color="text-black" />
            <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} color="text-red-600" />
-           <KpiCard label="Novidades de Mérito" value={metrics.countNovoAndamento} color="text-blue-600" />
+           <KpiCard label="Novidades Reais" value={metrics.countNovoAndamento} color="text-blue-600" />
            <KpiCard label="Risco da Carteira" value={`${metrics.riskScore}%`} color={metrics.riskScore > 50 ? "text-red-600" : "text-emerald-600"} />
            <KpiCard label="Busca e Apreensão" value={metrics.countBA} color="text-red-700" />
-           <KpiCard label="Baixas no Tribunal" value={metrics.countEncerradoTribunal} color="text-emerald-600" />
-           <KpiCard label="Em Fase Executiva" value={metrics.countCumprimento} color="text-blue-500" />
+           <KpiCard label="Baixas Tribunal" value={metrics.countEncerradoTribunal} color="text-emerald-600" />
+           <KpiCard label="Fase Executiva" value={metrics.countCumprimento} color="text-blue-500" />
         </section>
 
         {/* TOP 10 CRÍTICOS POR SINAL */}
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-black text-white p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Zap className="text-primary" size={14}/> Top 10: Criticidade por Movimentação</h3>
-              <Badge variant="outline" className="text-white border-white/20 text-[8px]">Sinal Híbrido Ativo</Badge>
            </div>
            <div className="p-0 overflow-hidden">
               <table className="w-full text-left text-[9px] font-black uppercase">
@@ -283,7 +282,7 @@ export default function UnifiedReport() {
                          </td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={4} className="p-10 text-center opacity-40 uppercase font-black">Nenhum sinal crítico pós-auditoria</td></tr>
+                      <tr><td colSpan={4} className="p-10 text-center opacity-40">Nenhum sinal crítico pós-auditoria</td></tr>
                     )}
                  </tbody>
               </table>
@@ -294,7 +293,6 @@ export default function UnifiedReport() {
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-emerald-600 text-white p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Target size={16}/> Top 10: Maior Chance de Encerramento</h3>
-              <Badge variant="outline" className="text-white border-white/20 text-[8px]">Previsão Algorítmica</Badge>
            </div>
            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-x-2 divide-y-2 divide-black/10">
               {metrics.topChance.length > 0 ? metrics.topChance.map((item, i) => (
@@ -305,11 +303,11 @@ export default function UnifiedReport() {
                     </div>
                     <div className="text-right">
                        <p className="text-2xl font-black text-emerald-600">{item.prob}%</p>
-                       <p className="text-[7px] font-black uppercase opacity-40">Chance</p>
+                       <p className="text-[7px] font-black uppercase opacity-40">Probabilidade</p>
                     </div>
                  </div>
               )) : (
-                <div className="p-10 text-center col-span-2 opacity-40 uppercase font-black">Sem previsões de encerramento ativas</div>
+                <div className="p-10 text-center col-span-2 opacity-40">Sem previsões de encerramento ativas</div>
               )}
            </div>
         </section>
@@ -336,7 +334,7 @@ export default function UnifiedReport() {
            
            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-red-600 flex items-center gap-2"><Clock size={12}/> Prazos Vencidos</h4>
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-red-600 flex items-center gap-2"><Clock size={12}/> Meus Prazos Vencidos</h4>
                  <div className="space-y-3">
                     {metrics.myVencidos.map((c, i) => (
                       <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-red-50 border-l-4 border-red-600 hover:translate-x-1 transition-transform">
@@ -349,7 +347,7 @@ export default function UnifiedReport() {
               </div>
               
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Novidades Pendentes</h4>
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Minhas Novidades Pendentes</h4>
                  <div className="space-y-3">
                     {metrics.myNovidades.map((c, i) => {
                       const sinal = getSinalCapa(c);
@@ -360,8 +358,39 @@ export default function UnifiedReport() {
                         </Link>
                       );
                     })}
-                    {metrics.myNovidades.length === 0 && <p className="text-[9px] font-black uppercase opacity-30 italic">Nenhuma novidade pendente de triagem.</p>}
+                    {metrics.myNovidades.length === 0 && <p className="text-[9px] font-black uppercase opacity-30 italic">Nenhuma novidade pendente.</p>}
                  </div>
+              </div>
+           </div>
+        </section>
+
+        {/* ANOTAÇÕES DO GABINETE */}
+        <section className="bg-white border-2 border-black break-inside-avoid">
+           <div className="bg-slate-50 border-b-2 border-black p-5 flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><StickyNote className="text-primary" size={14}/> Anotações e Evidências do Gabinete</h3>
+              <Badge variant="outline" className="border-black/10 text-[8px] font-black">{notes.length} Registros</Badge>
+           </div>
+           <div className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 {notes.length > 0 ? notes.slice(0, 20).map((note) => (
+                   <div key={note.id} className="p-6 border-2 border-black bg-white space-y-4 flex flex-col h-full shadow-[4px_4px_0px_#000]">
+                      {note.imageUrl && (
+                        <div className="relative w-full h-40 border-2 border-black mb-2 overflow-hidden">
+                           <img src={note.imageUrl} alt="Evidência" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] font-black uppercase border-b border-black/5 pb-2 mb-2">{note.title}</p>
+                        <p className="text-[11px] font-bold uppercase leading-relaxed text-black/70 italic line-clamp-4">"{note.content}"</p>
+                      </div>
+                      <div className="mt-auto pt-4 flex items-center justify-between opacity-30">
+                         <span className="text-[8px] font-black uppercase tracking-widest">{note.updatedAt}</span>
+                         <User size={10} />
+                      </div>
+                   </div>
+                 )) : (
+                   <div className="col-span-2 py-10 text-center opacity-30 font-black uppercase text-xs italic">Nenhuma anotação estratégica registrada.</div>
+                 )}
               </div>
            </div>
         </section>
@@ -416,15 +445,6 @@ export default function UnifiedReport() {
            <p className="text-[9px] font-black uppercase text-black/60">Copyright © 2026 LexisPredict Elite</p>
         </footer>
       </div>
-      
-      <style jsx global>{`
-        @media print {
-          body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .break-inside-avoid { break-inside: avoid !important; }
-          .print-hidden { display: none !important; }
-          @page { size: A4; margin: 10mm; }
-        }
-      `}</style>
     </div>
   );
 }
