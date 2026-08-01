@@ -748,7 +748,7 @@ function CasesContent() {
           </div>
         </header>
 
-        <div className="flex-1 flex flex-col p-4 sm:p-8 overflow-hidden">
+        <div className="flex-1 flex flex-col p-4 sm:p-6 md:p-10 lg:p-8 overflow-hidden">
           <div className="premium-card flex-1 flex flex-col overflow-hidden border-none bg-white">
             <div className="p-4 sm:p-5 border-b border-border/30 flex flex-col lg:flex-row items-center justify-between gap-4 shrink-0">
               <div className="flex flex-1 flex-col sm:flex-row items-center gap-4 w-full">
@@ -832,7 +832,7 @@ function CasesContent() {
                 </Button>
                 {isOperador && (
                   <Button 
-                    onClick={() => { setEditingCase(null); setIsModalOpen(true); }} 
+                    onClick={() => { setEditingCase(null); setFormState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '' }); setIsModalOpen(true); }} 
                     className={cn("h-10 px-6 rounded-xl bg-black text-white hover:bg-black/90 font-black uppercase text-[10px] tracking-widest shadow-lg shrink-0", ui.touch)}
                   >
                     <Plus className="w-4 h-4 mr-2 text-primary" /> Novo
@@ -894,7 +894,7 @@ function CasesContent() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+            <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
               <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -910,12 +910,12 @@ function CasesContent() {
               </DialogHeader>
               
               <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
-                <ScrollArea className="flex-1 w-full">
+                <ScrollArea className="flex-1 w-full h-full">
                   <div className="p-4 sm:p-6 space-y-10">
                     <section className="space-y-6">
                        <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}>
-                          <div className="flex items-center gap-2"><Globe size={14} className="text-primary"/> Linha do Tempo Cronológica (Soberania DJEN + DataJud)</div>
-                          <Badge variant="outline" className="text-[8px] border-black/10">Histórico Integral</Badge>
+                          <div className="flex items-center gap-2"><Globe size={14} className="text-primary"/> Linha do Tempo Cronológica Unificada</div>
+                          <Badge variant="outline" className="text-[8px] border-black/10">Soberania DJEN + DataJud</Badge>
                        </h3>
                        
                        <div className="space-y-6">
@@ -1038,7 +1038,7 @@ function CasesContent() {
         </Suspense>
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl max-h-[90vh] overflow-hidden p-0">
+          <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
             <form onSubmit={handleSaveCase} className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
                 <DialogTitle className="font-black uppercase tracking-tight">
@@ -1046,7 +1046,7 @@ function CasesContent() {
                 </DialogTitle>
                 <DialogDescription className="sr-only">Preencha os dados do processo.</DialogDescription>
               </DialogHeader>
-              <div className="p-6 space-y-4 overflow-y-auto">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 <div className="grid gap-2">
                   <Label className={ui.label}>Titular do Processo</Label>
                   <Input value={formState.cliente} onChange={e => setFormState({...formState, cliente: e.target.value.toUpperCase()})} className="rounded-xl h-12 bg-secondary/30 border-none font-bold uppercase text-base sm:text-sm" required />

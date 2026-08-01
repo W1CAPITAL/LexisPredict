@@ -60,8 +60,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 export default function Dashboard() {
-  const { cases, setCases, locale, sync, updateLastSync } = useAppStore();
-  const { courtHealthMap, runInitialHealthCheck, status: scanStatus } = useDataJudScanStore();
+  const { cases, setCases, locale, updateLastSync } = useAppStore();
+  const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [iaInsights, setIaInsights] = useState<any>(null);
@@ -123,7 +123,7 @@ export default function Dashboard() {
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
 
     const countDjenNovo = ativos.filter(c => !!c.djen_nova_comunicacao).length;
-    const countDjenConsultado = cases.filter(c => !!c.djen_consultado_em).length;
+    const countDjenAuditado = cases.filter(c => !!c.djen_consultado_em).length;
 
     const countCumprimento = ativos.filter(c => {
       if (c.datajud_encerrado_tribunal) return false;
@@ -169,7 +169,7 @@ export default function Dashboard() {
       riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos,
       countNovoAndamento, rateAndamento,
       countEncerradoTribunal, rateEncerrado,
-      countDjenNovo, rateDjen, countDjenConsultado,
+      countDjenNovo, rateDjen, countDjenAuditado,
       countBA, countCumprimento, rateCumprimento
     };
   }, [cases, t]);
@@ -239,7 +239,6 @@ export default function Dashboard() {
 
           <ScrollArea className="flex-1 overflow-auto">
             <TabsContent value="overview" className="p-4 sm:p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
-              {/* TOP KPI CARDS */}
               <section className={ui.metrics5}>
                 <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
                 <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
@@ -250,7 +249,6 @@ export default function Dashboard() {
               
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
                 <div className="xl:col-span-8 space-y-8">
-                   {/* TELEMETRIA FORENSE UNIFICADA */}
                    <section className="bg-black text-white p-6 sm:p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF]">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-white/10 pb-4 gap-4">
                         <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
@@ -295,7 +293,6 @@ export default function Dashboard() {
                       </div>
                    </section>
 
-                   {/* FILA DE PRIORIDADE */}
                    <section className="premium-card overflow-hidden">
                       <div className="bg-[#f8f9fb] px-6 sm:px-8 py-5 border-b border-border/30 flex items-center justify-between">
                          <div className="flex items-center gap-3">
@@ -360,7 +357,6 @@ export default function Dashboard() {
                 </div>
 
                 <div className="xl:col-span-4 space-y-8">
-                   {/* BRIEFING NEURAL */}
                    {iaInsights && (
                      <section className="bg-white border-2 border-black p-6 sm:p-8 rounded-none shadow-[8px_8px_0px_#000] space-y-6 animate-in fade-in zoom-in-95 duration-500">
                         <div className="flex items-center justify-between border-b-2 border-black/5 pb-4">
@@ -390,7 +386,6 @@ export default function Dashboard() {
                      </section>
                    )}
 
-                   {/* ÍNDICE DE RISCO */}
                    <section className="premium-card p-6 sm:p-8 space-y-8">
                       <div className="flex justify-between items-end">
                          <div className="space-y-1">
@@ -406,7 +401,6 @@ export default function Dashboard() {
                       </div>
                    </section>
 
-                   {/* DISTRIBUIÇÃO OPERACIONAL */}
                    <section className="premium-card p-6 sm:p-8">
                       <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-3">
@@ -522,21 +516,7 @@ export default function Dashboard() {
   );
 }
 
-function DashboardMiniKpi({ label, value, icon, color }: { label: string, value: number | string, icon: React.ReactNode, color: string }) {
-  return (
-    <div className="bg-white border border-border/40 p-4 rounded-xl shadow-sm space-y-3">
-       <div className={cn("w-6 h-6 rounded-md flex items-center justify-center bg-secondary/50", color)}>
-          {icon}
-       </div>
-       <div className="space-y-0.5">
-          <p className="text-xl font-black tabular-nums tracking-tighter">{value}</p>
-          <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest truncate">{label}</p>
-       </div>
-    </div>
-  );
-}
-
-function StatusPillDashboard({ label, count, total, color, isTotalBase = false }: { label: string; count: number; total: number; color: string; isTotalBase?: boolean; }) {
+function StatusPillDashboard({ label, count, total, color }: { label: string; count: number; total: number; color: string; }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
     <div className="space-y-2">

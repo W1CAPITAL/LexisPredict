@@ -609,7 +609,7 @@ export default function TarefasPage() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+            <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
               <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -623,7 +623,7 @@ export default function TarefasPage() {
               </DialogHeader>
               
               <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
-                <ScrollArea className="flex-1 w-full">
+                <ScrollArea className="flex-1 w-full h-full">
                   <div className="p-4 sm:p-6 space-y-10">
                     <section className="space-y-6">
                        <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}>
@@ -712,13 +712,13 @@ export default function TarefasPage() {
         </Suspense>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
-          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl overflow-hidden p-0 max-h-[90vh]">
+          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
             <form className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
                 <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle>
                 <DialogDescription className="sr-only">Formulário para registrar contato com o cliente.</DialogDescription>
               </DialogHeader>
-              <div className="p-6 space-y-6 overflow-y-auto">
+              <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
                   <div className="grid gap-2">
                     <Label className={ui.label}>Resultado do Contato</Label>
                     <Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}>
