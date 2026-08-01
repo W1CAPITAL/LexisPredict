@@ -1,11 +1,10 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * MOTOR DE SCORE INFINITO v4.0 - ACUMULATIVO COM LOGS DE SUCESSO E FALHA
+ * MOTOR DE SCORE INFINITO v4.1 - ACUMULATIVO COM LOGS DE SUCESSO E FALHA
  */
 
-import { LegalCase } from "./case-logic";
-import { isCasoEncerrado } from "./status-encerrado";
+import { LegalCase, isCasoEncerrado } from "./case-logic";
 
 export interface ScoreDetail {
   protocolo: string;
@@ -46,7 +45,6 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
 
   let totalPoints = 0;
 
-  const regexPositivo = /(procedente|vitoria|ganhou|deferido|homologado|acordo|sentenca)/i;
   const regexFormal = /(selo.*procur|procur.*inv|indefer.*inicial|peticao.*indefer|falta.*emenda|nao.*emendou|extinto.*falta.*emenda|cancelada.*distrib|cancelamento.*distrib|baixa.*falha.*peca)/i;
   const regexAdverso = /(improced|sucumb|honorario)/i;
 
@@ -59,7 +57,7 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
     }
 
     // --- GANHOS TÉCNICOS ---
-    if (text.includes('procedente') || text.includes('vitoria') || text.includes('homologado') || text.includes('acordo')) {
+    if (text.includes('procedente') || text.includes('vitoria') || text.includes('homologado') || text.includes('acordo') || c.datajud_encerrado_tribunal) {
       const p = 50;
       totalPoints += p;
       result.pontos.push({
@@ -68,16 +66,6 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
         tipo: "Vitória Técnica",
         peso: p,
         motivo: "Resultado Favorável de Mérito / Acordo"
-      });
-    } else if (text.includes('sentenca') || text.includes('despacho')) {
-      const p = 15;
-      totalPoints += p;
-      result.pontos.push({
-        protocolo: c.protocolo,
-        cliente: c.cliente,
-        tipo: "Avanço Processual",
-        peso: p,
-        motivo: "Decisão / Sentença Identificada"
       });
     }
 
@@ -184,7 +172,7 @@ export function calcularScoreAssessor(casos: LegalCase[]): ScoreResult {
     }
 
     // --- PENALIDADES OPERACIONAIS ---
-    if (c.status === 'Vencido' && !isClientFault) {
+    if ((c.status === 'Vencido' || c.status === 'Caso Crítico') && !isClientFault) {
       const p = -80;
       totalPoints += p;
       result.pontos.push({

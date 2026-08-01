@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
- * REPOSITÓRIO CENTRAL LEXISPREDICT (v305.0 ELITE)
+ * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
  * Governança de Visibilidade, Telemetria e Conhecimento.
  */
 
@@ -115,7 +115,11 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       busca_apreensao_consultado_em: item.busca_apreensao_consultado_em,
       em_cumprimento_sentenca: item.em_cumprimento_sentenca,
       cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
-      cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em
+      cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em,
+      djen_nova_comunicacao: item.djen_nova_comunicacao,
+      djen_ultimo_resumo: item.djen_ultimo_resumo,
+      djen_ultimo_link: item.djen_ultimo_link,
+      djen_ultima_data: item.djen_ultima_data
     }));
   } catch (error) {
     return [];
@@ -141,7 +145,6 @@ export async function deleteKnowledgeDoc(docId: string, empresaId: string) {
 
 export async function saveKnowledgeDocSystem(doc: any) {
   const admin = await getSupabaseAdmin();
-  // Alinhamento estrito com schema real (Portuguese)
   const payload = {
     titulo: doc.titulo,
     tipo: doc.tipo,
@@ -159,7 +162,6 @@ export async function saveKnowledgeDocSystem(doc: any) {
 
 export async function saveKnowledgeChunksSystem(chunks: any[]) {
   const admin = await getSupabaseAdmin();
-  // Alinhamento estrito com schema real (Portuguese)
   const payload = chunks.map(c => ({
     doc_id: c.doc_id,
     empresa_id: c.empresa_id,
@@ -205,7 +207,7 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     db_id: item.id.toString(),
     empresa_id: item.empresa_id,
     created_by: item.created_by,
-    ultimoRetorno: item.ultimo_retorno, // Crucial para o DJEN check
+    ultimoRetorno: item.ultimo_retorno,
     datajud_ultimo_movimento: item.datajud_ultimo_movimento,
     datajud_ultimo_nome: item.datajud_ultimo_nome,
     datajud_consultado_em: item.datajud_consultado_em,
@@ -219,7 +221,11 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     busca_apreensao_consultado_em: item.busca_apreensao_consultado_em,
     em_cumprimento_sentenca: item.em_cumprimento_sentenca,
     cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
-    cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em
+    cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em,
+    djen_nova_comunicacao: item.djen_nova_comunicacao,
+    djen_ultimo_resumo: item.djen_ultimo_resumo,
+    djen_ultimo_link: item.djen_ultimo_link,
+    djen_ultima_data: item.djen_ultima_data
   }));
 }
 
@@ -348,6 +354,10 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
         em_cumprimento_sentenca: !!c.em_cumprimento_sentenca,
         cumprimento_sentenca_motivo: c.cumprimento_sentenca_motivo,
         cumprimento_sentenca_consultado_em: c.cumprimento_sentenca_consultado_em,
+        djen_nova_comunicacao: !!c.djen_nova_comunicacao,
+        djen_ultimo_resumo: c.djen_ultimo_resumo,
+        djen_ultimo_link: c.djen_ultimo_link,
+        djen_ultima_data: c.djen_ultima_data,
         dados: { ...c }
       };
     });
@@ -522,5 +532,24 @@ export async function desativarAdvogadoBanca(id: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };
   const { error = null } = await supabase.from('advogados_banca').update({ ativo: false }).eq('id', id).eq('empresa_id', empresa_id);
+  return { success: !error };
+}
+
+export async function clearDataJudAuditAction(protocolo: string) {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id || !supabase) return { success: false };
+  
+  const { data: dbItem } = await supabase.from('processos').select('id, dados').eq('protocolo_ref', protocolo).eq('empresa_id', empresa_id).single();
+  if (!dbItem) return { success: false };
+
+  const patch = {
+    tem_atualizacao_pos_retorno: false,
+    djen_nova_comunicacao: false,
+    tem_novo_andamento: false
+  };
+
+  const updatedDados = { ...(dbItem.dados as any), ...patch };
+  
+  const { error } = await supabase.from('processos').update({ ...patch, dados: updatedDados }).eq('id', dbItem.id);
   return { success: !error };
 }

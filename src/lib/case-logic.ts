@@ -34,6 +34,7 @@ export type EventoTipo =
   | 'sentenca_parcial' 
   | 'cumprimento_sentenca' 
   | 'transito_ou_baixa' 
+  | 'transito_baixa'
   | 'cancelamento_distribuicao' 
   | 'liminar'
   | 'novo_andamento_relevante' 
@@ -256,6 +257,11 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     return false;
   };
 
+  // UNIFICAÇÃO DE FLAG: tem_novo_andamento é um alias para qualquer novidade não atendida
+  const temAndamentoDataJud = toBool(data.tem_atualizacao_pos_retorno);
+  const temAndamentoDjen = toBool(data.djen_nova_comunicacao);
+  const novidadeUnificada = temAndamentoDataJud || temAndamentoDjen;
+
   return {
     id: raw.id || crypto.randomUUID(),
     created_by: data.created_by,
@@ -275,8 +281,8 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     observacao,
     telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, ''),
     
-    // UNIFICAÇÃO
-    tem_novo_andamento: toBool(data.tem_novo_andamento),
+    // EVENTO UNIFICADO
+    tem_novo_andamento: novidadeUnificada,
     evento_tipo: data.evento_tipo,
     evento_resumo: data.evento_resumo,
     evento_data: data.evento_data,
@@ -285,7 +291,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     datajud_ultimo_movimento: data.datajud_ultimo_movimento,
     datajud_ultimo_nome: data.datajud_ultimo_nome,
     datajud_consultado_em: data.datajud_consultado_em,
-    tem_atualizacao_pos_retorno: toBool(data.tem_atualizacao_pos_retorno),
+    tem_atualizacao_pos_retorno: temAndamentoDataJud,
     datajud_encerrado_tribunal: toBool(data.datajud_encerrado_tribunal),
     datajud_encerrado_motivo: data.datajud_encerrado_motivo,
     datajud_hash: data.datajud_hash || null,
@@ -301,9 +307,10 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
 
     // DJEN
     djen_consultado_em: data.djen_consultado_em,
-    djen_nova_comunicacao: toBool(data.djen_nova_comunicacao),
+    djen_nova_comunicacao: temAndamentoDjen,
     djen_ultima_data: data.djen_ultima_data,
     djen_ultimo_resumo: data.djen_ultimo_resumo,
+    djen_ultimo_link: data.djen_ultimo_link,
     djen_count: data.djen_count ? Number(data.djen_count) : 0
   };
 }
