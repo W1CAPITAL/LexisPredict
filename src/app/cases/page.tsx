@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -97,7 +98,6 @@ const CaseRow = React.memo(({
           </div>
           <span className={cn("text-[10px] font-mono text-muted-foreground uppercase tracking-widest", ui.cnj)}>{c.protocolo}</span>
           
-          {/* SINAL DE CAPA SOBERANO */}
           <div className="mt-3 space-y-1.5 max-w-[450px]">
              <div className="flex items-center gap-2">
                 <Badge variant="outline" className={cn(
@@ -221,7 +221,7 @@ function CasesContent() {
     if (!c.protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(c.protocolo);
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
       if (res.success && res.case) {
         setHistoryResult({ 
           case: res.case, 
@@ -231,7 +231,7 @@ function CasesContent() {
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setAiDraft(null);
-        updateCaseByProtocolo(c.protocolo, res.casePatch);
+        if (res.casePatch) updateCaseByProtocolo(c.protocolo, res.casePatch);
       }
     } finally { setLoading(false); }
   };
@@ -240,7 +240,7 @@ function CasesContent() {
     if (!c.protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(c.protocolo);
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
       if (res.success && res.case) {
         setHistoryResult({ 
           case: res.case, 
@@ -267,7 +267,7 @@ function CasesContent() {
         setSuggestedScripts(suggestions);
         setShowScripts(true);
         setIsHistoryModalOpen(true);
-        updateCaseByProtocolo(c.protocolo, res.casePatch);
+        if (res.casePatch) updateCaseByProtocolo(c.protocolo, res.casePatch);
       }
     } finally { setLoading(false); }
   };
