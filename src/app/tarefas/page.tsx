@@ -609,7 +609,7 @@ export default function TarefasPage() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[950px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+            <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
               <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -622,8 +622,8 @@ export default function TarefasPage() {
                 </div>
               </DialogHeader>
               
-              <div className="flex flex-col flex-1 bg-white overflow-hidden">
-                <ScrollArea className="flex-1">
+              <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
+                <ScrollArea className="flex-1 w-full">
                   <div className="p-4 sm:p-6 space-y-10">
                     <section className="space-y-6">
                        <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}>
@@ -672,7 +672,7 @@ export default function TarefasPage() {
                           <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
                           <div className="flex flex-col sm:flex-row gap-3">
                             <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                              <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
                               <SelectContent className="bg-white border-2 border-black rounded-lg">
                                 <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                                 <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2 Elite</SelectItem>
