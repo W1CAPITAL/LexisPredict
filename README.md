@@ -125,34 +125,6 @@ Cards com resumo legível e ações (gerir caso / ignorar)
 
 Documentos
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 TipoSituaçãoProcuraçãoPDF/texto → extração → revisão → PDFHabilitaçãoAba dedicadaSubstabelecimentoCom/sem reserva; variantes CPCPeça de substabelecimentoComunicação ao juízoRevogaçãoAba dedicada
 Banca de advogados (OAB por UF), extração assistida, OCR de apoio.
 Inteligência artificial
@@ -188,34 +160,6 @@ Sem alterar regras de negócio (prazos, scanners, auth)
 
 Arquitetura e stack
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 CamadaTecnologiaFrontNext.js 15, React 19, TypeScript, Tailwind, shadcn/ui, ZustandBackServer Actions, Supabase Auth + PostgreSQLIAGenkit / multi-providerDocs@react-pdf/renderer, pdf-parse, TesseractDeployVercel
 Fonte de verdade da carteira: Supabase. UI (filtros, meta diária, progresso de scan) pode usar armazenamento local.
 
@@ -228,58 +172,6 @@ Software proprietário — GitHub público ≠ open source
 
 
 Status por área
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ÁreaStatusProduçãoAtivoMulti-tenant / processos / prazosEstávelDashboard / dossiêEstável (métricas em evolução)Import CSVEstávelDataJud scannerAtivoDJEN + Centro de AlertasAtivoFila de tarefasAtivoDocumentosAtivo (modelos em expansão)IAAtivaWhatsAppConforme integraçãoUI responsivaAtiva (camada aditiva)
 
