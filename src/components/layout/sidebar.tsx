@@ -88,7 +88,7 @@ export function Sidebar() {
     return cases.filter(c => 
       c.status === 'Vencido' || 
       c.status === 'É Hoje' || 
-      c.status === 'Caso CrÍTico' ||
+      c.status === 'Caso Crítico' ||
       !!c.tem_atualizacao_pos_retorno ||
       !!c.datajud_encerrado_tribunal ||
       !!c.djen_nova_comunicacao ||
@@ -155,7 +155,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="flex-1 py-8 px-4 space-y-8 overflow-y-auto text-black">
+      <div className="flex-1 py-8 px-4 space-y-8 overflow-y-auto">
         <div className="px-3">
           <Button 
             onClick={() => toggleMinimize()} 
@@ -248,7 +248,7 @@ export function Sidebar() {
           </div>
           <button 
             onClick={() => setCollapsed(!collapsed)}
-            className="hidden lg:flex h-9 w-9 text-sidebar-foreground/60 hover:text-primary rounded-lg items-center justify-center transition-colors"
+            className="hidden md:flex h-9 w-9 text-sidebar-foreground/60 hover:text-primary rounded-lg items-center justify-center transition-colors"
           >
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
@@ -259,7 +259,7 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="lg:hidden fixed top-5 left-5 z-[100]">
+      <div className="md:hidden fixed top-5 left-5 z-[100]">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="premium-card h-12 w-12 border-none">
@@ -277,7 +277,7 @@ export function Sidebar() {
       </div>
 
       <aside className={cn(
-        "hidden lg:flex h-screen flex-col transition-all duration-500 z-50 shrink-0",
+        "hidden md:flex h-screen flex-col transition-all duration-500 z-50 shrink-0",
         collapsed ? "w-20" : "w-72"
       )}>
         <SidebarContent />

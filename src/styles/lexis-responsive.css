@@ -8,11 +8,11 @@
 
 @media (min-width: 768px) {
   :root {
-    --lexis-page-pad: 1.25rem;
+    --lexis-page-pad: 1rem; /* Notebooks economizam mais espaço lateral */
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
   :root {
     --lexis-page-pad: 1.5rem;
   }
@@ -80,7 +80,7 @@
 
 @media (min-width: 1280px) {
   .lexis-grid-metrics-5 {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, 1fr) !important;
   }
 }
 
