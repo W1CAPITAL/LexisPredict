@@ -86,7 +86,7 @@ import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerrame
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { useAuth } from '@/components/auth/auth-provider';
-import { plainTextFromDjen, summarizeDjenForAlert } from '@/lib/djen';
+import { summarizeDjenForAlert } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
 
@@ -140,7 +140,6 @@ export default function TarefasPage() {
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
   const [selectedMotor, setSelectedMotor] = useState<string>('local_only');
-  const [loadingDjen, setLoadingDjen] = useState(false);
 
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -495,6 +494,8 @@ export default function TarefasPage() {
 
   if (!mounted) return null;
 
+  const offices = Array.from(new Set(cases.map(c => c.escritorio))).filter(Boolean).sort();
+
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
@@ -608,7 +609,7 @@ export default function TarefasPage() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[950px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh]">
+            <DialogContent className="sm:max-w-[950px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
               <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -712,32 +713,34 @@ export default function TarefasPage() {
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
           <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl overflow-hidden p-0 max-h-[90vh]">
-            <DialogHeader className="p-6 bg-secondary/20 border-b">
-              <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle>
-              <DialogDescription className="sr-only">Formulário para registrar contato com o cliente.</DialogDescription>
-            </DialogHeader>
-            <div className="p-6 space-y-6 overflow-y-auto">
-                <div className="grid gap-2">
-                  <Label className={ui.label}>Resultado do Contato</Label>
-                  <Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}>
-                    <SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter em Andamento</SelectItem><SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Processo</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label className={ui.label}>Próximo retorno</Label>
-                  <Input type="date" value={attendanceForm.proximoRetorno} onChange={(e) => setAttendanceForm({...attendanceForm, proximoRetorno: e.target.value})} disabled={attendanceForm.situacao === 'ENCERRADO'} className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-base sm:text-xs uppercase" />
-                </div>
-                <div className="grid gap-2">
-                  <Label className={ui.label}>Observações</Label>
-                  <Textarea placeholder="REGISTRE DETALHES..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-base sm:text-xs uppercase resize-none" />
-                </div>
-                <div className="flex items-center space-x-3 pt-2">
-                  <Checkbox id="applyToAll" checked={attendanceForm.applyToAll} onCheckedChange={(val) => setAttendanceForm({...attendanceForm, applyToAll: !!val})} className="h-5 w-5" />
-                  <Label htmlFor="applyToAll" className="text-[10px] font-black uppercase cursor-pointer leading-tight">Aplicar a toda carteira do cliente</Label>
-                </div>
-            </div>
-            <DialogFooter className="p-6 pt-0"><Button onClick={handleSaveAttendance} disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] shadow-xl">{isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2" />} Salvar Registro</Button></DialogFooter>
+            <form className="flex flex-col h-full">
+              <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
+                <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle>
+                <DialogDescription className="sr-only">Formulário para registrar contato com o cliente.</DialogDescription>
+              </DialogHeader>
+              <div className="p-6 space-y-6 overflow-y-auto">
+                  <div className="grid gap-2">
+                    <Label className={ui.label}>Resultado do Contato</Label>
+                    <Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}>
+                      <SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter em Andamento</SelectItem><SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Processo</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className={ui.label}>Próximo retorno</Label>
+                    <Input type="date" value={attendanceForm.proximoRetorno} onChange={(e) => setAttendanceForm({...attendanceForm, proximoRetorno: e.target.value})} disabled={attendanceForm.situacao === 'ENCERRADO'} className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-base sm:text-xs uppercase" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className={ui.label}>Observações</Label>
+                    <Textarea placeholder="REGISTRE DETALHES..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-base sm:text-xs uppercase resize-none" />
+                  </div>
+                  <div className="flex items-center space-x-3 pt-2">
+                    <Checkbox id="applyToAll" checked={attendanceForm.applyToAll} onCheckedChange={(val) => setAttendanceForm({...attendanceForm, applyToAll: !!val})} className="h-5 w-5" />
+                    <Label htmlFor="applyToAll" className="text-[10px] font-black uppercase cursor-pointer leading-tight">Aplicar a toda carteira do cliente</Label>
+                  </div>
+              </div>
+              <DialogFooter className="p-6 pt-0 shrink-0"><Button type="button" onClick={handleSaveAttendance} disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] shadow-xl">{isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2" />} Salvar Registro</Button></DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </main>
