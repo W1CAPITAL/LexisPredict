@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -221,7 +222,9 @@ export function DataJudScannerPanel() {
                                "text-[7px] font-black uppercase px-1 py-0 border-none",
                                log.engine === 'Local' ? "bg-slate-200 text-slate-700" : "bg-blue-600 text-white"
                              )}>{log.engine}</Badge>
-                             <span className="text-[8px] font-bold text-black/40 uppercase truncate">{log.message}</span>
+                             <span className="text-[8px] font-bold text-black/40 uppercase truncate">
+                               {log.source ? `[${log.source}] ` : ""}{log.message}
+                             </span>
                           </div>
                        </div>
                     </div>
@@ -242,7 +245,7 @@ export function DataJudScannerPanel() {
       </ScrollArea>
       
       <div className="p-3 bg-black text-white text-[8px] font-black uppercase text-center border-t-2 border-black shrink-0 flex items-center justify-center gap-4">
-        <span>Authority System • v9.6</span>
+        <span>Authority System • v9.8</span>
         <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> Rede Ativa</div>
       </div>
     </div>
