@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v6.0 - SELAGEM PDF ANTI-CORTE
+ * DOSSIÊ OPERACIONAL v6.1 - SELAGEM PDF ANTI-CORTE
  */
 "use client";
 
@@ -29,7 +29,8 @@ import {
   Building2,
   Gavel,
   StickyNote,
-  Globe
+  Globe,
+  Target
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -208,7 +209,7 @@ export default function UnifiedReport() {
             <Button variant="ghost" asChild className="text-black/70 hover:text-black font-black tracking-widest text-[10px] uppercase rounded-none h-10 px-4">
               <Link href="/"><ArrowLeft size={14} className="mr-2" /> Voltar ao Gabinete</Link>
             </Button>
-            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Authority v6.0</Badge>
+            <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[9px] px-3 py-1">Authority v6.1</Badge>
           </div>
           <Button onClick={handleExportPDF} className="bg-black text-white font-black uppercase text-[10px] h-11 px-7 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
             <Printer size={14} className="mr-2" /> Gerar PDF / Imprimir
@@ -319,7 +320,7 @@ export default function UnifiedReport() {
                    <div className="h-64 w-full print:hidden">
                       <ResponsiveContainer width="100%" height="100%">
                          <BarChart data={metrics.chartData}>
-                            <XAxis dataKey="name" fontSize={9} fontWeight={900} axisLine={false} tickLine={false} />
+                            <XAxis dataKey="name" fontSize={9} fontWeights={900} axisLine={false} tickLine={false} />
                             <YAxis hide />
                             <Tooltip cursor={{fill: '#f8f9fb'}} contentStyle={{ borderRadius: '0', border: '2px solid black', fontSize: '10px', fontWeight: '900' }} />
                             <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={35}>
