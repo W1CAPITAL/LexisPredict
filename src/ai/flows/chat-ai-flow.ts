@@ -25,6 +25,12 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function callEngineWithRetry(url: string, key: string | undefined, model: string, messages: any[], maxRetries = 2) {
   if (!key) return null;
   
+  // Saneamento de mensagens para evitar HTTP 400
+  const cleanMessages = messages.map(m => ({
+    role: m.role || 'user',
+    content: String(m.content || m.text || '')
+  })).filter(m => m.content.trim() !== '');
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const startTime = Date.now();
     try {
@@ -36,15 +42,17 @@ async function callEngineWithRetry(url: string, key: string | undefined, model: 
         },
         body: JSON.stringify({ 
           model,
-          messages,
+          messages: cleanMessages,
           temperature: 0.7,
           max_tokens: 2048
         }),
-        signal: AbortSignal.timeout(45000)
+        // Timeout robusto
+        signal: AbortSignal.timeout(35000)
       });
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+        console.error(`[Neural Engine Error] ${model}:`, errorData);
         throw new Error(errorData.error?.message || `HTTP ${res.status}`);
       }
       
@@ -91,7 +99,7 @@ export const chatAIFlow = ai.defineFlow(
     const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history, { role: 'user', content: userPrompt }];
 
     const engines = [
-      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-beta' },
+      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-2-1212' },
       { id: 'groq-llama', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
     ];
 

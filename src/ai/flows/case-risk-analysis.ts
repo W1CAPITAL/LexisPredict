@@ -1,8 +1,7 @@
-
 'use server';
 /**
  * @fileOverview Análise de Risco de Gabinete v2700.0 ELITE
- * Soberania Grok 4.5.
+ * Soberania Grok-2.
  */
 
 import {ai} from '@/ai/genkit';
@@ -21,7 +20,7 @@ export async function caseRiskAnalysis(input: any): Promise<any> {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${XAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'grok-4.5',
+        model: 'grok-2-1212',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' }
       })

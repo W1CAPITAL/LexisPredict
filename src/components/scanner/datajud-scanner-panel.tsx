@@ -5,7 +5,7 @@
 "use client";
 
 import React from 'react';
-import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
+import { useDataJudScanStore, ScanLog } from '@/store/use-datajud-scan-store';
 import { 
   Zap, 
   X, 
@@ -23,23 +23,25 @@ import {
   AlertCircle,
   Search,
   Monitor,
-  Globe
+  Globe,
+  Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { ui } from '@/lib/responsive-ui';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from '@/components/ui/label';
 
 export function DataJudScannerPanel() {
   const { 
     status, total, done, alerts, closed, pending, cycles,
-    manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, lastLogs,
+    manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
     isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
     startManualScan, pauseManualScan, resetScan,
-    includeDjen24h, setIncludeDjen24h
+    scanMode, setScanMode
   } = useDataJudScanStore();
   
   const cloudPct = Math.round((done / (total || 1)) * 100);
@@ -63,11 +65,14 @@ export function DataJudScannerPanel() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[200] w-[450px] bg-white border-2 border-black shadow-[20px_20px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col h-[85vh]">
+    <div className={cn(
+      "fixed bottom-6 right-6 z-[200] w-[450px] bg-white border-2 border-black shadow-[20px_20px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col h-[85vh]",
+      ui.scanner
+    )}>
       <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black shrink-0">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v9.5</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v9.6</h3>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -77,38 +82,55 @@ export function DataJudScannerPanel() {
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-8">
-          {/* CONFIGURAÇÃO GLOBAL */}
-          <section className="p-4 bg-primary/5 border-2 border-primary/20 rounded-none space-y-4">
-             <div className="flex items-center space-x-3">
-                <Checkbox 
-                  id="includeDjen" 
-                  checked={includeDjen24h} 
-                  onCheckedChange={(checked) => setIncludeDjen24h(!!checked)}
-                  className="border-black rounded-none data-[state=checked]:bg-black"
-                />
-                <Label htmlFor="includeDjen" className="text-[10px] font-black uppercase flex items-center gap-2 cursor-pointer">
-                   <Globe size={14} className="text-blue-600" /> Também auditar DJEN (Janela 24h)
-                </Label>
+          {/* SELEÇÃO DE MODO */}
+          <section className="p-5 bg-[#f8f9fb] border-2 border-black/5 space-y-4">
+             <div className="flex items-center gap-2 mb-2">
+                <Settings2 size={14} className="text-primary" />
+                <p className="text-[10px] font-black uppercase tracking-widest">Modo de Operação</p>
              </div>
-             <p className="text-[8px] font-bold text-muted-foreground uppercase leading-relaxed">
-               Ativa a consulta ao Diário Oficial após cada auditoria do Tribunal. Aumenta a latência em ~1s por item.
-             </p>
+             <RadioGroup 
+                value={scanMode} 
+                onValueChange={(val: any) => setScanMode(val)}
+                className="grid grid-cols-1 gap-2"
+                disabled={manualStatus === 'running' || status === 'running'}
+             >
+                <div className="flex items-center space-x-3 p-3 bg-white border border-black/5 hover:border-black transition-all cursor-pointer rounded-sm">
+                   <RadioGroupItem value="datajud" id="mode-dj" className="border-black" />
+                   <Label htmlFor="mode-dj" className="flex-1 cursor-pointer">
+                      <p className="text-[10px] font-black uppercase">Somente Tribunal (DataJud)</p>
+                      <p className="text-[8px] font-bold text-black/40 uppercase">Varredura de movimentos e prazos.</p>
+                   </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-3 bg-white border border-black/5 hover:border-black transition-all cursor-pointer rounded-sm">
+                   <RadioGroupItem value="djen" id="mode-djen" className="border-black" />
+                   <Label htmlFor="mode-djen" className="flex-1 cursor-pointer">
+                      <p className="text-[10px] font-black uppercase">Somente Diário (DJEN)</p>
+                      <p className="text-[8px] font-bold text-black/40 uppercase">Vigilância de publicações oficiais (24h).</p>
+                   </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-3 bg-white border border-black/5 hover:border-black transition-all cursor-pointer rounded-sm">
+                   <RadioGroupItem value="both" id="mode-both" className="border-black" />
+                   <Label htmlFor="mode-both" className="flex-1 cursor-pointer">
+                      <p className="text-[10px] font-black uppercase">Híbrido (Sequencial)</p>
+                      <p className="text-[8px] font-bold text-black/40 uppercase">Auditoria unificada 3D em cada CNJ.</p>
+                   </Label>
+                </div>
+             </RadioGroup>
           </section>
 
-          {/* ENGINE 1: CLOUD AUDIT */}
+          {/* ENGINE 1: CLOUD AUDIT (DATAJUD ONLY) */}
           <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-6">
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                    <CloudLightning className={cn("text-primary", status === 'running' && "animate-pulse")} size={16} />
-                   <p className="text-[10px] font-black uppercase">Motor de Nuvem (Servidor)</p>
+                   <p className="text-[10px] font-black uppercase">Ciclo de Nuvem (Tribunal)</p>
                 </div>
-                {status !== 'idle' && <Badge className="text-[8px] font-black uppercase rounded-none bg-blue-600">Ciclos: {cycles}</Badge>}
              </div>
              
              {status === 'idle' ? (
                <div className="space-y-4">
                   <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
-                    Auditoria assíncrona em micro-lotes via servidor. Opera em background sem usar seu navegador.
+                    Auditoria assíncrona DataJud via servidor. Opera em background.
                   </p>
                   <Button onClick={startCloudScan} className="w-full h-11 bg-black text-white font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
                     Ativar Ciclo de Nuvem
@@ -139,13 +161,13 @@ export function DataJudScannerPanel() {
           <section className="p-5 bg-white border-2 border-black space-y-6 shadow-[6px_6px_0px_rgba(0,0,0,0.05)]">
              <div className="flex items-center gap-2">
                 <Terminal className={cn("text-primary", manualStatus === 'running' && "animate-pulse")} size={16} />
-                <p className="text-[10px] font-black uppercase">Scanner Manual (Navegador)</p>
+                <p className="text-[10px] font-black uppercase">Scanner Local ({scanMode.toUpperCase()})</p>
              </div>
 
              {manualStatus === 'idle' ? (
                <div className="space-y-4">
                   <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
-                    Varredura imediata utilizando a banda do seu computador. Ideal para triagem de urgência na tela.
+                    Varredura imediata baseada no modo selecionado. Ideal para triagem de urgência na tela.
                   </p>
                   <Button onClick={startManualScan} className="w-full h-11 bg-white text-black font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
                     Iniciar Varredura Local
@@ -160,9 +182,9 @@ export function DataJudScannerPanel() {
                   <Progress value={manualPct} className="h-2 border-2 border-black bg-gray-100 [&>div]:bg-primary" />
 
                   <div className="grid grid-cols-3 gap-2">
-                    <DashboardMiniKpi label="Baixas" value={manualClosed} color="text-emerald-600" />
-                    <DashboardMiniKpi label="Novidades" value={manualAlerts} color="text-blue-600" />
-                    <DashboardMiniKpi label="Falhas" value={manualErrors} color="text-red-600" />
+                    <DashboardMiniKpi label="Dj. Alertas" value={manualAlerts} color="text-red-600" />
+                    <DashboardMiniKpi label="DJEN Alertas" value={manualDjenAlerts} color="text-blue-600" />
+                    <DashboardMiniKpi label="Concluídos" value={manualDone} color="text-emerald-600" />
                   </div>
 
                   <div className="flex gap-2">
@@ -183,7 +205,7 @@ export function DataJudScannerPanel() {
                    <Monitor size={14} />
                    <h4 className="text-[9px] font-black uppercase tracking-widest">Feed de Auditoria Unificado</h4>
                 </div>
-                <Badge variant="outline" className="text-[7px] font-black uppercase border-black/10">Histórico de Sessão</Badge>
+                <Badge variant="outline" className="text-[7px] font-black uppercase border-black/10">Sessão</Badge>
              </div>
              
              <div className="bg-black/5 p-4 rounded-none space-y-3 min-h-[250px]">
@@ -192,7 +214,7 @@ export function DataJudScannerPanel() {
                     <div className="flex items-center gap-3 min-w-0">
                        <LogTypeIcon type={log.type} />
                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase text-black truncate max-w-[180px]">{log.protocolo}</p>
+                          <p className={cn("text-[10px] font-black uppercase text-black truncate max-w-[180px]", ui.cnj)}>{log.protocolo}</p>
                           <div className="flex items-center gap-2">
                              <Badge className={cn(
                                "text-[7px] font-black uppercase px-1 py-0 border-none",
@@ -219,7 +241,7 @@ export function DataJudScannerPanel() {
       </ScrollArea>
       
       <div className="p-3 bg-black text-white text-[8px] font-black uppercase text-center border-t-2 border-black shrink-0 flex items-center justify-center gap-4">
-        <span>Authority System • v9.5</span>
+        <span>Authority System • v9.6</span>
         <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> Rede Ativa</div>
       </div>
     </div>

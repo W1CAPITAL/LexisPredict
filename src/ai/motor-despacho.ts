@@ -1,6 +1,6 @@
 /**
- * @fileOverview MOTOR LEXIS DE DESPACHO v8.0 (FIDELIDADE DE MÉRITO + SOBERANIA LOCAL)
- * Orquestrador principal que prioriza Base de Conhecimento e permite rascunho determinístico.
+ * @fileOverview MOTOR LEXIS DE DESPACHO v9.0 (FIDELIDADE DE MÉRITO + BLINDAGEM FINANCEIRA)
+ * Orquestrador principal que prioriza Base de Conhecimento e garante verdade processual absoluta.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -73,14 +73,18 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
   const contextKnowledge = allChunks.map(c => `[REGRA OFICIAL]: ${c.texto}`).join('\n\n');
 
   const systemPrompt = `
-    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v8.0.
-    MISSÃO: REDIGIR ATENDIMENTO TRANSPARENTE E PROFISSIONAL.
+    VOCÊ É O MOTOR DE RASCUNHO LEXIS CORE v9.0.
+    MISSÃO: REDIGIR ATENDIMENTO TRANSPARENTE, PROFISSIONAL E FINANCEIRAMENTE SEGURO.
     
     DIRETRIZES CRÍTICAS DE FIDELIDADE:
-    1. SE O PROCESSO FOI ENCERRADO/CANCELADO: Explique o motivo real (ex: falta de custas, indeferimento). NUNCA use tom de comemoração se houve derrota ou falha técnica.
-    2. PASSIVO FINANCEIRO: Se houver majoração de honorários de sucumbência ou custas pendentes, ALERTE o cliente sobre este passivo.
-    3. ESTRUTURA: Contexto -> Fato Real -> Impacto (Ganhos ou Perdas) -> Próximo Passo.
-    4. PROIBIÇÃO: Nunca cite nome de empresa ou marca. Use "Setor Processual".
+    1. INDEFERIMENTO DA INICIAL: Se o histórico indica que a petição inicial foi indeferida ou o processo foi extinto logo no início, explique que o juiz abortou o caso por falta de requisito formal (sem julgar o mérito). 
+    2. IMUNIDADE FINANCEIRA: Se a inicial foi indeferida (antes da citação do réu) ou se a Gratuidade foi deferida, você DEVE cravar que o cliente está ISENTO de qualquer custo, honorário ou taxa. Não use termos de dúvida como "se houver pendência". Afirme que o risco é ZERO.
+    3. GRATUIDADE DE JUSTIÇA: Se o histórico indica que a gratuidade foi deferida, você DEVE mencionar que a cobrança de honorários sucumbenciais está SUSPENSA.
+    4. VALORES DE HONORÁRIOS: Nunca invente percentuais (como 15%) se não estiverem explícitos no movimento atual. Use termos genéricos.
+    5. SE O PROCESSO FOI ENCERRADO: Explique o motivo real de forma leiga. Se foi derrota técnica, não use tom de sucesso.
+    6. PROIBIÇÃO: Nunca cite nome de empresa ou marca. Use "Setor Processual" ou "nosso escritório".
+    
+    ESTRUTURA OBRIGATÓRIA: Contexto -> Fato Leigo -> Impacto (Financeiro) -> Próximo Passo.
     
     BASE DE CONHECIMENTO AUTORIZADA:
     ${contextKnowledge}
@@ -88,13 +92,14 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
 
   const userPrompt = `
     DADOS DO PROCESSO: ${protocolo}
+    CLIENTE: ${clienteNome}
     HISTÓRICO RECENTE DO TRIBUNAL:
     ${movimentos.slice(0, 15).map(m => `- ${m.dataHora}: ${m.nome} | ${m.complemento || ''}`).join('\n')}
     
     SCRIPT BASE SUGERIDO:
     "${baseScript}"
     
-    REDIGIR RASCUNHO FINAL COM FOCO NA VERDADE DA DECISÃO:
+    REDIGIR RASCUNHO FINAL RESPEITANDO A IMUNIDADE FINANCEIRA E A VERDADE DA DECISÃO:
   `;
 
   try {

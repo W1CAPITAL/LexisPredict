@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v9.5 — DUAL ENGINE (CLOUD + MANUAL) + DJEN INTEGRATION
- * Agora com suporte a logs detalhados e ritos processuais (Baixa, Novidade, Erro).
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v9.6 — MODULAR (DATAJUD | DJEN | AMBOS)
+ * Suporte a ritos processuais com logs sanitizados e auditoria sequencial.
  */
 import { create } from 'zustand';
 import { scanOneDataJudAction, scanOneDjenAction } from '@/app/actions/case-actions';
@@ -9,6 +9,7 @@ import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
+export type ScanMode = 'datajud' | 'djen' | 'both';
 
 interface CourtHealth {
   id: string;
@@ -44,10 +45,13 @@ interface DataJudScanState {
   manualDone: number;
   manualAlerts: number;
   manualClosed: number;
+  manualDjenAlerts: number;
   manualErrors: number;
   
-  // Opções
-  includeDjen24h: boolean;
+  // Modos e Opções
+  scanMode: ScanMode;
+  setScanMode: (mode: ScanMode) => void;
+  includeDjen24h: boolean; // Legado para compatibilidade se necessário
   setIncludeDjen24h: (val: boolean) => void;
 
   // Registro Unificado
@@ -85,9 +89,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   manualDone: 0,
   manualAlerts: 0,
   manualClosed: 0,
+  manualDjenAlerts: 0,
   manualErrors: 0,
   lastLogs: [],
 
+  scanMode: 'datajud',
+  setScanMode: (scanMode) => set({ scanMode }),
+  
   includeDjen24h: false,
   setIncludeDjen24h: (includeDjen24h) => set({ includeDjen24h }),
 
@@ -143,69 +151,87 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   startManualScan: async () => {
+    const mode = get().scanMode;
     const cases = useAppStore.getState().cases.filter(c => !isCasoEncerrado(c));
     if (cases.length === 0) return;
 
-    set({ manualStatus: 'running', manualTotal: cases.length, manualDone: 0, manualAlerts: 0, manualClosed: 0, manualErrors: 0 });
+    set({ manualStatus: 'running', manualTotal: cases.length, manualDone: 0, manualAlerts: 0, manualClosed: 0, manualDjenAlerts: 0, manualErrors: 0 });
 
-    const includeDjen = get().includeDjen24h;
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     for (const c of cases) {
       if (get().manualStatus !== 'running') break;
       
-      const startTime = Date.now();
-      const res = await scanOneDataJudAction(c.protocolo, true);
-      const latency = Date.now() - startTime;
+      let itemLatency = 0;
+      let itemSuccess = true;
+      let combinedMessage = "";
+      let logType: ScanLog['type'] = 'ok';
 
-      if (res.success) {
-        const isUpdate = !!res.casePatch?.tem_atualizacao_pos_retorno;
-        const isClosed = !!res.casePatch?.datajud_encerrado_tribunal;
+      // --- PASSO 1: DATAJUD ---
+      if (mode === 'datajud' || mode === 'both') {
+        const startDj = Date.now();
+        const resDj = await scanOneDataJudAction(c.protocolo, true);
+        const latDj = Date.now() - startDj;
+        itemLatency += latDj;
 
-        if (isUpdate) set(s => ({ manualAlerts: s.manualAlerts + 1 }));
-        if (isClosed) set(s => ({ manualClosed: s.manualClosed + 1 }));
-        
-        let combinedMessage = isClosed ? 'BAIXA NO TRIBUNAL' : isUpdate ? 'NOVA MOVIMENTAÇÃO' : 'Sem Alterações';
-        let logType: ScanLog['type'] = isClosed ? 'closed' : isUpdate ? 'update' : 'ok';
-
-        // Auditoria Complementar DJEN (Janela 24h)
-        if (includeDjen && !isClosed) {
-           await new Promise(r => setTimeout(r, 800));
-           const djenRes = await scanOneDjenAction(c.protocolo);
-           if (djenRes.success && djenRes.casePatch?.djen_nova_comunicacao) {
-              combinedMessage += " + PUBLICAÇÃO DJEN";
-              logType = 'update';
-           }
+        if (resDj.success) {
+          const isUpdate = !!resDj.casePatch?.tem_atualizacao_pos_retorno;
+          const isClosed = !!resDj.casePatch?.datajud_encerrado_tribunal;
+          
+          if (isUpdate) set(s => ({ manualAlerts: s.manualAlerts + 1 }));
+          if (isClosed) set(s => ({ manualClosed: s.manualClosed + 1 }));
+          
+          combinedMessage = isClosed ? 'BAIXA NO TRIBUNAL' : isUpdate ? 'NOVA MOVIMENTAÇÃO' : 'Sem Alterações';
+          logType = isClosed ? 'closed' : isUpdate ? 'update' : 'ok';
+        } else {
+          itemSuccess = false;
+          combinedMessage = "[DataJud] " + (resDj.message || "Falha");
         }
-
-        get().addLog({ 
-          protocolo: c.protocolo, 
-          message: combinedMessage, 
-          latency, 
-          success: true,
-          type: logType,
-          engine: 'Local'
-        });
-        
-        set(s => ({ manualDone: s.manualDone + 1 }));
-        
-        const courtId = c.protocolo.split('.')[4];
-        if (courtId) get().updateCourtHealth(courtId, latency, true);
-      } else {
-        set(s => ({ 
-          manualErrors: s.manualErrors + 1,
-          manualDone: s.manualDone + 1
-        }));
-        get().addLog({ 
-          protocolo: c.protocolo, 
-          message: res.message || 'Falha Técnica', 
-          latency, 
-          success: false,
-          type: 'error',
-          engine: 'Local'
-        });
-        const courtId = c.protocolo.split('.')[4];
-        if (courtId) get().updateCourtHealth(courtId, latency, false);
       }
+
+      // --- PASSO 2: DJEN ---
+      if (itemSuccess && (mode === 'djen' || mode === 'both')) {
+        if (mode === 'both') await new Promise(r => setTimeout(r, 800)); // Delay seguro
+
+        const startDjen = Date.now();
+        const resDjen = await scanOneDjenAction(c.protocolo, { dataInicio: yesterday, dataFim: today });
+        const latDjen = Date.now() - startDjen;
+        itemLatency += latDjen;
+
+        if (resDjen.success) {
+          const isNewDjen = !!resDjen.casePatch?.djen_nova_comunicacao;
+          if (isNewDjen) {
+            set(s => ({ manualDjenAlerts: s.manualDjenAlerts + 1 }));
+            combinedMessage = (combinedMessage ? combinedMessage + " + " : "") + "PUBLICAÇÃO DJEN";
+            logType = 'update';
+          } else if (mode === 'djen') {
+            combinedMessage = "Sem Publicações (24h)";
+          }
+        } else {
+          // Se falha no DJEN mas DataJud foi ok no modo 'both', não invalida o item
+          if (mode === 'djen') {
+            itemSuccess = false;
+            combinedMessage = "[DJEN] " + (resDjen.message || "Falha");
+          } else {
+            combinedMessage += " | [DJEN Fail]";
+          }
+        }
+      }
+
+      get().addLog({ 
+        protocolo: c.protocolo, 
+        message: combinedMessage || "Processado", 
+        latency: itemLatency, 
+        success: itemSuccess,
+        type: logType,
+        engine: 'Local'
+      });
+      
+      set(s => ({ manualDone: s.manualDone + 1 }));
+      
+      const courtId = c.protocolo.split('.')[4];
+      if (courtId) get().updateCourtHealth(courtId, itemLatency, itemSuccess);
 
       await new Promise(r => setTimeout(r, 600)); 
     }
@@ -219,7 +245,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     if (pollTimer) clearInterval(pollTimer);
     set({ 
       status: 'idle', total: 0, done: 0, alerts: 0, closed: 0, pending: 0, cycles: 0,
-      manualStatus: 'idle', manualDone: 0, manualTotal: 0, manualErrors: 0, manualAlerts: 0, manualClosed: 0, lastLogs: []
+      manualStatus: 'idle', manualDone: 0, manualTotal: 0, manualErrors: 0, manualAlerts: 0, manualClosed: 0, manualDjenAlerts: 0, lastLogs: []
     });
   },
 

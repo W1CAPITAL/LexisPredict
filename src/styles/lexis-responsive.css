@@ -1,0 +1,115 @@
+:root {
+  --lexis-page-pad: 0.75rem;
+  --lexis-body-text: 0.875rem;   /* 14px leitura */
+  --lexis-label-text: 0.625rem;  /* labels decorativos */
+  --lexis-touch-min: 44px;
+  --lexis-modal-max-h: 90vh;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --lexis-page-pad: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --lexis-page-pad: 1.5rem;
+  }
+}
+
+/* Área principal das pages com Sidebar */
+.lexis-main-scroll {
+  padding: var(--lexis-page-pad);
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.lexis-readable {
+  font-size: var(--lexis-body-text) !important;
+  line-height: 1.625 !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+}
+
+.lexis-label-xs {
+  font-size: var(--lexis-label-text) !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  font-weight: 800 !important;
+}
+
+.lexis-touch {
+  min-height: var(--lexis-touch-min) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lexis-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .lexis-stack-md-row {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.lexis-grid-metrics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .lexis-grid-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .lexis-grid-metrics {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .lexis-grid-metrics-5 {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.lexis-dialog-body {
+  max-height: var(--lexis-modal-max-h);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lexis-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0.5rem;
+}
+
+.lexis-cnj {
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Painel scanner flutuante em tela estreita */
+@media (max-width: 767px) {
+  .lexis-scanner-float {
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    width: auto !important;
+    max-width: calc(100vw - 1rem) !important;
+    bottom: 0.5rem !important;
+  }
+}

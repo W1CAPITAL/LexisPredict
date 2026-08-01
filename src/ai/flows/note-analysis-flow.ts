@@ -1,9 +1,8 @@
-
 'use server';
 /**
  * @fileOverview Motor de Auditoria Operacional Jurídica v2700.0 ELITE
  * Analisa anotações para extrair pontos fortes e riscos detectados.
- * Motor: Grok 4.5.
+ * Motor: Grok-2.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -12,7 +11,7 @@ import {z} from 'genkit';
 
 const API_KEYS = {
   XAI: process.env.XAI_API_KEY,
-  AIRFORCE: process.env.AIRFORCE_API_KEY
+  GROQ: process.env.GROQ_API_KEY
 };
 
 /**
@@ -104,7 +103,7 @@ async function callNeuralEngine(text: string) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${API_KEYS.XAI}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'grok-4.5',
+        model: 'grok-2-1212',
         messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: `RELATÓRIO:\n${safeText}` }],
         response_format: { type: 'json_object' }
       }),
@@ -116,13 +115,14 @@ async function callNeuralEngine(text: string) {
   } catch (err) {
     console.error("[Auditoria IA] Falha no motor principal, tentando fallback...", err);
     try {
-      if (!API_KEYS.AIRFORCE) return null;
-      const res = await fetch('https://api.airforce/v1/chat/completions', {
+      if (!API_KEYS.GROQ) return null;
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${API_KEYS.AIRFORCE}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${API_KEYS.GROQ}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'deepseek-v3',
-          messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: `RELATÓRIO:\n${safeText}` }]
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: `RELATÓRIO:\n${safeText}` }],
+          response_format: { type: 'json_object' }
         }),
         signal: AbortSignal.timeout(30000)
       });

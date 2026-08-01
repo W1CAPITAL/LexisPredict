@@ -91,23 +91,21 @@ function dumbExtract(text: string) {
 
 async function callNeuralEngine(text: string) {
   const engines = [
-    { id: 'xai-grok', url: 'https://api.x.ai/v1/responses', key: API_KEYS.XAI, model: 'grok-4.5' },
+    { id: 'xai-grok', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-2-1212' },
     { id: 'groq-llama', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
   ];
 
   for (const engine of engines) {
     if (!engine.key) continue;
     try {
-      const isResponses = engine.url.endsWith('/responses');
       const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: `TEXTO DO DOCUMENTO:\n${text}` }];
       
-      const body: any = { model: engine.model, temperature: 0.1 };
-      if (isResponses) {
-        body.input = messages;
-        body.reasoning_effort = "high";
-      } else {
-        body.messages = messages;
-      }
+      const body: any = { 
+        model: engine.model, 
+        messages,
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      };
 
       const res = await fetch(engine.url, {
         method: 'POST',
@@ -118,7 +116,7 @@ async function callNeuralEngine(text: string) {
       
       if (!res.ok) continue;
       const data = await res.json();
-      const content = data?.choices?.[0]?.message?.content || data?.output?.message?.content || data?.output?.[0]?.text;
+      const content = data?.choices?.[0]?.message?.content;
       const parsed = cleanJsonResponse(content);
       if (parsed) return parsed;
     } catch { continue; }

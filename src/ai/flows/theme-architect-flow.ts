@@ -1,8 +1,7 @@
-
 'use server';
 /**
  * @fileOverview Neural Theme Architect v2700.0 Elite
- * Motor: xAI Grok 4.5
+ * Motor: xAI Grok-2
  * Transforma inspiração natural em sistemas visuais técnicos com validação de contraste rigorosa.
  */
 
@@ -49,7 +48,7 @@ export async function generateNeuralTheme(prompt: string): Promise<z.infer<typeo
       method: 'POST',
       headers: { 'Authorization': `Bearer ${XAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'grok-4.5',
+        model: 'grok-2-1212',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Design a high-stakes professional theme for: ${prompt}` }
