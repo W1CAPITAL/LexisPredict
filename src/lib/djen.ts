@@ -1,5 +1,5 @@
 /**
- * @fileOverview Motor de Consulta e Higiene DJEN v7.5 — PROTOCOLO UNIFICADO
+ * @fileOverview Motor de Consulta e Higiene DJEN v7.6 — PROTOCOLO UNIFICADO
  * Consulta a API pública do PJe para localizar comunicações oficiais.
  * Inclui motor de classificação mútua, sanitização agressiva e detecção de geo-bloqueio.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -82,8 +82,8 @@ export function classifyEventFromText(text: string | null | undefined): { tipo: 
   const raw = text.toUpperCase();
   const clean = plainTextFromDjen(raw);
 
-  // 1. PRIORIDADE MÁXIMA: BUSCA E APREENSÃO
-  if (/BUSCA\s+E\s+APREEN|APREENSAO\s+DO\s+VE[IÍ]CULO|ALIENA[CÇ][AÃ]O\s+FIDUCI[AÁ]RIA.*APREEN/.test(clean)) {
+  // 1. PRIORIDADE MÁXIMA: BUSCA E APREENSÃO (FOCADO EM MANDADO/DEFERIMENTO)
+  if (/MANDADO\s+DE\s+BUSCA|EXPEDI[ÇC][AÃ]O\s+DE\s+MANDADO\s+DE\s+BUSCA|BUSCA\s+E\s+APREENS[AÃ]O\s+DEFERIDA/.test(clean)) {
     return { tipo: 'ba', label: 'BUSCA E APREENSÃO' };
   }
 
@@ -92,20 +92,28 @@ export function classifyEventFromText(text: string | null | undefined): { tipo: 
     return { tipo: 'transito_ou_baixa', label: 'BAIXA DEFINITIVA' };
   }
 
-  // 3. SENTENÇAS (MÉRITO EXCLUSIVO)
-  if (/IMPROCEDENTE|JULGO\s+IMPROCEDENTE/.test(clean)) {
+  // 3. SENTENÇAS (MÉRITO EXCLUSIVO - EXIGE DISPOSITIVO)
+  if (/POSTO\s+ISTO.*IMPROCEDENTE|JULGO\s+IMPROCEDENTE/.test(clean)) {
     return { tipo: 'sentenca_improcedente', label: 'SENTENÇA IMPROCEDENTE' };
   }
   
-  if (/PROCEDENTE\s+EM\s+PARTE|PARCIALMENTE\s+PROCEDENTE/.test(clean)) {
+  if (/POSTO\s+ISTO.*PROCEDENTE\s+EM\s+PARTE|PARCIALMENTE\s+PROCEDENTE/.test(clean)) {
     return { tipo: 'sentenca_parcial', label: 'PROCEDENTE EM PARTE' };
   }
 
-  if (/PROCEDENTE(?!\s+EM\s+PARTE)|JULGO\s+PROCEDENTE(?!\s+EM\s+PARTE)/.test(clean)) {
+  if (/POSTO\s+ISTO.*PROCEDENTE(?!\s+EM\s+PARTE)|JULGO\s+PROCEDENTE(?!\s+EM\s+PARTE)/.test(clean)) {
     return { tipo: 'sentenca_procedente', label: 'SENTENÇA PROCEDENTE' };
   }
 
-  // 4. AUDIÊNCIAS GRANULARES
+  // 4. RITOS DE URGÊNCIA (DISTINGUE DEFERIDO DE INDEFERIDO)
+  if (/LIMINAR\s+DEFERIDA|TUTELA\s+DEFERIDA|TUTELA\s+CONCEDIDA|CONCEDO\s+A\s+LIMINAR/.test(clean)) {
+    return { tipo: 'liminar', label: 'LIMINAR DEFERIDA' };
+  }
+  if (/INDEFIRO\s+A\s+TUTELA|LIMINAR\s+INDEFERIDA|N[AÃ]O\s+CONCEDO\s+A\s+TUTELA/.test(clean)) {
+    return { tipo: 'novo_andamento_relevante', label: 'LIMINAR INDEFERIDA' };
+  }
+
+  // 5. AUDIÊNCIAS GRANULARES
   if (/AUDI[EÊ]NCIA\s+DE\s+CONCILIA[CÇ][AÃ]O|CEJUSC|CONCILIADORA/.test(clean)) {
     return { tipo: 'audiencia_conciliacao', label: 'AUDIÊNCIA DE CONCILIAÇÃO' };
   }
@@ -114,11 +122,6 @@ export function classifyEventFromText(text: string | null | undefined): { tipo: 
   }
   if (/AUDI[EÊ]NCIA\s+DE\s+JULGAMENTO/.test(clean)) {
     return { tipo: 'audiencia_julgamento', label: 'AUDIÊNCIA DE JULGAMENTO' };
-  }
-
-  // 5. RITOS DE URGÊNCIA
-  if (/LIMINAR\s+DEFERIDA|TUTELA\s+DEFERIDA|TUTELA\s+CONCEDIDA/.test(clean)) {
-    return { tipo: 'liminar', label: 'LIMINAR DEFERIDA' };
   }
 
   // 6. CUMPRIMENTO
@@ -131,17 +134,13 @@ export function classifyEventFromText(text: string | null | undefined): { tipo: 
     return { tipo: 'cancelamento_distribuicao', label: 'CANCELAMENTO DISTRIBUIÇÃO' };
   }
 
-  // 8. NOVIDADES RELEVANTES (DEFAULT RELEVANTE)
-  if (/SENTEN[CÇ]A|AC[OÓ]RD[AÃ]O|RECURSO|APELA[CÇ][AÃ]O|AGRAVO|CONTESTA[CÇ][AÃ]O/.test(clean)) {
-    return { tipo: 'novo_andamento_relevante', label: 'NOVIDADE RELEVANTE' };
-  }
-
   return { tipo: 'rotina', label: 'INTIMAÇÃO DE ROTINA' };
 }
 
 /**
- * Motor de Extração de Keywords Críticas v8.0 — RESUMO SÓ COM PALAVRAS-CHAVE
+ * Motor de Extração de Keywords Críticas v8.1 — RESUMO SÓ COM PALAVRAS-CHAVE
  * Utilizado para Tarefas e Notificações.
+ * Otimizado para ignorar citações de leis e focar no dispositivo.
  */
 export function summarizeDjenKeywords(raw: string | null | undefined): string {
   const plain = plainTextFromDjen(raw || "").toUpperCase();
@@ -149,21 +148,20 @@ export function summarizeDjenKeywords(raw: string | null | undefined): string {
 
   // Ordem = prioridade de exibição (mais grave primeiro)
   const rules: { re: RegExp; label: string }[] = [
-    { re: /BUSCA\s+E\s+APREEN|APREENSAO\s+DO\s+VE[IÍ]CULO|ALIENA[CÇ][AÃ]O\s+FIDUCI[AÁ]RIA.*APREEN/, label: "BUSCA E APREENSÃO" },
+    { re: /INDEFIRO\s+A\s+TUTELA|LIMINAR\s+INDEFERIDA|N[AÃ]O\s+CONCEDO\s+A\s+TUTELA/, label: "LIMINAR INDEFERIDA" },
+    { re: /TUTELA\s+DEFERIDA|LIMINAR\s+CONCEDIDA|CONCEDO\s+A\s+TUTELA/, label: "LIMINAR DEFERIDA" },
+    { re: /AUTORIZO\s+O\s+DEP[OÓ]SITO|AUTORIZA-SE\s+O\s+DEP[OÓ]SITO|AUTORIZO\s+A\s+CONSIGNA[ÇC][AÃ]O/, label: "DEPÓSITO AUTORIZADO" },
     { re: /BAIXA\s+DEFINITIVA|PROCESSO\s+BAIXADO|DETERMINADA\s+A\s+BAIXA/, label: "BAIXA DEFINITIVA" },
     { re: /TR[AÂ]NSITO\s+EM\s+JULGADO/, label: "TRÂNSITO EM JULGADO" },
-    { re: /EXTINT|EXTIN[CÇ][AÃ]O|ART\.?\s*485|ABANDONO\s+DA\s+CAUSA|CANCELAMENTO\s+DA\s+DISTRIBUI/, label: "EXTINÇÃO" },
-    { re: /IMPROCEDENTE/, label: "IMPROCEDENTE" },
-    { re: /PROCEDENTE(?!\s+EM\s+PARTE)/, label: "PROCEDENTE" },
-    { re: /PROCEDENTE\s+EM\s+PARTE|PARCIALMENTE\s+PROCEDENTE/, label: "PROCEDENTE EM PARTE" },
-    { re: /SENTEN[CÇ]A/, label: "SENTENÇA" },
+    { re: /MANDADO\s+DE\s+BUSCA|EXPEDI[ÇC][AÃ]O\s+DE\s+MANDADO\s+DE\s+BUSCA/, label: "BUSCA E APREENSÃO" },
+    { re: /JULGO\s+IMPROCEDENTE|POSTO\s+ISTO.*IMPROCEDENTE/, label: "SENTENÇA IMPROCEDENTE" },
+    { re: /JULGO\s+PROCEDENTE|POSTO\s+ISTO.*PROCEDENTE/, label: "SENTENÇA PROCEDENTE" },
     { re: /CUMPRIMENTO\s+DE\s+SENTEN|EXECU[CÇ][AÃ]O\s+DE\s+SENTEN/, label: "CUMPRIMENTO DE SENTENÇA" },
     { re: /EMENDA\s+[AÀ]\s+INICIAL|EMENDE|EMENDA\s+DA\s+INICIAL/, label: "EMENDA À INICIAL" },
-    { re: /IN[EÉ]PCIA|INDEFER.*INICIAL|INDEFERIMENTO\s+DA\s+PETI/, label: "INDEFERIMENTO / INÉPCIA" },
+    { re: /INDEFERIMENTO\s+DA\s+PETI[ÇC][AÃ]O|INDEFERIDA\s+A\s+INICIAL/, label: "INICIAL INDEFERIDA" },
+    { re: /EXTINT|EXTIN[CÇ][AÃ]O|ART\.?\s*485|ABANDONO\s+DA\s+CAUSA/, label: "EXTINÇÃO" },
     { re: /JUSTI[CÇ]A\s+GRATUITA|AJG|ASSIST[EÊ]NCIA\s+JUDICI[AÁ]RIA/, label: "AJG" },
     { re: /CUSTAS|PREPARO|RECOLHIMENTO|UFESP/, label: "CUSTAS" },
-    { re: /INTIMA[CÇ][AÃ]O|INTIME-SE/, label: "INTIMAÇÃO" },
-    { re: /DESPACHO|DECIS[AÃ]O/, label: "DESPACHO / DECISÃO" },
     { re: /CONTESTA[CÇ][AÃ]O/, label: "CONTESTAÇÃO" },
     { re: /AUDI[EÊ]NCIA/, label: "AUDIÊNCIA" },
     { re: /REDISTRIBUI|DISTRIBUI[CÇ][AÃ]O/, label: "DISTRIBUIÇÃO" },
@@ -172,8 +170,23 @@ export function summarizeDjenKeywords(raw: string | null | undefined): string {
   ];
 
   const hits: string[] = [];
+  
+  // Extraímos apenas o trecho final (dispositivo) para análise se o texto for muito longo
+  // para evitar capturar leis citadas no início.
+  const lowerPlain = plain.toLowerCase();
+  const indexDispositivo = Math.max(lowerPlain.lastIndexOf("decido"), lowerPlain.lastIndexOf("posto isto"), lowerPlain.lastIndexOf("julgo"));
+  const relevantText = indexDispositivo !== -1 ? plain.substring(indexDispositivo) : plain;
+
   for (const r of rules) {
-    if (r.re.test(plain) && !hits.includes(r.label)) hits.push(r.label);
+    // Verificamos na parte relevante primeiro (dispositivo)
+    if (r.re.test(relevantText)) {
+      if (!hits.includes(r.label)) hits.push(r.label);
+    } else if (r.re.test(plain)) {
+      // Fallback para o texto todo se não achou no dispositivo mas o termo é crítico (como BA ou Baixa)
+      if (["BUSCA E APREENSÃO", "BAIXA DEFINITIVA", "TRÂNSITO EM JULGADO", "AJG"].includes(r.label)) {
+        if (!hits.includes(r.label)) hits.push(r.label);
+      }
+    }
     if (hits.length >= 4) break; 
   }
 
