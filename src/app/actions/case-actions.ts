@@ -2,7 +2,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v600.0 ELITE - NÚCLEO SYSTEM UNIFICADO
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v700.0 ELITE - NÚCLEO SYSTEM UNIFICADO
  */
 import {
   getStoredCasesForEmpresa,
@@ -11,7 +11,6 @@ import {
   updateCaseDataJudSystem,
   getSupabaseAdmin
 } from '@/lib/server-db';
-import { createClient } from '@/lib/supabase/server';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
@@ -23,10 +22,11 @@ import { isAfter, parse, isValid, parseISO } from 'date-fns';
 
 /**
  * Helper para validar se uma data de evento ainda é posterior ao retorno humano.
+ * Essencial para manter flags de novidade ativas até o atendimento.
  */
 function movimentoAindaPosRetorno(dataEventoStr: string | null | undefined, ultimoRetornoStr: string | null | undefined): boolean {
   if (!dataEventoStr) return false;
-  if (!ultimoRetornoStr || !String(ultimoRetornoStr).trim() || ultimoRetornoStr === '-') return true;
+  if (!ultimoRetornoStr || !String(ultimoRetornoStr).trim() || ultimoRetornoStr === '-' || ultimoRetornoStr === '0') return true;
   
   try {
     const dataEvento = parseISO(dataEventoStr);
@@ -52,6 +52,9 @@ function movimentoAindaPosRetorno(dataEventoStr: string | null | undefined, ulti
   }
 }
 
+/**
+ * Pesos de Importância Jurídica para seleção de Capa.
+ */
 function getWeight(t: string | null | undefined): number {
   if (!t) return 0;
   const weights: Record<string, number> = {
@@ -87,7 +90,7 @@ export async function syncRepoCases(cases: LegalCase[]) {
 
 /**
  * NÚCLEO SOBERANO DE AUDITORIA (SYSTEM MODE)
- * Unifica Tribunal + Diário e garante persistência idempotente.
+ * Unifica Tribunal + Diário e garante persistência idempotente de flags.
  */
 export async function auditCaseCoreSystem(
   protocolo: string, 
@@ -111,13 +114,13 @@ export async function auditCaseCoreSystem(
     ultimoRetorno: dbItem.ultimo_retorno 
   });
 
+  // Se o caso já foi encerrado no gabinete, não há necessidade de novos alertas de mérito
   if (isCasoEncerrado(target)) return { success: true, skipped: true, case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
 
   const patch: Record<string, any> = {};
   let movimentos: any[] = [];
   let comunicacoes: any[] = [];
   
-  // Inicialização de mérito a partir do existente
   let eventTipo: EventoTipo = (target.evento_tipo as EventoTipo) || 'rotina';
   let eventResumo: string | null = target.evento_resumo || null;
 
@@ -138,7 +141,7 @@ export async function auditCaseCoreSystem(
 
         const dataMovRef = upd.dataUltimo || target.datajud_ultimo_movimento || null;
         
-        // Idempotência: Mantém true se já era true e o evento continua válido
+        // Idempotência: Se já tinha alerta e a data continua sendo posterior ao retorno, mantém.
         patch.tem_atualizacao_pos_retorno = upd.alerta === true || 
           (!!target.tem_atualizacao_pos_retorno && movimentoAindaPosRetorno(dataMovRef, target.ultimoRetorno));
 
@@ -155,7 +158,7 @@ export async function auditCaseCoreSystem(
           tribunal: dataJud.tribunal || target.tribunal
         });
 
-        // Hierarquia de mérito DataJud
+        // Hierarquia de Mérito DataJud
         if (ba.indicio && getWeight('ba') >= getWeight(eventTipo)) {
           eventTipo = 'ba';
           eventResumo = ba.motivo || eventResumo;
@@ -185,7 +188,6 @@ export async function auditCaseCoreSystem(
         const djenSync = detectarNovaComunicacaoDjen(target.ultimoRetorno, comunicacoes);
         const dataDjenRef = djenSync.dataUltima || target.djen_ultima_data || null;
 
-        // Idempotência DJEN
         patch.djen_nova_comunicacao = djenSync.alerta === true || 
           (!!target.djen_nova_comunicacao && movimentoAindaPosRetorno(dataDjenRef, target.ultimoRetorno));
 
@@ -199,6 +201,7 @@ export async function auditCaseCoreSystem(
           djen_consultado_em: new Date().toISOString()
         });
 
+        // Hierarquia de Mérito DJEN
         if (djenSync.alerta && comunicacoes[0]) {
           const djenClass = classifyEventFromText(comunicacoes[0]?.texto);
           if (getWeight(djenClass.tipo) >= getWeight(eventTipo)) {
@@ -213,12 +216,13 @@ export async function auditCaseCoreSystem(
   }
 
   if (!datajudOk && !djenOk) {
-    return { success: false, error: "Nenhuma fonte respondeu.", case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
+    return { success: false, error: "OFFLINE", case: target, casePatch: {}, movimentos: [], comunicacoes: [] };
   }
 
   patch.evento_tipo = eventTipo;
   patch.evento_resumo = eventResumo;
   patch.evento_fonte = (patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao) ? 'ambos' : patch.tem_atualizacao_pos_retorno ? 'datajud' : 'djen';
+  patch.tem_novo_andamento = !!(patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao);
   
   await updateCaseDataJudSystem(dbItem.id, patch);
   const updatedCase = processarCaso({ ...target, ...patch });
@@ -232,13 +236,12 @@ export async function auditCaseCoreSystem(
   };
 }
 
-/**
- * Action da UI: Valida sessão e chama o núcleo system.
- */
 export async function scanSingleCaseAction(protocolo: string, options: { mode?: 'datajud'|'djen'|'both', fast?: boolean } = {}) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false, error: "401" };
-  return await auditCaseCoreSystem(protocolo, empresa_id, options.mode || 'both', { fast: options.fast });
+  // Tipagem segura para empresaId
+  const safeEmpresaId = String(empresa_id);
+  return await auditCaseCoreSystem(protocolo, safeEmpresaId, options.mode || 'both', { fast: options.fast });
 }
 
 export async function scanOneDataJudAction(protocolo: string) {
@@ -249,20 +252,15 @@ export async function scanOneDjenAction(protocolo: string) {
   return scanSingleCaseAction(protocolo, { mode: 'djen', fast: true });
 }
 
-export async function runDataJudScanAction(empresaId?: string) {
+export async function runDataJudScanAction(empresaId: string) {
   try {
-    let id = empresaId;
-    if (!id) {
-      const ctx = await getUserContext();
-      if (!ctx.empresa_id) return { success: false, error: "Sessão expirada." };
-      id = ctx.empresa_id;
-    }
-    const cases = await getStoredCasesForEmpresa(id as string, true);
+    if (!empresaId) return { success: false, error: "Missing ID" };
+    const cases = await getStoredCasesForEmpresa(empresaId, true);
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
     let updated = 0;
     const targetCases = activeCases.slice(0, 20);
     for (const c of targetCases) {
-      const res = await auditCaseCoreSystem(c.protocolo, id as string, 'both', { fast: true });
+      const res = await auditCaseCoreSystem(c.protocolo, empresaId, 'both', { fast: true });
       const patch = (res.casePatch as Record<string, any>) || {};
       if (res.success && (patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao)) {
         updated++;

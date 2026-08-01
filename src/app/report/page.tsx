@@ -1,7 +1,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v24.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
+ * DOSSIÊ OPERACIONAL v25.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
  */
 "use client";
 
@@ -88,13 +88,11 @@ export default function UnifiedReport() {
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
     
-    // NOVIDADES UNIFICADAS
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
 
-    // TOP 10 CRÍTICOS
     const topCriticos = ativos
       .map(c => ({ case: c, sinal: getSinalCapa(c) }))
       .filter(i => i.sinal.prioridade > 10 || i.case.status === 'Vencido')
@@ -106,7 +104,6 @@ export default function UnifiedReport() {
       })
       .slice(0, 10);
 
-    // TOP 10 CHANCE DE ENCERRAMENTO
     const topChance = ativos
       .map(c => {
         let prob = calcularProbabilidadeEncerramento({ 
@@ -124,7 +121,6 @@ export default function UnifiedReport() {
       .sort((a, b) => b.prob - a.prob)
       .slice(0, 10);
 
-    // LISTAS DE MÉRITO (Híbridas: Tipo + Keywords em toda a base)
     const filterMerit = (type: string, keyword: string) => {
       return cases.filter(c => 
         c.evento_tipo === type || 
@@ -136,7 +132,6 @@ export default function UnifiedReport() {
     const listProcedente = filterMerit('sentenca_procedente', 'PROCEDENTE');
     const listImprocedente = filterMerit('sentenca_improcedente', 'IMPROCEDENTE');
 
-    // RANKING DE BANCA
     const lawyerGroups: Record<string, LegalCase[]> = {};
     cases.forEach(c => {
       const name = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
@@ -151,7 +146,6 @@ export default function UnifiedReport() {
 
     const isMaster = checkIfSuperAdmin(profile) || checkIfSupervisor(profile);
 
-    // AUDITORIA INDIVIDUAL
     const myAtivos = cases.filter(c => c.created_by === profile?.auth_user_id && !isCasoEncerrado(c));
     const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').slice(0, 10);
     const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento).slice(0, 10);
@@ -197,7 +191,6 @@ export default function UnifiedReport() {
   return (
     <div className="min-h-screen bg-[#f3f2f2] text-black font-sans">
       
-      {/* HEADER DE CONTROLE */}
       <div className="print:hidden sticky top-0 z-[100] bg-white/80 backdrop-blur-xl border-b-2 border-black p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -214,7 +207,6 @@ export default function UnifiedReport() {
 
       <div className="max-w-5xl mx-auto py-10 print:py-0 space-y-12">
         
-        {/* CAPA REPORT */}
         <section className="bg-white border-8 border-black p-16 relative overflow-hidden break-inside-avoid">
            <div className="absolute top-0 right-0 p-10 opacity-[0.03] rotate-12 scale-150"><Layers size={300} /></div>
            <div className="space-y-10 relative z-10">
@@ -239,12 +231,11 @@ export default function UnifiedReport() {
               </div>
               <div className="text-right">
                  <p className="text-2xl font-black tracking-tighter uppercase">{new Date().getFullYear()}</p>
-                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.24.0 ELITE</Badge>
+                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.25.0 ELITE</Badge>
               </div>
            </div>
         </section>
 
-        {/* TELEMETRIA DE REUNIÃO */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} color="text-black" />
            <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} color="text-red-600" />
@@ -255,7 +246,6 @@ export default function UnifiedReport() {
            <KpiCard label="Fase Executiva" value={metrics.countCumprimento} color="text-blue-500" />
         </section>
 
-        {/* TOP 10 CRÍTICOS POR SINAL */}
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-black text-white p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Zap className="text-primary" size={14}/> Top 10: Criticidade por Movimentação</h3>
@@ -296,7 +286,6 @@ export default function UnifiedReport() {
            </div>
         </section>
 
-        {/* TOP 10 CHANCE DE ENCERRAMENTO */}
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-emerald-600 text-white p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Target size={16}/> Top 10: Maior Chance de Encerramento</h3>
@@ -319,14 +308,12 @@ export default function UnifiedReport() {
            </div>
         </section>
 
-        {/* BLOCOS DE MÉRITO E EXECUÇÃO */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 break-inside-avoid">
            <MeritList title="Fase Executiva" data={metrics.listCumprimento} icon={<Activity size={14}/>} color="bg-blue-600" />
            <MeritList title="Vitórias (Procedente)" data={metrics.listProcedente} icon={<CheckCircle2 size={14}/>} color="bg-emerald-600" />
            <MeritList title="Revisões (Improcedente)" data={metrics.listImprocedente} icon={<AlertTriangle size={14}/>} color="bg-red-600" />
         </section>
 
-        {/* AUDITORIA DE RESPONSABILIDADE */}
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-black text-white p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -371,7 +358,6 @@ export default function UnifiedReport() {
            </div>
         </section>
 
-        {/* ANOTAÇÕES DO GABINETE */}
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-slate-50 border-b-2 border-black p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><StickyNote className="text-primary" size={14}/> Anotações e Evidências do Gabinete</h3>
@@ -402,7 +388,6 @@ export default function UnifiedReport() {
            </div>
         </section>
 
-        {/* RANKING DE BANCA */}
         {metrics.isMaster && (
            <section className="p-10 border-4 border-black break-inside-avoid bg-[#fafafa]">
               <div className="flex items-center gap-3 mb-10 border-b-2 border-black pb-4">
@@ -440,7 +425,6 @@ export default function UnifiedReport() {
            </section>
         )}
 
-        {/* FOOTER MASTER */}
         <footer className="p-10 border-t-8 border-black flex justify-between items-center break-inside-avoid">
            <div className="flex items-center gap-6">
               <div className="w-10 h-10 border-4 border-black flex items-center justify-center bg-black"><Zap size={20} className="text-primary" /></div>

@@ -109,7 +109,7 @@ const CaseRow = React.memo(({
           {isOperador && (
             <>
               <button onClick={() => onEdit(c)} className={cn("text-muted-foreground hover:bg-secondary w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Editar"><Edit2 size={18} /></button>
-              <button onClick={() => handleDelete(c.id)} className={cn("text-muted-foreground hover:text-red-600 hover:bg-red-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Excluir"><Trash2 size={18} /></button>
+              <button onClick={() => onDelete(c.id)} className={cn("text-muted-foreground hover:text-red-600 hover:bg-red-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Excluir"><Trash2 size={18} /></button>
             </>
           )}
         </div>
@@ -167,7 +167,7 @@ function CasesContent() {
         link.href = `data:text/csv;base64,${res.base64}`;
         link.download = res.filename || 'export_processos.csv';
         link.click();
-        toast({ title: "Exportação Concluída", description: "A planilha foi gerada com todas as colunas do repositório." });
+        toast({ title: "Exportação Concluída" });
       } else {
         toast({ title: "Falha na Exportação", description: res.error, variant: "destructive" });
       }
@@ -186,7 +186,7 @@ function CasesContent() {
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setAiDraft(null);
-        updateCaseByProtocolo(c.protocolo, res.casePatch as Record<string, any>);
+        updateCaseByProtocolo(c.protocolo, (res.casePatch as Record<string, any>) || {});
       }
     } finally { setLoading(false); }
   };
@@ -204,7 +204,7 @@ function CasesContent() {
         setSuggestedScripts(suggestions);
         setShowScripts(true);
         setIsHistoryModalOpen(true);
-        updateCaseByProtocolo(c.protocolo, res.casePatch as Record<string, any>);
+        updateCaseByProtocolo(c.protocolo, (res.casePatch as Record<string, any>) || {});
       }
     } finally { setLoading(false); }
   };
@@ -353,7 +353,6 @@ function CasesContent() {
           </div>
         </div>
 
-        {/* MODAL AUDITORIA UNIFICADA */}
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
           <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
             <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
@@ -411,7 +410,6 @@ function CasesContent() {
           </DialogContent>
         </Dialog>
 
-        {/* MODAL REGISTRO DE ATENDIMENTO */}
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
           <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
             <form className="flex flex-col h-full">
@@ -447,7 +445,6 @@ function CasesContent() {
           </DialogContent>
         </Dialog>
 
-        {/* MODAL EDIÇÃO DE PROCESSO */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl p-0 h-[90vh] flex flex-col overflow-hidden">
             <form onSubmit={handleSaveEdit} className="flex flex-col h-full">
