@@ -124,10 +124,17 @@ export default function UnifiedReport() {
       .sort((a, b) => b.prob - a.prob)
       .slice(0, 10);
 
-    // LISTAS DE MÉRITO
-    const listCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).slice(0, 10);
-    const listProcedente = ativos.filter(c => c.evento_tipo === 'sentenca_procedente').slice(0, 10);
-    const listImprocedente = ativos.filter(c => c.evento_tipo === 'sentenca_improcedente').slice(0, 10);
+    // LISTAS DE MÉRITO (Híbridas: Tipo + Keywords em toda a base)
+    const filterMerit = (type: string, keyword: string) => {
+      return cases.filter(c => 
+        c.evento_tipo === type || 
+        (c.evento_resumo?.toUpperCase().includes(keyword) && !c.evento_resumo?.toUpperCase().includes('PARA'))
+      ).slice(0, 10);
+    };
+
+    const listCumprimento = cases.filter(c => !!c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca').slice(0, 10);
+    const listProcedente = filterMerit('sentenca_procedente', 'PROCEDENTE');
+    const listImprocedente = filterMerit('sentenca_improcedente', 'IMPROCEDENTE');
 
     // RANKING DE BANCA
     const lawyerGroups: Record<string, LegalCase[]> = {};
@@ -347,7 +354,7 @@ export default function UnifiedReport() {
               </div>
               
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Minhas Novidades Pendentes</h4>
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Novidades Pendentes</h4>
                  <div className="space-y-3">
                     {metrics.myNovidades.map((c, i) => {
                       const sinal = getSinalCapa(c);
