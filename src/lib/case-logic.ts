@@ -8,7 +8,7 @@ import { sanitizeDateCell } from './csv-import-engine';
 
 /**
  * LÓGICA JURÍDICA PURA — STATUS, RISCO, TRIBUNAL CNJ
- * Motor de processamento v450.0 Elite
+ * Motor de processamento v500.0 Elite - UNIFICADO
  */
 
 export type CaseStatus =
@@ -23,6 +23,21 @@ export type CaseStatus =
   | string; 
 
 export type RiskLevel = "Crítico" | "Atenção" | "Normal";
+
+export type EventoTipo = 
+  | 'ba' 
+  | 'audiencia_conciliacao'
+  | 'audiencia_instrucao'
+  | 'audiencia_julgamento'
+  | 'sentenca_procedente' 
+  | 'sentenca_improcedente' 
+  | 'sentenca_parcial' 
+  | 'cumprimento_sentenca' 
+  | 'transito_ou_baixa' 
+  | 'cancelamento_distribuicao' 
+  | 'liminar'
+  | 'novo_andamento_relevante' 
+  | 'rotina';
 
 export interface LegalCase {
   id: string;
@@ -52,14 +67,21 @@ export interface LegalCase {
   parecerIA?: string;
   riscoIA?: string;
   
-  // Auditoria DataJud
+  // EVENTO UNIFICADO (DataJud + DJEN)
+  tem_novo_andamento?: boolean;
+  evento_tipo?: EventoTipo;
+  evento_resumo?: string | null;
+  evento_data?: string | null;
+  evento_fonte?: 'datajud' | 'djen' | 'ambos';
+
+  // Auditoria DataJud (Campos Técnicos)
   datajud_ultimo_movimento?: string | null;
   datajud_ultimo_nome?: string | null;
   datajud_consultado_em?: string | null;
-  tem_atualizacao_pos_retorno?: boolean;
-  datajud_encerrado_tribunal?: boolean;
+  tem_atualizacao_pos_retorno?: boolean; 
+  datajud_encerrado_tribunal?: boolean; 
   datajud_encerrado_motivo?: string | null;
-  datajud_hash?: string | null; // Assinatura da última auditoria
+  datajud_hash?: string | null;
 
   // Auditoria Busca e Apreensão (BA)
   indicio_busca_apreensao?: boolean;
@@ -72,7 +94,7 @@ export interface LegalCase {
   cumprimento_sentenca_motivo?: string | null;
   cumprimento_sentenca_consultado_em?: string | null;
 
-  // Auditoria DJEN (Diário Nacional)
+  // Auditoria DJEN
   djen_consultado_em?: string | null;
   djen_nova_comunicacao?: boolean;
   djen_ultima_data?: string | null;
@@ -102,9 +124,6 @@ export function fixEncoding(text: string): string {
   } catch (e) { return text; }
 }
 
-/**
- * Converte data DD/MM/YYYY para ISO YYYY-MM-DD
- */
 export function formatDateToISO(dateStr: string | null | undefined): string | null {
   if (!dateStr) return null;
   const raw = String(dateStr).trim();
@@ -130,9 +149,6 @@ export function formatDateToISO(dateStr: string | null | undefined): string | nu
   const m = String(month).padStart(2, "0");
   const y = String(year);
 
-  const yNum = parseInt(y);
-  if (yNum < 1900 || yNum > 2100) return null;
-
   return `${y}-${m}-${d}`;
 }
 
@@ -145,13 +161,23 @@ export function calcularDiasFaltando(proximoISO: string | null): number | null {
   } catch { return null; }
 }
 
+export function isCasoEncerrado(c: any): boolean {
+  if (!c) return false;
+  // Prioridade 1: Auditoria Oficial Forte
+  if (c.datajud_encerrado_tribunal === true) return true;
+  
+  // Prioridade 2: Status Manual/Gabinete
+  const s = `${c.status || ''} ${c.situacao || ''} ${c.statusManual || ''}`.toUpperCase();
+  const encerrados = ['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL'];
+  return encerrados.some(x => s.includes(x));
+}
+
 export function calcularStatus(
   proximoRetorno: string | null | undefined, 
   situacao: string | null | undefined,
   alertLimit: number = 3
 ): CaseStatus {
-  const sit = (situacao || "").toUpperCase();
-  if (sit.includes("ENCERRADO") || sit.includes("ARQUIVADO") || sit.includes("EXTINTO") || sit.includes("SUSPENSO") || sit.includes("IMOVEL") || sit.includes("IMÓVEL")) return "Arquivado";
+  if (isCasoEncerrado({ situacao })) return "Arquivado";
 
   const iso = formatDateToISO(proximoRetorno);
   if (!iso) return "Sem Prazo";
@@ -167,7 +193,6 @@ export function calcularStatus(
 export function extrairTribunal(protocolo: string): { tribunal: string; link: string; } {
   if (!protocolo) return { tribunal: "Outros", link: "" };
   const original = protocolo.trim();
-  
   const match = original.match(/\.(\d)\.(\d{2})\./);
   
   if (!match) return { tribunal: "Outros", link: `https://www.google.com/search?q=consulta+processo+judicial+${encodeURIComponent(original)}` };
@@ -250,6 +275,13 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     observacao,
     telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, ''),
     
+    // UNIFICAÇÃO
+    tem_novo_andamento: toBool(data.tem_novo_andamento),
+    evento_tipo: data.evento_tipo,
+    evento_resumo: data.evento_resumo,
+    evento_data: data.evento_data,
+    evento_fonte: data.evento_fonte,
+
     datajud_ultimo_movimento: data.datajud_ultimo_movimento,
     datajud_ultimo_nome: data.datajud_ultimo_nome,
     datajud_consultado_em: data.datajud_consultado_em,
@@ -272,7 +304,6 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     djen_nova_comunicacao: toBool(data.djen_nova_comunicacao),
     djen_ultima_data: data.djen_ultima_data,
     djen_ultimo_resumo: data.djen_ultimo_resumo,
-    djen_ultimo_link: data.djen_ultimo_link,
     djen_count: data.djen_count ? Number(data.djen_count) : 0
   };
 }

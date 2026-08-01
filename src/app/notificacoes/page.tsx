@@ -38,7 +38,7 @@ import { summarizeDjenKeywords } from '@/lib/djen';
 export default function NotificationsPage() {
   const { cases } = useAppStore();
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'datajud' | 'djen' | 'prazos'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'merito' | 'ba' | 'prazos'>('all');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -58,20 +58,20 @@ export default function NotificationsPage() {
           type: 'prazos',
           priority: c.status === 'Caso Crítico' ? 100 : (c.status === 'Vencido' ? 90 : 80),
           title: `Urgência: ${c.status}`,
-          description: `O processo está em fase crítica de atendimento. Prazo: ${c.proximoPrazo || 'S/D'}.`,
+          description: `Prazo crítico de atendimento atingido: ${c.proximoPrazo || 'S/D'}.`,
           case: c,
           icon: <Clock className="text-red-600" size={18} />
         });
       }
 
-      // 2. Alertas DataJud
-      if (c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal) {
+      // 2. Alertas de Mérito (Unificados)
+      if (c.tem_novo_andamento && !isEncerrado) {
         alerts.push({
-          id: `datajud-upd-${c.protocolo}`,
-          type: 'datajud',
+          id: `upd-${c.protocolo}`,
+          type: 'merito',
           priority: 70,
-          title: "Novo Andamento Tribunal",
-          description: `Identificada nova movimentação: "${c.datajud_ultimo_nome || 'Consultar autos'}"`,
+          title: "Novidade Forense Identificada",
+          description: summarizeDjenKeywords(c.evento_resumo),
           case: c,
           icon: <Zap className="text-blue-600" size={18} />
         });
@@ -79,11 +79,11 @@ export default function NotificationsPage() {
 
       if (c.datajud_encerrado_tribunal) {
         alerts.push({
-          id: `datajud-closed-${c.protocolo}`,
-          type: 'datajud',
+          id: `closed-${c.protocolo}`,
+          type: 'merito',
           priority: 85,
-          title: "Baixa no Tribunal",
-          description: `Rito de encerramento detectado via auditoria CNJ: ${c.datajud_encerrado_motivo || 'Baixa Definitiva'}`,
+          title: "Baixa Definitiva Tribunal",
+          description: `Rito de encerramento detectado via auditoria CNJ: ${c.datajud_encerrado_motivo || 'Baixa'}`,
           case: c,
           icon: <Gavel className="text-emerald-600" size={18} />
         });
@@ -91,28 +91,13 @@ export default function NotificationsPage() {
 
       if (c.indicio_busca_apreensao) {
         alerts.push({
-          id: `datajud-ba-${c.protocolo}`,
-          type: 'datajud',
+          id: `ba-${c.protocolo}`,
+          type: 'ba',
           priority: 110,
-          title: "Busca e Apreensão",
-          description: `ALERTA CRÍTICO: ${c.busca_apreensao_motivo || 'Indício de mandado de busca detectado.'}`,
+          title: "ALERTA: Busca e Apreensão",
+          description: c.busca_apreensao_motivo || 'Indício de mandado de busca detectado.',
           case: c,
           icon: <ShieldAlert className="text-red-600 animate-pulse" size={18} />
-        });
-      }
-
-      // 3. Alertas DJEN (Somente Keywords)
-      if (c.djen_nova_comunicacao) {
-        const cleanSummary = c.djen_ultimo_resumo || summarizeDjenKeywords(c.djen_ultimo_resumo);
-        
-        alerts.push({
-          id: `djen-${c.protocolo}`,
-          type: 'djen',
-          priority: 75,
-          title: "Publicação DJEN",
-          description: cleanSummary,
-          case: c,
-          icon: <Globe className="text-blue-600" size={18} />
         });
       }
     });
@@ -138,14 +123,11 @@ export default function NotificationsPage() {
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
               <Bell size={20} className="text-primary" />
             </div>
-            <div>
-               <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Centro de Alertas</h1>
-               <p className="hidden sm:block text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-0.5">Vigilância Unificada de Gabinete</p>
-            </div>
+            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Centro de Alertas</h1>
           </div>
           <div className="flex items-center gap-3">
              <Badge className="bg-primary/10 text-primary border-none font-black text-[10px] px-4 py-2 uppercase rounded-xl">
-               {notifications.length} Alertas Ativos
+               {notifications.length} Pendentes
              </Badge>
           </div>
         </header>
@@ -154,27 +136,22 @@ export default function NotificationsPage() {
            <div className="mb-6 flex flex-col gap-4 bg-white border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
              <div className="relative w-full">
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-               <Input 
-                 placeholder="Pesquisar..." 
-                 value={search}
-                 onChange={(e) => setSearch(e.target.value)}
-                 className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl"
-               />
+               <Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl" />
              </div>
              
              <ScrollArea className="w-full">
                 <div className="flex bg-[#f8f9fb] p-1 rounded-xl w-max sm:w-auto">
                    <FilterButton active={filterType === 'all'} onClick={() => setFilterType('all')} label="Tudo" />
+                   <FilterButton active={filterType === 'ba'} onClick={() => setFilterType('ba')} label="Busca e Apreensão" />
+                   <FilterButton active={filterType === 'merito'} onClick={() => setFilterType('merito')} label="Mérito" />
                    <FilterButton active={filterType === 'prazos'} onClick={() => setFilterType('prazos')} label="Prazos" />
-                   <FilterButton active={filterType === 'datajud'} onClick={() => setFilterType('datajud')} label="DataJud" />
-                   <FilterButton active={filterType === 'djen'} onClick={() => setFilterType('djen')} label="DJEN" />
                 </div>
                 <ScrollBar orientation="horizontal" />
              </ScrollArea>
            </div>
 
            <ScrollArea className="flex-1">
-              <div className="space-y-4 pb-32 sm:pb-20">
+              <div className="space-y-4 pb-20">
                 {notifications.map((alert) => (
                   <div key={alert.id} className={cn(
                     "p-4 sm:p-6 bg-white border border-border/50 rounded-2xl hover:border-black transition-all group flex flex-col sm:flex-row items-start justify-between gap-6",
@@ -185,11 +162,8 @@ export default function NotificationsPage() {
                           {alert.icon}
                        </div>
                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                             <h3 className="font-black text-sm uppercase tracking-tight text-foreground">{alert.title}</h3>
-                             <Badge variant="outline" className="text-[8px] sm:text-[7px] font-black uppercase border-border">{alert.type}</Badge>
-                          </div>
-                          <p className={cn("text-muted-foreground uppercase leading-relaxed max-w-2xl", ui.readable)}>
+                          <h3 className="font-black text-sm uppercase tracking-tight text-foreground">{alert.title}</h3>
+                          <p className={cn("text-muted-foreground uppercase leading-relaxed max-w-2xl font-bold text-[11px]", ui.readable)}>
                             {alert.description}
                           </p>
                           <div className="pt-2 flex flex-wrap items-center gap-3 sm:gap-4">
@@ -201,32 +175,17 @@ export default function NotificationsPage() {
                        </div>
                     </div>
 
-                    <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
-                       <Button asChild className={cn("flex-1 sm:w-auto bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-xl shadow-lg transition-all", ui.touch)}>
-                          <Link href={`/cases?search=${alert.case.protocolo}`}>
-                            Gerir <ArrowRight size={14} className="ml-2 hidden sm:inline" />
-                          </Link>
-                       </Button>
-                       <Button variant="ghost" className={cn("flex-1 sm:w-auto font-black uppercase text-[9px] text-muted-foreground hover:text-red-600 transition-all", ui.touch)}>
-                          Ignorar
-                       </Button>
-                    </div>
+                    <Button asChild className={cn("flex-1 sm:w-auto bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-xl shadow-lg transition-all", ui.touch)}>
+                        <Link href={`/cases?search=${alert.case.protocolo}`}>Gerir Caso</Link>
+                    </Button>
                   </div>
                 ))}
-
                 {notifications.length === 0 && (
-                  <div className="py-20">
-                    <EmptyState icon={CheckCircle2} title="Tudo Limpo" description="Não há alertas pendentes para os critérios selecionados." />
-                  </div>
+                  <div className="py-20"><EmptyState icon={CheckCircle2} title="Tudo sob controle" description="Não há alertas pendentes de triagem no momento." /></div>
                 )}
               </div>
            </ScrollArea>
         </div>
-
-        <footer className="hidden sm:flex h-10 border-t border-border/30 bg-white items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
-          <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
-          <span>Vigilância Ativa • LexisPredict</span>
-        </footer>
       </main>
     </div>
   );
@@ -234,14 +193,6 @@ export default function NotificationsPage() {
 
 function FilterButton({ active, onClick, label }: { active: boolean, onClick: () => void, label: string }) {
   return (
-    <button 
-      onClick={onClick} 
-      className={cn(
-        "px-4 h-10 sm:h-9 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-        active ? "bg-black text-white shadow-md" : "text-muted-foreground hover:bg-black/5"
-      )}
-    >
-      {label}
-    </button>
+    <button onClick={onClick} className={cn("px-4 h-10 sm:h-9 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", active ? "bg-black text-white shadow-md" : "text-muted-foreground hover:bg-black/5")}>{label}</button>
   );
 }

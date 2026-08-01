@@ -1,6 +1,7 @@
 /**
  * @fileOverview Worker de Auditoria Automática DataJud v3.0 (HYBRID EDITION)
  * Otimizado para micro-lotes assíncronos com suporte nativo a Auditoria 3D (DataJud + DJEN).
+ * Inclui circuito de segurança contra timeouts de servidor.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic';
 
 const BATCH_SIZE = 5; 
 const CONCURRENCY = 2; 
-const MAX_RUNTIME_MS = 55000; // Aumentado para suportar auditoria dupla
+const MAX_RUNTIME_MS = 50000; // Proteção contra timeout de 60s da Vercel
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -58,8 +59,9 @@ export async function POST(request: Request) {
     let failedCount = 0;
 
     for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
+      // Circuito de Segurança: Interrompe o loop se estiver perto do timeout do servidor
       if (Date.now() - start > MAX_RUNTIME_MS) {
-        console.warn("[Omni Worker] Tempo limite atingido. Interrompendo lote.");
+        console.warn(`[Omni Worker] Tempo limite de runtime (${MAX_RUNTIME_MS}ms) atingido. Interrompendo lote graciosamente.`);
         break;
       }
 
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error("[Omni Worker] Falha Crítica:", error.message);
+    console.error("[Omni Worker] Falha Crítica de Infraestrutura:", error.message);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
@@ -92,7 +94,7 @@ async function auditHybridProcess(c: any, baseUrl: string): Promise<boolean> {
   let hasData = false;
 
   try {
-    // PASSO 1: DATAJUD (TRIBUNAL)
+    // PASSO 1: DATAJUD (TRIBUNAL) - Utilizando alias estrito
     const dataJud = await fetchDataJud(c.protocolo, 1, { fast: true });
 
     if (dataJud && !dataJud.error && dataJud.movimentos) {
@@ -122,7 +124,7 @@ async function auditHybridProcess(c: any, baseUrl: string): Promise<boolean> {
       hasData = true;
     }
 
-    // PASSO 2: DJEN (DIÁRIO OFICIAL) - Via Proxy gru1
+    // PASSO 2: DJEN (DIÁRIO OFICIAL) - Via Proxy gru1 para evitar Geo-Block
     try {
       const secret = process.env.DATAJUD_WORKER_SECRET;
       const djenRes = await fetch(`${baseUrl}/api/djen-proxy`, {
@@ -148,7 +150,7 @@ async function auditHybridProcess(c: any, baseUrl: string): Promise<boolean> {
         }
       }
     } catch (e) {
-      console.warn(`[Omni Worker] Falha DJEN (Silenciosa) para ${c.protocolo}`);
+      console.warn(`[Omni Worker] Falha DJEN silenciada para ${c.protocolo}: API indisponível ou Geo-Block.`);
     }
 
     if (hasData) {

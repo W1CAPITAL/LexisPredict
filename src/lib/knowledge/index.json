@@ -1,34 +1,60 @@
 {
   "chunks": [
     {
-      "id": "global_001",
-      "secao": "JUSTIÇA GRATUITA",
-      "tags": ["jg", "gratuidade", "assistência judiciária", "custas"],
-      "texto": "A Justiça Gratuita é um benefício para quem não pode arcar com as custas do processo. Quando o juiz analisa, ele pode deferir (aceitar), indeferir (negar) ou pedir mais documentos. Se indeferir, haverá uma guia de custas para pagamento oficial do Tribunal. Nunca prometa que será aceito sem a decisão, apenas informe que o pedido foi feito e está sendo apreciado pelo juízo."
+      "id": "dispatch_001",
+      "secao": "SENTENÇA PROCEDENTE",
+      "tags": ["sentenca_procedente", "vitoria", "ganhou"],
+      "texto": "Excelente notícia! O juiz proferiu a sentença e julgou o seu pedido como PROCEDENTE. Isso significa que o magistrado aceitou nossos argumentos e decidiu a seu favor. Agora, nossa equipe jurídica está analisando os detalhes da decisão para verificar se o banco irá recorrer ou se já podemos iniciar os trâmites para o recebimento dos valores.",
+      "uso_despacho": true
     },
     {
-      "id": "global_002",
-      "secao": "LIMINAR / TUTELA",
-      "tags": ["liminar", "tutela", "urgência", "concedida"],
-      "texto": "A liminar (tutela de urgência) é uma decisão provisória no início do processo. O objetivo é resguardar o direito imediatamente. Se o juiz analisar e não decidir na hora, o processo segue para a contestação da outra parte. Se deferir, a parte contrária é intimada a cumprir imediatamente."
+      "id": "dispatch_002",
+      "secao": "SENTENÇA IMPROCEDENTE",
+      "tags": ["sentenca_improcedente", "derrota", "negado"],
+      "texto": "Informamos que houve uma decisão inicial de improcedência no seu caso. Trata-se de um entendimento específico deste juiz de primeiro grau. Nossa equipe já está preparando o recurso de apelação para levar o caso ao Tribunal, onde buscaremos a reversão dessa decisão com base em precedentes favoráveis.",
+      "uso_despacho": true
     },
     {
-      "id": "global_003",
-      "secao": "SENTENÇA",
-      "tags": ["sentença", "procedente", "improcedente", "mérito"],
-      "texto": "A sentença é a decisão do juiz de primeiro grau. Procedente significa acolhimento do pedido; Improcedente significa negativa inicial. Cabe recurso em ambos os casos. O tom deve ser de análise técnica: o jurídico lê os fundamentos e prepara o próximo passo estratégico (recurso ou execução)."
+      "id": "dispatch_003",
+      "secao": "AUDIÊNCIA DE CONCILIAÇÃO",
+      "tags": ["audiencia_conciliacao", "acordo", "cejusc"],
+      "texto": "Foi designada uma audiência de conciliação para o seu processo. Este é um momento oportuno onde as partes se reúnem (geralmente de forma virtual) para tentar um acordo amigável. Um advogado da nossa equipe acompanhará você durante todo o ato. Fique tranquilo, entraremos em contato com as instruções de acesso e data exata.",
+      "uso_despacho": true
     },
     {
-      "id": "global_004",
-      "secao": "BUSCA E APREENSÃO",
-      "tags": ["ba", "busca", "apreensão", "veículo", "posse"],
-      "texto": "Em caso de indício de Busca e Apreensão, a orientação é de segurança: manter o bem resguardado e aguardar a defesa técnica. É um rito de alta urgência que exige resposta imediata do jurídico para tentar reverter a medida liminar."
+      "id": "dispatch_004",
+      "secao": "JUSTIÇA GRATUITA DEFERIDA",
+      "tags": ["ajg", "gratuidade", "deferida"],
+      "texto": "Uma atualização importante e positiva: o juiz concedeu a você o benefício da Justiça Gratuita. Isso significa que você está isento do pagamento de custas processuais e taxas do tribunal durante todo o curso do processo, garantindo o amplo acesso à justiça sem custos extras.",
+      "uso_despacho": true
     },
     {
-      "id": "global_005",
-      "secao": "MERO EXPEDIENTE",
-      "tags": ["rotina", "mero expediente", "ato ordinatório", "cartório"],
-      "texto": "Movimentações de rotina são registros burocráticos do dia a dia do fórum (juntar petição, publicar nota, remeter autos). Não alteram o mérito e não exigem ação do cliente. Servem para manter o fluxo da ação caminhando no sistema do tribunal."
+      "id": "dispatch_005",
+      "secao": "ALERTA BUSCA E APREENSÃO",
+      "tags": ["ba", "busca", "apreensão"],
+      "texto": "Atenção: identificamos um andamento urgente de Busca e Apreensão. Pedimos que mantenha o veículo resguardado em local seguro imediatamente e não circule com o bem. Nossa equipe jurídica já está protocolando as medidas de defesa necessárias para tentar suspender esta decisão liminar.",
+      "uso_despacho": true
+    },
+    {
+      "id": "dispatch_006",
+      "secao": "TRÂNSITO EM JULGADO",
+      "tags": ["transito_ou_baixa", "encerrado", "finalizado"],
+      "texto": "O seu processo atingiu o estágio de 'Trânsito em Julgado'. Isso significa que a decisão tornou-se definitiva e não cabem mais recursos para nenhuma das partes. O caso foi oficialmente encerrado no sistema judicial com a vitória confirmada.",
+      "uso_despacho": true
+    },
+    {
+      "id": "dispatch_007",
+      "secao": "LIMINAR DEFERIDA",
+      "tags": ["liminar", "tutela", "concedida"],
+      "texto": "Vitória estratégica! O juiz concedeu a liminar que solicitamos logo no início do processo. Esta decisão antecipa os efeitos da proteção que buscamos, resguardando seus direitos imediatamente enquanto o processo segue para as próximas fases.",
+      "uso_despacho": true
+    },
+    {
+      "id": "dispatch_008",
+      "secao": "AUDIÊNCIA DE INSTRUÇÃO",
+      "tags": ["audiencia_instrucao", "testemunhas", "depoimento"],
+      "texto": "O juiz designou uma audiência de instrução. Nesta etapa, serão colhidos depoimentos e analisadas as provas produzidas. É uma fase técnica fundamental do processo. Nossa equipe entrará em contato para realizar uma reunião preparatória com você dias antes do ato.",
+      "uso_despacho": true
     }
   ]
 }

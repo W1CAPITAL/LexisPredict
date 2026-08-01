@@ -1,6 +1,6 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v460.0 ELITE
- * Otimizado com timeouts de 35s e tratamento de falhas parciais.
+ * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v470.0 ELITE
+ * Otimizado com timeouts de 35s, aliases estritos por tribunal e auditoria de integridade de shards.
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
@@ -25,7 +25,7 @@ export interface DataJudOptions {
 }
 
 /**
- * Consulta API DataJud com timeout de 35s e detecção de shards.
+ * Consulta API DataJud com roteamento estrito por alias e proteção contra falhas de cluster.
  */
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
@@ -35,9 +35,11 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     return { numeroProcesso: cnj, movimentos: [], error: true, message: "CNJ inválido." };
   }
 
+  // Derivação estrita do tribunal via máscara CNJ
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
   let alias = COURT_ALIASES[aliasPart] || "tjsp";
 
+  // URL Direta por Índice: Evita wildcard para reduzir latência e erro de busca cruzada
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   const isFast = options.fast === true;
@@ -46,7 +48,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs + 2000);
+    const id = setTimeout(() => controller.abort(), timeoutMs + 1000);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -65,18 +67,31 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     clearTimeout(id);
     const latency = Date.now() - startTime;
 
+    // Backoff em caso de Rate Limit
     if (response.status === 429) {
-       if (attempt < maxAttempts) { await sleep(1500); return fetchDataJud(cnj, attempt + 1, options); }
-       throw new Error("Taxa de requisição excedida.");
+       if (attempt < maxAttempts) { 
+         await sleep(1500); 
+         return fetchDataJud(cnj, attempt + 1, options); 
+       }
+       throw new Error("Taxa de requisição excedida (DataJud 429).");
     }
 
     if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
 
     const data = await response.json();
     
-    // Tratamento de falhas parciais do cluster CNJ
+    /**
+     * Validação de Shards: Se houver falhas no cluster do CNJ, o resultado pode ser falso negativo.
+     * Não gravamos 'não localizado' se houver indício de instabilidade parcial.
+     */
     if (data._shards?.failed > 0 && (!data.hits?.hits || data.hits.hits.length === 0)) {
-       return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Indisponibilidade momentânea no tribunal.", latency };
+       return { 
+         numeroProcesso: cnjLimpo, 
+         movimentos: [], 
+         error: true, 
+         message: "Tribunal instável (Shard Fail). Tente novamente em instantes.", 
+         latency 
+       };
     }
 
     const source = data.hits?.hits?.[0]?._source;
@@ -96,6 +111,6 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     const isTimeout = e.name === 'AbortError' || latency >= timeoutMs;
 
     if (isTimeout) return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Tempo esgotado no tribunal.", latency };
-    return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Falha de comunicação DataJud.", latency };
+    return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Falha técnica DataJud.", latency };
   }
 }

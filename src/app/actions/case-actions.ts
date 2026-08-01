@@ -3,35 +3,28 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * REPOSITÓRIO DE AÇÕES DE GABINETE v465.0 ELITE
+ * REPOSITÓRIO DE AÇÕES DE GABINETE v510.0 ELITE - PERSISTÊNCIA HÍBRIDA
  */
 
 import { 
   getStoredCasesForEmpresa, 
   saveStoredCasesForEmpresa, 
   getUserContext, 
-  getStoredNotes, 
-  getEmpresaUsers,
   updateCaseDataJudSystem
 } from '@/lib/server-db';
 import { createClient } from '@/lib/supabase/server';
-import { LegalCase, processarCaso } from '@/lib/case-logic';
+import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
-import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, gerarHashAuditoria, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
+import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
-import { fetchDjenComunicacoes } from '@/lib/djen';
+import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
 import { detectarNovaComunicacaoDjen } from '@/lib/djen-sync';
-import { headers } from 'next/headers';
 
 export async function fetchRepoCases() {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return [];
   return await getStoredCasesForEmpresa(empresa_id);
-}
-
-export async function fetchRepoNotes() {
-  return await getStoredNotes();
 }
 
 export async function syncRepoCases(cases: LegalCase[]) {
@@ -40,211 +33,144 @@ export async function syncRepoCases(cases: LegalCase[]) {
   return await saveStoredCasesForEmpresa(cases, empresa_id);
 }
 
-export async function recalibrateCasesAction(alertLimit: number = 3) {
-  try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id) return { success: false, error: "Sessão expirada." };
-    const cases = await getStoredCasesForEmpresa(empresa_id);
-    const updatedCases = cases.map(c => isCasoEncerrado(c) ? c : processarCaso({ ...c, statusManual: 'Automatico' }, { alertLimit }));
-    await saveStoredCasesForEmpresa(updatedCases, empresa_id);
-    return { success: true, count: updatedCases.length, message: "Urgências recalculadas." };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function fetchTeamPerformanceAction() {
-  try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id) return { users: [], cases: [] };
-    const [users, cases] = await Promise.all([
-      getEmpresaUsers(),
-      getStoredCasesForEmpresa(empresa_id, true)
-    ]);
-    return { users, cases };
-  } catch (e: any) {
-    return { users: [], cases: [] };
-  }
-}
-
 export async function scanOneDataJudAction(protocolo: string, fast = true) {
   try {
-    const { empresa_id, auth_id } = await getUserContext();
-    if (!empresa_id || !auth_id) {
-       return { success: false, protocolo, error: "401_SESSAO_EXPIRADA", message: "Sessão expirada" };
-    }
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) return { success: false, error: "401" };
 
     const supabase = await createClient();
-    const { data: dbItem } = await supabase
-      .from('processos')
-      .select('*')
-      .eq('protocolo_ref', protocolo)
-      .eq('empresa_id', empresa_id)
-      .maybeSingle();
+    const { data: dbItem } = await supabase.from('processos').select('*').eq('protocolo_ref', protocolo).eq('empresa_id', empresa_id).maybeSingle();
+    if (!dbItem) return { success: false, error: "NOT_FOUND" };
 
-    if (!dbItem) return { success: false, protocolo, error: "NOT_FOUND", message: "Processo não localizado" };
+    const target = processarCaso({ ...(dbItem.dados as any), id: dbItem.id.toString(), ultimoRetorno: dbItem.ultimo_retorno });
+    if (isCasoEncerrado(target)) return { success: true, skipped: true };
 
-    const target = processarCaso({
-      ...(dbItem.dados as any),
-      id: dbItem.id.toString(),
-      created_by: dbItem.created_by,
-      ultimoRetorno: dbItem.ultimo_retorno || '',
-      datajud_hash: dbItem.datajud_hash
-    });
+    // 1. Auditoria Atômica Independente
+    const [dataJud, djenRes] = await Promise.all([
+      fetchDataJud(protocolo, 1, { fast }),
+      fetchDjenComunicacoes(protocolo)
+    ]);
 
-    if (isCasoEncerrado(target)) return { success: true, protocolo, message: "Já encerrado", skipped: true };
+    const patch: any = {
+      datajud_consultado_em: new Date().toISOString(),
+      djen_consultado_em: new Date().toISOString()
+    };
 
-    const dataJud = await fetchDataJud(protocolo, 1, { fast });
-    
+    let hasSuccess = false;
+    let eventResumo: string | null = null;
+    let eventTipo: EventoTipo = 'rotina';
+
+    // 2. Processamento DataJud
     if (dataJud && !dataJud.error) {
       const movimentos = dataJud.movimentos || [];
-      const check = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
+      const upd = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
       const enc = detectarEncerradoNoTribunal(movimentos);
       const ba = analisarBuscaApreensao(dataJud);
       const cump = detectarCumprimentoSentenca(movimentos);
-      const newHash = gerarHashAuditoria(movimentos);
-      
-      const patch = {
-        datajud_ultimo_movimento: check.dataUltimo,
-        datajud_ultimo_nome: check.nomeUltimo,
-        datajud_consultado_em: new Date().toISOString(),
-        tem_atualizacao_pos_retorno: !!check.alerta, 
-        datajud_encerrado_tribunal: !!enc.encerrado,
+
+      Object.assign(patch, {
+        datajud_ultimo_movimento: upd.dataUltimo,
+        datajud_ultimo_nome: upd.nomeUltimo,
+        tem_atualizacao_pos_retorno: upd.alerta,
+        datajud_encerrado_tribunal: enc.encerrado,
         datajud_encerrado_motivo: enc.motivo,
-        datajud_hash: newHash,
-        indicio_busca_apreensao: !!ba.indicio,
+        indicio_busca_apreensao: ba.indicio,
         busca_apreensao_confianca: ba.confianca,
         busca_apreensao_motivo: ba.motivo,
-        busca_apreensao_consultado_em: ba.indicio ? new Date().toISOString() : null,
-        em_cumprimento_sentenca: !enc.encerrado && cump.ativo,
-        cumprimento_sentenca_motivo: !enc.encerrado ? cump.motivo : null,
-        cumprimento_sentenca_consultado_em: new Date().toISOString(),
-        tribunal: dataJud.tribunal || target.tribunal
-      };
+        em_cumprimento_sentenca: cump.ativo
+      });
+
+      if (upd.alerta) {
+        eventResumo = upd.nomeUltimo;
+        eventTipo = 'novo_andamento_relevante';
+      }
+      if (ba.indicio) eventTipo = 'ba';
+      if (enc.encerrado) { eventTipo = 'transito_ou_baixa'; patch.status = 'Arquivado'; }
+      
+      hasSuccess = true;
+    }
+
+    // 3. Processamento DJEN
+    if (djenRes.success) {
+      const djenSync = detectarNovaComunicacaoDjen(target.ultimoRetorno, djenRes.items);
+      
+      Object.assign(patch, {
+        djen_nova_comunicacao: djenSync.alerta,
+        djen_ultima_data: djenSync.dataUltima,
+        djen_ultimo_resumo: djenSync.resumo,
+        djen_ultimo_link: djenSync.link,
+        djen_count: djenRes.count
+      });
+
+      if (djenSync.alerta) {
+        const djenClass = classifyEventFromText(djenRes.items[0]?.texto);
+        // DJEN sobrepõe DataJud se for um evento de mérito
+        if (djenClass.tipo !== 'rotina') {
+           eventTipo = djenClass.tipo;
+           eventResumo = djenSync.resumo;
+        } else if (!eventResumo) {
+           eventResumo = djenSync.resumo;
+        }
+      }
+      hasSuccess = true;
+    }
+
+    if (hasSuccess) {
+      patch.tem_novo_andamento = (patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao);
+      patch.evento_tipo = eventTipo;
+      patch.evento_resumo = eventResumo;
+      patch.evento_fonte = (patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao) ? 'ambos' : patch.tem_atualizacao_pos_retorno ? 'datajud' : 'djen';
 
       await updateCaseDataJudSystem(dbItem.id, patch);
-      return { success: true, protocolo, casePatch: patch, movimentos, case: { ...target, ...patch } };
+      const updatedCase = { ...target, ...patch };
+      return { 
+        success: true, 
+        casePatch: patch, 
+        movimentos: dataJud?.movimentos || [], 
+        comunicacoes: djenRes.items || [],
+        case: updatedCase 
+      };
     }
     
-    return { success: false, protocolo, message: dataJud?.message || "Erro no tribunal", error: true };
+    return { success: false, message: dataJud?.message || djenRes.error || "Erro no tribunal" };
   } catch (e: any) {
-    return { success: false, protocolo, message: `Falha técnica`, error: true };
+    return { success: false, message: `Falha técnica na auditoria` };
   }
+}
+
+export async function scanOneDjenAction(protocolo: string) {
+  return await scanOneDataJudAction(protocolo, true);
 }
 
 export async function scanSingleCaseAction(protocolo: string) {
   return await scanOneDataJudAction(protocolo, false);
 }
 
-/**
- * Realiza a auditoria DJEN via Proxy gru1 (São Paulo) para evitar 403.
- */
-export async function scanOneDjenAction(protocolo: string, opts?: { dataInicio?: string; dataFim?: string }) {
-  try {
-    const { empresa_id, auth_id } = await getUserContext();
-    if (!empresa_id || !auth_id) return { success: false, message: "Sessão expirada." };
-
-    const supabase = await createClient();
-    const { data: dbItem } = await supabase
-      .from('processos')
-      .select('*')
-      .eq('protocolo_ref', protocolo)
-      .eq('empresa_id', empresa_id)
-      .maybeSingle();
-
-    if (!dbItem) return { success: false, message: "Processo não localizado." };
-
-    const sigla = dbItem.tribunal && dbItem.tribunal.length >= 2 && !/^outros$/i.test(dbItem.tribunal) 
-      ? dbItem.tribunal : undefined;
-
-    // Disparo via Proxy gru1 (Túnel Brasil)
-    const secret = process.env.DATAJUD_WORKER_SECRET;
-    const h = await headers();
-    const host = h.get('host');
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
-
-    let data;
-    try {
-      const proxyRes = await fetch(`${baseUrl}/api/djen-proxy`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${secret}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocolo, siglaTribunal: sigla, ...opts }),
-        signal: AbortSignal.timeout(20000)
-      });
-      data = await proxyRes.json();
-    } catch {
-      // Fallback local se proxy falhar (iap1 tentará direto)
-      data = await fetchDjenComunicacoes(protocolo, { siglaTribunal: sigla, ...opts });
-    }
-
-    if (data.isGeoBlocked) return { success: false, message: "Bloqueio regional (403). Verifique o túnel gru1." };
-    if (data.isRateLimited) return { success: false, message: "Rate limit DJEN — aguarde 1 minuto." };
-    if (!data.success) return { success: false, message: data.error || "Falha na comunicação DJEN" };
-
-    const check = detectarNovaComunicacaoDjen(dbItem.ultimo_retorno, data.items);
-    const patch = {
-      djen_consultado_em: new Date().toISOString(),
-      djen_nova_comunicacao: !!check.alerta,
-      djen_ultima_data: check.dataUltima,
-      djen_ultimo_resumo: check.resumo,
-      djen_ultimo_link: check.link,
-      djen_count: data.count
-    };
-
-    await updateCaseDataJudSystem(dbItem.id, patch);
-    return { success: true, protocolo, casePatch: patch, comunicacoes: data.items, message: check.alerta ? "Nova comunicação no DJEN" : `Comunicações DJEN: ${data.count}` };
-  } catch (e: any) {
-    return { success: false, message: "Erro técnico na auditoria DJEN." };
-  }
-}
-
-export async function runDataJudScanAction(targetEmpresaId?: string) {
-  try {
-    const ctx = await getUserContext();
-    const empresa_id = targetEmpresaId || ctx.empresa_id;
-    if (!empresa_id) return { success: false, error: "Sessão expirada." };
-    const cases = await getStoredCasesForEmpresa(empresa_id);
-    const batch = cases.filter(c => !isCasoEncerrado(c)).slice(0, 30);
-    for (const c of batch) await scanOneDataJudAction(c.protocolo, true);
-    return { success: true, scanned: batch.length, message: `Auditados ${batch.length} registros.` };
-  } catch { return { success: false, error: "Falha na varredura." }; }
-}
-
-export async function clearDataJudAuditAction() {
+export async function recalibrateCasesAction(alertLimit: number) {
   try {
     const { empresa_id } = await getUserContext();
     if (!empresa_id) return { success: false };
-    const cases = await getStoredCasesForEmpresa(empresa_id);
-    const updated = cases.map(c => ({
-      ...c,
-      tem_atualizacao_pos_retorno: false,
-      datajud_encerrado_tribunal: false,
-      djen_nova_comunicacao: false,
-      djen_ultimo_resumo: null,
-      djen_ultima_data: null,
-      djen_consultado_em: null,
-      djen_count: 0
-    }));
-    await saveStoredCasesForEmpresa(updated, empresa_id);
-    return { success: true };
-  } catch { return { success: false }; }
+    const cases = await getStoredCasesForEmpresa(empresa_id, true);
+    const updated = cases.map(c => processarCaso(c, { alertLimit }));
+    await saveStoredCasesForEmpresa(updated, empresa_id, true);
+    return { success: true, message: `${updated.length} registros recalibrados.` };
+  } catch (e) {
+    return { success: false };
+  }
 }
 
-export async function runCloudWorkerAction() {
-  try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id) throw new Error("Sessão expirada.");
-    const h = await headers();
-    const host = h.get('host');
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${protocol}://${host}`;
-    fetch(`${baseUrl}/api/datajud-worker?empresa_id=${empresa_id}`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.DATAJUD_WORKER_SECRET}`, 'Content-Type': 'application/json' },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(8000)
-    }).catch(() => {});
-    return { success: true, message: "Lote disparado no servidor." };
-  } catch (e: any) { return { success: false, error: e.message }; }
+export async function fetchRepoNotes() {
+  const { getStoredNotes } = await import('@/lib/server-db');
+  return await getStoredNotes();
+}
+
+export async function fetchTeamPerformanceAction() {
+  const { getEmpresaUsers, getStoredCasesForEmpresa, getUserContext } = await import('@/lib/server-db');
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { users: [], cases: [] };
+  const [users, cases] = await Promise.all([
+    getEmpresaUsers(),
+    getStoredCasesForEmpresa(empresa_id, true)
+  ]);
+  return { users, cases };
 }

@@ -8,12 +8,16 @@ import { perguntarIA } from '@/ai/flows/chat-ai-flow';
 import { suggestScripts } from '@/lib/script-processual/suggest';
 import { retrieveKnowledge } from '@/lib/knowledge/retrieve';
 import { searchKnowledgeChunksAction } from '@/app/actions/knowledge-actions';
+import { EventoTipo } from '@/lib/case-logic';
 
 export interface MotorDespachoInput {
   clienteNome: string;
   protocolo: string;
   ultimoRetorno?: string | null;
   movimentos: any[];
+  djenTexts?: string[];
+  eventoTipo?: EventoTipo | null;
+  eventoResumo?: string | null;
   preferredModel?: string; // 'xai' | 'groq-llama' | 'local_only'
   empresaId?: string;
 }
@@ -39,13 +43,16 @@ function cleanBannedTerms(text: string): string {
  * Gera um rascunho estratégico utilizando o Core Lexis (RAG + Fidelidade de Mérito).
  */
 export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
-  const { clienteNome, protocolo, movimentos, preferredModel, empresaId } = input;
+  const { clienteNome, protocolo, movimentos, djenTexts = [], eventoTipo, eventoResumo, preferredModel, empresaId } = input;
 
   const suggestions = suggestScripts({
     clienteNome,
     protocolo,
     ultimoRetorno: input.ultimoRetorno,
-    movimentos
+    movimentos,
+    djenTexts,
+    eventoTipo,
+    eventoResumo
   });
 
   const baseScript = suggestions[0]?.texto || "";
@@ -90,11 +97,15 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     ${contextKnowledge}
   `;
 
+  const djenContext = djenTexts.length > 0 ? `\nPUBLICAÇÕES DJEN (LIMPIDAS):\n${djenTexts.join('\n')}` : "";
+
   const userPrompt = `
     DADOS DO PROCESSO: ${protocolo}
     CLIENTE: ${clienteNome}
+    EVENTO UNIFICADO: ${eventoTipo || 'N/A'} - ${eventoResumo || 'N/A'}
     HISTÓRICO RECENTE DO TRIBUNAL (ORDEM CRONOLÓGICA):
     ${movimentos.slice(0, 15).map(m => `- ${m.dataHora}: ${m.nome} | ${m.complemento || ''}`).join('\n')}
+    ${djenContext}
     
     SCRIPT BASE SUGERIDO:
     "${baseScript}"
