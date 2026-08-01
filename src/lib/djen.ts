@@ -1,7 +1,7 @@
 /**
- * @fileOverview Motor de Consulta DJEN v3.2 — PROTOCOLO BRASIL (gru1)
+ * @fileOverview Motor de Consulta e Higiene DJEN v4.0 — PROTOCOLO BRASIL (gru1)
  * Consulta a API pública do PJe para localizar comunicações oficiais.
- * Inclui utilitário de sanitização de HTML para texto puro.
+ * Inclui motor de sanitização de HTML e sumarização estratégica.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -63,6 +63,43 @@ export function plainTextFromDjen(html: string): string {
 }
 
 /**
+ * Gera um resumo curto e operacional para alertas e telemetria.
+ */
+export function summarizeDjenForAlert(plainText: string, type?: string): string {
+  if (!plainText) return "Publicação oficial sem conteúdo legível.";
+  
+  const upper = plainText.toUpperCase();
+  let summary = "";
+
+  // Prioridade 1: Extinção / Cancelamento
+  if (/(EXTINÇÃO|EXTINTO|485|290|CANCELAMENTO DA DISTRIBUIÇÃO)/.test(upper)) {
+    summary = "RITO DE EXTINÇÃO: Identificada sentença de extinção ou cancelamento da distribuição.";
+  }
+  // Prioridade 2: Emenda
+  else if (/(EMENDA|EMENDE|ADITE|ADITAMENTO)/.test(upper)) {
+    summary = "EMENDA À INICIAL: Juiz determinou adequação ou aditamento da petição inicial.";
+  }
+  // Prioridade 3: AJG / Gratuidade
+  else if (/(AJG|GRATUIDADE|HIPOSSUFICIÊNCIA|REGISTRATO)/.test(upper)) {
+    summary = "COMPROVAÇÃO AJG: Intimação referente ao benefício de Justiça Gratuita.";
+  }
+  // Prioridade 4: Competência
+  else if (/(REDISTRIBUIÇÃO|DECLÍNIO|INCOMPETÊNCIA)/.test(upper)) {
+    summary = "REDISTRIBUIÇÃO: Processo movido para nova vara ou declínio de competência.";
+  }
+  // Prioridade 5: Baixa / Trânsito
+  else if (/(TRÂNSITO|BAIXA DEFINITIVA|ARQUIVAMENTO)/.test(upper)) {
+    summary = "BAIXA/TRÂNSITO: Publicação confirma o encerramento definitivo do caso.";
+  }
+  // Fallback: Resumo Genérico
+  else {
+    summary = `Publicação DJEN (${type || 'Comunicação'}): ` + plainText.substring(0, 180).trim() + "...";
+  }
+
+  return summary;
+}
+
+/**
  * Realiza o fetch na API pública do DJEN com detecção de geo-block e limite de 50 itens.
  */
 export async function fetchDjenComunicacoes(
@@ -79,20 +116,8 @@ export async function fetchDjenComunicacoes(
     return { success: false, error: "CNJ Inválido (requer 20 dígitos)", count: 0, items: [] };
   }
 
-  const now = new Date();
-  const getBrDate = (d: Date) => {
-    const offset = -3; // UTC-3
-    const brDate = new Date(d.getTime() + offset * 3600 * 1000);
-    return brDate.toISOString().split('T')[0];
-  };
-
-  const todayBR = getBrDate(now);
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(now.getFullYear() - 1);
-  const oneYearAgoBR = getBrDate(oneYearAgo);
-
-  const dataFim = opts?.dataFim || todayBR;
-  const dataInicio = opts?.dataInicio || oneYearAgoBR;
+  const dataFim = opts?.dataFim || new Date().toISOString().split('T')[0];
+  const dataInicio = opts?.dataInicio || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const masked = `${digits.substring(0,7)}-${digits.substring(7,9)}.${digits.substring(9,13)}.${digits.substring(13,14)}.${digits.substring(14,16)}.${digits.substring(16,20)}`;
   const cnjOptions = [digits, masked];
@@ -106,7 +131,7 @@ export async function fetchDjenComunicacoes(
         dataDisponibilizacaoInicio: dataInicio,
         dataDisponibilizacaoFim: dataFim,
         pagina: '1',
-        itensPorPagina: '50'
+        itensPorPagina: '50' // TETO REAL DA API
       });
 
       if (opts?.siglaTribunal && !/^outros$/i.test(opts.siglaTribunal)) {
@@ -115,7 +140,7 @@ export async function fetchDjenComunicacoes(
       if (opts?.meio) params.append('meio', opts.meio);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const response = await fetch(`https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`, {
         method: 'GET',
@@ -136,7 +161,7 @@ export async function fetchDjenComunicacoes(
         return { 
           success: false, 
           isGeoBlocked: true, 
-          error: "Bloqueio regional (403). Use região gru1 (São Paulo).", 
+          error: "DJEN geo-bloqueou o servidor (403). Região Vercel deve ser gru1 (São Paulo).", 
           count: 0, 
           items: [] 
         };
@@ -154,20 +179,23 @@ export async function fetchDjenComunicacoes(
       const data = await response.json();
       const rawItems = Array.isArray(data.items) ? data.items : [];
 
-      const mappedItems: DjenComunicacao[] = rawItems.map((item: any) => ({
-        id: item.id || item.comunicacao_id,
-        hash: item.hash,
-        data_disponibilizacao: item.data_disponibilizacao || item.datadisponibilizacao || null,
-        siglaTribunal: item.siglaTribunal || item.siglatribunal || null,
-        tipoComunicacao: item.tipoComunicacao || item.tipocomunicacao || null,
-        nomeOrgao: item.nomeOrgao || item.nomeorgao || null,
-        texto: item.texto || null,
-        numero_processo: item.numeroProcesso || item.numeroprocessocommascara || null,
-        meio: item.meio || null,
-        link: item.link || null,
-        tipoDocumento: item.tipoDocumento || item.tipodocumento || null,
-        nomeClasse: item.nomeClasse || item.nomeclasse || null
-      }));
+      const mappedItems: DjenComunicacao[] = rawItems.map((item: any) => {
+        const plainText = plainTextFromDjen(item.texto || "");
+        return {
+          id: item.id || item.comunicacao_id,
+          hash: item.hash,
+          data_disponibilizacao: item.data_disponibilizacao || item.datadisponibilizacao || null,
+          siglaTribunal: item.siglaTribunal || item.siglatribunal || null,
+          tipoComunicacao: item.tipoComunicacao || item.tipocomunicacao || null,
+          nomeOrgao: item.nomeOrgao || item.nomeorgao || null,
+          texto: plainText, // JÁ SALVA SANITIZADO
+          numero_processo: item.numeroProcesso || item.numeroprocessocommascara || null,
+          meio: item.meio || null,
+          link: item.link || null,
+          tipoDocumento: item.tipoDocumento || item.tipodocumento || null,
+          nomeClasse: item.nomeClasse || item.nomeclasse || null
+        };
+      });
 
       return {
         success: true,

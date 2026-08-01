@@ -1,11 +1,12 @@
 /**
- * @fileOverview Sincronia de Comunicações DJEN v1.0
+ * @fileOverview Sincronia de Comunicações DJEN v2.0
  * Compara publicações do diário oficial com o último retorno do cliente.
+ * Utiliza o motor de resumos curtos para telemetria e notificações.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
-import { DjenComunicacao } from './djen';
+import { DjenComunicacao, summarizeDjenForAlert } from './djen';
 
 export interface DjenSyncResult {
   alerta: boolean;
@@ -35,7 +36,9 @@ export function detectarNovaComunicacaoDjen(
   if (!dataPub) return { alerta: false, dataUltima: null, resumo: null, link: null };
 
   const dataUltimaStr = dataPub.toISOString();
-  const resumo = (ultima.texto || '').substring(0, 180).trim() || ultima.tipoComunicacao || "Publicação Oficial";
+  
+  // MOTOR DE RESUMO v2.0 (Zero HTML)
+  const resumo = summarizeDjenForAlert(ultima.texto || "", ultima.tipoComunicacao || "");
 
   // Se nunca houve retorno, alerta se for recente (últimos 30 dias)
   if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-" || ultimoRetornoStr === "0") {

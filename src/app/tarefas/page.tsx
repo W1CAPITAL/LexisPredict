@@ -47,10 +47,13 @@ import {
   BookOpen,
   Globe,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Bell,
+  Bot
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
+import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +72,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -77,7 +79,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, parseISO, startOfDay, differenceInDays, isAfter, isValid, parse } from 'date-fns';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { calcularProbabilidadeEncerramento } from '@/lib/probabilidade-encerramento';
@@ -85,6 +86,7 @@ import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/sugges
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { useAuth } from '@/components/auth/auth-provider';
 import { plainTextFromDjen } from '@/lib/djen';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface TaskGroup {
   cliente: string;
@@ -105,9 +107,12 @@ interface TaskGroup {
   oldestReturnGap: number;
   lastMovementName?: string | null;
   lastMovementDate?: string | null;
+  djenResumo?: string | null;
+  lastDjenDate?: string | null;
 }
 
 export default function TarefasPage() {
+  const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -144,6 +149,7 @@ export default function TarefasPage() {
   };
 
   useEffect(() => {
+    setMounted(true);
     const savedMeta = localStorage.getItem('lexis_tarefas_meta');
     if (savedMeta) {
       const parsed = parseInt(savedMeta);
@@ -178,8 +184,8 @@ export default function TarefasPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (mounted) loadData();
+  }, [loadData, mounted]);
 
   const handleSingleScan = async (protocolo: string) => {
     try {
@@ -308,7 +314,9 @@ export default function TarefasPage() {
           statusScore: 0,
           oldestReturnGap: 0,
           lastMovementName: c.datajud_ultimo_nome,
-          lastMovementDate: c.datajud_ultimo_movimento
+          lastMovementDate: c.datajud_ultimo_movimento,
+          djenResumo: null,
+          lastDjenDate: null
         };
       }
 
@@ -331,21 +339,34 @@ export default function TarefasPage() {
       if (c.tem_atualizacao_pos_retorno) g.hasUpdate = true;
       if (c.djen_nova_comunicacao) g.hasDjen = true;
 
+      // Inteligência de Resumo DJEN para o Grupo
+      if (c.djen_ultimo_resumo) {
+        const isBetter = !g.djenResumo || 
+          (c.djen_ultima_data && g.lastDjenDate && isAfter(parseISO(c.djen_ultima_data), parseISO(g.lastDjenDate))) ||
+          (c.djen_nova_comunicacao && !g.lastDjenDate);
+          
+        if (isBetter) {
+          g.djenResumo = c.djen_ultimo_resumo;
+          g.lastDjenDate = c.djen_ultima_data;
+        }
+      }
+
       let currentScore = 0;
-      if (c.status === 'Caso CrÍTico') currentScore = 50;
-      else if (c.status === 'Vencido') currentScore = 40;
-      else if (c.status === 'É Hoje') currentScore = 30;
-      else if (c.status === 'Atenção') currentScore = 20;
-      else if (c.status === 'Sem Prazo') currentScore = 10;
+      const statusUpper = (c.status || '').toUpperCase();
+      if (statusUpper.includes('CRÍTICO')) currentScore = 50;
+      else if (statusUpper === 'VENCIDO') currentScore = 40;
+      else if (statusUpper === 'É HOJE') currentScore = 30;
+      else if (statusUpper === 'ATENÇÃO') currentScore = 20;
+      else if (statusUpper === 'SEM PRAZO') currentScore = 10;
       
       if (currentScore > g.statusScore) g.statusScore = currentScore;
 
-      if (c.status === 'Vencido' || c.status === 'Caso CrÍTico') {
+      if (statusUpper === 'VENCIDO' || statusUpper.includes('CRÍTICO')) {
         g.vencidos++;
         const atraso = c.diasFaltando ? Math.abs(c.diasFaltando) : 0;
         if (atraso > g.diasAtrasoMax) g.diasAtrasoMax = atraso;
       }
-      if (c.status === 'É Hoje') g.hoje++;
+      if (statusUpper === 'É HOJE') g.hoje++;
 
       const isoRetorno = formatDateToISO(c.ultimoRetorno);
       if (isoRetorno) {
@@ -363,13 +384,15 @@ export default function TarefasPage() {
         return matchesSearch && matchesOffice;
       })
       .sort((a, b) => {
+        // Priority sequence: BA > Closed > DJEN > Update > StatusScore > Gap > Days > Count
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
         if (a.hasDjen !== b.hasDjen) return a.hasDjen ? -1 : 1;
         if (a.hasUpdate !== b.hasUpdate) return a.hasUpdate ? -1 : 1;
         if (b.statusScore !== a.statusScore) return b.statusScore - a.statusScore;
         if (b.oldestReturnGap !== a.oldestReturnGap) return b.oldestReturnGap - a.oldestReturnGap;
-        return b.diasAtrasoMax - a.diasAtrasoMax;
+        if (b.diasAtrasoMax !== a.diasAtrasoMax) return b.diasAtrasoMax - a.diasAtrasoMax;
+        return b.totalAtivos - a.totalAtivos;
       });
 
     const pending = sortedAll.filter(g => !contactedSet.has(g.cliente));
@@ -439,7 +462,7 @@ export default function TarefasPage() {
       const result = await syncRepoCases(updatedCases);
       if (result.success) {
         setCases(updatedCases);
-        const updatedContatados = [...contatadosHoje, activeGroup.cliente];
+        const updatedContatados = Array.from(new Set([...contatadosHoje, activeGroup.cliente]));
         setContatadosHoje(updatedContatados);
         localStorage.setItem(getTodayKey(), JSON.stringify(updatedContatados));
         setIsAttendanceOpen(false);
@@ -451,23 +474,25 @@ export default function TarefasPage() {
     }
   };
 
+  if (!mounted) return null;
+
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40">
+      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+        <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">
               <CheckCircle size={20} className="text-primary" />
             </div>
             <div>
-               <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Fila Crítica de Contato</h1>
-               <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-0.5">Priorização DataJud & Carência</p>
+               <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila Crítica de Contato</h1>
+               <p className="hidden sm:block text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-0.5">Priorização DataJud · DJEN · Carência</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">
-              Sincronia Global Ativa
+              Vigilância 3D Ativa
             </Badge>
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
               <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />
@@ -475,67 +500,68 @@ export default function TarefasPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
-          {!loading && (
-            <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="premium-card p-6 border-l-4 border-l-slate-400">
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Fila em Aberto</p>
-                <h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3>
-              </div>
-              <div className="premium-card p-6 border-l-4 border-l-primary relative group">
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Período</p>
-                <div className="flex items-center gap-4">
-                  <span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span>
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    <Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button>
-                    <Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button>
-                  </div>
+        <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
+          <section className={ui.metrics}>
+            <div className="premium-card p-6 border-l-4 border-l-slate-400">
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Fila em Aberto</p>
+              <h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3>
+            </div>
+            <div className="premium-card p-6 border-l-4 border-l-primary relative group">
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Dia</p>
+              <div className="flex items-center gap-4">
+                <span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button>
+                  <Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button>
                 </div>
               </div>
-              <div className="premium-card p-6 border-l-4 border-l-emerald-500">
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Contatados Hoje</p>
-                <h3 className="text-3xl font-black text-emerald-600 tabular-nums">{contatadosHoje.length}</h3>
-              </div>
-              <div className="premium-card p-6 border-l-4 border-l-orange-400">
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Foco do Dia</p>
-                <h3 className="text-3xl font-black text-orange-600 tabular-nums">{Math.min(dailyMeta, taskData.focus.length)}</h3>
-              </div>
-            </section>
-          )}
+            </div>
+            <div className="premium-card p-6 border-l-4 border-l-emerald-500">
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Contatados Hoje</p>
+              <h3 className="text-3xl font-black text-emerald-600 tabular-nums">{contatadosHoje.length}</h3>
+            </div>
+            <div className="premium-card p-6 border-l-4 border-l-orange-400">
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Foco Imediato</p>
+              <h3 className="text-3xl font-black text-orange-600 tabular-nums">{Math.min(dailyMeta, taskData.focus.length)}</h3>
+            </div>
+          </section>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white border border-border/50 p-6 rounded-2xl shadow-sm">
-             <div className="relative flex-1 w-full max-xl">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-               <Input 
-                 placeholder="Pesquisar por cliente na fila..." 
-                 value={search}
-                 onChange={(e) => setSearch(e.target.value)}
-                 className="pl-11 h-12 bg-[#f8f9fb] border-none text-xs font-bold uppercase rounded-xl focus-visible:ring-primary/20"
-               />
-             </div>
-             
-             <div className="w-full md:w-64">
-               <Select value={officeFilter} onValueChange={setOfficeFilter}>
-                 <SelectTrigger className="h-12 bg-[#f8f9fb] border-none rounded-xl text-[10px] font-black uppercase">
-                   <div className="flex items-center gap-2">
-                     <Building2 size={16} className="text-primary" />
-                     <SelectValue placeholder="ESCRITÓRIO" />
-                   </div>
-                 </SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="all" className="text-[10px] font-black uppercase">TODOS ESCRITÓRIOS</SelectItem>
-                   {offices.map(o => (
-                     <SelectItem key={o} value={o} className="text-[10px] font-black uppercase">{o}</SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
+             <div className="relative flex-1 w-full flex flex-col md:flex-row gap-4">
+               <div className="relative flex-1">
+                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                 <Input 
+                   placeholder="Pesquisar..." 
+                   value={search}
+                   onChange={(e) => setSearch(e.target.value)}
+                   className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl"
+                 />
+               </div>
+               {offices.length > 0 && (
+                 <div className="w-full md:w-64">
+                    <Select value={officeFilter} onValueChange={setOfficeFilter}>
+                      <SelectTrigger className="h-12 bg-[#f8f9fb] border-none rounded-xl text-[10px] font-black uppercase">
+                        <div className="flex items-center gap-2">
+                           <Building2 size={14} className="text-primary" />
+                           <SelectValue placeholder="ESCRITÓRIO" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all" className="text-[10px] font-black uppercase">TODOS ESCRITÓRIOS</SelectItem>
+                        {offices.map(o => (
+                          <SelectItem key={o} value={o} className="text-[10px] font-black uppercase">{o}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                 </div>
+               )}
              </div>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Target size={18} className="text-primary" />
-              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária (Auditoria Unificada Ativa)</h2>
+              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.map((group) => (
@@ -554,324 +580,257 @@ export default function TarefasPage() {
                 </div>
               )}
             </div>
-
-            {taskData.backlog.length > 0 && (
-              <div className="pt-10">
-                <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="w-full flex items-center justify-between p-6 bg-slate-50 border border-slate-200 rounded-xl group">
-                  <div className="flex items-center gap-3">
-                    <Clock size={18} className="text-slate-400 group-hover:text-primary" />
-                    <div className="text-left">
-                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-600">Demais Ativos em Fila ({taskData.backlog.length})</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Clientes aguardando atendimento após a meta imediata</p>
-                    </div>
-                  </div>
-                  {showBacklog ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </Button>
-                {showBacklog && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6 animate-in slide-in-from-top-2">
-                    {taskData.backlog.map((group) => (
-                      <TaskCard 
-                        key={group.cliente} 
-                        group={group} 
-                        onMarkContacted={() => openAttendance(group)} 
-                        onScan={handleSingleScan}
-                        onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
+
+          {taskData.backlog.length > 0 && (
+            <div className="space-y-4 pt-10 border-t border-border/30">
+               <Button 
+                variant="ghost" 
+                onClick={() => setShowBacklog(!showBacklog)}
+                className="h-12 sm:h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground hover:bg-black/5 rounded-xl w-full sm:w-auto"
+               >
+                 {showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>}
+                 Outros pendentes ({taskData.backlog.length})
+               </Button>
+               
+               {showBacklog && (
+                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in slide-in-from-top-2">
+                   {taskData.backlog.map((group) => (
+                     <TaskCard 
+                       key={group.cliente} 
+                       group={group} 
+                       onMarkContacted={() => openAttendance(group)} 
+                       onScan={handleSingleScan}
+                       onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)}
+                     />
+                   ))}
+                 </div>
+               )}
+            </div>
+          )}
+
+          {taskData.completed.length > 0 && (
+            <div className="space-y-6 pt-10 border-t border-border/30">
+               <div className="flex items-center gap-3">
+                 <CheckCircle2 size={18} className="text-emerald-500" />
+                 <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Contatados Hoje ({taskData.completed.length})</h2>
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 opacity-60">
+                 {taskData.completed.map((group) => (
+                   <TaskCard 
+                     key={group.cliente} 
+                     group={group} 
+                     onMarkContacted={() => {}} 
+                     onScan={handleSingleScan}
+                     onSuggest={() => {}}
+                   />
+                 ))}
+               </div>
+            </div>
+          )}
         </div>
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
-              <DialogHeader className="p-6 bg-black text-white">
+            <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh]">
+              <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
-                        <History size={28} />
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                        <History size={24} />
                     </div>
                     <div>
-                        <DialogTitle className="font-black uppercase tracking-tight text-xl">Dossiê de Auditoria Unificado</DialogTitle>
-                        <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                        <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl">Auditoria Unificada</DialogTitle>
+                        <p className="text-[9px] sm:text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      onClick={() => {
-                        if (historyResult) {
-                          const suggestions = suggestScripts({
-                            clienteNome: historyResult.case.cliente,
-                            protocolo: historyResult.case.protocolo,
-                            ultimoRetorno: historyResult.case.ultimoRetorno,
-                            movimentos: historyResult.movimentos
-                          });
-                          setSuggestedScripts(suggestions);
-                          setShowScripts(true);
-                        }
-                      }} 
-                      variant="outline" 
-                      className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] rounded-xl h-10 px-4"
-                    >
-                      <MessageSquare size={14} className="mr-2" /> Sugerir Resposta
-                    </Button>
-                  </div>
                 </div>
-                <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visão consolidada de tribunal (DataJud) e comunicações oficiais (DJEN).</DialogDescription>
               </DialogHeader>
               
-              <div className="flex flex-col h-[650px]">
-                <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
-                  <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
-                      <p className="text-sm font-black uppercase">{historyResult?.case?.cliente}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {historyResult?.case?.djen_nova_comunicacao && (
-                      <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Publicação DJEN</Badge>
-                    )}
-                    {historyResult?.case?.indicio_busca_apreensao && (
-                      <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício B.A.</Badge>
-                    )}
-                    {historyResult?.case?.datajud_encerrado_tribunal && (
-                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Baixa Tribunal</Badge>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-hidden flex">
-                  <div className={cn("bg-white transition-all duration-300 flex flex-col", showScripts ? "w-1/2 border-r" : "w-full")}>
-                    <ScrollArea className="flex-1">
-                      <div className="p-8 space-y-10">
-                        {/* SEÇÃO 1: TRIBUNAL (DATAJUD) */}
-                        <section className="space-y-6">
-                           <div className="flex items-center justify-between border-b-2 border-black/5 pb-2">
-                              <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                <Gavel size={14} /> Movimentações do Tribunal
-                              </h3>
-                              <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/20 text-primary">DataJud Core</Badge>
-                           </div>
-                           <div className="space-y-6">
-                             {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                               [...historyResult.movimentos].sort((a,b) => {
-                                 const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
-                                 const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
-                                 return dateB - dateA;
-                               }).slice(0, 15).map((m, i) => (
-                                 <div key={i} className="flex gap-6 relative group">
-                                   <div className="w-10 h-10 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10">
-                                       <Clock size={14} className="text-muted-foreground" />
-                                   </div>
-                                   <div className="flex-1 pt-0.5 space-y-0.5">
-                                       <p className="text-[9px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D'}</p>
-                                       <p className="text-[12px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
-                                       {m.complemento && <p className="text-[9px] text-muted-foreground uppercase">{m.complemento}</p>}
-                                   </div>
-                                 </div>
-                               ))
-                             ) : (
-                               <div className="py-10 text-center opacity-30">
-                                 <AlertTriangle size={32} className="mx-auto mb-2" />
-                                 <p className="text-[10px] font-black uppercase">Nenhum movimento DataJud.</p>
-                               </div>
-                             )}
-                           </div>
-                        </section>
-
-                        {/* SEÇÃO 2: DIÁRIO OFICIAL (DJEN) */}
-                        <section className="space-y-6 pt-4">
-                           <div className="flex items-center justify-between border-b-2 border-black/5 pb-2">
-                              <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-2">
-                                <Globe size={14} /> Comunicações DJEN
-                              </h3>
-                              <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-blue-600 text-white font-black uppercase text-[8px] rounded-lg px-4 hover:bg-blue-700">
-                                 {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <RefreshCcw size={10} className="mr-2"/>} Sincronizar DJEN
-                              </Button>
-                           </div>
-                           
-                           <div className="bg-slate-50 rounded-xl p-4 border border-blue-100 flex items-center gap-3">
-                             <Info size={14} className="text-blue-600 shrink-0" />
-                             <p className="text-[9px] font-bold text-blue-800 uppercase leading-relaxed">
-                               O DJEN apresenta o texto completo das publicações em diários oficiais e editais.
-                             </p>
-                           </div>
-
-                           <div className="space-y-4">
-                              {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
-                                historyResult.djenComunicacoes.map((item, i) => (
-                                  <div key={i} className="p-5 border-2 border-black/5 bg-white hover:border-blue-600 transition-all rounded-xl space-y-3">
-                                     <div className="flex items-start justify-between">
-                                        <div className="space-y-1">
-                                           <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
-                                              {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
-                                           </Badge>
-                                           <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
-                                        </div>
-                                        {item.link && (
-                                          <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-blue-600"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
-                                        )}
-                                     </div>
-                                     <p className="text-[11px] font-bold text-foreground leading-relaxed whitespace-pre-wrap uppercase line-clamp-4 italic">
-                                        "{plainTextFromDjen(item.texto || '')}"
-                                     </p>
-                                     <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase pt-2 border-t border-black/5">
-                                        <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
-                                     </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="py-10 text-center space-y-4 opacity-30">
-                                   <BookOpen size={32} className="mx-auto" />
-                                   <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma publicação carregada.</p>
-                                </div>
-                              )}
-                           </div>
-                        </section>
+              <div className="flex flex-col flex-1 bg-white overflow-hidden">
+                <ScrollArea className="flex-1">
+                  <div className="p-4 sm:p-6 space-y-10">
+                    <div className="flex flex-col gap-4">
+                      <p className={cn("text-muted-foreground border-b pb-2", ui.label)}>Status Operacional</p>
+                      <div className="flex flex-wrap gap-2 sm:gap-3">
+                        {historyResult?.case?.djen_nova_comunicacao && <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-3 py-1.5">Publicação DJEN</Badge>}
+                        {historyResult?.case?.indicio_busca_apreensao && <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-3 py-1.5">Indício B.A.</Badge>}
+                        {historyResult?.case?.datajud_encerrado_tribunal && <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-3 py-1.5">Baixa Tribunal</Badge>}
                       </div>
-                    </ScrollArea>
-                  </div>
+                    </div>
 
-                  {showScripts && (
-                    <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
-                      <div className="p-6 space-y-6">
-                        <div className="flex items-center justify-between mb-4">
-                           <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                             <Zap size={14} /> Sugestões de Resposta
-                           </h3>
-                           <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
-                        </div>
-
-                        <div className="bg-black text-white p-5 space-y-4 mb-8">
-                           <div className="flex flex-col gap-3">
-                              <div className="flex items-center justify-between">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
-                                <Badge variant="outline" className="border-primary/20 text-primary text-[8px] font-black uppercase">Neural Unit</Badge>
-                              </div>
-
-                              <div className="flex gap-2">
-                                <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                                  <SelectTrigger className="h-8 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-none">
-                                    <div className="flex items-center gap-1.5">
-                                      <Settings2 size={10} />
-                                      <SelectValue />
-                                    </div>
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-white border-2 border-black rounded-none">
-                                    <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
-                                    <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2</SelectItem>
-                                    <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
-                                  </SelectContent>
-                                </Select>
-
-                                <Button 
-                                  onClick={handleGenerateAIDraft} 
-                                  disabled={isGeneratingAIDraft}
-                                  className="h-8 flex-1 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all shadow-[3px_3px_0px_#00D1FF] hover:shadow-none"
-                                >
-                                  {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
-                                </Button>
-                              </div>
-                           </div>
-
-                           {aiDraft ? (
-                             <div className="space-y-3 animate-in fade-in duration-500 mt-2">
-                                <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
-                                   <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
-                                </div>
-                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho</Button>
+                    <section className="space-y-6">
+                       <h3 className={cn("text-primary flex items-center gap-2 border-b-2 border-primary/10 pb-2", ui.label)}>
+                          <Gavel size={14} /> Movimentações Tribunal (DataJud)
+                       </h3>
+                       <div className="space-y-4">
+                         {historyResult?.movimentos?.map((m, i) => (
+                           <div key={i} className="flex gap-4 p-3 hover:bg-secondary/20 rounded-lg transition-colors">
+                             <div className="w-8 h-8 rounded-full border border-border bg-background flex items-center justify-center shrink-0">
+                                 <Clock size={12} className="text-muted-foreground" />
                              </div>
-                           ) : !isGeneratingAIDraft && (
-                             <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta personalizada.</p>
-                           )}
+                             <div className="flex-1">
+                                 <p className="text-[8px] font-black text-primary uppercase">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D'}</p>
+                                 <p className="text-[11px] font-bold text-foreground uppercase leading-tight">{m.nome}</p>
+                                 {m.complemento && <p className="text-[8px] text-muted-foreground uppercase">{m.complemento}</p>}
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                    </section>
 
-                           {isGeneratingAIDraft && (
-                              <div className="flex items-center gap-2 text-[8px] font-black uppercase text-primary animate-pulse py-2">
-                                <Loader2 size={10} className="animate-spin" />
-                                Processando rascunho via {selectedMotor.toUpperCase()}...
-                              </div>
-                           )}
+                    <section className="space-y-6">
+                       <div className="flex items-center justify-between border-b-2 border-blue-600/10 pb-2">
+                          <h3 className={cn("text-blue-600 flex items-center gap-2", ui.label)}>
+                            <Globe size={14} /> Diário Oficial Nacional (DJEN)
+                          </h3>
+                          <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-blue-600 text-white font-black uppercase text-[8px] rounded-lg">
+                             {loadingDjen ? <Loader2 className="animate-spin" size={10}/> : <RefreshCcw size={10}/>} Consultar
+                          </Button>
+                       </div>
+                       <div className="space-y-4">
+                          {historyResult?.djenComunicacoes?.map((item, i) => (
+                            <div key={i} className="p-4 sm:p-5 border-2 border-black/5 bg-[#fafafa] rounded-xl space-y-3">
+                               <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600">{item.tipoComunicacao}</Badge>
+                               <p className={cn("text-foreground leading-relaxed italic whitespace-pre-wrap", ui.readable)}>
+                                  "{item.texto ? plainTextFromDjen(item.texto) : ""}"
+                               </p>
+                               <p className="text-[8px] font-black text-muted-foreground uppercase pt-2 border-t">{item.data_disponibilizacao} • {item.nomeOrgao}</p>
+                            </div>
+                          ))}
+                       </div>
+                    </section>
+
+                    <section className="space-y-6 pt-6 border-t">
+                      <div className="flex items-center justify-between">
+                        <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}>
+                          <Sparkles size={14} /> Sugestões & Rascunho IA
+                        </h3>
+                      </div>
+
+                      <div className="bg-black text-white p-4 sm:p-6 space-y-4 rounded-xl">
+                        <div className="flex flex-col gap-3">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Draft Estratégico</p>
+
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <Select value={selectedMotor} onValueChange={setSelectedMotor}>
+                              <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-lg flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border-2 border-black rounded-lg">
+                                <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
+                                <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2</SelectItem>
+                                <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <Button 
+                              onClick={handleGenerateAIDraft} 
+                              disabled={isGeneratingAIDraft}
+                              className="h-10 px-6 bg-white text-black font-black uppercase text-[10px] rounded-lg hover:bg-primary transition-all"
+                            >
+                              {isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}
+                            </Button>
+                          </div>
                         </div>
-                        
-                        {suggestedScripts.map((script, idx) => (
-                          <div key={idx} className="bg-white border-2 border-black p-5 rounded-none shadow-[6px_6px_0px_rgba(0,0,0,0.05)] space-y-4">
-                             <div className="space-y-1">
+
+                        {aiDraft && (
+                          <div className="space-y-3 animate-in fade-in duration-500 mt-2">
+                            <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                              <p className={cn("text-white/80 italic", ui.readable)}>"{aiDraft}"</p>
+                            </div>
+                            <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {showScripts && suggestedScripts.length > 0 && (
+                        <div className="grid gap-4">
+                          {suggestedScripts.map((script, idx) => (
+                            <div key={idx} className="bg-white border-2 border-black p-5 rounded-xl shadow-sm space-y-4">
+                              <div className="space-y-1">
                                 <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none px-2 mb-1">{script.titulo}</Badge>
                                 <p className="text-[11px] font-black uppercase leading-tight">{script.quandoUsar}</p>
-                             </div>
-                             <div className="p-4 bg-slate-50 border border-black/5 relative">
-                                <p className="text-[11px] font-bold text-black/70 leading-relaxed italic">"{script.texto}"</p>
+                              </div>
+                              <div className="p-4 bg-slate-50 border border-black/5 relative rounded-lg">
+                                <p className={cn("text-black/70 italic", ui.readable)}>"{script.texto}"</p>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
                                   onClick={() => copyScript(script.texto)}
-                                  className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all"
+                                  className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all rounded-lg"
                                 >
                                   <Copy size={14} />
                                 </Button>
-                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </div>
-              </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </ScrollArea>
 
-              <DialogFooter className="p-4 bg-secondary/10 border-t">
-                 <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
-              </DialogFooter>
+                <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0">
+                   <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
+                </DialogFooter>
+              </div>
             </DialogContent>
           </Dialog>
         </Suspense>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
-          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl overflow-hidden p-0">
+          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl overflow-hidden p-0 max-h-[90vh]">
             <DialogHeader className="p-6 bg-secondary/20 border-b">
               <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2">
                 <UserCheck className="text-primary" /> Registrar Atendimento
               </DialogTitle>
-              <DialogDescription className="font-bold uppercase text-[10px] text-muted-foreground">
-                Cliente: {activeGroup?.cliente}
-              </DialogDescription>
+              <DialogDescription className="sr-only">Formulário para registrar contato com o cliente.</DialogDescription>
             </DialogHeader>
-            <div className="p-6 space-y-6">
-              <div className="space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto">
                 <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground flex items-center gap-2">
-                    <Zap size={12} /> Resultado do Contato
-                  </Label>
+                  <Label className={ui.label}>Resultado do Contato</Label>
                   <Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}>
                     <SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter em Andamento</SelectItem>
-                      <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Processo (Baixa Interna)</SelectItem>
-                      <SelectItem value="ARQUIVADO" className="text-[10px] font-bold uppercase">Arquivar Processo</SelectItem>
+                      <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Processo</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className={cn("grid gap-2", attendanceForm.situacao === 'ENCERRADO' && "opacity-40 pointer-events-none")}>
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground flex items-center gap-2">
-                    <Calendar size={12} /> Data do Próximo Retorno
-                  </Label>
-                  <Input placeholder="DD/MM/AAAA" value={attendanceForm.proximoRetorno} onChange={(e) => setAttendanceForm({...attendanceForm, proximoRetorno: e.target.value})} className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-sm" />
-                </div>
+                
                 <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground flex items-center gap-2">
-                    <FileText size={12} /> Observações de Gabinete
-                  </Label>
-                  <Textarea placeholder="REGISTRE DETALHES DO ACORDO OU ATENDIMENTO..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-[11px] uppercase resize-none" />
+                  <Label className={ui.label}>Próximo retorno</Label>
+                  <Input 
+                    type="date" 
+                    value={attendanceForm.proximoRetorno} 
+                    onChange={(e) => setAttendanceForm({...attendanceForm, proximoRetorno: e.target.value})}
+                    disabled={attendanceForm.situacao === 'ENCERRADO'}
+                    className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-base sm:text-xs uppercase"
+                  />
                 </div>
-              </div>
+
+                <div className="grid gap-2">
+                  <Label className={ui.label}>Observações</Label>
+                  <Textarea placeholder="REGISTRE DETALHES..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-base sm:text-xs uppercase resize-none" />
+                </div>
+
+                <div className="flex items-center space-x-3 pt-2">
+                  <Checkbox 
+                    id="applyToAll" 
+                    checked={attendanceForm.applyToAll} 
+                    onCheckedChange={(val) => setAttendanceForm({...attendanceForm, applyToAll: !!val})} 
+                    className="h-5 w-5"
+                  />
+                  <Label htmlFor="applyToAll" className="text-[10px] font-black uppercase cursor-pointer leading-tight">Aplicar a toda carteira do cliente</Label>
+                </div>
             </div>
             <DialogFooter className="p-6 pt-0">
-              <Button onClick={handleSaveAttendance} disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl">
-                {isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 text-white" />}
-                Salvar Registro & Sincronizar
+              <Button onClick={handleSaveAttendance} disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] shadow-xl">
+                {isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2" />}
+                Salvar Registro
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -903,114 +862,64 @@ function TaskCard({
     diasVencidos: group.diasAtrasoMax
   });
 
-  const isCritical = group.statusScore >= 50;
-
   return (
     <div className={cn(
-      "premium-card p-6 bg-white flex flex-col transition-all group border-l-4", 
-      isFocus ? "border-l-primary" : "border-l-slate-200", 
+      "premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", 
+      isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", 
       group.hasBA && "border-l-red-600 bg-red-50/10",
-      group.hasClosedCourt && !group.hasBA && "border-l-black bg-slate-50/50"
+      group.hasClosedCourt && "border-l-black bg-slate-50/50",
+      group.hasDjen && !group.hasBA && "border-l-blue-600"
     )}>
       <div className="flex justify-between items-start mb-6">
         <div className={cn(
-          "w-12 h-12 rounded-xl flex items-center justify-center transition-all", 
-          group.hasBA ? "bg-red-600 text-white animate-pulse shadow-lg" : 
+          "w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all", 
+          group.hasBA ? "bg-red-600 text-white animate-pulse" : 
           group.hasClosedCourt ? "bg-black text-white" :
           "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white"
         )}>
           {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <Phone size={24} />}
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
-          {group.hasBA ? (
-             <Badge className="bg-red-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-bounce">CRÍTICO: BUSCA E APREENSÃO</Badge>
-          ) : group.hasClosedCourt ? (
-            <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">BAIXA NO TRIBUNAL</Badge>
-          ) : group.hasDjen ? (
-            <Badge className="bg-blue-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">NOVIDADE DJEN</Badge>
-          ) : group.hasUpdate ? (
-            <Badge variant="destructive" className="text-[7px] font-black uppercase px-2 py-0 h-4 animate-pulse">NOVO ANDAMENTO</Badge>
-          ) : isCritical ? (
-            <Badge className="bg-red-600 text-white border-none text-[8px] font-black uppercase px-2 py-0.5 animate-bounce">URGÊNCIA MÁXIMA</Badge>
-          ) : group.oldestReturnGap >= 30 ? (
-            <Badge className="bg-orange-50 text-orange-700 border-none text-[8px] font-black uppercase px-2 py-0.5">Sem Retorno há {group.oldestReturnGap} dias</Badge>
-          ) : (
-            <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0.5 border-slate-200">Em Monitoramento</Badge>
-          )}
-          
-          <div className="text-[8px] font-black text-primary/60 uppercase tracking-widest flex items-center gap-1">
-            <Sparkles size={8}/> Prob. {prob}%
-          </div>
+          {group.hasBA ? <Badge className="bg-red-600 text-white text-[8px] font-black uppercase px-2 py-0.5">CRÍTICO: B.A.</Badge> : 
+           group.hasClosedCourt ? <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">BAIXA TRIBUNAL</Badge> :
+           group.hasDjen ? <Badge className="bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-0.5 animate-pulse">DJEN</Badge> :
+           group.hasUpdate ? <Badge variant="destructive" className="text-[7px] font-black uppercase px-2 py-0 h-4 animate-pulse">NOVO ANDAMENTO</Badge> :
+           <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0.5">Vigilância</Badge>
+          }
+          <div className="text-[8px] font-black text-primary/60 uppercase">Prob. {prob}%</div>
         </div>
       </div>
       
       <div className="space-y-1 flex-1">
         <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate group-hover:text-primary transition-colors">{group.cliente}</h3>
-        <p className="text-[9px] font-bold text-muted-foreground uppercase">Ref: {group.protocoloReferencia}</p>
+        <p className={cn("text-muted-foreground uppercase", ui.cnj)}>Ref: {group.protocoloReferencia}</p>
 
-        {group.lastMovementName && (
-          <div className="mt-4 p-3 bg-secondary/30 rounded-xl border border-border/20 group-hover:border-primary/20 transition-all">
-             <div className="flex items-center gap-2 mb-1.5">
-                <History size={12} className="text-primary/60" />
-                <span className="text-[8px] font-black text-primary/60 uppercase tracking-widest">Último Andamento Tribunal</span>
-             </div>
-             <p className="text-[10px] font-black text-foreground uppercase leading-tight line-clamp-2" title={group.lastMovementName}>
-                {group.lastMovementName}
-             </p>
+        {group.djenResumo && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+             <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest flex items-center gap-1.5 mb-1.5"><Globe size={10}/> Publicação Oficial</p>
+             <p className={cn("text-blue-900 leading-relaxed italic line-clamp-3", ui.readable)}>"{group.djenResumo}"</p>
+          </div>
+        )}
+
+        {group.lastMovementName && !group.djenResumo && (
+          <div className="mt-4 p-3 bg-secondary/30 rounded-xl border border-border/20">
+             <p className="text-[10px] font-black text-foreground uppercase leading-tight line-clamp-2">{group.lastMovementName}</p>
              <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 uppercase">
                 {group.lastMovementDate ? format(new Date(group.lastMovementDate), 'dd/MM/yyyy') : 'S/ Data'}
              </p>
           </div>
         )}
-        
-        <div className="flex flex-col gap-2 mt-4">
-           <div className="flex items-center gap-1.5 text-primary font-black uppercase text-[8px] tracking-widest bg-primary/5 px-2 py-1 rounded-md w-fit">
-             <Gavel size={10} />
-             {group.advogado}
-           </div>
-           {group.escritorio && (
-             <div className="flex items-center gap-1.5 text-muted-foreground font-black uppercase text-[7px] tracking-widest bg-secondary/50 px-2 py-1 rounded-md w-fit">
-               <Building2 size={10} />
-               {group.escritorio}
-             </div>
-           )}
-        </div>
       </div>
 
-      <div className="mt-8 pt-6 border-t border-border/30 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-           <Button 
-              title="Sugerir Resposta" 
-              variant="ghost" 
-              size="icon" 
-              disabled={isSuggesting}
-              onClick={async () => {
-                setIsSuggesting(true);
-                await onSuggest();
-                setIsSuggesting(false);
-              }}
-              className="h-9 w-9 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
-           >
-             {isSuggesting ? <Loader2 className="animate-spin" /> : <MessageSquareQuote size={18} />}
-           </Button>
-           <Button 
-              title="Andamentos Oficiais" 
-              variant="ghost" 
-              size="icon" 
-              disabled={isScanning}
-              onClick={async () => {
-                setIsScanning(true);
-                await onScan(group.protocoloReferencia);
-                setIsScanning(false);
-              }}
-              className="h-9 w-9 rounded-lg text-primary hover:bg-primary/10 transition-colors"
-           >
-             {isScanning ? <Loader2 className="animate-spin" /> : <FileSearch size={18} />}
-           </Button>
-           <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-lg text-emerald-600 hover:bg-emerald-50"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
-           <Button title="Registrar Atendimento" variant="ghost" size="icon" onClick={onMarkContacted} className="h-9 w-9 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"><UserCheck size={18} /></Button>
+      <div className="mt-6 pt-6 border-t border-border/30 flex items-center justify-between">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+           <Button variant="ghost" size="icon" disabled={isSuggesting} onClick={async () => { setIsSuggesting(true); await onSuggest(); setIsSuggesting(false); }} className={cn("text-amber-600 hover:bg-amber-50", ui.touch)} title="IA"><MessageSquareQuote size={18} /></Button>
+           <Button variant="ghost" size="icon" disabled={isScanning} onClick={async () => { setIsScanning(true); await onScan(group.protocoloReferencia); setIsScanning(false); }} className={cn("text-primary hover:bg-primary/10", ui.touch)} title="Audit"><FileSearch size={18} /></Button>
+           <Button asChild variant="ghost" size="icon" className={cn("text-blue-600 hover:bg-blue-50", ui.touch)} title="Alerts"><Link href={`/notificacoes?search=${group.protocoloReferencia}`}><Bell size={18} /></Link></Button>
+           <Button variant="ghost" size="icon" asChild className={cn("text-emerald-600 hover:bg-emerald-50", ui.touch)} title="WA"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
+           <Button variant="ghost" size="icon" onClick={onMarkContacted} className={cn("text-slate-400 hover:text-emerald-600", ui.touch)} title="Reg"><UserCheck size={18} /></Button>
         </div>
-        <Button variant="ghost" asChild className="h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:text-primary"><Link href={`/cases?search=${encodeURIComponent(group.cliente)}`}>Gerir Contas <ChevronRight size={14} className="ml-1" /></Link></Button>
+        <Button variant="ghost" asChild className="h-10 px-3 sm:px-4 rounded-xl text-[10px] font-black uppercase hover:text-primary transition-all"><Link href={`/cases?search=${encodeURIComponent(group.cliente)}`}>Gerir <ChevronRight size={14} className="ml-1 hidden sm:inline" /></Link></Button>
       </div>
     </div>
   );

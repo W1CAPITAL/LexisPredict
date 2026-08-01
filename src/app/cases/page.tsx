@@ -38,15 +38,19 @@ import {
   Globe,
   Info,
   AlertTriangle,
-  Gavel
+  Gavel,
+  Bell,
+  Bot
 } from 'lucide-react';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
+import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -161,7 +165,7 @@ const CaseRow = React.memo(({
               </Badge>
             )}
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{c.protocolo}</span>
+          <span className={cn("text-[10px] font-mono text-muted-foreground uppercase tracking-widest", ui.cnj)}>{c.protocolo}</span>
         </div>
       </td>
       <td className="px-8 py-5">
@@ -199,7 +203,7 @@ const CaseRow = React.memo(({
             </div>
             <div className="flex flex-col">
               <span className="text-[9px] font-black text-muted-foreground uppercase leading-none mb-1 tracking-widest">Retorno</span>
-              <span className="text-[11px] text-foreground font-bold uppercase whitespace-nowrap">
+              <span className="text-11px text-foreground font-bold uppercase whitespace-nowrap">
                 {c.ultimoRetorno || 'S/ Atendimento'}
               </span>
             </div>
@@ -233,7 +237,7 @@ const CaseRow = React.memo(({
               await onSuggest(c);
               setSuggestLoading(false);
             }} 
-            className="text-amber-600 hover:bg-amber-50 h-9 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-50"
+            className={cn("text-amber-600 hover:bg-amber-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}
           >
             {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
           </button>
@@ -245,29 +249,38 @@ const CaseRow = React.memo(({
               await onScan(c);
               setLoading(false);
             }} 
-            className="text-primary hover:bg-primary/10 h-9 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-50"
+            className={cn("text-primary hover:bg-primary/10 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
           </button>
+
+          <Link 
+            href={`/notificacoes?search=${c.protocolo}`} 
+            title="Ver Notificações" 
+            className={cn("text-blue-600 hover:bg-blue-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}
+          >
+            <Bell size={18} />
+          </Link>
+
           {isOperador && (
-            <button title="Registrar Atendimento Hoje" onClick={(e) => { e.stopPropagation(); onLogReturn(c.protocolo); }} className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
+            <button title="Registrar Atendimento" onClick={(e) => { e.stopPropagation(); onLogReturn(c.protocolo); }} className={cn("text-emerald-600 hover:bg-emerald-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}>
               <CheckCircle2 size={18} />
             </button>
           )}
           {c.telefone && (
-             <a href={formatWhatsAppLink(c.telefone)} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-all h-9 w-9 flex items-center justify-center rounded-lg">
+             <a href={formatWhatsAppLink(c.telefone)} target="_blank" rel="noopener noreferrer" title="WhatsApp" className={cn("text-emerald-600 hover:bg-emerald-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}>
                <MessageCircle size={18} />
              </a>
           )}
-          <a href={c.linkConsulta} target="_blank" rel="noopener noreferrer" title="Tribunal" className="text-muted-foreground hover:bg-secondary h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
+          <a href={c.linkConsulta} target="_blank" rel="noopener noreferrer" title="Tribunal" className={cn("text-muted-foreground hover:bg-secondary w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}>
             <ExternalLink size={18} />
           </a>
           {isOperador && (
             <>
-              <button title="Editar" onClick={(e) => { e.stopPropagation(); onEdit(c); }} className="text-muted-foreground hover:bg-secondary h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
+              <button title="Editar" onClick={(e) => { e.stopPropagation(); onEdit(c); }} className={cn("text-muted-foreground hover:bg-secondary w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}>
                 <Edit2 size={18} />
               </button>
-              <button title="Excluir" onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className="text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 h-9 w-9 flex items-center justify-center rounded-lg transition-colors">
+              <button title="Excluir" onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className={cn("text-muted-foreground hover:text-red-600 hover:bg-red-50 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", ui.touch)}>
                 <Trash2 size={18} />
               </button>
             </>
@@ -484,6 +497,64 @@ function CasesContent() {
     }
   };
 
+  const handleExportCSV = useCallback(() => {
+    const searchLower = deferredSearch.toLowerCase();
+    const filteredCases = cases.filter(c => {
+      const matchesSearch = (c.cliente || '').toLowerCase().includes(searchLower) || 
+                            (c.protocolo || '').includes(deferredSearch);
+      const matchesOffice = officeFilter === 'all' || c.escritorio === officeFilter;
+      const matchesQuick = quickFilter === 'all' || (quickFilter === 'updated' && (c.tem_atualizacao_pos_retorno || c.datajud_encerrado_tribunal || c.indicio_busca_apreensao || c.djen_nova_comunicacao));
+      const isEncerrado = isCasoEncerrado(c);
+      let pass = matchesSearch && matchesOffice && matchesQuick;
+      if (!showClosed && isEncerrado) pass = false;
+      return pass;
+    });
+
+    if (filteredCases.length === 0) {
+      toast({ title: "Lista vazia", variant: "destructive" });
+      return;
+    }
+
+    const headersList = [
+      'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
+      'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
+      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'CUMPRIMENTO_SENTENCA', 'DJEN_NOVIDADE'
+    ];
+
+    const rows = filteredCases.map(c => {
+      return [
+        c.cliente,
+        c.protocolo,
+        c.tribunal,
+        c.advogado,
+        c.escritorio || '',
+        c.status,
+        c.proximoPrazo || '',
+        c.ultimoRetorno || '',
+        (c.observacao || '').replace(/\n/g, ' '),
+        c.telefone || '',
+        c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
+        c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
+        c.indicio_busca_apreensao ? 'SIM' : 'NÃO',
+        c.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
+        c.djen_nova_comunicacao ? 'SIM' : 'NÃO'
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
+    });
+
+    const csvContent = "\uFEFF" + [headersList.join(';'), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().split('T')[0];
+    link.setAttribute("href", url);
+    link.setAttribute("download", `processos_lexis_${date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({ title: "Exportação Concluída" });
+  }, [cases, deferredSearch, officeFilter, quickFilter, showClosed, toast]);
+
   useEffect(() => { 
     setMounted(true);
     loadData(); 
@@ -604,56 +675,9 @@ function CasesContent() {
     });
   }, [cases, deferredSearch, showClosed, officeFilter, quickFilter]);
 
-  const handleExportCSV = useCallback(() => {
-    if (filtered.length === 0) {
-      toast({ title: "Lista vazia", variant: "destructive" });
-      return;
-    }
-
-    const headers = [
-      'CLIENTE', 'PROTOCOLO', 'TRIBUNAL', 'ADVOGADO', 'ESCRITORIO', 'STATUS',
-      'PROXIMO_PRAZO', 'ULTIMO_RETORNO', 'OBSERVACAO', 'TELEFONE',
-      'TEM_NOVO_ANDAMENTO', 'ENCERRADO_TRIBUNAL', 'INDICIO_BA', 'CUMPRIMENTO_SENTENCA', 'DJEN_NOVIDADE'
-    ];
-
-    const rows = filtered.map(c => {
-      return [
-        c.cliente,
-        c.protocolo,
-        c.tribunal,
-        c.advogado,
-        c.escritorio || '',
-        c.status,
-        c.proximoPrazo || '',
-        c.ultimoRetorno || '',
-        (c.observacao || '').replace(/\n/g, ' '),
-        c.telefone || '',
-        c.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
-        c.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
-        c.indicio_busca_apreensao ? 'SIM' : 'NÃO',
-        c.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
-        c.djen_nova_comunicacao ? 'SIM' : 'NÃO'
-      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
-    });
-
-    const csvContent = "\uFEFF" + [headers.join(';'), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const date = new Date().toISOString().split('T')[0];
-    link.setAttribute("href", url);
-    link.setAttribute("download", `processos_lexis_${date}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({ title: "Exportação Concluída" });
-  }, [filtered, toast]);
-
   const handleDelete = async (id: string) => {
     if (!isOperador) return;
     if (confirm('Excluir definitivamente?')) {
-      const target = cases.find(c => c.id === id);
       const updated = cases.filter(item => item.id !== id);
       setCases(updated);
       await syncRepoCases(updated);
@@ -666,60 +690,22 @@ function CasesContent() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40">
+      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+        <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex items-center gap-4">
-            <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Processos do Gabinete</h1>
+            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Processos do Gabinete</h1>
           </div>
-          <div className="flex items-center gap-3">
-            {isOperador && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleBatchUpdateStatus}
-                disabled={isUpdating || loading}
-                className="h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5"
-              >
-                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCcw size={16} className="mr-2 text-primary" />}
-                Recalibrar Prazos
-              </Button>
-            )}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {isOperador && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleDataJudScan}
                 disabled={isScanning || loading}
-                className="h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5"
+                className={cn("h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5", ui.touch)}
               >
                 {isScanning ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Zap size={16} className="mr-2 text-primary" />}
-                Varredura DataJud
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              className="h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5"
-            >
-              <FileDown size={16} className="mr-2 text-primary" />
-              Exportar Planilha
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowClosed(!showClosed)}
-              className={cn(
-                "h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all",
-                showClosed ? "bg-black text-white" : "text-muted-foreground hover:bg-secondary"
-              )}
-            >
-              {showClosed ? <Eye size={16} className="mr-2" /> : <EyeOff size={16} className="mr-2" />}
-              {showClosed ? "Ocultar Encerrados" : "Mostrar Encerrados"}
-            </Button>
-            {isOperador && (
-              <Button onClick={() => { setEditingCase(null); setIsModalOpen(true); }} className="h-11 px-6 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-black uppercase text-[10px] tracking-widest shadow-xl">
-                <Plus className="w-4 h-4 mr-2" /> Novo Registro
+                Scan
               </Button>
             )}
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
@@ -728,21 +714,21 @@ function CasesContent() {
           </div>
         </header>
 
-        <div className="flex-1 flex flex-col p-8 overflow-hidden">
-          <div className="premium-card flex-1 flex flex-col overflow-hidden border-none">
-            <div className="p-5 border-b border-border/30 flex items-center justify-between gap-6 shrink-0">
-              <div className="flex flex-1 items-center gap-4 max-w-5xl">
-                <div className="relative flex-1">
+        <div className="flex-1 flex flex-col p-4 sm:p-8 overflow-hidden">
+          <div className="premium-card flex-1 flex flex-col overflow-hidden border-none bg-white">
+            <div className="p-4 sm:p-5 border-b border-border/30 flex flex-col lg:flex-row items-center justify-between gap-4 shrink-0">
+              <div className="flex flex-1 flex-col sm:flex-row items-center gap-4 w-full">
+                <div className="relative flex-1 w-full">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input 
-                    placeholder="Pesquisar por titular ou CNJ..." 
+                    placeholder="Pesquisar titular ou CNJ..." 
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-11 h-11 bg-secondary/30 border-none rounded-xl text-xs font-bold uppercase"
+                    className="pl-11 h-11 bg-secondary/30 border-none rounded-xl text-base sm:text-xs font-bold uppercase"
                   />
                 </div>
                 
-                <div className="w-48">
+                <div className="w-full sm:w-48">
                   <Select value={quickFilter} onValueChange={setQuickFilter}>
                     <SelectTrigger className="h-11 bg-secondary/30 border-none rounded-xl text-[10px] font-black uppercase">
                       <div className="flex items-center gap-2">
@@ -757,7 +743,7 @@ function CasesContent() {
                   </Select>
                 </div>
 
-                <div className="w-48">
+                <div className="w-full sm:w-48">
                   <Select value={officeFilter} onValueChange={setOfficeFilter}>
                     <SelectTrigger className="h-11 bg-secondary/30 border-none rounded-xl text-[10px] font-black uppercase">
                       <div className="flex items-center gap-2">
@@ -774,11 +760,57 @@ function CasesContent() {
                   </Select>
                 </div>
               </div>
+
+              {/* GRUPO DE AÇÕES À DIREITA */}
+              <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+                {isOperador && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBatchUpdateStatus}
+                    disabled={isUpdating || loading}
+                    className={cn("h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5 shrink-0", ui.touch)}
+                  >
+                    {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCcw size={16} className="mr-2 text-primary" />}
+                    Recalibrar
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCSV}
+                  className={cn("h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest border-primary/20 hover:bg-primary/5 shrink-0", ui.touch)}
+                >
+                  <FileDown size={16} className="mr-2 text-primary" />
+                  CSV
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowClosed(!showClosed)}
+                  className={cn(
+                    "h-10 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all shrink-0",
+                    ui.touch,
+                    showClosed ? "bg-black text-white" : "text-muted-foreground hover:bg-secondary"
+                  )}
+                >
+                  {showClosed ? <Eye size={16} className="mr-2" /> : <EyeOff size={16} className="mr-2" />}
+                  {showClosed ? "Ocultar" : "Mostrar"}
+                </Button>
+                {isOperador && (
+                  <Button 
+                    onClick={() => { setEditingCase(null); setIsModalOpen(true); }} 
+                    className={cn("h-10 px-6 rounded-xl bg-black text-white hover:bg-black/90 font-black uppercase text-[10px] tracking-widest shadow-lg shrink-0", ui.touch)}
+                  >
+                    <Plus className="w-4 h-4 mr-2 text-primary" /> Novo
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="flex-1 overflow-auto">
-              <table className="w-full text-left border-collapse min-w-[1000px]">
-                <thead className="sticky top-0 bg-card z-20 border-b border-border shadow-sm">
+            <div className={cn("flex-1", ui.tableWrap)}>
+              <table className="w-full text-left border-collapse min-w-[1200px]">
+                <thead className="sticky top-0 bg-white z-20 border-b border-border shadow-sm">
                   <tr className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">
                     <th className="px-8 py-5">Identificação / Auditoria</th>
                     <th className="px-8 py-5">Tribunal</th>
@@ -829,320 +861,210 @@ function CasesContent() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
-              <DialogHeader className="p-6 bg-black text-white">
+            <DialogContent className="sm:max-w-[850px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh]">
+              <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
-                        <History size={28} />
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+                        <History size={24} />
                     </div>
                     <div>
-                        <DialogTitle className="font-black uppercase tracking-tight text-xl">Dossiê de Auditoria Unificado</DialogTitle>
-                        <p className="text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
+                        <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl">Auditoria Unificada</DialogTitle>
+                        <p className="text-[9px] sm:text-[10px] font-bold uppercase text-white/60 mt-1">Ref: {historyResult?.case.protocolo}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      onClick={() => {
-                        if (historyResult) {
-                          const suggestions = suggestScripts({
-                            clienteNome: historyResult.case.cliente,
-                            protocolo: historyResult.case.protocolo,
-                            ultimoRetorno: historyResult.case.ultimoRetorno,
-                            movimentos: historyResult.movimentos
-                          });
-                          setSuggestedScripts(suggestions);
-                          setShowScripts(true);
-                        }
-                      }} 
-                      variant="outline" 
-                      className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] rounded-xl h-10 px-4"
-                    >
-                      <MessageSquare size={14} className="mr-2" /> Sugerir Resposta
-                    </Button>
-                  </div>
                 </div>
-                <DialogDescription className="text-[10px] uppercase font-bold text-white/40">Visão consolidada de tribunal (DataJud) e comunicações oficiais (DJEN).</DialogDescription>
               </DialogHeader>
               
-              <div className="flex flex-col h-[650px]">
-                <div className="p-6 bg-secondary/20 border-b flex items-center justify-between shrink-0">
-                  <div className="space-y-1">
-                      <p className="text-[9px] font-black uppercase text-muted-foreground">Titular do Processo</p>
-                      <p className="text-sm font-black uppercase">{historyResult?.case?.cliente}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {historyResult?.case?.djen_nova_comunicacao && (
-                      <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-pulse">Publicação DJEN</Badge>
-                    )}
-                    {historyResult?.case?.indicio_busca_apreensao && (
-                      <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-4 py-2 animate-bounce">Indício B.A.</Badge>
-                    )}
-                    {historyResult?.case?.datajud_encerrado_tribunal && (
-                      <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-4 py-2 animate-pulse">Baixa Tribunal</Badge>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-hidden flex">
-                  <div className={cn("bg-white transition-all duration-300 flex flex-col", showScripts ? "w-1/2 border-r" : "w-full")}>
-                    <ScrollArea className="flex-1">
-                      <div className="p-8 space-y-10">
-                        {/* SEÇÃO 1: TRIBUNAL (DATAJUD) */}
-                        <section className="space-y-6">
-                           <div className="flex items-center justify-between border-b-2 border-black/5 pb-2">
-                              <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                <Gavel size={14} /> Movimentações do Tribunal
-                              </h3>
-                              <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/20 text-primary">DataJud Core</Badge>
-                           </div>
-                           <div className="space-y-6">
-                             {historyResult?.movimentos && historyResult.movimentos.length > 0 ? (
-                               [...historyResult.movimentos].sort((a,b) => {
-                                 const dateA = a.dataHora ? new Date(a.dataHora).getTime() : 0;
-                                 const dateB = b.dataHora ? new Date(b.dataHora).getTime() : 0;
-                                 return dateB - dateA;
-                               }).slice(0, 15).map((m, i) => (
-                                 <div key={i} className="flex gap-6 relative group">
-                                   <div className="w-10 h-10 rounded-full border-2 border-border bg-background flex items-center justify-center shrink-0 relative z-10">
-                                       <Clock size={14} className="text-muted-foreground" />
-                                   </div>
-                                   <div className="flex-1 pt-0.5 space-y-0.5">
-                                       <p className="text-[9px] font-black text-primary uppercase tracking-widest">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D'}</p>
-                                       <p className="text-[12px] font-bold text-foreground leading-tight uppercase">{m.nome}</p>
-                                       {m.complemento && <p className="text-[9px] text-muted-foreground uppercase">{m.complemento}</p>}
-                                   </div>
-                                 </div>
-                               ))
-                             ) : (
-                               <div className="py-10 text-center opacity-30">
-                                 <AlertTriangle size={32} className="mx-auto mb-2" />
-                                 <p className="text-[10px] font-black uppercase">Nenhum movimento DataJud.</p>
-                               </div>
-                             )}
-                           </div>
-                        </section>
-
-                        {/* SEÇÃO 2: DIÁRIO OFICIAL (DJEN) */}
-                        <section className="space-y-6 pt-4">
-                           <div className="flex items-center justify-between border-b-2 border-black/5 pb-2">
-                              <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-2">
-                                <Globe size={14} /> Comunicações DJEN
-                              </h3>
-                              <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-blue-600 text-white font-black uppercase text-[8px] rounded-lg px-4 hover:bg-blue-700">
-                                 {loadingDjen ? <Loader2 className="animate-spin mr-2" size={10}/> : <RefreshCcw size={10} className="mr-2"/>} Sincronizar DJEN
-                              </Button>
-                           </div>
-                           
-                           <div className="bg-slate-50 rounded-xl p-4 border border-blue-100 flex items-center gap-3">
-                             <Info size={14} className="text-blue-600 shrink-0" />
-                             <p className="text-[9px] font-bold text-blue-800 uppercase leading-relaxed">
-                               O DJEN apresenta o texto completo das publicações em diários oficiais e editais.
-                             </p>
-                           </div>
-
-                           <div className="space-y-4">
-                              {historyResult?.djenComunicacoes && historyResult.djenComunicacoes.length > 0 ? (
-                                historyResult.djenComunicacoes.map((item, i) => (
-                                  <div key={i} className="p-5 border-2 border-black/5 bg-white hover:border-blue-600 transition-all rounded-xl space-y-3">
-                                     <div className="flex items-start justify-between">
-                                        <div className="space-y-1">
-                                           <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600 bg-blue-50">
-                                              {item.meio === 'D' ? 'Diário' : 'Edital'} • {item.tipoComunicacao}
-                                           </Badge>
-                                           <p className="text-[10px] font-black uppercase">{item.data_disponibilizacao ? format(parseISO(item.data_disponibilizacao), 'dd/MM/yyyy') : 'S/ Data'}</p>
-                                        </div>
-                                        {item.link && (
-                                          <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-blue-600"><a href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={12}/></a></Button>
-                                        )}
-                                     </div>
-                                     <p className="text-[11px] font-bold text-foreground leading-relaxed whitespace-pre-wrap uppercase line-clamp-4 italic">
-                                        "{plainTextFromDjen(item.texto || '')}"
-                                     </p>
-                                     <div className="flex items-center gap-2 text-[8px] font-black text-muted-foreground uppercase pt-2 border-t border-black/5">
-                                        <Building2 size={10} /> {item.nomeOrgao} ({item.siglaTribunal})
-                                     </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="py-10 text-center space-y-4 opacity-30">
-                                   <BookOpen size={32} className="mx-auto" />
-                                   <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma publicação carregada.</p>
-                                </div>
-                              )}
-                           </div>
-                        </section>
+              <div className="flex flex-col flex-1 bg-white overflow-hidden">
+                <ScrollArea className="flex-1">
+                  <div className="p-4 sm:p-6 space-y-10">
+                    <div className="flex flex-col gap-4">
+                      <p className={cn("text-muted-foreground border-b pb-2", ui.label)}>Status Operacional</p>
+                      <div className="flex flex-wrap gap-2 sm:gap-3">
+                        {historyResult?.case?.djen_nova_comunicacao && <Badge className="bg-blue-600 text-white font-black uppercase text-[10px] px-3 py-1.5">Publicação DJEN</Badge>}
+                        {historyResult?.case?.indicio_busca_apreensao && <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-3 py-1.5">Indício B.A.</Badge>}
+                        {historyResult?.case?.datajud_encerrado_tribunal && <Badge className="bg-black text-red-500 border-2 border-red-500 font-black uppercase text-[10px] px-3 py-1.5">Baixa Tribunal</Badge>}
                       </div>
-                    </ScrollArea>
-                  </div>
+                    </div>
 
-                  {showScripts && (
-                    <ScrollArea className="w-1/2 bg-slate-50 animate-in slide-in-from-right-2 duration-300">
-                      <div className="p-6 space-y-6">
-                        <div className="flex items-center justify-between mb-4">
-                           <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                             <Zap size={14} /> Sugestões de Resposta
-                           </h3>
-                           <Button variant="ghost" size="icon" onClick={() => setShowScripts(false)} className="h-6 w-6"><EyeOff size={14} /></Button>
-                        </div>
-
-                        <div className="bg-black text-white p-5 space-y-4 mb-8">
-                           <div className="flex flex-col gap-3">
-                              <div className="flex items-center justify-between">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Sparkles size={12}/> Draft Estratégico (Motor Lexis)</p>
-                                <Badge variant="outline" className="border-primary/20 text-primary text-[8px] font-black uppercase">Grounded RAG</Badge>
-                              </div>
-
-                              <div className="flex gap-2">
-                                <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                                  <SelectTrigger className="h-8 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-none">
-                                    <div className="flex items-center gap-1.5">
-                                      <Settings2 size={10} />
-                                      <SelectValue />
-                                    </div>
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-white border-2 border-black rounded-none">
-                                    <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
-                                    <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2</SelectItem>
-                                    <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
-                                  </SelectContent>
-                                </Select>
-
-                                <Button 
-                                  onClick={handleGenerateAIDraft} 
-                                  disabled={isGeneratingAIDraft}
-                                  className="h-8 flex-1 bg-white text-black font-black uppercase text-[8px] rounded-none hover:bg-primary transition-all shadow-[3px_3px_0px_#00D1FF] hover:shadow-none"
-                                >
-                                  {isGeneratingAIDraft ? <Loader2 size={10} className="animate-spin" /> : "Gerar Rascunho"}
-                                </Button>
-                              </div>
-                           </div>
-
-                           {aiDraft ? (
-                             <div className="space-y-3 animate-in fade-in duration-500 mt-2">
-                                <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
-                                   <p className="text-[10px] font-bold italic leading-relaxed text-white/80">"{aiDraft}"</p>
-                                </div>
-                                <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-7 w-full text-[8px] font-black uppercase border border-white/20 hover:bg-white/10 text-white">Copiar Rascunho</Button>
+                    <section className="space-y-6">
+                       <h3 className={cn("text-primary flex items-center gap-2 border-b-2 border-primary/10 pb-2", ui.label)}>
+                          <Gavel size={14} /> Movimentações Tribunal (DataJud)
+                       </h3>
+                       <div className="space-y-4">
+                         {historyResult?.movimentos?.map((m, i) => (
+                           <div key={i} className="flex gap-4 p-3 hover:bg-secondary/20 rounded-lg transition-colors">
+                             <div className="w-8 h-8 rounded-full border border-border bg-background flex items-center justify-center shrink-0">
+                                 <Clock size={12} className="text-muted-foreground" />
                              </div>
-                           ) : !isGeneratingAIDraft && (
-                             <p className="text-[8px] font-bold text-white/30 uppercase mt-1">Selecione o motor e clique para gerar uma resposta baseada no histórico.</p>
-                           )}
+                             <div className="flex-1">
+                                 <p className="text-[8px] font-black text-primary uppercase">{m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D'}</p>
+                                 <p className="text-[11px] font-bold text-foreground uppercase leading-tight">{m.nome}</p>
+                                 {m.complemento && <p className="text-[8px] text-muted-foreground uppercase">{m.complemento}</p>}
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                    </section>
 
-                           {isGeneratingAIDraft && (
-                              <div className="flex items-center gap-2 text-[8px] font-black uppercase text-primary animate-pulse py-2">
-                                <Loader2 size={10} className="animate-spin" />
-                                Orquestrando conhecimento via {selectedMotor.toUpperCase()}...
-                              </div>
-                           )}
+                    <section className="space-y-6">
+                       <div className="flex items-center justify-between border-b-2 border-blue-600/10 pb-2">
+                          <h3 className={cn("text-blue-600 flex items-center gap-2", ui.label)}>
+                            <Globe size={14} /> Diário Oficial Nacional (DJEN)
+                          </h3>
+                          <Button size="sm" onClick={handleDjenScan} disabled={loadingDjen} className="h-8 bg-blue-600 text-white font-black uppercase text-[8px] rounded-lg">
+                             {loadingDjen ? <Loader2 className="animate-spin" size={10}/> : <RefreshCcw size={10}/>} Consultar
+                          </Button>
+                       </div>
+                       <div className="space-y-4">
+                          {historyResult?.djenComunicacoes?.map((item, i) => (
+                            <div key={i} className="p-4 sm:p-5 border-2 border-black/5 bg-[#fafafa] rounded-xl space-y-3">
+                               <Badge variant="outline" className="text-[7px] font-black uppercase border-blue-200 text-blue-600">{item.tipoComunicacao}</Badge>
+                               <p className={cn("text-foreground leading-relaxed italic whitespace-pre-wrap", ui.readable)}>
+                                  "{item.texto ? plainTextFromDjen(item.texto) : ""}"
+                               </p>
+                               <p className="text-[8px] font-black text-muted-foreground uppercase pt-2 border-t">{item.data_disponibilizacao} • {item.nomeOrgao}</p>
+                            </div>
+                          ))}
+                       </div>
+                    </section>
+
+                    <section className="space-y-6 pt-6 border-t">
+                      <div className="flex items-center justify-between">
+                        <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}>
+                          <Sparkles size={14} /> Sugestões & Rascunho IA
+                        </h3>
+                      </div>
+
+                      <div className="bg-black text-white p-4 sm:p-6 space-y-4 rounded-xl">
+                        <div className="flex flex-col gap-3">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Draft Estratégico</p>
+
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <Select value={selectedMotor} onValueChange={setSelectedMotor}>
+                              <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[8px] rounded-lg flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border-2 border-black rounded-lg">
+                                <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
+                                <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2</SelectItem>
+                                <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <Button 
+                              onClick={handleGenerateAIDraft} 
+                              disabled={isGeneratingAIDraft}
+                              className="h-10 px-6 bg-white text-black font-black uppercase text-[10px] rounded-lg hover:bg-primary transition-all"
+                            >
+                              {isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}
+                            </Button>
+                          </div>
                         </div>
-                        
-                        {suggestedScripts.map((script, idx) => (
-                          <div key={idx} className="bg-white border-2 border-black p-5 rounded-none shadow-[6px_6px_0px_rgba(0,0,0,0.05)] space-y-4">
-                             <div className="space-y-1">
+
+                        {aiDraft && (
+                          <div className="space-y-3 animate-in fade-in duration-500 mt-2">
+                            <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                              <p className={cn("text-white/80 italic", ui.readable)}>"{aiDraft}"</p>
+                            </div>
+                            <Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {showScripts && suggestedScripts.length > 0 && (
+                        <div className="grid gap-4">
+                          {suggestedScripts.map((script, idx) => (
+                            <div key={idx} className="bg-white border-2 border-black p-5 rounded-xl shadow-sm space-y-4">
+                              <div className="space-y-1">
                                 <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none px-2 mb-1">{script.titulo}</Badge>
                                 <p className="text-[11px] font-black uppercase leading-tight">{script.quandoUsar}</p>
-                             </div>
-                             <div className="p-4 bg-slate-50 border border-black/5 relative">
-                                <p className="text-[11px] font-bold text-black/70 leading-relaxed italic">"{script.texto}"</p>
+                              </div>
+                              <div className="p-4 bg-slate-50 border border-black/5 relative rounded-lg">
+                                <p className={cn("text-black/70 italic", ui.readable)}>"{script.texto}"</p>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
                                   onClick={() => copyScript(script.texto)}
-                                  className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all"
+                                  className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all rounded-lg"
                                 >
                                   <Copy size={14} />
                                 </Button>
-                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </div>
-              </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </ScrollArea>
 
-              <DialogFooter className="p-4 bg-secondary/10 border-t">
-                 <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
-              </DialogFooter>
+                <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0">
+                   <Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button>
+                </DialogFooter>
+              </div>
             </DialogContent>
           </Dialog>
         </Suspense>
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl">
-            <form onSubmit={handleSaveCase}>
-              <DialogHeader className="p-6 bg-secondary/20 border-b">
+          <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl max-h-[90vh] overflow-hidden p-0">
+            <form onSubmit={handleSaveCase} className="flex flex-col h-full">
+              <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
                 <DialogTitle className="font-black uppercase tracking-tight">
-                  {editingCase ? 'Editar Registro' : 'Novo Registro de Gabinete'}
+                  {editingCase ? 'Editar Registro' : 'Novo Registro'}
                 </DialogTitle>
-                <DialogDescription className="text-[10px] uppercase font-bold text-muted-foreground">Formulário para cadastro ou edição de processos no gabinete.</DialogDescription>
+                <DialogDescription className="sr-only">Preencha os dados do processo.</DialogDescription>
               </DialogHeader>
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 overflow-y-auto">
                 <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Nome do Titular</Label>
-                  <Input value={formState.cliente} onChange={e => setFormState({...formState, cliente: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" required />
+                  <Label className={ui.label}>Titular do Processo</Label>
+                  <Input value={formState.cliente} onChange={e => setFormState({...formState, cliente: e.target.value.toUpperCase()})} className="rounded-xl h-12 bg-secondary/30 border-none font-bold uppercase text-base sm:text-sm" required />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Protocolo (CNJ)</Label>
-                    <Input value={formState.protocolo} onChange={e => setFormState({...formState, protocolo: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-mono" required />
+                    <Label className={ui.label}>Protocolo (CNJ)</Label>
+                    <Input value={formState.protocolo} onChange={e => setFormState({...formState, protocolo: e.target.value})} className={cn("rounded-xl h-12 bg-secondary/30 border-none font-mono text-base sm:text-sm", ui.cnj)} required />
                   </div>
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">WhatsApp</Label>
-                    <Input value={formState.telefone} onChange={e => setFormState({...formState, telefone: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-mono" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Advogado</Label>
-                    <Input value={formState.advogado} onChange={e => setFormState({...formState, advogado: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Escritório</Label>
-                    <Input value={formState.escritorio} onChange={e => setFormState({...formState, escritorio: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold uppercase" />
+                    <Label className={ui.label}>WhatsApp</Label>
+                    <Input value={formState.telefone} onChange={e => setFormState({...formState, telefone: e.target.value})} className="rounded-xl h-12 bg-secondary/30 border-none font-mono text-base sm:text-sm" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Status Especial</Label>
+                    <Label className={ui.label}>Advogado</Label>
+                    <Input value={formState.advogado} onChange={e => setFormState({...formState, advogado: e.target.value.toUpperCase()})} className="rounded-xl h-12 bg-secondary/30 border-none font-bold uppercase text-base sm:text-sm" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className={ui.label}>Escritório</Label>
+                    <Input value={formState.escritorio} onChange={e => setFormState({...formState, escritorio: e.target.value.toUpperCase()})} className="rounded-xl h-12 bg-secondary/30 border-none font-bold uppercase text-base sm:text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label className={ui.label}>Status Manual</Label>
                     <Select value={formState.statusManual} onValueChange={val => setFormState({...formState, statusManual: val})}>
-                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[10px] uppercase"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Automático (Por Prazos)</SelectItem>
-                        <SelectItem value="Caso CrÍTico" className="text-[10px] font-bold uppercase text-red-600 font-black">⚠ CASO CRÍTICO</SelectItem>
+                        <SelectItem value="Automatico" className="text-[10px] font-bold uppercase">Automático (Prazos)</SelectItem>
+                        <SelectItem value="Caso Crítico" className="text-[10px] font-bold uppercase text-red-600 font-black">⚠ CASO CRÍTICO</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Vencimento</Label>
-                    <Input value={formState.proximoPrazo} onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Último Atendimento</Label>
-                    <Input value={formState.ultimoRetorno} onChange={e => setFormState({...formState, ultimoRetorno: e.target.value})} className="rounded-xl h-11 bg-secondary/30 border-none font-bold" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label className="uppercase text-[9px] font-black text-muted-foreground">Situação</Label>
-                    <Select value={formState.situacao} onValueChange={val => setFormState({...formState, situacao: val})}>
-                      <SelectTrigger className="rounded-xl h-11 bg-secondary/30 border-none font-bold text-[10px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">EM ANDAMENTO</SelectItem>
-                        <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">ENCERRADO / BAIXA</SelectItem>
-                        <SelectItem value="ARQUIVADO" className="text-[10px] font-bold uppercase">ARQUIVADO</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className={ui.label}>Vencimento</Label>
+                    <Input value={formState.proximoPrazo} onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-base sm:text-sm" />
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label className="uppercase text-[9px] font-black text-muted-foreground">Notas</Label>
-                  <Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[80px] bg-secondary/30 border-none font-bold text-[10px] uppercase resize-none" />
+                  <Label className={ui.label}>Observações</Label>
+                  <Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold text-base sm:text-sm uppercase resize-none" />
                 </div>
               </div>
-              <DialogFooter className="p-6 pt-0">
-                <Button type="submit" className="w-full h-12 bg-black text-white rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl">
+              <DialogFooter className="p-6 pt-0 shrink-0">
+                <Button type="submit" className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] shadow-xl">
                   {editingCase ? "Salvar Alterações" : "Ativar Novo Registro"}
                 </Button>
               </DialogFooter>
@@ -1160,7 +1082,7 @@ function StatusBadge({ status }: { status: any }) {
     'É Hoje': "bg-blue-50 text-blue-700 border-blue-100 animate-pulse",
     'Atenção': "bg-orange-50 text-orange-700 border-orange-100",
     'No Prazo': "bg-emerald-50 text-emerald-700 border-emerald-100",
-    'Caso CrÍTico': "bg-red-600 text-white border-none animate-pulse font-black",
+    'Caso Crítico': "bg-red-600 text-white border-none animate-pulse font-black",
   };
   return (
     <Badge variant="outline" className={cn("px-3 py-1 text-[10px] font-black uppercase rounded-lg border-none", styles[status] || "bg-secondary text-muted-foreground")}>

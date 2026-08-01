@@ -1,4 +1,3 @@
-
 "use client";
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -36,9 +35,12 @@ import {
   Globe,
   Network,
   Loader2,
-  Scale
+  Scale,
+  BrainCircuit,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
@@ -55,7 +57,7 @@ import {
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 export default function Dashboard() {
   const { cases, setCases, locale, sync, updateLastSync } = useAppStore();
@@ -116,12 +118,13 @@ export default function Dashboard() {
     const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
-    // REGRA DE VIGILÂNCIA: Se está encerrado no tribunal, não conta como "andamento não atendido"
     const countNovoAndamento = ativos.filter(c => !!c.tem_atualizacao_pos_retorno && !c.datajud_encerrado_tribunal).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
 
-    // HEURÍSTICA DE CUMPRIMENTO (v60.0): Flag OU Texto em ativos
+    const countDjenNovo = ativos.filter(c => !!c.djen_nova_comunicacao).length;
+    const countDjenConsultado = cases.filter(c => !!c.djen_consultado_em).length;
+
     const countCumprimento = ativos.filter(c => {
       if (c.datajud_encerrado_tribunal) return false;
       if (c.em_cumprimento_sentenca) return true;
@@ -131,7 +134,7 @@ export default function Dashboard() {
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
     const rateEncerrado = activeTotal > 0 ? Math.round((countEncerradoTribunal / activeTotal) * 100) : 0;
-    const rateBA = activeTotal > 0 ? Math.round((countBA / activeTotal) * 100) : 0;
+    const rateDjen = activeTotal > 0 ? Math.round((countDjenNovo / activeTotal) * 100) : 0;
     const rateCumprimento = activeTotal > 0 ? Math.round((countCumprimento / activeTotal) * 100) : 0;
    
     const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
@@ -166,15 +169,15 @@ export default function Dashboard() {
       riskScore, riskLabel, riskColor, statusData, pctHoje, pctVencidos,
       countNovoAndamento, rateAndamento,
       countEncerradoTribunal, rateEncerrado,
-      countBA, rateBA,
-      countCumprimento, rateCumprimento
+      countDjenNovo, rateDjen, countDjenConsultado,
+      countBA, countCumprimento, rateCumprimento
     };
   }, [cases, t]);
 
   const priorityQueue = useMemo(() => {
     const criticalStatus = ['Caso Crítico', 'Vencido', 'É Hoje', 'Atenção'];
     return cases
-      .filter(c => !isCasoEncerrado(c) && (criticalStatus.includes(c.status) || !!c.tem_atualizacao_pos_retorno || !!c.datajud_encerrado_tribunal))
+      .filter(c => !isCasoEncerrado(c) && (criticalStatus.includes(c.status) || !!c.tem_atualizacao_pos_retorno || !!c.datajud_encerrado_tribunal || !!c.djen_nova_comunicacao))
       .sort((a, b) => {
         const order: Record<string, number> = { 'Caso Crítico': 0, 'Vencido': 1, 'É Hoje': 2, 'Atenção': 3 };
         const diff = (order[a.status] ?? 99) - (order[b.status] ?? 99);
@@ -197,27 +200,24 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40">
+      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+        <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
               <LayoutDashboard size={20} className="text-foreground" />
-              <h1 className="font-black text-xl tracking-tight uppercase text-foreground">{t.dashboard}</h1>
+              <h1 className="font-black text-base sm:text-xl tracking-tight uppercase text-foreground">{t.dashboard}</h1>
             </div>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Gabinete Estratégico • W1 Capital</p>
+            <p className="hidden sm:block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Gabinete Estratégico • W1 Capital</p>
           </div>
-          <div className="flex items-center gap-4">
-            {(metrics.countNovoAndamento > 0 || metrics.countEncerradoTribunal > 0) && (
-              <Badge variant="destructive" className="animate-pulse h-8 px-4 rounded-xl font-black uppercase text-[10px] flex items-center gap-2">
-                <AlertCircle size={14} /> Auditoria do Tribunal Detectou Novidades
+          <div className="flex items-center gap-3 sm:gap-4">
+            {(metrics.countNovoAndamento > 0 || metrics.countDjenNovo > 0 || metrics.countBA > 0) && (
+              <Badge variant="destructive" className="animate-pulse h-8 px-3 rounded-xl font-black uppercase text-[8px] sm:text-[10px] flex items-center gap-1.5 sm:gap-2">
+                <AlertCircle size={14} /> Alerta Ativo
               </Badge>
             )}
-            <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-secondary/50 px-3">
-              {t.activeTelemetry}: {sync.lastSync ? new Date(sync.lastSync).toLocaleTimeString() : '...'}
-            </Badge>
-            <Button variant="outline" size="sm" asChild className="premium-card h-10 px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none">
+            <Button variant="outline" size="sm" asChild className={cn("premium-card h-10 px-4 sm:px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none", ui.touch)}>
               <Link href="/report">
-                <FileDown size={16} className="mr-2" /> {t.audit}
+                <FileDown size={16} className="mr-2 hidden sm:inline" /> {t.audit}
               </Link>
             </Button>
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
@@ -227,96 +227,91 @@ export default function Dashboard() {
         </header>
 
         <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
-             <TabsList className="bg-transparent h-10 border-none gap-8">
-                <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 font-black uppercase text-[10px] tracking-widest h-full transition-all">Visão da Carteira</TabsTrigger>
-                <TabsTrigger value="connectivity" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 font-black uppercase text-[10px] tracking-widest h-full transition-all">Status de Conexão</TabsTrigger>
-             </TabsList>
+          <div className="px-4 sm:px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
+             <ScrollArea className="w-full">
+                <TabsList className="bg-transparent h-10 border-none gap-6 sm:gap-8 w-max">
+                   <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 font-black uppercase text-[10px] tracking-widest h-full transition-all">Visão da Carteira</TabsTrigger>
+                   <TabsTrigger value="connectivity" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 font-black uppercase text-[10px] tracking-widest h-full transition-all">Rede Judicial</TabsTrigger>
+                </TabsList>
+                <ScrollBar orientation="horizontal" />
+             </ScrollArea>
           </div>
 
           <ScrollArea className="flex-1 overflow-auto">
-            <TabsContent value="overview" className="p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
+            <TabsContent value="overview" className="p-4 sm:p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
               {/* TOP KPI CARDS */}
-              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+              <section className={ui.metrics5}>
                 <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} trend={`${metrics.pctHoje}%`} trendUp={false} />
                 <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" trend={`${metrics.pctVencidos}%`} trendUp={false} />
-                <StatCard title="Novos Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} trend={`${metrics.rateAndamento}%`} trendUp={true} />
-                <StatCard title="Encerrados Tribunal" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color={metrics.countEncerradoTribunal > 0 ? "success" : "primary"} trend={`${metrics.rateEncerrado}%`} trendUp={true} />
-                <StatCard title="Fase Executiva" value={loading ? "..." : metrics.countCumprimento} icon={<Scale />} color="primary" trend={`${metrics.rateCumprimento}%`} trendUp={true} />
+                <StatCard title="Novidades" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} trend={`${metrics.rateAndamento}%`} trendUp={true} />
+                <StatCard title="DJEN" value={loading ? "..." : metrics.countDjenNovo} icon={<Globe />} color={metrics.countDjenNovo > 0 ? "warning" : "primary"} trend={`${metrics.rateDjen}%`} trendUp={true} />
+                <StatCard title="Execução" value={loading ? "..." : metrics.countCumprimento} icon={<Scale />} color="primary" trend={`${metrics.rateCumprimento}%`} trendUp={true} />
               </section>
               
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
                 <div className="xl:col-span-8 space-y-8">
-                   {/* TELEMETRIA DATAJUD */}
-                   <section className="bg-black text-white p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF] group transition-all">
-                      <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
+                   {/* TELEMETRIA FORENSE UNIFICADA */}
+                   <section className="bg-black text-white p-6 sm:p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF]">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-white/10 pb-4 gap-4">
                         <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
-                           <Zap className="text-primary animate-pulse" size={16}/> Telemetria Forense (DataJud)
+                           <Zap className="text-primary animate-pulse" size={16}/> Telemetria Forense
                         </h3>
-                        <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Auditoria Ativa</Badge>
+                        <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Vigilância 4D Ativa</Badge>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
                          <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Andamentos Judiciais não atendidos</p>
-                            <div className="flex items-baseline gap-4">
-                               <span className="text-4xl font-black tabular-nums tracking-tighter">
-                                 {metrics.countNovoAndamento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
-                               </span>
-                               <span className="text-xl font-black text-primary tabular-nums">({metrics.rateAndamento}%)</span>
+                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Tribunal (DataJud)</p>
+                            <div className="flex items-baseline gap-2">
+                               <span className="text-3xl font-black tabular-nums">{metrics.countNovoAndamento}</span>
+                               <span className="text-sm font-black text-primary">({metrics.rateAndamento}%)</span>
                             </div>
-                            <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                              Métrica de vigilância: processos ativos com movimentos novos após o último contato.
-                            </p>
                          </div>
                          <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Baixas identificadas no Tribunal</p>
-                            <div className="flex items-baseline gap-4">
-                               <span className="text-4xl font-black tabular-nums tracking-tighter">
-                                 {metrics.countEncerradoTribunal} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
-                               </span>
-                               <span className="text-xl font-black text-emerald-400 tabular-nums">({metrics.rateEncerrado}%)</span>
+                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Diário (DJEN)</p>
+                            <div className="flex items-baseline gap-2">
+                               <span className="text-3xl font-black tabular-nums">{metrics.countDjenNovo}</span>
+                               <span className="text-sm font-black text-blue-400">({metrics.rateDjen}%)</span>
                             </div>
-                            <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                              Métrica de resolutividade: ritos de encerramento detectados via auditoria CNJ.
-                            </p>
                          </div>
                          <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Cumprimento de Sentença Ativo</p>
-                            <div className="flex items-baseline gap-4">
-                               <span className="text-4xl font-black tabular-nums tracking-tighter">
-                                 {metrics.countCumprimento} <span className="text-lg opacity-40">de {metrics.activeTotal}</span>
-                               </span>
-                               <span className="text-xl font-black text-indigo-400 tabular-nums">({metrics.rateCumprimento}%)</span>
+                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Baixas Detectadas</p>
+                            <div className="flex items-baseline gap-2">
+                               <span className="text-3xl font-black tabular-nums">{metrics.countEncerradoTribunal}</span>
+                               <span className="text-sm font-black text-emerald-400">({metrics.rateEncerrado}%)</span>
                             </div>
-                            <p className="text-[8px] font-bold uppercase italic text-white/40 leading-relaxed">
-                              Processos em fase de execução/cumprimento de sentença identificados pelo motor heurístico.
-                            </p>
+                         </div>
+                         <div className="space-y-3">
+                            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Indícios B.A.</p>
+                            <div className="flex items-baseline gap-2">
+                               <span className="text-3xl font-black tabular-nums text-red-500">{metrics.countBA}</span>
+                               <Badge className="bg-red-500/10 text-red-500 border-none text-[8px] uppercase">Risco</Badge>
+                            </div>
                          </div>
                       </div>
                       <div className="mt-8 pt-6 border-t border-white/5 flex justify-end">
-                        <Button asChild variant="ghost" className="h-8 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
-                           <Link href="/cases?filter=updated">Auditar Processos <ArrowRight size={12} className="ml-2" /></Link>
+                        <Button asChild variant="ghost" className="h-10 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
+                           <Link href="/notificacoes">Auditar Alertas <ArrowRight size={12} className="ml-2" /></Link>
                         </Button>
                       </div>
                    </section>
 
                    {/* FILA DE PRIORIDADE */}
                    <section className="premium-card overflow-hidden">
-                      <div className="bg-[#f8f9fb] px-8 py-5 border-b border-border/30 flex items-center justify-between">
+                      <div className="bg-[#f8f9fb] px-6 sm:px-8 py-5 border-b border-border/30 flex items-center justify-between">
                          <div className="flex items-center gap-3">
                             <Target size={18} className="text-primary" />
-                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Fila Prioritária de Contato</h3>
+                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Fila de Contato</h3>
                          </div>
                          <Button asChild variant="ghost" className="h-8 text-[9px] font-black uppercase tracking-widest hover:text-primary">
-                            <Link href="/tarefas">Ver Fila Completa <ArrowRight size={12} className="ml-2"/></Link>
+                            <Link href="/tarefas">Ver Fila <ArrowRight size={12} className="ml-2"/></Link>
                          </Button>
                       </div>
-                      <div className="overflow-x-auto">
-                         <table className="w-full text-left">
+                      <div className={ui.tableWrap}>
+                         <table className="w-full text-left min-w-[600px]">
                             <thead className="bg-white border-b border-border/20">
                                <tr className="text-[9px] font-black uppercase text-muted-foreground/60 tracking-widest">
                                   <th className="px-8 py-3">Cliente / Protocolo</th>
-                                  <th className="px-8 py-3">Status</th>
+                                  <th className="px-8 py-3">Status / Alerta</th>
                                   <th className="px-8 py-3">Último Movimento</th>
                                   <th className="px-8 py-3 text-right">Ação</th>
                                </tr>
@@ -327,29 +322,30 @@ export default function Dashboard() {
                                      <td className="px-8 py-4">
                                         <div className="flex flex-col">
                                            <span className="text-[11px] font-black uppercase group-hover:text-primary transition-colors">{c.cliente}</span>
-                                           <span className="text-[8px] font-mono opacity-40">{c.protocolo}</span>
+                                           <span className={cn("text-[8px] font-mono opacity-40", ui.cnj)}>{c.protocolo}</span>
                                         </div>
                                      </td>
                                      <td className="px-8 py-4">
-                                        <Badge variant="outline" className={cn(
-                                           "text-[8px] font-black uppercase px-2 py-0 border-none",
-                                           c.status === 'Caso Crítico' ? "bg-red-600 text-white animate-pulse" : 
-                                           c.status === 'Vencido' ? "bg-red-50 text-red-600" :
-                                           c.status === 'É Hoje' ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"
-                                        )}>
-                                           {c.status}
-                                        </Badge>
+                                        <div className="flex flex-wrap gap-2">
+                                          <Badge variant="outline" className={cn(
+                                             "text-[8px] font-black uppercase px-2 py-0 border-none",
+                                             c.status === 'Caso Crítico' ? "bg-red-600 text-white animate-pulse" : 
+                                             c.status === 'Vencido' ? "bg-red-50 text-red-600" :
+                                             c.status === 'É Hoje' ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"
+                                          )}>
+                                             {c.status}
+                                          </Badge>
+                                        </div>
                                      </td>
                                      <td className="px-8 py-4">
                                         <div className="flex items-center gap-2 max-w-[200px]">
-                                           <History size={12} className="text-muted-foreground/40 shrink-0" />
                                            <span className="text-[9px] font-bold uppercase truncate opacity-60">
                                               {c.datajud_ultimo_nome || "Sem histórico"}
                                            </span>
                                         </div>
                                      </td>
                                      <td className="px-8 py-4 text-right">
-                                        <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-lg group-hover:bg-primary group-hover:text-white transition-all">
+                                        <Button asChild variant="ghost" size="icon" className={cn("h-8 w-8 rounded-lg group-hover:bg-primary group-hover:text-white transition-all", ui.touch)}>
                                            <Link href={`/cases?search=${c.protocolo}`}><ExternalLink size={14}/></Link>
                                         </Button>
                                      </td>
@@ -364,12 +360,42 @@ export default function Dashboard() {
                 </div>
 
                 <div className="xl:col-span-4 space-y-8">
+                   {/* BRIEFING NEURAL */}
+                   {iaInsights && (
+                     <section className="bg-white border-2 border-black p-6 sm:p-8 rounded-none shadow-[8px_8px_0px_#000] space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                        <div className="flex items-center justify-between border-b-2 border-black/5 pb-4">
+                           <div className="flex items-center gap-3">
+                              <BrainCircuit className="text-primary" size={20} />
+                              <h3 className="text-xs font-black uppercase tracking-tighter">Briefing de Gabinete</h3>
+                           </div>
+                           <Badge className="bg-black text-white text-[8px] font-black uppercase">IA Ativa</Badge>
+                        </div>
+                        <div className="space-y-4">
+                           <div className="space-y-2">
+                              <p className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-2"><TrendingUp size={10}/> Pontos Fortes</p>
+                              <p className="text-[11px] font-bold uppercase text-black/70 leading-relaxed italic line-clamp-3">
+                                "{iaInsights.pontosFortes?.[0] || "Monitoramento de rotina mantido."}"
+                              </p>
+                           </div>
+                           <div className="space-y-2">
+                              <p className="text-[9px] font-black uppercase text-red-600 flex items-center gap-2"><TrendingDown size={10}/> Riscos</p>
+                              <p className="text-[11px] font-bold uppercase text-black/70 leading-relaxed italic line-clamp-3">
+                                "{iaInsights.riscosDetectados?.[0] || "Nenhum risco crítico identificado."}"
+                              </p>
+                           </div>
+                        </div>
+                        <Button asChild variant="ghost" className="w-full h-10 border-2 border-black rounded-none text-[9px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all">
+                           <Link href="/notes">Ver Parecer Completo <ChevronRight size={12}/></Link>
+                        </Button>
+                     </section>
+                   )}
+
                    {/* ÍNDICE DE RISCO */}
-                   <section className="premium-card p-8 space-y-8">
+                   <section className="premium-card p-6 sm:p-8 space-y-8">
                       <div className="flex justify-between items-end">
                          <div className="space-y-1">
                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{t.riskIndex}</p>
-                           <h4 className="text-5xl font-black tracking-tighter leading-none">{metrics.riskScore}%</h4>
+                           <h4 className="text-4xl sm:text-5xl font-black tracking-tighter leading-none">{metrics.riskScore}%</h4>
                          </div>
                          <Badge variant="outline" className={cn("border-2 font-black uppercase text-[10px] px-3 py-1", metrics.riskColor, metrics.riskColor.replace('text', 'border'))}>
                             {metrics.riskLabel}
@@ -380,88 +406,58 @@ export default function Dashboard() {
                       </div>
                    </section>
 
-                   {/* DOSSIÊ OPERACIONAL */}
-                   <section className="space-y-4">
-                      <div className="flex items-center gap-3 mb-2 px-2">
-                        <Layers size={16} className="text-primary" />
-                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Dossiê Operacional</h3>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <DashboardKpiMini label="Ativos em Gestão" value={metrics.activeTotal} icon={<Activity size={12}/>} color="text-blue-600" />
-                        <DashboardKpiMini label="Processos Vencidos" value={metrics.countVencido} icon={<AlertTriangle size={12}/>} color="text-red-600" />
-                        <DashboardKpiMini label="Casos Saudáveis" value={metrics.countSaudavel} icon={<CheckCircle2 size={12}/>} color="text-emerald-600" />
-                        <DashboardKpiMini label="Vencem Hoje" value={metrics.countHoje} icon={<Clock size={12}/>} color="text-orange-600" />
-                        <div className="col-span-2">
-                          <DashboardKpiMini label="Carteira Total (Escopo)" value={metrics.totalRepo} icon={<Briefcase size={12}/>} color="text-slate-500" />
+                   {/* DISTRIBUIÇÃO OPERACIONAL */}
+                   <section className="premium-card p-6 sm:p-8">
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-3">
+                          <PieChartIcon size={16} className="text-primary" />
+                          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Status</h3>
                         </div>
                       </div>
-                   </section>
-
-                   {/* DISTRIBUIÇÃO OPERACIONAL */}
-                   <section className="premium-card p-8">
-                      <div className="flex items-center gap-3 mb-8">
-                        <PieChartIcon size={16} className="text-primary" />
-                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Distribuição da Carteira</h3>
+                      <div className="h-[200px] w-full mb-6">
+                        <ResponsiveContainer width="100%" height="100%">
+                           <PieChart>
+                              <Pie
+                                 data={metrics.statusData}
+                                 innerRadius={60}
+                                 outerRadius={80}
+                                 paddingAngle={5}
+                                 dataKey="value"
+                                 stroke="none"
+                              >
+                                 {metrics.statusData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                 ))}
+                              </Pie>
+                              <RechartsTooltip />
+                           </PieChart>
+                        </ResponsiveContainer>
                       </div>
                       <div className="space-y-6">
                         {statsPills.map((pill) => (
                            <StatusPillDashboard key={pill.label} label={pill.label} count={pill.count} total={metrics.activeTotal} color={pill.color} />
                         ))}
-                        <div className="pt-4 border-t border-border/30">
-                          <StatusPillDashboard label="Ativos Totais" count={metrics.activeTotal} total={metrics.totalRepo} color="bg-black" isTotalBase />
-                        </div>
-                      </div>
-                   </section>
-
-                   {/* GRÁFICO DE STATUS */}
-                   <section className="premium-card p-8 h-[380px] flex flex-col">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-10">Proportion of Active Assets</h3>
-                      <div className="flex-1 min-h-0">
-                        {metrics.statusData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie data={metrics.statusData} innerRadius={70} outerRadius={100} paddingAngle={8} dataKey="value" stroke="none">
-                                {metrics.statusData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <RechartsTooltip 
-                                contentStyle={{ 
-                                  borderRadius: '12px', 
-                                  border: '1px solid #e2e8f0', 
-                                  textTransform: 'uppercase', 
-                                  fontSize: '10px', 
-                                  fontWeight: '900', 
-                                  backgroundColor: '#ffffff', 
-                                  color: '#0a0a0a' 
-                                }} 
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <p className="h-full flex items-center justify-center text-[10px] font-black uppercase text-muted-foreground/30">Sem dados operacionais</p>
-                        )}
                       </div>
                    </section>
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="connectivity" className="p-10 space-y-8 m-0 max-w-[1600px] mx-auto w-full">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-white border border-border/50 p-8 rounded-2xl shadow-sm">
+            <TabsContent value="connectivity" className="p-4 sm:p-10 space-y-8 m-0 max-w-[1600px] mx-auto w-full">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 bg-white border border-border/50 p-6 sm:p-8 rounded-2xl shadow-sm">
                 <div className="space-y-1">
-                  <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                    <Signal size={24} className="text-primary" /> Telemetria de Rede Judicial
+                  <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                    <Signal size={24} className="text-primary" /> Rede Judicial
                   </h2>
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Monitoramento em tempo real dos endpoints DataJud (CNJ)</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Monitoramento DataJud (CNJ)</p>
                 </div>
                 <Button 
                   onClick={handleConnectivityCheck} 
                   disabled={isCheckingConnectivity || cases.length === 0}
-                  className="h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] tracking-widest px-8 rounded-xl shadow-lg border-2 border-black"
+                  className={cn("h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] tracking-widest px-8 rounded-xl shadow-lg border-2 border-black w-full lg:w-auto", ui.touch)}
                 >
                   {isCheckingConnectivity ? <Loader2 size={16} className="animate-spin mr-2"/> : <Wifi size={16} className="mr-2"/>}
-                  Auditar Conexões Agora
+                  Auditar Conexões
                 </Button>
               </div>
 
@@ -485,11 +481,11 @@ export default function Dashboard() {
                        <div className="space-y-4">
                           <div className="flex justify-between items-end">
                              <div className="space-y-0.5">
-                                <p className="text-[8px] font-black uppercase text-muted-foreground">Latência Média</p>
-                                <p className="text-2xl font-black tabular-nums">{Math.round(health.avgLatency)}<span className="text-xs ml-1">ms</span></p>
+                                <p className="text-[8px] font-black uppercase text-muted-foreground">Latência</p>
+                                <p className="text-xl font-black tabular-nums">{Math.round(health.avgLatency)}ms</p>
                              </div>
                              <div className="text-right space-y-0.5">
-                                <p className="text-[8px] font-black uppercase text-muted-foreground">Taxa de Sucesso</p>
+                                <p className="text-[8px] font-black uppercase text-muted-foreground">Sucesso</p>
                                 <p className="text-xl font-black tabular-nums text-primary">{Math.round(health.successRate * 100)}%</p>
                              </div>
                           </div>
@@ -504,13 +500,12 @@ export default function Dashboard() {
                              />
                           </div>
                        </div>
-                       <p className="text-[7px] font-bold text-muted-foreground/40 uppercase tracking-widest">Amostra: {health.totalCalls} requisições concluídas</p>
                     </div>
                   ))
                 ) : (
                   <div className="col-span-full py-20 flex flex-col items-center justify-center opacity-30 space-y-4 border-2 border-dashed border-border/20 rounded-2xl">
                      <Network size={48} />
-                     <p className="text-xs font-black uppercase tracking-widest">Inicie uma auditoria para popular o mapa de rede.</p>
+                     <p className="text-xs font-black uppercase tracking-widest text-center">Inicie uma auditoria para popular o mapa.</p>
                   </div>
                 )}
               </div>
@@ -518,7 +513,7 @@ export default function Dashboard() {
           </ScrollArea>
         </Tabs>
         
-        <footer className="h-10 border-t border-border/50 bg-card/60 flex items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
+        <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/60 items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Advanced Monitoring • Davi Alves Figueredo</span>
         </footer>
@@ -527,7 +522,7 @@ export default function Dashboard() {
   );
 }
 
-function DashboardKpiMini({ label, value, icon, color }: { label: string, value: number, icon: React.ReactNode, color: string }) {
+function DashboardMiniKpi({ label, value, icon, color }: { label: string, value: number | string, icon: React.ReactNode, color: string }) {
   return (
     <div className="bg-white border border-border/40 p-4 rounded-xl shadow-sm space-y-3">
        <div className={cn("w-6 h-6 rounded-md flex items-center justify-center bg-secondary/50", color)}>

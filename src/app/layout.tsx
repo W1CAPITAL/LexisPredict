@@ -1,6 +1,6 @@
-
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import '@/styles/lexis-responsive.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { GuidedTour } from '@/components/onboarding/guided-tour';

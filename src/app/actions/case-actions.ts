@@ -220,7 +220,11 @@ export async function clearDataJudAuditAction() {
       ...c,
       tem_atualizacao_pos_retorno: false,
       datajud_encerrado_tribunal: false,
-      djen_nova_comunicacao: false
+      djen_nova_comunicacao: false,
+      djen_ultimo_resumo: null,
+      djen_ultima_data: null,
+      djen_consultado_em: null,
+      djen_count: 0
     }));
     await saveStoredCasesForEmpresa(updated, empresa_id);
     return { success: true };
