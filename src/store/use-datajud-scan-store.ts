@@ -1,3 +1,4 @@
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * MOTOR DE ESTADO DO SCANNER GLOBAL v9.8 — SINCRONIA ATÔMICA
@@ -26,6 +27,7 @@ export interface ScanLog {
   success: boolean;
   type: 'update' | 'closed' | 'error' | 'ok';
   engine: 'Local' | 'Nuvem';
+  source?: 'DataJud' | 'DJEN' | 'Both';
 }
 
 interface DataJudScanState {
@@ -168,7 +170,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         message: patch.evento_resumo || (res.success ? "Monitoramento Regular" : "Falha na Fonte"), 
         latency, success: !!res.success,
         type: patch.datajud_encerrado_tribunal ? 'closed' : (patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao) ? 'update' : (res.success ? 'ok' : 'error'),
-        engine: 'Local'
+        engine: 'Local',
+        source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN'
       });
       
       set(s => ({ manualDone: s.manualDone + 1 }));
