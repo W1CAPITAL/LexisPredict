@@ -416,16 +416,16 @@ function CasesContent() {
         scanOneDjenAction(caseItem.protocolo)
       ]);
 
-      if (resDj.success) {
+      if (resDj.success && resDj.case) {
         const moves = resDj.movimentos || [];
         const djenComs = resDjen.comunicacoes || [];
-        setHistoryResult({ case: resDj.case!, movimentos: moves, djenComunicacoes: djenComs });
+        setHistoryResult({ case: resDj.case, movimentos: moves, djenComunicacoes: djenComs });
         setAiDraft(null);
         
         const suggestions = suggestScripts({
-          clienteNome: resDj.case!.cliente,
-          protocolo: resDj.case!.protocolo,
-          ultimoRetorno: resDj.case!.ultimoRetorno,
+          clienteNome: resDj.case.cliente,
+          protocolo: resDj.case.protocolo,
+          ultimoRetorno: resDj.case.ultimoRetorno,
           movimentos: moves
         });
         
@@ -894,7 +894,7 @@ function CasesContent() {
 
         <Suspense fallback={null}>
           <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-            <DialogContent className="sm:max-w-[950px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+            <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
               <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -909,8 +909,8 @@ function CasesContent() {
                 </div>
               </DialogHeader>
               
-              <div className="flex flex-col flex-1 bg-white overflow-hidden">
-                <ScrollArea className="flex-1">
+              <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
+                <ScrollArea className="flex-1 w-full">
                   <div className="p-4 sm:p-6 space-y-10">
                     <section className="space-y-6">
                        <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}>
