@@ -1,18 +1,10 @@
 /**
- * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v3.1
- * Regras de Negócio:
- * 1. tem_atualizacao_pos_retorno = estritamente DataMovimento > DataRetorno.
- * 2. Movimentos no mesmo dia são considerados vistos.
- * 3. Se não houver data de movimento, não há alerta.
+ * @fileOverview Motor de Sincronia e Comparação de Datas DataJud v3.2
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
 
-/**
- * Gera uma assinatura (hash) do estado atual das movimentações.
- * Usado para integridade, mas NÃO liga a flag de novo andamento.
- */
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
   
@@ -34,9 +26,6 @@ export function gerarHashAuditoria(movimentos: any[]): string {
   }
 }
 
-/**
- * Analisa os movimentos recentes do tribunal para detectar encerramento definitivo.
- */
 export function detectarEncerradoNoTribunal(movimentos: any[]): {
   encerrado: boolean;
   motivo: string | null;
@@ -53,20 +42,24 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 
   const patternGroups = [
     {
-      patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'PROCESSO BAIXADO'],
+      patterns: ['BAIXA DEFINITIVA', 'BAIXA DO PROCESSO', 'BAIXA DEFINITIVA DO FEITO', 'PROCESSO BAIXADO', 'DETERMINADA A BAIXA'],
       label: 'BAIXA DEFINITIVA'
     },
     {
-      patterns: ['TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO', 'CERTIFICADA A TRANSITO'],
+      patterns: ['TRÂNSITO EM JULGADO', 'TRANSITO EM JULGADO', 'CERTIFICADA A TRANSITO', 'CERTIFICADO O TRÂNSITO'],
       label: 'TRÂNSITO EM JULGADO'
     },
     {
-      patterns: ['EXTINTO O PROCESSO', 'PROCESSO EXTINTO', 'SENTENÇA DE EXTINÇÃO', 'EXTINÇÃO DO PROCESSO'],
+      patterns: ['EXTINTO O PROCESSO', 'PROCESSO EXTINTO', 'SENTENÇA DE EXTINÇÃO', 'EXTINÇÃO DO PROCESSO', 'JULGO EXTINTO'],
       label: 'EXTINÇÃO DO PROCESSO'
     },
     {
       patterns: ['ARQUIVAMENTO DEFINITIVO', 'ARQUIVADO DEFINITIVAMENTE', 'ARQUIVEM-SE OS AUTOS', 'AUTOS ARQUIVADOS'],
       label: 'ARQUIVAMENTO DEFINITIVO'
+    },
+    {
+      patterns: ['CANCELADA A DISTRIBUIÇÃO', 'CANCELAMENTO DA DISTRIBUIÇÃO', 'DISTRIBUIÇÃO CANCELADA'],
+      label: 'CANCELAMENTO DA DISTRIBUIÇÃO'
     }
   ];
 
@@ -84,8 +77,8 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
 }
 
 /**
- * Detecta se o processo está em fase de Cumprimento de Sentença / Execução.
- * Analisa a janela dos 20 movimentos mais recentes.
+ * Cumprimento de sentença ATIVO — janela 25 movimentos.
+ * Não marca se já houver encerramento definitivo na mesma análise (feito no audit).
  */
 export function detectarCumprimentoSentenca(movimentos: any[]): {
   ativo: boolean;
@@ -95,26 +88,37 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
     return { ativo: false, motivo: null };
   }
 
-  // Ordenação DESC por segurança
   const sorted = [...movimentos].sort((a, b) => 
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  // Analisar janela de 20
-  const window = sorted.slice(0, 20);
+  const window = sorted.slice(0, 25);
   const allText = window.map(m => 
     `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
-  ).join(' ');
+  ).join(' || ');
 
   const patterns = [
     'CUMPRIMENTO DE SENTENÇA',
     'CUMPRIMENTO DE SENTENCA',
+    'CUMPRIMENTO PROVISÓRIO DE SENTENÇA',
+    'CUMPRIMENTO PROVISORIO DE SENTENCA',
+    'CUMPRIMENTO PROVISÓRIO',
+    'CUMPRIMENTO PROVISORIO',
+    'CUMPRIMENTO DEFINITIVO',
     'FASE DE CUMPRIMENTO',
     'INÍCIO DO CUMPRIMENTO',
     'INICIO DO CUMPRIMENTO',
+    'INICIO DO CUMPRIMENTO DE SENTENCA',
     'EXECUÇÃO DE SENTENÇA',
     'EXECUCAO DE SENTENCA',
-    'CUMPRIMENTO PROVISÓRIO'
+    'EXECUÇÃO PROVISÓRIA',
+    'EXECUCAO PROVISORIA',
+    'PROCEDIMENTO DE CUMPRIMENTO',
+    'CUMPRIMENTO DE SENTENÇA PROVISÓRIO',
+    'REQ. DE CUMPRIMENTO',
+    'REQUERIMENTO DE CUMPRIMENTO',
+    'PETIÇÃO DE CUMPRIMENTO',
+    'PETICAO DE CUMPRIMENTO',
   ];
 
   for (const p of patterns) {
@@ -123,14 +127,17 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
     }
   }
 
+  // Fallback: "CUMPRIMENTO" + "SENTEN" no mesmo movimento
+  for (const m of window) {
+    const t = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
+    if (t.includes('CUMPRIMENTO') && (t.includes('SENTEN') || t.includes('EXECU'))) {
+      return { ativo: true, motivo: 'CUMPRIMENTO (heurística)' };
+    }
+  }
+
   return { ativo: false, motivo: null };
 }
 
-/**
- * Detecta se houve atualização no tribunal após o último retorno do usuário.
- * REGRA LEXIS: Alerta somente se DataMov > Fim do dia do Retorno.
- * Se não houver data de movimento, não há alerta.
- */
 export function detectarAtualizacaoPosRetorno(
   ultimoRetornoStr: string | null | undefined,
   movimentos: any[]
@@ -151,7 +158,6 @@ export function detectarAtualizacaoPosRetorno(
   const dataUltimoStr = dataMov.toISOString();
   const nomeUltimo = lastMov.nome || "Movimentação não identificada";
 
-  // Se nunca houve retorno, alerta se for recente (últimos 45 dias) para não poluir
   if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-" || ultimoRetornoStr === "0") {
     const quarentaECincoDias = startOfDay(subDays(new Date(), 45));
     return {
@@ -171,7 +177,6 @@ export function detectarAtualizacaoPosRetorno(
     }
 
     if (dataRetorno && isValid(dataRetorno)) {
-      // Regra de Propósito: Só alerta se a movimentação for em dia posterior ao atendimento
       const fimDoDiaRetorno = new Date(dataRetorno);
       fimDoDiaRetorno.setHours(23, 59, 59, 999);
 
