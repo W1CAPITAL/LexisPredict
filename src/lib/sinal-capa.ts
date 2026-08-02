@@ -1,6 +1,7 @@
 /**
- * @fileOverview Motor de Seleção de Sinal de Capa v1.0
- * Define qual movimentação (DataJud ou DJEN) deve ser a "capa" do processo baseado em relevância jurídica.
+ * @fileOverview Motor de Seleção de Sinal de Capa v2.0
+ * Exibe o detalhe descritivo real do andamento (não só tags).
+ * Hierarquia: BA real > Baixa > Mérito > Audiência > Cumprimento > Gestão > Novidade > Rotina
  * @copyright 2026 W1 Capital / Davi Alves Figueredo
  */
 import { LegalCase } from './case-logic';
@@ -14,33 +15,51 @@ export interface SinalCapa {
   prioridade: number;
 }
 
+function snippet(text: string | null | undefined, max = 160): string {
+  if (!text) return '';
+  const clean = String(text).replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return clean.substring(0, max).trim() + '…';
+}
+
 /**
  * Retorna o sinal mais relevante para exibição na capa do processo.
- * Hierarquia: BA (100) > Baixa (90) > Mérito (80) > Audiência (70) > Cumprimento (60) > Custas/Partes (50) > Novidade (40) > Rotina (10)
  */
 export function getSinalCapa(c: LegalCase): SinalCapa {
   const dataDj = c.datajud_ultimo_movimento;
   const dataDjen = c.djen_ultima_data;
 
-  // 1. PRIORIDADE MÁXIMA: BUSCA E APREENSÃO
+  // 1. PRIORIDADE MÁXIMA: BUSCA E APREENSÃO (somente se indício real)
   if (c.indicio_busca_apreensao || c.evento_tipo === 'ba') {
     return {
       titulo: 'ALERTA: BUSCA E APREENSÃO',
-      detalhe: c.evento_resumo || c.datajud_ultimo_nome || 'Identificado indício de rito de apreensão de bem.',
+      detalhe:
+        c.busca_apreensao_motivo ||
+        c.evento_resumo ||
+        c.datajud_ultimo_nome ||
+        'Identificado indício de rito de apreensão de bem.',
       fonte: 'datajud',
       data: (c.busca_apreensao_consultado_em || dataDj || null) ?? null,
-      prioridade: 100
+      prioridade: 100,
     };
   }
 
   // 2. TERMINATIVOS: BAIXA E TRÂNSITO
-  if (c.datajud_encerrado_tribunal || c.evento_tipo === 'transito_ou_baixa' || c.evento_tipo === 'transito_baixa') {
+  if (
+    c.datajud_encerrado_tribunal ||
+    c.evento_tipo === 'transito_ou_baixa' ||
+    c.evento_tipo === 'transito_baixa'
+  ) {
     return {
       titulo: 'BAIXA / TRÂNSITO JULGADO',
-      detalhe: c.evento_resumo || c.datajud_encerrado_motivo || 'Processo finalizado no tribunal.',
+      detalhe:
+        c.evento_resumo ||
+        c.datajud_encerrado_motivo ||
+        c.datajud_ultimo_nome ||
+        'Processo finalizado no tribunal.',
       fonte: 'datajud',
       data: (dataDj || null) ?? null,
-      prioridade: 90
+      prioridade: 90,
     };
   }
 
@@ -51,13 +70,17 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     if (c.evento_tipo === 'sentenca_improcedente') t = 'SENTENÇA: IMPROCEDENTE';
     if (c.evento_tipo === 'sentenca_parcial') t = 'SENTENÇA: PARCIAL';
     if (c.evento_tipo === 'liminar') t = 'LIMINAR CONCEDIDA';
-    
+
     return {
       titulo: t,
-      detalhe: c.evento_resumo || 'Nova decisão de mérito identificada.',
-      fonte: c.evento_fonte || 'ambos',
+      detalhe:
+        c.evento_resumo ||
+        c.datajud_ultimo_nome ||
+        c.djen_ultimo_resumo ||
+        'Nova decisão de mérito identificada.',
+      fonte: (c.evento_fonte as any) || 'ambos',
       data: (dataDj || dataDjen || null) ?? null,
-      prioridade: 80
+      prioridade: 80,
     };
   }
 
@@ -65,10 +88,13 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
   if (c.evento_tipo?.startsWith('audiencia')) {
     return {
       titulo: 'AUDIÊNCIA DESIGNADA',
-      detalhe: c.evento_resumo || 'Identificada marcação de audiência nos autos.',
-      fonte: c.evento_fonte || 'ambos',
+      detalhe:
+        c.evento_resumo ||
+        c.datajud_ultimo_nome ||
+        'Identificada marcação de audiência nos autos.',
+      fonte: (c.evento_fonte as any) || 'ambos',
       data: (dataDj || dataDjen || null) ?? null,
-      prioridade: 70
+      prioridade: 70,
     };
   }
 
@@ -76,10 +102,13 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
   if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca') {
     return {
       titulo: 'FASE EXECUTIVA',
-      detalhe: c.evento_resumo || c.cumprimento_sentenca_motivo || 'Processo em fase de cumprimento de sentença.',
+      detalhe:
+        c.evento_resumo ||
+        c.cumprimento_sentenca_motivo ||
+        'Processo em fase de cumprimento de sentença.',
       fonte: 'datajud',
       data: (dataDj || null) ?? null,
-      prioridade: 60
+      prioridade: 60,
     };
   }
 
@@ -88,10 +117,13 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
   if (/(CUSTAS|GUIA|PREPARO|HABILITA|SUBSTAB|PARTES|OAB|EXCLU)/.test(combinedText)) {
     return {
       titulo: 'CUSTAS / GESTÃO DE PARTES',
-      detalhe: summarizeDjenKeywords(combinedText),
-      fonte: c.evento_fonte || 'ambos',
+      detalhe:
+        c.evento_resumo ||
+        summarizeDjenKeywords(combinedText) ||
+        snippet(c.djen_ultimo_resumo || c.datajud_ultimo_nome),
+      fonte: (c.evento_fonte as any) || 'ambos',
       data: (dataDj || dataDjen || null) ?? null,
-      prioridade: 50
+      prioridade: 50,
     };
   }
 
@@ -99,10 +131,10 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
   if (c.tem_atualizacao_pos_retorno && c.datajud_ultimo_nome) {
     return {
       titulo: 'NOVA MOVIMENTAÇÃO',
-      detalhe: c.datajud_ultimo_nome,
+      detalhe: c.evento_resumo || c.datajud_ultimo_nome,
       fonte: 'datajud',
       data: (dataDj || null) ?? null,
-      prioridade: 40
+      prioridade: 40,
     };
   }
 
@@ -110,19 +142,23 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
   if (c.djen_nova_comunicacao && c.djen_ultimo_resumo) {
     return {
       titulo: 'PUBLICAÇÃO DJEN',
-      detalhe: c.djen_ultimo_resumo,
+      detalhe: c.evento_resumo || snippet(c.djen_ultimo_resumo, 180),
       fonte: 'djen',
       data: (dataDjen || null) ?? null,
-      prioridade: 30
+      prioridade: 30,
     };
   }
 
   // 9. FALLBACK
   return {
     titulo: 'MONITORAMENTO REGULAR',
-    detalhe: c.datajud_ultimo_nome || c.djen_ultimo_resumo || 'Sem novidades relevantes.',
+    detalhe:
+      c.evento_resumo ||
+      c.datajud_ultimo_nome ||
+      c.djen_ultimo_resumo ||
+      'Sem novidades relevantes.',
     fonte: 'datajud',
     data: (dataDj || dataDjen || null) ?? null,
-    prioridade: 10
+    prioridade: 10,
   };
 }
