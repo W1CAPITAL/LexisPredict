@@ -1,8 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/datajud-scan",
-      "schedule": "0 11 * * *"
-    }
-  ]
+  "crons": []
 }
