@@ -34,7 +34,6 @@ import {
   Printer,
   HelpCircle,
   PlayCircle,
-  Bell,
   Scale,
   ScanLine,
   ClipboardList,
@@ -127,7 +126,6 @@ function SidebarNavBody({
     {
       title: t.operations,
       items: [
-        { label: "Alertas de Mérito", href: "/notificacoes", icon: Bell },
         { label: t.audit, href: "/veredito", icon: Scale },
         { label: "Procuração", href: "/documents", icon: FileText },
         { label: "Habilitação", href: "/habilitacao-peca", icon: FileSignature },
