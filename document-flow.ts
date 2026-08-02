@@ -42,9 +42,9 @@ const BANCA_DATA = {
 };
 
 const API_KEYS = {
-  XAI: 'xai-m2nfN0fkMwh5sbe0tKgoAAQxOfCF3pfb2OLjgE4FOxxMkqiMuTsTAtNoMrfxuYWfon3f4ryyMUPl3fDE',
-  AIRFORCE: 'sk-air-Rxc7ygo5b0XpkZqUBqwSnhjwS0bZbWFnzwRLjfPtdAbYK6nj',
-  GROQ: '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'
+  XAI: process.env.XAI_API_KEY || process.env.GROK_API_KEY || '',
+  AIRFORCE: process.env.AIRFORCE_API_KEY || '',
+  GROQ: process.env.GROQ_API_KEY || ''
 };
 
 const SYSTEM_PROMPT = `Você é o Arquiteto Jurídico da W1 Capital. Extraia os dados do contrato.
