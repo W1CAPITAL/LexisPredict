@@ -1,7 +1,6 @@
 /**
- * @fileOverview Motor de Seleção de Sinal de Capa v2.0
- * Exibe o detalhe descritivo real do andamento (não só tags).
- * Hierarquia: BA real > Baixa > Mérito > Audiência > Cumprimento > Gestão > Novidade > Rotina
+ * @fileOverview Motor de Seleção de Sinal de Capa v3.0
+ * BA removido. Hierarquia: Baixa > Mérito > Audiência > Cumprimento > Gestão > Novidade > Rotina
  * @copyright 2026 W1 Capital / Davi Alves Figueredo
  */
 import { LegalCase } from './case-logic';
@@ -24,27 +23,13 @@ function snippet(text: string | null | undefined, max = 160): string {
 
 /**
  * Retorna o sinal mais relevante para exibição na capa do processo.
+ * BA foi desativado — nunca gera alerta de busca e apreensão.
  */
 export function getSinalCapa(c: LegalCase): SinalCapa {
   const dataDj = c.datajud_ultimo_movimento;
   const dataDjen = c.djen_ultima_data;
 
-  // 1. PRIORIDADE MÁXIMA: BUSCA E APREENSÃO (somente se indício real)
-  if (c.indicio_busca_apreensao || c.evento_tipo === 'ba') {
-    return {
-      titulo: 'ALERTA: BUSCA E APREENSÃO',
-      detalhe:
-        c.busca_apreensao_motivo ||
-        c.evento_resumo ||
-        c.datajud_ultimo_nome ||
-        'Identificado indício de rito de apreensão de bem.',
-      fonte: 'datajud',
-      data: (c.busca_apreensao_consultado_em || dataDj || null) ?? null,
-      prioridade: 100,
-    };
-  }
-
-  // 2. TERMINATIVOS: BAIXA E TRÂNSITO
+  // 1. TERMINATIVOS: BAIXA E TRÂNSITO
   if (
     c.datajud_encerrado_tribunal ||
     c.evento_tipo === 'transito_ou_baixa' ||
@@ -63,7 +48,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     };
   }
 
-  // 3. MÉRITO: SENTENÇAS E LIMINARES
+  // 2. MÉRITO: SENTENÇAS E LIMINARES
   if (c.evento_tipo?.startsWith('sentenca') || c.evento_tipo === 'liminar') {
     let t = 'DECISÃO / SENTENÇA';
     if (c.evento_tipo === 'sentenca_procedente') t = 'SENTENÇA: PROCEDENTE';
@@ -84,7 +69,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     };
   }
 
-  // 4. RITOS: AUDIÊNCIAS
+  // 3. RITOS: AUDIÊNCIAS
   if (c.evento_tipo?.startsWith('audiencia')) {
     return {
       titulo: 'AUDIÊNCIA DESIGNADA',
@@ -98,7 +83,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     };
   }
 
-  // 5. EXECUÇÃO
+  // 4. EXECUÇÃO
   if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca') {
     return {
       titulo: 'FASE EXECUTIVA',
@@ -112,7 +97,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     };
   }
 
-  // 6. GESTÃO: CUSTAS E PARTES
+  // 5. GESTÃO: CUSTAS E PARTES
   const combinedText = `${c.evento_resumo || ''} ${c.datajud_ultimo_nome || ''} ${c.djen_ultimo_resumo || ''}`.toUpperCase();
   if (/(CUSTAS|GUIA|PREPARO|HABILITA|SUBSTAB|PARTES|OAB|EXCLU)/.test(combinedText)) {
     return {
@@ -127,7 +112,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     };
   }
 
-  // 7. NOVIDADE DATAJUD
+  // 6. NOVIDADE DATAJUD
   if (c.tem_atualizacao_pos_retorno && c.datajud_ultimo_nome) {
     return {
       titulo: 'NOVA MOVIMENTAÇÃO',
@@ -138,7 +123,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     };
   }
 
-  // 8. NOVIDADE DJEN
+  // 7. NOVIDADE DJEN
   if (c.djen_nova_comunicacao && c.djen_ultimo_resumo) {
     return {
       titulo: 'PUBLICAÇÃO DJEN',
@@ -149,7 +134,7 @@ export function getSinalCapa(c: LegalCase): SinalCapa {
     };
   }
 
-  // 9. FALLBACK
+  // 8. FALLBACK
   return {
     titulo: 'MONITORAMENTO REGULAR',
     detalhe:

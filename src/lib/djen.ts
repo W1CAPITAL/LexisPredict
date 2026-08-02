@@ -96,9 +96,6 @@ export function summarizeDjenKeywords(raw: string | null | undefined): string {
 
   const upper = plain.toUpperCase();
   // Prefer descriptive phrases over cryptic tags (operator readability)
-  if (/\bMANDADO\s+DE\s+BUSCA\s+E\s+APREENS[AÃ]O\b|\bAPREENS[AÃ]O\s+DO\s+VE[IÍ]CULO\b/.test(upper)) {
-    return 'Mandado/liminar de busca e apreensão de veículo';
-  }
   if (/(TRÂNSITO\s+EM\s+JULGADO)/.test(upper)) return 'Trânsito em julgado';
   if (/(BAIXA\s+DEFINITIVA|ARQUIVAMENTO)/.test(upper)) return 'Baixa definitiva / arquivamento';
   if (/(EXTINÇÃO|EXTINTO|EXTINGU|ART\.?\s*485|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
@@ -135,10 +132,8 @@ export function classifyEventFromText(
   const upper = plainTextFromDjen(String(text || '')).toUpperCase();
   if (!upper) return { tipo: 'rotina', label: 'Rotina' };
 
-  // BA só com contexto forte (mandado/liminar de apreensão de bem) — evita jurisprudência citada
-  if (/\bMANDADO\s+DE\s+BUSCA\s+E\s+APREENS[AÃ]O\b|\bAPREENS[AÃ]O\s+DO\s+VE[IÍ]CULO\b|\bDEFERIDA\s+A\s+LIMINAR\s+DE\s+BUSCA\b/.test(upper)) {
-    return { tipo: 'ba', label: 'Busca e Apreensão' };
-  }
+  // BA desativado — nunca classifica como busca e apreensão
+
   if (/(TRÂNSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|ARQUIVAMENTO|EXTINÇÃO|EXTINTO|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
     return { tipo: 'transito_ou_baixa', label: 'Trânsito / Baixa' };
   }
