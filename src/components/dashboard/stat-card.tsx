@@ -17,37 +17,42 @@ interface StatCardProps {
 
 export function StatCard({ title, value, icon, trend, trendUp, color = 'primary' }: StatCardProps) {
   const iconColors = {
-    primary: "text-blue-600 bg-blue-50",
-    accent: "text-cyan-600 bg-cyan-50",
-    destructive: "text-red-600 bg-red-50",
-    success: "text-emerald-600 bg-emerald-50",
-    warning: "text-orange-600 bg-orange-50",
+    primary: "text-primary bg-primary/10 ring-1 ring-primary/15",
+    accent: "text-sky-600 bg-sky-50 ring-1 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-400 dark:ring-sky-500/20",
+    destructive: "text-destructive bg-destructive/10 ring-1 ring-destructive/15",
+    success: "text-emerald-700 bg-emerald-50 ring-1 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/20",
+    warning: "text-amber-700 bg-amber-50 ring-1 ring-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20",
   };
 
   return (
-    <div className="premium-card p-6 flex flex-col justify-between group">
-      <div className="flex justify-between items-start">
-        <div className="space-y-1">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{title}</p>
-          <h3 className="text-3xl font-black tracking-tighter text-foreground tabular-nums leading-none">
+    <div className="lexis-metric group">
+      <div className="flex justify-between items-start gap-3">
+        <div className="space-y-2 min-w-0">
+          <p className="lexis-metric-label truncate">{title}</p>
+          <h3 className="lexis-metric-value truncate">
             {value}
           </h3>
         </div>
-        <div className={cn("p-2.5 rounded-lg transition-transform group-hover:scale-110", iconColors[color])}>
-          {React.cloneElement(icon as React.ReactElement<any>, { size: 20 })}
+        <div className={cn(
+          "p-2.5 rounded-xl transition-transform duration-200 group-hover:scale-105 shrink-0",
+          iconColors[color]
+        )}>
+          {React.cloneElement(icon as React.ReactElement<any>, { size: 18, strokeWidth: 2.25 })}
         </div>
       </div>
       
       {trend && (
         <div className="flex items-center gap-2 mt-4">
           <div className={cn(
-            "flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase",
-            trendUp ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+            "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold",
+            trendUp
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400"
+              : "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-400"
           )}>
-            {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+            {trendUp ? <TrendingUp size={12} strokeWidth={2.5} /> : <TrendingDown size={12} strokeWidth={2.5} />}
             {trend}
           </div>
-          <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-tight">dos ativos</span>
+          <span className="text-[10px] font-medium text-muted-foreground">dos ativos</span>
         </div>
       )}
     </div>

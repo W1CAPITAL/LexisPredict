@@ -210,8 +210,8 @@ export default function Dashboard() {
           <div className="px-4 sm:px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
              <ScrollArea className="w-full">
                 <TabsList className="bg-transparent h-10 border-none gap-6 sm:gap-8 w-max">
-                   <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 font-black uppercase text-[10px] tracking-widest h-full transition-all">Visão da Carteira</TabsTrigger>
-                   <TabsTrigger value="connectivity" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 font-black uppercase text-[10px] tracking-widest h-full transition-all">Rede Judicial</TabsTrigger>
+                   <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 font-semibold uppercase text-[11px] tracking-wider h-full text-muted-foreground transition-all">Visão da Carteira</TabsTrigger>
+                   <TabsTrigger value="connectivity" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 font-semibold uppercase text-[11px] tracking-wider h-full text-muted-foreground transition-all">Rede Judicial</TabsTrigger>
                 </TabsList>
                 <ScrollBar orientation="horizontal" />
              </ScrollArea>
@@ -430,7 +430,7 @@ export default function Dashboard() {
                 <Button 
                   onClick={handleConnectivityCheck} 
                   disabled={isCheckingConnectivity || cases.length === 0}
-                  className={cn("h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] tracking-widest px-8 rounded-xl shadow-lg border-2 border-black w-full lg:w-auto", ui.touch)}
+                  className={cn("h-11 bg-foreground text-background hover:bg-primary hover:text-primary-foreground font-semibold uppercase text-[11px] tracking-wide px-6 rounded-xl shadow-sm w-full lg:w-auto", ui.touch)}
                 >
                   {isCheckingConnectivity ? <Loader2 size={16} className="animate-spin mr-2"/> : <Wifi size={16} className="mr-2"/>}
                   Auditar Latência de Tribunais
@@ -440,7 +440,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {Object.values(courtHealthMap).length > 0 ? (
                   Object.values(courtHealthMap).sort((a,b) => b.successRate - a.successRate).map((health) => (
-                    <div key={health.id} className="premium-card p-6 space-y-6 bg-white border-2 border-transparent hover:border-black transition-all group">
+                    <div key={health.id} className="premium-card p-5 space-y-5 hover:border-primary/30 transition-all group">
                        <div className="flex items-center justify-between">
                           <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center font-black text-sm uppercase">
                             {health.id}
@@ -489,7 +489,7 @@ export default function Dashboard() {
           </ScrollArea>
         </Tabs>
         
-        <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0">
+        <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/70 font-medium uppercase tracking-[0.18em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Advanced Judicial Monitoring • Authority v17.5</span>
         </footer>

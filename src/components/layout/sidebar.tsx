@@ -123,36 +123,36 @@ export function Sidebar() {
   ];
 
   const SidebarContent = () => (
-    <div className="h-full flex flex-col bg-sidebar border-r border-sidebar-border">
-      <div className="h-20 flex items-center px-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-xl">
-            <Layers size={22} />
+    <div className="h-full flex flex-col bg-sidebar/95 backdrop-blur-md border-r border-sidebar-border">
+      <div className="h-[4.5rem] flex items-center px-5 border-b border-sidebar-border/80">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-md ring-1 ring-primary/20">
+            <Layers size={18} strokeWidth={2.25} />
           </div>
           {!collapsed && (
-            <div className="flex flex-col">
-              <span className="font-black text-xs tracking-tight uppercase text-sidebar-foreground leading-none">LexisPredict</span>
-              <span className="text-[9px] text-primary font-black uppercase tracking-widest mt-1">Enterprise Elite</span>
+            <div className="flex flex-col min-w-0">
+              <span className="font-bold text-[13px] tracking-tight text-sidebar-foreground leading-none">LexisPredict</span>
+              <span className="text-[10px] text-primary font-semibold tracking-wide mt-1">Enterprise</span>
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex-1 py-8 px-4 space-y-8 overflow-y-auto">
-        <div className="px-3">
+      <div className="flex-1 py-5 px-3 space-y-6 overflow-y-auto">
+        <div className="px-1">
           <Button 
             onClick={() => toggleMinimize()} 
-            className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black border-2 border-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all gap-3"
+            className="w-full h-11 bg-foreground text-background hover:bg-primary hover:text-primary-foreground rounded-xl font-semibold text-[11px] tracking-wide shadow-sm transition-all gap-2.5"
           >
-            <Zap className={cn("w-4 h-4 text-primary", status === 'running' && "animate-pulse")} />
+            <Zap className={cn("w-4 h-4", status === 'running' && "animate-pulse text-amber-400")} />
             {!collapsed && "DataJud Scanner"}
           </Button>
         </div>
 
         {navGroups.map((group) => (
-          <div key={group.title} className="space-y-1.5">
+          <div key={group.title} className="space-y-1">
             {!collapsed && (
-              <p className="px-3 mb-3 text-[9px] font-black text-sidebar-foreground/50 uppercase tracking-[0.2em]">
+              <p className="px-3 mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.14em]">
                 {group.title}
               </p>
             )}
@@ -161,13 +161,13 @@ export function Sidebar() {
                 key={item.label}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group relative",
                   pathname === item.href 
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg" 
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    ? "bg-primary/10 text-primary font-semibold shadow-[inset_3px_0_0_0_hsl(var(--primary))]" 
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
                 )}
               >
-                <item.icon className={cn("w-4 h-4 shrink-0", pathname === item.href ? "opacity-100" : "opacity-60")} />
+                <item.icon className={cn("w-4 h-4 shrink-0", pathname === item.href ? "opacity-100" : "opacity-55 group-hover:opacity-90")} strokeWidth={pathname === item.href ? 2.25 : 2} />
                 {!collapsed && (
                   <>
                     <span className="text-[11px] font-bold tracking-tight uppercase flex-1">{item.label}</span>

@@ -1,24 +1,23 @@
 :root {
-  --lexis-page-pad: 0.75rem;
-  --lexis-body-text: 0.875rem;   /* 14px leitura */
-  --lexis-label-text: 0.625rem;  /* labels decorativos */
+  --lexis-page-pad: 0.875rem;
+  --lexis-body-text: 0.9375rem; /* 15px — leitura confortável */
+  --lexis-label-text: 0.6875rem;
   --lexis-touch-min: 44px;
   --lexis-modal-max-h: 90vh;
 }
 
 @media (min-width: 768px) {
   :root {
-    --lexis-page-pad: 1rem; /* Notebooks economizam mais espaço lateral */
+    --lexis-page-pad: 1.25rem;
   }
 }
 
 @media (min-width: 1280px) {
   :root {
-    --lexis-page-pad: 1.5rem;
+    --lexis-page-pad: 1.75rem;
   }
 }
 
-/* Área principal das pages com Sidebar */
 .lexis-main-scroll {
   padding: var(--lexis-page-pad);
   min-width: 0;
@@ -27,17 +26,19 @@
 
 .lexis-readable {
   font-size: var(--lexis-body-text) !important;
-  line-height: 1.625 !important;
+  line-height: 1.65 !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
   white-space: pre-wrap !important;
+  color: hsl(var(--foreground) / 0.92);
 }
 
 .lexis-label-xs {
   font-size: var(--lexis-label-text) !important;
-  letter-spacing: 0.05em !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  font-weight: 800 !important;
+  font-weight: 600 !important;
+  color: hsl(var(--muted-foreground));
 }
 
 .lexis-touch {
@@ -50,7 +51,7 @@
 .lexis-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.875rem;
 }
 
 @media (min-width: 768px) {
@@ -94,16 +95,20 @@
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border) / 0.8);
+  background: hsl(var(--card));
 }
 
 .lexis-cnj {
   overflow-wrap: anywhere !important;
   word-break: break-all !important;
   font-variant-numeric: tabular-nums !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: -0.02em;
 }
 
-/* Painel scanner flutuante em tela estreita */
 @media (max-width: 767px) {
   .lexis-scanner-float {
     left: 0.5rem !important;
@@ -112,4 +117,42 @@
     max-width: calc(100vw - 1rem) !important;
     bottom: 0.5rem !important;
   }
+}
+
+/* Tabelas mais legíveis */
+.lexis-table-wrap table thead th {
+  background: hsl(var(--muted) / 0.6);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  padding: 0.75rem 1rem;
+}
+
+.lexis-table-wrap table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.lexis-table-wrap table tbody tr:hover {
+  background: hsl(var(--accent) / 0.55);
+}
+
+/* Gráficos / cards de analytics */
+.lexis-chart-card {
+  border-radius: 0.875rem;
+  border: 1px solid hsl(var(--border) / 0.85);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-card);
+  padding: 1.25rem;
+}
+
+.lexis-chart-card .recharts-cartesian-grid line {
+  stroke: hsl(var(--border));
+  stroke-opacity: 0.6;
+}
+
+.lexis-chart-card .recharts-text {
+  fill: hsl(var(--muted-foreground));
+  font-size: 11px;
 }
