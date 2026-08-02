@@ -165,7 +165,14 @@ export async function auditCaseCoreSystem(
           indicio_busca_apreensao: !!(ba.indicio || target.indicio_busca_apreensao),
           busca_apreensao_confianca: ba.confianca ?? target.busca_apreensao_confianca ?? null,
           busca_apreensao_motivo: ba.motivo || target.busca_apreensao_motivo || null,
-          em_cumprimento_sentenca: !!(cump.ativo || target.em_cumprimento_sentenca),
+          // Se encerrado no tribunal, cumprimento ativo = false; senão grava detecção (mantém se já marcado)
+          em_cumprimento_sentenca: enc.encerrado
+            ? false
+            : !!(cump.ativo || target.em_cumprimento_sentenca),
+          cumprimento_sentenca_motivo: enc.encerrado
+            ? null
+            : (cump.motivo || target.cumprimento_sentenca_motivo || null),
+          cumprimento_sentenca_consultado_em: new Date().toISOString(),
           datajud_consultado_em: new Date().toISOString(),
           tribunal: dataJud.tribunal || target.tribunal,
         });
