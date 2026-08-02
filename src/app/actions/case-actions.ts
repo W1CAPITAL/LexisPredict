@@ -4,6 +4,7 @@
  * @license Proprietary - All rights reserved.
  * REPOSITÓRIO DE AÇÕES DE GABINETE v700.0 ELITE - NÚCLEO SYSTEM UNIFICADO
  */
+import { logScanMetric, logAlertEvent } from '@/lib/scan-metrics';
 import {
   getStoredCasesForEmpresa,
   saveStoredCasesForEmpresa,
@@ -294,7 +295,7 @@ export async function clearDataJudAuditAction(protocolo: string) {
   const admin = await getSupabaseAdmin();
   const { data: dbItem } = await admin
     .from('processos')
-    .select('id, dados')
+    .select('id, dados, protocolo_ref')
     .eq('protocolo_ref', protocolo)
     .eq('empresa_id', empresa_id)
     .maybeSingle();
@@ -305,6 +306,7 @@ export async function clearDataJudAuditAction(protocolo: string) {
     tem_atualizacao_pos_retorno: false,
     djen_nova_comunicacao: false,
     tem_novo_andamento: false,
+    alert_ack_at: new Date().toISOString(),
   };
 
   const updatedDados = { ...(dbItem.dados as any), ...patch };
@@ -313,6 +315,16 @@ export async function clearDataJudAuditAction(protocolo: string) {
     .from('processos')
     .update({ ...patch, dados: updatedDados })
     .eq('id', dbItem.id);
+
+  if (!error) {
+    await admin.from('alert_events').insert({
+      empresa_id,
+      protocolo_ref: dbItem.protocolo_ref,
+      event_type: 'acked',
+      source: 'ambos',
+      payload: { via: 'clearDataJudAuditAction' },
+    });
+  }
 
   return { success: !error };
 }
