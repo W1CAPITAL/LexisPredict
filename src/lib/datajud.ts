@@ -1,7 +1,6 @@
 /**
- * @fileOverview Serviço de Integração com a API Pública do DataJud (CNJ) v470.0 ELITE
- * Otimizado com timeouts de 35s, aliases estritos por tribunal e auditoria de integridade de shards.
- * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
+ * @fileOverview Serviço DataJud (CNJ) v480 — BOTH não sacrifica o tribunal
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 export const COURT_ALIASES: Record<string, string> = {
@@ -21,34 +20,31 @@ async function sleep(ms: number) {
 }
 
 export interface DataJudOptions {
+  /** true = scanner em lote (ainda tenta de verdade o tribunal) */
   fast?: boolean;
 }
 
-/**
- * Consulta API DataJud com roteamento estrito por alias e proteção contra falhas de cluster.
- */
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   const startTime = Date.now();
-  
+
   if (cnjLimpo.length !== 20) {
-    return { numeroProcesso: cnj, movimentos: [], error: true, message: "CNJ inválido." };
+    return { numeroProcesso: cnj, movimentos: [], error: true, message: "CNJ inválido.", attempts: attempt };
   }
 
-  // Derivação estrita do tribunal via máscara CNJ
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
-  let alias = COURT_ALIASES[aliasPart] || "tjsp";
-
-  // URL Direta por Índice: Evita wildcard para reduzir latência e erro de busca cruzada
+  const alias = COURT_ALIASES[aliasPart] || "tjsp";
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   const isFast = options.fast === true;
-  const timeoutMs = isFast ? 15000 : 35000;
-  const maxAttempts = isFast ? 1 : 2;
+  // ANTES: fast=15s/1 tentativa → DJEN ganhava e DataJud “sumia”
+  // AGORA: fast ainda dá tempo real ao tribunal + 1 retry
+  const timeoutMs = isFast ? 28000 : 40000;
+  const maxAttempts = isFast ? 2 : 3;
 
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs + 1000);
+    const id = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -58,7 +54,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       },
       body: JSON.stringify({
         size: 1,
-        query: { match: { "numeroProcesso": cnjLimpo } }
+        query: { match: { numeroProcesso: cnjLimpo } }
       }),
       signal: controller.signal,
       cache: 'no-store'
@@ -67,50 +63,95 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     clearTimeout(id);
     const latency = Date.now() - startTime;
 
-    // Backoff em caso de Rate Limit
     if (response.status === 429) {
-       if (attempt < maxAttempts) { 
-         await sleep(1500); 
-         return fetchDataJud(cnj, attempt + 1, options); 
-       }
-       throw new Error("Taxa de requisição excedida (DataJud 429).");
+      if (attempt < maxAttempts) {
+        await sleep(1200 * attempt + Math.random() * 400);
+        return fetchDataJud(cnj, attempt + 1, options);
+      }
+      return {
+        numeroProcesso: cnjLimpo,
+        movimentos: [],
+        error: true,
+        message: "Taxa excedida (429).",
+        latency,
+        attempts: attempt
+      };
     }
 
-    if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
+    if (response.status >= 500 && attempt < maxAttempts) {
+      await sleep(800 * attempt);
+      return fetchDataJud(cnj, attempt + 1, options);
+    }
+
+    if (!response.ok) {
+      return {
+        numeroProcesso: cnjLimpo,
+        movimentos: [],
+        error: true,
+        message: `HTTP ${response.status}`,
+        latency,
+        attempts: attempt
+      };
+    }
 
     const data = await response.json();
-    
-    /**
-     * Validação de Shards: Se houver falhas no cluster do CNJ, o resultado pode ser falso negativo.
-     * Não gravamos 'não localizado' se houver indício de instabilidade parcial.
-     */
+
     if (data._shards?.failed > 0 && (!data.hits?.hits || data.hits.hits.length === 0)) {
-       return { 
-         numeroProcesso: cnjLimpo, 
-         movimentos: [], 
-         error: true, 
-         message: "Tribunal instável (Shard Fail). Tente novamente em instantes.", 
-         latency 
-       };
+      if (attempt < maxAttempts) {
+        await sleep(600);
+        return fetchDataJud(cnj, attempt + 1, options);
+      }
+      return {
+        numeroProcesso: cnjLimpo,
+        movimentos: [],
+        error: true,
+        message: "Tribunal instável (shard).",
+        latency,
+        attempts: attempt
+      };
     }
 
     const source = data.hits?.hits?.[0]?._source;
-    if (!source) return { numeroProcesso: cnjLimpo, movimentos: [], error: false, message: "Não localizado.", latency };
+    if (!source) {
+      return {
+        numeroProcesso: cnjLimpo,
+        movimentos: [],
+        error: false,
+        message: "Não localizado no DataJud.",
+        latency,
+        attempts: attempt
+      };
+    }
 
     return {
       numeroProcesso: source.numeroProcesso || cnjLimpo,
       classe: source.classe?.nome || 'N/A',
       tribunal: source.tribunal || alias.toUpperCase(),
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
+      dataAjuizamento: source.dataAjuizamento || null,
       error: false,
-      latency
+      latency,
+      attempts: attempt
     };
-
   } catch (e: any) {
     const latency = Date.now() - startTime;
-    const isTimeout = e.name === 'AbortError' || latency >= timeoutMs;
+    const isTimeout =
+      e?.name === 'AbortError' ||
+      e?.name === 'TimeoutError' ||
+      String(e?.message || '').toLowerCase().includes('timeout');
 
-    if (isTimeout) return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Tempo esgotado no tribunal.", latency };
-    return { numeroProcesso: cnjLimpo, movimentos: [], error: true, message: "Falha técnica DataJud.", latency };
+    if (isTimeout && attempt < maxAttempts) {
+      await sleep(700 * attempt);
+      return fetchDataJud(cnj, attempt + 1, options);
+    }
+
+    return {
+      numeroProcesso: cnjLimpo,
+      movimentos: [],
+      error: true,
+      message: isTimeout ? "Tempo esgotado no tribunal." : "Falha técnica DataJud.",
+      latency,
+      attempts: attempt
+    };
   }
 }
