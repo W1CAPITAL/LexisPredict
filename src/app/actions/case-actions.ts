@@ -202,6 +202,15 @@ export async function auditCaseCoreSystem(
           eventTipo = 'sentenca_parcial';
           eventResumo = 'Sentença parcialmente procedente';
         } else if (
+          (textoMovs.includes('IMPROCEDENTE') ||
+            textoMovs.includes('IMPROCEDÊNCIA') ||
+            textoMovs.includes('NEGADO PROVIMENTO')) &&
+          getWeight('sentenca_improcedente') >= getWeight(eventTipo)
+        ) {
+          // Improcedente ANTES de procedente (jurisprudência cita "procedente" com frequência)
+          eventTipo = 'sentenca_improcedente';
+          eventResumo = 'Sentença improcedente';
+        } else if (
           (textoMovs.includes('JULGADO PROCEDENTE') ||
             textoMovs.includes('JULGADA PROCEDENTE') ||
             (textoMovs.includes('PROCEDENTE') && !textoMovs.includes('IMPROCEDENTE'))) &&
@@ -209,14 +218,6 @@ export async function auditCaseCoreSystem(
         ) {
           eventTipo = 'sentenca_procedente';
           eventResumo = 'Sentença procedente';
-        } else if (
-          (textoMovs.includes('IMPROCEDENTE') ||
-            textoMovs.includes('IMPROCEDÊNCIA') ||
-            textoMovs.includes('NEGADO PROVIMENTO')) &&
-          getWeight('sentenca_improcedente') >= getWeight(eventTipo)
-        ) {
-          eventTipo = 'sentenca_improcedente';
-          eventResumo = 'Sentença improcedente';
         } else if (cump.ativo && getWeight('cumprimento_sentenca') >= getWeight(eventTipo)) {
           eventTipo = 'cumprimento_sentenca';
           eventResumo = cump.motivo || eventResumo;
@@ -306,8 +307,23 @@ export async function auditCaseCoreSystem(
     });
   }
 
+  // BA legado: nunca persiste
+  if (eventTipo === 'ba' || eventTipo === 'BA') {
+    eventTipo = patch.datajud_encerrado_tribunal ? 'transito_ou_baixa' : 'rotina';
+    eventResumo = patch.datajud_encerrado_motivo || eventResumo || 'Monitoramento regular';
+  }
+  // Sanitiza resumo (remove tags BA legadas)
+  if (typeof eventResumo === 'string') {
+    eventResumo = eventResumo
+      .replace(/\bB\.?\s*A\.?\b/gi, '')
+      .replace(/\bBUSCA\s+E\s+APREENS[AÃ]O\b/gi, '')
+      .replace(/ALERTA:\s*/gi, '')
+      .replace(/\s*\|\s*/g, ' | ')
+      .replace(/^\s*\|\s*|\s*\|\s*$/g, '')
+      .trim();
+  }
   patch.evento_tipo = eventTipo;
-  patch.evento_resumo = eventResumo;
+  patch.evento_resumo = eventResumo || null;
   patch.evento_fonte =
     patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao
       ? 'ambos'

@@ -11,6 +11,22 @@ import { sanitizeDateCell } from './csv-import-engine';
  * Motor de processamento v500.0 Elite - UNIFICADO
  */
 
+
+/** Remove tags legadas de BA e limpa resumos poluídos. */
+export function sanitizeEventoResumo(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let s = String(raw).trim();
+  // Remove tags BA isoladas / legadas
+  s = s.replace(/\bB\.?\s*A\.?\b/gi, '');
+  s = s.replace(/\bBUSCA\s+E\s+APREENS[AÃ]O\b/gi, '');
+  s = s.replace(/ALERTA:\s*/gi, '');
+  // Limpa separadores órfãos
+  s = s.replace(/\s*\|\s*/g, ' | ').replace(/^\s*\|\s*|\s*\|\s*$/g, '').replace(/(\s*\|\s*){2,}/g, ' | ').trim();
+  s = s.replace(/^\|\s*|\s*\|$/g, '').trim();
+  if (!s || s === '|' || /^\|+$/.test(s)) return null;
+  return s;
+}
+
 export type CaseStatus =
   | "Vencido"
   | "É Hoje"
@@ -283,8 +299,8 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     
     // EVENTO UNIFICADO
     tem_novo_andamento: novidadeUnificada,
-    evento_tipo: data.evento_tipo,
-    evento_resumo: data.evento_resumo,
+    evento_tipo: data.evento_tipo === "ba" ? (toBool(data.datajud_encerrado_tribunal) ? "transito_ou_baixa" : "rotina") : data.evento_tipo,
+    evento_resumo: sanitizeEventoResumo(data.evento_resumo),
     evento_data: data.evento_data,
     evento_fonte: data.evento_fonte,
 
@@ -296,7 +312,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     datajud_encerrado_motivo: data.datajud_encerrado_motivo,
     datajud_hash: data.datajud_hash || null,
 
-    indicio_busca_apreensao: toBool(data.indicio_busca_apreensao),
+    indicio_busca_apreensao: false, // BA desativado — nunca expõe flag legado
     busca_apreensao_confianca: data.busca_apreensao_confianca,
     busca_apreensao_motivo: data.busca_apreensao_motivo,
     busca_apreensao_consultado_em: data.busca_apreensao_consultado_em,
@@ -309,7 +325,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     djen_consultado_em: data.djen_consultado_em,
     djen_nova_comunicacao: temAndamentoDjen,
     djen_ultima_data: data.djen_ultima_data,
-    djen_ultimo_resumo: data.djen_ultimo_resumo,
+    djen_ultimo_resumo: sanitizeEventoResumo(data.djen_ultimo_resumo),
     djen_ultimo_link: data.djen_ultimo_link,
     djen_count: data.djen_count ? Number(data.djen_count) : 0
   };
