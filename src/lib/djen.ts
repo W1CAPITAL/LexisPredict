@@ -1,10 +1,8 @@
 /**
- * @fileOverview Motor de Consulta e Higiene DJEN v8.6 — PROTOCOLO DE PRECISÃO
- * Consulta a API pública do PJe para localizar comunicações oficiais.
+ * @fileOverview Motor de Consulta e Higiene DJEN v8.6 — PROTOCOLO BRASIL (gru1)
+ * API oficial: https://comunicaapi.pje.jus.br/api/v1/comunicacao
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
-
-import { EventoTipo } from './case-logic';
 
 export interface DjenComunicacao {
   id: number | string;
@@ -30,9 +28,144 @@ export interface DjenFetchResult {
   items: DjenComunicacao[];
 }
 
+const DJEN_URL = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
+
 /**
- * Consulta a API pública do DJEN (PJe) com timeout e resiliência total.
- * Tenta múltiplos formatos de CNJ e sanitiza o texto na origem.
+ * HTML bruto → texto puro legível.
+ */
+export function plainTextFromDjen(html: string): string {
+  if (!html) return '';
+  let s = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<head[\s\S]*?<\/head>/gi, '')
+    .replace(/<\/(p|div|tr|br|li|h[1-6]|section|article)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&ordm;/gi, 'º')
+    .replace(/&iacute;/gi, 'í')
+    .replace(/&eacute;/gi, 'é')
+    .replace(/&aacute;/gi, 'á')
+    .replace(/&atilde;/gi, 'ã')
+    .replace(/&ccedil;/gi, 'ç')
+    .replace(/&otilde;/gi, 'õ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+  return s;
+}
+
+/**
+ * Resumo operacional em prosa (compatibilidade).
+ */
+export function summarizeDjenForAlert(plainText: string, type?: string): string {
+  if (!plainText) return 'Publicação oficial sem conteúdo legível.';
+  const upper = plainText.toUpperCase();
+
+  if (/(EXTINÇÃO|EXTINTO|485|290|CANCELAMENTO DA DISTRIBUIÇÃO)/.test(upper)) {
+    return 'RITO DE EXTINÇÃO: Identificada sentença de extinção ou cancelamento da distribuição.';
+  }
+  if (/(EMENDA|EMENDE|ADITE|ADITAMENTO)/.test(upper)) {
+    return 'EMENDA À INICIAL: Juiz determinou adequação ou aditamento da petição inicial.';
+  }
+  if (/(AJG|GRATUIDADE|HIPOSSUFICIÊNCIA|REGISTRATO)/.test(upper)) {
+    return 'COMPROVAÇÃO AJG: Intimação referente ao benefício de Justiça Gratuita.';
+  }
+  if (/(REDISTRIBUIÇÃO|DECLÍNIO|INCOMPETÊNCIA)/.test(upper)) {
+    return 'REDISTRIBUIÇÃO: Processo movido para nova vara ou declínio de competência.';
+  }
+  if (/(TRÂNSITO|BAIXA DEFINITIVA|ARQUIVAMENTO)/.test(upper)) {
+    return 'BAIXA/TRÂNSITO: Publicação confirma o encerramento definitivo do caso.';
+  }
+  return `Publicação DJEN (${type || 'Comunicação'}): ` + plainText.substring(0, 180).trim() + '...';
+}
+
+/**
+ * Keywords curtas para tarefas / notificações / capa (máx. 3 tags).
+ */
+export function summarizeDjenKeywords(raw: string | null | undefined): string {
+  const plain = plainTextFromDjen(String(raw || ''));
+  if (!plain) return 'PUBLICAÇÃO DJEN';
+
+  const upper = plain.toUpperCase();
+  const tags: string[] = [];
+
+  const push = (t: string) => {
+    if (tags.length < 3 && !tags.includes(t)) tags.push(t);
+  };
+
+  if (/\bB\.?\s*A\.?\b|BUSCA\s+E\s+APREENS[AÃ]O|MANDADO\s+DE\s+BUSCA/.test(upper)) push('BA');
+  if (/(EXTINÇÃO|EXTINTO|EXTINGU|ART\.?\s*485|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) push('EXTINÇÃO');
+  if (/(SENTENÇA|JULGO|PROCEDENTE|IMPROCEDENTE|PARCIALMENTE)/.test(upper)) push('SENTENÇA');
+  if (/(TRÂNSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|ARQUIVAMENTO)/.test(upper)) push('TRÂNSITO/BAIXA');
+  if (/(CUMPRIMENTO\s+DE\s+SENTENÇA|EXECUÇÃO\s+DE\s+SENTENÇA)/.test(upper)) push('CUMPRIMENTO');
+  if (/(CUSTAS|TAXAS?\s+JUDICI[AÁ]RIAS|PREPARO)/.test(upper)) push('CUSTAS');
+  if (/(AJG|JUSTIÇA\s+GRATUITA|GRATUIDADE|HIPOSSUFICI)/.test(upper)) push('AJG');
+  if (/(EMENDA|EMENDE|ADITE|ADITAMENTO)/.test(upper)) push('EMENDA');
+  if (/(REDISTRIBUIÇÃO|DECLÍNIO|INCOMPETÊNCIA)/.test(upper)) push('REDISTRIBUIÇÃO');
+  if (/(INTIMAÇÃO|INTIMADO|CIÊNCIA)/.test(upper)) push('INTIMAÇÃO');
+  if (/(DESPACHO|DETERMINO)/.test(upper)) push('DESPACHO');
+  if (/(AUDIÊNCIA)/.test(upper)) push('AUDIÊNCIA');
+  if (/(LIMINAR|TUTELA\s+DE\s+URGÊNCIA|ANTECIPAÇÃO\s+DE\s+TUTELA)/.test(upper)) push('LIMINAR');
+
+  return tags.length > 0 ? tags.join(' | ') : 'PUBLICAÇÃO DJEN';
+}
+
+/**
+ * Classificação de mérito a partir do texto da comunicação.
+ */
+export function classifyEventFromText(
+  text: string | null | undefined
+): { tipo: string; label: string } {
+  const upper = plainTextFromDjen(String(text || '')).toUpperCase();
+  if (!upper) return { tipo: 'rotina', label: 'Rotina' };
+
+  if (/\bB\.?\s*A\.?\b|BUSCA\s+E\s+APREENS[AÃ]O|MANDADO\s+DE\s+BUSCA/.test(upper)) {
+    return { tipo: 'ba', label: 'Busca e Apreensão' };
+  }
+  if (/(TRÂNSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|ARQUIVAMENTO|EXTINÇÃO|EXTINTO|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
+    return { tipo: 'transito_ou_baixa', label: 'Trânsito / Baixa' };
+  }
+  if (/(SENTENÇA).*(IMPROCEDENTE)|IMPROCEDENTE/.test(upper)) {
+    return { tipo: 'sentenca_improcedente', label: 'Sentença Improcedente' };
+  }
+  if (/(SENTENÇA).*(PROCEDENTE)|PROCEDENTE/.test(upper) && !/IMPROCEDENTE/.test(upper)) {
+    return { tipo: 'sentenca_procedente', label: 'Sentença Procedente' };
+  }
+  if (/(PARCIALMENTE\s+PROCEDENTE|PROCEDÊNCIA\s+PARCIAL)/.test(upper)) {
+    return { tipo: 'sentenca_parcial', label: 'Sentença Parcial' };
+  }
+  if (/(CUMPRIMENTO\s+DE\s+SENTENÇA|EXECUÇÃO\s+DE\s+SENTENÇA)/.test(upper)) {
+    return { tipo: 'cumprimento_sentenca', label: 'Cumprimento de Sentença' };
+  }
+  if (/(LIMINAR|TUTELA\s+DE\s+URGÊNCIA|ANTECIPAÇÃO\s+DE\s+TUTELA)/.test(upper)) {
+    return { tipo: 'liminar', label: 'Liminar / Tutela' };
+  }
+  if (/(AUDIÊNCIA\s+DE\s+JULGAMENTO)/.test(upper)) {
+    return { tipo: 'audiencia_julgamento', label: 'Audiência de Julgamento' };
+  }
+  if (/(AUDIÊNCIA\s+DE\s+INSTRUÇÃO)/.test(upper)) {
+    return { tipo: 'audiencia_instrucao', label: 'Audiência de Instrução' };
+  }
+  if (/(AUDIÊNCIA\s+DE\s+CONCILIAÇÃO|AUDIÊNCIA\s+DE\s+MEDIAÇÃO)/.test(upper)) {
+    return { tipo: 'audiencia_conciliacao', label: 'Audiência de Conciliação' };
+  }
+  if (/(CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
+    return { tipo: 'cancelamento_distribuicao', label: 'Cancelamento da Distribuição' };
+  }
+
+  return { tipo: 'novo_andamento_relevante', label: 'Publicação DJEN' };
+}
+
+/**
+ * Fetch oficial DJEN — dual CNJ, headers de browser, timeout, empty = success.
  */
 export async function fetchDjenComunicacoes(
   protocolo: string,
@@ -41,12 +174,11 @@ export async function fetchDjenComunicacoes(
     meio?: 'D' | 'E' | null;
     dataInicio?: string;
     dataFim?: string;
-  },
-  attempt = 1
+  }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
   if (digits.length !== 20) {
-    return { success: false, error: 'CNJ Inválido', count: 0, items: [] };
+    return { success: false, error: 'CNJ Inválido (requer 20 dígitos)', count: 0, items: [] };
   }
 
   const dataFim = opts?.dataFim || new Date().toISOString().split('T')[0];
@@ -54,7 +186,7 @@ export async function fetchDjenComunicacoes(
     opts?.dataInicio ||
     new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  const masked = `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+  const masked = `${digits.substring(0, 7)}-${digits.substring(7, 9)}.${digits.substring(9, 13)}.${digits.substring(13, 14)}.${digits.substring(14, 16)}.${digits.substring(16, 20)}`;
   const cnjOptions = [digits, masked];
 
   let lastError = '';
@@ -68,58 +200,74 @@ export async function fetchDjenComunicacoes(
         pagina: '1',
         itensPorPagina: '50',
       });
-      
+
       if (opts?.siglaTribunal && !/^outros$/i.test(opts.siglaTribunal)) {
         params.append('siglaTribunal', opts.siglaTribunal.toUpperCase());
       }
       if (opts?.meio) params.append('meio', opts.meio);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-      const response = await fetch(
-        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Accept-Language': 'pt-BR,pt;q=0.9',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Origin': 'https://comunica.pje.jus.br',
-            'Referer': 'https://comunica.pje.jus.br/',
-          },
-          cache: 'no-store',
-          signal: controller.signal,
-        }
-      );
+      const response = await fetch(`${DJEN_URL}?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': 'pt-BR,pt;q=0.9',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          Origin: 'https://comunica.pje.jus.br',
+          Referer: 'https://comunica.pje.jus.br/',
+        },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+
       clearTimeout(timeoutId);
 
-      if (response.status === 429)
-        return { success: false, isRateLimited: true, count: 0, items: [] };
-      if (response.status === 403)
-        return { success: false, isGeoBlocked: true, count: 0, items: [] };
+      if (response.status === 403) {
+        console.error('[DJEN Fetch Fail] 403 geo-block', { cnj, status: 403 });
+        return {
+          success: false,
+          isGeoBlocked: true,
+          error:
+            'DJEN geo-bloqueou o servidor (403). Região Vercel deve ser gru1 (São Paulo).',
+          count: 0,
+          items: [],
+        };
+      }
+
+      if (response.status === 429) {
+        console.error('[DJEN Fetch Fail] 429 rate-limit', { cnj });
+        return {
+          success: false,
+          isRateLimited: true,
+          error: 'Rate limit DJEN (429). Aguarde 1 minuto.',
+          count: 0,
+          items: [],
+        };
+      }
+
       if (!response.ok) {
         lastError = `HTTP ${response.status}`;
+        console.error('[DJEN Fetch Fail]', lastError, { cnj });
         continue;
       }
 
       const data = await response.json();
       const rawItems = Array.isArray(data.items) ? data.items : [];
 
-      const items: DjenComunicacao[] = rawItems.map((item: any) => {
-        const rawTexto = item.texto || '';
+      const mappedItems: DjenComunicacao[] = rawItems.map((item: any) => {
+        const plainText = plainTextFromDjen(item.texto || '');
         return {
           id: item.id || item.comunicacao_id,
           hash: item.hash,
           data_disponibilizacao:
-            item.data_disponibilizacao ||
-            item.dataDisponibilizacao ||
-            item.datadisponibilizacao ||
-            null,
+            item.data_disponibilizacao || item.datadisponibilizacao || null,
           siglaTribunal: item.siglaTribunal || item.siglatribunal || null,
           tipoComunicacao: item.tipoComunicacao || item.tipocomunicacao || null,
           nomeOrgao: item.nomeOrgao || item.nomeorgao || null,
-          texto: plainTextFromDjen(rawTexto), 
+          texto: plainText,
           numero_processo:
             item.numeroProcesso || item.numeroprocessocommascara || null,
           meio: item.meio || null,
@@ -129,97 +277,27 @@ export async function fetchDjenComunicacoes(
         };
       });
 
-      // HTTP 200 é sucesso, mesmo que a lista venha vazia (sem publicações)
+      // HTTP 200 com lista vazia = sucesso (processo sem publicação no período)
       return {
         success: true,
-        count: data.count || items.length,
-        items,
+        count: data.count ?? mappedItems.length,
+        items: mappedItems,
       };
-      
     } catch (e: any) {
-      if (e?.name === 'AbortError') lastError = 'Tempo esgotado no DJEN';
-      else lastError = e?.message || 'Erro de conexão';
+      if (e?.name === 'AbortError') {
+        console.error('[DJEN Fetch Fail] timeout 20s', { cnj });
+        return { success: false, error: 'Tempo esgotado no DJEN.', count: 0, items: [] };
+      }
+      const cause = e?.cause?.code || e?.cause?.message || e?.code || e?.message || String(e);
+      lastError = cause;
+      console.error('[DJEN Fetch Fail]', cause, { cnj });
     }
   }
 
-  // Retry único se falhar totalmente a rede/PJe
-  if (attempt < 2) {
-    return fetchDjenComunicacoes(protocolo, opts, attempt + 1);
-  }
-
-  console.error('[DJEN Fetch Fail]', lastError);
-  return { success: false, error: lastError || 'Falha na comunicação DJEN', count: 0, items: [] };
-}
-
-/**
- * Converte HTML bruto do DJEN em texto puro legível.
- */
-export function plainTextFromDjen(html: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<\/(p|div|tr|br|li|h[1-6]|section|article|td|table)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&ordm;/gi, "º")
-    .replace(/&ordf;/gi, "ª")
-    .replace(/&amp;/gi, "&")
-    .replace(/&iacute;/gi, "í")
-    .replace(/&eacute;/gi, "é")
-    .replace(/&aacute;/gi, "á")
-    .replace(/&atilde;/gi, "ã")
-    .replace(/&ccedil;/gi, "ç")
-    .replace(/&otilde;/gi, "õ")
-    .replace(/&ecirc;/gi, "ê")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/\s+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-/**
- * Motor de Extração de Keywords Críticas v9.0
- * Retorna APENAS keywords curtas para telemetria.
- */
-export function summarizeDjenKeywords(raw: string | null | undefined): string {
-  const plain = plainTextFromDjen(raw || "").toUpperCase();
-  if (!plain.trim()) return "PUBLICAÇÃO DJEN";
-
-  const keywords = [
-    { re: /BUSCA\s+E\s+APREEN|APREENSAO\s+DO\s+VE[IÍ]CULO/, label: "BA" },
-    { re: /JULG[OA]\s+IMPROCEDENTE|SENTENÇA\s+IMPROCEDENTE/, label: "EXTINÇÃO" },
-    { re: /JULG[OA]\s+PROCEDENTE|SENTENÇA\s+PROCEDENTE/, label: "SENTENÇA" },
-    { re: /CUSTAS|PREPARO|RECOLHIMENTO|GUIA/, label: "CUSTAS" },
-    { re: /JUSTI[CÇ]A\s+GRATUITA|AJG/, label: "AJG" },
-    { re: /EMENDA|DETERMINO\s+A\s+EMENDA/, label: "EMENDA" },
-    { re: /REDISTRIBUIÇÃO|REDISTRIBUIDO/, label: "REDISTRIBUIÇÃO" },
-    { re: /TR[AÂ]NSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA/, label: "TRÂNSITO/BAIXA" },
-    { re: /INTIMAÇÃO|INTIME-SE/, label: "INTIMAÇÃO" },
-    { re: /DESPACHO|DECISÃO|DECIDO/, label: "DESPACHO" }
-  ];
-
-  const hits: string[] = [];
-  for (const k of keywords) {
-    if (k.re.test(plain)) hits.push(k.label);
-    if (hits.length >= 3) break;
-  }
-
-  return hits.length > 0 ? hits.join(" | ") : "PUBLICAÇÃO DJEN";
-}
-
-/**
- * Classifica a natureza jurídica de um texto.
- */
-export function classifyEventFromText(text: string | null | undefined): { tipo: EventoTipo; label: string } {
-  if (!text) return { tipo: 'rotina', label: 'ANDAMENTO DE ROTINA' };
-  const clean = plainTextFromDjen(text).toUpperCase();
-
-  if (/MANDADO\s+DE\s+BUSCA|BUSCA\s+E\s+APREENS[AÃ]O/.test(clean)) return { tipo: 'ba', label: 'BUSCA E APREENSÃO' };
-  if (/BAIXA\s+DEFINITIVA|TR[AÂ]NSITO\s+EM\s+JULGADO/.test(clean)) return { tipo: 'transito_ou_baixa', label: 'BAIXA DEFINITIVA' };
-  if (/JULG[OA]\s+IMPROCEDENTE/.test(clean)) return { tipo: 'sentenca_improcedente', label: 'SENTENÇA IMPROCEDENTE' };
-  if (/JULG[OA]\s+PROCEDENTE/.test(clean)) return { tipo: 'sentenca_procedente', label: 'SENTENÇA PROCEDENTE' };
-  if (/CUMPRIMENTO\s+DE\s+SENTEN/.test(clean)) return { tipo: 'cumprimento_sentenca', label: 'CUMPRIMENTO DE SENTENÇA' };
-
-  return { tipo: 'rotina', label: 'INTIMAÇÃO DE ROTINA' };
+  return {
+    success: false,
+    error: lastError || 'Nenhuma comunicação localizada.',
+    count: 0,
+    items: [],
+  };
 }
