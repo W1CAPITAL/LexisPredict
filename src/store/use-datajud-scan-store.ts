@@ -66,7 +66,7 @@ interface DataJudScanState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
-const CLOUD_POLL_MS = 7000; // mais ciclos/hora sem Cron Vercel
+const CLOUD_POLL_MS = 12000; // mais ciclos/hora sem Cron Vercel
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
@@ -226,7 +226,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       if (courtId) get().updateCourtHealth(courtId, latency, !!res.success);
 
       // intervalo leve entre CNJs (rate limit CNJ)
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 550));
     }
 
     if (get().manualStatus === 'running') set({ manualStatus: 'done' });
