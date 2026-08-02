@@ -1,12 +1,11 @@
 /**
+ * Sugestão de resposta: primeiro evento_tipo, depois keywords, depois rotina segura.
+ * Nunca inventa resultado; não cita nome de empresa.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * @license Proprietary - All rights reserved.
- * MOTOR DE SUGESTÃO DE SCRIPTS v4.1 - HIERARQUIA DE EVENTO E FIDELIDADE UNIFICADA
  */
 
 import { parseISO, parse, isValid, format } from 'date-fns';
 import { SCRIPT_CATALOG, ScriptTemplate } from './catalog';
-import { EventoTipo } from '../case-logic';
 
 export interface ScriptSuggestion {
   categoria: string;
@@ -19,124 +18,115 @@ export interface ScriptInput {
   clienteNome?: string;
   protocolo: string;
   ultimoRetorno?: string | null;
-  eventoTipo?: EventoTipo | null;
-  eventoResumo?: string | null;
   movimentos?: Array<{ nome?: string; complemento?: string; descricao?: string; dataHora?: string }>;
-  djenTexts?: string[];
-  // Flags Operacionais (Prioridade Máxima)
+  /** Campos unificados do scan */
+  evento_tipo?: string | null;
+  evento_resumo?: string | null;
+  djen_ultimo_resumo?: string | null;
   tem_novo_andamento?: boolean;
+  tem_atualizacao_pos_retorno?: boolean;
+  djen_nova_comunicacao?: boolean;
   datajud_encerrado_tribunal?: boolean;
-  indicio_busca_apreensao?: boolean;
   em_cumprimento_sentenca?: boolean;
 }
 
-/**
- * Motor de Sugestão Inteligente. 
- * Hierarquia: 1. Flags Críticas | 2. Tipo de Evento | 3. Keywords | 4. Fallback
- */
-export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
-  const { 
-    clienteNome = 'Cliente', 
-    protocolo, 
-    ultimoRetorno, 
-    movimentos = [], 
-    eventoTipo, 
-    eventoResumo, 
-    djenTexts = [],
-    tem_novo_andamento,
-    datajud_encerrado_tribunal,
-    indicio_busca_apreensao,
-    em_cumprimento_sentenca
-  } = input;
-  
-  const sortedMovs = [...movimentos].sort((a, b) => 
-    new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
-  );
-
-  const matchedTemplates = new Map<string, { template: ScriptTemplate, dataMov: string }>();
-
-  // 1. NIVEL A: FLAGS E EVENTO TIPO (Peso Máximo - FIDELIDADE DE MÉRITO)
-  if (indicio_busca_apreensao || eventoTipo === 'ba') {
-    addMatch(matchedTemplates, 'alerta_busca_apreensao', sortedMovs[0]?.dataHora || '');
+function fmtDate(raw?: string | null): string {
+  if (!raw) return '';
+  try {
+    const clean = raw.trim();
+    const d = clean.includes('/')
+      ? parse(clean, 'dd/MM/yyyy', new Date())
+      : parseISO(clean);
+    if (isValid(d)) return format(d, 'dd/MM/yyyy');
+  } catch {
+    //
   }
-
-  if (datajud_encerrado_tribunal || eventoTipo === 'transito_baixa' || eventoTipo === 'transito_ou_baixa') {
-    addMatch(matchedTemplates, 'possivel_baixa_tribunal', sortedMovs[0]?.dataHora || '');
-  }
-
-  // Mapeamento direto de mérito para evitar mistura de Procedente/Improcedente
-  if (eventoTipo === 'sentenca_procedente') {
-    addMatch(matchedTemplates, 'sentenca_procedente', sortedMovs[0]?.dataHora || '');
-  } else if (eventoTipo === 'sentenca_improcedente') {
-    addMatch(matchedTemplates, 'sentenca_improcedente', sortedMovs[0]?.dataHora || '');
-  } else if (eventoTipo === 'liminar') {
-    addMatch(matchedTemplates, 'liminar_concedida', sortedMovs[0]?.dataHora || '');
-  } else if (eventoTipo === 'cumprimento_sentenca' || em_cumprimento_sentenca) {
-    addMatch(matchedTemplates, 'cumprimento_sentenca', sortedMovs[0]?.dataHora || '');
-  }
-
-  if (tem_novo_andamento && matchedTemplates.size < 3) {
-    addMatch(matchedTemplates, 'movimentacao_pos_retorno', sortedMovs[0]?.dataHora || '');
-  }
-
-  // 2. NIVEL B: KEYWORDS (Reforço - Ordenado por Prioridade Numérica)
-  if (matchedTemplates.size < 3) {
-    const fullText = `${eventoResumo || ''} ${djenTexts.join(' ')} ${movimentos.map(m => m.nome).join(' ')}`.toUpperCase();
-    
-    const catalogSorted = [...SCRIPT_CATALOG].sort((a, b) => a.prioridade - b.prioridade);
-
-    for (const template of catalogSorted) {
-      if (matchedTemplates.has(template.id)) continue;
-      if (template.keywords.length > 0 && template.keywords.some(kw => fullText.includes(kw))) {
-        addMatch(matchedTemplates, template.id, sortedMovs[0]?.dataHora || '');
-      }
-      if (matchedTemplates.size >= 3) break;
-    }
-  }
-
-  // 3. FALLBACK: ROTINA
-  if (matchedTemplates.size === 0) {
-    addMatch(matchedTemplates, 'rotina', sortedMovs[0]?.dataHora || '');
-  }
-
-  return Array.from(matchedTemplates.values())
-    .map(m => createSuggestion(m.template, clienteNome, protocolo, ultimoRetorno, m.dataMov));
+  return '';
 }
 
-function addMatch(map: Map<string, any>, templateId: string, dataMov: string) {
-  const template = SCRIPT_CATALOG.find(s => s.id === templateId);
-  if (template) map.set(templateId, { template, dataMov });
-}
-
-function createSuggestion(s: ScriptTemplate, nome: string, cnj: string, dateRetornoStr: string | null | undefined, dataMovStr: string): ScriptSuggestion {
-  let displayRetorno = 'nos últimos dias';
-  let displayMov = 'recentemente';
-
-  if (dateRetornoStr) {
-    try {
-      const cleanStr = dateRetornoStr.trim();
-      const d = cleanStr.includes('/') ? parse(cleanStr, 'dd/MM/yyyy', new Date()) : parseISO(cleanStr);
-      if (isValid(d)) displayRetorno = format(d, 'dd/MM/yyyy');
-    } catch (e) {}
-  }
-
-  if (dataMovStr) {
-    try {
-      const d = parseISO(dataMovStr);
-      if (isValid(d)) displayMov = format(d, 'dd/MM/yyyy');
-    } catch (e) {}
-  }
-
+function createSuggestion(
+  s: ScriptTemplate,
+  nome: string,
+  cnj: string,
+  dateRetornoStr?: string | null,
+  dataMovStr?: string
+): ScriptSuggestion {
+  const displayRetorno = fmtDate(dateRetornoStr) || 'nos últimos dias';
+  const displayMov = fmtDate(dataMovStr) || 'recentemente';
   return {
     categoria: s.categoria,
     titulo: s.titulo,
     quandoUsar: s.quandoUsar,
     texto: s.texto
-      .replace(/\[Nome\]/g, nome)
-      .replace(/\[CLIENTE\]/g, nome)
-      .replace(/\[CNJ\]/g, cnj)
-      .replace(/\[PROTOCOLO\]/g, cnj)
+      .replace(/\[CLIENTE\]|\[Nome\]/g, nome)
+      .replace(/\[PROTOCOLO\]|\[CNJ\]/g, cnj)
       .replace(/\[Data\]/g, displayRetorno)
-      .replace(/\[DataMov\]/g, displayMov)
+      .replace(/\[DataMov\]/g, displayMov),
   };
+}
+
+export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
+  const clienteNome = (input.clienteNome || 'Cliente').split(/\s+/)[0] || 'Cliente';
+  const protocolo = input.protocolo || '';
+  const ultimoRetorno = input.ultimoRetorno;
+  const movimentos = input.movimentos || [];
+
+  const blob = [
+    input.evento_resumo,
+    input.djen_ultimo_resumo,
+    ...movimentos.map((m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`),
+  ]
+    .join(' ')
+    .toUpperCase();
+
+  const matches: Array<{ template: ScriptTemplate; score: number; dataMov: string }> = [];
+
+  for (const t of SCRIPT_CATALOG) {
+    let score = 0;
+
+    if (t.eventoTipos?.length && input.evento_tipo && t.eventoTipos.includes(input.evento_tipo)) {
+      score += 100 - t.prioridade;
+    }
+
+    if (input.datajud_encerrado_tribunal && t.id === 'baixa_tribunal') score += 90;
+    if (input.em_cumprimento_sentenca && t.id === 'cumprimento') score += 80;
+    if (
+      (input.tem_novo_andamento || input.tem_atualizacao_pos_retorno || input.djen_nova_comunicacao) &&
+      t.id === 'nova_movimentacao'
+    ) {
+      score += 40;
+    }
+
+    for (const kw of t.keywords) {
+      if (kw && blob.includes(kw.toUpperCase())) score += 25;
+    }
+
+    if (score > 0) {
+      const dataMov =
+        movimentos[0]?.dataHora ||
+        input.evento_resumo ||
+        '';
+      matches.push({ template: t, score, dataMov: String(dataMov) });
+    }
+  }
+
+  matches.sort((a, b) => b.score - a.score || a.template.prioridade - b.template.prioridade);
+
+  // Fallback: se há novidade/baixa, nunca só “rotina vazia”
+  if (matches.length === 0) {
+    if (input.datajud_encerrado_tribunal) {
+      const t = SCRIPT_CATALOG.find((x) => x.id === 'baixa_tribunal')!;
+      matches.push({ template: t, score: 1, dataMov: '' });
+    } else if (input.tem_novo_andamento || input.tem_atualizacao_pos_retorno || input.djen_nova_comunicacao) {
+      const t = SCRIPT_CATALOG.find((x) => x.id === 'nova_movimentacao')!;
+      matches.push({ template: t, score: 1, dataMov: '' });
+    } else {
+      const t = SCRIPT_CATALOG.find((x) => x.id === 'prazo_retorno')!;
+      matches.push({ template: t, score: 1, dataMov: '' });
+    }
+  }
+
+  return matches.slice(0, 3).map((m) =>
+    createSuggestion(m.template, clienteNome, protocolo, ultimoRetorno, m.dataMov)
+  );
 }
