@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
 import { exportCasesToCSVAction } from '@/app/actions/export-actions';
 import { format, parseISO, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
@@ -43,6 +43,7 @@ const CaseRow = React.memo(({
 }: { 
   c: LegalCase, isOperador: boolean, onLogReturn: (c: LegalCase) => void, onEdit: (c: LegalCase) => void, onDelete: (id: string) => void, onScan: (c: LegalCase) => void, onSuggest: (c: LegalCase) => void
 }) => {
+  const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const sinal = useMemo(() => getSinalCapa(c), [c]);
@@ -157,6 +158,25 @@ function CasesContent() {
   }, [setCases]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  
+  const handleRecalibratePrazos = async () => {
+    if (isRecalibrating) return;
+    setIsRecalibrating(true);
+    try {
+      const res = await recalibrateCasesAction();
+      if (res.success) {
+        await loadData();
+        toast({ title: "Prazos recalibrados", description: res.message || `${res.updated} processos atualizados.` });
+      } else {
+        toast({ title: "Falha na recalibração", description: res.error || "Tente novamente", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message || "Falha", variant: "destructive" });
+    } finally {
+      setIsRecalibrating(false);
+    }
+  };
 
   const handleExportCSV = async () => {
     setExporting(true);
@@ -315,6 +335,17 @@ function CasesContent() {
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={exporting} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary">
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />} Extrair Planilha
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRecalibratePrazos}
+              disabled={isRecalibrating || loading}
+              className="h-10 px-3 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-border/50 hover:bg-secondary"
+              title="Recalcular Vencido / É Hoje / Atenção a partir do próximo prazo"
+            >
+              {isRecalibrating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CalendarDays className="w-4 h-4 mr-1" />}
+              Recalibrar Prazos
             </Button>
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
               <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />

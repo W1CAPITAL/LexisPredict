@@ -457,3 +457,29 @@ export async function clearDataJudAuditAction(protocolo: string) {
 
   return { success: true };
 }
+
+/**
+ * Recalibra status/prazo de toda a carteira da empresa (processarCaso em lote).
+ * Não chama DataJud — só lógica local de Vencido / É Hoje / Atenção / No Prazo.
+ */
+export async function recalibrateCasesAction() {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) return { success: false, error: 'Sessão expirada', updated: 0 };
+
+    const cases = await getStoredCasesForEmpresa(empresa_id, true);
+    if (!cases.length) return { success: true, updated: 0, message: 'Nenhum processo.' };
+
+    const recalibrated = cases.map((c) => processarCaso({ ...c }));
+    const res = await saveStoredCasesForEmpresa(recalibrated, empresa_id, true);
+    if (!res.success) return { success: false, error: res.message || 'Falha ao salvar', updated: 0 };
+
+    return {
+      success: true,
+      updated: recalibrated.length,
+      message: `Prazos recalibrados em ${recalibrated.length} processos.`,
+    };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Erro', updated: 0 };
+  }
+}
