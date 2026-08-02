@@ -92,30 +92,38 @@ export function summarizeDjenForAlert(plainText: string, type?: string): string 
  */
 export function summarizeDjenKeywords(raw: string | null | undefined): string {
   const plain = plainTextFromDjen(String(raw || ''));
-  if (!plain) return 'PUBLICAÇÃO DJEN';
+  if (!plain) return 'Publicação no Diário Oficial';
 
   const upper = plain.toUpperCase();
-  const tags: string[] = [];
-
-  const push = (t: string) => {
-    if (tags.length < 3 && !tags.includes(t)) tags.push(t);
-  };
-
-  if (/\bB\.?\s*A\.?\b|BUSCA\s+E\s+APREENS[AÃ]O|MANDADO\s+DE\s+BUSCA/.test(upper)) push('BA');
-  if (/(EXTINÇÃO|EXTINTO|EXTINGU|ART\.?\s*485|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) push('EXTINÇÃO');
-  if (/(SENTENÇA|JULGO|PROCEDENTE|IMPROCEDENTE|PARCIALMENTE)/.test(upper)) push('SENTENÇA');
-  if (/(TRÂNSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|ARQUIVAMENTO)/.test(upper)) push('TRÂNSITO/BAIXA');
-  if (/(CUMPRIMENTO\s+DE\s+SENTENÇA|EXECUÇÃO\s+DE\s+SENTENÇA)/.test(upper)) push('CUMPRIMENTO');
-  if (/(CUSTAS|TAXAS?\s+JUDICI[AÁ]RIAS|PREPARO)/.test(upper)) push('CUSTAS');
-  if (/(AJG|JUSTIÇA\s+GRATUITA|GRATUIDADE|HIPOSSUFICI)/.test(upper)) push('AJG');
-  if (/(EMENDA|EMENDE|ADITE|ADITAMENTO)/.test(upper)) push('EMENDA');
-  if (/(REDISTRIBUIÇÃO|DECLÍNIO|INCOMPETÊNCIA)/.test(upper)) push('REDISTRIBUIÇÃO');
-  if (/(INTIMAÇÃO|INTIMADO|CIÊNCIA)/.test(upper)) push('INTIMAÇÃO');
-  if (/(DESPACHO|DETERMINO)/.test(upper)) push('DESPACHO');
-  if (/(AUDIÊNCIA)/.test(upper)) push('AUDIÊNCIA');
-  if (/(LIMINAR|TUTELA\s+DE\s+URGÊNCIA|ANTECIPAÇÃO\s+DE\s+TUTELA)/.test(upper)) push('LIMINAR');
-
-  return tags.length > 0 ? tags.join(' | ') : 'PUBLICAÇÃO DJEN';
+  // Prefer descriptive phrases over cryptic tags (operator readability)
+  if (/\bMANDADO\s+DE\s+BUSCA\s+E\s+APREENS[AÃ]O\b|\bAPREENS[AÃ]O\s+DO\s+VE[IÍ]CULO\b/.test(upper)) {
+    return 'Mandado/liminar de busca e apreensão de veículo';
+  }
+  if (/(TRÂNSITO\s+EM\s+JULGADO)/.test(upper)) return 'Trânsito em julgado';
+  if (/(BAIXA\s+DEFINITIVA|ARQUIVAMENTO)/.test(upper)) return 'Baixa definitiva / arquivamento';
+  if (/(EXTINÇÃO|EXTINTO|EXTINGU|ART\.?\s*485|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
+    return 'Extinção / cancelamento da distribuição';
+  }
+  if (/(PARCIALMENTE\s+PROCEDENTE|PROCEDÊNCIA\s+PARCIAL)/.test(upper)) return 'Sentença parcialmente procedente';
+  if (/(SENTENÇA).*(IMPROCEDENTE)|IMPROCEDENTE/.test(upper)) return 'Sentença improcedente';
+  if (/(SENTENÇA).*(PROCEDENTE)|JULGADO\s+PROCEDENTE/.test(upper) && !/IMPROCEDENTE/.test(upper)) {
+    return 'Sentença procedente';
+  }
+  if (/(SENTENÇA|JULGO)/.test(upper)) return 'Sentença / decisão de mérito';
+  if (/(CUMPRIMENTO\s+DE\s+SENTENÇA|EXECUÇÃO\s+DE\s+SENTENÇA)/.test(upper)) return 'Cumprimento de sentença';
+  if (/(AUDIÊNCIA\s+DE\s+CONCILIAÇÃO|AUDIÊNCIA\s+DE\s+MEDIAÇÃO)/.test(upper)) return 'Audiência de conciliação/mediação';
+  if (/(AUDIÊNCIA\s+DE\s+INSTRUÇÃO)/.test(upper)) return 'Audiência de instrução';
+  if (/(AUDIÊNCIA)/.test(upper)) return 'Audiência designada';
+  if (/(LIMINAR|TUTELA\s+DE\s+URGÊNCIA|ANTECIPAÇÃO\s+DE\s+TUTELA)/.test(upper)) return 'Liminar / tutela de urgência';
+  if (/(AJG|JUSTIÇA\s+GRATUITA|GRATUIDADE|HIPOSSUFICI)/.test(upper)) return 'Justiça gratuita (AJG)';
+  if (/(CUSTAS|TAXAS?\s+JUDICI[AÁ]RIAS|PREPARO)/.test(upper)) return 'Custas / preparo';
+  if (/(EMENDA|EMENDE|ADITE|ADITAMENTO)/.test(upper)) return 'Emenda à inicial';
+  if (/(REDISTRIBUIÇÃO|DECLÍNIO|INCOMPETÊNCIA)/.test(upper)) return 'Redistribuição / declínio';
+  if (/(INTIMAÇÃO|INTIMADO|CIÊNCIA)/.test(upper)) return 'Intimação / ciência';
+  if (/(DESPACHO|DETERMINO)/.test(upper)) return 'Despacho / determinação';
+  // Fallback: first ~120 chars of clean text
+  const short = plain.replace(/\s+/g, ' ').trim().substring(0, 120);
+  return short ? short + (plain.length > 120 ? '…' : '') : 'Publicação no Diário Oficial';
 }
 
 /**
@@ -127,7 +135,8 @@ export function classifyEventFromText(
   const upper = plainTextFromDjen(String(text || '')).toUpperCase();
   if (!upper) return { tipo: 'rotina', label: 'Rotina' };
 
-  if (/\bB\.?\s*A\.?\b|BUSCA\s+E\s+APREENS[AÃ]O|MANDADO\s+DE\s+BUSCA/.test(upper)) {
+  // BA só com contexto forte (mandado/liminar de apreensão de bem) — evita jurisprudência citada
+  if (/\bMANDADO\s+DE\s+BUSCA\s+E\s+APREENS[AÃ]O\b|\bAPREENS[AÃ]O\s+DO\s+VE[IÍ]CULO\b|\bDEFERIDA\s+A\s+LIMINAR\s+DE\s+BUSCA\b/.test(upper)) {
     return { tipo: 'ba', label: 'Busca e Apreensão' };
   }
   if (/(TRÂNSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|ARQUIVAMENTO|EXTINÇÃO|EXTINTO|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
