@@ -34,8 +34,7 @@ import {
   CheckCircle,
   Printer,
   HelpCircle,
-  PlayCircle,
-  Bell
+  PlayCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -83,31 +82,14 @@ export function Sidebar() {
     setIsMobileOpen(false);
   };
 
-  // Cálculo de Notificações Ativas
-  const notificationCount = useMemo(() => {
-    return cases.filter(c => 
-      c.status === 'Vencido' || 
-      c.status === 'É Hoje' || 
-      c.status === 'Caso Crítico' ||
-      !!c.tem_atualizacao_pos_retorno ||
-      !!c.datajud_encerrado_tribunal ||
-      !!c.djen_nova_comunicacao ||
-      !!c.indicio_busca_apreensao
-    ).length;
-  }, [cases]);
+  // Notificações removidas do produto (v12)
 
   const navGroups = [
     {
       title: t.management,
       items: [
         { label: t.dashboard, href: '/', icon: LayoutDashboard },
-        { 
-          label: "Notificações", 
-          href: '/notificacoes', 
-          icon: Bell, 
-          badge: notificationCount > 0 ? notificationCount : undefined 
-        },
-        { label: t.tasks, href: '/tarefas', icon: CheckCircle },
+                { label: t.tasks, href: '/tarefas', icon: CheckCircle },
         { label: t.cases, href: '/cases', icon: Briefcase },
         ...(isAdmin ? [{ label: t.team, href: '/team', icon: UserPlus }] : []),
       ]

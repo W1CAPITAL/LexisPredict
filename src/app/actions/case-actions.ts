@@ -162,10 +162,10 @@ export async function auditCaseCoreSystem(
           datajud_ultimo_nome: upd.nomeUltimo || target.datajud_ultimo_nome || null,
           datajud_encerrado_tribunal: !!(enc.encerrado || target.datajud_encerrado_tribunal),
           datajud_encerrado_motivo: enc.motivo || target.datajud_encerrado_motivo || null,
-          // v11: confia na análise atual (permite LIMPAR falso-positivo antigo)
-          indicio_busca_apreensao: !!ba.indicio,
-          busca_apreensao_confianca: ba.confianca ?? null,
-          busca_apreensao_motivo: ba.motivo || null,
+          // v12: BA DESATIVADO — nunca grava indício
+          indicio_busca_apreensao: false,
+          busca_apreensao_confianca: null,
+          busca_apreensao_motivo: null,
           busca_apreensao_consultado_em: new Date().toISOString(),
           // Se encerrado no tribunal, cumprimento ativo = false; senão grava detecção (mantém se já marcado)
           em_cumprimento_sentenca: enc.encerrado
@@ -190,10 +190,8 @@ export async function auditCaseCoreSystem(
           )
           .join(' || ');
 
-        if (ba.indicio && getWeight('ba') >= getWeight(eventTipo)) {
-          eventTipo = 'ba';
-          eventResumo = ba.motivo || eventResumo;
-        } else if (enc.encerrado && getWeight('transito_ou_baixa') >= getWeight(eventTipo)) {
+        // BA desativado — não sobe evento_tipo ba
+        if (enc.encerrado && getWeight('transito_ou_baixa') >= getWeight(eventTipo)) {
           eventTipo = 'transito_ou_baixa';
           eventResumo = enc.motivo || eventResumo;
         } else if (
@@ -322,9 +320,7 @@ export async function auditCaseCoreSystem(
     patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao
   );
 
-  if (patch.indicio_busca_apreensao || target.indicio_busca_apreensao) {
-    patch.scan_priority = 100;
-  } else if (patch.datajud_encerrado_tribunal || target.datajud_encerrado_tribunal) {
+  if (patch.datajud_encerrado_tribunal || target.datajud_encerrado_tribunal) {
     patch.scan_priority = 90;
   } else if (patch.tem_novo_andamento) {
     patch.scan_priority = 80;

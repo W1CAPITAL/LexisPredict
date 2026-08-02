@@ -192,19 +192,7 @@ export default function TarefasPage() {
         
         const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
 
-        const suggestions = suggestScripts({
-          clienteNome: cliente,
-          protocolo: protocolo,
-          ultimoRetorno: ultimoRetorno,
-          eventoTipo: res.case.evento_tipo,
-          eventoResumo: res.case.evento_resumo,
-          movimentos: res.movimentos || [],
-          djenTexts,
-          tem_novo_andamento: res.case.tem_novo_andamento,
-          datajud_encerrado_tribunal: res.case.datajud_encerrado_tribunal,
-          indicio_busca_apreensao: res.case.indicio_busca_apreensao,
-          em_cumprimento_sentenca: res.case.em_cumprimento_sentenca
-        });
+        const suggestions = suggestScripts();
         setSuggestedScripts(suggestions);
         setShowScripts(true);
         setIsHistoryModalOpen(true);
@@ -213,28 +201,7 @@ export default function TarefasPage() {
     } finally { setLoading(false); }
   };
 
-  const handleGenerateAIDraft = async () => {
-    if (!historyResult || isGeneratingAIDraft) return;
-    setIsGeneratingAIDraft(true);
-    setAiDraft(null);
-    try {
-      const djenTexts = (historyResult.djenComunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
-      
-      const res = await gerarRascunhoEstrategico({
-        clienteNome: historyResult.case.cliente,
-        protocolo: historyResult.case.protocolo,
-        ultimoRetorno: historyResult.case.ultimoRetorno,
-        movimentos: historyResult.movimentos,
-        djenTexts,
-        eventoTipo: historyResult.case.evento_tipo,
-        eventoResumo: historyResult.case.evento_resumo,
-        preferredModel: selectedMotor,
-        empresaId: profile?.empresa_id,
-        tem_novo_andamento: historyResult.case.tem_novo_andamento,
-        datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal,
-        indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao,
-        em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca
-      });
+  const handleGenerateAIDraft = async () => );
       if (res.rascunho) {
         setAiDraft(res.rascunho);
         toast({ title: "Rascunho Gerado" });
@@ -318,7 +285,7 @@ export default function TarefasPage() {
       const g = groups[nome];
       g.totalAtivos++;
       g.cases.push(c);
-      if (c.indicio_busca_apreensao) g.hasBA = true;
+      if (c.false) g.hasBA = true;
       if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
       if (c.tem_novo_andamento) g.hasUpdate = true;
       

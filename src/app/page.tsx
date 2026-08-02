@@ -119,7 +119,7 @@ export default function Dashboard() {
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
-    const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
+    const countBA = 0;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
@@ -154,7 +154,7 @@ export default function Dashboard() {
     return cases
       .filter(c => !isCasoEncerrado(c) && (['Caso Crítico', 'Vencido', 'É Hoje'].includes(c.status) || !!c.tem_novo_andamento))
       .sort((a, b) => {
-        if (!!a.indicio_busca_apreensao !== !!b.indicio_busca_apreensao) return a.indicio_busca_apreensao ? -1 : 1;
+        if (
         if (!!a.datajud_encerrado_tribunal !== !!b.datajud_encerrado_tribunal) return a.datajud_encerrado_tribunal ? -1 : 1;
         
         const getWeight = (tipo?: string) => {
@@ -266,7 +266,7 @@ export default function Dashboard() {
                       </div>
                       <div className="mt-8 pt-6 border-t border-white/5 flex justify-end">
                         <Button asChild variant="ghost" className="h-10 text-[9px] font-black text-primary hover:text-black hover:bg-primary uppercase tracking-widest">
-                           <Link href="/notificacoes">Ver Alertas de Mérito <ArrowRight size={12} className="ml-2" /></Link>
+                           <Link href="/tarefas">Ver Fila de Tarefas <ArrowRight size={12} className="ml-2" /></Link>
                         </Button>
                       </div>
                    </section>
@@ -303,10 +303,10 @@ export default function Dashboard() {
                                         <div className="flex flex-col gap-1">
                                           <Badge variant="outline" className={cn(
                                              "text-[8px] font-black uppercase px-2 py-0 border-none w-fit",
-                                             c.indicio_busca_apreensao ? "bg-red-600 text-white animate-pulse" : 
+                                              
                                              c.status === 'Vencido' ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
                                           )}>
-                                             {c.indicio_busca_apreensao ? 'BUSCA E APREENSÃO' : c.status}
+                                             {c.status}
                                           </Badge>
                                           <span className="text-[9px] font-bold text-foreground/70 uppercase truncate max-w-[250px]">
                                             {c.evento_resumo || c.djen_ultimo_resumo || c.datajud_ultimo_nome || 'Acompanhamento Regular'}
