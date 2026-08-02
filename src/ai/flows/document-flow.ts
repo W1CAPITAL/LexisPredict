@@ -8,8 +8,9 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const API_KEYS = {
-  XAI: process.env.XAI_API_KEY,
-  GROQ: process.env.GROQ_API_KEY
+  XAI: process.env.XAI_API_KEY || process.env.GROK_API_KEY || '',
+  AIRFORCE: process.env.AIRFORCE_API_KEY || '',
+  GROQ: process.env.GROQ_API_KEY || ''
 };
 
 const SYSTEM_PROMPT = `Você é o Arquiteto Jurídico Sênior Elite da W1 Capital. 

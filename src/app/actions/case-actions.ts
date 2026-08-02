@@ -162,9 +162,11 @@ export async function auditCaseCoreSystem(
           datajud_ultimo_nome: upd.nomeUltimo || target.datajud_ultimo_nome || null,
           datajud_encerrado_tribunal: !!(enc.encerrado || target.datajud_encerrado_tribunal),
           datajud_encerrado_motivo: enc.motivo || target.datajud_encerrado_motivo || null,
-          indicio_busca_apreensao: !!(ba.indicio || target.indicio_busca_apreensao),
-          busca_apreensao_confianca: ba.confianca ?? target.busca_apreensao_confianca ?? null,
-          busca_apreensao_motivo: ba.motivo || target.busca_apreensao_motivo || null,
+          // v11: confia na análise atual (permite LIMPAR falso-positivo antigo)
+          indicio_busca_apreensao: !!ba.indicio,
+          busca_apreensao_confianca: ba.confianca ?? null,
+          busca_apreensao_motivo: ba.motivo || null,
+          busca_apreensao_consultado_em: new Date().toISOString(),
           // Se encerrado no tribunal, cumprimento ativo = false; senão grava detecção (mantém se já marcado)
           em_cumprimento_sentenca: enc.encerrado
             ? false

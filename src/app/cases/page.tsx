@@ -43,7 +43,6 @@ const CaseRow = React.memo(({
 }: { 
   c: LegalCase, isOperador: boolean, onLogReturn: (c: LegalCase) => void, onEdit: (c: LegalCase) => void, onDelete: (id: string) => void, onScan: (c: LegalCase) => void, onSuggest: (c: LegalCase) => void
 }) => {
-  const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const sinal = useMemo(() => getSinalCapa(c), [c]);
@@ -128,6 +127,7 @@ function CasesContent() {
   const [quickFilter, setQuickFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [isRecalibrating, setIsRecalibrating] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
