@@ -233,17 +233,31 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
 export async function getScanStatusMetrics(empresaId: string) {
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
+  const statusFilter = `(${statusExcluidos.map(s => `"${s}"`).join(',')})`;
 
   const { count: total } = await admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
     .eq('empresa_id', empresaId);
 
-  const { count: pending } = await admin
+  // Carteira ativa (não encerrada no gabinete)
+  const { count: active } = await admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
     .eq('empresa_id', empresaId)
-    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`);
+    .not('status', 'in', statusFilter);
+
+  // Ainda sem nenhuma consulta DataJud
+  const { count: neverScanned } = await admin
+    .from('processos')
+    .select('*', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .not('status', 'in', statusFilter)
+    .is('datajud_consultado_em', null);
+
+  const activeN = active || 0;
+  const pendingN = neverScanned || 0;
+  const auditedN = Math.max(0, activeN - pendingN);
 
   const { count: alerts } = await admin
     .from('processos')
@@ -267,22 +281,31 @@ export async function getScanStatusMetrics(empresaId: string) {
     .from('processos')
     .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao, datajud_ultimo_nome, datajud_consultado_em')
     .eq('empresa_id', empresaId)
+    .not('datajud_consultado_em', 'is', null)
     .order('datajud_consultado_em', { ascending: false })
     .limit(10);
 
   return {
     total: total || 0,
-    pending: pending || 0,
+    pending: pendingN,
     alerts: alerts || 0,
     djenAlerts: djenAlerts || 0,
     closed: closed || 0,
-    audited: (total || 0) - (pending || 0),
-    recentLogs: recent?.filter(r => r.datajud_consultado_em).map(r => ({
+    audited: auditedN,
+    recentLogs: recent?.map(r => ({
       protocolo: r.protocolo_ref,
-      message: r.datajud_encerrado_tribunal ? 'BAIXA NO TRIBUNAL' : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao) ? 'NOVA MOVIMENTAÇÃO' : 'Monitoramento Regular',
+      message: r.datajud_encerrado_tribunal
+        ? 'BAIXA NO TRIBUNAL'
+        : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao)
+          ? 'NOVA MOVIMENTAÇÃO'
+          : 'Monitoramento Regular',
       success: true,
       latency: 0,
-      type: r.datajud_encerrado_tribunal ? 'closed' : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao) ? 'update' : 'ok',
+      type: r.datajud_encerrado_tribunal
+        ? 'closed'
+        : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao)
+          ? 'update'
+          : 'ok',
       engine: 'Nuvem'
     })) || []
   };
@@ -302,7 +325,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     return { success: false, error: fetchError?.message };
   }
 
-  // Campos de lógica (evento_tipo, tem_novo_andamento, etc.) só no JSON dados
+  // evento_tipo, tem_novo_andamento, etc. ficam no JSON dados
   const updatedDados = {
     ...(current.dados as any),
     ...patch,
