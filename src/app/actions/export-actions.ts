@@ -1,13 +1,17 @@
 'use server';
 
 /**
- * @fileOverview Motor de Exportação Forense v120.0
- * Gera planilhas CSV compatíveis com Excel a partir de todas as colunas do repositório.
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * Exportação operacional — CSV legado + Workbook Excel (XML) com fórmulas e abas de gráfico.
  */
 
 import { createClient } from '@/lib/supabase/server';
 import { getUserContext } from '@/lib/server-db';
+import { buildOperationalWorkbookXml } from '@/lib/export-workbook-xml';
+
+function toCsvCell(field: any): string {
+  const val = String(field ?? '').replace(/"/g, '""');
+  return `"${val}"`;
+}
 
 export async function exportCasesToCSVAction() {
   try {
@@ -17,8 +21,6 @@ export async function exportCasesToCSVAction() {
     }
 
     const supabase = await createClient();
-    
-    // Busca todas as colunas para exportação completa do gabinete
     const { data: rows, error } = await supabase
       .from('processos')
       .select('*')
@@ -30,103 +32,86 @@ export async function exportCasesToCSVAction() {
       return { success: false, error: 'Nenhum registro localizado no repositório.' };
     }
 
-    // Cabeçalhos baseados na estrutura oficial fornecida
     const headers = [
-      'ID',
-      'DATA CRIAÇÃO',
-      'EMPRESA ID',
-      'CRIADO POR',
-      'ÚLTIMO RETORNO',
-      'PRÓXIMO PRAZO',
-      'OBSERVAÇÕES',
-      'STATUS',
-      'RISCO',
-      'STATUS INTERNO',
-      'ULTIMA MOVIMENTAÇÃO',
-      'ESCRITÓRIO',
-      'ADVOGADO',
-      'DATA DISTRIBUIÇÃO',
-      'PRODUTOS',
-      'TELEFONE',
-      'PROTOCOLO REF',
-      'TRIBUNAL',
-      'STATUS PRAZO',
-      'DATAJUD ÚLTIMO MOVIMENTO',
-      'DATAJUD ÚLTIMO NOME',
-      'DATAJUD CONSULTADO EM',
-      'ALERTA DATAJUD',
-      'ENCERRADO TRIBUNAL',
-      'MOTIVO ENCERRAMENTO',
-      'INDICIO B.A.',
-      'BA CONFIANÇA',
-      'BA MOTIVO',
-      'BA CONSULTADO EM',
-      'FASE EXECUTIVA',
-      'MOTIVO EXECUÇÃO',
-      'DJEN CONSULTADO EM',
-      'NOVA COMUNICAÇÃO DJEN',
-      'DJEN ÚLTIMA DATA',
-      'DJEN ÚLTIMO RESUMO',
-      'DJEN LINK',
-      'DJEN CONTAGEM'
+      'Protocolo',
+      'Cliente',
+      'Telefone',
+      'Tribunal',
+      'Status',
+      'Escritorio',
+      'Advogado',
+      'Ultimo_Retorno',
+      'Evento_Tipo',
+      'Evento_Resumo',
+      'Novo_Andamento',
+      'Encerrado_Tribunal',
+      'Busca_Apreensao',
+      'Cumprimento_Sentenca',
+      'DJEN_Resumo',
     ];
 
-    // Mapeamento de linhas com sanitização de campos
-    const csvContentRows = rows.map(r => {
-      return [
-        r.id,
-        r.created_at,
-        r.empresa_id,
-        r.created_by,
-        r.ultimo_retorno,
-        r.proximo_retorno,
-        (r.observacoes || '').replace(/\n/g, ' '),
-        r.status,
-        r.risco,
-        r.status_interno,
-        r.ultima_movimentacao,
+    const body = rows.map((r: any) =>
+      [
+        r.protocolo_ref || r.protocolo,
+        r.cliente,
+        r.telefone,
+        r.tribunal,
+        r.status || r.status_prazo,
         r.escritorio,
         r.advogado,
-        r.data_distribuicao,
-        r.produtos,
-        r.telefone,
-        r.protocolo_ref,
-        r.tribunal,
-        r.status_prazo,
-        r.datajud_ultimo_movimento,
-        r.datajud_ultimo_nome,
-        r.datajud_consultado_em,
-        r.tem_atualizacao_pos_retorno ? 'SIM' : 'NÃO',
-        r.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
-        r.datajud_encerrado_motivo,
-        r.indicio_busca_apreensao ? 'SIM' : 'NÃO',
-        r.busca_apreensao_confianca,
-        r.busca_apreensao_motivo,
-        r.busca_apreensao_consultado_em,
-        r.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
-        r.cumprimento_sentenca_motivo,
-        r.djen_consultado_em,
-        r.djen_nova_comunicacao ? 'SIM' : 'NÃO',
-        r.djen_ultima_data,
+        r.ultimo_retorno,
+        r.evento_tipo,
+        r.evento_resumo,
+        r.tem_atualizacao_pos_retorno || r.tem_novo_andamento ? 'SIM' : 'NAO',
+        r.datajud_encerrado_tribunal ? 'SIM' : 'NAO',
+        r.indicio_busca_apreensao ? 'SIM' : 'NAO',
+        r.em_cumprimento_sentenca ? 'SIM' : 'NAO',
         r.djen_ultimo_resumo,
-        r.djen_ultimo_link,
-        r.djen_count
-      ].map(field => {
-        const val = String(field ?? '').replace(/"/g, '""');
-        return `"${val}"`;
-      }).join(',');
-    });
+      ]
+        .map(toCsvCell)
+        .join(',')
+    );
 
-    // Inclusão do BOM para compatibilidade com Excel/UTF-8
-    const finalCsv = "\uFEFF" + [headers.join(','), ...csvContentRows].join('\n');
+    const csv = '\uFEFF' + [headers.join(','), ...body].join('\n');
+    const filename = `lexis_processos_${new Date().toISOString().slice(0, 10)}.csv`;
+
+    return { success: true, csv, filename, mime: 'text/csv;charset=utf-8' };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Falha na exportação CSV' };
+  }
+}
+
+/** Planilha rica (.xls SpreadsheetML) — Dashboard + fórmulas + tabelas para gráfico */
+export async function exportCasesWorkbookAction() {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id) {
+      return { success: false, error: 'Sessão expirada.' };
+    }
+
+    const supabase = await createClient();
+    const { data: rows, error } = await supabase
+      .from('processos')
+      .select('*')
+      .eq('empresa_id', empresa_id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!rows?.length) {
+      return { success: false, error: 'Nenhum processo para exportar.' };
+    }
+
+    const xml = buildOperationalWorkbookXml(rows);
+    const filename = `lexis_dossie_${new Date().toISOString().slice(0, 10)}.xls`;
 
     return {
       success: true,
-      base64: Buffer.from(finalCsv, 'utf-8').toString('base64'),
-      filename: `Gabinete_LexisPredict_${new Date().toISOString().split('T')[0]}.csv`
+      xml,
+      filename,
+      mime: 'application/vnd.ms-excel',
+      base64: Buffer.from(xml, 'utf8').toString('base64'),
     };
-  } catch (error: any) {
-    console.error('[Export Action] Fail:', error);
-    return { success: false, error: error.message };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Falha na planilha' };
   }
 }

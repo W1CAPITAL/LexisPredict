@@ -1,242 +1,562 @@
-"use client";
 /**
- * @fileOverview Terminal WhatsApp Elite v2500.0
- * Triagem de Tribunal Cópia/Cola + Histórico Real Supabase.
+ * Terminal WhatsApp — layout de conversa + histórico + sugestões por tribunal.
+ * Envio: Evolution (se env) OU wa.me (sem API).
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
+"use client";
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Sidebar } from '@/components/layout/sidebar';
-import { 
-  MessageCircle, 
-  Search, 
-  Send, 
-  User, 
-  RefreshCcw,
-  Zap,
-  Loader2,
-  Copyright,
-  MessageSquare,
-  ChevronLeft,
-  BookOpen,
-  Scale,
-  Clock,
-  Gavel
-} from 'lucide-react';
-import { LegalCase } from '@/lib/case-logic';
-import { cn, formatWhatsAppLink } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases } from '@/app/actions/case-actions';
-import { sendWhatsAppAction, fetchWhatsAppHistoryAction } from '@/app/actions/whatsapp-actions';
-import { perguntarIA } from '@/ai/flows/chat-ai-flow';
-import { executarVereditoAI } from '@/ai/flows/veredito-ai-flow';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from '@/components/ui/textarea';
-import { useAuth } from '@/components/auth/auth-provider';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  MessageCircle,
+  Search,
+  Send,
+  ExternalLink,
+  Loader2,
+  Sparkles,
+  Phone,
+  RefreshCcw,
+  Copy,
+  CheckCircle2,
+  AlertCircle,
+  ChevronRight,
+  User,
+} from "lucide-react";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { fetchRepoCases } from "@/app/actions/case-actions";
+import {
+  sendWhatsAppAction,
+  fetchWhatsAppHistoryAction,
+} from "@/app/actions/whatsapp-actions";
+import { suggestScripts } from "@/lib/script-processual/suggest";
+import type { LegalCase } from "@/lib/case-logic";
+import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { openWhatsAppClient } from "@/lib/whatsapp-links";
 
-const SCRIPTS_GABINETE = [
-  { id: 'audiencia', title: 'Audiência Procedimento', text: 'Olá [CLIENTE]! Sobre sua audiência virtual: o link será enviado em um prazo de 24 a 72 horas após o comunicado. Estarão presentes o advogado da assessoria, representantes do banco, o mediador e o juiz.' },
-  { id: 'eproc', title: 'Migração Eproc', text: 'Sr(a). [CLIENTE], o TJSP está migrando para o sistema Eproc. Se ao consultar o número aparecer "Cancelado", não se assuste. Significa apenas que o processo foi movido para a nova plataforma onde já estamos habilitados.' },
-  { id: 'justica-negada', title: 'Justiça Gratuita Negada', text: 'O juiz entendeu que seu perfil possui condições de pagar as taxas judiciárias. Essas custas são revertidas para serviços do fórum e diário oficial. Solicitaremos a emissão da guia.' },
-  { id: 'sentenca-imp', title: 'Sentença Improcedente', text: 'Infelizmente o juiz julgou improcedente a ação. Nossa equipe jurídica já está analisando a sentença para apresentar o recurso de apelação e buscar reverter essa decisão.' }
-];
+type ChatMsg = {
+  id: string;
+  direction: "out" | "in" | "system";
+  body: string;
+  at: string;
+  source?: string;
+};
 
-export default function WhatsAppHub() {
-  const [cases, setCases] = useState<LegalCase[]>([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [selectedContact, setSelectedContact] = useState<any | null>(null);
-  
-  const [aiResponse, setAiResponse] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isAuditing, setIsAuditing] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [courtHistoryRaw, setCourtHistoryRaw] = useState('');
-  
-  const [realHistory, setRealHistory] = useState<any[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  
-  const { profile } = useAuth();
+function digitsPhone(t?: string | null) {
+  return String(t || "").replace(/\D/g, "");
+}
+
+function waMeUrl(phone: string, text: string) {
+  let d = digitsPhone(phone);
+  if (d.length === 10 || d.length === 11) d = `55${d}`;
+  return `https://wa.me/${d}?text=${encodeURIComponent(text)}`;
+}
+
+function caseLabel(c: LegalCase) {
+  return c.cliente || c.protocolo || "Cliente";
+}
+
+function signalBadge(c: LegalCase): { label: string; className: string } | null {
+  if (c.indicio_busca_apreensao || c.evento_tipo === "ba")
+    return { label: "B.A.", className: "bg-red-600 text-white" };
+  if (c.datajud_encerrado_tribunal)
+    return { label: "Baixa", className: "bg-emerald-600 text-white" };
+  if (c.em_cumprimento_sentenca || c.evento_tipo === "cumprimento_sentenca")
+    return { label: "Cumprimento", className: "bg-violet-600 text-white" };
+  if (c.evento_tipo === "sentenca_improcedente")
+    return { label: "Improcedente", className: "bg-orange-600 text-white" };
+  if (c.evento_tipo === "sentenca_procedente")
+    return { label: "Procedente", className: "bg-sky-600 text-white" };
+  if (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao)
+    return { label: "Novo andamento", className: "bg-amber-500 text-black" };
+  return null;
+}
+
+export default function WhatsAppTerminalPage() {
   const { toast } = useToast();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [cases, setCases] = useState<LegalCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<LegalCase | null>(null);
+  const [draft, setDraft] = useState("");
+  const [history, setHistory] = useState<ChatMsg[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
 
-  useEffect(() => { loadData(); }, []);
-
-  useEffect(() => {
-    if (selectedContact) {
-      loadRealHistory(selectedContact.telefone);
-      setAiResponse('');
-      setCourtHistoryRaw('');
-    }
-  }, [selectedContact]);
-
-  const loadData = async () => {
+  const loadCases = useCallback(async () => {
     setLoading(true);
     try {
-      const repoData = await fetchRepoCases();
-      if (Array.isArray(repoData)) setCases(repoData);
-    } finally { setLoading(false); }
-  };
+      const data = await fetchRepoCases();
+      setCases(Array.isArray(data) ? data : []);
+    } catch {
+      toast({ title: "Falha ao carregar carteira", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
-  const loadRealHistory = async (phone: string) => {
-    if (!phone) return;
-    setLoadingHistory(true);
-    try {
-      const res = await fetchWhatsAppHistoryAction(phone);
-      if (res.success) setRealHistory(res.messages || []);
-    } finally { setLoadingHistory(false); }
-  };
+  useEffect(() => {
+    loadCases();
+  }, [loadCases]);
 
   const contacts = useMemo(() => {
-    const unique = new Map();
-    cases.forEach(c => {
-      if (c.telefone && !unique.has(c.cliente)) {
-        unique.set(c.cliente, { ...c, nome: c.cliente, telefone: c.telefone });
-      }
-    });
-    return Array.from(unique.values()).filter(c => 
-      c.nome.toLowerCase().includes(search.toLowerCase()) || c.telefone.includes(search)
-    );
-  }, [cases, search]);
+    const list = cases.filter((c) => !isCasoEncerrado(c) && digitsPhone(c.telefone).length >= 10);
+    const term = q.trim().toLowerCase();
+    const filtered = !term
+      ? list
+      : list.filter(
+          (c) =>
+            caseLabel(c).toLowerCase().includes(term) ||
+            (c.protocolo || "").includes(term) ||
+            digitsPhone(c.telefone).includes(term.replace(/\D/g, ""))
+        );
+    return filtered
+      .sort((a, b) => {
+        const score = (c: LegalCase) => {
+          let s = 0;
+          if (c.indicio_busca_apreensao) s += 100;
+          if (c.datajud_encerrado_tribunal) s += 80;
+          if (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno) s += 50;
+          if (c.status === "Vencido" || c.status === "Caso Crítico") s += 40;
+          if (c.status === "É Hoje") s += 30;
+          return s;
+        };
+        return score(b) - score(a);
+      })
+      .slice(0, 200);
+  }, [cases, q]);
 
-  const formatText = (text: string) => {
-    if (!selectedContact) return text;
-    return text
-      .replace(/\[CLIENTE\]/g, selectedContact.nome)
-      .replace(/\[PROTOCOLO\]/g, selectedContact.protocolo)
-      .replace(/\[USUARIO\]/g, profile?.nome || "Setor Processual");
-  };
-
-  const handleSelectScript = (val: string) => {
-    const script = SCRIPTS_GABINETE.find(s => s.id === val);
-    if (script) setAiResponse(formatText(script.text));
-  };
-
-  const handleAnalyzeCourtHistory = async () => {
-    if (!courtHistoryRaw.trim() || isAuditing) return;
-    setIsAuditing(true);
+  const suggestions = useMemo(() => {
+    if (!selected) return [];
     try {
-      const res = await perguntarIA({ 
-        pergunta: `Analise este histórico do tribunal e redija uma mensagem para o cliente ${selectedContact.nome}. Se houver algo sobre 'Conclusos para Sentença', explique que o processo está aguardando decisão final. HISTÓRICO: ${courtHistoryRaw}`
+      return suggestScripts({
+        clienteNome: selected.cliente,
+        protocolo: selected.protocolo,
+        ultimoRetorno: selected.ultimoRetorno,
+        evento_tipo: selected.evento_tipo,
+        evento_resumo: selected.evento_resumo,
+        djen_ultimo_resumo: selected.djen_ultimo_resumo,
+        tem_novo_andamento: selected.tem_novo_andamento,
+        tem_atualizacao_pos_retorno: selected.tem_atualizacao_pos_retorno,
+        djen_nova_comunicacao: selected.djen_nova_comunicacao,
+        datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
+        em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
+        movimentos: [],
       });
-      if (res?.resposta) setAiResponse(formatText(res.resposta));
-    } finally { setIsAuditing(false); }
+    } catch {
+      return [];
+    }
+  }, [selected]);
+
+  const loadHistory = useCallback(
+    async (c: LegalCase) => {
+      setHistLoading(true);
+      setHistory([]);
+      try {
+        const res = await fetchWhatsAppHistoryAction(c.telefone || "");
+        if (res?.success && Array.isArray(res.messages) && res.messages.length > 0) {
+          const mapped: ChatMsg[] = res.messages.map((m: any, i: number) => ({
+            id: String(m.id || i),
+            direction: m.direction === "in" || m.from_me === false ? "in" : "out",
+            body: m.body || m.message || m.text || "",
+            at: m.created_at || m.timestamp || new Date().toISOString(),
+            source: m.source || "db",
+          }));
+          setHistory(mapped);
+        } else {
+          // Histórico local da sessão
+          const key = `lexis_wa_local_${digitsPhone(c.telefone)}`;
+          const raw = typeof window !== "undefined" ? localStorage.getItem(key) : null;
+          if (raw) {
+            setHistory(JSON.parse(raw));
+          } else {
+            setHistory([
+              {
+                id: "sys-1",
+                direction: "system",
+                body: "Sem histórico no banco. Mensagens enviadas por aqui nesta sessão ficam salvas localmente. Para histórico real da Evolution, grave webhooks em whatsapp_messages.",
+                at: new Date().toISOString(),
+              },
+            ]);
+          }
+        }
+      } catch {
+        setHistory([
+          {
+            id: "sys-err",
+            direction: "system",
+            body: "Não foi possível carregar histórico remoto.",
+            at: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        setHistLoading(false);
+      }
+    },
+    []
+  );
+
+  const selectCase = (c: LegalCase) => {
+    setSelected(c);
+    setDraft("");
+    loadHistory(c);
   };
 
-  const handleSend = async () => {
-    if (!selectedContact || !aiResponse || isSending) return;
-    setIsSending(true);
+  const persistLocal = (phone: string, msgs: ChatMsg[]) => {
     try {
-      const res = await sendWhatsAppAction(selectedContact.telefone, aiResponse);
-      if (res.success) {
-        toast({ title: "Mensagem Enviada" });
-        setAiResponse('');
-        setTimeout(() => loadRealHistory(selectedContact.telefone), 2000);
+      localStorage.setItem(`lexis_wa_local_${digitsPhone(phone)}`, JSON.stringify(msgs.slice(-80)));
+    } catch {
+      //
+    }
+  };
+
+  const applySuggestion = (text: string) => {
+    setDraft(text);
+  };
+
+  const openWaMe = () => {
+    if (!selected?.telefone || !draft.trim()) {
+      toast({ title: "Selecione contato e texto", variant: "destructive" });
+      return;
+    }
+    openWhatsAppClient({ phone: selected.telefone, text: draft.trim() });
+    const msg: ChatMsg = {
+      id: `local-${Date.now()}`,
+      direction: "out",
+      body: draft.trim(),
+      at: new Date().toISOString(),
+      source: "wa.me",
+    };
+    const next = [...history.filter((h) => h.direction !== "system"), msg];
+    setHistory(next);
+    persistLocal(selected.telefone, next);
+    toast({ title: "WhatsApp aberto", description: "Revise e envie no app do celular/desktop." });
+  };
+
+  const sendViaEvolution = async () => {
+    if (!selected?.telefone || !draft.trim()) return;
+    setSending(true);
+    try {
+      const res = await sendWhatsAppAction(selected.telefone, draft.trim());
+      if (res?.success) {
+        setEvolutionOk(true);
+        const msg: ChatMsg = {
+          id: `evo-${Date.now()}`,
+          direction: "out",
+          body: draft.trim(),
+          at: new Date().toISOString(),
+          source: "evolution",
+        };
+        const next = [...history.filter((h) => h.direction !== "system"), msg];
+        setHistory(next);
+        persistLocal(selected.telefone, next);
+        setDraft("");
+        toast({ title: "Enviado via Evolution" });
+      } else {
+        setEvolutionOk(false);
+        toast({
+          title: "Evolution indisponível",
+          description: res?.message || "Use “Abrir no WhatsApp” (wa.me) sem API.",
+          variant: "destructive",
+        });
       }
-    } finally { setIsSending(false); }
+    } catch (e: any) {
+      setEvolutionOk(false);
+      toast({
+        title: "Falha no envio",
+        description: e?.message || "Configure EVOLUTION_* ou use wa.me",
+        variant: "destructive",
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const copyDraft = async () => {
+    if (!draft.trim()) return;
+    await navigator.clipboard.writeText(draft);
+    toast({ title: "Copiado" });
   };
 
   return (
-    <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10 overflow-hidden">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-6 shrink-0 z-40">
-          <h1 className="font-black text-xl uppercase tracking-tighter">Terminal WhatsApp v25.0</h1>
-          <Button variant="ghost" size="icon" onClick={loadData} className="border-2 border-black rounded-none bg-white">
-            <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
-          </Button>
+      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+        {/* Header */}
+        <header className="shrink-0 border-b border-border/60 bg-card/80 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+              <MessageCircle size={20} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-black uppercase text-sm sm:text-base tracking-tight truncate">
+                Terminal WhatsApp
+              </h1>
+              <p className="text-[10px] text-muted-foreground font-medium truncate">
+                Sugestões por andamento · Histórico · wa.me ou Evolution
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {evolutionOk === true && (
+              <Badge className="bg-emerald-600 text-[9px] uppercase">Evolution OK</Badge>
+            )}
+            {evolutionOk === false && (
+              <Badge variant="outline" className="text-[9px] uppercase text-amber-600 border-amber-300">
+                Só wa.me
+              </Badge>
+            )}
+            <Button variant="ghost" size="icon" onClick={loadCases} className="h-9 w-9 rounded-xl">
+              <RefreshCcw size={16} className={cn(loading && "animate-spin")} />
+            </Button>
+          </div>
         </header>
 
-        <div className="flex-1 flex overflow-hidden">
-          <aside className={cn("w-80 border-r-2 border-black bg-white flex flex-col shrink-0", selectedContact && "hidden lg:flex")}>
-            <div className="p-4 border-b-2 border-black bg-[#f8f9fb]">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12">
+          {/* Lista de contatos */}
+          <aside className="lg:col-span-4 xl:col-span-3 border-r border-border/50 flex flex-col min-h-0 bg-card/40">
+            <div className="p-3 border-b border-border/40">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 w-4 h-4" />
-                <Input placeholder="BUSCAR CONTATO..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 border-black border-2 h-11 text-[10px] font-black uppercase rounded-none" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Cliente, CNJ ou telefone"
+                  className="pl-9 h-10 rounded-xl bg-background border-border/60"
+                />
               </div>
             </div>
             <ScrollArea className="flex-1">
-              {contacts.map((c) => (
-                <button key={c.id} onClick={() => setSelectedContact(c)} className={cn("w-full p-4 flex items-center gap-3 hover:bg-black group transition-all text-left", selectedContact?.id === c.id ? "bg-black" : "bg-white")}>
-                  <div className="w-10 h-10 border-2 border-black flex items-center justify-center bg-[#f3f2f2] group-hover:bg-white"><User size={20} /></div>
-                  <div className="min-w-0">
-                    <p className={cn("text-[11px] font-black uppercase truncate", selectedContact?.id === c.id ? "text-white" : "text-black")}>{c.nome}</p>
-                    <p className={cn("text-[9px] font-mono", selectedContact?.id === c.id ? "text-white/40" : "text-black/40")}>{c.telefone}</p>
+              <div className="p-2 space-y-1">
+                {loading && (
+                  <div className="flex justify-center py-10 text-muted-foreground">
+                    <Loader2 className="animate-spin" />
                   </div>
-                </button>
-              ))}
+                )}
+                {!loading && contacts.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-8 px-4">
+                    Nenhum contato com telefone válido na carteira ativa.
+                  </p>
+                )}
+                {contacts.map((c) => {
+                  const sig = signalBadge(c);
+                  const active = selected?.protocolo === c.protocolo;
+                  return (
+                    <button
+                      key={c.protocolo}
+                      type="button"
+                      onClick={() => selectCase(c)}
+                      className={cn(
+                        "w-full text-left rounded-xl p-3 transition-colors border border-transparent",
+                        active
+                          ? "bg-emerald-600/10 border-emerald-600/30"
+                          : "hover:bg-muted/60"
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                          <User size={16} className="text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold truncate">{caseLabel(c)}</span>
+                            {sig && (
+                              <span
+                                className={cn(
+                                  "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
+                                  sig.className
+                                )}
+                              >
+                                {sig.label}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-mono text-muted-foreground truncate mt-0.5">
+                            {c.protocolo}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Phone size={10} /> {c.telefone}
+                          </p>
+                        </div>
+                        <ChevronRight size={14} className="text-muted-foreground shrink-0 mt-2" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </ScrollArea>
           </aside>
 
-          <section className={cn("flex-1 bg-[#f3f2f2] flex flex-col overflow-hidden", !selectedContact && "hidden lg:flex")}>
-            {selectedContact ? (
-              <div className="flex-1 flex flex-col p-6 space-y-4 overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <Button variant="ghost" onClick={() => setSelectedContact(null)} className="lg:hidden h-10 font-black border-2 border-black bg-white">Voltar</Button>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-black flex items-center justify-center text-white"><User size={20} /></div>
-                    <div><p className="text-sm font-black uppercase">{selectedContact.nome}</p></div>
+          {/* Conversa */}
+          <section className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-0 min-w-0">
+            {!selected ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-muted-foreground gap-3">
+                <MessageCircle size={40} className="opacity-30" />
+                <p className="text-sm font-medium max-w-sm">
+                  Selecione um cliente à esquerda. As sugestões usam o último sinal do tribunal
+                  (DataJud / DJEN) gravado na carteira.
+                </p>
+                <AlertCircle size={16} className="opacity-40" />
+                <p className="text-[11px] max-w-md leading-relaxed">
+                  Histórico completo da conversa do WhatsApp só existe se a Evolution (ou Cloud API)
+                  gravar mensagens no Supabase. Sem isso, usamos histórico local da sessão + wa.me.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Barra do contato */}
+                <div className="shrink-0 border-b border-border/50 px-4 py-3 flex flex-wrap items-center justify-between gap-2 bg-card/50">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm truncate">{caseLabel(selected)}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground truncate">
+                      {selected.protocolo} · {selected.telefone}
+                    </p>
+                    {(selected.evento_resumo || selected.datajud_ultimo_nome || selected.djen_ultimo_resumo) && (
+                      <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1 line-clamp-2">
+                        Sinal:{" "}
+                        {selected.evento_resumo ||
+                          selected.datajud_ultimo_nome ||
+                          selected.djen_ultimo_resumo}
+                      </p>
+                    )}
                   </div>
+                  <Button variant="outline" size="sm" asChild className="rounded-xl text-[10px] font-bold uppercase">
+                    <Link href={`/cases?search=${encodeURIComponent(selected.protocolo)}`}>
+                      Abrir processo
+                    </Link>
+                  </Button>
                 </div>
 
-                <Tabs defaultValue="history" className="flex-1 flex flex-col overflow-hidden">
-                  <TabsList className="bg-gray-200 border-2 border-black p-1 h-12 rounded-none">
-                    <TabsTrigger value="history" className="flex-1 font-black uppercase text-[10px] data-[state=active]:bg-black data-[state=active]:text-white h-full rounded-none">Histórico Real</TabsTrigger>
-                    <TabsTrigger value="ia" className="flex-1 font-black uppercase text-[10px] data-[state=active]:bg-black data-[state=active]:text-white h-full rounded-none">IA & Scripts</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="history" className="flex-1 bg-white border-2 border-black p-4 overflow-hidden flex flex-col">
-                    <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
-                      {loadingHistory ? <div className="p-20 text-center animate-pulse uppercase">Sincronizando...</div> : 
-                        realHistory.map((m) => (
-                          <div key={m.id} className={cn("mb-4 p-4 border-2 border-black max-w-[85%]", m.from_me ? "ml-auto bg-black text-white" : "mr-auto bg-gray-50")}>
-                            <p className="text-[11px] font-black uppercase leading-relaxed">{m.message_text}</p>
-                            <span className="text-[8px] opacity-40 uppercase mt-2 block">{new Date(m.timestamp).toLocaleString()}</span>
+                {/* Mensagens */}
+                <ScrollArea className="flex-1 px-4 py-4">
+                  {histLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-w-3xl mx-auto">
+                      {history.map((m) => (
+                        <div
+                          key={m.id}
+                          className={cn(
+                            "flex",
+                            m.direction === "out" && "justify-end",
+                            m.direction === "in" && "justify-start",
+                            m.direction === "system" && "justify-center"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "rounded-2xl px-3.5 py-2 text-sm max-w-[85%] shadow-sm",
+                              m.direction === "out" && "bg-emerald-600 text-white rounded-br-md",
+                              m.direction === "in" && "bg-muted text-foreground rounded-bl-md",
+                              m.direction === "system" &&
+                                "bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-[11px] border border-amber-200/50"
+                            )}
+                          >
+                            <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
+                            <p
+                              className={cn(
+                                "text-[9px] mt-1 opacity-60",
+                                m.direction === "out" && "text-right"
+                              )}
+                            >
+                              {m.source ? `${m.source} · ` : ""}
+                              {m.at ? new Date(m.at).toLocaleString("pt-BR") : ""}
+                            </p>
                           </div>
-                        ))
-                      }
-                    </ScrollArea>
-                    <Button variant="ghost" onClick={() => loadRealHistory(selectedContact.telefone)} className="h-10 text-[9px] font-black border-t-2 border-black/5 mt-2 rounded-none uppercase">Forçar Sincronia</Button>
-                  </TabsContent>
-
-                  <TabsContent value="ia" className="flex-1 space-y-4 overflow-hidden flex flex-col">
-                    <div className="bg-white border-2 border-black p-4 space-y-4">
-                      <Label className="text-[9px] font-black uppercase opacity-40">Triagem de Tribunal (e-SAJ / PJE)</Label>
-                      <Textarea value={courtHistoryRaw} onChange={(e) => setCourtHistoryRaw(e.target.value)} placeholder="Cole aqui o histórico bruto do tribunal..." className="min-h-[100px] border-none text-[10px] uppercase font-black" />
-                      <Button onClick={handleAnalyzeCourtHistory} disabled={isAuditing} className="w-full h-10 bg-blue-600 text-white font-black uppercase text-[9px] rounded-none">
-                        {isAuditing ? <Loader2 className="animate-spin" /> : <Zap size={14} className="mr-2" />} Analisar Histórico do Tribunal
-                      </Button>
+                        </div>
+                      ))}
                     </div>
+                  )}
+                </ScrollArea>
 
-                    <div className="flex-1 bg-white border-2 border-black p-4 flex flex-col">
-                      <Select onValueChange={handleSelectScript}>
-                        <SelectTrigger className="border-2 border-black h-11 font-black uppercase text-[9px] mb-4">
-                          <SelectValue placeholder="Script Processual" />
-                        </SelectTrigger>
-                        <SelectContent>{SCRIPTS_GABINETE.map(s => <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>)}</SelectContent>
-                      </Select>
-                      <Textarea value={aiResponse} onChange={(e) => setAiResponse(e.target.value)} placeholder="Redija sua mensagem aqui..." className="flex-1 border-none text-xs font-black uppercase leading-relaxed" />
+                {/* Sugestões por tribunal */}
+                {suggestions.length > 0 && (
+                  <div className="shrink-0 border-t border-border/40 bg-muted/20 px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <Sparkles size={12} /> Sugestões com base no andamento
+                    </p>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {suggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => applySuggestion(s.texto)}
+                          className="shrink-0 max-w-[280px] text-left rounded-xl border border-border bg-card p-3 hover:border-emerald-500/50 transition-colors"
+                        >
+                          <p className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">
+                            {s.titulo}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground line-clamp-3 mt-1 leading-snug">
+                            {s.texto}
+                          </p>
+                        </button>
+                      ))}
                     </div>
+                  </div>
+                )}
 
-                    <Button onClick={handleSend} disabled={!aiResponse || isSending} className="h-14 bg-black text-white font-black uppercase text-[11px] rounded-none shadow-[6px_6px_0px_#00D1FF]">
-                      {isSending ? <Loader2 className="animate-spin" /> : <Send size={16} className="mr-3" />} Enviar via Evolution API
+                {/* Composer */}
+                <div className="shrink-0 border-t border-border/60 p-3 sm:p-4 bg-card/80 space-y-2">
+                  <Textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Escreva a mensagem ou escolha uma sugestão acima…"
+                    className="min-h-[88px] max-h-40 rounded-xl resize-none text-sm"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl gap-1.5"
+                      onClick={copyDraft}
+                      disabled={!draft.trim()}
+                    >
+                      <Copy size={14} /> Copiar
                     </Button>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            ) : <div className="flex-1 flex flex-col items-center justify-center opacity-20"><MessageCircle size={64} /><p className="font-black uppercase mt-4">Selecione um contato</p></div>}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="rounded-xl gap-1.5"
+                      onClick={openWaMe}
+                      disabled={!draft.trim()}
+                    >
+                      <ExternalLink size={14} /> Abrir no WhatsApp
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
+                      onClick={sendViaEvolution}
+                      disabled={sending || !draft.trim()}
+                    >
+                      {sending ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Send size={14} />
+                      )}
+                      Enviar (Evolution)
+                    </Button>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground leading-relaxed">
+                    <strong>Abrir no WhatsApp</strong> não usa API (wa.me).{" "}
+                    <strong>Enviar (Evolution)</strong> exige variáveis EVOLUTION_* na Vercel.
+                    Histórico oficial de conversas depende de webhook/gravação no banco — o WhatsApp
+                    não libera inbox completa sem Cloud API ou bridge.
+                  </p>
+                </div>
+              </>
+            )}
           </section>
         </div>
       </main>
