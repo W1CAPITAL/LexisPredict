@@ -12,7 +12,7 @@ const API_KEYS = {
   GROQ: process.env.GROQ_API_KEY
 };
 
-const XAI_MODEL = process.env.XAI_MODEL || 'grok-2-1212';
+const XAI_MODEL = process.env.XAI_MODEL || 'grok-4.5';
 
 const SYSTEM_INSTRUCTIONS = `Você é o Veredito AI Elite v8.0. 
 Sua missão é realizar uma Auditoria Técnica de dados processuais e retornar um parecer jurídico rigoroso em JSON.
@@ -67,6 +67,68 @@ function cleanJsonResponse(text: string): any {
   } catch { return null; }
 }
 
+
+/** Parecer determinístico a partir dos movimentos — funciona sem API key. */
+function analisarDeterministico(dataJudData: any) {
+  const movs = Array.isArray(dataJudData?.movimentos) ? [...dataJudData.movimentos] : [];
+  movs.sort((a: any, b: any) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime());
+  const texto = movs.slice(0, 40).map((m: any) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`).join(' || ').toUpperCase();
+  const classe = String(dataJudData?.classe || dataJudData?.classeProcessual || '').toUpperCase();
+
+  let merito = 'Em andamento / sem sentença clara nos últimos movimentos.';
+  let risco = 'Monitorar próximos atos no tribunal oficial (PJe).';
+  let passos = '1) Conferir autos no PJe.\n2) Verificar prazos de recurso ou cumprimento.\n3) Registrar retorno no CRM.';
+  let cliente = 'Seu processo está sob monitoramento. Em breve retornamos com orientações.';
+  let conclusao = 'Sem encerramento confirmado.';
+
+  const temBaixa = /BAIXA DEFINITIVA|TRÂNSITO EM JULGADO|ARQUIVAMENTO/.test(texto);
+  const temImproc = /IMPROCEDENTE|IMPROCEDÊNCIA|NEGADO PROVIMENTO/.test(texto);
+  const temProc = /JULGADO PROCEDENTE|JULGADA PROCEDENTE|PROCEDENTE/.test(texto) && !temImproc;
+  const temParcial = /PARCIALMENTE PROCEDENTE|PROCEDÊNCIA PARCIAL/.test(texto);
+  const temCustas = /CUSTAS|PREPARO|DESERTO|FALTA DE PREPARO/.test(texto);
+  const temHonor = /MAJORO|MAJORAÇÃO|HONORÁRIOS.*15%|15%.*HONOR/.test(texto);
+
+  if (temParcial) merito = 'Há indício de sentença parcialmente procedente.';
+  else if (temImproc) merito = 'Há indício de sentença/recurso IMPROCEDENTE (derrota no mérito ou recurso).';
+  else if (temProc) merito = 'Há indício de sentença PROCEDENTE.';
+
+  if (temBaixa) {
+    conclusao = temImproc
+      ? 'Baixa/trânsito com histórico de improcedência — provável encerramento desfavorável.'
+      : temProc
+        ? 'Baixa/trânsito com histórico de procedência — conferir se houve êxito efetivo.'
+        : 'Baixa definitiva ou trânsito em julgado detectado no tribunal.';
+    passos = '1) Confirmar trânsito e baixa no PJe.\n2) Verificar custas finais e honorários.\n3) Orientar o cliente sobre o desfecho.\n4) Arquivar no CRM após validação.';
+    cliente = temImproc
+      ? 'Informamos que o processo teve desfecho desfavorável e segue para baixa. Estamos conferindo eventuais custas e próximos passos.'
+      : 'Informamos que o processo apresenta baixa/trânsito no tribunal. Estamos validando o desfecho e retornamos com a orientação completa.';
+  }
+
+  if (temCustas) {
+    risco = (risco + ' Atenção: há menção a custas/preparo — risco de ônus ou deserção.').trim();
+  }
+  if (temHonor) {
+    risco = (risco + ' Possível majoração de honorários de sucumbência — passivo financeiro.').trim();
+  }
+
+  const ultimos = movs.slice(0, 8).map((m: any) => {
+    const d = m.dataHora ? new Date(m.dataHora).toLocaleDateString('pt-BR') : 'S/D';
+    return `- ${d}: ${m.nome || 'Movimento'}${m.complemento ? ' — ' + m.complemento : ''}`;
+  }).join('\n');
+
+  return {
+    resumoTecnico: `Classe: ${classe || 'N/D'}\n${merito}\n\nÚltimos movimentos:\n${ultimos || 'Sem movimentos.'}`,
+    analiseRisco: risco,
+    proximosPassos: passos,
+    mensagemCliente: cliente,
+    conclusaoEncerramento: conclusao,
+    success: true,
+    isDeterministic: true,
+    engineUsed: 'local-deterministico',
+    dataJudRaw: dataJudData,
+  };
+}
+
 async function callEngineWithRetry(url: string, key: string | undefined, model: string, context: string) {
   if (!key) return null;
   
@@ -101,19 +163,8 @@ export const vereditoAIFlow = ai.defineFlow(
   async input => {
     const { cnj, preferredModel = 'xai' } = input;
     
-    if (!API_KEYS.XAI && !API_KEYS.GROQ) {
-       return { 
-         resumoTecnico: "Nenhuma API key configurada.",
-         analiseRisco: "Motores offline.",
-         proximosPassos: "Configure as variáveis de ambiente.",
-         mensagemCliente: "",
-         success: false, 
-         error: true 
-       };
-    }
-
     const dataJudData = await fetchDataJud(cnj);
-    
+
     if (!dataJudData || dataJudData.error) {
        return { 
          resumoTecnico: "Não localizado no DataJud.",
@@ -125,6 +176,11 @@ export const vereditoAIFlow = ai.defineFlow(
          message: dataJudData?.message || "Erro de rede.",
          dataJudRaw: dataJudData
        };
+    }
+
+    // Sem API key: parecer determinístico completo (sempre útil)
+    if (!API_KEYS.XAI && !API_KEYS.GROQ) {
+       return analisarDeterministico(dataJudData);
     }
 
     const movementsContext = dataJudData.movimentos
@@ -167,14 +223,8 @@ export const vereditoAIFlow = ai.defineFlow(
       }
     }
 
-    return {
-      resumoTecnico: "Falha na análise neural profunda. Utilize o modo determinístico local.",
-      analiseRisco: "Indisponível.",
-      proximosPassos: "Consultar autos.",
-      mensagemCliente: "",
-      success: false, 
-      error: true
-    };
+    // IA offline/falhou → parecer determinístico a partir do DataJud
+    return analisarDeterministico(dataJudData);
   }
 );
 

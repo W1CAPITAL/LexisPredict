@@ -181,24 +181,54 @@ export default function TarefasPage() {
     if (!protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(protocolo);
+      const res = await scanSingleCaseAction(protocolo, { mode: 'both' });
       if (res.success && res.case) {
-        setHistoryResult({ 
-          case: res.case, 
-          movimentos: res.movimentos || [], 
-          djenComunicacoes: res.comunicacoes || [] 
+        const movimentos = res.movimentos || [];
+        const comunicacoes = res.comunicacoes || [];
+        setHistoryResult({
+          case: res.case,
+          movimentos,
+          djenComunicacoes: comunicacoes,
         });
         setAiDraft(null);
-        
-        const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
 
-        const suggestions = suggestScripts();
+        const djenTexts = comunicacoes
+          .map((d: any) => plainTextFromDjen(d.texto))
+          .filter(Boolean) as string[];
+
+        const suggestions = suggestScripts({
+          clienteNome: cliente || res.case.cliente,
+          protocolo,
+          ultimoRetorno: ultimoRetorno || res.case.ultimoRetorno,
+          eventoTipo: res.case.evento_tipo as any,
+          eventoResumo: res.case.evento_resumo,
+          movimentos,
+          djenTexts,
+          tem_novo_andamento: !!res.case.tem_novo_andamento,
+          datajud_encerrado_tribunal: !!res.case.datajud_encerrado_tribunal,
+          indicio_busca_apreensao: false,
+          em_cumprimento_sentenca: !!res.case.em_cumprimento_sentenca,
+        });
         setSuggestedScripts(suggestions);
         setShowScripts(true);
         setIsHistoryModalOpen(true);
-        setCases(prev => prev.map(c => c.protocolo === protocolo ? res.case! : c));
+        setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? res.case! : c)));
+      } else {
+        toast({
+          title: 'Falha ao consultar processo',
+          description: (res as any).error || 'Não foi possível gerar sugestões agora.',
+          variant: 'destructive',
+        });
       }
-    } finally { setLoading(false); }
+    } catch (e: any) {
+      toast({
+        title: 'Erro',
+        description: e?.message || 'Falha ao sugerir resposta',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGenerateAIDraft = async () => {
@@ -235,18 +265,33 @@ export default function TarefasPage() {
 
   const handleExportDjenPDF = async (item: any) => {
     if (!historyResult) return;
-    const res = await generateDjenPublicationPDFAction({
-      titulo: item.tipoComunicacao || "PUBLICAÇÃO OFICIAL",
-      protocolo: historyResult.case.protocolo,
-      data: item.data_disponibilizacao ? new Date(item.data_disponibilizacao).toLocaleDateString() : 'S/D',
-      orgao: item.nomeOrgao,
-      texto: plainTextFromDjen(item.texto)
-    });
-    if (res.success && res.base64) {
-      const link = document.createElement('a');
-      link.href = `data:application/pdf;base64,${res.base64}`;
-      link.download = `Publicacao_${historyResult.case.protocolo}.pdf`;
-      link.click();
+    try {
+      const texto = plainTextFromDjen(item.texto || item.conteudo || '');
+      const res = await generateDjenPublicationPDFAction({
+        titulo: item.tipoComunicacao || item.tipoDocumento || 'DECISÃO / PUBLICAÇÃO OFICIAL',
+        protocolo: historyResult.case.protocolo,
+        data: item.data_disponibilizacao
+          ? new Date(item.data_disponibilizacao).toLocaleDateString('pt-BR')
+          : 'S/D',
+        orgao: item.nomeOrgao || item.siglaTribunal || '',
+        texto: texto || 'Conteúdo não disponível.',
+      });
+      if (res.success && res.base64) {
+        const link = document.createElement('a');
+        link.href = `data:application/pdf;base64,${res.base64}`;
+        const tipo = (item.tipoComunicacao || 'publicacao').replace(/\s+/g, '_');
+        link.download = `${tipo}_${historyResult.case.protocolo}.pdf`;
+        link.click();
+        toast({ title: 'PDF exportado', description: 'Decisão/publicação DJEN baixada.' });
+      } else {
+        toast({
+          title: 'Falha no PDF',
+          description: (res as any).error || 'Não foi possível gerar o arquivo.',
+          variant: 'destructive',
+        });
+      }
+    } catch (e: any) {
+      toast({ title: 'Erro ao exportar', description: e?.message || 'Falha', variant: 'destructive' });
     }
   };
 
@@ -460,7 +505,17 @@ export default function TarefasPage() {
                                )}
                                <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
                              </div>
-                             {item.type === 'djen' && <Button variant="ghost" size="icon" onClick={() => handleExportDjenPDF(item.raw)} className="h-8 w-8 hover:bg-blue-600 hover:text-white border border-blue-600/20 ml-auto"><Download size={14} /></Button>}
+                             {item.type === 'djen' && (
+                               <Button
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={() => handleExportDjenPDF(item.raw)}
+                                 className="h-8 px-3 text-[9px] font-black uppercase border-blue-600 text-blue-700 hover:bg-blue-600 hover:text-white ml-auto gap-1"
+                                 title="Exportar decisão / publicação em PDF"
+                               >
+                                 <Download size={12} /> Exportar PDF
+                               </Button>
+                             )}
                            </div>
                            <h4 className="text-sm font-black uppercase text-foreground leading-tight mb-2">{item.title}</h4>
                            <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.subtitle}</p>
@@ -548,8 +603,8 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
            <span className="text-[9px] font-black uppercase text-black/40">{group.escritorio || 'GERAL'}</span>
         </div>
         {(group.eventoUnificadoResumo || group.hasUpdate) && (
-          <div className={cn("mt-4 p-3 rounded-xl border", group.hasBA ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100")}>
-            <p className={cn("text-[10px] font-black uppercase mb-1", group.hasBA ? "text-red-700" : "text-blue-700")}>Novidade Identificada</p>
+          <div className={cn("mt-4 p-3 rounded-xl border", group.hasUpdate ? "bg-blue-50 border-blue-100" : "bg-blue-50 border-blue-100")}>
+            <p className={cn("text-[10px] font-black uppercase mb-1", "text-blue-700")}>Novidade Identificada</p>
             <p className={cn("text-foreground/80 leading-relaxed italic line-clamp-3 uppercase font-bold text-[11px]", ui.readable)}>
               {group.eventoUnificadoResumo || "Identificada novidade técnica no processo."}
             </p>
