@@ -35,7 +35,8 @@ import { useToast } from '@/hooks/use-toast';
 import { executarVereditoAI } from '@/ai/flows/veredito-ai-flow';
 import { perguntarIA } from '@/ai/flows/chat-ai-flow';
 import { sendWhatsAppAction } from '@/app/actions/whatsapp-actions';
-import { fetchRepoCases } from '@/app/actions/case-actions';
+import { fetchRepoCases, scanSingleCaseAction, searchProcessesByCpfAction, searchProcessesByNomeAction } from '@/app/actions/case-actions';
+import { searchDataJudByNome, searchDataJudByCpf, fetchDataJud } from '@/lib/datajud';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from '@/components/ui/label';
@@ -54,6 +55,11 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 export default function VereditoPage() {
   const [cnj, setCnj] = useState('');
+  const [searchMode, setSearchMode] = useState<'cnj' | 'cpf' | 'nome'>('cnj');
+  const [cpfQuery, setCpfQuery] = useState('');
+  const [nomeQuery, setNomeQuery] = useState('');
+  const [listaResultados, setListaResultados] = useState<any[]>([]);
+  const [filtroBA, setFiltroBA] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [model, setModel] = useState<string>('xai');
@@ -87,16 +93,137 @@ export default function VereditoPage() {
     }
   }, [chatMessages]);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!cnj || loading) return;
-    
+  const abrirProcesso = async (numero: string) => {
+    setCnj(numero);
+    setListaResultados([]);
     setLoading(true);
     setResult(null);
     setChatMessages([]);
     setApiError(null);
-    
     try {
+      const data = await executarVereditoAI({ cnj: numero, preferredModel: model });
+      if (isMounted.current) {
+        if (!data.success && !data.dataJudRaw) {
+           setApiError({ engine: model, message: data.message || "CNJ não localizado." });
+           toast({ title: "Falha na Triagem", description: data.message, variant: "destructive" });
+        } else {
+           setResult(data);
+           toast({ title: data.isDeterministic ? "Parecer local (DataJud)" : "Auditoria 3D Concluída" });
+        }
+      }
+    } catch {
+      if (isMounted.current) {
+        setApiError({ engine: model, message: "Instabilidade no motor." });
+        toast({ title: "Erro Crítico", variant: "destructive" });
+      }
+    } finally {
+      if (isMounted.current) setLoading(false);
+    }
+  };
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (loading) return;
+
+    setLoading(true);
+    setResult(null);
+    setChatMessages([]);
+    setApiError(null);
+    setListaResultados([]);
+
+    try {
+      // --- MODO CPF: carteira local + aviso DataJud ---
+      if (searchMode === 'cpf') {
+        const digits = cpfQuery.replace(/\D/g, '');
+        if (digits.length < 11) {
+          toast({ title: 'CPF/CNPJ inválido', description: 'Informe ao menos 11 dígitos.', variant: 'destructive' });
+          setLoading(false);
+          return;
+        }
+
+        // 1) Carteira local (match em campos textuais)
+        const locais = (repoCases || []).filter((c: any) => {
+          const blob = `${c.observacao || ''} ${c.cliente || ''} ${c.telefone || ''} ${c.protocolo || ''}`;
+          return blob.replace(/\D/g, '').includes(digits);
+        });
+
+        // 2) DataJud multi-tribunal por documento (CPF/CNPJ) — skill produção
+        const remoto = await searchProcessesByCpfAction(digits, filtroBA);
+        const remotos = remoto.items || [];
+
+        // 3) Se vazio e há nomes na carteira, fallback por nome
+        if (remotos.length === 0 && locais.length > 0) {
+          for (const nome of Array.from(new Set(locais.map((c: any) => c.cliente).filter(Boolean))).slice(0, 3)) {
+            const r = await searchProcessesByNomeAction(String(nome));
+            if (r.success) remotos.push(...(r.items || []));
+          }
+        }
+
+        const merged = [
+          ...locais.map((c: any) => ({
+            origem: 'carteira',
+            numeroProcesso: c.protocolo,
+            classe: c.situacao || c.status || c.evento_tipo,
+            poloAtivo: [c.cliente].filter(Boolean),
+            poloPassivo: [],
+            tribunal: c.tribunal,
+            grau: null,
+            isBuscaApreensao: false,
+          })),
+          ...remotos.map((r: any) => ({ ...r, origem: r.origem || 'datajud' })),
+        ];
+
+        // Dedup por número
+        const seen = new Set<string>();
+        let finalList = merged.filter((x) => {
+          const n = String(x.numeroProcesso || '').replace(/\D/g, '');
+          if (!n || seen.has(n)) return false;
+          seen.add(n);
+          return true;
+        });
+
+        if (filtroBA) {
+          finalList = finalList.filter(
+            (x) => x.isBuscaApreensao || /BUSCA\s*E?\s*APREENS/i.test(String(x.classe || ''))
+          );
+        }
+
+        setListaResultados(finalList);
+        if (finalList.length === 0) {
+          setApiError({
+            engine: 'datajud',
+            message:
+              'Nenhum processo encontrado. Nem todos os tribunais indexam CPF no DataJud público. Tente por NOME da parte ou CNJ.',
+          });
+          toast({ title: 'Sem resultados', description: 'Tente nome da parte ou CNJ.', variant: 'destructive' });
+        } else {
+          toast({ title: `${finalList.length} processo(s) encontrado(s)`, description: filtroBA ? 'Filtro BA ativo' : 'Todos os tipos' });
+        }
+        setLoading(false);
+        return;
+      }
+
+      // --- MODO NOME ---
+      if (searchMode === 'nome') {
+        if (nomeQuery.trim().length < 5) {
+          toast({ title: 'Nome curto', variant: 'destructive' });
+          setLoading(false);
+          return;
+        }
+        const r = await searchDataJudByNome(nomeQuery.trim(), { size: 10 });
+        let items = r.items || [];
+        if (filtroBA) items = items.filter((x: any) => /BUSCA|APREENS/i.test(String(x.classe || '')));
+        setListaResultados(items.map((x: any) => ({ ...x, origem: 'datajud' })));
+        toast({ title: `${items.length} processo(s) no DataJud` });
+        setLoading(false);
+        return;
+      }
+
+      // --- MODO CNJ (padrão) ---
+      if (!cnj) {
+        setLoading(false);
+        return;
+      }
       const data = await executarVereditoAI({ cnj, preferredModel: model });
       if (isMounted.current) {
         if (!data.success && !data.dataJudRaw) {
@@ -273,20 +400,111 @@ export default function VereditoPage() {
                 )}
 
                 <h2 className="text-3xl font-black tracking-tighter uppercase">Audit 3D Elite</h2>
-                <p className="text-sm font-black text-black/40 uppercase tracking-widest">Insira o CNJ para iniciar a triagem neural completa via DataJud.</p>
+                <p className="text-sm font-black text-black/40 uppercase tracking-widest">
+                  Busque por CNJ, CPF/CNPJ ou nome da parte. Resultado com polo ativo e passivo.
+                </p>
+
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {([
+                    ['cnj', 'CNJ'],
+                    ['cpf', 'CPF / CNPJ'],
+                    ['nome', 'Nome da parte'],
+                  ] as const).map(([k, label]) => (
+                    <Button
+                      key={k}
+                      type="button"
+                      variant={searchMode === k ? 'default' : 'outline'}
+                      onClick={() => { setSearchMode(k); setListaResultados([]); setApiError(null); }}
+                      className="h-9 px-4 font-black uppercase text-[10px] rounded-none border-2 border-black"
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                  <label className="flex items-center gap-2 ml-2 text-[10px] font-black uppercase cursor-pointer">
+                    <input type="checkbox" checked={filtroBA} onChange={(e) => setFiltroBA(e.target.checked)} />
+                    Só Busca e Apreensão
+                  </label>
+                </div>
                 
                 <form onSubmit={handleSearch} className="flex gap-3 bg-white p-3 border-2 border-black shadow-[10px_10px_0px_#000]">
+                  {searchMode === 'cnj' && (
                   <Input 
                     placeholder="DIGITE O CNJ (20 DÍGITOS)..." 
                     value={cnj} 
                     onChange={(e) => setCnj(e.target.value)} 
                     className="border-none h-14 text-xl focus-visible:ring-0 font-mono text-black bg-white rounded-none flex-1" 
                   />
+                  )}
+                  {searchMode === 'cpf' && (
+                  <Input 
+                    placeholder="CPF OU CNPJ (SÓ NÚMEROS)..." 
+                    value={cpfQuery} 
+                    onChange={(e) => setCpfQuery(e.target.value)} 
+                    className="border-none h-14 text-xl focus-visible:ring-0 font-mono text-black bg-white rounded-none flex-1" 
+                  />
+                  )}
+                  {searchMode === 'nome' && (
+                  <Input 
+                    placeholder="NOME COMPLETO DA PARTE..." 
+                    value={nomeQuery} 
+                    onChange={(e) => setNomeQuery(e.target.value)} 
+                    className="border-none h-14 text-xl focus-visible:ring-0 font-mono text-black bg-white rounded-none flex-1" 
+                  />
+                  )}
                   <Button type="submit" disabled={loading} className="h-14 px-10 rounded-none bg-black text-white font-black uppercase text-[10px] border-2 border-black hover:bg-white hover:text-black transition-all">
                     {loading ? <Loader2 className="animate-spin mr-2" /> : <Search size={18} className="mr-2" />}
                     Realizar Auditoria
                   </Button>
                 </form>
+
+                {listaResultados.length > 0 && (
+                  <div className="mt-10 text-left space-y-4">
+                    <h3 className="text-sm font-black uppercase tracking-widest">
+                      {listaResultados.length} processo(s) — clique para auditar
+                    </h3>
+                    <div className="grid gap-3">
+                      {listaResultados.map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => runVereditoForCnj(String(item.numeroProcesso || ''))}
+                          className="w-full text-left bg-white border-2 border-black p-4 shadow-[4px_4px_0px_#000] hover:bg-slate-50 transition-all"
+                        >
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <span className="font-mono text-sm font-black">{item.numeroProcesso}</span>
+                            {item.tribunal && (
+                              <Badge className="rounded-none text-[9px] font-black uppercase bg-black text-white">{item.tribunal}</Badge>
+                            )}
+                            {item.grau && (
+                              <Badge variant="outline" className="rounded-none text-[9px] font-black uppercase border-black">
+                                {String(item.grau).toUpperCase().includes('2') ? '2ª instância' : String(item.grau).toUpperCase().includes('1') ? '1ª instância' : item.grau}
+                              </Badge>
+                            )}
+                            {(item.isBuscaApreensao || /BUSCA|APREENS/i.test(String(item.classe || ''))) && (
+                              <Badge className="rounded-none text-[9px] font-black uppercase bg-red-600 text-white">Busca e Apreensão</Badge>
+                            )}
+                            {item.origem && (
+                              <Badge variant="outline" className="rounded-none text-[9px] font-black uppercase">{item.origem}</Badge>
+                            )}
+                          </div>
+                          {item.classe && (
+                            <p className="text-[11px] font-bold uppercase text-black/70 mb-2">{item.classe}</p>
+                          )}
+                          <div className="grid sm:grid-cols-2 gap-2 text-[10px] font-bold uppercase">
+                            <div className="border border-black/10 p-2 bg-emerald-50/50">
+                              <p className="opacity-50 mb-1">Polo ativo</p>
+                              <p>{(item.poloAtivo && item.poloAtivo.length) ? item.poloAtivo.join(', ') : '—'}</p>
+                            </div>
+                            <div className="border border-black/10 p-2 bg-rose-50/50">
+                              <p className="opacity-50 mb-1">Polo passivo</p>
+                              <p>{(item.poloPassivo && item.poloPassivo.length) ? item.poloPassivo.join(', ') : '—'}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -300,6 +518,19 @@ export default function VereditoPage() {
                       Fonte: DataJud (CNJ). Use para triagem rápida; confira o tribunal para a verdade operacional final.
                     </AlertDescription>
                   </Alert>
+
+                  {(result.dataJudRaw?.poloAtivo?.length > 0 || result.dataJudRaw?.poloPassivo?.length > 0) && (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="border-2 border-black p-4 bg-emerald-50">
+                        <p className="text-[9px] font-black uppercase opacity-50 mb-1">Polo ativo</p>
+                        <p className="text-xs font-black uppercase">{(result.dataJudRaw.poloAtivo || []).join(', ') || '—'}</p>
+                      </div>
+                      <div className="border-2 border-black p-4 bg-rose-50">
+                        <p className="text-[9px] font-black uppercase opacity-50 mb-1">Polo passivo</p>
+                        <p className="text-xs font-black uppercase">{(result.dataJudRaw.poloPassivo || []).join(', ') || '—'}</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between bg-black text-white px-6 py-3 rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF]">
                      <div className="flex items-center gap-3">

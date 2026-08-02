@@ -117,7 +117,7 @@ function analisarDeterministico(dataJudData: any) {
   }).join('\n');
 
   return {
-    resumoTecnico: `Classe: ${classe || 'N/D'}\n${merito}\n\nÚltimos movimentos:\n${ultimos || 'Sem movimentos.'}`,
+    resumoTecnico: `Classe: ${classe || 'N/D'}\nGrau: ${dataJudData?.grau || 'N/D'}\nPolo ativo: ${(dataJudData?.poloAtivo || []).join('; ') || 'N/D'}\nPolo passivo: ${(dataJudData?.poloPassivo || []).join('; ') || 'N/D'}\n${merito}\n\nÚltimos movimentos:\n${ultimos || 'Sem movimentos.'}`,
     analiseRisco: risco,
     proximosPassos: passos,
     mensagemCliente: cliente,
@@ -189,9 +189,15 @@ export const vereditoAIFlow = ai.defineFlow(
       .map((m: any) => `- ${m.dataHora ? new Date(m.dataHora).toLocaleDateString() : 'S/D'}: ${m.nome} | ${m.complemento || ''}`)
       .join('\n');
 
+    const poloAtivo = (dataJudData.poloAtivo || []).join('; ') || 'N/D';
+    const poloPassivo = (dataJudData.poloPassivo || []).join('; ') || 'N/D';
     const compactContext = `
       NÚMERO: ${dataJudData.numeroProcesso}
       CLASSE: ${dataJudData.classe}
+      GRAU/INSTÂNCIA: ${dataJudData.grau || 'N/D'}
+      ÓRGÃO: ${dataJudData.orgaoJulgador || 'N/D'}
+      POLO ATIVO: ${poloAtivo}
+      POLO PASSIVO: ${poloPassivo}
       CRONOLOGIA RECENTE:
       ${movementsContext}
     `;

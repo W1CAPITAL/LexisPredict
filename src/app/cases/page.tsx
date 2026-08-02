@@ -217,16 +217,36 @@ function CasesContent() {
     try {
       const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
       if (res.success && res.case) {
-        setHistoryResult({ case: res.case, movimentos: res.movimentos || [], djenComunicacoes: res.comunicacoes || [] });
+        const movimentos = res.movimentos || [];
+        const comunicacoes = res.comunicacoes || [];
+        setHistoryResult({ case: res.case, movimentos, djenComunicacoes: comunicacoes });
         setAiDraft(null);
-        const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
-        const suggestions = suggestScripts({ clienteNome: c.cliente, protocolo: c.protocolo, ultimoRetorno: c.ultimoRetorno, eventoTipo: res.case.evento_tipo, eventoResumo: res.case.evento_resumo, movimentos: res.movimentos || [], djenTexts, tem_novo_andamento: res.case.tem_novo_andamento, datajud_encerrado_tribunal: res.case.datajud_encerrado_tribunal, indicio_busca_apreensao: false, em_cumprimento_sentenca: res.case.em_cumprimento_sentenca });
+        const djenTexts = comunicacoes.map((d: any) => plainTextFromDjen(d.texto)).filter(Boolean) as string[];
+        const suggestions = suggestScripts({
+          clienteNome: c.cliente,
+          protocolo: c.protocolo,
+          ultimoRetorno: c.ultimoRetorno,
+          eventoTipo: res.case.evento_tipo as any,
+          eventoResumo: res.case.evento_resumo,
+          movimentos,
+          djenTexts,
+          tem_novo_andamento: !!res.case.tem_novo_andamento,
+          datajud_encerrado_tribunal: !!res.case.datajud_encerrado_tribunal,
+          indicio_busca_apreensao: false,
+          em_cumprimento_sentenca: !!res.case.em_cumprimento_sentenca,
+        });
         setSuggestedScripts(suggestions);
         setShowScripts(true);
         setIsHistoryModalOpen(true);
         updateCaseByProtocolo(c.protocolo, (res.casePatch as Record<string, any>) || {});
+      } else {
+        toast({ title: 'Falha ao consultar', description: (res as any).error || 'Não foi possível gerar sugestões.', variant: 'destructive' });
       }
-    } finally { setLoading(false); }
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message || 'Falha ao sugerir resposta', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGenerateAIDraft = async () => {
@@ -310,7 +330,35 @@ function CasesContent() {
     });
   }, [cases, search, quickFilter]);
 
-  const unifiedHistory = useMemo(() => {
+  const handleExportDjenPDF = async (item: any) => {
+    if (!historyResult) return;
+    try {
+      const texto = plainTextFromDjen(item.texto || item.conteudo || '');
+      const res = await generateDjenPublicationPDFAction({
+        titulo: item.tipoComunicacao || item.tipoDocumento || 'DECISÃO / PUBLICAÇÃO OFICIAL',
+        protocolo: historyResult.case.protocolo,
+        data: item.data_disponibilizacao
+          ? new Date(item.data_disponibilizacao).toLocaleDateString('pt-BR')
+          : 'S/D',
+        orgao: item.nomeOrgao || item.siglaTribunal || '',
+        texto: texto || 'Conteúdo não disponível.',
+      });
+      if (res.success && res.base64) {
+        const link = document.createElement('a');
+        link.href = `data:application/pdf;base64,${res.base64}`;
+        const tipo = String(item.tipoComunicacao || 'publicacao').replace(/\s+/g, '_');
+        link.download = `${tipo}_${historyResult.case.protocolo}.pdf`;
+        link.click();
+        toast({ title: 'PDF exportado', description: 'Decisão/publicação DJEN baixada.' });
+      } else {
+        toast({ title: 'Falha no PDF', description: (res as any).error || 'Erro', variant: 'destructive' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Erro ao exportar', description: e?.message || 'Falha', variant: 'destructive' });
+    }
+  };
+
+    const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
     const movs = (historyResult.movimentos || []).map(m => ({ type: 'court', date: m.dataHora ? new Date(m.dataHora) : new Date(0), title: m.nome, subtitle: m.complemento || '', raw: m }));
     const djen = (historyResult.djenComunicacoes || []).map(d => ({ 
@@ -404,6 +452,16 @@ function CasesContent() {
                                 <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
                                 {(item.type === 'djen' && (item.raw.link || historyResult?.case.djen_ultimo_link)) && (
                                   <a href={item.raw.link || historyResult?.case.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline"><Globe size={10} /> Abrir no D.O.</a>
+                                )}
+                                {item.type === 'djen' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleExportDjenPDF(item.raw)}
+                                    className="h-7 px-2 text-[8px] font-black uppercase border-blue-600 text-blue-700 hover:bg-blue-600 hover:text-white gap-1"
+                                  >
+                                    <Download size={12} /> Exportar PDF
+                                  </Button>
                                 )}
                              </div>
                              <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>

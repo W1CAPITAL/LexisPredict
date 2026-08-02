@@ -14,7 +14,7 @@ import {
 } from '@/lib/server-db';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
-import { fetchDataJud } from '@/lib/datajud';
+import { fetchDataJud, searchDataJudByCpf, searchDataJudByNome } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
@@ -148,7 +148,7 @@ export async function auditCaseCoreSystem(
         const upd = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
         const enc = detectarEncerradoNoTribunal(movimentos);
         const ba = analisarBuscaApreensao(dataJud);
-        const cump = detectarCumprimentoSentenca(movimentos);
+        const cump = detectarCumprimentoSentenca(movimentos, { grau: dataJud.grau, classe: dataJud.classe });
 
         const dataMovRef = upd.dataUltimo || target.datajud_ultimo_movimento || null;
 
@@ -507,5 +507,26 @@ export async function recalibrateCasesAction() {
     };
   } catch (e: any) {
     return { success: false, error: e?.message || 'Erro', updated: 0 };
+  }
+}
+
+
+/** Busca processos no DataJud por CPF/CNPJ (todos os tipos: BA, revisional, comum…). */
+export async function searchProcessesByCpfAction(documento: string, onlyBA = false) {
+  try {
+    const res = await searchDataJudByCpf(documento, { onlyBA, size: 10 });
+    return res;
+  } catch (e: any) {
+    return { success: false, items: [], error: e?.message || 'Falha na busca por CPF' };
+  }
+}
+
+/** Busca processos no DataJud por nome da parte. */
+export async function searchProcessesByNomeAction(nome: string) {
+  try {
+    const res = await searchDataJudByNome(nome, { size: 8 });
+    return res;
+  } catch (e: any) {
+    return { success: false, items: [], error: e?.message || 'Falha na busca por nome' };
   }
 }

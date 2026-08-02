@@ -24,6 +24,210 @@ export interface DataJudOptions {
   fast?: boolean;
 }
 
+
+/** Extrai nomes de polo ativo e passivo a partir do array partes do DataJud. */
+export function extrairPolos(partes: any[]): { ativo: string[]; passivo: string[]; outros: string[] } {
+  const ativo: string[] = [];
+  const passivo: string[] = [];
+  const outros: string[] = [];
+  for (const p of partes || []) {
+    const nome = String(p?.nome || p?.nomeParte || p?.razaoSocial || '').trim();
+    if (!nome) continue;
+    const polo = String(p?.polo || p?.tipoPolo || p?.tipo || '').toUpperCase();
+    if (/ATIVO|AUTOR|REQUERENTE|EXEQUENTE|APELANTE|AGRAVANTE|IMPETRANTE|RECLAMANTE/.test(polo)) {
+      if (!ativo.includes(nome)) ativo.push(nome);
+    } else if (/PASSIVO|R[EÉ]U|REQUERIDO|EXECUTADO|APELADO|AGRAVADO|IMPETRADO|RECLAMADO/.test(polo)) {
+      if (!passivo.includes(nome)) passivo.push(nome);
+    } else if (polo.includes('AT') || polo === 'A') {
+      if (!ativo.includes(nome)) ativo.push(nome);
+    } else if (polo.includes('PA') || polo === 'P') {
+      if (!passivo.includes(nome)) passivo.push(nome);
+    } else {
+      if (!outros.includes(nome)) outros.push(nome);
+    }
+  }
+  return { ativo, passivo, outros };
+}
+
+/**
+ * Busca processos no DataJud por nome de parte (não há índice oficial de CPF).
+ * Varre aliases informados (padrão: principais TJs).
+ */
+export async function searchDataJudByNome(
+  nome: string,
+  opts?: { aliases?: string[]; size?: number; classeCodigo?: number }
+): Promise<{ success: boolean; items: any[]; error?: string }> {
+  const q = String(nome || '').trim();
+  if (q.length < 5) return { success: false, items: [], error: 'Nome muito curto' };
+
+  const aliases = opts?.aliases || [
+    'tjsp', 'tjrj', 'tjmg', 'tjba', 'tjrs', 'tjpr', 'tjsc', 'tjgo', 'tjpe', 'tjce', 'tjdft'
+  ];
+  const size = opts?.size || 5;
+  const items: any[] = [];
+
+  for (const alias of aliases) {
+    if (items.length >= 20) break;
+    try {
+      const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
+      const must: any[] = [{ match: { 'partes.nome': { query: q, operator: 'and' } } }];
+      if (opts?.classeCodigo) {
+        must.push({ match: { 'classe.codigo': opts.classeCodigo } });
+      }
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 25000);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `APIKey ${DATAJUD_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ size, query: { bool: { must } } }),
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(id);
+      if (!response.ok) continue;
+      const data = await response.json();
+      for (const hit of data.hits?.hits || []) {
+        const source = hit._source || {};
+        const partesRaw = Array.isArray(source.partes) ? source.partes : [];
+        const polos = extrairPolos(partesRaw);
+        items.push({
+          numeroProcesso: source.numeroProcesso,
+          classe: source.classe?.nome || 'N/A',
+          classeCodigo: source.classe?.codigo ?? null,
+          grau: source.grau || null,
+          tribunal: source.tribunal || alias.toUpperCase(),
+          orgaoJulgador: source.orgaoJulgador?.nome || null,
+          poloAtivo: polos.ativo,
+          poloPassivo: polos.passivo,
+          partes: partesRaw,
+          dataAjuizamento: source.dataAjuizamento || null,
+        });
+      }
+    } catch {
+      // tribunal offline — segue
+    }
+  }
+
+  return { success: true, items };
+}
+
+
+
+/**
+ * Busca processos no DataJud por CPF/CNPJ da parte.
+ * Tenta vários campos usados pelos tribunais (schema não é uniforme).
+ * Retorna lista com polo ativo/passivo e classe (inclui BA, revisional, etc.).
+ */
+export async function searchDataJudByCpf(
+  documento: string,
+  opts?: { aliases?: string[]; size?: number; onlyBA?: boolean }
+): Promise<{ success: boolean; items: any[]; error?: string }> {
+  const digits = String(documento || '').replace(/\D/g, '');
+  if (digits.length < 11) {
+    return { success: false, items: [], error: 'CPF/CNPJ inválido (mín. 11 dígitos)' };
+  }
+
+  const aliases = opts?.aliases || [
+    'tjsp', 'tjrj', 'tjmg', 'tjba', 'tjrs', 'tjpr', 'tjsc', 'tjgo', 'tjpe', 'tjce',
+    'tjdft', 'tjes', 'tjmt', 'tjms', 'tjma', 'tjpb', 'tjrn', 'tjpi', 'tjal', 'tjse',
+  ];
+  const size = opts?.size || 8;
+  const items: any[] = [];
+  const seen = new Set<string>();
+
+  // Campos possíveis de documento nos índices (varia por tribunal)
+  const docFields = [
+    'partes.numeroDocumentoPrincipal',
+    'partes.numeroDocumento',
+    'partes.documento',
+    'partes.cpfCnpj',
+    'partes.cpf',
+    'partes.cnpj',
+  ];
+
+  for (const alias of aliases) {
+    if (items.length >= 30) break;
+    try {
+      const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
+      const should = docFields.map((f) => ({ match: { [f]: digits } }));
+      // Também tenta com máscara parcial de CPF (xxx.xxx.xxx-xx) se 11 dígitos
+      if (digits.length === 11) {
+        const masked = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+        should.push({ match: { 'partes.numeroDocumentoPrincipal': masked } as any });
+        should.push({ match: { 'partes.documento': masked } as any });
+      }
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 28000);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `APIKey ${DATAJUD_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          size,
+          query: { bool: { should, minimum_should_match: 1 } },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!response.ok) continue;
+      const data = await response.json();
+      // Skill: 200 parcial com shards failed → não confiar em "vazio" absoluto
+      const hits = data?.hits?.hits;
+      if (!Array.isArray(hits)) continue;
+
+      for (const hit of hits) {
+        const source = hit?._source;
+        if (!source) continue;
+        const num = String(source.numeroProcesso || '').replace(/\D/g, '');
+        if (!num || seen.has(num)) continue;
+
+        // Confirma se alguma parte realmente carrega o documento (reduz falso positivo)
+        const partesRaw = Array.isArray(source.partes) ? source.partes : [];
+        const docHit = partesRaw.some((p: any) => {
+          const blob = `${p?.numeroDocumentoPrincipal || ''} ${p?.numeroDocumento || ''} ${p?.documento || ''} ${p?.cpf || ''} ${p?.cnpj || ''} ${p?.cpfCnpj || ''}`.replace(/\D/g, '');
+          return blob.includes(digits);
+        });
+        // Se o tribunal não expõe o doc nas partes, ainda aceita o hit do ES
+        if (partesRaw.length > 0 && !docHit && digits.length >= 11) {
+          // mantém se o match veio do índice mesmo sem echo no _source
+        }
+
+        const classeNome = String(source.classe?.nome || source.classe?.codigo || '').toUpperCase();
+        const isBA = /BUSCA\s+E\s+APREENS/.test(classeNome);
+        if (opts?.onlyBA && !isBA) continue;
+
+        seen.add(num);
+        const polos = extrairPolos(partesRaw);
+        items.push({
+          numeroProcesso: source.numeroProcesso || num,
+          tribunal: source.tribunal || alias.toUpperCase(),
+          grau: source.grau || null,
+          classe: source.classe?.nome || source.classe?.codigo || null,
+          classeCodigo: source.classe?.codigo ?? null,
+          orgaoJulgador: source.orgaoJulgador?.nome || null,
+          dataAjuizamento: source.dataAjuizamento || null,
+          poloAtivo: polos.ativo,
+          poloPassivo: polos.passivo,
+          partes: partesRaw,
+          isBuscaApreensao: isBA,
+          alias,
+        });
+      }
+    } catch {
+      // timeout / rede — tenta próximo tribunal
+      continue;
+    }
+  }
+
+  return { success: true, items, error: items.length === 0 ? 'Nenhum processo encontrado para este documento nos tribunais consultados.' : undefined };
+}
+
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   const startTime = Date.now();
@@ -123,12 +327,21 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
       };
     }
 
+    const partesRaw = Array.isArray(source.partes) ? source.partes : [];
+    const polos = extrairPolos(partesRaw);
+
     return {
       numeroProcesso: source.numeroProcesso || cnjLimpo,
-      classe: source.classe?.nome || 'N/A',
+      classe: source.classe?.nome || source.classe?.codigo || 'N/A',
+      classeCodigo: source.classe?.codigo ?? null,
+      grau: source.grau || null,
       tribunal: source.tribunal || alias.toUpperCase(),
+      orgaoJulgador: source.orgaoJulgador?.nome || source.orgaoJulgador?.codigo || null,
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
       dataAjuizamento: source.dataAjuizamento || null,
+      partes: partesRaw,
+      poloAtivo: polos.ativo,
+      poloPassivo: polos.passivo,
       error: false,
       latency,
       attempts: attempt

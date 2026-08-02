@@ -80,62 +80,148 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
  * Cumprimento de sentença ATIVO — janela 25 movimentos.
  * Não marca se já houver encerramento definitivo na mesma análise (feito no audit).
  */
-export function detectarCumprimentoSentenca(movimentos: any[]): {
+export type CumprimentoInstancia = 'G1' | 'G2' | 'desconhecida' | null;
+
+export function detectarCumprimentoSentenca(
+  movimentos: any[],
+  meta?: { grau?: string | null; classe?: string | null }
+): {
   ativo: boolean;
   motivo: string | null;
+  instancia: CumprimentoInstancia;
+  tipo: 'provisorio' | 'definitivo' | 'generico' | null;
 } {
   if (!movimentos || movimentos.length === 0) {
-    return { ativo: false, motivo: null };
+    return { ativo: false, motivo: null, instancia: null, tipo: null };
   }
 
-  const sorted = [...movimentos].sort((a, b) => 
+  const sorted = [...movimentos].sort((a, b) =>
     new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
 
-  const window = sorted.slice(0, 25);
-  const allText = window.map(m => 
-    `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
-  ).join(' || ');
+  const window = sorted.slice(0, 40);
+  const allText = window
+    .map((m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase())
+    .join(' || ');
 
-  const patterns = [
-    'CUMPRIMENTO DE SENTENÇA',
-    'CUMPRIMENTO DE SENTENCA',
-    'CUMPRIMENTO PROVISÓRIO DE SENTENÇA',
-    'CUMPRIMENTO PROVISORIO DE SENTENCA',
+  const grauRaw = String(meta?.grau || '').toUpperCase();
+  const classe = String(meta?.classe || '').toUpperCase();
+
+  // Instância pelo grau do processo ou por palavras nos movimentos
+  let instancia: CumprimentoInstancia = null;
+  if (
+    grauRaw === 'G2' ||
+    grauRaw.includes('2') ||
+    /SEGUNDO\s*GRAU|2[Aª]?\s*INST|TRIBUNAL\s+DE\s+JUSTI[CÇ]A|C[AÂ]MARA\s+C[IÍ]VEL|AC[OÓ]RD[AÃ]O|RECURSO\s+DE\s+APELA[CÇ][AÃ]O|APELA[CÇ][AÃ]O\s+C[IÍ]VEL/.test(
+      allText + ' ' + classe
+    )
+  ) {
+    instancia = 'G2';
+  } else if (
+    grauRaw === 'G1' ||
+    grauRaw.includes('1') ||
+    /PRIMEIRO\s*GRAU|1[Aª]?\s*INST|\bVARA\b|JU[IÍ]ZO\s+DE\s+DIREITO/.test(allText + ' ' + classe)
+  ) {
+    instancia = 'G1';
+  } else if (grauRaw) {
+    instancia = 'desconhecida';
+  }
+
+  // Classe processual já é cumprimento (TPU comum)
+  if (/CUMPRIMENTO DE SENTEN[CÇ]A|EXECU[CÇ][AÃ]O DE SENTEN[CÇ]A/.test(classe)) {
+    const tipoClasse = /PROVIS[OÓ]RIO/.test(classe) ? 'provisorio' : 'definitivo';
+    const labelInst = instancia === 'G2' ? '2ª instância' : instancia === 'G1' ? '1ª instância' : 'instância não informada';
+    return {
+      ativo: true,
+      motivo: `Classe processual: cumprimento/execução de sentença (${labelInst})`,
+      instancia: instancia || 'desconhecida',
+      tipo: tipoClasse as any,
+    };
+  }
+
+  const patternsDef = [
+    'CUMPRIMENTO DEFINITIVO',
+    'CUMPRIMENTO DE SENTENÇA DEFINITIVO',
+    'CUMPRIMENTO DE SENTENCA DEFINITIVO',
+  ];
+  const patternsProv = [
     'CUMPRIMENTO PROVISÓRIO',
     'CUMPRIMENTO PROVISORIO',
-    'CUMPRIMENTO DEFINITIVO',
+    'CUMPRIMENTO PROVISÓRIO DE SENTENÇA',
+    'CUMPRIMENTO PROVISORIO DE SENTENCA',
+    'EXECUÇÃO PROVISÓRIA',
+    'EXECUCAO PROVISORIA',
+  ];
+  const patternsGen = [
+    'CUMPRIMENTO DE SENTENÇA',
+    'CUMPRIMENTO DE SENTENCA',
     'FASE DE CUMPRIMENTO',
     'INÍCIO DO CUMPRIMENTO',
     'INICIO DO CUMPRIMENTO',
     'INICIO DO CUMPRIMENTO DE SENTENCA',
     'EXECUÇÃO DE SENTENÇA',
     'EXECUCAO DE SENTENCA',
-    'EXECUÇÃO PROVISÓRIA',
-    'EXECUCAO PROVISORIA',
     'PROCEDIMENTO DE CUMPRIMENTO',
-    'CUMPRIMENTO DE SENTENÇA PROVISÓRIO',
     'REQ. DE CUMPRIMENTO',
     'REQUERIMENTO DE CUMPRIMENTO',
     'PETIÇÃO DE CUMPRIMENTO',
     'PETICAO DE CUMPRIMENTO',
+    'CUMPRIMENTO DE ACÓRDÃO',
+    'CUMPRIMENTO DE ACORDAO',
+    'CUMPRIMENTO DO ACÓRDÃO',
+    'LIQUIDAÇÃO DE SENTENÇA',
+    'LIQUIDACAO DE SENTENCA',
+    'INÍCIO DO CUMPRIMENTO DE SENTENÇA',
+    'CUMPRIMENTO DE SENTENÇA NO 2º GRAU',
+    'CUMPRIMENTO DE SENTENCA NO 2 GRAU',
+    'INÍCIO DA FASE DE CUMPRIMENTO',
+    'DISTRIBUIÇÃO DE CUMPRIMENTO',
   ];
 
-  for (const p of patterns) {
+  for (const p of patternsDef) {
     if (allText.includes(p)) {
-      return { ativo: true, motivo: p };
+      return {
+        ativo: true,
+        motivo: `${p}${instancia === 'G2' ? ' (2ª instância)' : instancia === 'G1' ? ' (1ª instância)' : ''}`,
+        instancia: instancia || 'desconhecida',
+        tipo: 'definitivo',
+      };
+    }
+  }
+  for (const p of patternsProv) {
+    if (allText.includes(p)) {
+      return {
+        ativo: true,
+        motivo: `${p}${instancia === 'G2' ? ' (2ª instância)' : instancia === 'G1' ? ' (1ª instância)' : ''}`,
+        instancia: instancia || 'desconhecida',
+        tipo: 'provisorio',
+      };
+    }
+  }
+  for (const p of patternsGen) {
+    if (allText.includes(p)) {
+      return {
+        ativo: true,
+        motivo: `${p}${instancia === 'G2' ? ' (2ª instância)' : instancia === 'G1' ? ' (1ª instância)' : ''}`,
+        instancia: instancia || 'desconhecida',
+        tipo: 'generico',
+      };
     }
   }
 
-  // Fallback: "CUMPRIMENTO" + "SENTEN" no mesmo movimento
   for (const m of window) {
-    const t = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
-    if (t.includes('CUMPRIMENTO') && (t.includes('SENTEN') || t.includes('EXECU'))) {
-      return { ativo: true, motivo: 'CUMPRIMENTO (heurística)' };
+    const tx = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
+    if (tx.includes('CUMPRIMENTO') && (tx.includes('SENTEN') || tx.includes('EXECU'))) {
+      return {
+        ativo: true,
+        motivo: `CUMPRIMENTO (heurística)${instancia === 'G2' ? ' — 2ª instância' : instancia === 'G1' ? ' — 1ª instância' : ''}`,
+        instancia: instancia || 'desconhecida',
+        tipo: 'generico',
+      };
     }
   }
 
-  return { ativo: false, motivo: null };
+  return { ativo: false, motivo: null, instancia: null, tipo: null };
 }
 
 export function detectarAtualizacaoPosRetorno(
