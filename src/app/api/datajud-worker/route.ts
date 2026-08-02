@@ -1,5 +1,5 @@
 /**
- * @fileOverview Worker DataJud/DJEN — SYSTEM + Bearer (sem Cron; micro-lotes sob demanda)
+ * @fileOverview Worker DataJud/DJEN — prioriza tribunal (não só DJEN rápido)
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 import { NextResponse } from 'next/server';
@@ -10,9 +10,9 @@ export const dynamic = 'force-dynamic';
 export const preferredRegion = 'gru1';
 export const maxDuration = 60;
 
-const BATCH_SIZE = 8;
-const CONCURRENCY = 2;
-const MAX_RUNTIME_MS = 52000;
+// Lote menor + sequencial: DataJud precisa de tempo; paralelismo matava o tribunal
+const BATCH_SIZE = 4;
+const MAX_RUNTIME_MS = 55000;
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -48,22 +48,27 @@ export async function POST(request: Request) {
 
     let successCount = 0;
     let failedCount = 0;
+    let datajudOkCount = 0;
+    let djenOkCount = 0;
 
-    for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
+    // SEQUENCIAL (1 a 1): evita 2 DataJud juntos estourarem timeout
+    for (const c of casesToAudit) {
       if (Date.now() - start > MAX_RUNTIME_MS) break;
-      const chunk = casesToAudit.slice(i, i + CONCURRENCY);
-      await Promise.all(
-        chunk.map(async (c) => {
-          try {
-            const res = await auditCaseCoreSystem(c.protocolo, empresa_id, mode, { fast: true });
-            if (res.success) successCount++;
-            else failedCount++;
-          } catch (err) {
-            console.error(`[Worker Fail] ${c.protocolo}:`, err);
-            failedCount++;
-          }
-        })
-      );
+      try {
+        // fast:true usa timeout 28s+retry no datajud.ts novo — não pular tribunal
+        const res = await auditCaseCoreSystem(c.protocolo, empresa_id, mode, { fast: true });
+        if (res.success) {
+          successCount++;
+          const patch = (res as any).casePatch || {};
+          if (patch.datajud_consultado_em) datajudOkCount++;
+          if (patch.djen_consultado_em) djenOkCount++;
+        } else {
+          failedCount++;
+        }
+      } catch (err) {
+        console.error(`[Worker Fail] ${c.protocolo}:`, err);
+        failedCount++;
+      }
     }
 
     return NextResponse.json({
@@ -71,6 +76,8 @@ export async function POST(request: Request) {
       processed: successCount + failedCount,
       successCount,
       failedCount,
+      datajudOkCount,
+      djenOkCount,
       mode,
       duration: `${Date.now() - start}ms`,
     });
