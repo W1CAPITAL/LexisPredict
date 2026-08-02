@@ -196,6 +196,7 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     .select('*')
     .eq('empresa_id', empresaId)
     .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`)
+    .order('scan_priority', { ascending: false })
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(limit);
 
