@@ -117,10 +117,22 @@ export default function Dashboard() {
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
-    const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
+    const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento || !!c.tem_atualizacao_pos_retorno).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
-    const countBA = 0;
-    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
+    const countBA = ativos.filter(c => !!c.indicio_busca_apreensao || c.evento_tipo === 'ba').length;
+    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca').length;
+    // MÉRITO OBRIGATÓRIO
+    const countProcedente = ativos.filter(c =>
+      c.evento_tipo === 'sentenca_procedente' ||
+      /PROCEDENTE/i.test(String(c.evento_resumo || '')) && !/IMPROCEDENTE/i.test(String(c.evento_resumo || ''))
+    ).length;
+    const countImprocedente = ativos.filter(c =>
+      c.evento_tipo === 'sentenca_improcedente' ||
+      /IMPROCEDENTE/i.test(String(c.evento_resumo || c.datajud_ultimo_nome || ''))
+    ).length;
+    const countAudiencia = ativos.filter(c =>
+      String(c.evento_tipo || '').includes('audiencia')
+    ).length;
 
     const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
    
@@ -146,7 +158,8 @@ export default function Dashboard() {
       activeTotal, countVencido, countHoje, countAtencao, countSaudavel, countSemPrazo,
       riskScore, riskLabel, riskColor, statusData,
       countNovoAndamento, rateAndamento,
-      countEncerradoTribunal, countBA, countCumprimento
+      countEncerradoTribunal, countBA, countCumprimento,
+      countProcedente, countImprocedente, countAudiencia
     };
   }, [cases, t]);
 
@@ -225,6 +238,31 @@ export default function Dashboard() {
                 <StatCard title="Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} />
                 <StatCard title="Baixas" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color="success" />
                 <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
+              </section>
+
+              {/* CONTADORES DE MÉRITO — obrigatório */}
+              <section className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="merit-counters">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 p-5 flex items-center justify-between shadow-sm">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/80">Procedentes</p>
+                    <p className="text-3xl font-black tabular-nums text-emerald-700">{loading ? "..." : metrics.countProcedente}</p>
+                  </div>
+                  <Scale className="text-emerald-600/40" size={28} />
+                </div>
+                <div className="rounded-2xl border border-red-200 bg-red-50/80 dark:bg-red-950/30 p-5 flex items-center justify-between shadow-sm">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-red-700/80">Improcedentes</p>
+                    <p className="text-3xl font-black tabular-nums text-red-700">{loading ? "..." : metrics.countImprocedente}</p>
+                  </div>
+                  <Gavel className="text-red-600/40" size={28} />
+                </div>
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 dark:bg-blue-950/30 p-5 flex items-center justify-between shadow-sm">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/80">Audiências · Cumprimento</p>
+                    <p className="text-3xl font-black tabular-nums text-blue-700">{loading ? "..." : `${metrics.countAudiencia} · ${metrics.countCumprimento}`}</p>
+                  </div>
+                  <Activity className="text-blue-600/40" size={28} />
+                </div>
               </section>
               
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
