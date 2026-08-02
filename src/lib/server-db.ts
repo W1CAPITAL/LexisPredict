@@ -302,6 +302,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     return { success: false, error: fetchError?.message };
   }
 
+  // Campos de lógica (evento_tipo, tem_novo_andamento, etc.) só no JSON dados
   const updatedDados = {
     ...(current.dados as any),
     ...patch,
@@ -311,7 +312,6 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     dados: updatedDados,
   };
 
-  // Apenas colunas reais da tabela processos
   const colunasReais = [
     'tem_atualizacao_pos_retorno',
     'djen_nova_comunicacao',
@@ -357,7 +357,65 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   }
   return { success: true };
 }
-}
+
+export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
+  const client = isAdmin ? await getSupabaseAdmin() : supabase;
+  if (!client) return { success: false, message: "Erro de Configuração." };
+
+  try {
+    const { auth_id } = await getUserContext();
+    const uniqueMap = new Map();
+    cases.forEach(c => { if (c && c.protocolo) uniqueMap.set(c.protocolo, c); });
+    
+    const payload = Array.from(uniqueMap.values()).map(c => {
+      const isoPrazo = formatDateToISO(c.proximoPrazo);
+      const isoRetorno = formatDateToISO(c.ultimoRetorno);
+      
+      return { 
+        empresa_id: empresaId, 
+        created_by: c.created_by || auth_id,
+        protocolo_ref: c.protocolo,
+        advogado: c.advogado || 'NÃO ATRIBUÍDO',
+        escritorio: c.escritorio || null,
+        status: c.status || 'Sem Prazo',
+        risco: c.risco || 'Normal',
+        proximo_retorno: isoPrazo, 
+        ultimo_retorno: isoRetorno,
+        tribunal: c.tribunal || 'Outros',
+        telefone: c.telefone || '',
+        observacoes: c.observacao || '',
+        datajud_ultimo_movimento: c.datajud_ultimo_movimento,
+        datajud_ultimo_nome: c.datajud_ultimo_nome,
+        datajud_consultado_em: c.datajud_consultado_em,
+        tem_atualizacao_pos_retorno: !!c.tem_atualizacao_pos_retorno,
+        datajud_encerrado_tribunal: !!c.datajud_encerrado_tribunal,
+        datajud_encerrado_motivo: c.datajud_encerrado_motivo,
+        datajud_hash: c.datajud_hash || null,
+        indicio_busca_apreensao: !!c.indicio_busca_apreensao,
+        busca_apreensao_confianca: c.busca_apreensao_confianca,
+        busca_apreensao_motivo: c.busca_apreensao_motivo,
+        busca_apreensao_consultado_em: c.busca_apreensao_consultado_em,
+        em_cumprimento_sentenca: !!c.em_cumprimento_sentenca,
+        cumprimento_sentenca_motivo: c.cumprimento_sentenca_motivo,
+        cumprimento_sentenca_consultado_em: c.cumprimento_sentenca_consultado_em,
+        djen_nova_comunicacao: !!c.djen_nova_comunicacao,
+        djen_ultimo_resumo: c.djen_ultimo_resumo,
+        djen_ultimo_link: c.djen_ultimo_link,
+        djen_ultima_data: c.djen_ultima_data,
+        dados: { ...c }
+      };
+    });
+
+    const chunkSize = 50;
+    for (let i = 0; i < payload.length; i += chunkSize) {
+      const chunk = payload.slice(i, i + chunkSize);
+      const { error: upsertError } = await client
+        .from('processos')
+        .upsert(chunk, { onConflict: 'protocolo_ref, empresa_id' });
+      if (upsertError) throw upsertError;
+    }
+
+    return { success: true, message: "Sincronia concluída." };
   } catch (error: any) {
     return { success: false, message: error.message || "Erro desconhecido no repositório." };
   }
