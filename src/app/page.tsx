@@ -154,9 +154,8 @@ export default function Dashboard() {
     return cases
       .filter(c => !isCasoEncerrado(c) && (['Caso Crítico', 'Vencido', 'É Hoje'].includes(c.status) || !!c.tem_novo_andamento))
       .sort((a, b) => {
-        if (
         if (!!a.datajud_encerrado_tribunal !== !!b.datajud_encerrado_tribunal) return a.datajud_encerrado_tribunal ? -1 : 1;
-        
+
         const getWeight = (tipo?: string) => {
            if (!tipo) return 0;
            if (tipo.includes('sentenca')) return 100;
