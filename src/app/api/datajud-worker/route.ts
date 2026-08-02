@@ -1,5 +1,5 @@
 /**
- * @fileOverview Worker DataJud/DJEN — SYSTEM + Bearer
+ * @fileOverview Worker DataJud/DJEN — SYSTEM + Bearer (sem Cron; micro-lotes sob demanda)
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 import { NextResponse } from 'next/server';
@@ -7,11 +7,12 @@ import { getGlobalPendingProcessesSystem } from '@/lib/server-db';
 import { auditCaseCoreSystem } from '@/app/actions/case-actions';
 
 export const dynamic = 'force-dynamic';
-export const preferredRegion = 'gru1'; // CRÍTICO: Executa em SP para evitar bloqueio DJEN
+export const preferredRegion = 'gru1';
+export const maxDuration = 60;
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 8;
 const CONCURRENCY = 2;
-const MAX_RUNTIME_MS = 50000;
+const MAX_RUNTIME_MS = 52000;
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
       processed: successCount + failedCount,
       successCount,
       failedCount,
+      mode,
       duration: `${Date.now() - start}ms`,
     });
   } catch (error: any) {
