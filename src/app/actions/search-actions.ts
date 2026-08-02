@@ -160,18 +160,22 @@ export async function searchProcessesByCpfAction(documento: string, onlyBA = fal
   } catch (e: any) {
     return {
       success: false,
-      items: [] as SearchHit[],
+      items: [],
       error: e?.message || 'Falha na busca por CPF',
     };
   }
 }
 
 /** Nome da parte — DataJud + match parcial na carteira */
-export async function searchProcessesByNomeAction(nome: string) {
+export async function searchProcessesByNomeAction(nome: string): Promise<{
+  success: boolean;
+  items: SearchHit[];
+  error?: string;
+}> {
   try {
     const q = String(nome || '').trim();
     if (q.length < 5) {
-      return { success: false, items: [] as SearchHit[], error: 'Nome muito curto (mín. 5 caracteres).' };
+      return { success: false, items: [], error: 'Nome muito curto (mín. 5 caracteres).' };
     }
 
     const hits: SearchHit[] = [];
@@ -226,7 +230,7 @@ export async function searchProcessesByNomeAction(nome: string) {
   } catch (e: any) {
     return {
       success: false,
-      items: [] as SearchHit[],
+      items: [],
       error: e?.message || 'Falha na busca por nome',
     };
   }
