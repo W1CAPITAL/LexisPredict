@@ -302,17 +302,16 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     return { success: false, error: fetchError?.message };
   }
 
-  // Tudo que for "lógica de app" entra no JSON dados
   const updatedDados = {
     ...(current.dados as any),
     ...patch,
   };
 
-  // Só colunas que EXISTEM na tabela processos (ajuste se o SQL 1 listar outras)
   const row: Record<string, any> = {
     dados: updatedDados,
   };
 
+  // Apenas colunas reais da tabela processos
   const colunasReais = [
     'tem_atualizacao_pos_retorno',
     'djen_nova_comunicacao',
@@ -345,7 +344,9 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   ] as const;
 
   for (const k of colunasReais) {
-    if (patch[k] !== undefined) row[k] = patch[k];
+    if (patch[k] !== undefined) {
+      row[k] = patch[k];
+    }
   }
 
   const { error } = await admin.from('processos').update(row).eq('id', caseId);
@@ -355,6 +356,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     return { success: false, error: error.message };
   }
   return { success: true };
+}
 }
   } catch (error: any) {
     return { success: false, message: error.message || "Erro desconhecido no repositório." };
