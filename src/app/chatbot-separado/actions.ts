@@ -1,142 +1,127 @@
 "use server";
 
 /**
- * Chat com fallback: tenta xAI (vários modelos) → Groq se falhar.
+ * Assistente operacional — motores selecionáveis + consulta CNJ (DataJud + DJEN).
  */
+import { extractCnjFromText } from "@/lib/ai/motors";
+import { callOpenAICompatible, buildEngineList } from "@/lib/ai/cascade";
 
-const XAI_MODELS = [
-  process.env.XAI_MODEL,
-  'grok-2-latest',
-  'grok-3-latest',
-  'grok-2',
-  'grok-beta',
-].filter(Boolean) as string[];
-
-async function callXAI(messages: any[]): Promise<{ ok: true; text: string; model: string } | { ok: false; error: string }> {
-  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY;
-  if (!apiKey) return { ok: false, error: 'XAI_API_KEY ausente no servidor (Vercel env).' };
-
-  let lastErr = 'xAI sem resposta';
-  for (const modelName of XAI_MODELS) {
-    try {
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages,
-          temperature: 0.5,
-          max_tokens: 2048,
-        }),
-        signal: AbortSignal.timeout(28000),
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        lastErr = err?.error?.message || `xAI HTTP ${response.status} (${modelName})`;
-        continue;
-      }
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (text) return { ok: true, text, model: modelName };
-      lastErr = `Resposta vazia (${modelName})`;
-    } catch (e: any) {
-      lastErr = e?.message || String(e);
-    }
-  }
-  return { ok: false, error: lastErr };
-}
-
-async function callGroq(messages: any[]): Promise<{ ok: true; text: string; model: string } | { ok: false; error: string }> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return { ok: false, error: 'GROQ_API_KEY ausente.' };
+async function tryScanCnj(protocolo: string): Promise<{
+  ok: boolean;
+  brief: string;
+  raw?: any;
+}> {
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        temperature: 0.5,
-        max_tokens: 2048,
-      }),
-      signal: AbortSignal.timeout(28000),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      return { ok: false, error: err?.error?.message || `Groq HTTP ${response.status}` };
+    // import dinâmico para não quebrar se action mudar de path
+    const mod = await import("@/app/actions/case-actions");
+    const scan =
+      (mod as any).scanSingleCaseAction ||
+      (mod as any).scanCaseAction ||
+      null;
+    if (!scan) {
+      return { ok: false, brief: "Função de varredura não disponível neste deploy." };
     }
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content;
-    if (!text) return { ok: false, error: 'Groq resposta vazia' };
-    return { ok: true, text, model: 'llama-3.3-70b-versatile' };
+    const res = await scan(protocolo, { mode: "both" });
+    if (!res?.success && !res?.case) {
+      return { ok: false, brief: res?.error || "Falha ao consultar tribunal." };
+    }
+    const c = res.case || {};
+    const movs = (res.movimentos || []).slice(0, 8);
+    const djen = (res.comunicacoes || res.djenComunicacoes || []).slice(0, 5);
+    const lines = [
+      `CNJ: ${c.protocolo || protocolo}`,
+      `Cliente: ${c.cliente || "—"}`,
+      `Evento unificado: ${c.evento_tipo || "—"} | ${c.evento_resumo || "—"}`,
+      `Flags: novo=${!!c.tem_novo_andamento} BA=${!!c.indicio_busca_apreensao} baixaTJ=${!!c.datajud_encerrado_tribunal} cumprimento=${!!c.em_cumprimento_sentenca}`,
+      `Último retorno CRM: ${c.ultimoRetorno || "—"}`,
+      "Movimentos recentes (DataJud):",
+      ...movs.map(
+        (m: any) =>
+          `- ${m.dataHora || m.data || ""} | ${m.nome || m.movimento || ""} ${m.complemento || ""}`
+      ),
+      djen.length ? "Publicações DJEN:" : "",
+      ...djen.map((d: any) => {
+        const txt = String(d.texto || d.conteudo || d.resumo || "").slice(0, 280);
+        return `- ${d.data_disponibilizacao || d.data || ""} | ${txt}`;
+      }),
+    ].filter(Boolean);
+    return { ok: true, brief: lines.join("\n"), raw: res };
   } catch (e: any) {
-    return { ok: false, error: e?.message || 'Groq falhou' };
+    return { ok: false, brief: e?.message || "Erro na varredura CNJ." };
   }
 }
 
 export async function perguntarChatbotIndependente(
-  prompt: string,
-  history: any[],
-  model: string
+  pergunta: string,
+  historico: { role: string; content: string }[] = [],
+  preferredModel: string = "xai"
 ) {
-  const system = `Você é assistente operacional de equipe jurídica/financeira no Brasil.
-- Português claro. Não invente andamentos de processo.
-- Não cite marca/empresa em textos para cliente.
-- Se faltar CNJ, peça o número. Priorize fatos da carteira/tribunal.`;
+  const cnj = extractCnjFromText(pergunta);
+  let processContext = "";
+  if (cnj) {
+    const scanned = await tryScanCnj(cnj);
+    processContext = scanned.ok
+      ? `\n\n[DADOS REAIS DO TRIBUNAL — DataJud + DJEN]\n${scanned.brief}\n[/DADOS]`
+      : `\n\n[AVISO] Não foi possível enriquecer o CNJ ${cnj}: ${scanned.brief}`;
+  }
 
-  const messages = [
-    { role: 'system', content: system },
-    ...history.slice(-8).map((m) => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.content,
-    })),
-    { role: 'user', content: prompt },
-  ];
-
-  const preferXai = model === 'xai' || model === 'grok';
-
-  if (preferXai) {
-    const xai = await callXAI(messages);
-    if (xai.ok) {
-      return { sucesso: true, resposta: xai.text, engine: `XAI:${xai.model}` };
-    }
-    // fallback automático Groq
-    const groq = await callGroq(messages);
-    if (groq.ok) {
-      return {
-        sucesso: true,
-        resposta: groq.text,
-        engine: `GROQ(fallback):${groq.model}`,
-        aviso: `xAI falhou (${xai.error}). Usando Groq.`,
-      };
-    }
+  if (preferredModel === "local_only") {
     return {
-      sucesso: false,
-      resposta: `xAI: ${xai.error}. Groq: ${groq.error}. Configure XAI_API_KEY / GROQ_API_KEY e XAI_MODEL na Vercel.`,
+      sucesso: true,
+      resposta: cnj
+        ? `Consulta local (sem API). CNJ detectado: ${cnj}.${processContext}\n\nUse a aba Processos/Tarefas para scripts ao cliente. Ative xAI/Groq em Configurações para redação por IA.`
+        : "Motor local ativo: faça perguntas com o número CNJ para eu puxar DataJud/DJEN, ou selecione xAI/Groq em Configurações.",
+      engineUtilizada: "LOCAL",
     };
   }
 
-  const groq = await callGroq(messages);
-  if (groq.ok) return { sucesso: true, resposta: groq.text, engine: `GROQ:${groq.model}` };
-
-  const xai = await callXAI(messages);
-  if (xai.ok) {
+  if (preferredModel === "puter") {
     return {
-      sucesso: true,
-      resposta: xai.text,
-      engine: `XAI(fallback):${xai.model}`,
-      aviso: `Groq falhou. Usando xAI.`,
+      sucesso: false,
+      resposta:
+        "O motor Puter roda no navegador (User-Pays). Selecione xAI/Groq/OpenRouter no seletor, ou use Puter pelo botão client-side.",
+      engineUtilizada: "PUTER_CLIENT_ONLY",
     };
+  }
+
+  const system = `Você é o assistente operacional do LexisPredict (gabinete).
+- Responda em português do Brasil, objetivo.
+- Se houver bloco [DADOS REAIS DO TRIBUNAL], baseie-se nele; não invente andamentos.
+- Não cite marcas de assessoria; use "setor processual".
+- Para mensagem ao cliente, seja prudente (sem prometer resultado).
+- Se não houver dados de tribunal e a pergunta for sobre um processo específico, peça o CNJ.`;
+
+  const messages = [
+    { role: "system", content: system },
+    ...historico.slice(-12).map((m) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: String(m.content || ""),
+    })),
+    {
+      role: "user",
+      content: `${pergunta}${processContext}`,
+    },
+  ];
+
+  const engines = buildEngineList(preferredModel);
+  let lastErr = "nenhum motor";
+  for (const eng of engines) {
+    try {
+      const res = await callOpenAICompatible(eng, messages, { temperature: 0.45, max_tokens: 2048 });
+      return {
+        sucesso: true,
+        resposta: res.text,
+        engineUtilizada: res.engineId.toUpperCase(),
+      };
+    } catch (e: any) {
+      lastErr = e?.message || String(e);
+      continue;
+    }
   }
 
   return {
     sucesso: false,
-    resposta: `Groq: ${groq.error}. xAI: ${xai.error}.`,
+    resposta: `Motores indisponíveis (${lastErr}).${processContext ? "\n\nMesmo assim, dados do tribunal:\n" + processContext : ""}`,
+    engineUtilizada: "FALLBACK",
   };
 }
