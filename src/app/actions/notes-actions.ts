@@ -24,7 +24,9 @@ export async function getNotesByProtocoloAction(protocolo: string) {
   return await listNotesCrm({ protocolo });
 }
 
-export async function createNoteAction(note: Partial<CrmNote> & { title?: string; content?: string }) {
+export async function createNoteAction(
+  note: Partial<CrmNote> & { title?: string; content?: string }
+) {
   const result = await saveNoteCrm({
     title: note.title || "Nota",
     content: note.content || "",

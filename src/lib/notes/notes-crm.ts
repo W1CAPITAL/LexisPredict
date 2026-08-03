@@ -1,7 +1,8 @@
 /**
  * Persistência de notas vinculadas a cliente/processo (histórico CRM).
+ * NÃO use "use server" neste arquivo — exports síncronos (unpackContent) quebram o build.
+ * Server Actions ficam em notes-actions.ts.
  */
-"use server";
 
 export type CrmNote = {
   id?: string;
@@ -20,6 +21,7 @@ function packContent(content: string, imageUrl?: string | null) {
   return content;
 }
 
+/** Utilitário síncrono — pode ser importado em client ou server */
 export function unpackContent(raw: any): { text: string; imageUrl?: string } {
   if (!raw) return { text: "" };
   if (typeof raw === "object") {
@@ -79,10 +81,6 @@ export async function listNotesCrm(opts?: {
 
   if (!isMasterView && auth_id) q = q.eq("created_by", auth_id);
   if (opts?.cliente) q = q.ilike("cliente", opts.cliente.trim());
-  if (opts?.protocolo) {
-    const digits = opts.protocolo.replace(/\D/g, "");
-    q = q.or(`protocolo.eq.${opts.protocolo},protocolo_ref.eq.${opts.protocolo}`);
-  }
 
   const { data, error } = await q;
   if (error) {
@@ -90,7 +88,7 @@ export async function listNotesCrm(opts?: {
     return [];
   }
   let rows = (data || []).map(mapRow);
-  // filtro protocolo por dígitos se necessário
+
   if (opts?.protocolo) {
     const d = opts.protocolo.replace(/\D/g, "");
     rows = rows.filter(
@@ -102,14 +100,14 @@ export async function listNotesCrm(opts?: {
   }
   if (opts?.cliente) {
     const c = opts.cliente.trim().toUpperCase();
-    rows = rows.filter((n) => (n.cliente || "").toUpperCase() === c || !opts.cliente);
-    // keep only matching cliente when filtering history
     rows = rows.filter((n) => (n.cliente || "").toUpperCase() === c);
   }
   return rows;
 }
 
-export async function saveNoteCrm(note: CrmNote): Promise<{ success: boolean; data?: any; error?: string }> {
+export async function saveNoteCrm(
+  note: CrmNote
+): Promise<{ success: boolean; data?: any; error?: string }> {
   const { empresa_id, auth_id, supabase } = await db();
   if (!empresa_id || !auth_id || !supabase) {
     return { success: false, error: "Sessão inválida" };
@@ -142,7 +140,9 @@ export async function updateNoteCrm(
   if (note.content !== undefined || note.imageUrl !== undefined) {
     dbUpdates.content = packContent(note.content || "", note.imageUrl);
   }
-  if (note.cliente !== undefined) dbUpdates.cliente = note.cliente?.trim().toUpperCase() || null;
+  if (note.cliente !== undefined) {
+    dbUpdates.cliente = note.cliente?.trim().toUpperCase() || null;
+  }
   if (note.protocolo !== undefined) {
     dbUpdates.protocolo = note.protocolo?.trim() || null;
     dbUpdates.protocolo_ref = note.protocolo?.trim() || null;
@@ -158,10 +158,16 @@ export async function updateNoteCrm(
   return { success: true };
 }
 
-export async function deleteNoteCrm(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteNoteCrm(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
   const { empresa_id, supabase } = await db();
   if (!empresa_id || !supabase) return { success: false, error: "Sessão inválida" };
-  const { error } = await supabase.from("notes").delete().eq("id", id).eq("empresa_id", empresa_id);
+  const { error } = await supabase
+    .from("notes")
+    .delete()
+    .eq("id", id)
+    .eq("empresa_id", empresa_id);
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
