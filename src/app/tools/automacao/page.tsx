@@ -169,3 +169,103 @@ export default function AutomacaoJudicialPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
+                  {grau.custasDetectadas.map((item: string, i: number) => (
+                    <div key={i} className="text-sm p-3 rounded-lg bg-background border">
+                      {item}
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Estas são as movimentações que citam custas, guias ou recolhimento.
+                    Para emitir a guia oficial use o botão “Emitir / Abrir Guia”.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Partes */}
+            {grau.partes && grau.partes.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Partes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {grau.partes.map((p: any, i: number) => (
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border">
+                      <div>
+                        <p className="font-medium">{p.nome}</p>
+                        <p className="text-sm text-muted-foreground">{p.tipoParticipacao}</p>
+                      </div>
+                      {p.advogados?.length > 0 && (
+                        <div className="text-sm text-right">
+                          {p.advogados.map((adv: string, j: number) => (
+                            <p key={j} className="text-muted-foreground">{adv}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Últimas Movimentações (limitado) */}
+            {grau.movimentações && grau.movimentações.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Últimas Movimentações</CardTitle>
+                  <CardDescription>
+                    Mostrando as 12 mais recentes (total: {grau.movimentações.length})
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {grau.movimentações.slice(0, 12).map((m: any, i: number) => (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-lg border text-sm ${
+                        m.isCustas ? "border-amber-400 bg-amber-50/50 dark:bg-amber-950/20" : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-xs text-muted-foreground">{m.data}</span>
+                        {m.isCustas && (
+                          <Badge variant="outline" className="text-amber-600 border-amber-400">
+                            Custas
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="leading-relaxed">{m.descricao}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Botão Guia */}
+            {resultado.guia?.url && (
+              <div className="flex justify-center">
+                <Button asChild size="lg" className="gap-2">
+                  <a href={resultado.guia.url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    Abrir Portal para Emitir Guia de Custas
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Erro ou vazio */}
+        {resultado && !resultado.success && (
+          <Card className="border-destructive">
+            <CardContent className="pt-6">
+              <p className="text-destructive">{resultado.note || "Não foi possível enriquecer este processo."}</p>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+    </div>
+  );
+}
