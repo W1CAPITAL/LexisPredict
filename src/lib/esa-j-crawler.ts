@@ -1,7 +1,6 @@
 /**
- * e-SAJ Crawler (portado do jus_crawler)
- * Suporta TJSP (26), TJAL (02) e TJCE (06)
- * @copyright Adaptado para LexisPredict
+ * e-SAJ Crawler estável (portado do jus_crawler)
+ * Funciona em TJSP, TJAL e TJCE
  */
 
 import * as cheerio from 'cheerio';
@@ -62,15 +61,14 @@ function parseCNJ(cnj: string) {
   const clean = cnj.replace(/\D/g, '');
   if (clean.length !== 20) throw new Error('CNJ deve ter 20 dígitos');
 
-  // Formato CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO
   const formatado = `${clean.slice(0, 7)}-${clean.slice(7, 9)}.${clean.slice(9, 13)}.${clean.slice(13, 14)}.${clean.slice(14, 16)}.${clean.slice(16)}`;
   const parts = formatado.split('.');
 
   return {
     numero_processo: formatado,
     numeroDigitoAnoUnificado: `${parts[0]}.${parts[1]}`,
-    foro: clean.slice(-4), // últimos 4 dígitos
-    tribunal: parts[3], // TR
+    foro: clean.slice(-4),
+    tribunal: parts[3],
   };
 }
 
@@ -203,14 +201,11 @@ async function buscaSegundoGrau(processo: ReturnType<typeof parseCNJ>, dominio: 
   return data;
 }
 
-/**
- * Função principal – use esta no LexisPredict
- */
 export async function fetchEsaJProcess(cnj: string): Promise<EsaJResult | null> {
   try {
     const processo = parseCNJ(cnj);
     const tribunalInfo = TRIBUNAIS[processo.tribunal];
-    if (!tribunalInfo) return null; // só processa TJSP/TJAL/TJCE
+    if (!tribunalInfo) return null;
 
     const [grau1, grau2] = await Promise.all([
       buscaPrimeiroGrau(processo, tribunalInfo.dominio),
