@@ -118,6 +118,7 @@ function SidebarNavBody({
     {
       title: "Ferramentas",
       items: [
+        { label: "Automação Judicial", href: "/tools/automacao", icon: Zap },
         { label: "Consulta processo", href: "/veredito", icon: Scale },
         { label: "Assistente", href: "/chat", icon: Bot },
         { label: "Procuração", href: "/documents", icon: FileText },
