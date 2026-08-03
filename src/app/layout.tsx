@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { GuidedTour } from '@/components/onboarding/guided-tour';
 import { DataJudScannerPanel } from '@/components/scanner/datajud-scanner-panel';
+import { AppUpdateBanner } from '@/components/system/app-update-banner';
 import Script from 'next/script';
 
 export const viewport: Viewport = {
@@ -108,6 +109,7 @@ export default function RootLayout({
             <GuidedTour />
             {children}
             <DataJudScannerPanel />
+            <AppUpdateBanner />
           </div>
           <Toaster />
         </AuthProvider>

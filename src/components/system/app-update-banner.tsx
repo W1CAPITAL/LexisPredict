@@ -1,51 +1,63 @@
 "use client";
 
 /**
- * Detecta deploy novo (buildId diferente) e pede ao usuário recarregar.
+ * Aviso forçado de nova versão (deploy Vercel).
+ * Compara buildId remoto com o guardado no localStorage.
  */
 import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCcw, X, Sparkles } from "lucide-react";
 
 const STORAGE_KEY = "lexis_app_build_id";
-const POLL_MS = 90_000; // 1,5 min
+const POLL_MS = 45_000;
 
 export function AppUpdateBanner() {
   const [visible, setVisible] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [remoteId, setRemoteId] = useState<string | null>(null);
 
   const check = useCallback(async () => {
-    if (dismissed) return;
     try {
       const res = await fetch(`/api/version?t=${Date.now()}`, {
         cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
       });
       if (!res.ok) return;
       const data = await res.json();
-      const remote = String(data.buildId || "");
+      const remote = String(data.buildId || "").trim();
       if (!remote || remote === "dev") return;
 
-      const local = sessionStorage.getItem(STORAGE_KEY);
+      const local = localStorage.getItem(STORAGE_KEY);
       if (!local) {
-        sessionStorage.setItem(STORAGE_KEY, remote);
+        localStorage.setItem(STORAGE_KEY, remote);
         return;
       }
       if (local !== remote) {
+        setRemoteId(remote);
         setVisible(true);
       }
     } catch {
-      /* offline / cold start */
+      /* offline */
     }
-  }, [dismissed]);
+  }, []);
 
   useEffect(() => {
+    // imediato + curto atraso (pós-hidratação) + intervalo + foco
     check();
+    const t1 = setTimeout(check, 2500);
+    const t2 = setTimeout(check, 8000);
     const id = setInterval(check, POLL_MS);
     const onFocus = () => check();
+    const onVis = () => {
+      if (document.visibilityState === "visible") check();
+    };
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [check]);
 
@@ -53,55 +65,46 @@ export function AppUpdateBanner() {
 
   return (
     <div
-      role="status"
-      className="fixed bottom-4 left-1/2 z-[200] w-[min(92vw,420px)] -translate-x-1/2 rounded-2xl border border-primary/40 bg-card/95 p-4 shadow-2xl backdrop-blur-xl"
+      role="alert"
+      className="fixed inset-x-0 top-0 z-[9999] flex justify-center p-3 pointer-events-none"
     >
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-          <Sparkles size={18} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-black uppercase tracking-wide">Nova versão disponível</p>
-          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-            O LexisPredict foi atualizado. Recarregue a página para usar as correções e evitar erros
-            de cache.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <Button
-              size="sm"
-              className="h-9 rounded-xl font-black uppercase text-[10px] tracking-widest gap-1"
-              onClick={() => {
-                sessionStorage.removeItem(STORAGE_KEY);
-                window.location.reload();
-              }}
-            >
-              <RefreshCcw size={14} />
-              Recarregar agora
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-9 rounded-xl text-[10px] font-bold uppercase"
-              onClick={() => {
-                setDismissed(true);
-                setVisible(false);
-              }}
-            >
-              Depois
-            </Button>
+      <div className="pointer-events-auto w-[min(96vw,520px)] rounded-2xl border-2 border-primary bg-background p-4 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Sparkles size={20} />
           </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black uppercase tracking-wide text-foreground">
+              Nova versão do LexisPredict
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+              O app foi atualizado no servidor. Você ainda está na versão antiga em cache.
+              Recarregue agora para evitar erros e usar as correções.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="h-10 rounded-xl font-black uppercase text-[10px] tracking-widest gap-1.5"
+                onClick={() => {
+                  if (remoteId) localStorage.setItem(STORAGE_KEY, remoteId);
+                  else localStorage.removeItem(STORAGE_KEY);
+                  window.location.reload();
+                }}
+              >
+                <RefreshCcw size={14} />
+                Recarregar agora
+              </Button>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground p-1"
+            aria-label="Fechar"
+            onClick={() => setVisible(false)}
+          >
+            <X size={18} />
+          </button>
         </div>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setDismissed(true);
-            setVisible(false);
-          }}
-          aria-label="Fechar"
-        >
-          <X size={16} />
-        </button>
       </div>
     </div>
   );

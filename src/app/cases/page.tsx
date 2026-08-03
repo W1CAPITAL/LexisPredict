@@ -38,6 +38,7 @@ import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
 import { NovoProcessoButton } from '@/components/cases/novo-processo-button';
+import { ExportDossieClienteButton } from '@/components/cases/export-dossie-cliente-button';
 
 const CaseRow = React.memo(({ 
   c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest
@@ -100,6 +101,7 @@ const CaseRow = React.memo(({
       </td>
       <td className="px-8 py-5 text-right">
         <div className="flex items-center justify-end gap-2">
+          <ExportDossieClienteButton protocolo={c.protocolo} />
           <button disabled={suggestLoading} onClick={async () => { setSuggestLoading(true); await onSuggest(c); setSuggestLoading(false); }} className={cn("text-amber-600 hover:bg-amber-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Sugerir Resposta">
             {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
           </button>

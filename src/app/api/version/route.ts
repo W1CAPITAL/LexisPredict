@@ -8,17 +8,18 @@ export async function GET() {
     process.env.VERCEL_GIT_COMMIT_SHA ||
     process.env.NEXT_PUBLIC_BUILD_ID ||
     process.env.VERCEL_DEPLOYMENT_ID ||
+    process.env.NEXT_BUILD_ID ||
     "dev";
 
   return NextResponse.json(
     {
-      buildId: String(buildId).slice(0, 40),
+      buildId: String(buildId).slice(0, 48),
       env: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       ts: Date.now(),
     },
     {
       headers: {
-        "Cache-Control": "no-store, max-age=0",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
       },
     }
   );
