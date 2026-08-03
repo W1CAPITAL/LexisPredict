@@ -231,6 +231,7 @@ export default function TarefasPage() {
             ? `${suggestions.length} resposta(s) para o cliente`
             : 'Auditoria aberta',
           description: suggestions.length
+            ? 'Role até o final do modal: resposta baseada no teor DataJud/DJEN.'
             : 'Use o rascunho por IA se precisar.',
         });
       } else {
