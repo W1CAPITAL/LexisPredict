@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * @fileOverview Guia interativo LexisPredict — alinhado ao produto atual
- * (DataJud ∪ DJEN, fila unificada, alertas de mérito, dossiê Top 10, scanner híbrido)
+ * @fileOverview Guia interativo LexisPredict v13 — alinhado ao produto atual
+ * (sidebar 2026: Painel, Fila, Processos, Veredito, Documentos, Scanner, Analytics…)
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -13,7 +13,6 @@ import {
   ChevronRight,
   ChevronLeft,
   Zap,
-  Target,
   Briefcase,
   Scale,
   Users,
@@ -25,15 +24,18 @@ import {
   StickyNote,
   ScanLine,
   BarChart3,
-  Printer,
   Sparkles,
-  Clock,
   PlayCircle,
-  ArrowLeft,
   Bell,
   Settings,
   ListTodo,
   ShieldAlert,
+  Bot,
+  ClipboardList,
+  Search,
+  FileSpreadsheet,
+  Globe,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/use-app-store";
@@ -50,509 +52,440 @@ interface TourStep {
   ganho: string;
   metrica: string;
   tempo: string;
+  dicas?: string[];
 }
 
-/** Passos alinhados às abas e fluxos reais do app (2026) */
+/** Passos alinhados à sidebar e fluxos reais (agosto/2026) */
 const TOUR_STEPS: TourStep[] = [
   {
-    title: "Dashboard — Gabinete Estratégico",
+    title: "Painel — radar do gabinete",
     content:
-      "Telemetria unificada (DataJud ∪ DJEN): novidades pós-retorno, baixas no tribunal, indícios de B.A., fase de cumprimento e fila prioritária. Use como radar matinal — não como substituto dos autos.",
+      "Visão matinal da carteira: vencidos, andamentos novos, baixas no tribunal, risco global e fila prioritária. Telemetria unifica sinais do DataJud (movimentos do tribunal) e do DJEN (publicações no diário oficial). Não substitui os autos — é triagem para decidir o que atender primeiro.",
     icon: <Zap />,
     route: "/",
-    porQue: "Ver em segundos o que exige ação humana hoje.",
+    porQue: "Saber em segundos o que exige ação humana hoje.",
     rotina:
-      "Abrir o dia no Dashboard → checar B.A. e baixas → abrir Sequência Prioritária → ir para Tarefas ou Processos.",
+      "Abrir o dia no Painel → olhar Vencido / Andamentos / Baixas → abrir a fila prioritária → ir para Fila de contato ou Processos.",
     ganho: "Triagem matinal em menos de um minuto.",
     metrica: "Menos tempo escolhendo o que fazer; mais tempo atendendo.",
-    tempo: "30 seg",
+    tempo: "30–60 s",
+    dicas: [
+      "Use “Rede Judicial” só para diagnosticar latência dos tribunais.",
+      "Números zero em Baixas ou Andamentos após um scan costumam indicar sincronização — rode o Scanner e atualize.",
+    ],
   },
   {
-    title: "Fila de Tarefas",
+    title: "Fila de contato (Tarefas)",
     content:
-      "Prioridade operacional: Busca e Apreensão → baixa/trânsito no tribunal → eventos de mérito (sentença, audiência) → novo andamento/DJEN → prazo e tempo sem retorno. Cards com resumo limpo (sem HTML do diário).",
+      "Ordem operacional de atendimento: eventos críticos e novidades antes de prazo genérico. Cada card reúne o cliente e os processos que pedem retorno. Use Sugerir resposta para mensagens prontas ao cliente (WhatsApp/e-mail) e registre o atendimento para zerar alertas só depois do contato humano.",
     icon: <ListTodo />,
     route: "/tarefas",
-    porQue: "Garantir ordem de contato correta sob volume.",
+    porQue: "Garantir ordem de contato correta sob volume alto.",
     rotina:
-      "Trabalhar o topo da fila; marcar contato; registrar próximo retorno na carteira do cliente quando aplicável.",
+      "Trabalhar o topo da fila → Sugerir resposta / copiar texto → contatar → Registrar atendimento (próximo retorno).",
     ganho: "Foco no crítico antes do genérico.",
     metrica: "Menos clientes críticos sem retorno no mesmo dia.",
-    tempo: "1–2 min",
+    tempo: "1–3 min por card",
+    dicas: [
+      "O bloco âmbar “Resposta para o Cliente” fica no topo do modal — copie antes de rolar a cronologia.",
+      "Exportar PDF da publicação DJEN está disponível quando houver link do diário.",
+    ],
   },
   {
-    title: "Processos (Carteira)",
+    title: "Processos — carteira completa",
     content:
-      "Carteira completa com sinal de capa (Tribunal / Diário / Híbrido), badges de novidade, B.A. e encerrado. Auditoria 3D pontual, scripts de resposta e rascunho via IA opcional. Link Abrir no D.O. quando houver publicação.",
+      "Lista de toda a carteira da empresa logada. Filtre por escritório, status, ativos/encerrados ou novidade. Abra a Auditoria 3D (DataJud + DJEN), sugira resposta, registre atendimento. Exportar Excel gera relatório operacional formatado (assistente, escritório, advogado, cliente, protocolo, status, observações, movimentação, retornos) — sem IDs internos de banco.",
     icon: <Briefcase />,
     route: "/cases",
-    porQue: "Gestão do processo individual com evidência do tribunal e do diário.",
+    porQue: "Gestão individual com evidência do tribunal e do diário.",
     rotina:
-      "Buscar CNJ → Auditoria 3D → ler cronologia → sugerir resposta → registrar atendimento (zera alertas só após contato humano).",
-    ganho: "Histórico e despacho no mesmo fluxo.",
-    metrica: "Zero ‘novidade’ esquecida sem triagem.",
+      "Buscar CNJ ou cliente → filtrar escritório/status → Auditoria 3D → ler cronologia → sugerir resposta → registrar atendimento.",
+    ganho: "Histórico, despacho e planilha no mesmo fluxo.",
+    metrica: "Zero novidade esquecida sem triagem.",
     tempo: "2 min",
+    dicas: [
+      "“Extrair Planilha” (CSV) e “Exportar Excel” usam só os processos da sua empresa (multi-tenant).",
+      "Flags de novidade só descem após atendimento humano registrado.",
+    ],
   },
   {
-    title: "Centro de Alertas de Mérito",
+    title: "Consulta processo (Veredito)",
     content:
-      "Só eventos operacionais relevantes: B.A., sentença, audiência, cumprimento, custas/partes, nova movimentação com fato concreto. Não lista prazo vencido genérico — isso fica em Tarefas/Dashboard.",
-    icon: <Bell />,
-    route: "/notificacoes",
-    porQue: "Separar mérito jurídico de fila de prazo.",
-    rotina: "Filtrar B.A. / Mérito / Audiência / Execução → Gerir caso.",
-    ganho: "Menos ruído; mais decisão.",
-    metrica: "Alertas legíveis com título + detalhe (não só ‘há novidade’).",
-    tempo: "1 min",
-  },
-  {
-    title: "Scanner DataJud ∪ DJEN",
-    content:
-      "Painel do scanner (botão na sidebar): modos Tribunal, Diário ou Híbrido. Lote local com logs e retomada; nuvem sob demanda. Flags de alerta não somem no rescan — só no atendimento. DataJud ≠ PJe; confira críticos no tribunal.",
-    icon: <ShieldAlert />,
-    route: "/",
-    porQue: "Atualizar a carteira em volume sem planilha manual.",
-    rotina:
-      "Escolher modo Híbrido → varredura local ou ciclo de nuvem → acompanhar feed de logs → tratar novidades em Tarefas/Alertas.",
-    ganho: "Telemetria alinhada à operação real.",
-    metrica: "Progresso e logs visíveis por CNJ na sessão local.",
-    tempo: "conforme carteira",
-  },
-  {
-    title: "Equipe e KPI",
-    content:
-      "Cargos e escopo por empresa. Supervisores veem ranking e carteira ampliada; operadores focam na própria fila. Performance para supervisão — não só cadastro de usuários.",
-    icon: <Users />,
-    route: "/team",
-    porQue: "Governança multi-operador com isolamento multi-tenant.",
-    rotina: "Auditar metas e distribuição de carga.",
-    ganho: "Visibilidade de quem executa o quê.",
-    metrica: "KPI de pessoas + processos.",
-    tempo: "1 min",
-  },
-  {
-    title: "Auditoria / Veredito",
-    content:
-      "Consulta profunda de CNJ com apoio de análise. Use como triagem técnica; a verdade final continua nos autos e no sistema do tribunal.",
+      "Auditoria 3D Elite sob demanda: busca por CNJ, CPF/CNPJ ou nome da parte. Cruza DataJud (classe, grau, polos ativo/passivo, movimentos) com publicações DJEN. Parecer determinístico funciona mesmo sem chave de IA; com IA, o contexto inclui as duas fontes.",
     icon: <Scale />,
     route: "/veredito",
-    porQue: "Parecer rápido sem substituir a leitura dos autos.",
-    rotina: "Consultar CNJs sensíveis e registrar orientação no atendimento.",
-    ganho: "Base objetiva para despacho ao cliente.",
-    metrica: "Menos tempo em andamento genérico.",
-    tempo: "2 min",
-  },
-  {
-    title: "Documentos — Procuração",
-    content:
-      "Geração de procuração com extração assistida de contrato/lead. Revise sempre os dados antes do PDF final.",
-    icon: <FileText />,
-    route: "/documents",
-    porQue: "Acelerar onboarding documental com revisão humana.",
-    rotina: "Subir material → revisar campos → gerar PDF.",
-    ganho: "Peça padronizada em minutos.",
-    metrica: "Menos retrabalho de digitação.",
+    porQue: "Consultar um processo fora da fila sem perder o cruzamento tribunal + diário.",
+    rotina:
+      "Escolher modo (CNJ / CPF / Nome) → buscar → abrir processo → ler polos, movimentos e publicações → usar parecer / rascunho se precisar.",
+    ganho: "Consulta forense rápida com polos e DJEN visíveis.",
+    metrica: "Menos idas manuais ao PJe só para “o que saiu”.",
     tempo: "1–2 min",
+    dicas: [
+      "CPF nem sempre está indexado em todos os tribunais (LGPD/schema) — se vier vazio, tente nome ou CNJ.",
+      "DJEN exige IP no Brasil em produção (região Vercel gru1 / São Paulo).",
+    ],
   },
   {
-    title: "Habilitação e Substabelecimentos",
+    title: "DataJud Scanner",
     content:
-      "Habilitação, substabelecimento (com/sem reserva), peça de comunicação ao juízo. Modelos alinhados à rotina de banca de volume.",
+      "Botão fixo na sidebar: varredura híbrida DataJud e/ou DJEN na carteira. Progresso local (retoma se recarregar a página). Use lotes conscientes — a API pública não é PJe e pode rate-limitar. Logs de erro (403 geo, 429, timeout) aparecem no status do caso.",
+    icon: <ScanLine />,
+    route: "/",
+    porQue: "Atualizar a carteira em lote sem abrir processo por processo.",
+    rotina:
+      "Abrir Scanner → escolher modo (DataJud, DJEN ou ambos) → iniciar → acompanhar progresso → revisar Fila / Processos.",
+    ganho: "Carteira sincronizada em background operacional.",
+    metrica: "Menos “achismo” de andamento antigo na tela.",
+    tempo: "Depende do volume",
+    dicas: [
+      "Lotes grandes são sequenciais de propósito (estabilidade).",
+      "Se DJEN falhar com 403, confira a região do deploy (Brasil).",
+    ],
+  },
+  {
+    title: "Documentos jurídicos",
+    content:
+      "Procuração, Habilitação, Substabelecimento, Subst. simples e Peça de substabelecimento. Extração assistida + revisão humana + PDF profissional. Opção de incluir ou omitir nome/CNPJ do banco conforme a estratégia do caso.",
     icon: <FileSignature />,
-    route: "/habilitacao-peca",
-    porQue: "Padronizar ingresso e troca de patronos.",
-    rotina: "Escolher o fluxo (habilitação / subst. / peça) e gerar o conjunto.",
-    ganho: "Conformidade e velocidade na troca de poderes.",
-    metrica: "Menos glosa por formalidade.",
-    tempo: "1 min",
+    route: "/documents",
+    porQue: "Gerar peças padronizadas sem recomeçar do zero a cada contrato.",
+    rotina:
+      "Colar/extrair dados → revisar campos → escolher se inclui banco → pré-visualizar → gerar PDF.",
+    ganho: "Peça alinhada ao padrão do gabinete em minutos.",
+    metrica: "Menos retrabalho de digitação e formatação.",
+    tempo: "3–5 min",
+    dicas: [
+      "Habilitação e substabelecimentos ficam em rotas próprias no menu Operações.",
+      "Sempre confira CPF/RG e poderes antes de protocolar.",
+    ],
   },
   {
-    title: "WhatsApp e despacho",
+    title: "Importar carteira (CSV)",
     content:
-      "Comunicação com o cliente a partir da carteira. Scripts determinísticos primeiro; rascunho via IA opcional, sempre com validação humana. Não cite marca da empresa em mensagens ao cliente se a política interna proibir.",
-    icon: <MessageCircle />,
-    route: "/whatsapp",
-    porQue: "Fechar o ciclo: sinal do tribunal → texto de atendimento.",
-    rotina: "Usar sugestão na fila/processos → revisar → enviar pelo canal configurado.",
-    ganho: "Resposta alinhada ao andamento capturado.",
-    metrica: "Menos texto genérico sem fato do processo.",
-    tempo: "2–3 min",
-  },
-  {
-    title: "Importação CSV",
-    content:
-      "Ingestão de planilhas legadas com normalização de datas, encoding e dedupe por protocolo. Tribunal inferido pelo CNJ quando possível.",
+      "Entrada em volume a partir de planilha. Normalização de CNJ, deduplicação e vínculo à empresa logada. Ideal na migração do Excel caótico para o gabinete digital.",
     icon: <Upload />,
     route: "/import",
-    porQue: "Migrar volume sem recriar processo a processo.",
-    rotina: "Subir CSV → revisar erros → confirmar carga.",
-    ganho: "Carteira operacional a partir do legado.",
-    metrica: "Milhares de linhas em lote controlado.",
-    tempo: "5 min",
+    porQue: "Subir centenas de processos sem cadastro manual um a um.",
+    rotina:
+      "Preparar CSV → mapear colunas → importar → validar amostra em Processos → rodar Scanner.",
+    ganho: "Migração controlada com rastreio por empresa.",
+    metrica: "Carteira utilizável no mesmo dia da importação.",
+    tempo: "5–15 min",
+    dicas: [
+      "CNJ com 20 dígitos é a chave de dedupe.",
+      "Após importar, um scan híbrido alimenta andamentos e DJEN.",
+    ],
   },
   {
-    title: "Notas e evidências",
+    title: "WhatsApp e Assistente",
     content:
-      "Registro interno (fatos de atendimento, mídias, observações). Pode alimentar briefing — não confundir com andamento oficial do tribunal.",
-    icon: <StickyNote />,
-    route: "/notes",
-    porQue: "Memória do gabinete além do que consta no DataJud/DJEN.",
-    rotina: "Anotar pós-contato e anexar evidências relevantes.",
-    ganho: "Contexto para o próximo operador.",
-    metrica: "Menos perda de informação entre turnos.",
-    tempo: "1–2 min",
+      "Atalhos de comunicação e chat de apoio. Scripts de resposta na Fila/Processos já montam o texto ao cliente; o Assistente ajuda em rascunhos e dúvidas operacionais. Nada disso substitui a análise do advogado responsável.",
+    icon: <MessageCircle />,
+    route: "/whatsapp",
+    porQue: "Encurtar o caminho entre a novidade do processo e a mensagem ao cliente.",
+    rotina:
+      "Gerar texto em Sugerir resposta → abrir WhatsApp/copiar → registrar atendimento no app.",
+    ganho: "Contato mais rápido com linguagem padronizada do gabinete.",
+    metrica: "Menor tempo entre novidade e primeiro contato.",
+    tempo: "1 min",
+    dicas: [
+      "Sempre personalize tom e fatos sensíveis antes de enviar.",
+      "O Assistente (/chat) não inventa movimento de tribunal — confira a Auditoria 3D.",
+    ],
   },
   {
-    title: "OCR",
+    title: "Equipe e permissões",
     content:
-      "Apoio à leitura de documentos escaneados. Texto extraído exige revisão antes de uso em peça ou cadastro.",
-    icon: <ScanLine />,
-    route: "/tools/ocr",
-    porQue: "Reduzir digitação de documentos em imagem.",
-    rotina: "Enviar scan → revisar texto → usar no fluxo documental.",
-    ganho: "Menos retrabalho manual.",
-    metrica: "Triagem mais rápida de papel digitalizado.",
+      "Gestão de operadores, cargos e escopo multi-tenant. Administradores e supervisores veem a carteira da empresa; isolamento por empresa_id impede vazamento entre gabinetes.",
+    icon: <Users />,
+    route: "/team",
+    porQue: "Escalar atendimento sem misturar carteiras de clientes diferentes.",
+    rotina:
+      "Convidar operador → definir cargo → validar que só vê processos da empresa → acompanhar KPIs se disponível.",
+    ganho: "Time alinhado com o mesmo radar e as mesmas regras.",
+    metrica: "Menos retrabalho por acesso errado ou dado cruzado.",
     tempo: "2 min",
+    dicas: ["Apenas perfis admin/supervisor acessam Equipe."],
   },
   {
-    title: "Analytics",
+    title: "Indicadores e Urgências",
     content:
-      "Visão agregada de volume e performance. Complementa o Dashboard operacional com recortes de análise.",
+      "Analytics consolida volume, status e distribuição. Urgências destaca o que não pode esperar (prazos e sinais críticos). Use junto com o Painel: números para gestão, fila para execução.",
     icon: <BarChart3 />,
     route: "/analytics",
-    porQue: "Enxergar gargalos por unidade/período.",
-    rotina: "Revisar tendências com a supervisão.",
-    ganho: "Decisão com base em série, não só no dia.",
-    metrica: "BI operacional da carteira.",
-    tempo: "2 min",
+    porQue: "Enxergar a carteira como operação, não só como lista de CNJs.",
+    rotina:
+      "Semanalmente revisar Indicadores → cruzar com Urgências → ajustar capacidade da equipe.",
+    ganho: "Decisão de gestão com base na carteira real.",
+    metrica: "Menos surpresa de acúmulo de vencidos.",
+    tempo: "3–5 min",
+    dicas: [
+      "Export Excel no Processos complementa o dossiê com planilha operacional.",
+      "Urgências não substituem a Fila de contato no dia a dia.",
+    ],
   },
   {
-    title: "Dossiê / Relatório",
+    title: "Configurações e Treinamento",
     content:
-      "Relatório imprimível: KPIs, Top 10 por sinal de capa, chance de encerramento, cumprimento/procedente/improcedente, auditoria de responsabilidade (operador vs supervisor) e ranking quando o perfil for master.",
-    icon: <Printer />,
-    route: "/report",
-    porQue: "Fechamento executivo e rastreio de pendências por dono.",
-    rotina: "Gerar dossiê → imprimir/PDF → agir nos links Gerir.",
-    ganho: "Reunião e despacho com a mesma fonte de verdade.",
-    metrica: "Listas acionáveis, não só capa visual.",
-    tempo: "2 min",
-  },
-  {
-    title: "Configurações e base de conhecimento",
-    content:
-      "Preferências, tema e (quando habilitado) base de conhecimento para o motor de despacho. A IA é apoio: scripts locais primeiro; provedores externos só como complemento.",
+      "Preferências da conta, tema e atalhos. Esta tela de Treinamento (/onboarding) e o Guia interativo (tour) existem para onboarding de novos operadores — o vídeo de apoio pode atrasar em relação à UI; o guia escrito segue o menu atual.",
     icon: <Settings />,
     route: "/settings",
-    porQue: "Calibrar ambiente e material de apoio à redação.",
-    rotina: "Ajustar tema/prazos; enviar PDFs de treino só com conteúdo autorizado.",
-    ganho: "Operação estável e despacho mais contextual.",
-    metrica: "Menos dependência de texto genérico.",
-    tempo: "2 min",
+    porQue: "Padronizar o ambiente e treinar quem chega no gabinete.",
+    rotina:
+      "Configurar tema/preferências → rodar o Guia completo uma vez → usar /onboarding se houver vídeo institucional.",
+    ganho: "Operador novo produtivo no mesmo dia.",
+    metrica: "Menos dúvidas repetidas de “onde fica X”.",
+    tempo: "5–10 min (guia completo)",
+    dicas: [
+      "Reabra o guia a qualquer momento pelo menu (Treinamento) ou pelo atalho de tour na sidebar.",
+      "Em dúvida operacional grave, priorize o tribunal oficial (PJe/e-SAJ).",
+    ],
   },
 ];
 
 export function GuidedTour() {
   const router = useRouter();
   const pathname = usePathname();
-  const {
-    isTutorialActive,
-    setTutorialActive,
-    setTutorialCompleted,
-    tutorialStep,
-    setTutorialStep,
-  } = useAppStore();
-
+  const { isTutorialActive, setTutorialActive, tutorialStep, setTutorialStep } =
+    useAppStore();
   const [showVideo, setShowVideo] = useState(false);
+  const [anim, setAnim] = useState(true);
 
-  const currentLevel = useMemo(() => {
-    if (tutorialStep <= 3)
-      return {
-        label: "Nível 1",
-        sub: "Radar e Fila",
-        color: "text-blue-500",
-        bg: "bg-blue-500/10",
-      };
-    if (tutorialStep <= 8)
-      return {
-        label: "Nível 2",
-        sub: "Carteira e Mérito",
-        color: "text-emerald-500",
-        bg: "bg-emerald-500/10",
-      };
-    if (tutorialStep <= 12)
-      return {
-        label: "Nível 3",
-        sub: "Documentos e Contato",
-        color: "text-orange-500",
-        bg: "bg-orange-500/10",
-      };
-    return {
-      label: "Nível 4",
-      sub: "Governança",
-      color: "text-purple-500",
-      bg: "bg-purple-500/10",
-    };
-  }, [tutorialStep]);
+  const step = TOUR_STEPS[Math.min(tutorialStep, TOUR_STEPS.length - 1)];
+  const progress = useMemo(
+    () => ((tutorialStep + 1) / TOUR_STEPS.length) * 100,
+    [tutorialStep]
+  );
 
   useEffect(() => {
-    const currentStepRoute = TOUR_STEPS[tutorialStep]?.route;
-    if (
-      isTutorialActive &&
-      currentStepRoute &&
-      !showVideo &&
-      pathname !== currentStepRoute
-    ) {
-      router.push(currentStepRoute);
+    if (!isTutorialActive) return;
+    setAnim(false);
+    const t = requestAnimationFrame(() => setAnim(true));
+    return () => cancelAnimationFrame(t);
+  }, [tutorialStep, isTutorialActive]);
+
+  useEffect(() => {
+    if (!isTutorialActive || !step?.route) return;
+    if (pathname !== step.route) {
+      // navegação suave sugerida — não força se já estiver em fluxo crítico
     }
-  }, [tutorialStep, isTutorialActive, router, showVideo, pathname]);
+  }, [isTutorialActive, step, pathname]);
 
-  if (!isTutorialActive) return null;
-
-  const handleNext = () => {
-    if (tutorialStep < TOUR_STEPS.length - 1) {
-      setTutorialStep(tutorialStep + 1);
-    } else {
-      finishTour();
-    }
-  };
-
-  const handlePrev = () => {
-    if (tutorialStep > 0) setTutorialStep(tutorialStep - 1);
-  };
+  if (!isTutorialActive || !step) return null;
 
   const finishTour = () => {
     setTutorialActive(false);
-    setTutorialCompleted(true);
     setTutorialStep(0);
     setShowVideo(false);
-    router.push("/");
   };
 
-  const step = TOUR_STEPS[tutorialStep];
-  if (!step) return null;
+  const handleNext = () => {
+    if (tutorialStep >= TOUR_STEPS.length - 1) {
+      finishTour();
+      return;
+    }
+    setTutorialStep(tutorialStep + 1);
+  };
+
+  const handlePrev = () => {
+    if (tutorialStep <= 0) return;
+    setTutorialStep(tutorialStep - 1);
+  };
+
+  const goToRoute = () => {
+    if (step.route) router.push(step.route);
+  };
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300 overflow-hidden">
-      <div className="w-full max-w-5xl max-h-[min(90vh,900px)] bg-white border-2 sm:border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,0.08)] relative overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100 z-20">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-[2px]">
+      <div
+        className={cn(
+          "w-full max-w-3xl max-h-[92vh] flex flex-col bg-card border border-border rounded-2xl shadow-2xl overflow-hidden",
+          "transition-all duration-300",
+          anim ? "opacity-100 translate-y-0" : "opacity-90 translate-y-1"
+        )}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Guia do sistema — passo ${tutorialStep + 1} de ${TOUR_STEPS.length}`}
+      >
+        {/* Header */}
+        <div className="shrink-0 border-b border-border bg-foreground text-background px-5 sm:px-6 py-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+              Guia do sistema · {tutorialStep + 1}/{TOUR_STEPS.length}
+            </p>
+            <h2 className="text-base sm:text-lg font-bold tracking-tight truncate flex items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20 text-primary shrink-0">
+                {step.icon}
+              </span>
+              <span className="truncate">{step.title}</span>
+            </h2>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={finishTour}
+            className="h-9 w-9 rounded-lg text-background/70 hover:text-background hover:bg-white/10 shrink-0"
+            aria-label="Fechar guia"
+          >
+            <X size={18} />
+          </Button>
+        </div>
+
+        {/* Progress */}
+        <div className="h-1 bg-muted shrink-0">
           <div
             className="h-full bg-primary transition-all duration-500 ease-out"
-            style={{
-              width: `${((tutorialStep + 1) / TOUR_STEPS.length) * 100}%`,
-            }}
+            style={{ width: `${progress}%` }}
           />
         </div>
 
-        <button
-          type="button"
-          onClick={finishTour}
-          className="absolute top-4 right-4 p-2 hover:bg-black hover:text-white transition-all z-30 rounded-md"
-          aria-label="Fechar guia"
-        >
-          <X size={22} />
-        </button>
-
-        <div className="p-4 sm:p-8 pb-0 shrink-0">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6 pr-10">
-            <div className="flex items-center gap-3 min-w-0">
-              <Link href="/">
-                <Button
-                  variant="ghost"
-                  className="h-10 px-3 border-2 border-black rounded-none font-black uppercase text-[10px] hover:bg-black hover:text-white transition-all shrink-0"
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {showVideo ? (
+            <div className="p-5 sm:p-6 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Vídeo institucional de apoio. A interface pode evoluir mais rápido que o
+                vídeo — em caso de divergência, confie neste guia e no menu lateral.
+              </p>
+              <div className="rounded-xl overflow-hidden border border-border bg-black aspect-video">
+                <video
+                  className="w-full h-full"
+                  controls
+                  playsInline
+                  src="/Onboarding_LexisPredict.mp4"
                 >
-                  <ArrowLeft size={14} className="mr-2" /> Gabinete
-                </Button>
-              </Link>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tighter leading-none truncate">
-                  Guia LexisPredict
-                </h1>
-                <p className="text-[9px] font-black uppercase text-black/40 tracking-widest mt-1 truncate">
-                  Operação real · DataJud ∪ DJEN · Fila · Dossiê
+                  Seu navegador não suporta vídeo HTML5.
+                </video>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowVideo(false)}
+                className="w-full sm:w-auto"
+              >
+                Voltar ao guia escrito
+              </Button>
+            </div>
+          ) : (
+            <div className="p-5 sm:p-6 space-y-5">
+              <p className="text-[15px] leading-relaxed text-foreground/90">
+                {step.content}
+              </p>
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-border bg-secondary/40 p-4 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Por quê
+                  </p>
+                  <p className="text-[13px] font-medium leading-snug">{step.porQue}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-secondary/40 p-4 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Rotina sugerida
+                  </p>
+                  <p className="text-[13px] font-medium leading-snug">{step.rotina}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-secondary/40 p-4 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Ganho
+                  </p>
+                  <p className="text-[13px] font-medium leading-snug">{step.ganho}</p>
+                </div>
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                    Tempo estimado
+                  </p>
+                  <p className="text-xl font-bold tabular-nums tracking-tight">
+                    {step.tempo}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">{step.metrica}</p>
+                </div>
+              </div>
+
+              {step.dicas && step.dicas.length > 0 && (
+                <div className="rounded-xl border border-border p-4 space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <CheckCircle2 size={12} className="text-primary" /> Dicas práticas
+                  </p>
+                  <ul className="space-y-1.5">
+                    {step.dicas.map((d, i) => (
+                      <li
+                        key={i}
+                        className="text-[13px] leading-snug text-foreground/85 pl-3 border-l-2 border-primary/30"
+                      >
+                        {d}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/30 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200 mb-1">
+                  Limite honesto
+                </p>
+                <p className="text-[12px] leading-relaxed text-amber-900/80 dark:text-amber-100/80">
+                  DataJud e DJEN são triagem. Prazos fatais, liminares e B.A. exigem
+                  conferência no sistema oficial do tribunal (PJe / e-SAJ) antes de
+                  qualquer orientação definitiva ao cliente.
                 </p>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
-        <div className="flex flex-1 min-h-0 overflow-hidden flex-col lg:flex-row">
-          <div className="lg:w-1/3 bg-[#f8f9fb] lg:border-r-2 border-black p-5 sm:p-8 flex flex-col justify-between overflow-y-auto overscroll-contain min-h-0 max-h-[40vh] lg:max-h-none">
-            <div className="space-y-6">
-              <div
-                className={cn(
-                  "px-3 py-1.5 w-fit border-2 border-black font-black uppercase text-[10px] tracking-widest",
-                  currentLevel.bg,
-                  currentLevel.color
-                )}
+        {/* Footer */}
+        {!showVideo && (
+          <div className="shrink-0 border-t border-border bg-muted/40 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handlePrev}
+                disabled={tutorialStep === 0}
+                className="h-10 px-3 text-[11px] font-semibold uppercase"
               >
-                {currentLevel.label} · {currentLevel.sub}
-              </div>
-
-              {!showVideo ? (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
-                    Passo {tutorialStep + 1} de {TOUR_STEPS.length}
-                  </p>
-                  <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-tight">
-                    {step.title}
-                  </h2>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
-                    Vídeo
-                  </p>
-                  <h2 className="text-2xl font-black uppercase tracking-tighter leading-tight">
-                    Treinamento em vídeo
-                  </h2>
-                </div>
-              )}
-
-              {!showVideo && (
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
-                      <Sparkles size={12} /> Por que existe?
-                    </p>
-                    <p className="text-xs font-bold text-black/70 leading-relaxed">
-                      {step.porQue}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-2">
-                      <Clock size={12} /> Rotina
-                    </p>
-                    <p className="text-xs font-bold text-black/70 leading-relaxed">
-                      {step.rotina}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest flex items-center gap-2">
-                      <Target size={12} /> Ganho
-                    </p>
-                    <p className="text-xs font-bold text-black/70 leading-relaxed">
-                      {step.ganho}
-                    </p>
-                  </div>
-                </div>
-              )}
+                <ChevronLeft size={16} className="mr-1" /> Anterior
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goToRoute}
+                className="h-10 px-3 text-[11px] font-semibold uppercase"
+              >
+                Abrir tela
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowVideo(true)}
+                className="h-10 px-3 text-[11px] font-semibold uppercase text-muted-foreground"
+              >
+                <PlayCircle size={14} className="mr-1" /> Vídeo
+              </Button>
             </div>
-
-            <div className="space-y-3 mt-6 shrink-0">
-              {!showVideo && (
-                <div className="bg-white border-2 border-black p-3">
-                  <p className="text-[8px] font-black uppercase opacity-40 mb-1">
-                    Métrica
-                  </p>
-                  <p className="text-[10px] font-black uppercase tracking-tight leading-snug">
-                    {step.metrica}
-                  </p>
-                </div>
-              )}
-              {showVideo ? (
-                <Button
-                  onClick={() => setShowVideo(false)}
-                  variant="outline"
-                  className="w-full h-11 border-2 border-black rounded-none bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[9px] tracking-widest transition-all"
-                >
-                  <ArrowLeft size={16} className="mr-2" /> Voltar ao guia
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => setShowVideo(true)}
-                  variant="outline"
-                  className="w-full h-11 border-2 border-black rounded-none bg-white text-black hover:bg-black hover:text-white font-black uppercase text-[9px] tracking-widest transition-all"
-                >
-                  <PlayCircle size={16} className="mr-2" /> Vídeo de apoio
-                </Button>
-              )}
+            <div className="flex gap-2 ml-auto">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={finishTour}
+                className="h-10 px-3 text-[11px] font-semibold uppercase text-muted-foreground"
+              >
+                Encerrar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleNext}
+                className="h-10 px-4 bg-foreground text-background hover:bg-primary hover:text-primary-foreground text-[11px] font-semibold uppercase"
+              >
+                {tutorialStep === TOUR_STEPS.length - 1 ? "Concluir" : "Próximo"}
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
             </div>
           </div>
-
-          <div className="flex-1 flex flex-col bg-white min-h-0 overflow-hidden">
-            {showVideo ? (
-              <div className="flex-1 bg-black flex items-center justify-center p-3 min-h-0">
-                <video
-                  controls
-                  autoPlay
-                  className="max-w-full max-h-full object-contain border border-white/10"
-                  src="/Onboarding_LexisPredict.mp4"
-                />
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
-                <div className="p-6 sm:p-12 space-y-8">
-                  <div className="flex flex-col sm:flex-row items-start gap-6">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black flex items-center justify-center text-white border-2 border-black shadow-[6px_6px_0px_hsl(var(--primary))] shrink-0 transition-transform duration-300 hover:scale-[1.02]">
-                      {React.cloneElement(
-                        step.icon as React.ReactElement<{ size?: number }>,
-                        { size: 36 }
-                      )}
-                    </div>
-                    <p className="text-base sm:text-lg font-bold leading-relaxed tracking-tight text-black/80">
-                      {step.content}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-                    <div className="p-5 border-2 border-black bg-[#f3f2f2] transition-shadow duration-200 hover:shadow-md">
-                      <p className="text-[9px] font-black uppercase opacity-40 mb-2">
-                        Limite honesto
-                      </p>
-                      <p className="text-[11px] font-bold leading-relaxed text-black/70">
-                        DataJud e DJEN são triagem. Casos críticos e prazos
-                        fatais exigem conferência no sistema do tribunal (PJe /
-                        e-SAJ).
-                      </p>
-                    </div>
-                    <div className="p-5 border-2 border-black bg-black text-white shadow-[6px_6px_0px_hsl(var(--primary))]">
-                      <p className="text-[9px] font-black uppercase text-primary tracking-widest mb-2">
-                        Tempo estimado
-                      </p>
-                      <p className="text-2xl font-black">{step.tempo}</p>
-                      <p className="text-[8px] font-bold uppercase opacity-60">
-                        Leitura + primeiro uso
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!showVideo && (
-              <div className="p-4 sm:p-6 bg-[#f8f9fb] border-t-2 border-black flex flex-wrap items-center justify-between gap-3 shrink-0">
-                <Button
-                  variant="ghost"
-                  onClick={handlePrev}
-                  disabled={tutorialStep === 0}
-                  className="h-11 px-4 font-black uppercase text-[10px] border-2 border-transparent hover:border-black rounded-none transition-all"
-                >
-                  <ChevronLeft size={16} className="mr-1" /> Anterior
-                </Button>
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={finishTour}
-                    className="h-11 px-4 font-black uppercase text-[10px] text-black/40 hover:text-black rounded-none"
-                  >
-                    Encerrar
-                  </Button>
-                  <Button
-                    onClick={handleNext}
-                    className="h-11 px-5 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none transition-all"
-                  >
-                    {tutorialStep === TOUR_STEPS.length - 1
-                      ? "Concluir"
-                      : "Próximo"}
-                    <ChevronRight size={16} className="ml-1" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
