@@ -8,13 +8,22 @@ import {
 
 export const notesService = {
   async getNotes() {
-    const result = await getNotesAction();
-    return this.dedupeNotes(Array.isArray(result) ? result : []);
+    try {
+      const result = await getNotesAction();
+      return this.dedupeNotes(Array.isArray(result) ? result : []);
+    } catch (e) {
+      console.error("[notesService.getNotes]", e);
+      return [];
+    }
   },
 
   async getByCliente(cliente: string) {
-    const result = await getNotesByClienteAction(cliente);
-    return this.dedupeNotes(Array.isArray(result) ? result : []);
+    try {
+      const result = await getNotesByClienteAction(cliente);
+      return this.dedupeNotes(Array.isArray(result) ? result : []);
+    } catch {
+      return [];
+    }
   },
 
   async createNote(note: {
