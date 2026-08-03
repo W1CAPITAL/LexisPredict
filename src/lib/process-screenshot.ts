@@ -1,6 +1,6 @@
 /**
- * Captura de tela real – versão estável para Vercel
- * puppeteer-core + @sparticuz/chromium
+ * Captura de tela real – versão mais estável para Vercel
+ * Trata o erro de libnss3.so e bibliotecas faltantes
  */
 
 import puppeteer from 'puppeteer-core';
@@ -15,26 +15,45 @@ export async function captureProcessScreenshot(
   let browser = null;
 
   try {
+    // Configuração mais estável para Vercel
+    chromium.setGraphicsMode = false;
+
+    const executablePath = await chromium.executablePath();
+
     browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',          // ajuda em serverless
+        '--no-zygote',
+        '--disable-web-security',
+      ],
+      defaultViewport: {
+        width: 1280,
+        height: 800,
+      },
+      executablePath,
+      headless: true,
+      ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
-    
+
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
+    // Timeout maior e espera mais tolerante
     await page.goto(targetUrl, {
-      waitUntil: 'networkidle2',
-      timeout: 45000,
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
     });
 
-    // Espera conteúdo carregar
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Pequena espera para o conteúdo carregar
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const buffer = await page.screenshot({
       fullPage: options?.fullPage ?? true,
@@ -44,6 +63,7 @@ export async function captureProcessScreenshot(
     await browser.close();
     browser = null;
 
+    // Salva no Supabase
     const supabase = await createClient();
     const path = `evidencias/${cnj.replace(/\D/g, '')}/${Date.now()}.png`;
 
@@ -55,14 +75,26 @@ export async function captureProcessScreenshot(
       });
 
     if (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: `Erro ao salvar no Storage: ${error.message}` };
     }
 
     return { success: true, path };
   } catch (err: any) {
     if (browser) {
-      try { await browser.close(); } catch {}
+      try {
+        await browser.close();
+      } catch {}
     }
-    return { success: false, error: err.message || 'Falha na captura de tela' };
+
+    console.error('[Screenshot Error]', err);
+
+    // Mensagem mais amigável
+    let message = err.message || 'Falha na captura de tela';
+
+    if (message.includes('libnss3') || message.includes('shared libraries')) {
+      message = 'Erro de biblioteca do Chromium na Vercel (libnss3). Tente novamente ou use outro método.';
+    }
+
+    return { success: false, error: message };
   }
 }
