@@ -374,7 +374,7 @@ export default function TarefasPage() {
       const g = groups[nome];
       g.totalAtivos++;
       g.cases.push(c);
-      if (c.false) g.hasBA = true;
+      if (c.evento_tipo === 'ba' || (c as any).indicio_busca_apreensao) g.hasBA = true;
       if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
       if (c.tem_novo_andamento) g.hasUpdate = true;
       

@@ -40,12 +40,24 @@ export async function listNotesCrm() {
 
 export async function saveNoteCrm(note: CrmNote) {
   const { createNoteAction } = await import("@/app/actions/notes-actions");
-  return createNoteAction(note);
+  return createNoteAction({
+    title: note.title,
+    content: note.content,
+    imageUrl: note.imageUrl ?? undefined,
+    cliente: note.cliente ?? undefined,
+    protocolo: note.protocolo ?? undefined,
+  });
 }
 
 export async function updateNoteCrm(id: string, note: Partial<CrmNote>) {
   const { updateNoteAction } = await import("@/app/actions/notes-actions");
-  return updateNoteAction(id, note);
+  return updateNoteAction(id, {
+    title: note.title,
+    content: note.content,
+    imageUrl: note.imageUrl ?? undefined,
+    cliente: note.cliente ?? undefined,
+    protocolo: note.protocolo ?? undefined,
+  });
 }
 
 export async function deleteNoteCrm(id: string) {

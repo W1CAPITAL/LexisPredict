@@ -91,8 +91,8 @@ export default function ChatbotSeparadoPage() {
         setMessages(prev => [...prev, { 
           role: 'assistant', 
           content: res.resposta,
-          engine: res.engine,
-          tokens: res.tokens,
+          engine: (res as any).engineUtilizada || (res as any).engine,
+          tokens: (res as any).tokens,
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         }]);
       } else {
