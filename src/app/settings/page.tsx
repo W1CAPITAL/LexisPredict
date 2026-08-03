@@ -105,8 +105,18 @@ export default function SettingsPage() {
     genero: 'M',
     nacionalidade: 'brasileiro',
     estadoCivil: 'casado',
+    cpf: '',
+    rg: '',
     endereco: '',
+    cidade: '',
+    uf: 'SP',
+    cep: '',
     email: '',
+    emailProfissional: '',
+    telefone: '',
+    celular: '',
+    site: '',
+    observacao: '',
     oabs: [] as { uf: string, num: string }[]
   });
 
@@ -279,31 +289,56 @@ export default function SettingsPage() {
     setIsUploading(false);
   };
 
-  const handleSaveAdvogado = async (e: React.FormEvent) => {
+    const handleSaveAdvogado = async (e: React.FormEvent) => {
     e.preventDefault();
     const oabsJson: Record<string, string> = {};
-    advForm.oabs.forEach(o => { if(o.uf && o.num) oabsJson[o.uf] = o.num; });
-    if (!advForm.nome || Object.keys(oabsJson).length === 0) return;
+    advForm.oabs.forEach(o => { if (o.uf && o.num) oabsJson[o.uf] = o.num.trim(); });
+    if (!advForm.nome?.trim()) {
+      toast({ title: "Informe o nome", variant: "destructive" });
+      return;
+    }
+    if (Object.keys(oabsJson).length === 0) {
+      toast({ title: "Informe ao menos uma OAB", variant: "destructive" });
+      return;
+    }
     const res = await upsertAdvogadoBanca({
       id: editingAdv?.id,
-      nome: advForm.nome,
+      nome: advForm.nome.trim().toUpperCase(),
       genero: advForm.genero,
       nacionalidade: advForm.nacionalidade,
       estado_civil: advForm.estadoCivil,
-      endereco: advForm.endereco,
-      email: advForm.email,
-      oabs: oabsJson
+      cpf: (advForm.cpf || '').replace(/\D/g, '') || null,
+      rg: advForm.rg || null,
+      endereco: advForm.endereco || null,
+      cidade: advForm.cidade || null,
+      uf: advForm.uf || null,
+      cep: (advForm.cep || '').replace(/\D/g, '') || null,
+      email: advForm.email || null,
+      email_profissional: advForm.emailProfissional || null,
+      telefone: advForm.telefone || null,
+      celular: advForm.celular || null,
+      site: advForm.site || null,
+      observacao: advForm.observacao || null,
+      oabs: oabsJson,
+      ativo: true,
     });
-    if (res.success) {
+    if (res?.success) {
       toast({ title: "Advogado Sincronizado" });
       setIsAdvModalOpen(false);
       fetchBanca();
+    } else {
+      toast({ title: "Erro ao salvar", description: (res as any)?.error || "Verifique as colunas no Supabase", variant: "destructive" });
     }
   };
 
   const openAddAdv = () => {
     setEditingAdv(null);
-    setAdvForm({ nome: '', genero: 'M', nacionalidade: 'brasileiro', estadoCivil: 'casado', endereco: '', email: '', oabs: [{ uf: 'SP', num: '' }] });
+    setAdvForm({
+      nome: '', genero: 'M', nacionalidade: 'brasileiro', estadoCivil: 'casado',
+      cpf: '', rg: '', endereco: '', cidade: '', uf: 'SP', cep: '',
+      email: '', emailProfissional: '', telefone: '', celular: '', site: '', observacao: '',
+      oabs: [{ uf: 'SP', num: '' }],
+    });
     setIsAdvModalOpen(true);
   };
 
@@ -311,13 +346,23 @@ export default function SettingsPage() {
     setEditingAdv(adv);
     const oabList = Object.entries(adv.oabs || {}).map(([uf, num]) => ({ uf, num: num as string }));
     setAdvForm({
-      nome: adv.nome,
+      nome: (adv.nome || '').trim(),
       genero: adv.genero || 'M',
       nacionalidade: adv.nacionalidade || (adv.genero === 'F' ? 'brasileira' : 'brasileiro'),
-      estadoCivil: adv.estado_civil || adv.estadoCivil || (adv.genero === 'F' ? 'casada' : 'casado'),
+      estadoCivil: adv.estado_civil || adv.estadoCivil || 'casado',
+      cpf: adv.cpf || '',
+      rg: adv.rg || '',
       endereco: adv.endereco || '',
+      cidade: adv.cidade || '',
+      uf: adv.uf || 'SP',
+      cep: adv.cep || '',
       email: adv.email || '',
-      oabs: oabList.length > 0 ? oabList : [{ uf: 'SP', num: '' }]
+      emailProfissional: adv.email_profissional || '',
+      telefone: adv.telefone || '',
+      celular: adv.celular || '',
+      site: adv.site || '',
+      observacao: adv.observacao || '',
+      oabs: oabList.length > 0 ? oabList : [{ uf: 'SP', num: '' }],
     });
     setIsAdvModalOpen(true);
   };
@@ -526,6 +571,8 @@ export default function SettingsPage() {
                                  <p className="font-black text-sm uppercase tracking-tight">{adv.nome}</p>
                                  <div className="flex items-center gap-2 mt-1">
                                     <p className="text-[9px] text-muted-foreground uppercase font-bold">OAB: {Object.values(adv.oabs || {}).join(' | ')}</p>
+                                    <p className="text-[9px] text-muted-foreground truncate">{adv.email_profissional || adv.email || '—'} · {adv.telefone || adv.celular || '—'}</p>
+                                    <p className="text-[9px] text-muted-foreground truncate">{adv.endereco || 'Sem endereço profissional'}</p>
                                  </div>
                               </div>
                            </div>
@@ -655,28 +702,133 @@ export default function SettingsPage() {
         </Dialog>
 
         <Dialog open={isAdvModalOpen} onOpenChange={setIsAdvModalOpen}>
-           <DialogContent className="sm:max-w-[550px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
+           <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl border-2 border-black shadow-[12px_12px_0px_#000]">
               <form onSubmit={handleSaveAdvogado}>
-                 <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-sm">Perfil de Advogado</DialogTitle></DialogHeader>
-                 <div className="space-y-6 py-6">
-                    <div className="space-y-2">
-                       <Label className="text-[9px] font-black uppercase">Nome Completo</Label>
-                       <Input value={advForm.nome} onChange={e => setAdvForm({...advForm, nome: e.target.value.toUpperCase()})} className="border-black rounded-none h-11 uppercase font-black text-xs" required />
+                 <DialogHeader>
+                   <DialogTitle className="font-black uppercase tracking-widest text-sm">Perfil de Advogado</DialogTitle>
+                 </DialogHeader>
+                 <div className="space-y-4 py-4 text-xs">
+                    <div className="space-y-1">
+                       <Label className="text-[9px] font-black uppercase">Nome Completo *</Label>
+                       <Input value={advForm.nome} onChange={e => setAdvForm({...advForm, nome: e.target.value.toUpperCase()})} className="border-black rounded-xl h-11 uppercase font-black text-xs" required />
                     </div>
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center"><Label className="text-[9px] font-black uppercase">OABs</Label><Button type="button" onClick={() => setAdvForm({...advForm, oabs: [...advForm.oabs, { uf: 'SP', num: '' }]})} variant="ghost" className="h-6 text-[8px] font-black uppercase">Add UF</Button></div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase">Gênero</Label>
+                        <Select value={advForm.genero} onValueChange={(v) => setAdvForm({...advForm, genero: v})}>
+                          <SelectTrigger className="h-10 border-black rounded-xl"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="M">M</SelectItem>
+                            <SelectItem value="F">F</SelectItem>
+                            <SelectItem value="O">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase">Nacionalidade</Label>
+                        <Input value={advForm.nacionalidade} onChange={e => setAdvForm({...advForm, nacionalidade: e.target.value})} className="h-10 border-black rounded-xl" />
+                      </div>
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[9px] font-black uppercase">Estado civil</Label>
+                        <Select value={advForm.estadoCivil} onValueChange={(v) => setAdvForm({...advForm, estadoCivil: v})}>
+                          <SelectTrigger className="h-10 border-black rounded-xl"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="solteiro">Solteiro(a)</SelectItem>
+                            <SelectItem value="casado">Casado(a)</SelectItem>
+                            <SelectItem value="divorciado">Divorciado(a)</SelectItem>
+                            <SelectItem value="viuvo">Viúvo(a)</SelectItem>
+                            <SelectItem value="uniao_estavel">União estável</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase">CPF</Label>
+                        <Input value={advForm.cpf} onChange={e => setAdvForm({...advForm, cpf: e.target.value})} className="h-10 border-black rounded-xl" placeholder="000.000.000-00" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase">RG</Label>
+                        <Input value={advForm.rg} onChange={e => setAdvForm({...advForm, rg: e.target.value})} className="h-10 border-black rounded-xl" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-xl border border-black/20 p-3">
+                       <div className="flex justify-between items-center">
+                         <Label className="text-[9px] font-black uppercase">OABs *</Label>
+                         <Button type="button" onClick={() => setAdvForm({...advForm, oabs: [...advForm.oabs, { uf: 'SP', num: '' }]})} variant="ghost" className="h-6 text-[8px] font-black uppercase">Add UF</Button>
+                       </div>
                        {advForm.oabs.map((o, idx) => (
                           <div key={idx} className="flex gap-2">
                              <Select value={o.uf} onValueChange={(v) => { const newOabs = [...advForm.oabs]; newOabs[idx].uf = v; setAdvForm({...advForm, oabs: newOabs}); }}>
-                                <SelectTrigger className="w-20 border-black rounded-none"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="w-20 border-black rounded-xl"><SelectValue /></SelectTrigger>
                                 <SelectContent>{["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}</SelectContent>
                              </Select>
-                             <Input value={o.num} onChange={e => { const newOabs = [...advForm.oabs]; newOabs[idx].num = e.target.value; setAdvForm({...advForm, oabs: newOabs}); }} className="border-black rounded-none" />
+                             <Input value={o.num} onChange={e => { const newOabs = [...advForm.oabs]; newOabs[idx].num = e.target.value; setAdvForm({...advForm, oabs: newOabs}); }} className="border-black rounded-xl flex-1" placeholder="238.759/MG" />
                           </div>
                        ))}
                     </div>
+
+                    <div className="space-y-2 rounded-xl border border-black/20 p-3">
+                      <Label className="text-[9px] font-black uppercase text-muted-foreground">Correio eletrônico e telefones</Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black uppercase">E-mail profissional</Label>
+                          <Input type="email" value={advForm.emailProfissional} onChange={e => setAdvForm({...advForm, emailProfissional: e.target.value})} className="h-10 border-black rounded-xl" placeholder="nome@adv.oabsp.org.br" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black uppercase">E-mail</Label>
+                          <Input type="email" value={advForm.email} onChange={e => setAdvForm({...advForm, email: e.target.value})} className="h-10 border-black rounded-xl" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black uppercase">Telefone</Label>
+                          <Input value={advForm.telefone} onChange={e => setAdvForm({...advForm, telefone: e.target.value})} className="h-10 border-black rounded-xl" placeholder="(11) 3000-0000" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black uppercase">Celular</Label>
+                          <Input value={advForm.celular} onChange={e => setAdvForm({...advForm, celular: e.target.value})} className="h-10 border-black rounded-xl" placeholder="(11) 90000-0000" />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label className="text-[9px] font-black uppercase">Site</Label>
+                          <Input value={advForm.site} onChange={e => setAdvForm({...advForm, site: e.target.value})} className="h-10 border-black rounded-xl" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-xl border border-black/20 p-3">
+                      <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço profissional</Label>
+                      <Input value={advForm.endereco} onChange={e => setAdvForm({...advForm, endereco: e.target.value})} className="h-10 border-black rounded-xl" placeholder="Rua, número, sala" />
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="space-y-1 col-span-2">
+                          <Label className="text-[9px] font-black uppercase">Cidade</Label>
+                          <Input value={advForm.cidade} onChange={e => setAdvForm({...advForm, cidade: e.target.value})} className="h-10 border-black rounded-xl" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black uppercase">UF</Label>
+                          <Select value={advForm.uf} onValueChange={(v) => setAdvForm({...advForm, uf: v})}>
+                            <SelectTrigger className="h-10 border-black rounded-xl"><SelectValue /></SelectTrigger>
+                            <SelectContent>{["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black uppercase">CEP</Label>
+                          <Input value={advForm.cep} onChange={e => setAdvForm({...advForm, cep: e.target.value})} className="h-10 border-black rounded-xl" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[9px] font-black uppercase">Observação</Label>
+                      <Textarea value={advForm.observacao} onChange={e => setAdvForm({...advForm, observacao: e.target.value})} rows={3} className="border-black rounded-xl text-xs" />
+                    </div>
                  </div>
-                 <DialogFooter><Button type="submit" className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none shadow-[6px_6px_0px_#22c55e]">Salvar Advogado</Button></DialogFooter>
+                 <DialogFooter>
+                   <Button type="submit" className="w-full h-12 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-xl shadow-[6px_6px_0px_#22c55e]">
+                     Salvar Advogado
+                   </Button>
+                 </DialogFooter>
               </form>
            </DialogContent>
         </Dialog>
