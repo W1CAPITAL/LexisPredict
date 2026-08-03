@@ -452,7 +452,13 @@ function CasesContent() {
               <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
                 <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-black uppercase text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="active">Ativos</SelectItem><SelectItem value="updated">Com Novidade</SelectItem><SelectItem value="closed">Arquivados</SelectItem></SelectContent>
+               <SelectContent>
+  <SelectItem value="all">Todos</SelectItem>
+  <SelectItem value="today">Hoje</SelectItem>
+  <SelectItem value="active">Ativos</SelectItem>
+  <SelectItem value="updated">Com Novidade</SelectItem>
+  <SelectItem value="closed">Arquivados</SelectItem>
+</SelectContent>
               </Select>
             </div>
             <div className={cn("flex-1", ui.tableWrap)}>
