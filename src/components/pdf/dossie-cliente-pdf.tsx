@@ -1,5 +1,19 @@
 /**
  * Dossiê operacional estratégico — layout premium LexisPredict
+ *
+ * Changelog desta revisão:
+ * - FIX: texto do DJEN chegava com entidades HTML não decodificadas
+ *   (&agrave; / &ecirc; / &ocirc; apareciam literalmente). Agora passa
+ *   por decodeHtmlEntities() antes de renderizar.
+ * - FIX: rodapé "Página X de Y" era hardcoded (sempre "1 de 2" / "2 de 2").
+ *   Agora usa o render-prop do react-pdf para contar páginas de verdade —
+ *   importante se o conteúdo crescer e quebrar em 3+ páginas.
+ * - FIX: "em atraso" era um texto estático amarrado à regex de status.
+ *   Agora calcula os dias reais de atraso a partir de proximoPrazo x geradoEm.
+ * - Refactor: componente monolítico quebrado em subcomponentes
+ *   (KpiCard, RiskGauge, PriorityPanel, TimelineItem, DjenHighlight, PlanCard).
+ * - Robustez: normalização de severidade (acentos/caixa), overflow de
+ *   movimentações tratado explicitamente em vez de cortar em 10 silenciosamente.
  */
 import React from "react";
 import {
@@ -10,6 +24,10 @@ import {
   StyleSheet,
   Image,
 } from "@react-pdf/renderer";
+
+// ————————————————————————————————————————————————————————————
+// Design tokens
+// ————————————————————————————————————————————————————————————
 
 const C = {
   ink: "#0B1220",
@@ -29,7 +47,16 @@ const C = {
   ok: "#059669",
   okSoft: "#ecfdf5",
   white: "#ffffff",
-};
+} as const;
+
+type Severidade = "alta" | "media" | "baixa";
+
+const MAX_MOVIMENTOS_EXIBIDOS = 8;
+const MAX_CHARS_DJEN = 650;
+
+// ————————————————————————————————————————————————————————————
+// Estilos
+// ————————————————————————————————————————————————————————————
 
 const s = StyleSheet.create({
   page: {
@@ -41,13 +68,11 @@ const s = StyleSheet.create({
     fontFamily: "Helvetica",
     backgroundColor: C.white,
   },
-  /* —— header band —— */
   headerBand: {
     backgroundColor: C.brandDark,
     paddingTop: 18,
     paddingBottom: 16,
     paddingHorizontal: 32,
-    marginBottom: 0,
   },
   headerRow: {
     flexDirection: "row",
@@ -55,6 +80,15 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   logo: { width: 30, height: 30, borderRadius: 4 },
+  logoFallback: {
+    width: 30,
+    height: 30,
+    backgroundColor: C.brand,
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoFallbackTxt: { color: C.white, fontFamily: "Helvetica-Bold", fontSize: 14 },
   brandBlock: { flexDirection: "row", alignItems: "center", gap: 10 },
   brandName: {
     fontSize: 11,
@@ -100,7 +134,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 14,
   },
-  /* —— KPI grid —— */
   kpiRow: {
     flexDirection: "row",
     gap: 8,
@@ -140,7 +173,6 @@ const s = StyleSheet.create({
     color: C.danger,
     lineHeight: 1.25,
   },
-  /* —— risk panel —— */
   riskRow: {
     flexDirection: "row",
     gap: 10,
@@ -231,7 +263,6 @@ const s = StyleSheet.create({
     lineHeight: 1.4,
     marginTop: 4,
   },
-  /* —— section title —— */
   h2: {
     fontSize: 8.5,
     fontFamily: "Helvetica-Bold",
@@ -244,7 +275,6 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.line,
   },
-  /* —— diagnosis —— */
   diagRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
   colOk: {
     flex: 1,
@@ -274,7 +304,6 @@ const s = StyleSheet.create({
     marginBottom: 5,
     color: C.body,
   },
-  /* —— timeline —— */
   tlRow: {
     flexDirection: "row",
     marginBottom: 5,
@@ -294,7 +323,13 @@ const s = StyleSheet.create({
     color: C.brandDark,
   },
   tlBody: { flex: 1, fontSize: 7.5, lineHeight: 1.35, color: C.body },
-  /* —— DJEN highlight —— */
+  tlMore: {
+    fontSize: 7.5,
+    color: C.muted,
+    marginTop: 2,
+    marginLeft: 14,
+    fontFamily: "Helvetica-Oblique",
+  },
   djenBox: {
     marginTop: 8,
     marginBottom: 4,
@@ -315,7 +350,6 @@ const s = StyleSheet.create({
     marginBottom: 5,
   },
   djenBody: { fontSize: 8, lineHeight: 1.45, color: C.body },
-  /* —— page 2 —— */
   page2Header: {
     backgroundColor: C.brandDark,
     height: 8,
@@ -395,6 +429,10 @@ const s = StyleSheet.create({
   footT: { fontSize: 6.5, color: C.faint },
 });
 
+// ————————————————————————————————————————————————————————————
+// Tipos públicos
+// ————————————————————————————————————————————————————————————
+
 export type DossieClientePdfData = {
   logoBase64?: string | null;
   cliente: string;
@@ -425,40 +463,267 @@ export type DossieClientePdfData = {
   geradoEm: string;
 };
 
-function sevStyle(sev: string) {
-  if (sev === "alta") {
-    return { backgroundColor: C.dangerSoft, color: C.danger };
+// ————————————————————————————————————————————————————————————
+// Helpers
+// ————————————————————————————————————————————————————————————
+
+/**
+ * Decodifica as entidades HTML nomeadas mais comuns em publicações
+ * jurídicas em pt-BR (acentuação, cedilha). O texto vindo de DJEN
+ * frequentemente chega pré-escapado (&agrave;, &ecirc; etc.) e, sem
+ * isso, aparece literalmente no PDF.
+ */
+function decodeHtmlEntities(input?: string): string {
+  if (!input) return "";
+  const map: Record<string, string> = {
+    "&agrave;": "à", "&Agrave;": "À",
+    "&aacute;": "á", "&Aacute;": "Á",
+    "&acirc;": "â", "&Acirc;": "Â",
+    "&atilde;": "ã", "&Atilde;": "Ã",
+    "&eacute;": "é", "&Eacute;": "É",
+    "&ecirc;": "ê", "&Ecirc;": "Ê",
+    "&iacute;": "í", "&Iacute;": "Í",
+    "&oacute;": "ó", "&Oacute;": "Ó",
+    "&ocirc;": "ô", "&Ocirc;": "Ô",
+    "&otilde;": "õ", "&Otilde;": "Õ",
+    "&uacute;": "ú", "&Uacute;": "Ú",
+    "&ccedil;": "ç", "&Ccedil;": "Ç",
+    "&amp;": "&",
+    "&nbsp;": " ",
+    "&quot;": '"',
+    "&#39;": "'",
+    "&lt;": "<",
+    "&gt;": ">",
+  };
+  let out = input;
+  for (const [entity, char] of Object.entries(map)) {
+    out = out.split(entity).join(char);
   }
-  if (sev === "media") {
-    return { backgroundColor: C.warnSoft, color: C.warn };
-  }
-  return { backgroundColor: C.okSoft, color: C.ok };
+  // fallback genérico para entidades numéricas (&#123;)
+  out = out.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+  return out;
 }
 
-function nivelColor(nivel: string) {
-  if (/cr[ií]tico/i.test(nivel)) return C.danger;
-  if (/alto/i.test(nivel)) return C.warn;
-  if (/moderado/i.test(nivel)) return C.brandDark;
+function normalizeSeveridade(sev: string): Severidade {
+  const n = (sev || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (n.startsWith("alt")) return "alta";
+  if (n.startsWith("med")) return "media";
+  return "baixa";
+}
+
+function sevStyle(sev: string): { backgroundColor: string; color: string } {
+  switch (normalizeSeveridade(sev)) {
+    case "alta":
+      return { backgroundColor: C.dangerSoft, color: C.danger };
+    case "media":
+      return { backgroundColor: C.warnSoft, color: C.warn };
+    default:
+      return { backgroundColor: C.okSoft, color: C.ok };
+  }
+}
+
+function nivelColor(nivel: string): string {
+  const n = (nivel || "").toLowerCase();
+  if (n.includes("crit")) return C.danger;
+  if (n.includes("alt")) return C.warn;
+  if (n.includes("moder")) return C.brandDark;
   return C.ok;
 }
 
-function fmtShortDate(raw?: string) {
+function fmtShortDate(raw?: string): string {
   if (!raw) return "—";
-  const s = String(raw);
-  // ISO or datetime → dd/mm
-  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  const str = String(raw);
+  const iso = str.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[3]}/${iso[2]}`;
-  const br = s.match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
+  const br = str.match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
   if (br) return `${br[1]}/${br[2]}`;
-  return s.slice(0, 10);
+  return str.slice(0, 10);
 }
+
+/** Extrai só a data (YYYY-MM-DD) de uma string ISO ou dd/mm/aaaa, para diffs seguros. */
+function parseDateOnly(raw?: string): Date | null {
+  if (!raw) return null;
+  const iso = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  const br = raw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+  return null;
+}
+
+/** Dias de atraso entre o prazo e a data de geração do relatório (>0 = atrasado). */
+function diasEmAtraso(proximoPrazo?: string, geradoEm?: string): number | null {
+  const prazo = parseDateOnly(proximoPrazo);
+  const geracao = parseDateOnly(geradoEm);
+  if (!prazo || !geracao) return null;
+  const diffMs = geracao.getTime() - prazo.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function truncate(text: string, max: number): string {
+  const clean = text.trim();
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+// ————————————————————————————————————————————————————————————
+// Subcomponentes
+// ————————————————————————————————————————————————————————————
+
+function KpiCard({
+  label,
+  value,
+  danger,
+}: {
+  label: string;
+  value: string;
+  danger?: boolean;
+}) {
+  return (
+    <View style={[s.kpi, danger ? s.kpiDanger : {}]}>
+      <Text style={s.kpiLab}>{label}</Text>
+      <Text style={danger ? s.kpiValDanger : s.kpiVal}>{value || "—"}</Text>
+    </View>
+  );
+}
+
+function RiskGauge({ score, nivel }: { score: number; nivel: string }) {
+  const nc = nivelColor(nivel);
+  return (
+    <View style={s.riskGauge}>
+      <Text style={s.riskLabel}>ÍNDICE DE RISCO</Text>
+      <Text style={[s.riskNumber, { color: nc }]}>{score ?? 0}</Text>
+      <Text style={s.riskOf}>de 100</Text>
+      <View style={[s.riskNivelPill, { backgroundColor: nc }]}>
+        <Text style={s.riskNivelText}>{(nivel || "—").toUpperCase()}</Text>
+      </View>
+    </View>
+  );
+}
+
+function PriorityPanel({
+  drivers,
+  hint,
+}: {
+  drivers: { label: string; pontos: number; severidade: string }[];
+  hint: string;
+}) {
+  return (
+    <View style={s.prioPanel}>
+      <Text style={s.prioTitle}>Painel de prioridade</Text>
+      {drivers.length === 0 ? (
+        <Text style={s.bullet}>Sem fatores elevados no momento.</Text>
+      ) : (
+        drivers.slice(0, 5).map((d, i) => {
+          const st = sevStyle(d.severidade);
+          return (
+            <View key={i} style={s.driverRow}>
+              <Text style={[s.sevPill, st]}>{normalizeSeveridade(d.severidade).toUpperCase()}</Text>
+              <Text style={s.driverLab}>{d.label}</Text>
+              <Text style={s.driverPts}>+{d.pontos}</Text>
+            </View>
+          );
+        })
+      )}
+      <Text style={s.riskHint}>{hint}</Text>
+    </View>
+  );
+}
+
+function TimelineItem({ data, nome, complemento }: { data?: string; nome?: string; complemento?: string }) {
+  return (
+    <View style={s.tlRow}>
+      <View style={s.tlDotCol}>
+        <View style={s.tlDot} />
+      </View>
+      <Text style={s.tlDate}>{fmtShortDate(data)}</Text>
+      <Text style={s.tlBody}>
+        {nome || "Movimento"}
+        {complemento ? ` — ${truncate(decodeHtmlEntities(complemento), 110)}` : ""}
+      </Text>
+    </View>
+  );
+}
+
+function DjenHighlight({ data, texto }: { data?: string; texto?: string }) {
+  if (!texto) return null;
+  const decoded = decodeHtmlEntities(texto);
+  return (
+    <View style={s.djenBox} wrap={false}>
+      <Text style={s.djenTitle}>
+        Publicação DJEN em destaque{data ? `  ·  ${data}` : ""}
+      </Text>
+      <Text style={s.djenBody}>{truncate(decoded, MAX_CHARS_DJEN)}</Text>
+    </View>
+  );
+}
+
+function PlanCard({ index, text }: { index: number; text: string }) {
+  return (
+    <View style={s.planCard} wrap={false}>
+      <View style={s.planNumBox}>
+        <Text style={s.planNum}>{index + 1}</Text>
+      </View>
+      <View style={s.planBody}>
+        <Text style={s.planTxt}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
+function BrandHeader({ logoBase64 }: { logoBase64?: string | null }) {
+  return (
+    <View style={s.headerBand}>
+      <View style={s.headerRow}>
+        <View style={s.brandBlock}>
+          {logoBase64 ? (
+            <Image src={logoBase64} style={s.logo} />
+          ) : (
+            <View style={s.logoFallback}>
+              <Text style={s.logoFallbackTxt}>L</Text>
+            </View>
+          )}
+          <View>
+            <Text style={s.brandName}>LEXISPREDICT</Text>
+            <Text style={s.brandSub}>DOSSIÊ OPERACIONAL DO CLIENTE</Text>
+          </View>
+        </View>
+        <Text style={s.confBadge}>USO INTERNO · CONFIDENCIAL</Text>
+      </View>
+    </View>
+  );
+}
+
+function Footer({ left }: { left: string }) {
+  return (
+    <View style={s.foot} fixed>
+      <Text style={s.footT}>{left}</Text>
+      <Text
+        style={s.footT}
+        render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`}
+      />
+    </View>
+  );
+}
+
+// ————————————————————————————————————————————————————————————
+// Documento principal
+// ————————————————————————————————————————————————————————————
 
 export function DossieClientePDF({ data }: { data: DossieClientePdfData }) {
   const r = data.risco;
-  const prazoAtraso = /vencido/i.test(data.status || "");
-  const djenDestaque = (data.djen || []).find((d) => (d.texto || "").length > 40) || data.djen?.[0];
-  const movs = (data.movimentos || []).slice(0, 10);
-  const nc = nivelColor(r.nivel || "");
+  const atrasoDias = diasEmAtraso(data.proximoPrazo, data.geradoEm);
+  const prazoAtrasado = (atrasoDias !== null && atrasoDias > 0) || /vencido/i.test(data.status || "");
+
+  const movimentos = data.movimentos || [];
+  const movsExibidos = movimentos.slice(0, MAX_MOVIMENTOS_EXIBIDOS);
+  const movsRestantes = movimentos.length - movsExibidos.length;
+
+  const djenDestaque =
+    (data.djen || []).find((d) => (d.texto || "").length > 40) || data.djen?.[0];
+
+  const footerLabel = "LexisPredict · DataJud/DJEN + carteira interna — não substitui certidão oficial";
 
   return (
     <Document
@@ -466,35 +731,9 @@ export function DossieClientePDF({ data }: { data: DossieClientePdfData }) {
       author="LexisPredict"
       subject="Dossiê operacional estratégico do cliente"
     >
-      {/* ================= PAGE 1 ================= */}
+      {/* ================= PÁGINA 1 ================= */}
       <Page size="A4" style={s.page}>
-        <View style={s.headerBand}>
-          <View style={s.headerRow}>
-            <View style={s.brandBlock}>
-              {data.logoBase64 ? (
-                <Image src={data.logoBase64} style={s.logo} />
-              ) : (
-                <View
-                  style={{
-                    width: 30,
-                    height: 30,
-                    backgroundColor: C.brand,
-                    borderRadius: 4,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ color: C.white, fontFamily: "Helvetica-Bold", fontSize: 14 }}>L</Text>
-                </View>
-              )}
-              <View>
-                <Text style={s.brandName}>LEXISPREDICT</Text>
-                <Text style={s.brandSub}>DOSSIÊ OPERACIONAL DO CLIENTE</Text>
-              </View>
-            </View>
-            <Text style={s.confBadge}>USO INTERNO · CONFIDENCIAL</Text>
-          </View>
-        </View>
+        <BrandHeader logoBase64={data.logoBase64} />
 
         <View style={s.clientBlock}>
           <Text style={s.clientName}>{data.cliente}</Text>
@@ -507,154 +746,84 @@ export function DossieClientePDF({ data }: { data: DossieClientePdfData }) {
         </View>
 
         <View style={s.content}>
-          {/* KPIs row 1 */}
           <View style={s.kpiRow}>
-            <View style={[s.kpi, prazoAtraso ? s.kpiDanger : {}]}>
-              <Text style={s.kpiLab}>Status da carteira</Text>
-              <Text style={prazoAtraso ? s.kpiValDanger : s.kpiVal}>
-                {data.status || "—"}
-              </Text>
-            </View>
-            <View style={s.kpi}>
-              <Text style={s.kpiLab}>Fase atual</Text>
-              <Text style={s.kpiVal}>{r.faseAtual || "—"}</Text>
-            </View>
-            <View style={s.kpi}>
-              <Text style={s.kpiLab}>Advogado responsável</Text>
-              <Text style={s.kpiVal}>
-                {data.advogado || "—"}
-                {data.escritorio ? `\n${data.escritorio}` : ""}
-              </Text>
-            </View>
-            <View style={[s.kpi, prazoAtraso ? s.kpiDanger : {}]}>
-              <Text style={s.kpiLab}>Próximo prazo</Text>
-              <Text style={prazoAtraso ? s.kpiValDanger : s.kpiVal}>
-                {data.proximoPrazo || "—"}
-                {prazoAtraso ? " · em atraso" : ""}
-              </Text>
-            </View>
+            <KpiCard label="Status da carteira" value={data.status || "—"} danger={prazoAtrasado} />
+            <KpiCard label="Fase atual" value={r.faseAtual || "—"} />
+            <KpiCard
+              label="Advogado responsável"
+              value={[data.advogado, data.escritorio].filter(Boolean).join("\n")}
+            />
+            <KpiCard
+              label="Próximo prazo"
+              value={
+                data.proximoPrazo
+                  ? `${data.proximoPrazo}${
+                      atrasoDias && atrasoDias > 0
+                        ? ` · ${atrasoDias} dia${atrasoDias === 1 ? "" : "s"} em atraso`
+                        : ""
+                    }`
+                  : "—"
+              }
+              danger={prazoAtrasado}
+            />
           </View>
 
-          {/* KPIs row 2 */}
           <View style={s.kpiRow}>
-            <View style={s.kpi}>
-              <Text style={s.kpiLab}>Telefone</Text>
-              <Text style={s.kpiVal}>{data.telefone || "—"}</Text>
-            </View>
-            <View style={s.kpi}>
-              <Text style={s.kpiLab}>Último retorno</Text>
-              <Text style={s.kpiVal}>{data.ultimoRetorno || "—"}</Text>
-            </View>
-            <View style={s.kpi}>
-              <Text style={s.kpiLab}>Tribunal</Text>
-              <Text style={s.kpiVal}>{data.tribunal || "—"}</Text>
-            </View>
-            <View style={s.kpi}>
-              <Text style={s.kpiLab}>Parte contrária</Text>
-              <Text style={s.kpiVal}>{data.parteContraria || "—"}</Text>
-            </View>
+            <KpiCard label="Telefone" value={data.telefone || "—"} />
+            <KpiCard label="Último retorno" value={data.ultimoRetorno || "—"} />
+            <KpiCard label="Tribunal" value={data.tribunal || "—"} />
+            <KpiCard label="Parte contrária" value={data.parteContraria || "—"} />
           </View>
 
-          {/* Risk + priority */}
           <View style={s.riskRow}>
-            <View style={s.riskGauge}>
-              <Text style={s.riskLabel}>ÍNDICE DE RISCO</Text>
-              <Text style={[s.riskNumber, { color: nc }]}>{r.score ?? 0}</Text>
-              <Text style={s.riskOf}>de 100</Text>
-              <View style={[s.riskNivelPill, { backgroundColor: nc }]}>
-                <Text style={s.riskNivelText}>{(r.nivel || "—").toUpperCase()}</Text>
-              </View>
-            </View>
-
-            <View style={s.prioPanel}>
-              <Text style={s.prioTitle}>Painel de prioridade</Text>
-              {(r.drivers || []).slice(0, 5).map((d, i) => {
-                const st = sevStyle(d.severidade);
-                return (
-                  <View key={i} style={s.driverRow}>
-                    <Text style={[s.sevPill, st]}>{(d.severidade || "").toUpperCase()}</Text>
-                    <Text style={s.driverLab}>{d.label}</Text>
-                    <Text style={s.driverPts}>+{d.pontos}</Text>
-                  </View>
-                );
-              })}
-              {(!r.drivers || r.drivers.length === 0) && (
-                <Text style={s.bullet}>Sem fatores elevados no momento.</Text>
-              )}
-              <Text style={s.riskHint}>{r.chanceRuim}</Text>
-            </View>
+            <RiskGauge score={r.score} nivel={r.nivel} />
+            <PriorityPanel drivers={r.drivers || []} hint={r.chanceRuim} />
           </View>
 
-          {/* Diagnosis */}
           <Text style={s.h2}>Diagnóstico — pontos fortes e pontos de atenção</Text>
           <View style={s.diagRow}>
             <View style={s.colOk}>
               <Text style={[s.colTitle, { color: C.ok }]}>Pontos fortes</Text>
               {(r.pontosFortes || []).map((t, i) => (
-                <Text key={i} style={s.bullet}>
-                  •  {t}
-                </Text>
+                <Text key={i} style={s.bullet}>•  {t}</Text>
               ))}
             </View>
             <View style={s.colBad}>
               <Text style={[s.colTitle, { color: C.danger }]}>Pontos de atenção</Text>
               {(r.pontosAtencao || []).map((t, i) => (
-                <Text key={i} style={s.bullet}>
-                  •  {t}
-                </Text>
+                <Text key={i} style={s.bullet}>•  {t}</Text>
               ))}
             </View>
           </View>
 
-          {/* Timeline */}
           <Text style={s.h2}>Linha do tempo processual (DataJud)</Text>
-          {movs.length === 0 ? (
+          {movsExibidos.length === 0 ? (
             <Text style={s.bullet}>Nenhuma movimentação retornada nesta consulta.</Text>
           ) : (
-            movs.map((m, i) => (
-              <View key={i} style={s.tlRow}>
-                <View style={s.tlDotCol}>
-                  <View style={s.tlDot} />
-                </View>
-                <Text style={s.tlDate}>{fmtShortDate(m.data)}</Text>
-                <Text style={s.tlBody}>
-                  {m.nome || "Movimento"}
-                  {m.complemento ? ` — ${String(m.complemento).slice(0, 110)}` : ""}
+            <>
+              {movsExibidos.map((m, i) => (
+                <TimelineItem key={i} data={m.data} nome={m.nome} complemento={m.complemento} />
+              ))}
+              {movsRestantes > 0 && (
+                <Text style={s.tlMore}>
+                  + {movsRestantes} movimentação{movsRestantes === 1 ? "" : "ões"} anterior
+                  {movsRestantes === 1 ? "" : "es"} disponível{movsRestantes === 1 ? "" : "eis"} na consulta completa.
                 </Text>
-              </View>
-            ))
+              )}
+            </>
           )}
 
-          {/* DJEN */}
-          {djenDestaque && (
-            <View style={s.djenBox}>
-              <Text style={s.djenTitle}>
-                Publicação DJEN em destaque
-                {djenDestaque.data ? `  ·  ${djenDestaque.data}` : ""}
-              </Text>
-              <Text style={s.djenBody}>
-                {String(djenDestaque.texto || "").slice(0, 650)}
-                {String(djenDestaque.texto || "").length > 650 ? "…" : ""}
-              </Text>
-            </View>
-          )}
+          {djenDestaque && <DjenHighlight data={djenDestaque.data} texto={djenDestaque.texto} />}
         </View>
 
-        <View style={s.foot} fixed>
-          <Text style={s.footT}>
-            LexisPredict · DataJud/DJEN + carteira interna — não substitui certidão oficial
-          </Text>
-          <Text style={s.footT}>Página 1 de 2</Text>
-        </View>
+        <Footer left={footerLabel} />
       </Page>
 
-      {/* ================= PAGE 2 ================= */}
+      {/* ================= PÁGINA 2 ================= */}
       <Page size="A4" style={s.page}>
         <View style={s.page2Header} />
         <View style={s.content}>
-          <Text style={[s.clientName, { fontSize: 12, marginBottom: 2 }]}>
-            {data.cliente}
-          </Text>
+          <Text style={[s.clientName, { fontSize: 12, marginBottom: 2 }]}>{data.cliente}</Text>
           <Text style={[s.metaLine, { marginBottom: 12 }]}>
             {data.protocolo} · Continuação do dossiê operacional
           </Text>
@@ -673,14 +842,7 @@ export function DossieClientePDF({ data }: { data: DossieClientePdfData }) {
 
           <Text style={[s.h2, { marginTop: 12 }]}>Plano de ação recomendado</Text>
           {(r.planoAcao || []).map((t, i) => (
-            <View key={i} style={s.planCard} wrap={false}>
-              <View style={s.planNumBox}>
-                <Text style={s.planNum}>{i + 1}</Text>
-              </View>
-              <View style={s.planBody}>
-                <Text style={s.planTxt}>{t}</Text>
-              </View>
-            </View>
+            <PlanCard key={i} index={i} text={t} />
           ))}
 
           <View style={s.strategyBox} wrap={false}>
@@ -689,12 +851,7 @@ export function DossieClientePDF({ data }: { data: DossieClientePdfData }) {
           </View>
         </View>
 
-        <View style={s.foot} fixed>
-          <Text style={s.footT}>
-            LexisPredict · Dossiê Cliente · {data.geradoEm}
-          </Text>
-          <Text style={s.footT}>Página 2 de 2</Text>
-        </View>
+        <Footer left={`LexisPredict · Dossiê Cliente · ${data.geradoEm}`} />
       </Page>
     </Document>
   );
