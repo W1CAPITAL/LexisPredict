@@ -1,6 +1,6 @@
 /**
  * Captura de tela real – versão estável para Vercel
- * Usa puppeteer-core + @sparticuz/chromium
+ * puppeteer-core + @sparticuz/chromium
  */
 
 import puppeteer from 'puppeteer-core';
@@ -23,6 +23,7 @@ export async function captureProcessScreenshot(
     });
 
     const page = await browser.newPage();
+    
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
@@ -32,7 +33,8 @@ export async function captureProcessScreenshot(
       timeout: 45000,
     });
 
-    await page.waitForTimeout(1500);
+    // Espera conteúdo carregar
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     const buffer = await page.screenshot({
       fullPage: options?.fullPage ?? true,
