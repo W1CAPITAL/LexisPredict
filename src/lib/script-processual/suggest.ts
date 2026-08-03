@@ -1,5 +1,5 @@
 /**
- * ScriptInput com aliases camelCase + snake_case (typecheck limpo).
+ * ScriptInput completo — todos os aliases usados no app (typecheck limpo).
  */
 import { parseISO, parse, isValid, format } from 'date-fns';
 import { SCRIPT_CATALOG, ScriptTemplate } from './catalog';
@@ -19,7 +19,6 @@ export interface ScriptInput {
   evento_tipo?: string | null;
   eventoTipo?: string | null;
   evento_resumo?: string | null;
-  /** alias UI */
   eventoResumo?: string | null;
   djen_ultimo_resumo?: string | null;
   djenTexts?: string[];
@@ -28,6 +27,9 @@ export interface ScriptInput {
   djen_nova_comunicacao?: boolean;
   datajud_encerrado_tribunal?: boolean;
   em_cumprimento_sentenca?: boolean;
+  /** flag BA */
+  indicio_busca_apreensao?: boolean;
+  busca_apreensao?: boolean;
 }
 
 function fmtDate(raw?: string | null): string {
@@ -70,6 +72,7 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   const protocolo = input.protocolo || '';
   const eventoTipo = input.evento_tipo || input.eventoTipo || null;
   const eventoResumo = input.evento_resumo || input.eventoResumo || null;
+  const isBA = !!(input.indicio_busca_apreensao || input.busca_apreensao);
 
   const blob = [
     eventoResumo,
@@ -86,10 +89,15 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
 
   for (const t of SCRIPT_CATALOG) {
     let score = 0;
+    if (isBA && (t.id === 'alerta_busca_apreensao' || t.categoria === 'ba')) {
+      score += 200;
+    }
     if ((t as any).eventoTipos?.length && eventoTipo && (t as any).eventoTipos.includes(eventoTipo)) {
       score += 100 - (t.prioridade ?? 50);
     }
-    if (input.datajud_encerrado_tribunal && t.id === 'baixa_tribunal') score += 90;
+    if (input.datajud_encerrado_tribunal && (t.id === 'baixa_tribunal' || t.categoria === 'baixa')) {
+      score += 90;
+    }
     if (input.em_cumprimento_sentenca && t.id === 'cumprimento') score += 80;
     if (
       (input.tem_novo_andamento ||

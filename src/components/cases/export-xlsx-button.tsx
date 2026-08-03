@@ -1,6 +1,5 @@
 /**
- * Botão EXTRA — exporta XLSX dossiê.
- * Não substitui o botão CSV existente.
+ * Botão visível: Exportar XLSX Dossiê (não altera o CSV).
  */
 "use client";
 
@@ -13,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 export function ExportXlsxDossieButton({
   className,
-  label = "Exportar XLSX Dossiê",
+  label = "Exportar XLSX",
 }: {
   className?: string;
   label?: string;
@@ -68,7 +67,7 @@ export function ExportXlsxDossieButton({
       onClick={onClick}
       disabled={loading}
       className={cn(
-        "h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary gap-2",
+        "h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-primary/40 text-primary hover:bg-primary/5 gap-2 shrink-0",
         className
       )}
     >
