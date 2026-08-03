@@ -1,203 +1,270 @@
-"use client";
 /**
- * @fileOverview Chatbot 100% Isolado e Independente v1.0
- * Não possui dependências com os fluxos de IA antigos do projeto.
- * Utiliza Server Actions locais para máxima segurança e portabilidade.
+ * Chatbot independente + easter egg legível:
+ * ao enviar URL mediari.app/analise, abre o site embutido no app (sem UI de “surpresa”).
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Sidebar } from '@/components/layout/sidebar';
-import { Bot, Send, Loader2, Zap, Settings2, Trash2, User, ShieldCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
-import { perguntarChatbotIndependente } from './actions';
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AnimatedIcon } from "@/components/ui/animated-icon";
+import {
+  Bot,
+  Send,
+  Loader2,
+  X,
+  ExternalLink,
+  Sparkles,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { perguntarChatbotIndependente } from "./actions";
+
+type Msg = { role: "user" | "assistant"; content: string };
+
+const MEDIARI_ANALISE = "https://mediari.app/analise";
+
+/** Detecta mediari.app/analise (com ou sem https, path parcial) */
+function isMediariAnaliseUrl(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  if (!t) return false;
+  // só a URL (mensagem quase só o link)
+  const cleaned = t.replace(/\s+/g, " ");
+  return (
+    /^(https?:\/\/)?(www\.)?mediari\.app\/analise\/?(\s|$)/i.test(cleaned) ||
+    cleaned === "mediari.app/analise" ||
+    cleaned === "https://mediari.app/analise" ||
+    cleaned === "http://mediari.app/analise"
+  );
+}
+
+function normalizeMediariUrl(text: string): string {
+  const t = text.trim();
+  if (/^https?:\/\//i.test(t)) return t.split(/\s/)[0];
+  return MEDIARI_ANALISE;
+}
 
 export default function ChatbotSeparadoPage() {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<Msg[]>([
+    {
+      role: "assistant",
+      content:
+        "Consultor estratégico pronto. Envie sua pergunta operacional ou jurídica.",
+    },
+  ]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [modelo, setModelo] = useState<string>('xai');
-  const { toast } = useToast();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [model, setModel] = useState<"xai" | "groq">("xai");
+  /** Easter egg: painel embutido (sem rótulo especial) */
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [embedExpanded, setEmbedExpanded] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Carregar histórico local se existir
-    const saved = localStorage.getItem('lexis_chatbot_separado_history');
-    if (saved) {
-      try {
-        setMessages(JSON.parse(saved));
-      } catch (e) {
-        setMessages([]);
-      }
-    } else {
-      setMessages([{
-        role: 'assistant',
-        content: 'Saudações. Sou o Consultor Estratégico Independente da W1 Capital. Como posso auxiliar o seu gabinete hoje?',
-        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      }]);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading, embedUrl]);
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+
+    // ——— Easter egg silencioso: abre mediari no app
+    if (isMediariAnaliseUrl(text)) {
+      const url = normalizeMediariUrl(text);
+      setInput("");
+      setMessages((m) => [...m, { role: "user", content: text }]);
+      setEmbedUrl(url);
+      setEmbedExpanded(true);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: "Conteúdo carregado abaixo.",
+        },
+      ]);
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    // Auto-save no localStorage
-    if (messages.length > 0) {
-      localStorage.setItem('lexis_chatbot_separado_history', JSON.stringify(messages));
-    }
-    // Scroll para o fim
-    if (scrollRef.current) {
-      const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
-    }
-  }, [messages, loading]);
-
-  const handleClear = () => {
-    if (confirm("Deseja expurgar o histórico desta conversa?")) {
-      setMessages([{
-        role: 'assistant',
-        content: 'Histórico limpo. Unidade Neural pronta para nova consulta.',
-        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      }]);
-      localStorage.removeItem('lexis_chatbot_separado_history');
-    }
-  };
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
-
-    const userMsg = { 
-      role: 'user', 
-      content: input, 
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) 
-    };
-
-    setMessages(prev => [...prev, userMsg]);
-    const currentInput = input;
-    const currentHistory = [...messages];
-    setInput('');
+    setInput("");
+    const history = [...messages, { role: "user" as const, content: text }];
+    setMessages(history);
     setLoading(true);
-
     try {
-      const res = await perguntarChatbotIndependente(currentInput, currentHistory, modelo);
-      
-      if (res.sucesso) {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: res.resposta,
-          engine: (res as any).engineUtilizada || (res as any).engine,
-          tokens: (res as any).tokens,
-          timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-        }]);
-      } else {
-        toast({ 
-          title: "Falha Neural", 
-          description: res.resposta, 
-          variant: "destructive" 
-        });
-        // Remove a última mensagem do usuário para não poluir o histórico com erros
-        setMessages(prev => prev.slice(0, -1));
-        setInput(currentInput); // Restaura o input
-      }
-    } catch (err) {
-      toast({ title: "Erro de conexão", description: "Verifique sua internet e tente novamente.", variant: "destructive" });
+      const res = await perguntarChatbotIndependente(text, history, model);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: res.resposta || "Sem resposta.",
+        },
+      ]);
+    } catch (e: any) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: e?.message || "Falha na comunicação com o motor.",
+        },
+      ]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [input, loading, messages, model]);
 
   return (
-    <div className="flex h-screen bg-[#f8f9fb] font-sans text-black relative z-10 overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 border-b border-[#dddbda] bg-white/80 backdrop-blur-md flex items-center justify-between px-8 shrink-0 z-40">
-          <div className="flex items-center gap-6">
-            <div className="w-12 h-12 bg-black text-white flex items-center justify-center rounded-xl shadow-lg border-2 border-black">
-              <Bot size={24} className="text-[#00D1FF]" />
-            </div>
+      <main className="flex-1 flex flex-col min-w-0 h-screen">
+        <header className="h-14 border-b border-border/50 flex items-center justify-between px-4 sm:px-6 shrink-0 bg-card/60 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <AnimatedIcon icon={Bot} variant="glow" size={22} className="text-primary" />
             <div>
-              <h1 className="font-black text-xl uppercase tracking-tighter">Consultoria Estratégica</h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-black/40">Módulo Independente • Authority v1.0</p>
-              </div>
+              <h1 className="text-sm font-black uppercase tracking-tight">Consultor Neural</h1>
+              <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">
+                Chat operacional
+              </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-4">
-            <Select value={modelo} onValueChange={setModelo}>
-              <SelectTrigger className="w-[200px] border-2 border-black font-black uppercase text-[10px] h-11 bg-white rounded-none shadow-[4px_4px_0px_#000]">
-                <div className="flex items-center gap-2">
-                  <Settings2 size={14} className="text-primary" />
-                  <SelectValue />
-                </div>
-              </SelectTrigger>
-              <SelectContent className="border-2 border-black rounded-none">
-                <SelectItem value="xai" className="font-black uppercase text-[10px]">xAI Grok 4.5 Elite</SelectItem>
-                <SelectItem value="groq" className="font-black uppercase text-[10px]">Groq Llama 3.3 Ultra</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="ghost" size="icon" onClick={handleClear} className="h-11 w-11 border-2 border-black rounded-none bg-white hover:bg-red-50 hover:text-red-600 transition-all">
-              <Trash2 size={20} />
-            </Button>
+          <div className="flex items-center gap-2">
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value as "xai" | "groq")}
+              className="h-8 text-[10px] font-bold uppercase rounded-lg border border-border bg-secondary/40 px-2"
+            >
+              <option value="xai">xAI Grok</option>
+              <option value="groq">Groq</option>
+            </select>
+            <AnimatedIcon icon={Sparkles} variant="shimmer" size={16} className="text-primary/70" />
           </div>
         </header>
 
-        <div className="flex-1 overflow-hidden p-4 lg:p-8 flex flex-col">
-          <div className="flex-1 bg-white border-2 border-black rounded-none shadow-[10px_10px_0px_rgba(0,0,0,0.05)] flex flex-col overflow-hidden max-w-5xl mx-auto w-full">
-            <ScrollArea className="flex-1" ref={scrollRef}>
-              <div className="p-8 space-y-10">
-                {messages.map((msg, i) => (
-                  <div key={i} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                    <div className="flex items-center gap-2 mb-2 opacity-30">
-                       {msg.role === 'user' ? <User size={10} /> : <ShieldCheck size={10} />}
-                       <span className="text-[8px] font-black uppercase tracking-widest">{msg.role === 'user' ? 'Gabinete' : 'Unidade Neural'}</span>
-                    </div>
-                    <div className={cn(
-                      "relative max-w-[90%] p-6 border-2 border-black",
-                      msg.role === 'user' ? "bg-[#f3f2f2] text-black" : "bg-black text-white"
-                    )}>
-                      <p className="text-xs font-black uppercase leading-relaxed whitespace-pre-wrap tracking-wide">{msg.content}</p>
-                      <span className="text-[7px] font-black absolute -bottom-4 right-0 text-black/40 uppercase">
-                        {msg.timestamp}
-                      </span>
-                    </div>
-                    {msg.engine && (
-                      <div className="mt-4 flex items-center gap-3 opacity-30 text-[7px] font-black uppercase tracking-widest">
-                        <Badge variant="outline" className="text-[7px] px-1.5 py-0 border-black">{msg.engine}</Badge>
-                        <span>{msg.tokens} Tokens Consumidos</span>
-                      </div>
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+          {/* Chat */}
+          <div
+            className={cn(
+              "flex flex-col min-h-0",
+              embedUrl && embedExpanded ? "lg:w-1/2" : "w-full"
+            )}
+          >
+            <ScrollArea className="flex-1 p-4 sm:p-6">
+              <div className="max-w-3xl mx-auto space-y-4">
+                {messages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                      m.role === "user"
+                        ? "bg-primary text-primary-foreground ml-8 sm:ml-16"
+                        : "bg-secondary/60 mr-8 sm:mr-16 border border-border/40"
                     )}
+                  >
+                    {m.content}
                   </div>
                 ))}
                 {loading && (
-                  <div className="flex items-center gap-4 text-black font-black uppercase text-[10px] tracking-widest animate-pulse p-4 border-2 border-dashed border-black/10">
-                    <Loader2 className="animate-spin text-primary" size={16} />
-                    Processando consulta estratégica...
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold uppercase tracking-widest">
+                    <Loader2 className="animate-spin" size={14} />
+                    Processando…
                   </div>
                 )}
+                <div ref={bottomRef} />
               </div>
             </ScrollArea>
 
-            <form onSubmit={handleSend} className="p-6 border-t-2 border-black bg-[#f8f9fb] flex gap-4">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="DIGITE SUA SOLICITAÇÃO TÉCNICA..."
-                className="flex-1 border-2 border-black h-16 text-xs font-black uppercase focus-visible:ring-0 rounded-none bg-white placeholder:text-black/20"
-                disabled={loading}
-              />
-              <Button type="submit" disabled={loading || !input.trim()} className="bg-black text-white border-2 border-black h-16 w-24 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all">
-                <Send size={24} />
-              </Button>
-            </form>
+            <div className="p-4 border-t border-border/50 bg-card/40">
+              <form
+                className="max-w-3xl mx-auto flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSend();
+                }}
+              >
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Pergunta ou link…"
+                  className="h-12 rounded-xl bg-secondary/30 border-none font-medium"
+                  disabled={loading}
+                />
+                <Button
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  className="h-12 w-12 rounded-xl shrink-0"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <AnimatedIcon icon={Send} variant="float" size={18} />
+                  )}
+                </Button>
+              </form>
+            </div>
           </div>
+
+          {/* Painel embutido (easter egg — visual limpo, legível) */}
+          {embedUrl && (
+            <div
+              className={cn(
+                "flex flex-col border-l border-border/50 bg-background min-h-[40vh] lg:min-h-0",
+                embedExpanded ? "lg:w-1/2" : "lg:w-12"
+              )}
+            >
+              <div className="h-10 flex items-center justify-between px-2 border-b border-border/40 shrink-0">
+                {embedExpanded && (
+                  <span className="text-[10px] font-bold text-muted-foreground truncate px-2">
+                    Visualização
+                  </span>
+                )}
+                <div className="flex items-center gap-1 ml-auto">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => setEmbedExpanded((v) => !v)}
+                    title={embedExpanded ? "Recolher" : "Expandir"}
+                  >
+                    {embedExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    asChild
+                  >
+                    <a href={embedUrl} target="_blank" rel="noopener noreferrer" title="Abrir">
+                      <ExternalLink size={14} />
+                    </a>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => setEmbedUrl(null)}
+                    title="Fechar"
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
+              </div>
+              {embedExpanded && (
+                <iframe
+                  src={embedUrl}
+                  title="view"
+                  className="flex-1 w-full border-0 bg-white min-h-[320px]"
+                  // sandboxed o suficiente para legibilidade; allow scripts do site
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>

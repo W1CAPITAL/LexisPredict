@@ -1,0 +1,82 @@
+/* Microanimações de ícone — inspiração visual Grok (sutil, não agressiva) */
+
+@keyframes lex-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes lex-pulse-soft {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+
+@keyframes lex-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.55));
+  }
+}
+
+@keyframes lex-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes lex-bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-4px); }
+  60% { transform: translateY(-2px); }
+}
+
+@keyframes lex-shimmer {
+  0% { opacity: 0.7; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.25); }
+  100% { opacity: 0.7; filter: brightness(1); }
+}
+
+@keyframes lex-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+.lex-anim-float {
+  animation: lex-float 2.4s ease-in-out infinite;
+}
+.lex-anim-pulse {
+  animation: lex-pulse-soft 2s ease-in-out infinite;
+}
+.lex-anim-glow {
+  animation: lex-glow 2.8s ease-in-out infinite;
+}
+.lex-anim-spin-slow {
+  animation: lex-spin-slow 8s linear infinite;
+}
+.lex-anim-bounce {
+  animation: lex-bounce-soft 1.8s ease-in-out infinite;
+}
+.lex-anim-shimmer {
+  animation: lex-shimmer 2.2s ease-in-out infinite;
+}
+.lex-anim-wiggle {
+  animation: lex-wiggle 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lex-anim-float,
+  .lex-anim-pulse,
+  .lex-anim-glow,
+  .lex-anim-spin-slow,
+  .lex-anim-bounce,
+  .lex-anim-shimmer,
+  .lex-anim-wiggle {
+    animation: none !important;
+  }
+}
+
+/* Hover nos itens do menu: anima só no hover se quiser mais sóbrio */
+.lex-nav-icon-hover:hover .lex-anim-on-hover {
+  animation: lex-glow 1.2s ease-in-out infinite;
+}
