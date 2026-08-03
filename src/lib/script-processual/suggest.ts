@@ -340,8 +340,4 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   return out.slice(0, 2);
 }
 
-
-/** Alias legado */
-export function gerarSugestoesScript(input: ScriptInput) {
-  return suggestScripts(input);
-}
+export function gerarSugestoesScript(input: ScriptInput) { return suggestScripts(input); }

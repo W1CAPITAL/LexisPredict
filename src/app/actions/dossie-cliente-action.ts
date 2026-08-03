@@ -17,15 +17,20 @@ async function loadLogoBase64(): Promise<string | null> {
   }
 }
 
-/**
- * Gera PDF dossiê de UM processo/cliente: movimentos, DJEN, observações, risco.
- */
+function guessParteContraria(texts: string[]): string {
+  const blob = texts.join(" ");
+  const m =
+    blob.match(/BANCO\s+([A-ZÁÉÍÓÚÃÕÂÊÔÇ][A-ZÁÉÍÓÚÃÕÂÊÔÇ\s\.]+?)(?:\s+S\.?A\.?|\s+S\/A)/i) ||
+    blob.match(/R[EÉ](?:U|QUERID[OA])\s*:\s*([^\n]+)/i) ||
+    blob.match(/PARTE\s+R[EÉ]\s*:\s*([^\n]+)/i);
+  if (m) return m[0].replace(/\s+/g, " ").trim().slice(0, 80);
+  return "";
+}
+
 export async function exportClienteDossieAction(protocolo: string) {
   try {
     const ctx = await getUserContext();
-    if (!ctx.empresa_id) {
-      return { success: false as const, error: "Sessão expirada" };
-    }
+    if (!ctx.empresa_id) return { success: false as const, error: "Sessão expirada" };
 
     const cnj = String(protocolo || "").trim();
     if (!cnj) return { success: false as const, error: "Protocolo inválido" };
@@ -42,7 +47,6 @@ export async function exportClienteDossieAction(protocolo: string) {
       return { success: false as const, error: "Processo não encontrado na carteira visível" };
     }
 
-    // Consulta tribunal (DataJud + DJEN)
     let movimentos: any[] = [];
     let comunicacoes: any[] = [];
     try {
@@ -57,46 +61,61 @@ export async function exportClienteDossieAction(protocolo: string) {
       console.warn("[dossie] scan parcial:", e?.message);
     }
 
-    const risco = scoreRiscoProcesso(target);
+    const djenTexts = (comunicacoes || []).map((d: any) =>
+      plainTextFromDjen?.(d.texto || d.conteudo || "") || String(d.texto || d.conteudo || "")
+    );
+
+    const risco = scoreRiscoProcesso(target as any, { movimentos, djenTexts });
 
     const movNorm = (movimentos || []).map((m: any) => ({
-      data: m.data || m.dataHora || m.data_hora || m.date || "",
-      nome: m.nome || m.descricao || m.name || m.movimento || "Movimento",
-      complemento: m.complemento || m.complementoTabelado || m.texto || "",
+      data: m.dataHora || m.data || m.data_hora || "",
+      nome: m.nome || m.descricao || "Movimento",
+      complemento: m.complemento || m.complementoTabelado || "",
     }));
 
     const djenNorm = (comunicacoes || []).map((d: any) => ({
-      data: d.data_disponibilizacao || d.data || d.dt || "",
-      tipo: d.tipoComunicacao || d.tipo || d.siglaTribunal || "DJEN",
-      texto: plainTextFromDjen?.(d.texto || d.conteudo || d.inteiroTeor || "") || String(d.texto || d.conteudo || ""),
+      data: d.data_disponibilizacao || d.data || "",
+      tipo: d.tipoComunicacao || d.tipo || "DJEN",
+      texto: plainTextFromDjen?.(d.texto || d.conteudo || "") || String(d.texto || d.conteudo || ""),
       link: d.link || d.url || "",
     }));
 
-    const logoBase64 = await loadLogoBase64();
-    const geradoEm = new Date().toLocaleString("pt-BR");
+    // Resumo executivo no estilo do exemplo
+    const resumoExec = [
+      `O processo de ${target.cliente || "cliente"} (${target.protocolo || cnj}${target.tribunal ? `, ${target.tribunal}` : ""}) encontra-se na fase de ${risco.faseAtual}.`,
+      risco.resumo,
+      `O índice de risco da carteira é ${risco.score}/100 (${risco.nivel}). ${risco.chanceRuim}`,
+      risco.leituraEstrategica,
+    ].join(" ");
 
     const pdfData = {
-      logoBase64,
+      logoBase64: await loadLogoBase64(),
       cliente: String(target.cliente || "CLIENTE"),
       protocolo: String(target.protocolo || cnj),
       advogado: target.advogado || "",
       escritorio: target.escritorio || "",
       tribunal: target.tribunal || "",
-      status: target.status || (target as any).status_prazo || target.situacao || "",
+      status: target.status || (target as any).situacao || "",
       telefone: target.telefone || "",
-      observacao: target.observacao || (target as any).observacoes || "",
-      ultimoRetorno: target.ultimoRetorno || (target as any).ultimo_retorno || "",
-      proximoPrazo: target.proximoPrazo || (target as any).proximo_prazo || "",
-      resumoProcesso: risco.resumo,
+      observacao: target.observacao || "",
+      ultimoRetorno: target.ultimoRetorno || "",
+      proximoPrazo: target.proximoPrazo || "",
+      parteContraria: guessParteContraria(djenTexts) || "",
+      resumoProcesso: resumoExec,
       risco: {
         score: risco.score,
         nivel: risco.nivel,
         chanceRuim: risco.chanceRuim,
         drivers: risco.drivers,
+        pontosFortes: risco.pontosFortes,
+        pontosAtencao: risco.pontosAtencao,
+        planoAcao: risco.planoAcao,
+        leituraEstrategica: risco.leituraEstrategica,
+        faseAtual: risco.faseAtual,
       },
       movimentos: movNorm,
       djen: djenNorm,
-      geradoEm,
+      geradoEm: new Date().toLocaleString("pt-BR"),
     };
 
     const { renderToBuffer } = await import("@react-pdf/renderer");
