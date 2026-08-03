@@ -68,7 +68,7 @@ export async function exportClienteDossieAction(
       };
     }
 
-    // ===== Scan de movimentos + DJEN =====
+    // Scan de movimentos + DJEN
     let movimentos: any[] = [];
     let comunicacoes: any[] = [];
     try {
@@ -89,10 +89,10 @@ export async function exportClienteDossieAction(
         String(d.texto || d.conteudo || "")
     );
 
-    // ===== Análise de Risco =====
+    // Análise de Risco
     const risco = scoreRiscoProcesso(target as any, { movimentos, djenTexts });
 
-    // ===== Resumo Executivo padrão =====
+    // Resumo Executivo padrão
     const resumoExec = [
       `O processo de ${target.cliente || "cliente"} (${target.protocolo || cnj}${
         target.tribunal ? `, ${target.tribunal}` : ""
