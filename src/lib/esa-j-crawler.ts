@@ -1,6 +1,6 @@
 /**
- * e-SAJ Crawler estável (portado do jus_crawler)
- * Funciona em TJSP, TJAL e TJCE
+ * e-SAJ Crawler - versão estável para Vercel
+ * Suporta TJSP (26), TJAL (02) e TJCE (06)
  */
 
 import * as cheerio from 'cheerio';
