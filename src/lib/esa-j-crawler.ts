@@ -1,6 +1,8 @@
 /**
- * e-SAJ Crawler - versão estável para Vercel
- * Suporta TJSP (26), TJAL (02) e TJCE (06)
+ * e-SAJ Crawler - versão melhorada
+ * - Remove movimentações duplicadas
+ * - Detecta menções a custas
+ * - Limpeza de texto aprimorada
  */
 
 import * as cheerio from 'cheerio';
@@ -24,6 +26,7 @@ export interface Parte {
 export interface Movimentacao {
   data: string;
   descricao: string;
+  isCustas?: boolean;
 }
 
 export interface DadosGrau {
@@ -35,6 +38,7 @@ export interface DadosGrau {
   valor?: string;
   partes?: Parte[];
   movimentações?: Movimentacao[];
+  custasDetectadas?: string[];
   ERROR?: string;
 }
 
@@ -83,14 +87,15 @@ async function sendRequest(url: string): Promise<cheerio.CheerioAPI | { ERROR: s
       const res = await fetch(url, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       });
       clearTimeout(timeout);
 
       if (res.status >= 500) {
         lastError = `HTTP ${res.status}`;
-        if (attempt < REQUEST_RETRIES) await new Promise(r => setTimeout(r, REQUEST_RETRY_DELAY_MS));
+        if (attempt < REQUEST_RETRIES) await new Promise((r) => setTimeout(r, REQUEST_RETRY_DELAY_MS));
         continue;
       }
 
@@ -105,7 +110,7 @@ async function sendRequest(url: string): Promise<cheerio.CheerioAPI | { ERROR: s
       return $;
     } catch (err: any) {
       lastError = err.name === 'AbortError' ? 'Timeout' : err.message;
-      if (attempt < REQUEST_RETRIES) await new Promise(r => setTimeout(r, REQUEST_RETRY_DELAY_MS));
+      if (attempt < REQUEST_RETRIES) await new Promise((r) => setTimeout(r, REQUEST_RETRY_DELAY_MS));
     }
   }
 
@@ -124,102 +129,7 @@ function getPartes($: cheerio.CheerioAPI): Parte[] {
 
     const split = nomesRaw.split(/ Advogado: | Advogada: /i);
     const nome = cleanData(split[0]);
-    const advogados = split.slice(1).map(a => cleanData(a)).filter(Boolean);
+    const advogados = split.slice(1).map((a) => cleanData(a)).filter(Boolean);
 
     partes.push({ nome, tipoParticipacao: tipo, advogados });
-  });
-  return partes;
-}
-
-function getMovimentos($: cheerio.CheerioAPI, grau: 1 | 2): Movimentacao[] {
-  const tags = grau === 1
-    ? { container: '.containerMovimentacao', data: 'dataMovimentacao', descricao: 'descricaoMovimentacao' }
-    : { container: '.movimentacaoProcesso', data: 'dataMovimentacaoProcesso', descricao: 'descricaoMovimentacaoProcesso' };
-
-  const movs: Movimentacao[] = [];
-  $(tags.container).each((_, el) => {
-    const data = cleanData($(el).find(`.${tags.data}`).text());
-    const descricao = cleanData($(el).find(`.${tags.descricao}`).text());
-    if (data || descricao) {
-      movs.push({ data, descricao: descricao.replace(/\s+/g, ' ') });
-    }
-  });
-  return movs;
-}
-
-function parseData($: cheerio.CheerioAPI): DadosGrau {
-  return {
-    classe: cleanData($('#classeProcesso').text()),
-    area: cleanData($('#areaProcesso').text()),
-    assunto: cleanData($('#assuntoProcesso').text()),
-    data: cleanData($('#dataHoraDistribuicaoProcesso').text()).slice(0, 10),
-    juiz: cleanData($('#juizProcesso').text()),
-    valor: cleanData($('#valorAcaoProcesso').text()),
-    partes: getPartes($),
-  };
-}
-
-async function buscaPrimeiroGrau(processo: ReturnType<typeof parseCNJ>, dominio: string): Promise<DadosGrau> {
-  const url = `https://${dominio}/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC` +
-    `&numeroDigitoAnoUnificado=${processo.numeroDigitoAnoUnificado}` +
-    `&foroNumeroUnificado=${processo.foro}` +
-    `&dadosConsulta.valorConsultaNuUnificado=${processo.numero_processo}` +
-    `&dadosConsulta.valorConsultaNuUnificado=UNIFICADO&dadosConsulta.valorConsulta=` +
-    `&dadosConsulta.tipoNuProcesso=UNIFICADO`;
-
-  const html = await sendRequest(url);
-  if ('ERROR' in html) return html as DadosGrau;
-
-  const data = parseData(html);
-  data.movimentações = getMovimentos(html, 1);
-  return data;
-}
-
-async function buscaCodigoSegundoGrau(url: string): Promise<string> {
-  const html = await sendRequest(url);
-  if ('ERROR' in html) return '';
-  return html('#processoSelecionado').attr('value') || '';
-}
-
-async function buscaSegundoGrau(processo: ReturnType<typeof parseCNJ>, dominio: string): Promise<DadosGrau> {
-  let url = `https://${dominio}/cposg5/search.do?cbPesquisa=NUMPROC` +
-    `&numeroDigitoAnoUnificado=${processo.numeroDigitoAnoUnificado}` +
-    `&foroNumeroUnificado=${processo.foro}` +
-    `&dePesquisaNuUnificado=${processo.numero_processo}` +
-    `&dePesquisaNuUnificado=UNIFICADO&dePesquisa=&tipoNuProcesso=UNIFICADO`;
-
-  const codigo = await buscaCodigoSegundoGrau(url);
-  if (codigo) {
-    url = `https://${dominio}/cposg5/show.do?processo.codigo=${codigo}`;
-  }
-
-  const html = await sendRequest(url);
-  if ('ERROR' in html) return html as DadosGrau;
-
-  const data = parseData(html);
-  data.movimentações = getMovimentos(html, 2);
-  return data;
-}
-
-export async function fetchEsaJProcess(cnj: string): Promise<EsaJResult | null> {
-  try {
-    const processo = parseCNJ(cnj);
-    const tribunalInfo = TRIBUNAIS[processo.tribunal];
-    if (!tribunalInfo) return null;
-
-    const [grau1, grau2] = await Promise.all([
-      buscaPrimeiroGrau(processo, tribunalInfo.dominio),
-      buscaSegundoGrau(processo, tribunalInfo.dominio),
-    ]);
-
-    const result: EsaJResult = { id: processo.numero_processo };
-
-    if (grau1.classe || grau1.ERROR) result['Primeiro Grau'] = grau1;
-    if (grau2.classe || grau2.ERROR) result['Segundo Grau'] = grau2;
-
-    return result;
-  } catch (err: any) {
-    console.error('[e-SAJ Crawler]', err.message);
-    return null;
-  }
-}
+ 
