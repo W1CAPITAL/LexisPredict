@@ -1,5 +1,5 @@
 /**
- * ScriptInput unificado — aceita snake_case e camelCase (typecheck limpo).
+ * ScriptInput com aliases camelCase + snake_case (typecheck limpo).
  */
 import { parseISO, parse, isValid, format } from 'date-fns';
 import { SCRIPT_CATALOG, ScriptTemplate } from './catalog';
@@ -17,11 +17,11 @@ export interface ScriptInput {
   ultimoRetorno?: string | null;
   movimentos?: Array<{ nome?: string; complemento?: string; descricao?: string; dataHora?: string }>;
   evento_tipo?: string | null;
-  /** alias UI antiga */
   eventoTipo?: string | null;
   evento_resumo?: string | null;
+  /** alias UI */
+  eventoResumo?: string | null;
   djen_ultimo_resumo?: string | null;
-  /** textos DJEN extras (motor-despacho / whatsapp) */
   djenTexts?: string[];
   tem_novo_andamento?: boolean;
   tem_atualizacao_pos_retorno?: boolean;
@@ -69,9 +69,10 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   const clienteNome = (input.clienteNome || 'Cliente').split(/\s+/)[0] || 'Cliente';
   const protocolo = input.protocolo || '';
   const eventoTipo = input.evento_tipo || input.eventoTipo || null;
+  const eventoResumo = input.evento_resumo || input.eventoResumo || null;
 
   const blob = [
-    input.evento_resumo,
+    eventoResumo,
     input.djen_ultimo_resumo,
     ...(input.djenTexts || []),
     ...(input.movimentos || []).map(
@@ -110,16 +111,16 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     }
   }
 
-  matches.sort((a, b) => b.score - a.score || (a.template.prioridade ?? 99) - (b.template.prioridade ?? 99));
+  matches.sort(
+    (a, b) => b.score - a.score || (a.template.prioridade ?? 99) - (b.template.prioridade ?? 99)
+  );
 
   if (matches.length === 0) {
     const fallback =
       SCRIPT_CATALOG.find((x) => x.id === 'nova_movimentacao') ||
       SCRIPT_CATALOG.find((x) => x.id === 'rotina') ||
       SCRIPT_CATALOG[0];
-    if (fallback) {
-      matches.push({ template: fallback, score: 1, dataMov: '' });
-    }
+    if (fallback) matches.push({ template: fallback, score: 1, dataMov: '' });
   }
 
   return matches
