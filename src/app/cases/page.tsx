@@ -347,15 +347,21 @@ function CasesContent() {
   };
 
   const filtered = useMemo(() => {
-    const lower = search.toLowerCase();
-    return cases.filter(c => {
-      const match = c.cliente.toLowerCase().includes(lower) || c.protocolo.includes(search);
-      if (quickFilter === 'updated') return match && !!c.tem_novo_andamento;
-      if (quickFilter === 'active') return match && !isCasoEncerrado(c);
-      if (quickFilter === 'closed') return match && isCasoEncerrado(c);
-      return match;
-    });
-  }, [cases, search, quickFilter]);
+  const lower = search.toLowerCase();
+  return cases.filter(c => {
+    const match = c.cliente.toLowerCase().includes(lower) || c.protocolo.includes(search);
+
+    if (quickFilter === 'updated') return match && !!c.tem_novo_andamento;
+    if (quickFilter === 'active') return match && !isCasoEncerrado(c);
+    if (quickFilter === 'closed') return match && isCasoEncerrado(c);
+    
+    if (quickFilter === 'today') {
+      return match && (c.status === 'É Hoje' || c.diasFaltando === 0);
+    }
+
+    return match;
+  });
+}, [cases, search, quickFilter]);
 
   const handleExportDjenPDF = async (item: any) => {
     if (!historyResult) return;
