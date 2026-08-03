@@ -4,8 +4,9 @@ import React, { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Camera, FileText, Search, ExternalLink, Scale } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Camera, FileText, Search, ExternalLink, Scale, AlertTriangle, Users, Gavel, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   enrichWithEsaJAction,
@@ -31,7 +32,7 @@ export default function AutomacaoJudicialPage() {
     try {
       const res = await enrichWithEsaJAction(cnj);
       setResultado(res);
-      toast({ title: res.success ? "Dados enriquecidos" : "Tribunal não é e-SAJ ou falha" });
+      toast({ title: res.success ? "Dados enriquecidos com sucesso" : "Tribunal não é e-SAJ" });
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     } finally {
@@ -45,12 +46,12 @@ export default function AutomacaoJudicialPage() {
     try {
       const urlRes = await getConsultaUrlAction(cnj);
       if (!urlRes?.url) {
-        toast({ title: "URL de consulta não encontrada", variant: "destructive" });
+        toast({ title: "URL não encontrada", variant: "destructive" });
         return;
       }
       const res = await captureScreenshotAction(cnj, urlRes.url);
       if (res.success) {
-        toast({ title: "Screenshot capturado e salvo!", description: res.path });
+        toast({ title: "Screenshot salvo!", description: res.path });
         setResultado((prev: any) => ({ ...prev, screenshot: res.path }));
       } else {
         toast({ title: "Falha na captura", description: res.error, variant: "destructive" });
@@ -72,70 +73,99 @@ export default function AutomacaoJudicialPage() {
     }
   };
 
+  const grau = resultado?.data?.["Primeiro Grau"] || resultado?.data?.["Segundo Grau"];
+
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 p-6 md:p-10 max-w-5xl mx-auto space-y-8">
+      <main className="flex-1 p-6 md:p-10 max-w-6xl mx-auto space-y-8">
+        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Scale className="w-6 h-6" /> Automação Judicial
+            <Scale className="w-6 h-6 text-primary" />
+            Automação Judicial
           </h1>
           <p className="text-muted-foreground mt-1">
-            Enriquecimento e-SAJ • Captura de tela real • Guias judiciais • Todos os tribunais CNJ
+            Enriquecimento e-SAJ • Captura de tela • Guias de custas
           </p>
         </div>
 
+        {/* Input */}
         <Card>
           <CardHeader>
             <CardTitle>Número do Processo (CNJ)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
-              placeholder="0000000-00.0000.0.00.0000"
+              placeholder="1000972-17.2025.8.26.0538"
               value={cnj}
               onChange={(e) => setCnj(e.target.value)}
-              className="text-lg font-mono"
+              className="text-lg font-mono h-12"
             />
 
             <div className="flex flex-wrap gap-3">
-              <Button onClick={handleEnrich} disabled={!!loading}>
-                {loading === "enrich" ? <Loader2 className="animate-spin mr-2" /> : <Search className="mr-2 h-4 w-4" />}
+              <Button onClick={handleEnrich} disabled={!!loading} className="gap-2">
+                {loading === "enrich" ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="h-4 w-4" />}
                 Enriquecer (e-SAJ)
               </Button>
 
-              <Button onClick={handleScreenshot} disabled={!!loading} variant="secondary">
-                {loading === "screenshot" ? <Loader2 className="animate-spin mr-2" /> : <Camera className="mr-2 h-4 w-4" />}
+              <Button onClick={handleScreenshot} disabled={!!loading} variant="secondary" className="gap-2">
+                {loading === "screenshot" ? <Loader2 className="animate-spin h-4 w-4" /> : <Camera className="h-4 w-4" />}
                 Capturar Tela Real
               </Button>
 
-              <Button onClick={handleGuia} disabled={!!loading} variant="outline">
-                {loading === "guia" ? <Loader2 className="animate-spin mr-2" /> : <FileText className="mr-2 h-4 w-4" />}
+              <Button onClick={handleGuia} disabled={!!loading} variant="outline" className="gap-2">
+                {loading === "guia" ? <Loader2 className="animate-spin h-4 w-4" /> : <FileText className="h-4 w-4" />}
                 Emitir / Abrir Guia
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {resultado && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Resultado</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-xs overflow-auto bg-muted p-4 rounded-lg max-h-96">
-                {JSON.stringify(resultado, null, 2)}
-              </pre>
-              {resultado.guia?.url && (
-                <Button asChild className="mt-4" variant="link">
-                  <a href={resultado.guia.url} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" /> Abrir portal da guia
-                  </a>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </main>
-    </div>
-  );
-}
+        {/* Resultado Formatado */}
+        {resultado?.success && grau && (
+          <div className="space-y-6">
+            {/* Resumo */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>{grau.classe || "Processo"}</span>
+                  <Badge variant="secondary">{grau.area}</Badge>
+                </CardTitle>
+                <CardDescription>{resultado.data.id}</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Distribuição</p>
+                    <p className="font-medium">{grau.data || "—"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Gavel className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Juiz</p>
+                    <p className="font-medium">{grau.juiz || "—"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground font-bold">R$</span>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Valor da Ação</p>
+                    <p className="font-medium">{grau.valor || "—"}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Custas Detectadas */}
+            {grau.custasDetectadas && grau.custasDetectadas.length > 0 && (
+              <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="h-5 w-5" />
+                    Menções a Custas / Guias
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
