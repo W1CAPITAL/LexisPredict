@@ -127,12 +127,31 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     const fallback =
       SCRIPT_CATALOG.find((x) => x.id === 'nova_movimentacao') ||
       SCRIPT_CATALOG.find((x) => x.id === 'rotina') ||
+      SCRIPT_CATALOG.find((x) => x.id === 'prazo_retorno') ||
       SCRIPT_CATALOG[0];
     if (fallback) matches.push({ template: fallback, score: 1, dataMov: '' });
   }
 
+  // Garante sempre ao menos uma mensagem de contato ao cliente
+  const ids = new Set(matches.map((m) => m.template.id));
+  const ensure = (id: string, score: number) => {
+    if (ids.has(id)) return;
+    const tpl = SCRIPT_CATALOG.find((x) => x.id === id);
+    if (tpl) {
+      matches.push({ template: tpl, score, dataMov: String(input.movimentos?.[0]?.dataHora || '') });
+      ids.add(id);
+    }
+  };
+  if (matches.length < 2) ensure('prazo_retorno', 2);
+  if (matches.length < 2) ensure('publicacao_diario', 2);
+  if (matches.length < 1) ensure('rotina', 1);
+
+  matches.sort(
+    (a, b) => b.score - a.score || (a.template.prioridade ?? 99) - (b.template.prioridade ?? 99)
+  );
+
   return matches
-    .slice(0, 3)
+    .slice(0, 4)
     .map((m) =>
       createSuggestion(m.template, clienteNome, protocolo, input.ultimoRetorno, m.dataMov)
     );

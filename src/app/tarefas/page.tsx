@@ -213,6 +213,14 @@ export default function TarefasPage() {
         setShowScripts(true);
         setIsHistoryModalOpen(true);
         setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? res.case! : c)));
+        toast({
+          title: suggestions.length
+            ? `${suggestions.length} resposta(s) para o cliente`
+            : 'Auditoria aberta',
+          description: suggestions.length
+            ? 'Veja o bloco âmbar "Resposta para o Cliente" no topo do modal.'
+            : 'Use o rascunho por IA se precisar.',
+        });
       } else {
         toast({
           title: 'Falha ao consultar processo',
@@ -489,7 +497,39 @@ export default function TarefasPage() {
             </DialogHeader>
             <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
               <ScrollArea className="flex-1 w-full h-full">
-                <div className="p-4 sm:p-6 space-y-10">
+                <div className="p-4 sm:p-6 space-y-8">
+                  {/* RESPOSTA AO CLIENTE — prioridade no topo */}
+                  <section className="rounded-xl border-2 border-amber-500/50 bg-amber-50 p-4 sm:p-5 space-y-4">
+                    <h3 className="text-amber-800 flex items-center gap-2 text-sm font-bold uppercase tracking-wide">
+                      <MessageSquareQuote size={16} /> Resposta para o Cliente
+                    </h3>
+                    <p className="text-[11px] text-amber-900/70 font-medium">
+                      Mensagens prontas para copiar e enviar (WhatsApp / e-mail).
+                    </p>
+                    {suggestedScripts.length > 0 ? (
+                      <div className="space-y-3">
+                        {suggestedScripts.map((script, idx) => (
+                          <div key={idx} className="space-y-2 p-4 border border-amber-200 rounded-xl bg-white shadow-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className="bg-amber-700 text-white text-[9px] font-semibold uppercase">{script.titulo}</Badge>
+                              <span className="text-[10px] text-muted-foreground font-medium">{script.quandoUsar}</span>
+                            </div>
+                            <div className="p-4 bg-slate-50 border border-border/50 relative rounded-lg">
+                              <p className={cn("text-foreground/90 leading-relaxed pr-16", ui.readable)}>{script.texto}</p>
+                              <Button type="button" variant="secondary" size="sm" onClick={() => copyScript(script.texto)} className="absolute top-2 right-2 h-8 px-2 text-[9px] font-bold uppercase gap-1">
+                                <Copy size={12} /> Copiar
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[12px] text-muted-foreground font-medium">
+                        Clique em Sugerir Resposta no card da tarefa para gerar mensagens. Ou use o rascunho por IA abaixo.
+                      </p>
+                    )}
+                  </section>
+
                   <section className="space-y-6">
                      <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}><div className="flex items-center gap-2"><Globe size={14} className="text-primary"/> Cronologia Unificada</div></h3>
                      <div className="space-y-6">
@@ -526,7 +566,7 @@ export default function TarefasPage() {
                   </section>
 
                   <section className="space-y-6 pt-6 border-t">
-                    <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Draft Estratégico & Sugestões</h3>
+                    <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Rascunho com IA (opcional)</h3>
                     <div className="bg-black text-white p-4 sm:p-6 space-y-4 rounded-xl">
                       <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
                       <div className="flex flex-col sm:flex-row gap-3">
