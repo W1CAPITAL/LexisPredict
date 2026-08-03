@@ -193,20 +193,33 @@ export default function TarefasPage() {
         setAiDraft(null);
 
         const djenTexts = comunicacoes
-          .map((d: any) => plainTextFromDjen(d.texto))
+          .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ''))
           .filter(Boolean) as string[];
+
+        // Inclui complementos longos dos movimentos no corpus (muitas vezes o teor está aí)
+        const movimentosEnriquecidos = (movimentos || []).map((m: any) => ({
+          ...m,
+          complemento: m.complemento || m.complementoTabelado || m.descricao || '',
+          descricao: m.descricao || m.nome || '',
+        }));
 
         const suggestions = suggestScripts({
           clienteNome: cliente || res.case.cliente,
           protocolo,
           ultimoRetorno: ultimoRetorno || res.case.ultimoRetorno,
           eventoTipo: res.case.evento_tipo as any,
+          evento_tipo: res.case.evento_tipo as any,
           eventoResumo: res.case.evento_resumo,
-          movimentos,
+          evento_resumo: res.case.evento_resumo,
+          djen_ultimo_resumo: res.case.djen_ultimo_resumo,
+          datajud_ultimo_nome: res.case.datajud_ultimo_nome,
+          movimentos: movimentosEnriquecidos,
           djenTexts,
           tem_novo_andamento: !!res.case.tem_novo_andamento,
+          tem_atualizacao_pos_retorno: !!res.case.tem_atualizacao_pos_retorno,
+          djen_nova_comunicacao: !!res.case.djen_nova_comunicacao,
           datajud_encerrado_tribunal: !!res.case.datajud_encerrado_tribunal,
-          indicio_busca_apreensao: false,
+          indicio_busca_apreensao: res.case.evento_tipo === 'ba',
           em_cumprimento_sentenca: !!res.case.em_cumprimento_sentenca,
         });
         setSuggestedScripts(suggestions);
@@ -218,7 +231,6 @@ export default function TarefasPage() {
             ? `${suggestions.length} resposta(s) para o cliente`
             : 'Auditoria aberta',
           description: suggestions.length
-            ? 'Role até o final do modal: respostas prontas abaixo da cronologia.'
             : 'Use o rascunho por IA se precisar.',
         });
       } else {
@@ -454,8 +466,51 @@ export default function TarefasPage() {
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
-                            {/* Scripts só no rodapé do modal (após cronologia) — evita duplicar */}
+          <section className={ui.metrics}>
+            <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
+            <div className="premium-card p-6 border-l-4 border-l-primary relative group"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Dia</p><div className="flex items-center gap-4"><span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span><div className="flex items-center gap-1.5 ml-auto"><Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button><Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button></div></div></div>
+            <div className="premium-card p-6 border-l-4 border-l-emerald-500"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Finalizados</p><h3 className="text-3xl font-black text-emerald-600 tabular-nums">{contatadosHoje.length}</h3></div>
+          </section>
 
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
+             <div className="flex-1 w-full flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar por cliente ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl" /></div>
+                <Select value={officeFilter} onValueChange={setOfficeFilter}>
+                   <SelectTrigger className="h-12 w-full md:w-[250px] bg-[#f8f9fb] border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="TODOS ESCRITÓRIOS" /></SelectTrigger>
+                   <SelectContent className="bg-white border-2 border-black rounded-xl">
+                      <SelectItem value="all" className="font-black uppercase text-[10px]">TODOS ESCRITÓRIOS</SelectItem>
+                      {distinctOffices.map(off => <SelectItem key={off} value={off} className="font-black uppercase text-[10px]">{off}</SelectItem>)}
+                   </SelectContent>
+                </Select>
+             </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3"><Target size={18} className="text-primary" /><h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária</h2></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {taskData.focus.map((group) => (
+                <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
+              ))}
+            </div>
+          </div>
+
+          {taskData.backlog.length > 0 && (
+            <div className="space-y-4 pt-10 border-t border-border/30">
+               <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
+               {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">{taskData.backlog.map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
+            </div>
+          )}
+        </div>
+
+        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
+            <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
+              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
+              <ScrollArea className="flex-1 w-full h-full">
+                <div className="p-4 sm:p-6 space-y-8">
+                  {/* Respostas ao cliente: bloco único após cronologia + IA */}
 
                   <section className="space-y-6">
                      <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}><div className="flex items-center gap-2"><Globe size={14} className="text-primary"/> Cronologia Unificada</div></h3>
@@ -511,30 +566,25 @@ export default function TarefasPage() {
                     </div>
 
                     {suggestedScripts.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className={cn("text-amber-600 flex items-center gap-2 font-black uppercase", ui.label)}>
-                          <MessageSquareQuote size={14} /> Resposta para o Cliente
+                      <div className="space-y-3 mt-2">
+                        <h3 className="text-amber-600 flex items-center gap-2 text-sm font-black uppercase tracking-wide">
+                          <MessageSquareQuote size={16} /> Resposta para o Cliente
                         </h3>
-                        <p className="text-[10px] text-muted-foreground">
-                          1–2 mensagens alinhadas ao teor (não genéricas). Copie e ajuste se precisar.
+                        <p className="text-[11px] text-muted-foreground font-medium">
+                          Baseado no teor DataJud/DJEN — copie e ajuste se precisar.
                         </p>
                         <div className="grid gap-4">
                           {suggestedScripts.map((script) => (
-                            <div key={script.id} className="bg-white border-2 border-black p-5 rounded-xl shadow-sm space-y-3">
-                              <div className="flex items-center justify-between gap-2">
+                            <div key={script.id || script.titulo} className="bg-amber-50 border-2 border-amber-600/40 p-5 rounded-xl shadow-sm space-y-3">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none">{script.titulo}</Badge>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={() => copyScript(script.texto)}
-                                  className="h-8 rounded-lg font-black uppercase text-[9px] gap-1"
-                                >
+                                <Button type="button" size="sm" onClick={() => copyScript(script.texto)} className="h-8 rounded-lg font-black uppercase text-[9px] gap-1">
                                   <Copy size={12} /> Copiar
                                 </Button>
                               </div>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{script.quandoUsar}</p>
-                              <div className="p-4 bg-slate-50 border border-black/10 rounded-lg">
-                                <p className={cn("text-black/80 leading-relaxed", ui.readable)}>{script.texto}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase">{script.quandoUsar}</p>
+                              <div className="p-4 bg-white border border-black/10 rounded-lg">
+                                <p className={cn("text-black/85 whitespace-pre-wrap leading-relaxed", ui.readable)}>{script.texto}</p>
                               </div>
                             </div>
                           ))}
