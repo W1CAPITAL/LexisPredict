@@ -24,9 +24,6 @@ type Props = {
   className?: string;
 };
 
-/**
- * Botão visível na toolbar da Carteira — cadastra processo novo e grava no Supabase.
- */
 export function NovoProcessoButton({ cases, setCases, className }: Props) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,9 +59,9 @@ export function NovoProcessoButton({ cases, setCases, className }: Props) {
       return;
     }
 
+    const digits = protocolo.replace(/\D/g, "");
     const exists = (cases || []).some(
-      (c) =>
-        String(c.protocolo || "").replace(/\D/g, "") === protocolo.replace(/\D/g, "")
+      (c) => String(c.protocolo || "").replace(/\D/g, "") === digits
     );
     if (exists) {
       toast({

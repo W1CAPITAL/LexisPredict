@@ -10,7 +10,7 @@ import {
   Search, Trash2, Edit2, CheckCircle2, Zap, Loader2, CalendarDays, Sparkles, 
   History, AlertCircle, FileSearch, ShieldAlert, Copy, MessageSquareQuote, 
   Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown, FileSpreadsheet,
-  Briefcase, RefreshCcw
+  Briefcase, RefreshCcw, Plus
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -37,6 +37,7 @@ import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
+import { NovoProcessoButton } from '@/components/cases/novo-processo-button';
 
 const CaseRow = React.memo(({ 
   c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest
@@ -161,19 +162,19 @@ function CasesContent() {
   useEffect(() => { loadData(); }, [loadData]);
 
   
-  const handleRecalibratePrazos = async () => {
+    const handleRecalibratePrazos = async () => {
     if (isRecalibrating) return;
     setIsRecalibrating(true);
     try {
       const res = await recalibrateCasesAction();
-      if (res.success) {
+      if (res?.success) {
         await loadData();
-        toast({ title: "Prazos recalibrados", description: res.message || `${res.updated} processos atualizados.` });
+        toast({ title: "Prazos recalibrados", description: res.message || `${res.updated ?? 0} processos atualizados.` });
       } else {
-        toast({ title: "Falha na recalibração", description: res.error || "Tente novamente", variant: "destructive" });
+        toast({ title: "Falha na recalibração", description: res?.error || "Resposta vazia do servidor", variant: "destructive" });
       }
     } catch (e: any) {
-      toast({ title: "Erro", description: e?.message || "Falha", variant: "destructive" });
+      toast({ title: "Erro", description: e?.message || "Falha ao recalibrar", variant: "destructive" });
     } finally {
       setIsRecalibrating(false);
     }
@@ -404,7 +405,8 @@ function CasesContent() {
              <Briefcase size={20} className="text-primary" />
              <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Carteira do Gabinete</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <NovoProcessoButton cases={cases} setCases={setCases} />
             <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={exporting} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary">
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />} Extrair Planilha
             </Button>
