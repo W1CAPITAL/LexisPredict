@@ -1,142 +1,79 @@
 'use server';
 
 /**
- * @fileOverview Exportação CSV + XLSX (SheetJS)
- * CSV intacto · XLSX via biblioteca `xlsx`
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * Exportação operacional — CSV + XLSX Dossiê
+ * SEM id / created_at / empresa_id / created_by
+ * Escopo: apenas carteira visível ao usuário logado (RLS + getStoredCasesForEmpresa)
  */
 
-import { createClient } from '@/lib/supabase/server';
 import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
+import { buildDossieXlsxBase64 } from '@/lib/xlsx-dossie-builder';
+import { EXPORT_HEADERS, tribunalFromProtocolo } from '@/lib/xlsx-schema';
 
 type Row = Record<string, any>;
 
-const HEADERS = [
-  'ID',
-  'DATA CRIAÇÃO',
-  'EMPRESA ID',
-  'CRIADO POR',
-  'ÚLTIMO RETORNO',
-  'PRÓXIMO PRAZO',
-  'OBSERVAÇÕES',
-  'STATUS',
-  'RISCO',
-  'STATUS INTERNO',
-  'ULTIMA MOVIMENTAÇÃO',
-  'ESCRITÓRIO',
-  'ADVOGADO',
-  'DATA DISTRIBUIÇÃO',
-  'PRODUTOS',
-  'TELEFONE',
-  'PROTOCOLO REF',
-  'TRIBUNAL',
-  'STATUS PRAZO',
-  'DATAJUD ÚLTIMO MOVIMENTO',
-  'DATAJUD ÚLTIMO NOME',
-  'DATAJUD CONSULTADO EM',
-  'ALERTA DATAJUD',
-  'ENCERRADO TRIBUNAL',
-  'MOTIVO ENCERRAMENTO',
-  'INDICIO B.A.',
-  'BA CONFIANÇA',
-  'BA MOTIVO',
-  'BA CONSULTADO EM',
-  'FASE EXECUTIVA',
-  'MOTIVO EXECUÇÃO',
-  'DJEN CONSULTADO EM',
-  'NOVA COMUNICAÇÃO DJEN',
-  'DJEN ÚLTIMA DATA',
-  'DJEN ÚLTIMO RESUMO',
-  'DJEN LINK',
-  'DJEN CONTAGEM',
-] as const;
+/** Carrega só o que o usuário logado pode ver */
+async function loadCasesForSession(): Promise<{ cases: Row[]; email: string | null }> {
+  const ctx = await getUserContext();
+  const { empresa_id, email } = ctx;
+  if (!empresa_id) throw new Error('Sessão expirada. Refaça o login.');
 
-function rowToCells(r: Row): (string | number)[] {
+  // getStoredCasesForEmpresa já filtra por created_by se não for Master/Supervisor
+  const stored = await getStoredCasesForEmpresa(empresa_id, false);
+  if (stored?.length) return { cases: stored as Row[], email };
+
+  throw new Error('Nenhum processo na carteira visível para exportar.');
+}
+
+function operationalCells(r: Row): (string | number)[] {
+  const dados = (r.dados && typeof r.dados === 'object' ? r.dados : {}) as any;
+  const protocolo = String(r.protocolo || r.protocolo_ref || dados.protocolo || '');
+  const evento = String(r.evento_tipo || dados.evento_tipo || '');
+  const status = String(r.status || r.status_prazo || dados.status || '');
+
   return [
-    r.id,
-    r.created_at,
-    r.empresa_id,
-    r.created_by,
-    r.ultimo_retorno ?? r.ultimoRetorno,
-    r.proximo_retorno ?? r.proximoRetorno,
-    String(r.observacoes ?? r.observacao ?? '').replace(/\n/g, ' '),
-    r.status,
-    r.risco,
-    r.status_interno,
-    r.ultima_movimentacao ?? r.evento_resumo,
-    r.escritorio,
-    r.advogado,
-    r.data_distribuicao,
-    r.produtos,
-    r.telefone,
-    r.protocolo_ref ?? r.protocolo,
-    r.tribunal,
-    r.status_prazo ?? r.status,
-    r.datajud_ultimo_movimento,
-    r.datajud_ultimo_nome,
-    r.datajud_consultado_em,
-    r.tem_atualizacao_pos_retorno || r.tem_novo_andamento ? 'SIM' : 'NÃO',
-    r.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
-    r.datajud_encerrado_motivo,
-    r.indicio_busca_apreensao ? 'SIM' : 'NÃO',
-    r.busca_apreensao_confianca,
-    r.busca_apreensao_motivo,
-    r.busca_apreensao_consultado_em,
-    r.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
-    r.cumprimento_sentenca_motivo,
-    r.djen_consultado_em,
-    r.djen_nova_comunicacao ? 'SIM' : 'NÃO',
-    r.djen_ultima_data,
-    r.djen_ultimo_resumo,
-    r.djen_ultimo_link,
-    r.djen_count,
+    r.assistente || dados.assistente || r.atendente || '',
+    r.escritorio || dados.escritorio || '',
+    r.advogado || dados.advogado || '',
+    r.cliente || dados.cliente || '',
+    r.telefone || dados.telefone || '',
+    protocolo,
+    r.data_distribuicao || dados.data_distribuicao || '',
+    status,
+    String(r.observacao || r.observacoes || dados.observacao || '').replace(/\n/g, ' '),
+    r.produtos || dados.produtos || '',
+    r.datajud_ultimo_movimento || '',
+    r.evento_resumo || r.datajud_ultimo_nome || '',
+    r.ultimoRetorno || r.ultimo_retorno || '',
+    r.proximoRetorno || r.proximo_retorno || r.proximoPrazo || '',
+    tribunalFromProtocolo(protocolo, r.tribunal || dados.tribunal),
+    evento,
+    r.tem_novo_andamento || r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao ? 'SIM' : 'NAO',
+    r.datajud_encerrado_tribunal ? 'SIM' : 'NAO',
+    r.indicio_busca_apreensao ? 'SIM' : 'NAO',
+    r.em_cumprimento_sentenca || evento === 'cumprimento_sentenca' ? 'SIM' : 'NAO',
+    r.djen_ultimo_resumo || '',
+    status,
   ].map((v) => (v == null ? '' : v));
 }
 
-async function loadRows(): Promise<Row[]> {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) throw new Error('Sessão expirada. Refaça o login.');
-
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('processos')
-      .select('*')
-      .eq('empresa_id', empresa_id)
-      .order('created_at', { ascending: false })
-      .limit(5000);
-    if (!error && data?.length) return data as Row[];
-  } catch {
-    // fallback
-  }
-
-  try {
-    const stored = await getStoredCasesForEmpresa(empresa_id);
-    if (stored?.length) return stored as Row[];
-  } catch {
-    //
-  }
-
-  throw new Error('Nenhum registro localizado no repositório.');
-}
-
-/** CSV — botão Extrair Planilha (inalterado no contrato da UI) */
+/** CSV operacional (sem metadados internos) */
 export async function exportCasesToCSVAction() {
   try {
-    const rows = await loadRows();
-    const csvContentRows = rows.map((r) =>
-      rowToCells(r)
-        .map((field) => `"${String(field ?? '').replace(/"/g, '""')}"`)
-        .join(',')
-    );
-    const finalCsv = '\uFEFF' + [HEADERS.join(','), ...csvContentRows].join('\n');
-    const day = new Date().toISOString().split('T')[0];
+    const { cases } = await loadCasesForSession();
+    const lines = [EXPORT_HEADERS.join(',')];
+    for (const r of cases) {
+      const cells = operationalCells(r).map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`);
+      lines.push(cells.join(','));
+    }
+    const csv = '\uFEFF' + lines.join('\n');
+    const day = new Date().toISOString().slice(0, 10);
     return {
       success: true as const,
-      base64: Buffer.from(finalCsv, 'utf-8').toString('base64'),
+      base64: Buffer.from(csv, 'utf-8').toString('base64'),
       filename: `Gabinete_LexisPredict_${day}.csv`,
       mime: 'text/csv;charset=utf-8',
-      count: rows.length,
+      count: cases.length,
     };
   } catch (error: any) {
     console.error('[Export CSV]', error);
@@ -145,71 +82,32 @@ export async function exportCasesToCSVAction() {
 }
 
 /**
- * XLSX via SheetJS (`xlsx`).
- * npm i xlsx
+ * XLSX Dossiê — Capa + Analytics + Auditoria + Processos + Mapa_TJ + agregações
+ * Botão "Exportar XLSX" / Dossiê Operacional
  */
-export async function exportCasesToXlsxAction() {
+export async function exportDossieXlsxAction() {
   try {
-    const rows = await loadRows();
-
-    // Import dinâmico — evita falha se o módulo ainda não estiver no bundle de types
-    const XLSX = await import('xlsx');
-
-    const aoa: (string | number)[][] = [
-      [...HEADERS],
-      ...rows.map((r) => rowToCells(r).map((c) => (typeof c === 'number' ? c : String(c ?? '')))),
-    ];
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    // larguras básicas
-    ws['!cols'] = HEADERS.map((h) => ({ wch: Math.min(28, Math.max(12, h.length + 2)) }));
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Processos');
-
-    // aba resumo
-    const total = rows.length;
-    let and = 0,
-      enc = 0,
-      ba = 0;
-    for (const r of rows) {
-      if (r.tem_atualizacao_pos_retorno || r.tem_novo_andamento) and++;
-      if (r.datajud_encerrado_tribunal) enc++;
-      if (r.indicio_busca_apreensao) ba++;
-    }
-    const dash = XLSX.utils.aoa_to_sheet([
-      ['KPI', 'Valor'],
-      ['Total processos', total],
-      ['Novos andamentos', and],
-      ['Encerrados tribunal', enc],
-      ['Indício B.A.', ba],
-      ['Gerado em', new Date().toISOString()],
-    ]);
-    XLSX.utils.book_append_sheet(wb, dash, 'Dashboard');
-
-    const buf: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-    const day = new Date().toISOString().split('T')[0];
-
+    const { cases, email } = await loadCasesForSession();
+    const result = await buildDossieXlsxBase64(cases, { usuario: email || undefined });
     return {
       success: true as const,
-      base64: Buffer.from(buf).toString('base64'),
-      filename: `Gabinete_LexisPredict_${day}.xlsx`,
+      base64: result.base64,
+      filename: result.filename,
       mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      count: total,
+      count: result.count,
+      kpis: result.kpis,
     };
-  } catch (error: any) {
-    console.error('[Export XLSX]', error);
-    return {
-      success: false as const,
-      error:
-        error?.message ||
-        'Falha ao gerar XLSX. Confirme: npm i xlsx && redeploy.',
-    };
+  } catch (e: any) {
+    console.error('[exportDossieXlsx]', e);
+    return { success: false as const, error: e?.message || 'Falha ao gerar XLSX' };
   }
 }
 
-/** Alias usado em alguns patches */
-export async function exportDossieXlsxAction() {
-  return exportCasesToXlsxAction();
+/** Alias legados */
+export async function exportCasesToXlsxAction() {
+  return exportDossieXlsxAction();
+}
+
+export async function exportCasesXlsxAction() {
+  return exportDossieXlsxAction();
 }

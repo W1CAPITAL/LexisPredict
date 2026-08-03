@@ -1,6 +1,6 @@
 /**
- * Esquema canônico de planilha LexisPredict (CSV / XLSX / Google Sheets export).
- * Validação na ingestão + ordem de colunas na exportação.
+ * Esquema canônico de planilha LexisPredict (CSV / XLSX).
+ * Export operacional — SEM id, created_at, empresa_id, created_by.
  */
 
 export const LEXIS_SHEET_SCHEMA = [
@@ -30,13 +30,7 @@ function normHeader(h: string): string {
     .replace(/\s+/g, ' ');
 }
 
-/** Mapeia cabeçalhos da planilha → chaves canônicas */
-export function mapHeadersToSchema(headers: string[]): {
-  mapping: Record<string, number>; // key -> col index
-  missingRequired: string[];
-  recognized: string[];
-  unknown: string[];
-} {
+export function mapHeadersToSchema(headers: string[]) {
   const mapping: Record<string, number> = {};
   const recognized: string[] = [];
   const unknown: string[] = [];
@@ -98,7 +92,7 @@ export function validateSheetMatrix(matrix: string[][]): SchemaValidationResult 
       missingRequired,
       recognized,
       unknown,
-      message: `Coluna obrigatória ausente: ${missingRequired.join(', ')}. Exporte do Google Sheets/Excel com cabeçalho "Protocolo" ou "CNJ".`,
+      message: `Coluna obrigatória ausente: ${missingRequired.join(', ')}.`,
       sampleProtocolos: [],
     };
   }
@@ -132,31 +126,82 @@ export function validateSheetMatrix(matrix: string[][]): SchemaValidationResult 
     missingRequired: [],
     recognized,
     unknown,
-    message: `OK: ${validRows} linha(s) com protocolo. Cabeçalhos reconhecidos: ${recognized.join(', ') || '—'}.`,
+    message: `OK: ${validRows} linha(s) com protocolo.`,
     sampleProtocolos,
   };
 }
 
-/** Cabeçalhos oficiais na exportação (ordem fixa) */
+/** Cabeçalhos operacionais (estilo RAW_DATA / AUDITORIA) — sem metadados internos */
 export const EXPORT_HEADERS = [
-  'Protocolo',
-  'Cliente',
-  'Telefone',
-  'Tribunal',
-  'Status',
+  'Assistente',
   'Escritorio',
   'Advogado',
-  'Ultimo_Retorno',
-  'Proximo_Prazo',
+  'Cliente',
+  'Telefone',
+  'Protocolo',
+  'Distribuicao',
+  'Status',
+  'Observacoes',
+  'Produtos',
+  'Data_Movimentacao',
+  'Andamento',
+  'Retorno',
+  'Proximo_Retorno',
+  'Tribunal',
   'Evento_Tipo',
-  'Evento_Resumo',
-  'DataJud_Ultimo',
   'Novo_Andamento',
   'Encerrado_Tribunal',
   'Busca_Apreensao',
   'Cumprimento',
-  'Procedente',
-  'Improcedente',
   'DJEN_Resumo',
-  'Observacoes',
+  'Situacao_Prazo',
 ] as const;
+
+/** Códigos TT do CNJ → Tribunal */
+export const CNJ_TRIBUNAL_MAP: Record<string, string> = {
+  '01': 'TJAC - Acre',
+  '02': 'TJAL - Alagoas',
+  '03': 'TJAP - Amapá',
+  '04': 'TJAM - Amazonas',
+  '05': 'TJBA - Bahia',
+  '06': 'TJCE - Ceará',
+  '07': 'TJDF - Distrito Federal',
+  '08': 'TJES - Espírito Santo',
+  '09': 'TJGO - Goiás',
+  '10': 'TJMA - Maranhão',
+  '11': 'TJMT - Mato Grosso',
+  '12': 'TJMS - Mato Grosso do Sul',
+  '13': 'TJMG - Minas Gerais',
+  '14': 'TJPA - Pará',
+  '15': 'TJPB - Paraíba',
+  '16': 'TJPR - Paraná',
+  '17': 'TJPE - Pernambuco',
+  '18': 'TJPI - Piauí',
+  '19': 'TJRJ - Rio de Janeiro',
+  '20': 'TJRN - Rio Grande do Norte',
+  '21': 'TJRS - Rio Grande do Sul',
+  '22': 'TJRO - Rondônia',
+  '23': 'TJRR - Roraima',
+  '24': 'TJSC - Santa Catarina',
+  '25': 'TJSE - Sergipe',
+  '26': 'TJSP - São Paulo',
+  '27': 'TJTO - Tocantins',
+  '90': 'STM',
+  '91': 'CSJT',
+  '92': 'CNJ',
+  '93': 'CJF',
+  '94': 'TST',
+  '95': 'TSE',
+  '96': 'STJ',
+  '97': 'STF',
+};
+
+export function tribunalFromProtocolo(protocolo: string, fallback?: string): string {
+  if (fallback && String(fallback).trim()) return String(fallback).trim();
+  const d = String(protocolo || '').replace(/\D/g, '');
+  if (d.length >= 16) {
+    const tt = d.slice(13, 15);
+    return CNJ_TRIBUNAL_MAP[tt] || `Código TT ${tt}`;
+  }
+  return '—';
+}

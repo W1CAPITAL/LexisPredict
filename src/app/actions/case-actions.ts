@@ -14,7 +14,7 @@ import {
 } from '@/lib/server-db';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
-import { fetchDataJud, searchDataJudByCpf, searchDataJudByNome } from '@/lib/datajud';
+import { fetchDataJud } from '@/lib/datajud';
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
@@ -148,7 +148,7 @@ export async function auditCaseCoreSystem(
         const upd = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
         const enc = detectarEncerradoNoTribunal(movimentos);
         const ba = analisarBuscaApreensao(dataJud);
-        const cump = detectarCumprimentoSentenca(movimentos, { grau: dataJud.grau, classe: dataJud.classe });
+        const cump = detectarCumprimentoSentenca(movimentos);
 
         const dataMovRef = upd.dataUltimo || target.datajud_ultimo_movimento || null;
 
@@ -162,11 +162,9 @@ export async function auditCaseCoreSystem(
           datajud_ultimo_nome: upd.nomeUltimo || target.datajud_ultimo_nome || null,
           datajud_encerrado_tribunal: !!(enc.encerrado || target.datajud_encerrado_tribunal),
           datajud_encerrado_motivo: enc.motivo || target.datajud_encerrado_motivo || null,
-          // v12: BA DESATIVADO — nunca grava indício
-          indicio_busca_apreensao: false,
-          busca_apreensao_confianca: null,
-          busca_apreensao_motivo: null,
-          busca_apreensao_consultado_em: new Date().toISOString(),
+          indicio_busca_apreensao: !!(ba.indicio || target.indicio_busca_apreensao),
+          busca_apreensao_confianca: ba.confianca ?? target.busca_apreensao_confianca ?? null,
+          busca_apreensao_motivo: ba.motivo || target.busca_apreensao_motivo || null,
           // Se encerrado no tribunal, cumprimento ativo = false; senão grava detecção (mantém se já marcado)
           em_cumprimento_sentenca: enc.encerrado
             ? false
@@ -190,8 +188,10 @@ export async function auditCaseCoreSystem(
           )
           .join(' || ');
 
-        // BA desativado — não sobe evento_tipo ba
-        if (enc.encerrado && getWeight('transito_ou_baixa') >= getWeight(eventTipo)) {
+        if (ba.indicio && getWeight('ba') >= getWeight(eventTipo)) {
+          eventTipo = 'ba';
+          eventResumo = ba.motivo || eventResumo;
+        } else if (enc.encerrado && getWeight('transito_ou_baixa') >= getWeight(eventTipo)) {
           eventTipo = 'transito_ou_baixa';
           eventResumo = enc.motivo || eventResumo;
         } else if (
@@ -202,15 +202,6 @@ export async function auditCaseCoreSystem(
           eventTipo = 'sentenca_parcial';
           eventResumo = 'Sentença parcialmente procedente';
         } else if (
-          (textoMovs.includes('IMPROCEDENTE') ||
-            textoMovs.includes('IMPROCEDÊNCIA') ||
-            textoMovs.includes('NEGADO PROVIMENTO')) &&
-          getWeight('sentenca_improcedente') >= getWeight(eventTipo)
-        ) {
-          // Improcedente ANTES de procedente (jurisprudência cita "procedente" com frequência)
-          eventTipo = 'sentenca_improcedente';
-          eventResumo = 'Sentença improcedente';
-        } else if (
           (textoMovs.includes('JULGADO PROCEDENTE') ||
             textoMovs.includes('JULGADA PROCEDENTE') ||
             (textoMovs.includes('PROCEDENTE') && !textoMovs.includes('IMPROCEDENTE'))) &&
@@ -218,6 +209,14 @@ export async function auditCaseCoreSystem(
         ) {
           eventTipo = 'sentenca_procedente';
           eventResumo = 'Sentença procedente';
+        } else if (
+          (textoMovs.includes('IMPROCEDENTE') ||
+            textoMovs.includes('IMPROCEDÊNCIA') ||
+            textoMovs.includes('NEGADO PROVIMENTO')) &&
+          getWeight('sentenca_improcedente') >= getWeight(eventTipo)
+        ) {
+          eventTipo = 'sentenca_improcedente';
+          eventResumo = 'Sentença improcedente';
         } else if (cump.ativo && getWeight('cumprimento_sentenca') >= getWeight(eventTipo)) {
           eventTipo = 'cumprimento_sentenca';
           eventResumo = cump.motivo || eventResumo;
@@ -307,23 +306,8 @@ export async function auditCaseCoreSystem(
     });
   }
 
-  // BA legado: nunca persiste
-  if (eventTipo === 'ba' || eventTipo === 'BA') {
-    eventTipo = patch.datajud_encerrado_tribunal ? 'transito_ou_baixa' : 'rotina';
-    eventResumo = patch.datajud_encerrado_motivo || eventResumo || 'Monitoramento regular';
-  }
-  // Sanitiza resumo (remove tags BA legadas)
-  if (typeof eventResumo === 'string') {
-    eventResumo = eventResumo
-      .replace(/\bB\.?\s*A\.?\b/gi, '')
-      .replace(/\bBUSCA\s+E\s+APREENS[AÃ]O\b/gi, '')
-      .replace(/ALERTA:\s*/gi, '')
-      .replace(/\s*\|\s*/g, ' | ')
-      .replace(/^\s*\|\s*|\s*\|\s*$/g, '')
-      .trim();
-  }
   patch.evento_tipo = eventTipo;
-  patch.evento_resumo = eventResumo || null;
+  patch.evento_resumo = eventResumo;
   patch.evento_fonte =
     patch.tem_atualizacao_pos_retorno && patch.djen_nova_comunicacao
       ? 'ambos'
@@ -336,7 +320,9 @@ export async function auditCaseCoreSystem(
     patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao
   );
 
-  if (patch.datajud_encerrado_tribunal || target.datajud_encerrado_tribunal) {
+  if (patch.indicio_busca_apreensao || target.indicio_busca_apreensao) {
+    patch.scan_priority = 100;
+  } else if (patch.datajud_encerrado_tribunal || target.datajud_encerrado_tribunal) {
     patch.scan_priority = 90;
   } else if (patch.tem_novo_andamento) {
     patch.scan_priority = 80;
@@ -507,26 +493,5 @@ export async function recalibrateCasesAction() {
     };
   } catch (e: any) {
     return { success: false, error: e?.message || 'Erro', updated: 0 };
-  }
-}
-
-
-/** Busca processos no DataJud por CPF/CNPJ (todos os tipos: BA, revisional, comum…). */
-export async function searchProcessesByCpfAction(documento: string, onlyBA = false) {
-  try {
-    const res = await searchDataJudByCpf(documento, { onlyBA, size: 10 });
-    return res;
-  } catch (e: any) {
-    return { success: false, items: [], error: e?.message || 'Falha na busca por CPF' };
-  }
-}
-
-/** Busca processos no DataJud por nome da parte. */
-export async function searchProcessesByNomeAction(nome: string) {
-  try {
-    const res = await searchDataJudByNome(nome, { size: 8 });
-    return res;
-  } catch (e: any) {
-    return { success: false, items: [], error: e?.message || 'Falha na busca por nome' };
   }
 }
