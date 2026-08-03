@@ -9,7 +9,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Search, Trash2, Edit2, CheckCircle2, Zap, Loader2, CalendarDays, Sparkles, 
   History, AlertCircle, FileSearch, ShieldAlert, Copy, MessageSquareQuote, 
-  Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown,
+  Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown, FileSpreadsheet,
   Briefcase, RefreshCcw
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
@@ -23,7 +23,7 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
-import { exportCasesToCSVAction } from '@/app/actions/export-actions';
+import { exportCasesToCSVAction, exportCasesToXlsxAction } from '@/app/actions/export-actions';
 import { format, parseISO, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -127,6 +127,7 @@ function CasesContent() {
   const [quickFilter, setQuickFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -193,6 +194,29 @@ function CasesContent() {
       }
     } finally {
       setExporting(false);
+    }
+  };
+
+
+  const handleExportXlsx = async () => {
+    setExportingXlsx(true);
+    try {
+      const res = await exportCasesToXlsxAction();
+      if (res.success && res.base64) {
+        const link = document.createElement('a');
+        link.href = `data:${res.mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};base64,${res.base64}`;
+        link.download = res.filename || 'Gabinete_LexisPredict.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        toast({ title: 'Excel exportado', description: res.count != null ? `${res.count} processos em XLSX` : undefined });
+      } else {
+        toast({ title: 'Falha no Excel', description: (res as any).error || 'Tente de novo', variant: 'destructive' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Erro XLSX', description: e?.message, variant: 'destructive' });
+    } finally {
+      setExportingXlsx(false);
     }
   };
 
@@ -384,6 +408,17 @@ function CasesContent() {
             <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={exporting} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary">
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />} Extrair Planilha
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportXlsx}
+              disabled={exportingXlsx}
+              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-primary/40 text-primary hover:bg-primary/5"
+            >
+              {exportingXlsx ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileSpreadsheet size={16} className="mr-2" />}
+              Exportar Excel
+            </Button>
+
             <Button
               variant="outline"
               size="sm"

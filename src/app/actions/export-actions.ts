@@ -1,20 +1,99 @@
 'use server';
 
 /**
- * @fileOverview Exportação CSV + XLSX Dossiê
- * IMPORTANTE: em arquivos "use server" só pode exportar async function —
- * NÃO use `export { x } from './outro'`.
+ * @fileOverview Exportação CSV + XLSX (SheetJS)
+ * CSV intacto · XLSX via biblioteca `xlsx`
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 import { createClient } from '@/lib/supabase/server';
 import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
-import { buildDossieXlsxBase64 } from '@/lib/xlsx-dossie-builder';
-import { EXPORT_HEADERS } from '@/lib/xlsx-schema';
 
 type Row = Record<string, any>;
 
-async function loadCases(): Promise<Row[]> {
+const HEADERS = [
+  'ID',
+  'DATA CRIAÇÃO',
+  'EMPRESA ID',
+  'CRIADO POR',
+  'ÚLTIMO RETORNO',
+  'PRÓXIMO PRAZO',
+  'OBSERVAÇÕES',
+  'STATUS',
+  'RISCO',
+  'STATUS INTERNO',
+  'ULTIMA MOVIMENTAÇÃO',
+  'ESCRITÓRIO',
+  'ADVOGADO',
+  'DATA DISTRIBUIÇÃO',
+  'PRODUTOS',
+  'TELEFONE',
+  'PROTOCOLO REF',
+  'TRIBUNAL',
+  'STATUS PRAZO',
+  'DATAJUD ÚLTIMO MOVIMENTO',
+  'DATAJUD ÚLTIMO NOME',
+  'DATAJUD CONSULTADO EM',
+  'ALERTA DATAJUD',
+  'ENCERRADO TRIBUNAL',
+  'MOTIVO ENCERRAMENTO',
+  'INDICIO B.A.',
+  'BA CONFIANÇA',
+  'BA MOTIVO',
+  'BA CONSULTADO EM',
+  'FASE EXECUTIVA',
+  'MOTIVO EXECUÇÃO',
+  'DJEN CONSULTADO EM',
+  'NOVA COMUNICAÇÃO DJEN',
+  'DJEN ÚLTIMA DATA',
+  'DJEN ÚLTIMO RESUMO',
+  'DJEN LINK',
+  'DJEN CONTAGEM',
+] as const;
+
+function rowToCells(r: Row): (string | number)[] {
+  return [
+    r.id,
+    r.created_at,
+    r.empresa_id,
+    r.created_by,
+    r.ultimo_retorno ?? r.ultimoRetorno,
+    r.proximo_retorno ?? r.proximoRetorno,
+    String(r.observacoes ?? r.observacao ?? '').replace(/\n/g, ' '),
+    r.status,
+    r.risco,
+    r.status_interno,
+    r.ultima_movimentacao ?? r.evento_resumo,
+    r.escritorio,
+    r.advogado,
+    r.data_distribuicao,
+    r.produtos,
+    r.telefone,
+    r.protocolo_ref ?? r.protocolo,
+    r.tribunal,
+    r.status_prazo ?? r.status,
+    r.datajud_ultimo_movimento,
+    r.datajud_ultimo_nome,
+    r.datajud_consultado_em,
+    r.tem_atualizacao_pos_retorno || r.tem_novo_andamento ? 'SIM' : 'NÃO',
+    r.datajud_encerrado_tribunal ? 'SIM' : 'NÃO',
+    r.datajud_encerrado_motivo,
+    r.indicio_busca_apreensao ? 'SIM' : 'NÃO',
+    r.busca_apreensao_confianca,
+    r.busca_apreensao_motivo,
+    r.busca_apreensao_consultado_em,
+    r.em_cumprimento_sentenca ? 'SIM' : 'NÃO',
+    r.cumprimento_sentenca_motivo,
+    r.djen_consultado_em,
+    r.djen_nova_comunicacao ? 'SIM' : 'NÃO',
+    r.djen_ultima_data,
+    r.djen_ultimo_resumo,
+    r.djen_ultimo_link,
+    r.djen_count,
+  ].map((v) => (v == null ? '' : v));
+}
+
+async function loadRows(): Promise<Row[]> {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) throw new Error('Sessão expirada. Refaça o login.');
 
@@ -31,80 +110,106 @@ async function loadCases(): Promise<Row[]> {
     // fallback
   }
 
-  const stored = await getStoredCasesForEmpresa(empresa_id);
-  if (stored?.length) return stored as Row[];
-  throw new Error('Nenhum processo na carteira para exportar.');
+  try {
+    const stored = await getStoredCasesForEmpresa(empresa_id);
+    if (stored?.length) return stored as Row[];
+  } catch {
+    //
+  }
+
+  throw new Error('Nenhum registro localizado no repositório.');
 }
 
-/** CSV — contrato UI: { success, base64, filename } */
+/** CSV — botão Extrair Planilha (inalterado no contrato da UI) */
 export async function exportCasesToCSVAction() {
   try {
-    const cases = await loadCases();
-    const headers = [...EXPORT_HEADERS];
-    const lines = [headers.join(',')];
-
-    for (const r of cases) {
-      const evento = String(r.evento_tipo || '');
-      const cells = [
-        r.protocolo || r.protocolo_ref,
-        r.cliente,
-        r.telefone,
-        r.tribunal,
-        r.status || r.status_prazo,
-        r.escritorio,
-        r.advogado,
-        r.ultimoRetorno || r.ultimo_retorno,
-        r.proximoRetorno || r.proximo_retorno,
-        evento,
-        r.evento_resumo,
-        r.datajud_ultimo_nome,
-        r.tem_novo_andamento || r.tem_atualizacao_pos_retorno ? 'SIM' : 'NAO',
-        r.datajud_encerrado_tribunal ? 'SIM' : 'NAO',
-        r.indicio_busca_apreensao ? 'SIM' : 'NAO',
-        r.em_cumprimento_sentenca ? 'SIM' : 'NAO',
-        evento === 'sentenca_procedente' ? 'SIM' : 'NAO',
-        evento === 'sentenca_improcedente' ? 'SIM' : 'NAO',
-        r.djen_ultimo_resumo,
-        String(r.observacao || r.observacoes || '').replace(/\n/g, ' '),
-      ].map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`);
-      lines.push(cells.join(','));
-    }
-
-    const csv = '\uFEFF' + lines.join('\n');
-    const day = new Date().toISOString().slice(0, 10);
+    const rows = await loadRows();
+    const csvContentRows = rows.map((r) =>
+      rowToCells(r)
+        .map((field) => `"${String(field ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    );
+    const finalCsv = '\uFEFF' + [HEADERS.join(','), ...csvContentRows].join('\n');
+    const day = new Date().toISOString().split('T')[0];
     return {
       success: true as const,
-      base64: Buffer.from(csv, 'utf-8').toString('base64'),
+      base64: Buffer.from(finalCsv, 'utf-8').toString('base64'),
       filename: `Gabinete_LexisPredict_${day}.csv`,
       mime: 'text/csv;charset=utf-8',
-      count: cases.length,
+      count: rows.length,
     };
-  } catch (e: any) {
-    console.error('[exportCasesToCSVAction]', e);
-    return { success: false as const, error: e?.message || 'Falha CSV' };
+  } catch (error: any) {
+    console.error('[Export CSV]', error);
+    return { success: false as const, error: error?.message || 'Falha CSV' };
   }
 }
 
-/** XLSX dossiê (Capa + Dashboard + Processos + Status + Escritório) */
-export async function exportDossieXlsxAction() {
+/**
+ * XLSX via SheetJS (`xlsx`).
+ * npm i xlsx
+ */
+export async function exportCasesToXlsxAction() {
   try {
-    const cases = await loadCases();
-    const result = await buildDossieXlsxBase64(cases);
+    const rows = await loadRows();
+
+    // Import dinâmico — evita falha se o módulo ainda não estiver no bundle de types
+    const XLSX = await import('xlsx');
+
+    const aoa: (string | number)[][] = [
+      [...HEADERS],
+      ...rows.map((r) => rowToCells(r).map((c) => (typeof c === 'number' ? c : String(c ?? '')))),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // larguras básicas
+    ws['!cols'] = HEADERS.map((h) => ({ wch: Math.min(28, Math.max(12, h.length + 2)) }));
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Processos');
+
+    // aba resumo
+    const total = rows.length;
+    let and = 0,
+      enc = 0,
+      ba = 0;
+    for (const r of rows) {
+      if (r.tem_atualizacao_pos_retorno || r.tem_novo_andamento) and++;
+      if (r.datajud_encerrado_tribunal) enc++;
+      if (r.indicio_busca_apreensao) ba++;
+    }
+    const dash = XLSX.utils.aoa_to_sheet([
+      ['KPI', 'Valor'],
+      ['Total processos', total],
+      ['Novos andamentos', and],
+      ['Encerrados tribunal', enc],
+      ['Indício B.A.', ba],
+      ['Gerado em', new Date().toISOString()],
+    ]);
+    XLSX.utils.book_append_sheet(wb, dash, 'Dashboard');
+
+    const buf: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    const day = new Date().toISOString().split('T')[0];
+
     return {
       success: true as const,
-      base64: result.base64,
-      filename: result.filename,
+      base64: Buffer.from(buf).toString('base64'),
+      filename: `Gabinete_LexisPredict_${day}.xlsx`,
       mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      count: result.count,
-      kpis: result.kpis,
+      count: total,
     };
-  } catch (e: any) {
-    console.error('[exportDossieXlsxAction]', e);
-    return { success: false as const, error: e?.message || 'Falha ao gerar XLSX' };
+  } catch (error: any) {
+    console.error('[Export XLSX]', error);
+    return {
+      success: false as const,
+      error:
+        error?.message ||
+        'Falha ao gerar XLSX. Confirme: npm i xlsx && redeploy.',
+    };
   }
 }
 
-/** Alias */
-export async function exportCasesXlsxAction() {
-  return exportDossieXlsxAction();
+/** Alias usado em alguns patches */
+export async function exportDossieXlsxAction() {
+  return exportCasesToXlsxAction();
 }
