@@ -1,12 +1,13 @@
 /**
- * MOTOR LEXIS DE DESPACHO v11.0
- * Núcleo unificado: scripts determinísticos + IA (API) com âncora de fidelidade.
- * Usado por Tarefas e Processos.
+ * MOTOR DE DESPACHO v15.0
+ * - local_only / Motor Lexis → scripts fixos (suggestScripts)
+ * - xAI / Groq / outras → IA LIVRE (análise real do corpus), sem amarrar ao script
+ *
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
-'use server';
 
 import { perguntarIA } from '@/ai/flows/chat-ai-flow';
-import { suggestScripts, ScriptSuggestion, ScriptInput } from '@/lib/script-processual/suggest';
+import { suggestScripts } from '@/lib/script-processual/suggest';
 import { retrieveKnowledge } from '@/lib/knowledge/retrieve';
 import { searchKnowledgeChunksAction } from '@/app/actions/knowledge-actions';
 import { EventoTipo } from '@/lib/case-logic';
@@ -17,18 +18,15 @@ export interface MotorDespachoInput {
   ultimoRetorno?: string | null;
   movimentos: any[];
   djenTexts?: string[];
-  eventoTipo?: EventoTipo | string | null;
+  eventoTipo?: EventoTipo | null;
   eventoResumo?: string | null;
-  preferredModel?: string;
+  preferredModel?: string; // 'xai' | 'groq-llama' | 'local_only' | ...
   empresaId?: string;
   tem_novo_andamento?: boolean;
-  tem_atualizacao_pos_retorno?: boolean;
-  djen_nova_comunicacao?: boolean;
   datajud_encerrado_tribunal?: boolean;
   indicio_busca_apreensao?: boolean;
   em_cumprimento_sentenca?: boolean;
   datajud_ultimo_nome?: string | null;
-  djen_ultimo_resumo?: string | null;
 }
 
 const BANNED_TERMS = [
@@ -36,70 +34,37 @@ const BANNED_TERMS = [
   'GETASSESSORIA',
   'W1 CAPITAL',
   'W1CAPITAL',
-  'W1 CAP',
+  'W1',
+  'GET',
   'DAVI ALVES',
   'FIGUEREDO',
   'W1CAP',
   'ASSECOM',
-  'LEXISPREDICT',
 ];
 
 function cleanBannedTerms(text: string): string {
-  let cleaned = text || '';
+  let cleaned = text;
   BANNED_TERMS.forEach((term) => {
-    const regex = new RegExp(term.replace(/\s+/g, '\\s*'), 'gi');
-    cleaned = cleaned.replace(regex, 'nosso escritório');
+    cleaned = cleaned.replace(new RegExp(`\\b${term}\\b`, 'gi'), 'nosso escritório');
   });
-  // remove "W1" isolado residual
-  cleaned = cleaned.replace(/\bW1\b/gi, 'nosso escritório');
-  cleaned = cleaned.replace(/\bGET\b/gi, 'nosso escritório');
-  return cleaned.replace(/\s{2,}/g, ' ').trim();
+  return cleaned;
 }
 
-function toScriptInput(input: MotorDespachoInput): ScriptInput {
-  return {
-    clienteNome: input.clienteNome,
-    protocolo: input.protocolo,
-    ultimoRetorno: input.ultimoRetorno,
-    movimentos: input.movimentos || [],
-    djenTexts: input.djenTexts || [],
-    eventoTipo: input.eventoTipo as any,
-    eventoResumo: input.eventoResumo,
-    tem_novo_andamento: input.tem_novo_andamento,
-    tem_atualizacao_pos_retorno: input.tem_atualizacao_pos_retorno,
-    djen_nova_comunicacao: input.djen_nova_comunicacao,
-    datajud_encerrado_tribunal: input.datajud_encerrado_tribunal,
-    indicio_busca_apreensao: input.indicio_busca_apreensao,
-    em_cumprimento_sentenca: input.em_cumprimento_sentenca,
-    datajud_ultimo_nome: input.datajud_ultimo_nome,
-    djen_ultimo_resumo: input.djen_ultimo_resumo,
-  };
+function isLocalOnly(model?: string) {
+  const m = (model || '').toLowerCase();
+  return m === 'local_only' || m === 'lexis' || m === 'motor_lexis' || m === 'scripts';
 }
 
 /**
- * Sempre devolve scripts ranqueados (mesmo núcleo de Tarefas/Processos).
- */
-export async function gerarSugestoesCliente(input: MotorDespachoInput): Promise<{
-  sucesso: boolean;
-  suggestions: ScriptSuggestion[];
-  engine: string;
-}> {
-  const suggestions = suggestScripts(toScriptInput(input));
-  return {
-    sucesso: true,
-    suggestions: suggestions.map((s) => ({ ...s, texto: cleanBannedTerms(s.texto) })),
-    engine: 'MOTOR_LEXIS_SCRIPTS_v11',
-  };
-}
-
-/**
- * Rascunho estratégico: local_only = melhor script; API = IA ancorada no script + flags.
+ * Rascunho estratégico.
+ * Lexis (local) = script fixo.
+ * Grok/Groq/etc. = IA livre com regras de segurança (não amarrada ao template).
  */
 export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
   const {
     clienteNome,
     protocolo,
-    movimentos = [],
+    movimentos,
     djenTexts = [],
     eventoTipo,
     eventoResumo,
@@ -111,71 +76,93 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     em_cumprimento_sentenca,
   } = input;
 
-  const { suggestions } = await gerarSugestoesCliente(input);
-  const baseScript = suggestions[0]?.texto || '';
-  const categoria = suggestions[0]?.categoria || 'geral';
+  const suggestions = suggestScripts({
+    clienteNome,
+    protocolo,
+    ultimoRetorno: input.ultimoRetorno,
+    movimentos,
+    djenTexts,
+    eventoTipo,
+    eventoResumo,
+    tem_novo_andamento,
+    datajud_encerrado_tribunal,
+    indicio_busca_apreensao,
+    em_cumprimento_sentenca,
+    datajud_ultimo_nome: input.datajud_ultimo_nome,
+  });
 
-  if (!preferredModel || preferredModel === 'local_only') {
+  const baseScript = suggestions[0]?.texto || '';
+
+  // ——— APENAS Motor Lexis: script fixo
+  if (isLocalOnly(preferredModel)) {
     return {
       sucesso: true,
       rascunho: cleanBannedTerms(baseScript),
-      suggestions,
-      engine: 'MOTOR_LEXIS_SOBERANO_v11',
+      engine: 'MOTOR_LEXIS_SCRIPTS',
+      engineUtilizada: 'MOTOR_LEXIS_SCRIPTS',
     };
   }
 
-  const keywords = [categoria, ...(movimentos[0]?.nome?.split(' ') || [])].filter(Boolean).slice(0, 8);
-  const staticChunks = retrieveKnowledge(keywords);
+  // ——— IA externa: LIVRE (não forçar script)
+  const keywords = [
+    String(eventoTipo || ''),
+    ...(movimentos[0]?.nome?.split(' ') || []),
+  ].slice(0, 8);
 
-  let dynamicChunks: any[] = [];
-  if (empresaId) {
-    try {
+  let contextKnowledge = '';
+  try {
+    const staticChunks = retrieveKnowledge(keywords);
+    let dynamicChunks: any[] = [];
+    if (empresaId) {
       const dbRes = await searchKnowledgeChunksAction(keywords, empresaId);
       if (dbRes.success) dynamicChunks = dbRes.chunks || [];
-    } catch {
-      /* */
     }
+    const allChunks = [...staticChunks, ...dynamicChunks].slice(0, 5);
+    contextKnowledge = allChunks.map((c) => c.texto).join('\n\n');
+  } catch {
+    // knowledge opcional
   }
 
-  const allChunks = [...staticChunks, ...dynamicChunks].slice(0, 5);
-  const contextKnowledge = allChunks.map((c) => `[REGRA]: ${c.texto}`).join('\n\n');
+  const historicoTxt = (movimentos || [])
+    .slice(0, 25)
+    .map((m: any) => {
+      const bits = [m.dataHora, m.nome, m.complemento, m.descricao].filter(Boolean);
+      return `- ${bits.join(' | ')}`;
+    })
+    .join('\n');
 
-  const systemPrompt = `Você é o redator de atendimento do setor processual (WhatsApp/e-mail ao cliente).
+  const djenBlock =
+    djenTexts.length > 0
+      ? `\nPUBLICAÇÕES DJEN (texto limpo):\n${djenTexts.slice(0, 8).join('\n---\n')}`
+      : '';
 
-REGRAS INVIOLÁVEIS:
-1. Nunca invente decisão, valor, prazo ou resultado que não esteja nos dados.
-2. Nunca cite nome de empresa, marca, assessoria ou pessoa interna. Use "nossa equipe" ou "setor processual".
-3. Tom: brasileiro, claro, empático, profissional, 4–7 linhas no máximo.
-4. Se houver BUSCA E APREENSÃO: urgência + resguardar o bem + equipe já analisando.
-5. Se houver TRÂNSITO/BAIXA: informar validação do teor; não prometer dinheiro nem arquivamento interno.
-6. Se IMPROCEDENTE ou reforma desfavorável: seja transparente, sem dramatizar; diga que a equipe analisa medidas cabíveis.
-7. Se só houver novidade genérica: diga que há movimentação e que retornam após leitura — sem conclusão.
-8. Use o PRIMEIRO NOME do cliente e o CNJ exatamente como informado.
-9. Estrutura: saudação → fato → o que a equipe está fazendo → próximo passo / canal.
+  const systemPrompt = `Você é um assistente de back-office jurídico brasileiro, experiente e cuidadoso.
+Escreva UMA mensagem de WhatsApp/e-mail para o CLIENTE (pessoa leiga), em português claro, sem juridiquês desnecessário.
 
-BASE DE CONHECIMENTO (opcional):
-${contextKnowledge || '(nenhuma regra extra)'}
+REGRAS DE OURO (obrigatórias):
+1. NÃO invente valores de custas. R$ que for RENDA, salário, cônjuge, faturamento NÃO é custas.
+2. Identifique QUEM deve pagar: se a intimação é à "parte requerida", "réu" ou "banco", a cobrança NÃO é do cliente.
+3. Se o cliente tem justiça gratuita (AJG), diga que em regra está isento de custas.
+4. Cancelamento da distribuição (art. 290) / extinção sem mérito por falta de custas INICIAIS = processo baixado; NÃO invente dívida absurda nem Dívida Ativa sem texto claro de intimação residual ao autor.
+5. Cumprimento de sentença iniciado / intimação ao executado = boa notícia para o autor; não assuste com cobrança dele.
+6. Nunca diga "não precisa fazer nada" se houver intimação de pagamento REAL ao autor.
+7. Nunca cite nomes de escritórios/marcas; use "nossa equipe" / "nosso escritório".
+8. Seja preciso: extinção sem mérito ≠ julgamento do mérito.
 
-ÂNCORA DETERMINÍSTICA (use como base e refine, não contradiga):
-"""${baseScript}"""
+Base auxiliar (opcional, não invente além do histórico):
+${contextKnowledge || '(sem base extra)'}
 `;
 
-  const djenContext =
-    djenTexts.length > 0 ? `\nPUBLICAÇÕES DJEN:\n${djenTexts.slice(0, 3).join('\n---\n')}` : '';
+  const userPrompt = `PROCESSO: ${protocolo}
+CLIENTE (autor/polo ativo típico): ${clienteNome}
+EVENTO: ${eventoTipo || 'N/A'} — ${eventoResumo || 'N/A'}
+FLAGS: BA=${!!indicio_busca_apreensao} ENCERRADO=${!!datajud_encerrado_tribunal} CUMPRIMENTO=${!!em_cumprimento_sentenca} NOVIDADE=${!!tem_novo_andamento}
 
-  const userPrompt = `CLIENTE: ${clienteNome}
-PROTOCOLO: ${protocolo}
-EVENTO: ${eventoTipo || 'N/A'} | ${eventoResumo || 'N/A'}
-FLAGS: BA=${!!indicio_busca_apreensao} BAIXA=${!!datajud_encerrado_tribunal} NOVIDADE=${!!tem_novo_andamento} CUMPRIMENTO=${!!em_cumprimento_sentenca}
-ÚLTIMO RETORNO: ${input.ultimoRetorno || '—'}
-MOVIMENTOS:
-${movimentos
-  .slice(0, 12)
-  .map((m) => `- ${m.dataHora || ''}: ${m.nome || ''} ${m.complemento || ''}`)
-  .join('\n')}
-${djenContext}
+CRONOLOGIA / MOVIMENTOS:
+${historicoTxt || '(sem movimentos detalhados)'}
+${djenBlock}
 
-Redija UMA mensagem pronta para copiar ao cliente.`;
+Redija a mensagem final ao cliente, honesta e tranquilizadora quando for o caso, urgente só se a cobrança for dele de verdade.`;
 
   try {
     const response = await perguntarIA({
@@ -184,18 +171,27 @@ Redija UMA mensagem pronta para copiar ao cliente.`;
       preferredModel: preferredModel || 'xai',
     });
 
+    const engine =
+      (response as any).engineUtilizada ||
+      (response as any).engine ||
+      preferredModel ||
+      'IA';
+
     return {
       sucesso: true,
-      rascunho: cleanBannedTerms(response.resposta),
-      suggestions,
-      engine: response.engineUtilizada || preferredModel,
+      rascunho: cleanBannedTerms(
+        (response as any).resposta || (response as any).texto || baseScript
+      ),
+      engine,
+      engineUtilizada: engine,
     };
-  } catch {
+  } catch (error) {
+    // Fallback só se a IA falhar: script Lexis
     return {
-      sucesso: true,
+      sucesso: false,
       rascunho: cleanBannedTerms(baseScript),
-      suggestions,
-      engine: 'LOCAL_FALLBACK_v11',
+      engine: 'LOCAL_FALLBACK_SCRIPT',
+      engineUtilizada: 'LOCAL_FALLBACK_SCRIPT',
     };
   }
 }

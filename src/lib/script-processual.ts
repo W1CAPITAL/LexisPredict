@@ -1,6 +1,10 @@
 /**
- * Compat: reexporta o núcleo moderno.
+ * Reexports do motor de scripts Lexis.
  */
-export type { ScriptSuggestion, ScriptInput } from './script-processual/suggest';
-export { suggestScripts, gerarSugestoesScript } from './script-processual/suggest';
-export { SCRIPT_CATALOG } from './script-processual/catalog';
+export {
+  suggestScripts,
+  gerarSugestoesScript,
+  applyCatalogTemplate,
+  type ScriptInput,
+  type ScriptSuggestion,
+} from './script-processual/suggest';

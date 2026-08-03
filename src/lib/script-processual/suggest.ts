@@ -1,10 +1,13 @@
 /**
- * Motor de mensagem ao cliente v14.0 — CUSTAS URGENTES + SEM MÉRITO + NUNCA "NÃO AJA"
+ * MOTOR LEXIS (scripts fixos) v15.0
+ * Só este motor é determinístico. Grok/Groq/outras IAs NÃO devem ser forçadas a isto.
  *
- * Casos de referência:
- * - Darlan: boleto PAGO → não falar pendência
- * - Aurineide: custas EM ABERTO R$ 192,10 + intimação + carta → URGENTE, nunca "não precisa agir"
- *              extinção art. 485 / cancelamento distribuição → NÃO dizer "mérito decidido"
+ * Correções:
+ * - R$ 24.000 de RENDA do cônjuge ≠ custas
+ * - Intimação de custas ao RÉU/BANCO ≠ cobrança ao cliente
+ * - AJG do autor → cliente isento
+ * - Cancelamento da distribuição (art. 290) após não pagar custas iniciais → processo extinto, sem dívida absurda
+ * - Cumprimento de sentença / intimação ao executado = boa notícia
  *
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -13,6 +16,7 @@ import { parseISO, parse, isValid, format } from 'date-fns';
 import { SCRIPT_CATALOG, ScriptTemplate } from './catalog';
 
 export interface ScriptSuggestion {
+  id?: string;
   categoria: string;
   titulo: string;
   texto: string;
@@ -34,6 +38,7 @@ export interface ScriptInput {
   evento_resumo?: string | null;
   eventoResumo?: string | null;
   djen_ultimo_resumo?: string | null;
+  datajud_ultimo_nome?: string | null;
   djenTexts?: string[];
   tem_novo_andamento?: boolean;
   tem_atualizacao_pos_retorno?: boolean;
@@ -68,6 +73,7 @@ function buildCorpus(input: ScriptInput): string {
     input.evento_resumo || '',
     input.eventoResumo || '',
     input.djen_ultimo_resumo || '',
+    input.datajud_ultimo_nome || '',
     ...(input.djenTexts || []),
     ...(input.movimentos || []).map(
       (m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''} ${m.dataHora || ''}`
@@ -76,22 +82,41 @@ function buildCorpus(input: ScriptInput): string {
 }
 
 function msg(lines: string[]): string {
-  return lines.filter((l) => l !== undefined && l !== null).join('\n');
+  return lines.filter((l) => l != null).join('\n');
 }
 
-/** Qualquer R$ no corpus */
-function extractValor(U: string): string | null {
-  const m =
-    U.match(/R\$\s*([\d.]+,\d{2})/i) ||
-    U.match(/valor\s+de\s+R\$\s*([\d.]+,\d{2})/i);
-  return m ? `R$ ${m[1]}` : null;
+/**
+ * Extrai valor de CUSTAS apenas se o R$ estiver em janela de taxa/guia/UFESP/DARE,
+ * e NÃO em contexto de renda/salário/cônjuge/empresário.
+ */
+function extractValorCustas(U: string): string | null {
+  const re = /R\$\s*([\d.]+,\d{2})/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(U)) !== null) {
+    const start = Math.max(0, m.index - 80);
+    const end = Math.min(U.length, m.index + m[0].length + 80);
+    const window = U.slice(start, end);
+    if (
+      /renda|sal[aá]rio|mensal|c[oô]njuge|esposa|marido|empres[aá]ri|faturamento|proventos|vencimentos/i.test(
+        window
+      )
+    ) {
+      continue; // renda ≠ custas (caso Josiane R$ 24.000)
+    }
+    if (
+      /custa|taxa\s+judici|guia|ufesp|dare|recolh|boleto|preparo|fedtj|c[oó]digo\s+\d+/i.test(
+        window
+      )
+    ) {
+      return `R$ ${m[1]}`;
+    }
+  }
+  return null;
 }
 
 function extractPrazoDias(U: string): string | null {
-  const m = U.match(
-    /prazo\s+de\s+(\d+)\s*\(?\s*dias?|no\s+prazo\s+de\s+(\d+)\s*\(?\s*dias?/i
-  );
-  return m ? m[1] || m[2] : null;
+  const m = U.match(/prazo\s+de\s+(\d+)\s*\(?\s*dias?/i);
+  return m ? m[1] : null;
 }
 
 type Signals = {
@@ -101,129 +126,109 @@ type Signals = {
   arquivamento: boolean;
   extinçãoSemMerito: boolean;
   cancelamentoDistribuicao: boolean;
+  art290: boolean;
   art485: boolean;
-  emendaInicial: boolean;
-  numopede: boolean;
+  gratuidadeCliente: boolean;
   gratuidadeIndeferida: boolean;
-  hipossuficiencia: boolean;
-  /** Custas realmente pagas */
+  /** Custas cobradas DO CLIENTE (autor) */
+  custasDoCliente: boolean;
+  /** Custas cobradas DO RÉU / banco / parte requerida */
+  custasDoReu: boolean;
   custasPagas: boolean;
-  /**
-   * Cobrança ATIVA: em aberto, intimação para pagar, carta, taxa judiciária a recolher.
-   * Se true → NUNCA "não precisa agir".
-   */
-  custasUrgentes: boolean;
   valorCustas: string | null;
   prazoDias: string | null;
-  cartaIntimacao: boolean;
-  dividaAtivaRisco: boolean;
+  cumprimentoIniciado: boolean;
+  intimacaoExecutado: boolean;
   procedenteParcial: boolean;
-  procedente: boolean;
   improcedente: boolean;
   compensacao: boolean;
-  seguroPrestamista: boolean;
   audiencia: boolean;
-  cumprimento: boolean;
 };
 
 function detectSignals(U: string, input: ScriptInput): Signals {
   const et = String(input.evento_tipo || input.eventoTipo || '').toLowerCase();
 
   const custasPagas =
-    /boleto\s+pago|registro\s+de\s+pagamento|pagamento\s+confirmado|guia.{0,40}paga|custas?\s+pagas?|taxa\s+paga|(?:pago|baixado)\s*[-–—]?\s*r\$|r\$.{0,20}(?:pago|baixado)|juntada\s*[-–—]?\s*registro\s+de\s+pagamento/i.test(
+    /boleto\s+pago|registro\s+de\s+pagamento|pagamento\s+confirmado|certid[aã]o\s+de\s+pagamento\s+de\s+custas|guia.{0,30}paga/i.test(
       U
     );
 
-  // Pendência explícita (Aurineide)
-  const custasUrgentes =
-    !custasPagas &&
-    (/custas?\s+processuais?\s+em\s+aberto|em\s+aberto,?\s+no\s+valor|efetue\s+o\s+pagamento\s+das\s+custas|pagamento\s+taxa\s+judici[aá]ria|intimação.{0,80}pagamento|carta\s+de\s+intimação.{0,40}pagamento|recolhimento\s+(?:integral\s+)?das\s+custas|taxa\s+judici[aá]ria|recolher\s+as\s+custas|5\s*ufesp|d[ií]vida\s+ativa|fedtj|c[oó]digo\s+224/i.test(
+  // Destinatário da cobrança
+  const custasDoReu =
+    /parte\(s\)\s+requerida|parte\s+requerida|intimação\s+da\(s\)\s+parte\(s\)\s+requerida|intimação.{0,40}r[eé]u|r[eé]u.{0,40}pagamento\s+das\s+custas|banco\s+\w+.{0,60}pagamento\s+das\s+custas|executado\(a\)s?.{0,40}pago\s+o\s+valor|intimado\(a\)s?.{0,50}executado/i.test(
       U
     ) ||
-      (/intimação.{0,60}custas|custas.{0,40}intimação|pagamento.{0,30}custas|custas.{0,30}pagamento/i.test(
-        U
-      ) &&
-        /r\$\s*[\d.,]+/i.test(U)));
+    (/pagamento\s+das\s+custas\s+em\s+aberto/i.test(U) &&
+      /requerida|r[eé]u|banco\s+\w+|votorantim|ita[uú]|santander|bradesco/i.test(U));
 
-  const extinçãoSemMerito =
-    /julgo\s+extinto|extinto\s+o\s+processo|extin[çc][aã]o\s+do\s+processo|aus[êe]ncia\s+de\s+pressupostos|cancelamento\s+da\s+distribui[çc][aã]o|cancelada\s+a\s+distribui[çc][aã]o|sem\s+resolu[çc][aã]o\s+do\s+m[eé]rito|sem\s+julgamento\s+do\s+m[eé]rito|indeferida\s+a\s+peti[çc][aã]o\s+inicial/i.test(
+  const custasDoCliente =
+    !custasDoReu &&
+    !custasPagas &&
+    (/custas?\s+processuais?\s+em\s+aberto|efetue\s+o\s+pagamento\s+das\s+custas|intimação\s+da\(s\)\s+parte\(s\)\s+requerente|parte\s+autora.{0,40}pagamento|recolhimento\s+das\s+custas\s+judiciais|primeira\s+parcela\s+das\s+custas|taxa\s+judici[aá]ria.{0,40}requerente/i.test(
       U
     ) ||
-    /artigo\s+485|art\.?\s*485|485,\s*[xiv]/i.test(U);
+      (/custas\s+em\s+aberto|recolher\s+as\s+custas|pagamento\s+taxa\s+judici/i.test(U) &&
+        !/requerida|r[eé]u\b/i.test(U)));
+
+  const cancelamentoDistribuicao =
+    /cancelamento\s+da\s+distribui[çc][aã]o|cancelada\s+a\s+distribui[çc][aã]o|art\.?\s*290/i.test(
+      U
+    );
+  const art290 = /art\.?\s*290|artigo\s+290/i.test(U);
+  const extinçãoSemMerito =
+    /julgo\s+extinto|extinto\s+o\s+processo|extin[çc][aã]o\s+do\s+processo|sem\s+resolu[çc][aã]o\s+do\s+m[eé]rito|aus[êe]ncia\s+de\s+pressupostos|indeferida\s+a\s+peti[çc][aã]o\s+inicial|art\.?\s*485/i.test(
+      U
+    );
+
+  // Após cancelamento da distribuição por inadimplemento de custas INICIAIS + trânsito/baixa:
+  // não inventar cobrança residual de "dívida ativa" com valor de renda
+  const processoCanceladoArquivado =
+    (cancelamentoDistribuicao || art290) &&
+    (extinçãoSemMerito ||
+      /tr[âa]nsito\s+em\s+julgado|baixa\s+definitiva|ao\s+arquivo|arquiv/i.test(U));
+
+  const gratuidadeCliente =
+    /benefici[aá]ri[oa]\s+da\s+gratuidade|justi[çc]a\s+gratuita\s+(?:deferida|concedida)|gratuidade\s+(?:deferida|concedida|mantida)|sem\s+custas,?\s+ante\s+a\s+gratuidade|isento\s+de\s+recolher\s+preparo|autor\s+fica\s+isento/i.test(
+      U
+    );
 
   return {
     ba:
       !!(input.indicio_busca_apreensao || input.busca_apreensao) ||
-      /busca\s+e\s+apreens[aã]o|reintegra[çc][aã]o\s+de\s+posse/i.test(U),
+      /busca\s+e\s+apreens[aã]o/i.test(U),
     baixaDefinitiva: /baixa\s+definitiva/i.test(U),
     transito:
       !!input.datajud_encerrado_tribunal ||
-      et.includes('transito') ||
-      et.includes('baixa') ||
-      /tr[âa]nsito\s+em\s+julgado|transitado\s+em\s+julgado|baixa\s+definitiva/i.test(U),
+      /tr[âa]nsito\s+em\s+julgado|transitado\s+em\s+julgado/i.test(U),
     arquivamento: /arquiv/i.test(U),
     extinçãoSemMerito,
-    cancelamentoDistribuicao:
-      /cancelamento\s+da\s+distribui[çc][aã]o|cancelada\s+a\s+distribui[çc][aã]o|art\.?\s*290/i.test(
-        U
-      ),
-    art485: /artigo\s+485|art\.?\s*485|485,\s*[xiv]/i.test(U),
-    emendaInicial: /emenda\s+[àa]\s+inicial|emendar\s+a\s+inicial/i.test(U),
-    numopede: /numopede|demandas?\s+repetitivas|demandas?\s+predat/i.test(U),
+    cancelamentoDistribuicao,
+    art290,
+    art485: /art\.?\s*485|artigo\s+485/i.test(U),
+    gratuidadeCliente,
     gratuidadeIndeferida:
-      /justi[çc]a\s+gratuita:\s*indeferida|gratuidade.{0,25}indefer|indeferida?\s+a\s+gratuidade|n[aã]o\s+sendo\s+a\s+parte\s+autora\s+benefici[aá]ria/i.test(
-        U
-      ),
-    hipossuficiencia:
-      /hipossuficiente|comprove.{0,40}condi[çc][aã]o|extrato\s+banc[aá]rio|declara[çc][aã]o\s+de\s+imposto\s+de\s+renda/i.test(
-        U
-      ),
+      /indefero\s+o\s+pedido\s+de\s+justi[çc]a\s+gratuita|gratuidade.{0,20}indefer/i.test(U),
+    // Se processo já cancelado/arquivado por art 290, NÃO tratar como custas urgentes do cliente
+    custasDoCliente:
+      custasDoCliente && !processoCanceladoArquivado && !gratuidadeCliente && !custasDoReu,
+    custasDoReu,
     custasPagas,
-    custasUrgentes,
-    valorCustas: extractValor(U),
+    valorCustas: extractValorCustas(U),
     prazoDias: extractPrazoDias(U),
-    cartaIntimacao:
-      /carta\s+(?:de\s+)?intimação|carta\s+recebida|correios|intimação\s+[-–—]\s*pagamento/i.test(
-        U
-      ),
-    dividaAtivaRisco:
-      /d[ií]vida\s+ativa|inscri[çc][aã]o\s+na\s+d[ií]vida|certid[aã]o\s+para\s+inscri[çc][aã]o/i.test(
-        U
-      ),
-    procedenteParcial:
-      /procedente\s+em\s+parte|julgo\s+procedente\s+em\s+parte|parcialmente\s+procedente/i.test(U),
-    procedente:
-      /julgo\s+procedente(?!\s+em\s+parte)/i.test(U) && !/improcedente|em\s+parte/i.test(U),
-    improcedente: et === 'sentenca_improcedente' || /improcedente|julgo\s+improcedente/i.test(U),
-    compensacao: /compensa[çc][aã]o|encontro\s+de\s+contas|artigo\s+368/i.test(U),
-    seguroPrestamista: /seguro\s+prestamista|tarifa\s+de\s+seguro/i.test(U),
-    audiencia: et.includes('audiencia') || /audi[êe]ncia/i.test(U),
-    cumprimento:
+    cumprimentoIniciado:
       !!input.em_cumprimento_sentenca ||
-      et.includes('cumprimento') ||
-      /cumprimento\s+de\s+senten[çc]a/i.test(U),
+      /cumprimento\s+de\s+senten[çc]a\s+iniciada|execu[çc][aã]o\/cumprimento\s+de\s+senten[çc]a\s+iniciada|dado\s+in[ií]cio\s+ao\s+cumprimento/i.test(
+        U
+      ),
+    intimacaoExecutado:
+      /executado\(a\)s?.{0,60}pago\s+o\s+valor|intimado.{0,40}executado|multa\s+legal\s+e\s+honor[aá]rios/i.test(
+        U
+      ),
+    procedenteParcial: /procedente\s+em\s+parte|parcialmente\s+procedente/i.test(U),
+    improcedente: /improcedente|julgo\s+improcedente/i.test(U),
+    compensacao: /compensa[çc][aã]o|encontro\s+de\s+contas/i.test(U),
+    audiencia: /audi[êe]ncia/i.test(U),
   };
-}
-
-/** Frase de valor + prazo para custas urgentes */
-function blocoCustasUrgentes(s: Signals): string[] {
-  const valor = s.valorCustas || 'o valor indicado pelo tribunal';
-  const prazo = s.prazoDias ? `${s.prazoDias} dias` : 'o prazo fixado na intimação';
-  const lines = [
-    `O Tribunal de Justiça intimou para o pagamento das custas processuais em aberto no valor de ${valor}, no prazo de ${prazo}.`,
-  ];
-  if (s.cartaIntimacao) {
-    lines.push(
-      `É possível que você tenha recebido (ou receba) uma carta do tribunal sobre essa cobrança na sua residência.`
-    );
-  }
-  lines.push(
-    `É importante regularizar essa guia para evitar que o CPF seja inscrito na Dívida Ativa do Estado.`
-  );
-  lines.push(
-    `Nossa equipe pode orientar a emissão/conferência do boleto oficial do tribunal. Responda esta mensagem para alinharmos o pagamento com segurança.`
-  );
-  return lines;
 }
 
 export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
@@ -233,266 +238,189 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   const s = detectSignals(U, input);
   const out: ScriptSuggestion[] = [];
 
-  // ——— 0. B.A.
   if (s.ba) {
     out.push({
+      id: 'ba',
       categoria: 'ba',
-      titulo: 'Alerta: indício de busca e apreensão',
+      titulo: 'Alerta: busca e apreensão',
       quandoUsar: 'B.A.',
       texto: msg([
         `Olá, ${nome}! Tudo bem?`,
         ``,
-        `Preciso te passar uma atualização importante sobre o processo nº ${cnj}.`,
+        `Atualização importante sobre o processo nº ${cnj}.`,
         ``,
-        `Identificamos andamento que pode indicar medida de busca e apreensão. Nossa equipe já está avaliando o teor e as medidas cabíveis.`,
+        `Há andamento que pode indicar medida de busca e apreensão. Nossa equipe já está avaliando as medidas cabíveis.`,
         ``,
-        `Por segurança, mantenha o bem resguardado e aguarde nosso contato com orientações objetivas ainda hoje, se possível.`,
-        ``,
-        `Qualquer dúvida urgente, responda esta mensagem.`,
+        `Por segurança, mantenha o bem resguardado e aguarde nosso contato com orientações objetivas.`,
       ]),
     });
   }
 
-  // ——— 1. CUSTAS URGENTES (prioridade máxima após BA) — caso Aurineide
-  if (s.custasUrgentes) {
-    const contextoExtincao =
-      s.extinçãoSemMerito || s.cancelamentoDistribuicao || s.art485
-        ? [
-            `Revisitando o histórico: este processo foi encerrado sem julgamento do mérito (o problema central com a outra parte não foi decidido pelo juiz).`,
-            s.gratuidadeIndeferida || s.hipossuficiencia || s.cancelamentoDistribuicao
-              ? `Na prática, isso costuma ocorrer quando a justiça gratuita não foi aceita na época e as custas iniciais não foram recolhidas — a distribuição pode ser cancelada e o feito baixado.`
-              : `Foi uma extinção formal / cancelamento, não uma vitória nem uma derrota sobre o direito em si.`,
-            ``,
-          ]
-        : s.baixaDefinitiva || s.transito
-          ? [
-              `O processo consta com baixa / encerramento no tribunal. Isso não elimina automaticamente cobranças de taxa do Estado pela movimentação do processo.`,
-              ``,
-            ]
-          : [];
-
+  // ——— Cumprimento / intimação ao BANCO (boa notícia) — Alessandro execução
+  if (s.cumprimentoIniciado || (s.custasDoReu && s.intimacaoExecutado)) {
     out.push({
-      categoria: 'custas',
-      titulo: 'URGENTE: custas em aberto',
-      quandoUsar: 'Intimação de pagamento / carta / valor em aberto',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `Entramos em contato para uma atualização importante sobre o processo nº ${cnj}.`,
-        ``,
-        ...contextoExtincao,
-        ...blocoCustasUrgentes(s),
-        ``,
-        `Se tiver qualquer dúvida, nossa equipe está à disposição.`,
-      ]),
-    });
-  }
-
-  // ——— 2. Extinção sem mérito SEM custas urgentes (ou já pagas)
-  if (
-    (s.extinçãoSemMerito || s.cancelamentoDistribuicao) &&
-    !s.custasUrgentes &&
-    out.length < 3
-  ) {
-    const valorLine = s.custasPagas
-      ? s.valorCustas
-        ? `A boa notícia é que o tribunal já registrou o pagamento da taxa (${s.valorCustas}) e a baixa correspondente. Você não possui pendência financeira ativa dessa guia.`
-        : `A boa notícia é que o tribunal já registrou o pagamento da taxa e a baixa. Você não possui pendência financeira ativa dessa cobrança.`
-      : null;
-
-    out.push({
-      categoria: 'baixa',
-      titulo: 'Extinção sem julgamento do mérito',
-      quandoUsar: 'Art. 485 / cancelamento da distribuição',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `Entro em contato sobre o processo nº ${cnj}.`,
-        ``,
-        `O juiz encerrou este processo por uma questão formal — e não porque tenha julgado o problema de fundo (o “mérito”) a favor ou contra você.`,
-        ``,
-        s.cancelamentoDistribuicao || s.gratuidadeIndeferida || s.hipossuficiencia
-          ? `Isso costuma acontecer quando a justiça gratuita não é comprovada e as custas iniciais não são recolhidas: o tribunal cancela a distribuição e baixa o feito.`
-          : s.numopede || s.emendaInicial
-            ? `O tribunal exigiu documentação específica e, sem o envio no prazo, o processo foi extinto.`
-            : `Trata-se de extinção formal; o direito material em si não foi analisado.`,
-        ``,
-        valorLine ||
-          `Estamos conferindo se restou alguma providência administrativa no tribunal.`,
-        ``,
-        `Como o mérito não foi julgado, você não “perdeu” o direito só por esse encerramento formal. Uma nova ação, se fizer sentido, exige documentação completa desde o início.`,
-        ``,
-        `Qualquer dúvida, nossa equipe segue à disposição.`,
-      ]),
-    });
-  }
-
-  // ——— 3. Trânsito/baixa + custas PAGAS
-  if (
-    (s.transito || s.baixaDefinitiva || s.arquivamento) &&
-    s.custasPagas &&
-    !s.custasUrgentes &&
-    !s.extinçãoSemMerito &&
-    out.length < 3
-  ) {
-    out.push({
-      categoria: 'baixa',
-      titulo: 'Baixa — custas quitadas',
-      quandoUsar: 'Baixa/trânsito com pagamento registrado',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `Atualização sobre o processo nº ${cnj}.`,
-        ``,
-        `Consta baixa definitiva ou trânsito no tribunal.`,
-        ``,
-        s.valorCustas
-          ? `Sobre as custas: o pagamento (${s.valorCustas}) já foi registrado e baixado. Não há pendência financeira ativa dessa guia.`
-          : `Sobre as custas: o pagamento já foi registrado e baixado. Não há pendência financeira ativa dessa guia.`,
-        ``,
-        `Se surgir ato residual, te aviso de forma objetiva. Qualquer dúvida, estou à disposição.`,
-      ]),
-    });
-  }
-
-  // ——— 4. Baixa/trânsito SEM sinal de custas (mensagem neutra — sem "não aja" se houver dúvida)
-  if (
-    (s.transito || s.baixaDefinitiva || s.arquivamento) &&
-    !s.custasUrgentes &&
-    !s.custasPagas &&
-    !s.extinçãoSemMerito &&
-    out.length < 3
-  ) {
-    out.push({
-      categoria: 'baixa',
-      titulo: 'Baixa / trânsito — conferência',
-      quandoUsar: 'Baixa sem corpus claro de custas',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `Trazendo uma atualização sobre o processo nº ${cnj}.`,
-        ``,
-        `O processo consta com baixa definitiva ou trânsito no sistema do tribunal. Isso indica encerramento desta ação no cartório — e não necessariamente que o juiz tenha julgado o mérito a favor ou contra você.`,
-        ``,
-        `Nossa equipe está conferindo se existe alguma taxa ou intimação residual do Estado. Assim que confirmarmos, te retorno com orientação objetiva.`,
-        ``,
-        `Qualquer dúvida, responda esta mensagem.`,
-      ]),
-    });
-  }
-
-  // ——— 5. Mérito parcial / improcedente / audiência / cumprimento
-  if (s.procedenteParcial && (s.compensacao || s.seguroPrestamista) && out.length < 3) {
-    out.push({
-      categoria: 'merito',
-      titulo: 'Decisão parcial + encontro de contas',
-      quandoUsar: 'Procedente em parte',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `Atualização sobre o processo nº ${cnj}.`,
-        ``,
-        `O juiz acolheu em parte o pedido. ${
-          s.seguroPrestamista
-            ? 'Foi reconhecida cobrança indevida relacionada a seguro/tarifas, nos termos da sentença.'
-            : 'Há reconhecimento parcial de valores, nos termos da decisão.'
-        }`,
-        ``,
-        s.compensacao
-          ? `Na prática pode haver “encontro de contas”: o valor reconhecido pode abater dívida do contrato, e não necessariamente cair como depósito na conta.`
-          : `Os valores e a forma de cumprimento ainda passam por conferência.`,
-        ``,
-        `Assim que tivermos os números objetivos, te retorno.`,
-      ]),
-    });
-  }
-
-  if (s.improcedente && !s.procedenteParcial && out.length < 3) {
-    out.push({
-      categoria: 'merito',
-      titulo: 'Decisão desfavorável',
-      quandoUsar: 'Improcedente',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `Preciso te atualizar sobre o processo nº ${cnj}.`,
-        ``,
-        `Houve uma decisão que não acolheu o pedido principal. Estamos lendo o teor completo e avaliando se cabe recurso ou outra medida.`,
-        ``,
-        `Em breve te retorno com a orientação clara. Qualquer dúvida, responda esta mensagem.`,
-      ]),
-    });
-  }
-
-  if (s.audiencia && out.length < 3) {
-    out.push({
-      categoria: 'merito',
-      titulo: 'Audiência',
-      quandoUsar: 'Audiência',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `Identificamos audiência no processo nº ${cnj}.`,
-        ``,
-        `Nossa equipe organiza os próximos passos e te orienta com data e se é necessário comparecer. Não se desloque sem nossa confirmação.`,
-      ]),
-    });
-  }
-
-  if (s.cumprimento && out.length < 3) {
-    out.push({
+      id: 'cumprimento_positivo',
       categoria: 'execucao',
-      titulo: 'Fase de cumprimento',
-      quandoUsar: 'Cumprimento de sentença',
+      titulo: 'Cumprimento de sentença em andamento',
+      quandoUsar: 'Execução iniciada / intimação ao réu',
       texto: msg([
         `Olá, ${nome}! Tudo bem?`,
         ``,
-        `O processo nº ${cnj} avançou para cumprimento da decisão (valores e forma de pagar/descontar).`,
+        `Boas notícias sobre o processo nº ${cnj}.`,
         ``,
-        `Estamos revisando os atos. Assim que houver próximo passo claro, te retorno.`,
+        s.cumprimentoIniciado
+          ? `A fase de cumprimento de sentença (cobrança do que foi definido na ação) já foi iniciada. O juiz intimou a parte contrária a cumprir a obrigação no prazo legal.`
+          : `Há intimação dirigida à parte contrária nesta fase.`,
+        ``,
+        s.custasDoReu
+          ? `Sobre taxas do tribunal: a cobrança de custas que aparece nos autos é de responsabilidade da parte adversa — não sua.`
+          : `Você não precisa pagar custas do tribunal por essa movimentação.`,
+        ``,
+        `Nossa equipe monitora prazos e depósitos. Qualquer novidade objetiva, te avisamos.`,
       ]),
     });
   }
 
-  // ——— Fallback (sem "não precisa fazer nada" se houver qualquer menção a intimação)
+  // ——— Custas cobradas do RÉU (não assustar o cliente) — Alessandro
+  if (s.custasDoReu && !s.cumprimentoIniciado && out.length < 3) {
+    out.push({
+      id: 'custas_reu',
+      categoria: 'custas',
+      titulo: 'Custas a cargo da parte contrária',
+      quandoUsar: 'Intimação de custas ao réu/banco',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Atualização sobre o processo nº ${cnj}.`,
+        ``,
+        `O tribunal publicou intimação de custas processuais${s.valorCustas ? ` (${s.valorCustas})` : ''}.`,
+        ``,
+        `Essa cobrança é de responsabilidade da parte contrária (réu/banco), não sua.`,
+        s.gratuidadeCliente
+          ? `Você é beneficiário(a) da justiça gratuita e não precisa recolher essa taxa.`
+          : `Você não precisa pagar esse valor ao tribunal.`,
+        ``,
+        `Não há risco de inscrição do seu CPF por essa intimação. Seguimos acompanhando o processo.`,
+      ]),
+    });
+  }
+
+  // ——— Cancelamento distribuição / extinção art 290 — Josiane (SEM inventar R$ 24k)
+  if (
+    (s.cancelamentoDistribuicao || s.art290 || s.extinçãoSemMerito) &&
+    (s.transito || s.baixaDefinitiva || s.arquivamento || s.extinçãoSemMerito) &&
+    out.length < 3
+  ) {
+    out.push({
+      id: 'cancelamento_distribuicao',
+      categoria: 'baixa',
+      titulo: 'Cancelamento da distribuição / extinção formal',
+      quandoUsar: 'Art. 290 / 485 — processo baixado sem mérito',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Parecer conclusivo sobre o processo nº ${cnj}.`,
+        ``,
+        `Logo no início, o juiz não concedeu a justiça gratuita e abriu prazo para recolhimento de custas. Como a guia inicial não foi paga no prazo, o juiz determinou o cancelamento da distribuição e encerrou o processo sem julgar o mérito (o problema com a outra parte).`,
+        ``,
+        `O que isso significa na prática? Este processo específico foi baixado em definitivo. Você não possui pendência financeira ativa nem dívida de custas inventada com o tribunal por valores de renda ou outros números que apareçam só como contexto na decisão.`,
+        ``,
+        `Como o mérito não foi julgado, você não “perdeu” o direito material só por esse encerramento formal. Se no futuro fizer sentido uma nova ação, as custas iniciais precisarão ser observadas desde o começo.`,
+        ``,
+        `Qualquer dúvida sobre esse desfecho, nossa equipe está à disposição.`,
+      ]),
+    });
+  }
+
+  // ——— Custas URGENTES do CLIENTE (só se realmente for autor/requerente e processo não cancelado)
+  if (s.custasDoCliente && out.length < 3) {
+    const valor = s.valorCustas || 'o valor indicado na intimação';
+    const prazo = s.prazoDias ? `${s.prazoDias} dias` : 'o prazo da intimação';
+    out.push({
+      id: 'custas_cliente_urgente',
+      categoria: 'custas',
+      titulo: 'URGENTE: custas do autor em aberto',
+      quandoUsar: 'Intimação de pagamento ao requerente',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Atualização importante sobre o processo nº ${cnj}.`,
+        ``,
+        `Há intimação para pagamento de custas processuais em aberto (${valor}), no prazo de ${prazo}.`,
+        ``,
+        `É importante regularizar a guia oficial do tribunal para evitar inscrição na Dívida Ativa.`,
+        ``,
+        `Nossa equipe pode orientar a emissão/conferência do boleto. Responda esta mensagem para alinharmos o pagamento.`,
+      ]),
+    });
+  }
+
+  // ——— AJG + baixa
+  if (s.gratuidadeCliente && (s.baixaDefinitiva || s.transito) && out.length < 3) {
+    out.push({
+      id: 'ajg_baixa',
+      categoria: 'baixa',
+      titulo: 'Baixa com gratuidade',
+      quandoUsar: 'Cliente com AJG',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Atualização sobre o processo nº ${cnj}.`,
+        ``,
+        `O processo consta com baixa/arquivamento. Você é beneficiário(a) da justiça gratuita, o que em regra isenta do recolhimento de custas processuais.`,
+        ``,
+        `Se aparecer intimação de taxa, confira se é dirigida à parte contrária — nesse caso você não paga. Seguimos acompanhando.`,
+      ]),
+    });
+  }
+
+  if (s.procedenteParcial && s.compensacao && out.length < 3) {
+    out.push({
+      id: 'parcial_compensacao',
+      categoria: 'merito',
+      titulo: 'Procedente em parte',
+      quandoUsar: 'Mérito parcial',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Atualização sobre o processo nº ${cnj}.`,
+        ``,
+        `O juiz acolheu em parte o pedido. Pode haver encontro de contas (valor reconhecido abatendo dívida do contrato), e não necessariamente depósito na conta.`,
+        ``,
+        `Assim que os números estiverem objetivos, te retorno.`,
+      ]),
+    });
+  }
+
   if (out.length === 0) {
     const temNovidade =
       input.tem_novo_andamento ||
       input.tem_atualizacao_pos_retorno ||
       input.djen_nova_comunicacao ||
       (input.movimentos && input.movimentos.length > 0);
-
-    const mencionaIntimacao = /intimação|intime-se|prazo\s+de\s+\d+/i.test(U);
-
     out.push({
+      id: 'fallback',
       categoria: 'andamento',
-      titulo: temNovidade ? 'Atualização de andamento' : 'Acompanhamento',
+      titulo: temNovidade ? 'Atualização' : 'Acompanhamento',
       quandoUsar: 'Sem classificação forte',
-      texto: temNovidade
-        ? msg([
-            `Olá, ${nome}! Tudo bem?`,
-            ``,
-            `Trazendo uma atualização sobre o processo nº ${cnj}.`,
-            ``,
-            `Houve movimentação no tribunal. Nossa equipe está analisando o teor completo antes de te passar qualquer conclusão.`,
-            ``,
-            mencionaIntimacao
-              ? `Se a movimentação envolver prazo ou intimação, te orientamos assim que confirmarmos o teor — para não perder prazo.`
-              : `Assim que tivermos orientação objetiva, te retorno.`,
-            ``,
-            `Qualquer dúvida, responda esta mensagem.`,
-          ])
-        : msg([
-            `Olá, ${nome}! Tudo bem?`,
-            ``,
-            `Passando para atualizar o acompanhamento do processo nº ${cnj}.`,
-            ``,
-            `Seguimos monitorando. Qualquer novidade relevante, te aviso de forma clara.`,
-          ]),
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        temNovidade
+          ? `Houve movimentação no processo nº ${cnj}. Nossa equipe está conferindo o teor completo antes de qualquer conclusão.`
+          : `Seguimos acompanhando o processo nº ${cnj}.`,
+        ``,
+        `Qualquer novidade objetiva, te aviso.`,
+      ]),
     });
   }
 
   return out.slice(0, 3);
+}
+
+/** Alias pedido por script-processual.ts */
+export function gerarSugestoesScript(input: ScriptInput): ScriptSuggestion[] {
+  return suggestScripts(input);
 }
 
 export function applyCatalogTemplate(
@@ -505,6 +433,7 @@ export function applyCatalogTemplate(
   const displayRetorno = fmtDate(dateRetornoStr) || 'nos últimos dias';
   const displayMov = fmtDate(dataMovStr) || 'recentemente';
   return {
+    id: s.id,
     categoria: s.categoria,
     titulo: s.titulo,
     quandoUsar: s.quandoUsar,
