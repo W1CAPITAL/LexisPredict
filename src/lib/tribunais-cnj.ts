@@ -1,5 +1,4 @@
 export const TRIBUNAIS_CNJ: Record<string, { nome: string; sistema: string; consultaUrl: (cnj: string) => string }> = {
-  // Justiça Estadual
   "01": { nome: "TJAC", sistema: "esaj", consultaUrl: () => "https://esaj.tjac.jus.br/cpopg/open.do" },
   "02": { nome: "TJAL", sistema: "esaj", consultaUrl: () => "https://www2.tjal.jus.br/cpopg/open.do" },
   "03": { nome: "TJAP", sistema: "pje", consultaUrl: () => "https://pje.tjap.jus.br/consultapublica" },
@@ -27,8 +26,6 @@ export const TRIBUNAIS_CNJ: Record<string, { nome: string; sistema: string; cons
   "25": { nome: "TJSE", sistema: "pje", consultaUrl: () => "https://pje.tjse.jus.br" },
   "26": { nome: "TJSP", sistema: "esaj", consultaUrl: () => "https://esaj.tjsp.jus.br/cpopg/open.do" },
   "27": { nome: "TJTO", sistema: "eproc", consultaUrl: () => "https://eproc.tjto.jus.br" },
-
-  // Superiores / especiais
   "90": { nome: "STM", sistema: "proprio", consultaUrl: () => "https://www.stm.jus.br" },
   "91": { nome: "CSJT", sistema: "pje", consultaUrl: () => "https://pje.csjt.jus.br" },
   "92": { nome: "CNJ", sistema: "proprio", consultaUrl: () => "https://www.cnj.jus.br" },
@@ -42,6 +39,6 @@ export const TRIBUNAIS_CNJ: Record<string, { nome: string; sistema: string; cons
 export function getTribunalFromCnj(cnj: string) {
   const clean = cnj.replace(/\D/g, "");
   if (clean.length !== 20) return null;
-  const code = clean.substring(14, 16); // posição TR
+  const code = clean.substring(14, 16);
   return TRIBUNAIS_CNJ[code] || null;
 }
