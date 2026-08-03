@@ -1,7 +1,7 @@
 /**
- * Automação Judicial — consultas por tribunal + Portal de Custas TJSP (WebView).
- * CAPTCHA: sempre resolvido pelo operador. Sem robô / sem anti-captcha.
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * AUTOMAÇÃO JUDICIAL — página real
+ * Portal de Custas TJSP (WebView) + catálogo de tribunais
+ * CAPTCHA = operador. Sem robô / sem 2Captcha.
  */
 "use client";
 
@@ -21,6 +21,7 @@ import {
   Minimize2,
   X,
   AlertCircle,
+  Link2,
 } from "lucide-react";
 import {
   TODOS_TRIBUNAIS,
@@ -29,12 +30,8 @@ import {
   getTribunalByCnj,
   codigoJusticaFromCnj,
 } from "@/lib/tribunais-links";
-import { ConsultaTribunalButton } from "@/components/tribunal/consulta-tribunal-button";
-import { AnimatedIcon } from "@/components/ui/animated-icon";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 
-/** Portal oficial de custas TJSP */
 export const PORTAL_CUSTAS_TJSP =
   "https://portaldecustas.tjsp.jus.br/portaltjsp/pages/custas/new";
 
@@ -42,18 +39,70 @@ function onlyDigits(s: string) {
   return s.replace(/\D/g, "");
 }
 
+function copyText(value: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard) {
+    return navigator.clipboard.writeText(value);
+  }
+  return Promise.reject();
+}
+
+/** Botão tribunal sem depender de dropdown-menu (evita build quebrado) */
+function OpenTribunal({ protocolo }: { protocolo: string }) {
+  const url = getConsultaUrlForCnj(protocolo);
+  const t = getTribunalByCnj(protocolo);
+  const fb = getFallbacksForCnj(protocolo);
+  if (!url) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        className="h-11 rounded-xl font-black uppercase text-[10px] gap-2"
+        onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+      >
+        {t?.sigla || "Tribunal"} ({t?.sistema}) <ExternalLink size={14} />
+      </Button>
+      {fb.map((a, i) => (
+        <Button
+          key={i}
+          type="button"
+          variant="outline"
+          className="h-11 rounded-xl font-bold uppercase text-[10px]"
+          onClick={() => window.open(a.url, "_blank", "noopener,noreferrer")}
+        >
+          {a.label || a.sistema}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export default function AutomacaoJudicialPage() {
-  const { toast } = useToast();
   const [cnj, setCnj] = useState("");
   const [q, setQ] = useState("");
-
-  // Portal de Custas
   const [custasCnj, setCustasCnj] = useState("");
   const [custasCpf, setCustasCpf] = useState("");
   const [custasNome, setCustasNome] = useState("");
   const [showPortal, setShowPortal] = useState(false);
   const [portalExpanded, setPortalExpanded] = useState(true);
-  const [iframeBlocked, setIframeBlocked] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const flash = (m: string) => {
+    setToastMsg(m);
+    setTimeout(() => setToastMsg(null), 2200);
+  };
+
+  const doCopy = async (label: string, value: string) => {
+    if (!value.trim()) {
+      flash(`${label} vazio`);
+      return;
+    }
+    try {
+      await copyText(value.trim());
+      flash(`${label} copiado`);
+    } catch {
+      flash("Falha ao copiar");
+    }
+  };
 
   const resolved = useMemo(() => {
     if (!cnj.trim()) return null;
@@ -61,7 +110,6 @@ export default function AutomacaoJudicialPage() {
       code: codigoJusticaFromCnj(cnj),
       tribunal: getTribunalByCnj(cnj),
       url: getConsultaUrlForCnj(cnj),
-      fallbacks: getFallbacksForCnj(cnj),
     };
   }, [cnj]);
 
@@ -77,71 +125,62 @@ export default function AutomacaoJudicialPage() {
     );
   }, [q]);
 
-  const copyField = async (label: string, value: string) => {
-    if (!value.trim()) {
-      toast({ title: "Vazio", description: `Preencha ${label} antes.`, variant: "destructive" });
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(value.trim());
-      toast({ title: "Copiado", description: `${label} na área de transferência.` });
-    } catch {
-      toast({ title: "Falha ao copiar", variant: "destructive" });
-    }
-  };
-
-  const openPortalNovaAba = () => {
-    window.open(PORTAL_CUSTAS_TJSP, "_blank", "noopener,noreferrer");
-  };
-
-  const abrirPortalNoApp = () => {
-    setIframeBlocked(false);
-    setShowPortal(true);
-    setPortalExpanded(true);
-    // Prefill clipboard helper: CNJ mais usado
-    if (custasCnj.trim()) {
-      navigator.clipboard?.writeText(custasCnj.trim()).catch(() => {});
-    }
-  };
-
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-14 border-b border-border/50 px-6 flex items-center gap-3 shrink-0">
-          <AnimatedIcon icon={Scale} variant="glow" size={22} className="text-primary" />
-          <div>
-            <h1 className="text-sm font-black uppercase tracking-tight">Automação Judicial</h1>
-            <p className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">
-              Consulta · Portal de Custas TJSP
-            </p>
+        <header className="h-14 border-b border-border/50 px-4 sm:px-6 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Scale className="text-primary" size={18} />
+            </div>
+            <div>
+              <h1 className="text-sm font-black uppercase tracking-tight">
+                Automação Judicial
+              </h1>
+              <p className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest">
+                Portal de Custas TJSP · Consultas
+              </p>
+            </div>
           </div>
+          {toastMsg && (
+            <Badge className="bg-emerald-600 text-white text-[10px] font-bold">
+              {toastMsg}
+            </Badge>
+          )}
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
-          {/* ——— PORTAL DE CUSTAS TJSP ——— */}
-          <section className="rounded-2xl border-2 border-amber-500/30 bg-card p-4 sm:p-6 space-y-4 max-w-3xl shadow-sm">
+          {/* ===== PORTAL DE CUSTAS — BLOCO PRINCIPAL ===== */}
+          <section className="rounded-2xl border-2 border-amber-500/40 bg-card p-4 sm:p-6 space-y-4 max-w-4xl shadow-md">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-                <Receipt className="text-amber-600" size={20} />
+              <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                <Receipt className="text-amber-700" size={22} />
               </div>
-              <div className="space-y-1">
-                <h2 className="text-sm font-black uppercase tracking-tight">
+              <div>
+                <h2 className="text-base font-black uppercase tracking-tight">
                   Portal de Custas · TJSP
                 </h2>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Abre o site oficial do tribunal dentro do app (ou em nova aba). Preencha os
-                  dados abaixo para copiar rápido nos campos do portal. O{" "}
-                  <strong>CAPTCHA</strong> é resolvido por você — não usamos robô nem serviço de
-                  quebra de captcha.
+                <p className="text-[12px] text-muted-foreground leading-relaxed mt-1">
+                  Site oficial embutido no app. Preencha CNJ/CPF abaixo, use{" "}
+                  <strong>Copiar</strong> e cole no portal. O{" "}
+                  <strong>CAPTCHA</strong> é resolvido por você (sem robô).
                 </p>
+                <a
+                  href={PORTAL_CUSTAS_TJSP}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-primary mt-1 hover:underline"
+                >
+                  <Link2 size={12} /> {PORTAL_CUSTAS_TJSP}
+                </a>
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase tracking-widest">
-                  Nº do processo (CNJ)
+                  Nº processo (CNJ)
                 </Label>
                 <div className="flex gap-1">
                   <Input
@@ -152,11 +191,9 @@ export default function AutomacaoJudicialPage() {
                   />
                   <Button
                     type="button"
-                    size="icon"
                     variant="outline"
-                    className="h-11 w-11 shrink-0 rounded-xl"
-                    onClick={() => copyField("CNJ", custasCnj)}
-                    title="Copiar CNJ"
+                    className="h-11 px-3 rounded-xl shrink-0"
+                    onClick={() => doCopy("CNJ", custasCnj)}
                   >
                     <Copy size={14} />
                   </Button>
@@ -169,17 +206,17 @@ export default function AutomacaoJudicialPage() {
                 <div className="flex gap-1">
                   <Input
                     value={custasCpf}
-                    onChange={(e) => setCustasCpf(onlyDigits(e.target.value).slice(0, 11))}
+                    onChange={(e) =>
+                      setCustasCpf(onlyDigits(e.target.value).slice(0, 11))
+                    }
                     placeholder="00000000000"
                     className="h-11 rounded-xl font-mono text-xs"
                   />
                   <Button
                     type="button"
-                    size="icon"
                     variant="outline"
-                    className="h-11 w-11 shrink-0 rounded-xl"
-                    onClick={() => copyField("CPF", custasCpf)}
-                    title="Copiar CPF"
+                    className="h-11 px-3 rounded-xl shrink-0"
+                    onClick={() => doCopy("CPF", custasCpf)}
                   >
                     <Copy size={14} />
                   </Button>
@@ -187,7 +224,7 @@ export default function AutomacaoJudicialPage() {
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-[9px] font-black uppercase tracking-widest">
-                  Nome da parte (opcional)
+                  Nome da parte
                 </Label>
                 <div className="flex gap-1">
                   <Input
@@ -198,11 +235,9 @@ export default function AutomacaoJudicialPage() {
                   />
                   <Button
                     type="button"
-                    size="icon"
                     variant="outline"
-                    className="h-11 w-11 shrink-0 rounded-xl"
-                    onClick={() => copyField("Nome", custasNome)}
-                    title="Copiar nome"
+                    className="h-11 px-3 rounded-xl shrink-0"
+                    onClick={() => doCopy("Nome", custasNome)}
                   >
                     <Copy size={14} />
                   </Button>
@@ -213,39 +248,46 @@ export default function AutomacaoJudicialPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                className="h-11 rounded-xl font-black uppercase text-[10px] tracking-widest gap-2"
-                onClick={abrirPortalNoApp}
+                className="h-12 rounded-xl font-black uppercase text-[11px] tracking-widest gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => {
+                  setShowPortal(true);
+                  setPortalExpanded(true);
+                  if (custasCnj.trim()) {
+                    doCopy("CNJ", custasCnj);
+                  }
+                }}
               >
-                <Receipt size={16} />
-                Abrir portal no app
+                <Receipt size={18} />
+                Abrir Portal de Custas no app
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 rounded-xl font-black uppercase text-[10px] tracking-widest gap-2"
-                onClick={openPortalNovaAba}
+                className="h-12 rounded-xl font-black uppercase text-[11px] gap-2"
+                onClick={() =>
+                  window.open(PORTAL_CUSTAS_TJSP, "_blank", "noopener,noreferrer")
+                }
               >
-                Nova aba <ExternalLink size={14} />
+                Abrir em nova aba <ExternalLink size={14} />
               </Button>
             </div>
 
-            <div className="flex gap-2 items-start rounded-xl bg-secondary/40 p-3 text-[10px] text-muted-foreground leading-relaxed">
-              <AlertCircle size={14} className="shrink-0 mt-0.5 text-amber-600" />
+            <div className="flex gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-[11px] leading-relaxed text-muted-foreground">
+              <AlertCircle size={16} className="text-amber-700 shrink-0 mt-0.5" />
               <span>
-                Fluxo: abrir portal → colar CNJ/CPF (botões copiar) → resolver CAPTCHA → gerar
-                guia → baixar PDF no navegador. Se o tribunal bloquear iframe, use{" "}
-                <strong>Nova aba</strong>.
+                Fluxo: 1) Abrir portal 2) Colar CNJ/CPF 3) Resolver CAPTCHA 4)
+                Gerar guia 5) Baixar PDF no navegador. Se a tela ficar em branco,
+                o TJSP bloqueou iframe — use <strong>nova aba</strong>.
               </span>
             </div>
 
-            {/* WebView embutido */}
             {showPortal && (
-              <div className="rounded-xl border border-border overflow-hidden bg-background">
-                <div className="h-10 flex items-center justify-between px-2 border-b border-border/50 bg-secondary/30">
-                  <span className="text-[10px] font-bold text-muted-foreground truncate px-2">
+              <div className="rounded-xl border-2 border-border overflow-hidden bg-white">
+                <div className="h-11 flex items-center justify-between px-2 bg-secondary/50 border-b">
+                  <span className="text-[10px] font-bold truncate px-2">
                     portaldecustas.tjsp.jus.br
                   </span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex gap-1">
                     <Button
                       type="button"
                       size="icon"
@@ -253,15 +295,24 @@ export default function AutomacaoJudicialPage() {
                       className="h-8 w-8"
                       onClick={() => setPortalExpanded((v) => !v)}
                     >
-                      {portalExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                      {portalExpanded ? (
+                        <Minimize2 size={14} />
+                      ) : (
+                        <Maximize2 size={14} />
+                      )}
                     </Button>
                     <Button
                       type="button"
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
-                      onClick={openPortalNovaAba}
-                      title="Nova aba"
+                      onClick={() =>
+                        window.open(
+                          PORTAL_CUSTAS_TJSP,
+                          "_blank",
+                          "noopener,noreferrer"
+                        )
+                      }
                     >
                       <ExternalLink size={14} />
                     </Button>
@@ -277,48 +328,31 @@ export default function AutomacaoJudicialPage() {
                   </div>
                 </div>
                 {portalExpanded && (
-                  <div className="relative min-h-[480px] h-[55vh]">
-                    <iframe
-                      src={PORTAL_CUSTAS_TJSP}
-                      title="Portal de Custas TJSP"
-                      className="absolute inset-0 w-full h-full border-0 bg-white"
-                      // sandbox: scripts necessários ao portal; sem top-navigation indevida
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      onLoad={() => {
-                        // Se carregar em branco por X-Frame, usuário usa Nova aba
-                      }}
-                    />
-                    {iframeBlocked && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/95 p-6 text-center">
-                        <p className="text-sm font-bold">
-                          O tribunal bloqueou a visualização embutida.
-                        </p>
-                        <Button onClick={openPortalNovaAba} className="rounded-xl font-black uppercase text-[10px]">
-                          Abrir em nova aba
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  <iframe
+                    src={PORTAL_CUSTAS_TJSP}
+                    title="Portal de Custas TJSP"
+                    className="w-full border-0 bg-white"
+                    style={{ height: "min(70vh, 720px)", minHeight: 480 }}
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
                 )}
               </div>
             )}
           </section>
 
-          {/* ——— CNJ → tribunal ——— */}
+          {/* ===== Consulta por CNJ ===== */}
           <section className="rounded-2xl border border-border/50 bg-card p-4 space-y-3 max-w-2xl">
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-              Abrir consulta processual pelo CNJ
+              Abrir consulta processual (eproc / e-SAJ / PJe)
             </p>
-            <div className="flex flex-wrap gap-2">
-              <Input
-                value={cnj}
-                onChange={(e) => setCnj(e.target.value)}
-                placeholder="0000000-00.0000.0.00.0000"
-                className="h-11 rounded-xl font-mono text-sm max-w-md"
-              />
-              <ConsultaTribunalButton protocolo={cnj} label="Abrir tribunal" />
-            </div>
+            <Input
+              value={cnj}
+              onChange={(e) => setCnj(e.target.value)}
+              placeholder="0000000-00.0000.0.00.0000"
+              className="h-11 rounded-xl font-mono text-sm max-w-md"
+            />
+            <OpenTribunal protocolo={cnj} />
             {resolved?.tribunal && (
               <p className="text-[11px] text-muted-foreground">
                 {resolved.tribunal.sigla} · {resolved.tribunal.nome} ·{" "}
@@ -329,7 +363,7 @@ export default function AutomacaoJudicialPage() {
             )}
           </section>
 
-          {/* ——— Lista tribunais ——— */}
+          {/* ===== Lista ===== */}
           <section className="space-y-3">
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -344,32 +378,36 @@ export default function AutomacaoJudicialPage() {
               {list.map((t) => (
                 <div
                   key={t.codigo}
-                  className="rounded-xl border border-border/40 bg-card p-4 space-y-2 hover:border-primary/40 transition-colors"
+                  className="rounded-xl border border-border/40 bg-card p-4 space-y-2"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex justify-between items-center">
                     <span className="font-black text-sm">{t.sigla}</span>
-                    <Badge variant="secondary" className="text-[8px] uppercase font-bold">
+                    <Badge variant="secondary" className="text-[8px] uppercase">
                       {t.sistema}
                     </Badge>
                   </div>
                   <p className="text-[11px] text-muted-foreground">{t.nome}</p>
                   <p className="text-[10px] font-mono opacity-50">{t.codigo}</p>
-                  <div className="flex flex-wrap gap-1 pt-1">
+                  <div className="flex flex-wrap gap-1">
                     <Button
                       size="sm"
                       variant="outline"
                       className="h-8 text-[9px] font-black uppercase rounded-lg gap-1"
-                      onClick={() => window.open(t.url, "_blank", "noopener,noreferrer")}
+                      onClick={() =>
+                        window.open(t.url, "_blank", "noopener,noreferrer")
+                      }
                     >
-                      Principal <ExternalLink size={12} />
+                      Abrir <ExternalLink size={12} />
                     </Button>
                     {(t.alternativos || []).map((a, i) => (
                       <Button
                         key={i}
                         size="sm"
                         variant="ghost"
-                        className="h-8 text-[9px] font-bold uppercase rounded-lg"
-                        onClick={() => window.open(a.url, "_blank", "noopener,noreferrer")}
+                        className="h-8 text-[9px] font-bold uppercase"
+                        onClick={() =>
+                          window.open(a.url, "_blank", "noopener,noreferrer")
+                        }
                       >
                         {a.label || a.sistema}
                       </Button>

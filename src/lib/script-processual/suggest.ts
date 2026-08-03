@@ -392,6 +392,40 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     });
   }
 
+
+  // ——— Apelação / Tema STJ / intimação para manifestar
+  if (
+    /tema\s*1378|afetação|ambas\s+as\s+partes|manifestarem|contrarraz[oõ]es|apela[cç][aã]o|embargos\s+de\s+declara[cç][aã]o|parcialmente\s+procedente|seguro\s+prestamista/i.test(
+      U
+    ) &&
+    out.length < 3
+  ) {
+    const prazo = extractPrazoDias(U);
+    out.push({
+      id: 'recurso_manifestacao',
+      categoria: 'recurso',
+      titulo: 'Recurso / prazo para se manifestar',
+      quandoUsar: 'Apelação, tema STJ, contrarrazões, embargos',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Atualização importante sobre o processo nº ${cnj}.`,
+        ``,
+        /tema\s*1378|afetação/i.test(U)
+          ? `O tribunal intimou as partes para se manifestarem porque há tema do STJ (afetação) relacionado a este tipo de demanda${prazo ? `, no prazo de ${prazo} dias` : ''}.`
+          : /contrarraz/i.test(U)
+            ? `Há intimação relacionada a contrarrazões de apelação${prazo ? ` (prazo de ${prazo} dias)` : ''}.`
+            : /parcialmente\s+procedente|seguro\s+prestamista/i.test(U)
+              ? `Há decisão que reconheceu em parte pedidos (ex.: abusividade de cobranças como seguro prestamista). O processo segue em grau de recurso/acompanhamento.`
+              : `Houve movimentação em grau de recurso ou despacho para manifestação das partes.`,
+        ``,
+        `Nossa equipe está analisando o teor e os prazos. Assim que houver orientação objetiva, te retorno.`,
+        ``,
+        `Qualquer dúvida, responda esta mensagem.`,
+      ]),
+    });
+  }
+
   if (out.length === 0) {
     const temNovidade =
       input.tem_novo_andamento ||
