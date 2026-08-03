@@ -32,14 +32,8 @@ const MEDIARI_ANALISE = "https://mediari.app/analise";
 function isMediariAnaliseUrl(text: string): boolean {
   const t = text.trim().toLowerCase();
   if (!t) return false;
-  // só a URL (mensagem quase só o link)
-  const cleaned = t.replace(/\s+/g, " ");
-  return (
-    /^(https?:\/\/)?(www\.)?mediari\.app\/analise\/?(\s|$)/i.test(cleaned) ||
-    cleaned === "mediari.app/analise" ||
-    cleaned === "https://mediari.app/analise" ||
-    cleaned === "http://mediari.app/analise"
-  );
+  // URL sozinha OU link presente na mensagem
+  return /(?:https?:\/\/)?(?:www\.)?mediari\.app\/analise\b/i.test(t);
 }
 
 function normalizeMediariUrl(text: string): string {
