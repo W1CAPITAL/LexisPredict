@@ -1,9 +1,5 @@
 "use server";
 
-/**
- * Recalibra prazos/status da carteira (lógica local).
- * Sempre devolve objeto serializável { success, ... } — evita undefined no client.
- */
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
 
 export type RecalibrateResult = {
@@ -16,69 +12,51 @@ export type RecalibrateResult = {
 export async function recalibrateCasesAction(): Promise<RecalibrateResult> {
   try {
     const mod = await import("@/lib/server-db");
-    const getUserContext = (mod as any).getUserContext as () => Promise<{ empresa_id?: string }>;
-    const getStoredCasesForEmpresa = (mod as any).getStoredCasesForEmpresa as (
-      id: string,
-      admin?: boolean
-    ) => Promise<LegalCase[]>;
-    const saveStoredCasesForEmpresa = (mod as any).saveStoredCasesForEmpresa as (
-      cases: LegalCase[],
-      id: string,
-      admin?: boolean
-    ) => Promise<{ success: boolean; message?: string } | undefined | null>;
+    const getUserContext = (mod as any).getUserContext;
+    const getStoredCasesForEmpresa = (mod as any).getStoredCasesForEmpresa;
+    const saveStoredCasesForEmpresa = (mod as any).saveStoredCasesForEmpresa;
 
     if (!getUserContext || !getStoredCasesForEmpresa || !saveStoredCasesForEmpresa) {
-      return { success: false, updated: 0, error: "Funções de persistência indisponíveis." };
+      return { success: false, updated: 0, error: "Persistência indisponível neste deploy." };
     }
 
-    const { empresa_id } = await getUserContext();
+    const ctx = await getUserContext();
+    const empresa_id = ctx?.empresa_id;
     if (!empresa_id) {
-      return { success: false, updated: 0, error: "Sessão expirada. Faça login novamente." };
+      return { success: false, updated: 0, error: "Sessão expirada." };
     }
 
-    const cases = (await getStoredCasesForEmpresa(empresa_id, true)) || [];
+    const cases: LegalCase[] = (await getStoredCasesForEmpresa(empresa_id, true)) || [];
     if (!cases.length) {
-      return { success: true, updated: 0, message: "Nenhum processo na carteira." };
+      return { success: true, updated: 0, message: "Nenhum processo." };
     }
 
-    const recalibrated: LegalCase[] = [];
-    let skipped = 0;
+    const out: LegalCase[] = [];
     for (const c of cases) {
       try {
-        if (!c || !c.protocolo) {
-          skipped++;
-          continue;
-        }
-        recalibrated.push(processarCaso({ ...c }));
+        if (!c?.protocolo) continue;
+        out.push(processarCaso({ ...c }));
       } catch {
-        // mantém o original se processarCaso quebrar em um registro
-        recalibrated.push(c);
-        skipped++;
+        out.push(c);
       }
     }
 
-    const res = await saveStoredCasesForEmpresa(recalibrated, empresa_id, true);
+    const res = await saveStoredCasesForEmpresa(out, empresa_id, true);
     if (!res || res.success !== true) {
       return {
         success: false,
         updated: 0,
-        error: res?.message || "Falha ao salvar carteira após recalibração.",
+        error: res?.message || "Falha ao salvar após recalibrar.",
       };
     }
 
     return {
       success: true,
-      updated: recalibrated.length,
-      message: `Prazos recalibrados em ${recalibrated.length} processo(s)${
-        skipped ? ` (${skipped} com aviso)` : ""
-      }.`,
+      updated: out.length,
+      message: `Prazos recalibrados em ${out.length} processo(s).`,
     };
   } catch (e: any) {
     console.error("[recalibrateCasesAction]", e);
-    return {
-      success: false,
-      updated: 0,
-      error: e?.message || "Erro inesperado na recalibração.",
-    };
+    return { success: false, updated: 0, error: e?.message || "Erro na recalibração." };
   }
 }
