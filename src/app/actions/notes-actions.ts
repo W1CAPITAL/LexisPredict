@@ -1,37 +1,61 @@
-
-'use server';
+"use server";
 
 /**
- * @fileOverview Server Actions de Notas v100.0
- * Garante operações atômicas e revalidação de cache.
+ * Server Actions de Notas — com vínculo cliente/protocolo (histórico CRM).
  */
-
-import { getStoredNotes, saveSingleNote, deleteStoredNote, updateStoredNote } from '@/lib/server-db';
-import { CaseNote } from '@/lib/case-logic';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath } from "next/cache";
+import {
+  listNotesCrm,
+  saveNoteCrm,
+  updateNoteCrm,
+  deleteNoteCrm,
+  type CrmNote,
+} from "@/lib/notes/notes-crm";
 
 export async function getNotesAction() {
-  console.log("[ACTION] [NOTES FETCH]");
-  return await getStoredNotes();
+  return await listNotesCrm();
 }
 
-export async function createNoteAction(note: Partial<CaseNote>) {
-  console.log("[ACTION] [NOTE CREATE]", note.title);
-  const result = await saveSingleNote(note);
-  if (result.success) revalidatePath('/notes');
+export async function getNotesByClienteAction(cliente: string) {
+  return await listNotesCrm({ cliente });
+}
+
+export async function getNotesByProtocoloAction(protocolo: string) {
+  return await listNotesCrm({ protocolo });
+}
+
+export async function createNoteAction(note: Partial<CrmNote> & { title?: string; content?: string }) {
+  const result = await saveNoteCrm({
+    title: note.title || "Nota",
+    content: note.content || "",
+    imageUrl: note.imageUrl,
+    cliente: note.cliente,
+    protocolo: note.protocolo,
+  });
+  if (result.success) {
+    revalidatePath("/notes");
+    revalidatePath("/cases");
+    revalidatePath("/tarefas");
+  }
   return result;
 }
 
-export async function updateNoteAction(id: string, updates: Partial<CaseNote>) {
-  console.log("[ACTION] [NOTE UPDATE]", id);
-  const result = await updateStoredNote(id, updates);
-  if (result.success) revalidatePath('/notes');
+export async function updateNoteAction(id: string, updates: Partial<CrmNote>) {
+  const result = await updateNoteCrm(id, updates);
+  if (result.success) {
+    revalidatePath("/notes");
+    revalidatePath("/cases");
+    revalidatePath("/tarefas");
+  }
   return result;
 }
 
 export async function deleteNoteAction(id: string) {
-  console.log("[ACTION] [NOTE DELETE]", id);
-  const result = await deleteStoredNote(id);
-  if (result.success) revalidatePath('/notes');
+  const result = await deleteNoteCrm(id);
+  if (result.success) {
+    revalidatePath("/notes");
+    revalidatePath("/cases");
+    revalidatePath("/tarefas");
+  }
   return result;
 }

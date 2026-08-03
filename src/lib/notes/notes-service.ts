@@ -1,41 +1,45 @@
-
-import { CaseNote } from "@/lib/case-logic";
-import { createNoteAction, updateNoteAction, deleteNoteAction, getNotesAction } from "@/app/actions/notes-actions";
-
-/**
- * @fileOverview Serviço de Gestão de Notas v100.0
- * Centraliza lógica de deduplicação e acesso a dados.
- */
+import {
+  createNoteAction,
+  updateNoteAction,
+  deleteNoteAction,
+  getNotesAction,
+  getNotesByClienteAction,
+} from "@/app/actions/notes-actions";
 
 export const notesService = {
-  async getNotes(): Promise<CaseNote[]> {
+  async getNotes() {
     const result = await getNotesAction();
-    return this.dedupeNotes(result);
+    return this.dedupeNotes(Array.isArray(result) ? result : []);
   },
 
-  async createNote(note: Partial<CaseNote>): Promise<{ success: boolean; data?: any }> {
+  async getByCliente(cliente: string) {
+    const result = await getNotesByClienteAction(cliente);
+    return this.dedupeNotes(Array.isArray(result) ? result : []);
+  },
+
+  async createNote(note: {
+    title?: string;
+    content?: string;
+    imageUrl?: string;
+    cliente?: string;
+    protocolo?: string;
+  }) {
     return await createNoteAction(note);
   },
 
-  async updateNote(id: string, updates: Partial<CaseNote>): Promise<{ success: boolean }> {
+  async updateNote(id: string, updates: any) {
     return await updateNoteAction(id, updates);
   },
 
-  async deleteNote(id: string): Promise<{ success: boolean }> {
+  async deleteNote(id: string) {
     return await deleteNoteAction(id);
   },
 
-  /**
-   * Remove duplicatas garantindo integridade de renderização.
-   */
-  dedupeNotes(notes: CaseNote[]): CaseNote[] {
-    const map = new Map<string, CaseNote>();
-    notes.forEach(n => {
-      if (n.id) map.set(n.id, n);
+  dedupeNotes(notes: any[]) {
+    const map = new Map<string, any>();
+    notes.forEach((n) => {
+      if (n?.id) map.set(n.id, n);
     });
-    return Array.from(map.values()).sort((a, b) => {
-      // Ordenação por data (assumindo formato DD/MM/YYYY, HH:mm:ss ou ISO)
-      return b.id.localeCompare(a.id); // Fallback por ID se datas falharem
-    });
-  }
+    return Array.from(map.values());
+  },
 };
