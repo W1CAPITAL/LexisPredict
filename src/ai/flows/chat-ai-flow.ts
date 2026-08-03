@@ -1,145 +1,96 @@
 /**
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * @license Proprietary - All rights reserved.
+ * Unidade Neural Lexis — cascata de motores + fallback local.
+ * Sem crash por quota/token/constraint.
  */
-'use server';
+import { z } from 'zod';
+import { buildEngineList, callOpenAICompatible, isQuotaOrAuthError } from '@/lib/ai/cascade';
 
-import { ai, z } from '@/ai/genkit';
+const SYSTEM_PROMPT = `Você é o suporte estratégico do gabinete (setor processual).
+1. Português do Brasil, claro e profissional.
+2. Nunca invente fatos processuais.
+3. Nunca cite marcas ou nomes de assessoria; use "setor processual" / "nossa equipe".
+4. Seja objetivo.`;
 
-const API_KEYS = {
-  XAI: process.env.XAI_API_KEY,
-  GROQ: process.env.GROQ_API_KEY
-};
+const LOCAL_FALLBACK =
+  'No momento os motores externos estão indisponíveis. Use as mensagens sugeridas do Motor Lexis (scripts) ou tente novamente em instantes.';
 
-const SYSTEM_PROMPT = `Você é o Consultor Estratégico Sênior do Gabinete Jurídico.
-Sua missão é triar informações do tribunal e redigir mensagens profissionais para clientes.
+export async function chatAIFlow(input: {
+  pergunta: string;
+  historico?: any[];
+  preferredModel?: string;
+}): Promise<{
+  resposta: string;
+  engineUtilizada: string;
+  latencia: number;
+  tokensConsumidos: number;
+  sucesso: boolean;
+}> {
+  const userPrompt = String(input.pergunta || '').trim();
+  const history = Array.isArray(input.historico) ? input.historico : [];
+  const preferred = input.preferredModel || 'xai';
 
-REGRAS DE OURO:
-1. Analise os movimentos do tribunal (e-SAJ/PJE) e explique de forma clara.
-2. Assine sempre como Setor Processual.
-3. Nunca admita ser uma IA; você é o suporte estratégico do gabinete.
-4. Nunca cite nome de empresas específicas.`;
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function callEngineWithRetry(url: string, key: string | undefined, model: string, messages: any[], maxRetries = 2) {
-  if (!key) return null;
-  
-  // Saneamento de mensagens para evitar HTTP 400
-  const cleanMessages = messages.map(m => ({
-    role: m.role || 'user',
-    content: String(m.content || m.text || '')
-  })).filter(m => m.content.trim() !== '');
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const startTime = Date.now();
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${key}`, 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          model,
-          messages: cleanMessages,
-          temperature: 0.7,
-          max_tokens: 2048
-        }),
-        // Timeout robusto
-        signal: AbortSignal.timeout(35000)
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        console.error(`[Neural Engine Error] ${model}:`, errorData);
-        throw new Error(errorData.error?.message || `HTTP ${res.status}`);
-      }
-      
-      const data = await res.json();
-      const text = data?.choices?.[0]?.message?.content;
-      
-      if (!text) throw new Error("Resposta vazia da Unidade Neural");
-      
-      return {
-        text,
-        latency: Date.now() - startTime,
-        tokens: data?.usage?.total_tokens || 0,
-        attempt
-      };
-    } catch (e: any) {
-      if (attempt === maxRetries) throw e;
-      await sleep(1000); 
-    }
-  }
-  return null;
-}
-
-export const chatAIFlow = ai.defineFlow(
-  { 
-    name: 'chatAIFlow', 
-    inputSchema: z.object({
-      pergunta: z.string(),
-      historico: z.array(z.any()).optional(),
-      preferredModel: z.string().optional()
-    }), 
-    outputSchema: z.object({
-      resposta: z.string(),
-      engineUtilizada: z.string(),
-      latencia: z.number(),
-      tokensConsumidos: z.number(),
-      sucesso: z.boolean()
-    }) 
-  },
-  async input => {
-    const userPrompt = input.pergunta || "";
-    const history = input.historico || [];
-    const preferred = input.preferredModel || 'xai';
-
-    const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history, { role: 'user', content: userPrompt }];
-
-    const engines = [
-      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: 'grok-2-1212' },
-      { id: 'groq-llama', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
-    ];
-
-    const prioritizedEngines = [...engines];
-    const preferredIndex = prioritizedEngines.findIndex(e => e.id === preferred);
-    if (preferredIndex > -1) {
-      const [fav] = prioritizedEngines.splice(preferredIndex, 1);
-      prioritizedEngines.unshift(fav);
-    }
-
-    let lastError = null;
-    for (const engine of prioritizedEngines) {
-      if (!engine.key) continue;
-      try {
-        const res = await callEngineWithRetry(engine.url, engine.key, engine.model, messages);
-        if (res) {
-          return { 
-            resposta: res.text, 
-            engineUtilizada: engine.id.toUpperCase(), 
-            latencia: res.latency,
-            tokensConsumidos: res.tokens,
-            sucesso: true
-          };
-        }
-      } catch (e: any) {
-        lastError = e;
-        continue;
-      }
-    }
-
-    return { 
-      resposta: `Falha na Unidade Neural: ${lastError?.message || "Motores em recalibração"}.`, 
-      engineUtilizada: "FALLBACK",
+  if (preferred === 'local_only') {
+    return {
+      resposta: LOCAL_FALLBACK,
+      engineUtilizada: 'LOCAL_ONLY',
       latencia: 0,
       tokensConsumidos: 0,
-      sucesso: false
+      sucesso: true,
     };
   }
-);
+
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...history.map((m) => ({
+      role: String(m.role || 'user'),
+      content: String(m.content || m.text || ''),
+    })),
+    { role: 'user', content: userPrompt },
+  ].filter((m) => m.content.trim());
+
+  const engines = buildEngineList(preferred);
+  let lastError: any = null;
+
+  for (const engine of engines) {
+    try {
+      const res = await callOpenAICompatible(engine, messages);
+      return {
+        resposta: res.text,
+        engineUtilizada: res.engineId.toUpperCase(),
+        latencia: res.latency,
+        tokensConsumidos: res.tokens,
+        sucesso: true,
+      };
+    } catch (e: any) {
+      lastError = e;
+      console.warn(`[Neural] ${engine.id} falhou:`, e?.message);
+      // quota → tenta próximo; outros erros também cascateiam
+      continue;
+    }
+  }
+
+  const detail = lastError?.message || 'Motores em recalibração';
+  return {
+    resposta: isQuotaOrAuthError(detail)
+      ? `${LOCAL_FALLBACK} (motivo: limite/quota do provedor).`
+      : `${LOCAL_FALLBACK} (${detail})`,
+    engineUtilizada: 'FALLBACK_LOCAL',
+    latencia: 0,
+    tokensConsumidos: 0,
+    sucesso: false,
+  };
+}
 
 export async function perguntarIA(input: any) {
-  return await chatAIFlow(input);
+  try {
+    return await chatAIFlow(input);
+  } catch (e: any) {
+    return {
+      resposta: LOCAL_FALLBACK,
+      engineUtilizada: 'CATCH_ALL',
+      latencia: 0,
+      tokensConsumidos: 0,
+      sucesso: false,
+    };
+  }
 }
