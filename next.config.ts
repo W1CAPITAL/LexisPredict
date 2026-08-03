@@ -8,17 +8,20 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  serverExternalPackages: [
-    'tesseract.js', 
-    'pdfjs-dist', 
-    'pdf-parse',
-    '@opentelemetry/sdk-node',
-    '@opentelemetry/api',
-    '@opentelemetry/exporter-jaeger',
-    '@opentelemetry/sdk-trace-base',
-    '@opentelemetry/sdk-trace-node',
-    '@opentelemetry/instrumentation'
-  ],
+serverExternalPackages: [
+  'tesseract.js', 
+  'pdfjs-dist', 
+  'pdf-parse',
+  '@opentelemetry/sdk-node',
+  '@opentelemetry/api',
+  '@opentelemetry/exporter-jaeger',
+  '@opentelemetry/sdk-trace-base',
+  '@opentelemetry/sdk-trace-node',
+  '@opentelemetry/instrumentation',
+  'cheerio',
+  'puppeteer-core',
+  '@sparticuz/chromium',
+],
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
