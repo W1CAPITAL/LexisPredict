@@ -1,22 +1,20 @@
 /**
- * Núcleo neural determinístico — ranking de respostas ao cliente.
- * Usado por Tarefas e Processos (mesma inteligência).
+ * Sugestão de resposta ao cliente — 1 a 2 scripts úteis, baseados no teor real.
  */
-import { parseISO, parse, isValid, format } from 'date-fns';
-import { SCRIPT_CATALOG, ScriptTemplate } from './catalog';
+import { format, parse, parseISO, isValid } from "date-fns";
 
-export interface ScriptSuggestion {
+export type ScriptSuggestion = {
+  id: string;
   categoria: string;
   titulo: string;
-  texto: string;
   quandoUsar: string;
+  texto: string;
   score?: number;
-  id?: string;
-}
+};
 
 export interface ScriptInput {
   clienteNome?: string;
-  protocolo: string;
+  protocolo?: string;
   ultimoRetorno?: string | null;
   movimentos?: Array<{ nome?: string; complemento?: string; descricao?: string; dataHora?: string }>;
   evento_tipo?: string | null;
@@ -36,145 +34,196 @@ export interface ScriptInput {
 }
 
 function fmtDate(raw?: string | null): string {
-  if (!raw) return '';
+  if (!raw) return "";
   try {
     const clean = String(raw).trim();
-    const d = clean.includes('/')
-      ? parse(clean.slice(0, 10), 'dd/MM/yyyy', new Date())
+    const d = clean.includes("/")
+      ? parse(clean.slice(0, 10), "dd/MM/yyyy", new Date())
       : parseISO(clean.slice(0, 10));
-    if (isValid(d)) return format(d, 'dd/MM/yyyy');
+    if (isValid(d)) return format(d, "dd/MM/yyyy");
   } catch {
     /* */
   }
-  return '';
+  return "";
 }
 
 function firstName(full?: string) {
-  const p = String(full || 'Cliente')
+  const p = String(full || "Cliente")
     .trim()
     .split(/\s+/)
     .filter(Boolean)[0];
-  if (!p) return 'Cliente';
+  if (!p) return "Cliente";
   return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
 }
 
-function createSuggestion(
-  s: ScriptTemplate,
-  nome: string,
-  cnj: string,
-  dateRetornoStr?: string | null,
-  dataMovStr?: string,
-  score?: number
-): ScriptSuggestion {
-  const displayRetorno = fmtDate(dateRetornoStr) || 'nos últimos dias';
-  const displayMov = fmtDate(dataMovStr) || 'recentemente';
-  return {
-    id: s.id,
-    categoria: s.categoria,
-    titulo: s.titulo,
-    quandoUsar: s.quandoUsar,
-    score,
-    texto: s.texto
-      .replace(/\[CLIENTE\]|\[Nome\]/g, nome)
-      .replace(/\[PROTOCOLO\]|\[CNJ\]/g, cnj)
-      .replace(/\[Data\]/g, displayRetorno)
-      .replace(/\[DataMov\]/g, displayMov),
-  };
-}
-
-export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
-  const clienteNome = firstName(input.clienteNome);
-  const protocolo = input.protocolo || '';
-  const eventoTipo = (input.evento_tipo || input.eventoTipo || '') as string;
-  const eventoResumo = input.evento_resumo || input.eventoResumo || '';
-  const isBA = !!(input.indicio_busca_apreensao || input.busca_apreensao || eventoTipo === 'ba');
-  const isBaixa = !!(
-    input.datajud_encerrado_tribunal ||
-    eventoTipo === 'transito_ou_baixa' ||
-    eventoTipo === 'transito_baixa'
-  );
-  const isCump = !!(input.em_cumprimento_sentenca || eventoTipo === 'cumprimento_sentenca');
-  const isNovo = !!(
-    input.tem_novo_andamento ||
-    input.tem_atualizacao_pos_retorno ||
-    input.djen_nova_comunicacao
-  );
-
+function blobFrom(input: ScriptInput) {
   const sortedMovs = [...(input.movimentos || [])].sort(
     (a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
-  const dataMovRef =
-    sortedMovs[0]?.dataHora ||
-    '';
-
-  const blob = [
-    eventoResumo,
+  return [
+    input.evento_resumo || input.eventoResumo,
     input.djen_ultimo_resumo,
     input.datajud_ultimo_nome,
     ...(input.djenTexts || []),
-    ...sortedMovs.slice(0, 12).map((m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`),
+    ...sortedMovs.slice(0, 20).map((m) => `${m.nome || ""} ${m.complemento || ""} ${m.descricao || ""}`),
   ]
-    .join(' ')
+    .join(" ")
     .toUpperCase();
-
-  const matches: Array<{ template: ScriptTemplate; score: number }> = [];
-
-  for (const t of SCRIPT_CATALOG) {
-    let score = 0;
-
-    if (isBA && (t.id === 'alerta_busca_apreensao' || t.categoria === 'ba')) score += 220;
-    if (isBaixa && (t.categoria === 'baixa' || t.id === 'baixa_tribunal')) score += 180;
-    if (isCump && t.id === 'cumprimento') score += 140;
-
-    if (t.eventoTipos?.length && eventoTipo && t.eventoTipos.includes(eventoTipo)) {
-      score += 120 - (t.prioridade ?? 50);
-    }
-
-    for (const kw of t.keywords || []) {
-      if (kw && blob.includes(String(kw).toUpperCase())) score += 28;
-    }
-
-    if (isNovo && (t.id === 'nova_movimentacao' || t.id === 'publicacao_diario')) score += 35;
-    if (input.djen_nova_comunicacao && t.id === 'publicacao_diario') score += 45;
-
-    // Penaliza rotina se há mérito forte
-    if (score > 0 && t.categoria === 'rotina' && (isBA || isBaixa)) score -= 30;
-
-    if (score > 0) matches.push({ template: t, score });
-  }
-
-  matches.sort((a, b) => b.score - a.score || (a.template.prioridade ?? 99) - (b.template.prioridade ?? 99));
-
-  if (matches.length === 0) {
-    const fallback =
-      SCRIPT_CATALOG.find((x) => x.id === 'nova_movimentacao') ||
-      SCRIPT_CATALOG.find((x) => x.id === 'prazo_retorno') ||
-      SCRIPT_CATALOG[0];
-    if (fallback) matches.push({ template: fallback, score: 1 });
-  }
-
-  // Diversidade: sempre oferecer publicação + acompanhamento se faltar
-  const ids = new Set(matches.map((m) => m.template.id));
-  const ensure = (id: string, sc: number) => {
-    if (ids.has(id)) return;
-    const tpl = SCRIPT_CATALOG.find((x) => x.id === id);
-    if (tpl) {
-      matches.push({ template: tpl, score: sc });
-      ids.add(id);
-    }
-  };
-  if (input.djen_nova_comunicacao) ensure('publicacao_diario', 50);
-  if (matches.length < 3) ensure('prazo_retorno', 5);
-  if (matches.length < 2) ensure('rotina_cartorio', 3);
-
-  matches.sort((a, b) => b.score - a.score || (a.template.prioridade ?? 99) - (b.template.prioridade ?? 99));
-
-  return matches
-    .slice(0, 4)
-    .map((m) =>
-      createSuggestion(m.template, clienteNome, protocolo, input.ultimoRetorno, dataMovRef, m.score)
-    );
 }
 
-/** Alias legado */
-export const gerarSugestoesScript = suggestScripts;
+/** Detecta o fato principal a partir do teor (prioridade: pior → genérico) */
+function detectarFato(blob: string, input: ScriptInput): {
+  id: string;
+  titulo: string;
+  quandoUsar: string;
+  texto: (nome: string, cnj: string) => string;
+} {
+  const isBA =
+    input.indicio_busca_apreensao ||
+    input.busca_apreensao ||
+    input.eventoTipo === "ba" ||
+    input.evento_tipo === "ba" ||
+    /BUSCA\s*E\s*APREENS/.test(blob);
+
+  if (isBA) {
+    return {
+      id: "ba",
+      titulo: "Busca e apreensão — prioridade",
+      quandoUsar: "Quando há indício de B.A. no tribunal ou no diário",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. Identificamos no processo ${cnj} movimentação que pode indicar busca e apreensão ou medida urgente. Nossa equipe está confirmando o teor completo agora. Em seguida retornamos com orientação objetiva do que fazer — não ignore este contato.`,
+    };
+  }
+
+  if (/INDEFER.*PETI[CÇ][AÃ]O\s+INICIAL|INDEFIRO\s+A\s+PETI/.test(blob)) {
+    return {
+      id: "indeferimento_inicial",
+      titulo: "Indeferimento da inicial",
+      quandoUsar: "Quando o juízo indeferiu a petição inicial",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. No processo ${cnj} o juízo indeferiu a petição inicial e extinguiu o feito sem julgamento do mérito. Isso significa que a ação não avançou para análise do pedido em si. Estamos avaliando o motivo (documentação, custas, legitimidade ou outro fundamento) e se cabe recurso ou novo ajuizamento. Retornamos com a orientação concreta.`,
+    };
+  }
+
+  if (/EXTIN[CÇ].*SEM\s*(RESOLU[CÇ][AÃ]O|APRECIA[CÇ][AÃ]O)\s+DO\s+M[EÉ]RITO|ARTIGO\s*485/.test(blob)) {
+    return {
+      id: "extincao_sem_merito",
+      titulo: "Extinção sem mérito",
+      quandoUsar: "Processo extinto sem julgamento do mérito",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. O processo ${cnj} foi extinto sem resolução do mérito. Na prática, o tribunal encerrou o trâmite sem decidir se o pedido era procedente ou não. Estamos verificando o fundamento e as opções (recurso, emenda ou novo protocolo, se couber). Já te atualizamos com o próximo passo.`,
+    };
+  }
+
+  if (/TR[AÂ]NSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|REMETAM-SE\s+OS\s+AUTOS\s+AO\s+ARQUIVO/.test(blob) ||
+      input.datajud_encerrado_tribunal ||
+      input.evento_tipo === "transito_ou_baixa" ||
+      input.eventoTipo === "transito_ou_baixa") {
+    return {
+      id: "transito_baixa",
+      titulo: "Trânsito / arquivamento",
+      quandoUsar: "Trânsito em julgado, baixa ou arquivamento",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. No processo ${cnj} consta trânsito em julgado e/ou baixa/arquivamento. Isso indica encerramento da fase de discussão no tribunal. Estamos confirmando se ainda há algum valor, custas ou providência residual e, se não houver, o acompanhamento interno é encerrado. Qualquer pendência, avisamos.`,
+    };
+  }
+
+  if (/PROCEDENTE|JULG[OA]\s+PROCEDENTE|PROVIMENTO|REFORMA\s+DA\s+SENTEN/.test(blob)) {
+    return {
+      id: "merito_favoravel",
+      titulo: "Decisão de mérito",
+      quandoUsar: "Sentença/acórdão com resultado material",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. Houve decisão de mérito no processo ${cnj}. Estamos lendo o teor completo (o que foi reconhecido, valores e prazos) para te explicar de forma clara e sem juridiquês. Em seguida alinhamos os próximos passos.`,
+    };
+  }
+
+  if (/CUSTAS|PREPARO|RECOLHIMENTO|JUSTI[CÇ]A\s+GRATUITA|GRATUIDADE/.test(blob)) {
+    return {
+      id: "custas",
+      titulo: "Custas / gratuidade",
+      quandoUsar: "Exigência de custas ou documentos de hipossuficiência",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. No processo ${cnj} o juízo tratou de custas ou comprovação para gratuidade. Estamos identificando exatamente o que foi pedido e o prazo. Se precisar de documentos seus (comprovantes, declaração de isento etc.), listamos tudo de forma objetiva.`,
+    };
+  }
+
+  if (/PROCURA[CÇ][AÃ]O|FIRMA\s+RECONHECIDA|EMENDA\s+[AÀ]\s+INICIAL|JUNTADA\s+DE/.test(blob)) {
+    return {
+      id: "emenda_docs",
+      titulo: "Documentos / emenda",
+      quandoUsar: "Pedido de emenda, procuração ou documentos",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. O juízo solicitou regularização de documentos no processo ${cnj} (pode ser procuração, emenda ou comprovantes). Estamos separando o que falta. Se precisar de assinatura ou arquivo da sua parte, te avisamos com prazo e modelo.`,
+    };
+  }
+
+  if (/AUDI[EÊ]NCIA|CONCILIA[CÇ][AÃ]O/.test(blob)) {
+    return {
+      id: "audiencia",
+      titulo: "Audiência",
+      quandoUsar: "Designação ou alteração de audiência",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. Há movimentação de audiência no processo ${cnj}. Estamos confirmando data, horário e se sua presença é necessária. Assim que estiver validado, enviamos as orientações para o dia.`,
+    };
+  }
+
+  if (input.em_cumprimento_sentenca || input.evento_tipo === "cumprimento_sentenca") {
+    return {
+      id: "cumprimento",
+      titulo: "Cumprimento de sentença",
+      quandoUsar: "Fase de cumprimento / execução da decisão",
+      texto: (nome, cnj) =>
+        `Olá, ${nome}. O processo ${cnj} está em fase de cumprimento de sentença. Estamos acompanhando as medidas para efetivar o que foi decidido e te atualizamos sobre prazos e eventuais valores.`,
+    };
+  }
+
+  // Genérico — só se realmente só houver “novidade”
+  const dataRet = fmtDate(input.ultimoRetorno) || "nosso último contato";
+  return {
+    id: "novidade_generica",
+    titulo: "Nova movimentação",
+    quandoUsar: "Há andamento novo, sem classificação mais específica",
+    texto: (nome, cnj) =>
+      `Olá, ${nome}. Houve nova movimentação no processo ${cnj} após ${dataRet}. Nossa equipe está lendo o teor no sistema do tribunal e retorna com a orientação adequada, sem antecipar conclusões.`,
+  };
+}
+
+/**
+ * Retorna no máximo 2 scripts: o principal (fato detectado) e, se fizer sentido, um complementar curto.
+ */
+export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
+  const nome = firstName(input.clienteNome);
+  const cnj = input.protocolo || "";
+  const blob = blobFrom(input);
+  const fato = detectarFato(blob, input);
+
+  const primary: ScriptSuggestion = {
+    id: fato.id,
+    categoria: fato.id,
+    titulo: fato.titulo,
+    quandoUsar: fato.quandoUsar,
+    score: 100,
+    texto: fato.texto(nome, cnj),
+  };
+
+  const out: ScriptSuggestion[] = [primary];
+
+  // Complementar: publicação DJEN só se não for o fato principal e houver sinal de diário
+  if (
+    primary.id !== "novidade_generica" &&
+    (input.djen_nova_comunicacao || /DI[AÁ]RIO|DISPONIBILIZA[CÇ][AÃ]O|PUBLICA[CÇ][AÃ]O/.test(blob)) &&
+    !["transito_baixa", "indeferimento_inicial", "extincao_sem_merito"].includes(primary.id)
+  ) {
+    out.push({
+      id: "djen_complemento",
+      categoria: "djen",
+      titulo: "Publicação no diário",
+      quandoUsar: "Há texto no DJEN além do andamento do tribunal",
+      score: 60,
+      texto: `Olá, ${nome}. Além do andamento no sistema, há publicação oficial (diário) ligada ao processo ${cnj}. Estamos cruzando o teor com o que já consta nos autos. Se surgir prazo ou providência, avisamos com clareza.`,
+    });
+  }
+
+  return out.slice(0, 2);
+}

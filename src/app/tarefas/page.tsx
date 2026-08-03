@@ -218,7 +218,7 @@ export default function TarefasPage() {
             ? `${suggestions.length} resposta(s) para o cliente`
             : 'Auditoria aberta',
           description: suggestions.length
-            ? 'Veja o bloco âmbar "Resposta para o Cliente" no topo do modal.'
+            ? 'Role até o final do modal: respostas prontas abaixo da cronologia.'
             : 'Use o rascunho por IA se precisar.',
         });
       } else {
@@ -454,81 +454,8 @@ export default function TarefasPage() {
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
-          <section className={ui.metrics}>
-            <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
-            <div className="premium-card p-6 border-l-4 border-l-primary relative group"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Dia</p><div className="flex items-center gap-4"><span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span><div className="flex items-center gap-1.5 ml-auto"><Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button><Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button></div></div></div>
-            <div className="premium-card p-6 border-l-4 border-l-emerald-500"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Finalizados</p><h3 className="text-3xl font-black text-emerald-600 tabular-nums">{contatadosHoje.length}</h3></div>
-          </section>
+                            {/* Scripts só no rodapé do modal (após cronologia) — evita duplicar */}
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
-             <div className="flex-1 w-full flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar por cliente ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl" /></div>
-                <Select value={officeFilter} onValueChange={setOfficeFilter}>
-                   <SelectTrigger className="h-12 w-full md:w-[250px] bg-[#f8f9fb] border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="TODOS ESCRITÓRIOS" /></SelectTrigger>
-                   <SelectContent className="bg-white border-2 border-black rounded-xl">
-                      <SelectItem value="all" className="font-black uppercase text-[10px]">TODOS ESCRITÓRIOS</SelectItem>
-                      {distinctOffices.map(off => <SelectItem key={off} value={off} className="font-black uppercase text-[10px]">{off}</SelectItem>)}
-                   </SelectContent>
-                </Select>
-             </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-3"><Target size={18} className="text-primary" /><h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária</h2></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {taskData.focus.map((group) => (
-                <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
-              ))}
-            </div>
-          </div>
-
-          {taskData.backlog.length > 0 && (
-            <div className="space-y-4 pt-10 border-t border-border/30">
-               <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
-               {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">{taskData.backlog.map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
-            </div>
-          )}
-        </div>
-
-        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
-            <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
-              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
-              <ScrollArea className="flex-1 w-full h-full">
-                <div className="p-4 sm:p-6 space-y-8">
-                  {/* RESPOSTA AO CLIENTE — prioridade no topo */}
-                  <section className="rounded-xl border-2 border-amber-500/50 bg-amber-50 p-4 sm:p-5 space-y-4">
-                    <h3 className="text-amber-800 flex items-center gap-2 text-sm font-bold uppercase tracking-wide">
-                      <MessageSquareQuote size={16} /> Resposta para o Cliente
-                    </h3>
-                    <p className="text-[11px] text-amber-900/70 font-medium">
-                      Mensagens prontas para copiar e enviar (WhatsApp / e-mail).
-                    </p>
-                    {suggestedScripts.length > 0 ? (
-                      <div className="space-y-3">
-                        {suggestedScripts.map((script, idx) => (
-                          <div key={idx} className="space-y-2 p-4 border border-amber-200 rounded-xl bg-white shadow-sm">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge className="bg-amber-700 text-white text-[9px] font-semibold uppercase">{script.titulo}</Badge>
-                              <span className="text-[10px] text-muted-foreground font-medium">{script.quandoUsar}</span>
-                            </div>
-                            <div className="p-4 bg-slate-50 border border-border/50 relative rounded-lg">
-                              <p className={cn("text-foreground/90 leading-relaxed pr-16", ui.readable)}>{script.texto}</p>
-                              <Button type="button" variant="secondary" size="sm" onClick={() => copyScript(script.texto)} className="absolute top-2 right-2 h-8 px-2 text-[9px] font-bold uppercase gap-1">
-                                <Copy size={12} /> Copiar
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[12px] text-muted-foreground font-medium">
-                        Clique em Sugerir Resposta no card da tarefa para gerar mensagens. Ou use o rascunho por IA abaixo.
-                      </p>
-                    )}
-                  </section>
 
                   <section className="space-y-6">
                      <h3 className={cn("text-black flex items-center justify-between border-b-2 border-black/5 pb-2", ui.label)}><div className="flex items-center gap-2"><Globe size={14} className="text-primary"/> Cronologia Unificada</div></h3>
@@ -583,18 +510,35 @@ export default function TarefasPage() {
                       {aiDraft && <div className="space-y-3 animate-in fade-in duration-500 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className={cn("text-white/80 italic", ui.readable)}>"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
                     </div>
 
-                    {showScripts && suggestedScripts.length > 0 && (
-                      <div className="grid gap-4">
-                        {suggestedScripts.map((script, idx) => (
-                          <div key={idx} className="bg-white border-2 border-black p-5 rounded-xl shadow-sm space-y-4">
-                            <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none">{script.titulo}</Badge>
-                            <p className="text-[11px] font-black uppercase leading-tight">{script.quandoUsar}</p>
-                            <div className="p-4 bg-slate-50 border border-black/5 relative rounded-lg">
-                              <p className={cn("text-black/70 italic", ui.readable)}>"{script.texto}"</p>
-                              <Button variant="ghost" size="icon" onClick={() => copyScript(script.texto)} className="absolute top-2 right-2 h-8 w-8 hover:bg-black hover:text-white transition-all rounded-lg"><Copy size={14} /></Button>
+                    {suggestedScripts.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className={cn("text-amber-600 flex items-center gap-2 font-black uppercase", ui.label)}>
+                          <MessageSquareQuote size={14} /> Resposta para o Cliente
+                        </h3>
+                        <p className="text-[10px] text-muted-foreground">
+                          1–2 mensagens alinhadas ao teor (não genéricas). Copie e ajuste se precisar.
+                        </p>
+                        <div className="grid gap-4">
+                          {suggestedScripts.map((script) => (
+                            <div key={script.id} className="bg-white border-2 border-black p-5 rounded-xl shadow-sm space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <Badge className="bg-black text-white text-[8px] font-black uppercase rounded-none">{script.titulo}</Badge>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => copyScript(script.texto)}
+                                  className="h-8 rounded-lg font-black uppercase text-[9px] gap-1"
+                                >
+                                  <Copy size={12} /> Copiar
+                                </Button>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{script.quandoUsar}</p>
+                              <div className="p-4 bg-slate-50 border border-black/10 rounded-lg">
+                                <p className={cn("text-black/80 leading-relaxed", ui.readable)}>{script.texto}</p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
                   </section>
