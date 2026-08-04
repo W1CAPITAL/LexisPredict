@@ -324,6 +324,25 @@ export async function auditCaseCoreSystem(
     patch.scan_priority = 40;
   }
 
+  // --- IA OmniRoute/Claude: classifica cumprimento, encerrado, procedência, BA, alertas ---
+  try {
+    const { enrichScanPatchWithAi } = await import('@/lib/ai/scan-ai-enrich');
+    const enriched = await enrichScanPatchWithAi({
+      protocolo,
+      cliente: target.cliente,
+      movimentos,
+      comunicacoes,
+      patch,
+      preferred: 'claude',
+    });
+    Object.assign(patch, enriched.patch);
+    if (enriched.aiEngine) {
+      console.info('[scan-ai]', protocolo, enriched.aiEngine, patch.evento_tipo, patch.alerta_ia);
+    }
+  } catch (e: any) {
+    console.error('[scan-ai] skip', e?.message || e);
+  }
+
   if (patch.tem_novo_andamento) {
     await logAlertEvent({
       empresaId,
