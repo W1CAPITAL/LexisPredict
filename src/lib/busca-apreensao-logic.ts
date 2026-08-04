@@ -1,8 +1,6 @@
 /**
  * Lógica pura — detecção de Busca e Apreensão em texto DJEN + match de nomes.
- * @copyright 2026 Davi Alves Figueredo / W1 Capital
  */
-
 export function normalizeName(s: string): string {
   return String(s || '')
     .normalize('NFD')
@@ -13,7 +11,6 @@ export function normalizeName(s: string): string {
     .trim();
 }
 
-/** Texto indica publicação de busca e apreensão */
 export function textoIndicaBuscaApreensao(raw: string | null | undefined): {
   hit: boolean;
   motivo: string | null;
@@ -36,22 +33,13 @@ export function textoIndicaBuscaApreensao(raw: string | null | undefined): {
   return { hit: false, motivo: null };
 }
 
-/**
- * Verifica se um nome (cliente/advogado) aparece no teor da publicação.
- * Exige tokens significativos (>= 3 letras); nomes curtos demais são ignorados.
- */
 export function nomeApareceNoTexto(texto: string, nome: string): boolean {
   const t = normalizeName(texto);
   const n = normalizeName(nome);
   if (!t || !n || n.length < 6) return false;
-
-  // match integral
   if (t.includes(n)) return true;
-
   const tokens = n.split(' ').filter((w) => w.length >= 3);
   if (tokens.length < 2) return t.includes(n);
-
-  // exige pelo menos 2 tokens (ex.: nome + sobrenome)
   let ok = 0;
   for (const tok of tokens) {
     if (t.includes(tok)) ok++;
@@ -59,7 +47,7 @@ export function nomeApareceNoTexto(texto: string, nome: string): boolean {
   return ok >= Math.min(2, tokens.length) && ok >= Math.ceil(tokens.length * 0.6);
 }
 
-export type MatchTipo = 'cliente' | 'advogado_banca' | 'advogado_processo' | 'nome_livre';
+export type MatchTipo = 'cliente' | 'advogado_banca' | 'advogado_processo' | 'titular';
 
 export interface MatchResult {
   tipo: MatchTipo;
@@ -77,7 +65,6 @@ export function cruzarPublicacaoComCarteira(
 ): MatchResult[] {
   const hits: MatchResult[] = [];
   const seen = new Set<string>();
-
   const push = (m: MatchResult) => {
     const k = `${m.tipo}|${normalizeName(m.nome)}|${m.protocolo || ''}`;
     if (seen.has(k)) return;
@@ -97,11 +84,7 @@ export function cruzarPublicacaoComCarteira(
   }
   for (const a of opts.advogadosProcesso) {
     if (a.nome && nomeApareceNoTexto(texto, a.nome)) {
-      push({
-        tipo: 'advogado_processo',
-        nome: a.nome,
-        protocolo: a.protocolo || null,
-      });
+      push({ tipo: 'advogado_processo', nome: a.nome, protocolo: a.protocolo || null });
     }
   }
   return hits;
