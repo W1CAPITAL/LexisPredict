@@ -135,22 +135,56 @@ export default function AutomacaoJudicialPage() {
       toast({ title: "CNJ inválido", variant: "destructive" });
       return;
     }
+
+    // Abre a aba no MESMO clique (antes do await) — senão o browser bloqueia popup
+    const preview = getTribunalByCnj(cnj);
+    const immediateUrl = preview?.url || "about:blank";
+    const win = window.open(immediateUrl, "_blank");
+
     setLoading("gcloud");
     try {
-      const res = await openTribunalViaGcloudAction(cnj, "open");
+      const res = await openTribunalViaGcloudAction(cnj, "fetch");
       setGcloudInfo(res);
-      if (res.openUrl) {
-        window.open(res.openUrl, "_blank", "noopener,noreferrer");
+
+      if (res.openUrl && win && !win.closed) {
+        try {
+          if (res.openUrl !== immediateUrl) {
+            win.location.href = res.openUrl;
+          }
+        } catch {
+          /* aba já no tribunal */
+        }
+      } else if (res.openUrl && (!win || win.closed)) {
+        toast({
+          title: "Popup bloqueado",
+          description: "Permita janelas pop-up para este site.",
+          variant: "destructive",
+        });
       }
+
+      if (res.data) {
+        setResultado({
+          success: true,
+          data: res.data,
+          note: res.message,
+          multi: {
+            tribunal: res.tribunal,
+            sistema: res.sistema,
+            url: res.openUrl || immediateUrl,
+            modo: res.usedEsaj ? "esaj_enrich" : "consulta_publica",
+            nome: res.tribunal,
+          },
+        });
+      }
+
       toast({
-        title: res.usedGcloud ? `GCloud · ${res.tribunal || ""}` : `Consulta · ${res.tribunal || ""}`,
-        description: res.message || (res.usedGcloud ? "Aberto via gateway" : "Fallback público"),
+        title: res.usedEsaj
+          ? `e-SAJ · ${res.tribunal || ""}`
+          : `Tribunal · ${res.tribunal || ""}`,
+        description: res.message || "Nova aba + dados na tela",
       });
-      if (res.screenshotBase64) {
-        setResultado((prev: any) => ({ ...prev, gcloudShot: res.screenshotBase64 }));
-      }
     } catch (e: any) {
-      toast({ title: "Erro GCloud", description: e.message, variant: "destructive" });
+      toast({ title: "Erro ao abrir tribunal", description: e.message, variant: "destructive" });
     } finally {
       setLoading(null);
     }
@@ -319,17 +353,17 @@ export default function AutomacaoJudicialPage() {
                     ) : (
                       <Cloud className="h-4 w-4" />
                     )}
-                    Abrir tribunal via GCloud
+                    Abrir tribunal (e-SAJ / consulta)
                   </Button>
                 </div>
                 {gcloudConfigured === false && (
                   <p className="text-[11px] text-muted-foreground">
-                    Gateway GCloud não configurado — abre a consulta pública até definir GCLOUD_TRIBUNAL_GATEWAY_URL no Vercel.
+                    Usa o mesmo motor do Enriquecer e-SAJ (crawler + URL do tribunal). Sem GCloud Run.
                   </p>
                 )}
                 {gcloudConfigured === true && (
                   <p className="text-[11px] text-emerald-600 font-medium">
-                    Gateway GCloud detectado.
+                    Stack e-SAJ do app ativo (enrich + consulta).
                   </p>
                 )}
               </CardContent>

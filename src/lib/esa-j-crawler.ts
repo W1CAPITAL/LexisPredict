@@ -1,19 +1,21 @@
 /**
- * e-SAJ Crawler - versão melhorada
- * - Remove movimentações duplicadas
- * - Detecta menções a custas
- * - Limpeza de texto aprimorada
+ * e-SAJ Crawler — domínios expandidos (família e-SAJ)
+ * Mesmo motor do Enriquecer e-SAJ da Automação Judicial.
  */
-
 import * as cheerio from 'cheerio';
 
 const REQUEST_TIMEOUT_MS = 30000;
 const REQUEST_RETRIES = 3;
 const REQUEST_RETRY_DELAY_MS = 1000;
 
+/** Código CNJ (2 dígitos do tribunal) → domínio e-SAJ */
 const TRIBUNAIS: Record<string, { nome: string; dominio: string }> = {
+  '01': { nome: 'TJAC', dominio: 'esaj.tjac.jus.br' },
   '02': { nome: 'TJAL', dominio: 'www2.tjal.jus.br' },
+  '04': { nome: 'TJAM', dominio: 'consultasaj.tjam.jus.br' },
+  '05': { nome: 'TJBA', dominio: 'esaj.tjba.jus.br' },
   '06': { nome: 'TJCE', dominio: 'esaj.tjce.jus.br' },
+  '12': { nome: 'TJMS', dominio: 'esaj.tjms.jus.br' },
   '26': { nome: 'TJSP', dominio: 'esaj.tjsp.jus.br' },
 };
 
@@ -44,6 +46,8 @@ export interface DadosGrau {
 
 export interface EsaJResult {
   id: string;
+  tribunal?: string;
+  dominio?: string;
   'Primeiro Grau'?: DadosGrau;
   'Segundo Grau'?: DadosGrau;
 }
@@ -144,7 +148,6 @@ function isCustasText(text: string): boolean {
     lower.includes('recolhimento') ||
     lower.includes('taxa judiciária') ||
     lower.includes('dívida ativa') ||
-    lower.includes('queima de guia') ||
     lower.includes('grj') ||
     lower.includes('custas processuais')
   );
@@ -165,7 +168,7 @@ function getMovimentos($: cheerio.CheerioAPI, grau: 1 | 2): Movimentacao[] {
     descricao = descricao.replace(/\s+/g, ' ');
 
     const key = `${data}|${descricao.slice(0, 80)}`;
-    if (seen.has(key)) return; // remove duplicados
+    if (seen.has(key)) return;
     seen.add(key);
 
     if (data || descricao) {
@@ -181,12 +184,12 @@ function getMovimentos($: cheerio.CheerioAPI, grau: 1 | 2): Movimentacao[] {
 }
 
 function parseData($: cheerio.CheerioAPI): DadosGrau {
-  const movimentos = getMovimentos($, 1); // será sobrescrito depois se for 2º grau
+  const movimentos = getMovimentos($, 1);
 
   const custasDetectadas = movimentos
     .filter((m) => m.isCustas)
     .map((m) => `${m.data} - ${m.descricao}`)
-    .slice(0, 8); // limita para não ficar enorme
+    .slice(0, 8);
 
   return {
     classe: cleanData($('#classeProcesso').text()),
@@ -202,8 +205,9 @@ function parseData($: cheerio.CheerioAPI): DadosGrau {
 }
 
 async function buscaPrimeiroGrau(processo: ReturnType<typeof parseCNJ>, dominio: string): Promise<DadosGrau> {
+  const pathSearch = dominio.includes('tjms') ? 'cpopg5' : 'cpopg';
   const url =
-    `https://${dominio}/cpopg/search.do?conversationId=&cbPesquisa=NUMPROC` +
+    `https://${dominio}/${pathSearch}/search.do?conversationId=&cbPesquisa=NUMPROC` +
     `&numeroDigitoAnoUnificado=${processo.numeroDigitoAnoUnificado}` +
     `&foroNumeroUnificado=${processo.foro}` +
     `&dadosConsulta.valorConsultaNuUnificado=${processo.numero_processo}` +
@@ -245,6 +249,10 @@ async function buscaSegundoGrau(processo: ReturnType<typeof parseCNJ>, dominio: 
   return data;
 }
 
+export function isEsaJTribunalCode(code2: string): boolean {
+  return !!TRIBUNAIS[code2];
+}
+
 export async function fetchEsaJProcess(cnj: string): Promise<EsaJResult | null> {
   try {
     const processo = parseCNJ(cnj);
@@ -256,10 +264,18 @@ export async function fetchEsaJProcess(cnj: string): Promise<EsaJResult | null> 
       buscaSegundoGrau(processo, tribunalInfo.dominio),
     ]);
 
-    const result: EsaJResult = { id: processo.numero_processo };
+    const result: EsaJResult = {
+      id: processo.numero_processo,
+      tribunal: tribunalInfo.nome,
+      dominio: tribunalInfo.dominio,
+    };
 
-    if (grau1.classe || grau1.ERROR) result['Primeiro Grau'] = grau1;
-    if (grau2.classe || grau2.ERROR) result['Segundo Grau'] = grau2;
+    if (grau1.classe || grau1.ERROR || (grau1.movimentações && grau1.movimentações.length)) {
+      result['Primeiro Grau'] = grau1;
+    }
+    if (grau2.classe || grau2.ERROR || (grau2.movimentações && grau2.movimentações.length)) {
+      result['Segundo Grau'] = grau2;
+    }
 
     return result;
   } catch (err: any) {
