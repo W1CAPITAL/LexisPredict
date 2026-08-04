@@ -240,7 +240,7 @@ export default function BuscaApreensaoPage() {
             <div>
               <h1 className="text-sm font-black uppercase tracking-widest">Busca e Apreensão</h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">
-                Cliente + advogado/OAB · fila 1 a 1 · logs salvos no SQL
+                Cliente + CNJ da carteira · advogado só reforço DJEN · logs SQL
               </p>
             </div>
           </div>

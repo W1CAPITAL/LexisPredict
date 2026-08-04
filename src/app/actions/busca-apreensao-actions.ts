@@ -1,5 +1,5 @@
 /**
- * Fila BA por cliente — match só desse cliente + advogado/OAB do processo.
+ * Fila BA por CLIENTE (principal) + CNJ da carteira. Advogado/OAB só reforço opcional no DJEN.
  * Logs persistidos em ba_scan_logs (dono = created_by do processo).
  */
 'use server';
@@ -19,6 +19,9 @@ import {
   nomeApareceNoTexto,
   oabApareceNoTexto,
   normalizeName,
+  publicacaoBateComCarteira,
+  mesmoCnj,
+  digitsOnly,
 } from '@/lib/busca-apreensao-logic';
 
 export interface BaHit {
@@ -254,7 +257,7 @@ export async function scanOneClienteBaAction(
     .toISOString()
     .split('T')[0];
 
-  // 1) Por nome do titular
+  // ========== 1) PRINCIPAL: DJEN pelo NOME DO CLIENTE ==========
   let res = await fetchDjenPorNomeParte(nome, {
     dataInicio,
     dataFim,
@@ -283,32 +286,47 @@ export async function scanOneClienteBaAction(
     };
   }
 
-  // 2) Reforço com OAB no teor (advogado específico), se houver
-  if (res.success && advogadoOab) {
+  // ========== 2) OPCIONAL: reforço OAB só se poucos resultados ==========
+  // Advogado NÃO é critério de aceite do hit — só amplia a varredura DJEN.
+  if (res.success && advogadoOab && (res.items?.length || 0) < 5) {
     const oabDigits = advogadoOab.replace(/\D/g, '');
     if (oabDigits.length >= 4) {
       const resOab = await fetchDjenPorTexto(`busca e apreensão ${oabDigits}`, {
         dataInicio,
         dataFim,
         nomeParte: nome,
-        itensPorPagina: 30,
+        itensPorPagina: 20,
       });
       if (resOab.isRateLimited) {
-        return {
-          success: false as const,
-          error: resOab.error || 'Rate limit DJEN (429).',
-          hits: [] as BaHit[],
-          isRateLimited: true,
-          nome,
-          advogadoNome,
-          advogadoOab,
-        };
-      }
-      if (resOab.success && resOab.items.length) {
+        // não aborta a varredura principal — só ignora reforço
+      } else if (resOab.success && resOab.items.length) {
         const seenIds = new Set(res.items.map((i) => String(i.id)));
         for (const it of resOab.items) {
           if (!seenIds.has(String(it.id))) res.items.push(it);
         }
+      }
+    }
+  }
+
+  // ========== 3) OPCIONAL: varre CNJs da carteira no teor BA ==========
+  if (res.success && protocolos.length) {
+    for (const p of protocolos.slice(0, 8)) {
+      const dig = digitsOnly(p);
+      if (dig.length < 15) continue;
+      try {
+        const resCnj = await fetchDjenPorTexto(`busca e apreensão ${dig}`, {
+          dataInicio,
+          dataFim,
+          itensPorPagina: 15,
+        });
+        if (resCnj.success && resCnj.items?.length) {
+          const seenIds = new Set(res.items.map((i) => String(i.id)));
+          for (const it of resCnj.items) {
+            if (!seenIds.has(String(it.id))) res.items.push(it);
+          }
+        }
+      } catch {
+        /* ignora falha pontual */
       }
     }
   }
@@ -329,47 +347,49 @@ export async function scanOneClienteBaAction(
   const seen = new Set<string>();
   const seenProcesso = new Set<string>();
 
-  for (const item of res.items) {
-    const det = textoIndicaBuscaApreensao(item.texto);
+  for (const item of res.items || []) {
+    const det = textoIndicaBuscaApreensao(item.texto || '');
     if (!det.hit) continue;
-
-    // Só aceita se o cliente (titular) aparece OU a busca já foi por nomeParte
-    const titularNoTexto = nomeApareceNoTexto(item.texto || '', nome);
-    const oabNoTexto =
-      advogadoOab && oabApareceNoTexto(item.texto || '', advogadoOab);
-    const advNoTexto =
-      advogadoNome && nomeApareceNoTexto(item.texto || '', advogadoNome);
-
-    // Se veio de nomeParte, confia; senão exige titular ou OAB/advogado do processo
-    if (!titularNoTexto && !oabNoTexto && !advNoTexto) {
-      // ainda pode ser resultado de nomeParte da API
-      // mantém se a API filtrou por nomeParte
-    }
-
-    const key = `${item.id}|${item.numero_processo || ''}|${item.data_disponibilizacao || ''}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
 
     const processoDjen = item.numero_processo
       ? String(item.numero_processo)
       : null;
-    // Vincula CNJ da planilha: se DJEN bate com algum da carteira, usa esse; senão o primeiro
-    const digitsDjen = (processoDjen || '').replace(/\D/g, '');
+
+    // Vínculo com a carteira do usuário: CNJ ou nome do cliente (advogado NÃO bloqueia)
+    const vinculo = publicacaoBateComCarteira({
+      texto: item.texto || '',
+      processoDjen,
+      protocolosCarteira: protocolos,
+      clienteNome: nome,
+    });
+    if (!vinculo.ok) continue;
+
     let protocoloCarteira: string | null = null;
     for (const p of protocolos) {
-      if (digitsDjen && p.replace(/\D/g, '') === digitsDjen) {
+      if (mesmoCnj(processoDjen, p)) {
         protocoloCarteira = p;
         break;
+      }
+    }
+    if (!protocoloCarteira) {
+      for (const p of protocolos) {
+        const dig = digitsOnly(p);
+        if (dig.length >= 15 && digitsOnly(item.texto || '').includes(dig)) {
+          protocoloCarteira = p;
+          break;
+        }
       }
     }
     if (!protocoloCarteira && protocolos.length === 1) {
       protocoloCarteira = protocolos[0];
     }
-    if (!protocoloCarteira && protocolos.length > 0) {
-      protocoloCarteira = protocolos[0];
-    }
 
-    const digKey = (processoDjen || protocoloCarteira || key).replace(/\D/g, '') || key;
+    const key = `${item.id}|${processoDjen || ''}|${item.data_disponibilizacao || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const digKey =
+      digitsOnly(processoDjen || protocoloCarteira || key) || key;
     if (seenProcesso.has(digKey)) continue;
     seenProcesso.add(digKey);
 
@@ -384,14 +404,14 @@ export async function scanOneClienteBaAction(
       clienteNome: nome,
       advogadoNome,
       advogadoOab,
-      trecho: (item.texto || '').slice(0, 500),
+      trecho: `[${vinculo.motivoMatch}] ${(item.texto || '').slice(0, 480)}`,
       motivoBa: det.motivo || 'BUSCA E APREENSÃO',
       link: item.link,
       createdBy,
     });
   }
 
-  if (hits.length) {
+    if (hits.length) {
     await persistBaHits(hits, ctx.empresa_id);
   }
 

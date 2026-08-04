@@ -1,5 +1,6 @@
 /**
- * Detecção BA + match restrito ao cliente da fila (não a carteira inteira).
+ * Detecção BA + match centrado no CLIENTE e no CNJ da carteira.
+ * Advogado/OAB: só reforço opcional na busca DJEN, nunca critério obrigatório de hit.
  */
 export function normalizeName(s: string): string {
   return String(s || '')
@@ -9,6 +10,18 @@ export function normalizeName(s: string): string {
     .replace(/[^A-Z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function digitsOnly(s: string): string {
+  return String(s || '').replace(/\D/g, '');
+}
+
+/** CNJ 20 dígitos iguais (ignora máscara) */
+export function mesmoCnj(a: string | null | undefined, b: string | null | undefined): boolean {
+  const da = digitsOnly(String(a || ''));
+  const db = digitsOnly(String(b || ''));
+  if (da.length < 15 || db.length < 15) return false;
+  return da === db || da.endsWith(db) || db.endsWith(da);
 }
 
 export function textoIndicaBuscaApreensao(raw: string | null | undefined): {
@@ -42,13 +55,50 @@ export function nomeApareceNoTexto(texto: string, nome: string): boolean {
   return ok >= Math.min(2, tokens.length) && ok >= Math.ceil(tokens.length * 0.6);
 }
 
-/** OAB no texto (ex.: OAB/SP 123456 ou 123.456) */
+/** OAB no texto — auxiliar, NÃO obrigatório para hit */
 export function oabApareceNoTexto(texto: string, oab: string): boolean {
   const t = normalizeName(texto);
   const digits = String(oab || '').replace(/\D/g, '');
   if (digits.length < 4) return false;
   if (t.includes(digits)) return true;
-  // com pontuação comum
   const pretty = digits.replace(/(\d)(?=(\d{3})+$)/g, '$1.');
   return t.includes(normalizeName(pretty));
+}
+
+/**
+ * Decide se publicação BA do DJEN pertence ao cliente da fila.
+ * Prioridade:
+ * 1) CNJ da publicação = algum protocolo da carteira do usuário
+ * 2) Nome do cliente no teor
+ * Advogado/OAB só como sinal extra (não bloqueia).
+ */
+export function publicacaoBateComCarteira(opts: {
+  texto: string;
+  processoDjen: string | null;
+  protocolosCarteira: string[];
+  clienteNome: string;
+}): { ok: boolean; motivoMatch: string } {
+  const { texto, processoDjen, protocolosCarteira, clienteNome } = opts;
+
+  for (const p of protocolosCarteira || []) {
+    if (mesmoCnj(processoDjen, p)) {
+      return { ok: true, motivoMatch: `CNJ carteira ${p}` };
+    }
+    // CNJ da carteira citado no teor
+    const dig = digitsOnly(p);
+    if (dig.length >= 15 && digitsOnly(texto).includes(dig)) {
+      return { ok: true, motivoMatch: `CNJ no teor ${p}` };
+    }
+  }
+
+  if (nomeApareceNoTexto(texto, clienteNome)) {
+    return { ok: true, motivoMatch: 'Nome do cliente no teor' };
+  }
+
+  // Se a API já filtrou por nomeParte e há só 1 processo na carteira, aceita BA
+  if ((protocolosCarteira || []).length === 1 && textoIndicaBuscaApreensao(texto).hit) {
+    return { ok: true, motivoMatch: 'Único CNJ da carteira + teor BA' };
+  }
+
+  return { ok: false, motivoMatch: 'Sem vínculo cliente/CNJ' };
 }
