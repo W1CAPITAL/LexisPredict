@@ -1,6 +1,5 @@
 /**
- * @fileOverview Painel de operações de dados — Superadmin only
- * Estilo similar à lista de Processos: buscar, apagar com confirmação, editar JSON leve.
+ * Operações de dados (Lexis) + CRM externo — Superadmin
  * Rota: /settings/ops
  */
 "use client";
@@ -29,6 +28,7 @@ import {
   ShieldAlert,
   Database,
   Save,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -37,12 +37,22 @@ import {
   opsDeleteRow,
   opsUpsertRow,
 } from "@/app/actions/ops-admin-actions";
+import {
+  crmExternoStatusAction,
+  crmExternoListAction,
+  crmExternoDeleteAction,
+} from "@/app/actions/crm-externo-actions";
+
+type TabId = "lexis" | "crm";
 
 export default function SettingsOpsPage() {
   const { profile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const isSuper = checkIfSuperAdmin(profile);
 
+  const [tab, setTab] = useState<TabId>("lexis");
+
+  // --- Lexis ---
   const [tables, setTables] = useState<string[]>([]);
   const [table, setTable] = useState("processos");
   const [rows, setRows] = useState<any[]>([]);
@@ -54,13 +64,21 @@ export default function SettingsOpsPage() {
   const [editJson, setEditJson] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // --- CRM externo ---
+  const [crmConfigured, setCrmConfigured] = useState(false);
+  const [crmHost, setCrmHost] = useState("");
+  const [crmTables, setCrmTables] = useState<string[]>([]);
+  const [crmTable, setCrmTable] = useState("empresas");
+  const [crmRows, setCrmRows] = useState<any[]>([]);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [crmError, setCrmError] = useState<string | null>(null);
+  const [crmDeleteId, setCrmDeleteId] = useState<string | null>(null);
+
   const loadTables = useCallback(async () => {
     const res = await opsListTables();
     if (res.success) {
       setTables(res.tables);
-      if (res.tables.length && !res.tables.includes(table)) {
-        setTable(res.tables[0]);
-      }
+      if (res.tables.length && !res.tables.includes(table)) setTable(res.tables[0]);
     } else {
       toast({ title: "Acesso negado", description: res.error, variant: "destructive" });
     }
@@ -81,17 +99,50 @@ export default function SettingsOpsPage() {
     }
   }, [table, search, toast]);
 
+  const loadCrmStatus = useCallback(async () => {
+    const res = await crmExternoStatusAction();
+    if (!res.success) {
+      setCrmConfigured(false);
+      setCrmError(res.error || null);
+      return;
+    }
+    setCrmConfigured(!!res.configured);
+    setCrmHost(res.urlHost || "");
+    setCrmTables(res.tables || []);
+    if (res.tables?.length) setCrmTable(res.tables[0]);
+    setCrmError(null);
+  }, []);
+
+  const loadCrmRows = useCallback(async () => {
+    if (!crmTable) return;
+    setCrmLoading(true);
+    setCrmError(null);
+    try {
+      const res = await crmExternoListAction(crmTable, 80);
+      if (res.success) setCrmRows(res.data || []);
+      else {
+        setCrmRows([]);
+        setCrmError(res.error || "Erro");
+      }
+    } finally {
+      setCrmLoading(false);
+    }
+  }, [crmTable]);
+
   useEffect(() => {
     if (!authLoading && isSuper) {
       loadTables();
+      loadCrmStatus();
     }
-  }, [authLoading, isSuper, loadTables]);
+  }, [authLoading, isSuper, loadTables, loadCrmStatus]);
 
   useEffect(() => {
-    if (!authLoading && isSuper && table) {
-      loadRows();
-    }
-  }, [authLoading, isSuper, table, loadRows]);
+    if (!authLoading && isSuper && tab === "lexis" && table) loadRows();
+  }, [authLoading, isSuper, tab, table, loadRows]);
+
+  useEffect(() => {
+    if (!authLoading && isSuper && tab === "crm" && crmConfigured && crmTable) loadCrmRows();
+  }, [authLoading, isSuper, tab, crmConfigured, crmTable, loadCrmRows]);
 
   const confirmDelete = async () => {
     if (!deleteId) return;
@@ -104,6 +155,23 @@ export default function SettingsOpsPage() {
         await loadRows();
       } else {
         toast({ title: "Falha ao apagar", description: res.error, variant: "destructive" });
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const confirmCrmDelete = async () => {
+    if (!crmDeleteId) return;
+    setDeleting(true);
+    try {
+      const res = await crmExternoDeleteAction(crmTable, crmDeleteId);
+      if (res.success) {
+        toast({ title: "Removido no CRM externo" });
+        setCrmDeleteId(null);
+        await loadCrmRows();
+      } else {
+        toast({ title: "Falha", description: res.error, variant: "destructive" });
       }
     } finally {
       setDeleting(false);
@@ -157,6 +225,71 @@ export default function SettingsOpsPage() {
     );
   }
 
+  const renderRowList = (
+    list: any[],
+    onEdit: ((r: any) => void) | null,
+    onDelete: (id: string) => void
+  ) =>
+    list.map((row) => {
+      const id = String(row.id ?? row.protocolo_ref ?? "");
+      const title =
+        row.protocolo_ref ||
+        row.protocolo ||
+        row.email ||
+        row.nome ||
+        row.cliente ||
+        row.title ||
+        id ||
+        "—";
+      const sub = row.cliente || row.nome || row.email || row.empresa_id || row.status || "";
+      return (
+        <div
+          key={id || JSON.stringify(row).slice(0, 40)}
+          className="flex items-center justify-between gap-3 p-3 sm:p-4 border-2 border-border bg-card/40 rounded-xl hover:border-primary/40 transition-colors"
+        >
+          <button
+            type="button"
+            onClick={() => onEdit?.(row)}
+            className="flex-1 text-left min-w-0"
+            disabled={!onEdit}
+          >
+            <p className="font-black text-sm truncate">{String(title)}</p>
+            {sub ? (
+              <p className="text-[10px] text-muted-foreground font-bold uppercase truncate mt-0.5">
+                {String(sub)}
+              </p>
+            ) : null}
+            <p className="text-[9px] text-muted-foreground/60 font-mono mt-1 truncate">
+              id: {id || "sem id"}
+            </p>
+          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {onEdit && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-xl"
+                onClick={() => onEdit(row)}
+              >
+                <Save size={16} />
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-xl text-muted-foreground hover:text-red-600 hover:bg-red-50"
+              disabled={!id}
+              onClick={() => onDelete(id)}
+            >
+              <Trash2 size={16} />
+            </Button>
+          </div>
+        </div>
+      );
+    });
+
   return (
     <div className="flex h-screen bg-transparent font-sans text-foreground overflow-hidden relative z-10">
       <Sidebar />
@@ -168,136 +301,147 @@ export default function SettingsOpsPage() {
                 <ArrowLeft size={18} />
               </Link>
             </Button>
-            <div>
-              <div className="flex items-center gap-2">
-                <Database size={16} className="text-primary" />
-                <h1 className="text-sm font-black uppercase tracking-widest">Operações de dados</h1>
-              </div>
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">
-                Superadmin · whitelist de tabelas · apagar com confirmação
-              </p>
+            <div className="flex items-center gap-2">
+              <Database size={16} className="text-primary" />
+              <h1 className="text-sm font-black uppercase tracking-widest">Operações de dados</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={table}
-              onChange={(e) => setTable(e.target.value)}
-              className="h-10 px-3 rounded-xl border-2 border-border bg-background text-[10px] font-black uppercase"
+          <div className="flex items-center gap-1 p-1 rounded-xl border-2 border-border bg-secondary/30">
+            <button
+              type="button"
+              onClick={() => setTab("lexis")}
+              className={cn(
+                "px-4 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest",
+                tab === "lexis" ? "bg-black text-white" : "text-muted-foreground"
+              )}
             >
-              {tables.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <Input
-              placeholder="Buscar na lista carregada..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 w-48 sm:w-64 rounded-xl text-xs"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={loadRows}
-              disabled={loading}
-              className="h-10 w-10 rounded-xl"
+              Lexis
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("crm")}
+              className={cn(
+                "px-4 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest",
+                tab === "crm" ? "bg-black text-white" : "text-muted-foreground"
+              )}
             >
-              <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin text-primary")} />
-            </Button>
+              (crm externo)
+            </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 sm:p-8">
-          <div className="mb-3 flex items-center gap-2">
-            <Badge variant="outline" className="font-black uppercase text-[9px]">
-              {table}
-            </Badge>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase">
-              {rows.length} registro(s)
-            </span>
-          </div>
-
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="animate-spin text-primary" />
+        {tab === "lexis" && (
+          <>
+            <div className="px-4 sm:px-8 py-3 border-b border-border/40 flex items-center gap-2 flex-wrap">
+              <select
+                value={table}
+                onChange={(e) => setTable(e.target.value)}
+                className="h-10 px-3 rounded-xl border-2 border-border bg-background text-[10px] font-black uppercase"
+              >
+                {tables.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <Input
+                placeholder="Buscar..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 w-48 sm:w-64 rounded-xl text-xs"
+              />
+              <Button variant="ghost" size="icon" onClick={loadRows} disabled={loading} className="h-10 w-10 rounded-xl">
+                <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin text-primary")} />
+              </Button>
+              <Badge variant="outline" className="font-black uppercase text-[9px]">
+                {rows.length} reg.
+              </Badge>
             </div>
-          ) : rows.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground py-16 font-bold uppercase tracking-widest">
-              Nenhum registro
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {rows.map((row) => {
-                const id = String(row.id ?? row.protocolo_ref ?? "");
-                const title =
-                  row.protocolo_ref ||
-                  row.protocolo ||
-                  row.email ||
-                  row.nome ||
-                  row.cliente ||
-                  id ||
-                  "—";
-                const sub =
-                  row.cliente ||
-                  row.nome ||
-                  row.email ||
-                  row.empresa_id ||
-                  row.status ||
-                  "";
+            <div className="flex-1 overflow-auto p-4 sm:p-8 space-y-2">
+              {loading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="animate-spin text-primary" />
+                </div>
+              ) : rows.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-16 font-bold uppercase tracking-widest">
+                  Nenhum registro
+                </p>
+              ) : (
+                renderRowList(rows, openEdit, setDeleteId)
+              )}
+            </div>
+          </>
+        )}
 
-                return (
-                  <div
-                    key={id || JSON.stringify(row).slice(0, 40)}
-                    className="flex items-center justify-between gap-3 p-3 sm:p-4 border-2 border-border bg-card/40 rounded-xl hover:border-primary/40 transition-colors"
+        {tab === "crm" && (
+          <>
+            <div className="px-4 sm:px-8 py-3 border-b border-border/40 flex items-center gap-2 flex-wrap">
+              {crmConfigured ? (
+                <>
+                  <Badge variant="outline" className="font-mono text-[9px] gap-1">
+                    <ExternalLink size={10} />
+                    {crmHost || "CRM"}
+                  </Badge>
+                  <select
+                    value={crmTable}
+                    onChange={(e) => setCrmTable(e.target.value)}
+                    className="h-10 px-3 rounded-xl border-2 border-border bg-background text-[10px] font-black uppercase"
                   >
-                    <button
-                      type="button"
-                      onClick={() => openEdit(row)}
-                      className="flex-1 text-left min-w-0"
-                    >
-                      <p className="font-black text-sm truncate">{String(title)}</p>
-                      {sub ? (
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase truncate mt-0.5">
-                          {String(sub)}
-                        </p>
-                      ) : null}
-                      <p className="text-[9px] text-muted-foreground/60 font-mono mt-1 truncate">
-                        id: {id || "sem id"}
-                      </p>
-                    </button>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 rounded-xl text-muted-foreground hover:text-primary"
-                        onClick={() => openEdit(row)}
-                        title="Editar"
-                      >
-                        <Save size={16} />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 rounded-xl text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                        disabled={!id}
-                        onClick={() => setDeleteId(id)}
-                        title="Apagar"
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+                    {crmTables.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={loadCrmRows}
+                    disabled={crmLoading}
+                    className="h-10 w-10 rounded-xl"
+                  >
+                    <RefreshCcw className={cn("w-4 h-4", crmLoading && "animate-spin text-primary")} />
+                  </Button>
+                  <Badge variant="outline" className="font-black uppercase text-[9px]">
+                    {crmRows.length} reg.
+                  </Badge>
+                </>
+              ) : (
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+                  {crmError || "CRM externo não configurado no ambiente."}
+                </p>
+              )}
             </div>
-          )}
-        </div>
+            <div className="flex-1 overflow-auto p-4 sm:p-8 space-y-2">
+              {!crmConfigured ? (
+                <div className="max-w-lg mx-auto py-12 space-y-3 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Variáveis no Vercel
+                  </p>
+                  <code className="block text-left text-[11px] font-mono p-4 border-2 border-border rounded-xl bg-secondary/30">
+                    EXTERNAL_CRM_SUPABASE_URL
+                    <br />
+                    EXTERNAL_CRM_SUPABASE_KEY
+                  </code>
+                </div>
+              ) : crmLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="animate-spin text-primary" />
+                </div>
+              ) : crmError ? (
+                <p className="text-center text-sm text-red-600 py-10 font-bold">{crmError}</p>
+              ) : crmRows.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-16 font-bold uppercase tracking-widest">
+                  Nenhum registro
+                </p>
+              ) : (
+                renderRowList(crmRows, null, setCrmDeleteId)
+              )}
+            </div>
+          </>
+        )}
       </main>
 
-      {/* Confirmar apagar — igual espírito da aba Processos */}
       <Dialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <DialogContent className="rounded-xl border-2 border-black max-w-md">
           <DialogHeader>
@@ -306,19 +450,14 @@ export default function SettingsOpsPage() {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Remover permanentemente o registro <span className="font-mono font-bold">{deleteId}</span> da
-            tabela <span className="font-black">{table}</span>? Esta ação não pode ser desfeita pelo app.
+            Remover <span className="font-mono font-bold">{deleteId}</span> de{" "}
+            <span className="font-black">{table}</span>?
           </p>
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDeleteId(null)} className="rounded-xl">
               Cancelar
             </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={deleting}
-              className="rounded-xl font-black uppercase text-[10px]"
-            >
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting} className="rounded-xl font-black uppercase text-[10px]">
               {deleting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
               Apagar de vez
             </Button>
@@ -326,12 +465,34 @@ export default function SettingsOpsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Editar / salvar JSON */}
+      <Dialog open={!!crmDeleteId} onOpenChange={(o) => !o && setCrmDeleteId(null)}>
+        <DialogContent className="rounded-xl border-2 border-black max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase text-sm tracking-widest">
+              Confirmar exclusão (CRM)
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Remover <span className="font-mono font-bold">{crmDeleteId}</span> de{" "}
+            <span className="font-black">{crmTable}</span> no CRM externo?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCrmDeleteId(null)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmCrmDelete} disabled={deleting} className="rounded-xl font-black uppercase text-[10px]">
+              {deleting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Apagar de vez
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!editRow} onOpenChange={(o) => !o && setEditRow(null)}>
         <DialogContent className="rounded-xl border-2 border-black max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="font-black uppercase text-sm tracking-widest">
-              Editar registro · {table}
+              Editar · {table}
             </DialogTitle>
           </DialogHeader>
           <textarea
@@ -344,11 +505,7 @@ export default function SettingsOpsPage() {
             <Button variant="outline" onClick={() => setEditRow(null)} className="rounded-xl">
               Cancelar
             </Button>
-            <Button
-              onClick={saveEdit}
-              disabled={saving}
-              className="rounded-xl font-black uppercase text-[10px] bg-black text-white"
-            >
+            <Button onClick={saveEdit} disabled={saving} className="rounded-xl font-black uppercase text-[10px] bg-black text-white">
               {saving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
               Salvar
             </Button>

@@ -43,7 +43,6 @@ const CaseRow = React.memo(({
 }: { 
   c: LegalCase, isOperador: boolean, onLogReturn: (c: LegalCase) => void, onEdit: (c: LegalCase) => void, onDelete: (id: string) => void, onScan: (c: LegalCase) => void, onSuggest: (c: LegalCase) => void
 }) => {
-  const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const sinal = useMemo(() => getSinalCapa(c), [c]);
@@ -126,6 +125,7 @@ function CasesContent() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [quickFilter, setQuickFilter] = useState('all');
+  const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   
@@ -146,6 +146,7 @@ function CasesContent() {
 
   const { isOperador, profile } = useAdmin();
   const { toast } = useToast();
+  const [isRecalibrating, setIsRecalibrating] = useState(false);
 
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '' });
 
