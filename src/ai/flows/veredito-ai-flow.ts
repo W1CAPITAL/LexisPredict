@@ -8,6 +8,7 @@ import { ai, z } from '@/ai/genkit';
 import { fetchDataJud } from '@/lib/datajud';
 
 const API_KEYS = {
+  ANTHROPIC: process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY,
   XAI: process.env.XAI_API_KEY,
   GROQ: process.env.GROQ_API_KEY
 };
@@ -203,7 +204,14 @@ export const vereditoAIFlow = ai.defineFlow(
     `;
     
     const engines = [
-      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: XAI_MODEL },
+      {
+        id: 'claude',
+        url: 'https://api.anthropic.com/v1/messages',
+        key: process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY,
+        model: process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
+        kind: 'anthropic' as const,
+      },
+      { id: 'xai', url: 'https://api.x.ai/v1/chat/completions', key: API_KEYS.XAI, model: typeof XAI_MODEL !== 'undefined' ? XAI_MODEL : (process.env.XAI_MODEL || 'grok-2-1212') },
       { id: 'groq', url: 'https://api.groq.com/openai/v1/chat/completions', key: API_KEYS.GROQ, model: 'llama-3.3-70b-versatile' }
     ];
 
@@ -216,7 +224,35 @@ export const vereditoAIFlow = ai.defineFlow(
 
     for (const engine of prioritized) {
       if (!engine.key) continue;
-      const result = await callEngineWithRetry(engine.url, engine.key, engine.model, compactContext);
+      let result: any = null;
+      if ((engine as any).kind === 'anthropic' || engine.id === 'claude') {
+        try {
+          const { callOpenAICompatible } = await import('@/lib/ai/cascade');
+          const r = await callOpenAICompatible(
+            { id: 'claude', url: engine.url, key: engine.key || undefined, model: engine.model, kind: 'anthropic' },
+            [
+              { role: 'system', content: 'Você é o Veredito AI. Responda APENAS JSON válido com resumoTecnico, analiseRisco, proximosPassos, mensagemCliente, conclusaoEncerramento.' },
+              { role: 'user', content: compactContext },
+            ],
+            { temperature: 0.3, max_tokens: 4096 }
+          );
+          let parsed: any = null;
+          try {
+            let clean = r.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const a = clean.indexOf('{'); const b = clean.lastIndexOf('}');
+            if (a >= 0 && b > a) parsed = JSON.parse(clean.substring(a, b + 1));
+          } catch { parsed = null; }
+          result = parsed && parsed.resumoTecnico ? parsed : null;
+          if (!result) {
+            console.error('[VEREDITO Claude] JSON malformado');
+          }
+        } catch (e: any) {
+          console.error('[VEREDITO Claude]', e?.message);
+          result = null;
+        }
+      } else {
+        result = await callEngineWithRetry(engine.url, engine.key, engine.model, compactContext);
+      }
       if (result) {
         return {
           ...result,

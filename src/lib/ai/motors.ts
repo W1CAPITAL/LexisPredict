@@ -1,8 +1,9 @@
 /**
- * Catálogo de motores neurais Lexis — Configurações, Chat, Sugerir Resposta.
+ * Catálogo de motores neurais Lexis — Claude (Anthropic) como principal.
  */
 
 export type MotorId =
+  | 'claude'
   | 'local_only'
   | 'xai'
   | 'groq-llama'
@@ -15,12 +16,19 @@ export type MotorDef = {
   label: string;
   short: string;
   desc: string;
-  /** server usa env key; puter é só browser */
   scope: 'server' | 'browser' | 'local';
   envKey?: string;
 };
 
 export const MOTORS: MotorDef[] = [
+  {
+    id: 'claude',
+    label: 'Claude (Anthropic)',
+    short: 'Claude',
+    desc: 'Motor principal do núcleo neural (ANTHROPIC_API_KEY / CLAUDE_API_KEY).',
+    scope: 'server',
+    envKey: 'ANTHROPIC_API_KEY',
+  },
   {
     id: 'local_only',
     label: 'Motor Lexis Soberano',
@@ -76,31 +84,29 @@ export function getMotor(id: string): MotorDef {
 }
 
 export function loadPreferredMotor(): MotorId {
-  if (typeof window === 'undefined') return 'xai';
+  if (typeof window === 'undefined') return 'claude';
   try {
-    const v = localStorage.getItem(STORAGE_KEY) || 'xai';
+    const v = localStorage.getItem(STORAGE_KEY) || 'claude';
     if (MOTORS.some((m) => m.id === v)) return v as MotorId;
   } catch {
     /* */
   }
-  return 'xai';
+  return 'claude';
 }
 
 export function savePreferredMotor(id: MotorId | string) {
   if (typeof window === 'undefined') return;
-  const mid = MOTORS.some((m) => m.id === id) ? id : 'xai';
-  localStorage.setItem(STORAGE_KEY, mid);
+  const mid = MOTORS.some((m) => m.id === id) ? id : 'claude';
+  localStorage.setItem(STORAGE_KEY, mid as string);
   window.dispatchEvent(new CustomEvent('lexis-motor-change', { detail: mid }));
 }
 
-/** Extrai CNJ (NNN.NNN.N.NN.NNNN) ou dígitos de uma frase */
+/** Extrai CNJ (20 dígitos) de uma frase */
 export function extractCnjFromText(text: string): string | null {
-  const raw = String(text || '');
-  const m = raw.match(/\d{7}[-.]?\d{2}[-.]?\d{4}[-.]?\d[-.]?\d{2}[-.]?\d{4}/);
-  if (m) return m[0].replace(/[^\d]/g, '').replace(/(\d{7})(\d{2})(\d{4})(\d)(\d{2})(\d{4})/, '$1-$2.$3.$4.$5.$6');
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length === 20) {
-    return digits.replace(/(\d{7})(\d{2})(\d{4})(\d)(\d{2})(\d{4})/, '$1-$2.$3.$4.$5.$6');
-  }
-  return null;
+  const m = String(text || '').match(
+    /\d{7}[-.]?\d{2}[.]?\d{4}[.]?\d[.]?\d{2}[.]?\d{4}/
+  );
+  if (!m) return null;
+  const d = m[0].replace(/\D/g, '');
+  return d.length === 20 ? d : null;
 }

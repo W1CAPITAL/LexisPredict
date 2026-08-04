@@ -115,7 +115,7 @@ export const chatAIFlow = ai.defineFlow(
   async (input) => {
     const userPrompt = input.pergunta || '';
     const history = input.historico || [];
-    const preferred = (input.preferredModel || 'xai').toLowerCase();
+    const preferred = (input.preferredModel || 'claude').toLowerCase();
 
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
