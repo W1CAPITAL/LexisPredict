@@ -26,7 +26,11 @@ export interface BaHit {
   data: string | null;
   tribunal: string | null;
   orgao: string | null;
-  processo: string | null;
+  /** CNJ vindo da publicação DJEN */
+  processoDjen: string | null;
+  /** CNJ da nossa carteira/planilha (quando houver) */
+  protocoloCarteira: string | null;
+  protocolosCarteira: string[];
   clienteNome: string;
   advogadoNome: string | null;
   advogadoOab: string | null;
@@ -34,7 +38,6 @@ export interface BaHit {
   motivoBa: string;
   link: string | null;
   createdBy: string | null;
-  protocolosCarteira: string[];
 }
 
 export interface BaQueueItem {
@@ -130,30 +133,75 @@ async function persistBaHits(
   const admin = getAdmin();
   if (!admin) return;
 
-  const rows = hits.map((h) => ({
-    empresa_id: empresaId,
-    created_by: h.createdBy,
-    cliente_nome: h.clienteNome,
-    advogado_nome: h.advogadoNome,
-    advogado_oab: h.advogadoOab,
-    protocolo_ref: h.protocolosCarteira[0] || null,
-    processo_djen: h.processo,
-    data_publicacao: h.data,
-    motivo_ba: h.motivoBa,
-    trecho: h.trecho,
-    link: h.link,
-    tribunal: h.tribunal,
-    payload: {
-      orgao: h.orgao,
-      protocolos: h.protocolosCarteira,
-      id: h.id,
-    },
-  }));
+  // Só BA real; dedupe por empresa + processo DJEN + protocolo carteira
+  for (const h of hits) {
+    if (!h.motivoBa || h.motivoBa === 'CONSULTA_SEM_BA') continue;
 
-  // ignore if table missing
-  const { error } = await admin.from('ba_scan_logs').insert(rows);
-  if (error) {
-    console.error('[ba_scan_logs]', error.message);
+    const processoDjen = h.processoDjen || null;
+    const protocoloCarteira = h.protocoloCarteira || h.protocolosCarteira[0] || null;
+
+    // Evita duplicado: mesmo processo DJEN (ou mesmo par carteira+djen)
+    let q = admin
+      .from('ba_scan_logs')
+      .select('id')
+      .eq('empresa_id', empresaId)
+      .eq('motivo_ba', h.motivoBa)
+      .limit(1);
+
+    if (processoDjen) {
+      q = q.eq('processo_djen', processoDjen);
+    } else if (protocoloCarteira) {
+      q = q.eq('protocolo_ref', protocoloCarteira);
+    }
+
+    const { data: existing } = await q.maybeSingle();
+    if (existing?.id) {
+      // atualiza trecho/data se já existe
+      await admin
+        .from('ba_scan_logs')
+        .update({
+          trecho: h.trecho,
+          data_publicacao: h.data,
+          link: h.link,
+          tribunal: h.tribunal,
+          advogado_nome: h.advogadoNome,
+          advogado_oab: h.advogadoOab,
+          protocolo_ref: protocoloCarteira,
+          processo_djen: processoDjen,
+          payload: {
+            orgao: h.orgao,
+            protocolos_carteira: h.protocolosCarteira,
+            processo_djen: processoDjen,
+            protocolo_carteira: protocoloCarteira,
+            id: h.id,
+          },
+        })
+        .eq('id', existing.id);
+      continue;
+    }
+
+    const { error } = await admin.from('ba_scan_logs').insert({
+      empresa_id: empresaId,
+      created_by: h.createdBy,
+      cliente_nome: h.clienteNome,
+      advogado_nome: h.advogadoNome,
+      advogado_oab: h.advogadoOab,
+      protocolo_ref: protocoloCarteira,
+      processo_djen: processoDjen,
+      data_publicacao: h.data,
+      motivo_ba: h.motivoBa,
+      trecho: h.trecho,
+      link: h.link,
+      tribunal: h.tribunal,
+      payload: {
+        orgao: h.orgao,
+        protocolos_carteira: h.protocolosCarteira,
+        processo_djen: processoDjen,
+        protocolo_carteira: protocoloCarteira,
+        id: h.id,
+      },
+    });
+    if (error) console.error('[ba_scan_logs]', error.message);
   }
 }
 
@@ -278,6 +326,7 @@ export async function scanOneClienteBaAction(
 
   const hits: BaHit[] = [];
   const seen = new Set<string>();
+  const seenProcesso = new Set<string>();
 
   for (const item of res.items) {
     const det = textoIndicaBuscaApreensao(item.texto);
@@ -300,12 +349,37 @@ export async function scanOneClienteBaAction(
     if (seen.has(key)) continue;
     seen.add(key);
 
+    const processoDjen = item.numero_processo
+      ? String(item.numero_processo)
+      : null;
+    // Vincula CNJ da planilha: se DJEN bate com algum da carteira, usa esse; senão o primeiro
+    const digitsDjen = (processoDjen || '').replace(/\D/g, '');
+    let protocoloCarteira: string | null = null;
+    for (const p of protocolos) {
+      if (digitsDjen && p.replace(/\D/g, '') === digitsDjen) {
+        protocoloCarteira = p;
+        break;
+      }
+    }
+    if (!protocoloCarteira && protocolos.length === 1) {
+      protocoloCarteira = protocolos[0];
+    }
+    if (!protocoloCarteira && protocolos.length > 0) {
+      protocoloCarteira = protocolos[0];
+    }
+
+    const digKey = (processoDjen || protocoloCarteira || key).replace(/\D/g, '') || key;
+    if (seenProcesso.has(digKey)) continue;
+    seenProcesso.add(digKey);
+
     hits.push({
       id: key,
       data: item.data_disponibilizacao,
       tribunal: item.siglaTribunal,
       orgao: item.nomeOrgao,
-      processo: item.numero_processo,
+      processoDjen,
+      protocoloCarteira,
+      protocolosCarteira: protocolos,
       clienteNome: nome,
       advogadoNome,
       advogadoOab,
@@ -313,7 +387,6 @@ export async function scanOneClienteBaAction(
       motivoBa: det.motivo || 'BUSCA E APREENSÃO',
       link: item.link,
       createdBy,
-      protocolosCarteira: protocolos,
     });
   }
 
@@ -321,36 +394,7 @@ export async function scanOneClienteBaAction(
     await persistBaHits(hits, ctx.empresa_id);
   }
 
-  // log de consulta (mesmo sem BA) — 1 linha por cliente
-  try {
-    const admin = getAdmin();
-    if (admin) {
-      await admin.from('ba_scan_logs').insert({
-        empresa_id: ctx.empresa_id,
-        created_by: createdBy,
-        cliente_nome: nome,
-        advogado_nome: advogadoNome,
-        advogado_oab: advogadoOab,
-        protocolo_ref: protocolos[0] || null,
-        processo_djen: null,
-        data_publicacao: null,
-        motivo_ba: hits.length ? 'BA_ENCONTRADO' : 'CONSULTA_SEM_BA',
-        trecho: hits.length
-          ? `${hits.length} publicação(ões) BA`
-          : `Consultado DJEN · ${res.items.length} pub(s) · sem BA`,
-        link: null,
-        tribunal: null,
-        payload: {
-          tipo: 'scan_tick',
-          pubs: res.items.length,
-          hits: hits.length,
-          protocolos,
-        },
-      });
-    }
-  } catch {
-    /* tabela pode não existir ainda */
-  }
+  
 
   return {
     success: true as const,

@@ -289,15 +289,20 @@ export default function BuscaApreensaoPage() {
                         </span>
                       )}
                     </p>
-                    <p className="font-mono text-xs font-bold">{h.processo || "—"}</p>
+                    <p className="font-mono text-xs font-bold">
+                      Carteira: {h.protocoloCarteira || "—"}
+                    </p>
+                    <p className="font-mono text-xs font-bold text-muted-foreground">
+                      DJEN BA: {h.processoDjen || "—"}
+                    </p>
                     <p className="text-[10px] text-muted-foreground font-bold uppercase">
                       {h.data || "—"} · {h.tribunal || ""}
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    {h.processo && (
+                    {(h.protocoloCarteira || h.processoDjen) && (
                       <Button asChild variant="outline" size="sm" className="rounded-xl text-[8px] font-black uppercase h-8">
-                        <Link href={`/cases?search=${encodeURIComponent(h.processo)}`}>Processo</Link>
+                        <Link href={`/cases?search=${encodeURIComponent(h.protocoloCarteira || h.processoDjen || '')}`}>Processo</Link>
                       </Button>
                     )}
                     {h.link && (
@@ -333,7 +338,7 @@ export default function BuscaApreensaoPage() {
                     Nenhum log salvo — rode o SQL se a tabela não existir
                   </p>
                 )}
-                {savedLogs.map((row) => (
+                {savedLogs.filter((row) => row.motivo_ba && row.motivo_ba !== 'CONSULTA_SEM_BA' && row.motivo_ba !== 'scan_tick').map((row) => (
                   <div key={row.id} className="border-b border-border/40 pb-2">
                     <p className="font-black uppercase">
                       {row.cliente_nome}
@@ -343,9 +348,9 @@ export default function BuscaApreensaoPage() {
                     <p className="text-muted-foreground font-bold">
                       {row.motivo_ba} · {row.data_publicacao || row.created_at?.slice?.(0, 10) || ""}
                     </p>
-                    {row.processo_djen && (
-                      <p className="font-mono">{row.processo_djen}</p>
-                    )}
+                    <p className="font-mono">
+                      Carteira: {row.protocolo_ref || "—"} · DJEN: {row.processo_djen || "—"}
+                    </p>
                   </div>
                 ))}
               </div>
