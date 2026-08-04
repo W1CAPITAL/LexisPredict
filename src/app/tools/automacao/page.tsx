@@ -5,7 +5,7 @@
  */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,12 +33,17 @@ import {
   Link2,
   Building2,
   Gavel,
+  Cloud,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   enrichMultiTribunalAction,
   getMultiConsultaUrlAction,
 } from "@/app/actions/multi-tribunal-actions";
+import {
+  openTribunalViaGcloudAction,
+  pingGcloudTribunalGatewayAction,
+} from "@/app/actions/gcloud-tribunal-actions";
 import {
   TODOS_TRIBUNAIS,
   getTribunalByCnj,
@@ -67,9 +72,18 @@ export default function AutomacaoJudicialPage() {
   const [custasNome, setCustasNome] = useState("");
   const [showPortal, setShowPortal] = useState(false);
   const [portalExpanded, setPortalExpanded] = useState(true);
+  const [gcloudInfo, setGcloudInfo] = useState<any>(null);
+  const [gcloudConfigured, setGcloudConfigured] = useState<boolean | null>(null);
 
   const cleanCnj = cnj.replace(/\D/g, "");
   const tribunalPreview = cnj.trim() ? getTribunalByCnj(cnj) : null;
+
+  useEffect(() => {
+    pingGcloudTribunalGatewayAction()
+      .then((r) => setGcloudConfigured(!!r.configured))
+      .catch(() => setGcloudConfigured(false));
+  }, []);
+
 
   const doCopy = async (label: string, value: string) => {
     if (!value.trim()) {
@@ -110,6 +124,33 @@ export default function AutomacaoJudicialPage() {
       }
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+
+  const handleOpenGcloud = async () => {
+    if (cleanCnj.length !== 20) {
+      toast({ title: "CNJ inválido", variant: "destructive" });
+      return;
+    }
+    setLoading("gcloud");
+    try {
+      const res = await openTribunalViaGcloudAction(cnj, "open");
+      setGcloudInfo(res);
+      if (res.openUrl) {
+        window.open(res.openUrl, "_blank", "noopener,noreferrer");
+      }
+      toast({
+        title: res.usedGcloud ? `GCloud · ${res.tribunal || ""}` : `Consulta · ${res.tribunal || ""}`,
+        description: res.message || (res.usedGcloud ? "Aberto via gateway" : "Fallback público"),
+      });
+      if (res.screenshotBase64) {
+        setResultado((prev: any) => ({ ...prev, gcloudShot: res.screenshotBase64 }));
+      }
+    } catch (e: any) {
+      toast({ title: "Erro GCloud", description: e.message, variant: "destructive" });
     } finally {
       setLoading(null);
     }
@@ -266,7 +307,31 @@ export default function AutomacaoJudicialPage() {
                     )}
                     Abrir consulta pública
                   </Button>
+
+                  <Button
+                    onClick={handleOpenGcloud}
+                    disabled={!!loading}
+                    variant="outline"
+                    className="gap-2 h-11 border-blue-500/40 text-blue-700 dark:text-blue-300"
+                  >
+                    {loading === "gcloud" ? (
+                      <Loader2 className="animate-spin h-4 w-4" />
+                    ) : (
+                      <Cloud className="h-4 w-4" />
+                    )}
+                    Abrir tribunal via GCloud
+                  </Button>
                 </div>
+                {gcloudConfigured === false && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Gateway GCloud não configurado — abre a consulta pública até definir GCLOUD_TRIBUNAL_GATEWAY_URL no Vercel.
+                  </p>
+                )}
+                {gcloudConfigured === true && (
+                  <p className="text-[11px] text-emerald-600 font-medium">
+                    Gateway GCloud detectado.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
