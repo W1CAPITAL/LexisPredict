@@ -1,11 +1,10 @@
 /**
- * Automação Judicial — /tools/automacao
- * ABA PRINCIPAL: enriquecer / consultar em TODOS os tribunais (não só e-SAJ)
- * SUBABA: Portal de Custas TJSP (secundário)
+ * Automação Judicial — pipeline 01–08 + eproc SP + embed no app
+ * Rota do menu: /tools/automacao
  */
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +17,9 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2,
-  Camera,
   Search,
   ExternalLink,
   Scale,
@@ -30,69 +29,73 @@ import {
   Minimize2,
   X,
   AlertCircle,
-  Link2,
+  CheckCircle2,
+  ChevronRight,
   Building2,
-  Gavel,
-  Cloud,
+  Sparkles,
+  FileSearch,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   enrichMultiTribunalAction,
   getMultiConsultaUrlAction,
 } from "@/app/actions/multi-tribunal-actions";
-import {
-  openTribunalViaGcloudAction,
-  pingGcloudTribunalGatewayAction,
-} from "@/app/actions/gcloud-tribunal-actions";
+import { openTribunalViaGcloudAction } from "@/app/actions/gcloud-tribunal-actions";
 import {
   TODOS_TRIBUNAIS,
   getTribunalByCnj,
+  getFallbacksForCnj,
 } from "@/lib/tribunais-links";
+import {
+  AUTOMACAO_PIPELINE,
+  type PipelineStepId,
+} from "@/lib/automacao-pipeline";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export const PORTAL_CUSTAS_TJSP =
   "https://portaldecustas.tjsp.jus.br/portaltjsp/pages/custas/new";
 
-type TabId = "consulta" | "custas";
+type TabId = "pipeline" | "custas";
 
 function onlyDigits(s: string) {
   return s.replace(/\D/g, "");
 }
 
 export default function AutomacaoJudicialPage() {
-  const [tab, setTab] = useState<TabId>("consulta");
+  const [tab, setTab] = useState<TabId>("pipeline");
+  const [step, setStep] = useState<PipelineStepId>("captura");
   const [cnj, setCnj] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
   const [resultado, setResultado] = useState<any>(null);
+  const [doneSteps, setDoneSteps] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState("");
+  const [classificacao, setClassificacao] = useState("");
+  const [ofensor, setOfensor] = useState("");
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [embedTitle, setEmbedTitle] = useState("");
+  const [embedExpanded, setEmbedExpanded] = useState(true);
   const { toast } = useToast();
 
-  // Custas (subaba)
+  // Custas subaba
   const [custasCnj, setCustasCnj] = useState("");
   const [custasCpf, setCustasCpf] = useState("");
-  const [custasNome, setCustasNome] = useState("");
   const [showPortal, setShowPortal] = useState(false);
-  const [portalExpanded, setPortalExpanded] = useState(true);
-  const [gcloudInfo, setGcloudInfo] = useState<any>(null);
-  const [gcloudConfigured, setGcloudConfigured] = useState<boolean | null>(null);
-  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
-  const [embedTitle, setEmbedTitle] = useState('');
-  const [embedExpanded, setEmbedExpanded] = useState(true);
 
   const cleanCnj = cnj.replace(/\D/g, "");
   const tribunalPreview = cnj.trim() ? getTribunalByCnj(cnj) : null;
+  const fallbacks = cnj.trim() ? getFallbacksForCnj(cnj) : [];
 
-  useEffect(() => {
-    pingGcloudTribunalGatewayAction()
-      .then((r) => setGcloudConfigured(!!r.configured))
-      .catch(() => setGcloudConfigured(false));
-  }, []);
+  const currentMeta = useMemo(
+    () => AUTOMACAO_PIPELINE.find((s) => s.id === step)!,
+    [step]
+  );
 
+  const markDone = (id: string) =>
+    setDoneSteps((prev) => new Set(prev).add(id));
 
   const doCopy = async (label: string, value: string) => {
-    if (!value.trim()) {
-      toast({ title: `${label} vazio`, variant: "destructive" });
-      return;
-    }
+    if (!value.trim()) return;
     try {
       await navigator.clipboard.writeText(value.trim());
       toast({ title: `${label} copiado` });
@@ -101,127 +104,75 @@ export default function AutomacaoJudicialPage() {
     }
   };
 
-  /** Enriquecer = mesmo fluxo do e-SAJ, para qualquer tribunal */
-  const handleEnrich = async () => {
-    if (cleanCnj.length !== 20) {
-      toast({ title: "CNJ inválido", variant: "destructive" });
-      return;
-    }
-    setLoading("enrich");
-    try {
-      const res = await enrichMultiTribunalAction(cnj);
-      setResultado(res);
-      if (res.success) {
-        toast({
-          title: res.multi
-            ? `${res.multi.tribunal} · ${res.multi.sistema}`
-            : "Consulta resolvida",
-          description: res.note || "Dados disponíveis abaixo.",
-        });
-      } else {
-        toast({
-          title: "Falha",
-          description: res.error || "Não foi possível enriquecer.",
-          variant: "destructive",
-        });
-      }
-    } catch (e: any) {
-      toast({ title: "Erro", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(null);
-    }
+  const openEmbed = (url: string, title: string) => {
+    setEmbedUrl(url);
+    setEmbedTitle(title);
+    setEmbedExpanded(true);
   };
 
-
-  const handleOpenGcloud = async () => {
+  /** 01 Captura — eproc no app + enrich */
+  const runCaptura = async () => {
     if (cleanCnj.length !== 20) {
       toast({ title: "CNJ inválido", variant: "destructive" });
       return;
     }
-
     const preview = getTribunalByCnj(cnj);
-    // TJSP: eproc principal (já no mapa); fallback e-SAJ nos alternativos
-    const primaryUrl = preview?.url || null;
-    if (!primaryUrl) {
-      toast({ title: "Tribunal sem URL", variant: "destructive" });
-      return;
+    if (preview?.url) {
+      openEmbed(
+        preview.url,
+        `${preview.sigla} · ${preview.sistema} (principal)`
+      );
     }
-
-    // Abre DENTRO do app (iframe) — não redireciona o navegador
-    setEmbedUrl(primaryUrl);
-    setEmbedTitle(`${preview?.sigla || "Tribunal"} · ${preview?.sistema || ""}`);
-    setEmbedExpanded(true);
-
-    setLoading("gcloud");
+    setLoading("captura");
     try {
       const res = await openTribunalViaGcloudAction(cnj, "fetch");
-      setGcloudInfo(res);
-
-      // Se o servidor devolver URL (ex. eproc), usa no embed
       if (res.openUrl) {
-        setEmbedUrl(res.openUrl);
-        setEmbedTitle(`${res.tribunal || preview?.sigla || "Tribunal"} · ${res.sistema || preview?.sistema || ""}`);
+        openEmbed(
+          res.openUrl,
+          `${res.tribunal || preview?.sigla} · ${res.sistema || preview?.sistema}`
+        );
       }
-
       if (res.data) {
         setResultado({
           success: true,
           data: res.data,
           note: res.message,
           multi: {
-            tribunal: res.tribunal || preview?.sigla,
-            sistema: res.sistema || preview?.sistema,
-            url: res.openUrl || primaryUrl,
-            modo: res.usedEsaj ? "esaj_enrich" : "consulta_embed",
-            nome: res.tribunal || preview?.nome,
-            fallbacks: preview?.alternativos || [],
+            tribunal: res.tribunal,
+            sistema: res.sistema,
+            url: res.openUrl,
+            modo: "captura",
           },
         });
-      } else {
-        setResultado((prev: any) => ({
-          ...prev,
-          success: true,
-          note: res.message,
-          multi: {
-            tribunal: preview?.sigla,
-            sistema: preview?.sistema,
-            url: primaryUrl,
-            modo: "consulta_embed",
-            nome: preview?.nome,
-            fallbacks: preview?.alternativos || [],
-          },
-        }));
       }
-
+      markDone("captura");
       toast({
-        title: `${preview?.sigla || "Tribunal"} no app`,
-        description: "Consulta embutida abaixo. Use e-SAJ nos botões alternativos se precisar.",
+        title: "01 Captura",
+        description: "Tribunal no app + tentativa de enrich e-SAJ",
       });
+      setStep("triagem");
     } catch (e: any) {
-      toast({ title: "Erro", description: e.message, variant: "destructive" });
+      toast({ title: "Erro captura", description: e.message, variant: "destructive" });
     } finally {
       setLoading(null);
     }
   };
 
-  const handleOpenConsulta = async () => {
+  /** 02 Triagem — multi enrich / classificação automática leve */
+  const runTriagem = async () => {
     if (cleanCnj.length !== 20) {
       toast({ title: "CNJ inválido", variant: "destructive" });
       return;
     }
-    setLoading("open");
+    setLoading("triagem");
     try {
-      const res = await getMultiConsultaUrlAction(cnj);
-      if (res.url) {
-        setEmbedUrl(res.url);
-        setEmbedTitle(`${res.tribunal || "Tribunal"} · ${res.sistema || ""}`);
-        setEmbedExpanded(true);
-        toast({ title: `Abrindo ${res.tribunal || "tribunal"} no app` });
-      } else {
-        toast({ title: "URL não encontrada", variant: "destructive" });
-      }
+      const res = await enrichMultiTribunalAction(cnj);
+      setResultado(res);
+      markDone("triagem");
+      toast({ title: "02 Triagem", description: res.note || "Categorização aplicada" });
+      setStep("cadastro");
     } catch (e: any) {
-      toast({ title: "Erro", description: e.message, variant: "destructive" });
+      toast({ title: "Erro triagem", description: e.message, variant: "destructive" });
     } finally {
       setLoading(null);
     }
@@ -231,8 +182,6 @@ export default function AutomacaoJudicialPage() {
     resultado?.data?.["Primeiro Grau"] ||
     resultado?.data?.["Segundo Grau"] ||
     null;
-
-  const multi = resultado?.multi;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -244,169 +193,333 @@ export default function AutomacaoJudicialPage() {
             Automação Judicial
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Consulta e enriquecimento em todos os tribunais · Custas em subaba
+            Pipeline 01–08 · eproc prioritário (SP) · consulta no app · Custas em subaba
           </p>
         </div>
 
-        {/* ——— Subnavegação ——— */}
-        <div className="flex gap-2 border-b border-border pb-0">
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-border">
           <button
             type="button"
-            onClick={() => setTab("consulta")}
+            onClick={() => setTab("pipeline")}
             className={cn(
-              "px-4 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-t-xl border border-b-0 transition-colors",
-              tab === "consulta"
-                ? "bg-card text-foreground border-border"
-                : "bg-transparent text-muted-foreground border-transparent hover:text-foreground"
+              "px-4 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-t-xl border border-b-0",
+              tab === "pipeline"
+                ? "bg-card border-border"
+                : "text-muted-foreground border-transparent"
             )}
           >
-            <span className="inline-flex items-center gap-2">
-              <Building2 size={14} />
-              Consulta multi-tribunal
-            </span>
+            Pipeline operacional
           </button>
           <button
             type="button"
             onClick={() => setTab("custas")}
             className={cn(
-              "px-4 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-t-xl border border-b-0 transition-colors",
+              "px-4 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-t-xl border border-b-0",
               tab === "custas"
-                ? "bg-card text-foreground border-border"
-                : "bg-transparent text-muted-foreground border-transparent hover:text-foreground"
+                ? "bg-card border-border"
+                : "text-muted-foreground border-transparent"
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <Receipt size={14} />
-              Custas (TJSP)
+              <Receipt size={14} /> Custas (TJSP)
             </span>
           </button>
         </div>
 
-        {/* ===================== ABA PRINCIPAL ===================== */}
-        {tab === "consulta" && (
+        {tab === "pipeline" && (
           <div className="space-y-6">
+            {/* Stepper */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+              {AUTOMACAO_PIPELINE.map((s) => {
+                const active = step === s.id;
+                const done = doneSteps.has(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setStep(s.id)}
+                    className={cn(
+                      "text-left p-2.5 rounded-xl border transition-colors",
+                      active && "border-primary bg-primary/5",
+                      done && !active && "border-emerald-500/40 bg-emerald-500/5",
+                      !active && !done && "border-border/50"
+                    )}
+                  >
+                    <div className="flex items-center gap-1 mb-1">
+                      {done ? (
+                        <CheckCircle2 size={12} className="text-emerald-600" />
+                      ) : (
+                        <span className="text-[9px] font-black text-muted-foreground">
+                          {s.num}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-black uppercase truncate">
+                        {s.title}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Gavel size={18} />
-                  Enriquecer processo (todos os tribunais)
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <span className="text-primary font-black">{currentMeta.num}</span>
+                  {currentMeta.title}
                 </CardTitle>
-                <CardDescription>
-                  Mesmo fluxo do “Enriquecer e-SAJ”: identifica o tribunal pelo
-                  CNJ, tenta enrich automático na família e-SAJ e, nos demais,
-                  prepara a consulta pública (eproc / PJe / Projudi).
-                </CardDescription>
+                <CardDescription>{currentMeta.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Input
-                  placeholder="0000000-00.0000.0.00.0000"
-                  value={cnj}
-                  onChange={(e) => setCnj(e.target.value)}
-                  className="text-lg font-mono h-12"
-                />
-
-                {tribunalPreview && (
-                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                    <Badge className="font-black uppercase">
-                      {tribunalPreview.sigla}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                      {tribunalPreview.nome}
-                    </span>
-                    <Badge variant="outline" className="uppercase text-[9px]">
-                      {tribunalPreview.sistema}
-                    </Badge>
-                    {tribunalPreview.esajFamily && (
-                      <Badge
-                        variant="secondary"
-                        className="text-[9px] uppercase"
-                      >
-                        família e-SAJ
-                      </Badge>
+                {(step === "captura" ||
+                  step === "triagem" ||
+                  step === "cadastro") && (
+                  <>
+                    <Label className="text-[9px] font-black uppercase">CNJ</Label>
+                    <Input
+                      value={cnj}
+                      onChange={(e) => setCnj(e.target.value)}
+                      placeholder="0000000-00.0000.8.26.0000"
+                      className="font-mono h-12 text-lg"
+                    />
+                    {tribunalPreview && (
+                      <div className="flex flex-wrap gap-2 items-center text-[11px]">
+                        <Badge className="font-black">{tribunalPreview.sigla}</Badge>
+                        <Badge variant="outline" className="uppercase text-[9px]">
+                          {tribunalPreview.sistema} (principal)
+                        </Badge>
+                        {tribunalPreview.esajFamily && (
+                          <Badge variant="secondary" className="text-[9px]">
+                            e-SAJ disponível
+                          </Badge>
+                        )}
+                      </div>
                     )}
+                  </>
+                )}
+
+                {/* Ações por etapa */}
+                {step === "captura" && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={runCaptura}
+                      disabled={!!loading}
+                      className="gap-2 h-11 font-bold"
+                    >
+                      {loading === "captura" ? (
+                        <Loader2 className="animate-spin h-4 w-4" />
+                      ) : (
+                        <Building2 className="h-4 w-4" />
+                      )}
+                      Capturar no app (eproc / consulta)
+                    </Button>
+                    {fallbacks.map((f, i) => (
+                      <Button
+                        key={i}
+                        type="button"
+                        variant="outline"
+                        className="h-11"
+                        onClick={() =>
+                          openEmbed(f.url, f.label || f.sistema)
+                        }
+                      >
+                        {f.label || f.sistema}
+                      </Button>
+                    ))}
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-3">
+                {step === "triagem" && (
                   <Button
-                    onClick={handleEnrich}
+                    onClick={runTriagem}
                     disabled={!!loading}
                     className="gap-2 h-11 font-bold"
                   >
-                    {loading === "enrich" ? (
+                    {loading === "triagem" ? (
                       <Loader2 className="animate-spin h-4 w-4" />
                     ) : (
                       <Search className="h-4 w-4" />
                     )}
-                    Enriquecer (multi-tribunal)
+                    Rodar triagem (multi-tribunal / e-SAJ)
                   </Button>
-
-                  <Button
-                    onClick={handleOpenConsulta}
-                    disabled={!!loading}
-                    variant="secondary"
-                    className="gap-2 h-11"
-                  >
-                    {loading === "open" ? (
-                      <Loader2 className="animate-spin h-4 w-4" />
-                    ) : (
-                      <Camera className="h-4 w-4" />
-                    )}
-                    Abrir consulta pública
-                  </Button>
-
-                  <Button
-                    onClick={handleOpenGcloud}
-                    disabled={!!loading}
-                    variant="outline"
-                    className="gap-2 h-11 border-blue-500/40 text-blue-700 dark:text-blue-300"
-                  >
-                    {loading === "gcloud" ? (
-                      <Loader2 className="animate-spin h-4 w-4" />
-                    ) : (
-                      <Cloud className="h-4 w-4" />
-                    )}
-                    Abrir tribunal no app
-                  </Button>
-                </div>
-                {gcloudConfigured === false && (
-                  <p className="text-[11px] text-muted-foreground">
-                    TJSP: eproc principal (embutido no app). e-SAJ fica como alternativa.
-                  </p>
                 )}
-                {gcloudConfigured === true && (
-                  <p className="text-[11px] text-emerald-600 font-medium">
-                    Consulta embutida no app (eproc prioritário em SP).
-                  </p>
+
+                {step === "cadastro" && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Abra a carteira com o CNJ para cadastrar/atualizar o processo no ERP.
+                    </p>
+                    <Button asChild className="h-11 font-bold gap-2">
+                      <Link
+                        href={`/cases?search=${encodeURIComponent(cnj || "")}`}
+                      >
+                        Ir para Processos <ChevronRight size={16} />
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        markDone("cadastro");
+                        setStep("classificacao");
+                      }}
+                    >
+                      Marcar cadastro feito e avançar
+                    </Button>
+                  </div>
                 )}
+
+                {step === "classificacao" && (
+                  <div className="space-y-3">
+                    <Label>Serviço / produto</Label>
+                    <Input
+                      value={classificacao}
+                      onChange={(e) => setClassificacao(e.target.value)}
+                      placeholder="Ex.: revisional, busca e apreensão, cobrança…"
+                    />
+                    <Label>Ofensor / parte contrária</Label>
+                    <Input
+                      value={ofensor}
+                      onChange={(e) => setOfensor(e.target.value)}
+                      placeholder="Ex.: banco, financeira…"
+                    />
+                    <Button
+                      onClick={() => {
+                        markDone("classificacao");
+                        setStep("demanda");
+                        toast({ title: "04 Classificação registrada" });
+                      }}
+                    >
+                      Salvar e avançar
+                    </Button>
+                  </div>
+                )}
+
+                {step === "demanda" && (
+                  <div className="space-y-3">
+                    <Label>Insumos necessários (acordo / defesa)</Label>
+                    <Textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Contrato, extratos, guias, procurações…"
+                      className="min-h-[100px]"
+                    />
+                    <Button
+                      onClick={() => {
+                        markDone("demanda");
+                        setStep("analise");
+                      }}
+                    >
+                      Avançar para análise
+                    </Button>
+                  </div>
+                )}
+
+                {step === "analise" && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Use Veredito / DataJud·DJEN e o embed do tribunal para cruzar evidências.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild variant="secondary" className="gap-2">
+                        <Link href="/veredito">
+                          <FileSearch size={16} /> Veredito
+                        </Link>
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          markDone("analise");
+                          setStep("devolutiva");
+                        }}
+                      >
+                        Análise concluída
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {step === "devolutiva" && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Rascunhos leigos e protetivos: use Processos/Tarefas → Sugerir resposta
+                      (Motor Lexis + IA opcional).
+                    </p>
+                    <Button asChild className="gap-2">
+                      <Link
+                        href={`/tarefas?search=${encodeURIComponent(cnj || "")}`}
+                      >
+                        <Sparkles size={16} /> Abrir fila / sugestões
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        markDone("devolutiva");
+                        setStep("recomendacoes");
+                      }}
+                    >
+                      Avançar
+                    </Button>
+                  </div>
+                )}
+
+                {step === "recomendacoes" && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Consolide estratégia com base na captura, triagem e análise. Documente em Notas.
+                    </p>
+                    <Button asChild variant="outline">
+                      <Link href="/notes">Abrir Notas</Link>
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        markDone("recomendacoes");
+                        toast({
+                          title: "Pipeline completo",
+                          description: "08 Recomendações registradas nesta sessão",
+                        });
+                      }}
+                    >
+                      Finalizar pipeline
+                    </Button>
+                  </div>
+                )}
+
+                {/* Embed tribunal — sempre visível se aberto */}
                 {embedUrl && (
-                  <div className="rounded-xl border-2 border-primary/30 overflow-hidden bg-white mt-4">
+                  <div className="rounded-xl border-2 border-primary/30 overflow-hidden bg-white">
                     <div className="h-11 flex items-center justify-between px-2 bg-muted/60 border-b gap-2">
                       <span className="text-[10px] font-bold truncate px-2">
-                        {embedTitle || "Consulta no app"} — {embedUrl.replace(/^https?:\/\//, "").slice(0, 48)}…
+                        {embedTitle} — {embedUrl.replace(/^https?:\/\//, "").slice(0, 40)}…
                       </span>
-                      <div className="flex gap-1 shrink-0">
+                      <div className="flex gap-1">
                         <Button
-                          type="button"
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
                           onClick={() => setEmbedExpanded((v) => !v)}
                         >
-                          {embedExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                          {embedExpanded ? (
+                            <Minimize2 size={14} />
+                          ) : (
+                            <Maximize2 size={14} />
+                          )}
                         </Button>
                         <Button
-                          type="button"
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
-                          title="Abrir em nova aba (opcional)"
-                          onClick={() => window.open(embedUrl, "_blank", "noopener,noreferrer")}
+                          title="Nova aba só se iframe bloqueado"
+                          onClick={() =>
+                            window.open(embedUrl, "_blank", "noopener,noreferrer")
+                          }
                         >
                           <ExternalLink size={14} />
                         </Button>
                         <Button
-                          type="button"
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
@@ -419,297 +532,85 @@ export default function AutomacaoJudicialPage() {
                     {embedExpanded && (
                       <iframe
                         src={embedUrl}
-                        title={embedTitle || "Tribunal"}
-                        className="w-full border-0 bg-white"
-                        style={{ height: "min(75vh, 800px)", minHeight: 520 }}
+                        title={embedTitle}
+                        className="w-full border-0"
+                        style={{ height: "min(70vh, 720px)", minHeight: 480 }}
                         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
                         referrerPolicy="no-referrer-when-downgrade"
                       />
                     )}
-                    <p className="text-[10px] text-muted-foreground p-2 border-t">
-                      Se a tela ficar em branco, o tribunal bloqueou iframe — use o ícone de nova aba. Em SP o principal é eproc; e-SAJ nos alternativos.
+                    <p className="text-[10px] text-muted-foreground p-2 border-t flex gap-1">
+                      <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                      SP: eproc é o principal. Se o iframe ficar branco (bloqueio do tribunal), use o ícone de nova aba.
                     </p>
                   </div>
                 )}
 
-              </CardContent>
-            </Card>
-
-            {/* Resultado multi */}
-            {multi && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">
-                    {multi.tribunal} — {multi.nome}
-                  </CardTitle>
-                  <CardDescription>
-                    Sistema: {multi.sistema} · modo: {multi.modo}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {resultado?.note && (
-                    <p className="text-sm text-muted-foreground">
-                      {resultado.note}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      className="gap-2"
-                      onClick={() =>
-                        window.open(
-                          multi.url,
-                          "_blank",
-                          "noopener,noreferrer"
-                        )
-                      }
-                    >
-                      Abrir {multi.tribunal} <ExternalLink size={14} />
-                    </Button>
-                    {(multi.fallbacks || []).map((f: any, i: number) => (
-                      <Button
-                        key={i}
-                        variant="outline"
-                        onClick={() =>
-                          window.open(f.url, "_blank", "noopener,noreferrer")
-                        }
-                      >
-                        {f.label || f.sistema}
-                      </Button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Dados e-SAJ se vieram do enrich */}
-            {grau && (
-              <div className="space-y-4">
-                {grau.movimentações && grau.movimentações.length > 0 && (
+                {/* Movimentos se enrich */}
+                {grau?.movimentações?.length > 0 && (
                   <Card>
-                    <CardHeader>
-                      <CardTitle>Movimentações</CardTitle>
-                      <CardDescription>
-                        {grau.movimentações.length} encontradas
-                      </CardDescription>
+                    <CardHeader className="py-3">
+                      <CardTitle className="text-sm">Movimentações capturadas</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      {grau.movimentações
-                        .slice(0, 15)
-                        .map((m: any, i: number) => (
-                          <div
-                            key={i}
-                            className="p-3 rounded-lg border text-sm"
-                          >
-                            <span className="text-xs text-muted-foreground font-medium">
-                              {m.data}
-                            </span>
-                            <p className="leading-relaxed mt-1">
-                              {m.descricao}
-                            </p>
-                          </div>
-                        ))}
+                    <CardContent className="space-y-2 max-h-64 overflow-auto">
+                      {grau.movimentações.slice(0, 12).map((m: any, i: number) => (
+                        <div key={i} className="text-sm border rounded-lg p-2">
+                          <span className="text-xs text-muted-foreground">{m.data}</span>
+                          <p>{m.descricao}</p>
+                        </div>
+                      ))}
                     </CardContent>
                   </Card>
                 )}
-              </div>
-            )}
-
-            {/* Lista rápida de tribunais */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Tribunais mapeados</CardTitle>
-                <CardDescription>
-                  Clique para abrir a consulta pública padrão
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-auto">
-                  {TODOS_TRIBUNAIS.map((t) => (
-                    <button
-                      key={t.codigo}
-                      type="button"
-                      className="text-left p-3 rounded-xl border hover:border-primary/40 transition-colors"
-                      onClick={() =>
-                        window.open(t.url, "_blank", "noopener,noreferrer")
-                      }
-                    >
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="font-black text-sm">{t.sigla}</span>
-                        <Badge
-                          variant="secondary"
-                          className="text-[8px] uppercase"
-                        >
-                          {t.sistema}
-                        </Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {t.nome}
-                      </p>
-                    </button>
-                  ))}
-                </div>
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* ===================== SUBABA CUSTAS ===================== */}
         {tab === "custas" && (
-          <Card className="border border-amber-500/30">
-            <CardHeader className="pb-2">
+          <Card className="border-amber-500/30">
+            <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Receipt className="text-amber-600" size={20} />
-                Portal de Custas · TJSP
+                <Receipt className="text-amber-600" size={18} />
+                Portal de Custas TJSP
               </CardTitle>
-              <CardDescription className="text-[12px]">
-                Subaba auxiliar. CAPTCHA manual. Sem robô.
-              </CardDescription>
-              <a
-                href={PORTAL_CUSTAS_TJSP}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
-              >
-                <Link2 size={12} /> {PORTAL_CUSTAS_TJSP}
-              </a>
+              <CardDescription>Subaba auxiliar · CAPTCHA manual</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase">CNJ</Label>
-                  <div className="flex gap-1">
-                    <Input
-                      value={custasCnj}
-                      onChange={(e) => setCustasCnj(e.target.value)}
-                      placeholder="0000000-00.0000.8.26.0000"
-                      className="h-11 font-mono text-xs"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 px-3"
-                      onClick={() => doCopy("CNJ", custasCnj)}
-                    >
-                      <Copy size={14} />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase">CPF</Label>
-                  <div className="flex gap-1">
-                    <Input
-                      value={custasCpf}
-                      onChange={(e) =>
-                        setCustasCpf(onlyDigits(e.target.value).slice(0, 11))
-                      }
-                      placeholder="00000000000"
-                      className="h-11 font-mono text-xs"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 px-3"
-                      onClick={() => doCopy("CPF", custasCpf)}
-                    >
-                      <Copy size={14} />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[9px] font-black uppercase">Nome</Label>
-                  <div className="flex gap-1">
-                    <Input
-                      value={custasNome}
-                      onChange={(e) => setCustasNome(e.target.value)}
-                      className="h-11 text-xs"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 px-3"
-                      onClick={() => doCopy("Nome", custasNome)}
-                    >
-                      <Copy size={14} />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
+            <CardContent className="space-y-3">
+              <Input
+                value={custasCnj}
+                onChange={(e) => setCustasCnj(e.target.value)}
+                placeholder="CNJ"
+                className="font-mono"
+              />
+              <Input
+                value={custasCpf}
+                onChange={(e) =>
+                  setCustasCpf(onlyDigits(e.target.value).slice(0, 11))
+                }
+                placeholder="CPF"
+                className="font-mono"
+              />
+              <div className="flex gap-2">
                 <Button
-                  type="button"
-                  className="h-11 gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold uppercase text-[10px]"
+                  className="bg-amber-600 hover:bg-amber-700"
                   onClick={() => {
-                    if (custasCnj.trim()) doCopy("CNJ", custasCnj);
+                    if (custasCnj) doCopy("CNJ", custasCnj);
                     setShowPortal(true);
-                    setPortalExpanded(true);
+                    openEmbed(PORTAL_CUSTAS_TJSP, "Portal de Custas TJSP");
                   }}
                 >
-                  <Receipt size={16} /> Abrir portal no app
+                  Abrir portal no app
                 </Button>
                 <Button
-                  type="button"
                   variant="outline"
-                  className="h-11 gap-2 font-bold uppercase text-[10px]"
                   onClick={() =>
-                    window.open(
-                      PORTAL_CUSTAS_TJSP,
-                      "_blank",
-                      "noopener,noreferrer"
-                    )
+                    window.open(PORTAL_CUSTAS_TJSP, "_blank", "noopener,noreferrer")
                   }
                 >
-                  Nova aba <ExternalLink size={14} />
+                  Nova aba
                 </Button>
               </div>
-
-              <div className="flex gap-2 text-[11px] text-muted-foreground bg-muted/40 p-3 rounded-xl">
-                <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                Cole CNJ/CPF no portal, resolva o CAPTCHA e baixe a guia. Se o
-                iframe falhar, use nova aba.
-              </div>
-
-              {showPortal && (
-                <div className="rounded-xl border overflow-hidden bg-white">
-                  <div className="h-10 flex items-center justify-between px-2 bg-muted/50 border-b">
-                    <span className="text-[10px] font-bold px-2">
-                      portaldecustas.tjsp.jus.br
-                    </span>
-                    <div className="flex gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => setPortalExpanded((v) => !v)}
-                      >
-                        {portalExpanded ? (
-                          <Minimize2 size={14} />
-                        ) : (
-                          <Maximize2 size={14} />
-                        )}
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => setShowPortal(false)}
-                      >
-                        <X size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                  {portalExpanded && (
-                    <iframe
-                      src={PORTAL_CUSTAS_TJSP}
-                      title="Portal de Custas TJSP"
-                      className="w-full border-0"
-                      style={{ height: "min(65vh, 640px)", minHeight: 420 }}
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-                      referrerPolicy="no-referrer-when-downgrade"
-                    />
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
         )}

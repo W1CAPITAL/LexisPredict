@@ -1,6 +1,5 @@
 /**
- * Catálogo de consulta pública por tribunal (J=8.xx / TRF=4.xx).
- * Preferência: eproc > PJe consulta > e-SAJ/Projudi.
+ * Catálogo consulta pública — eproc prioritário em SP.
  */
 export type TribunalSistema = 'eproc' | 'pje' | 'esaj' | 'projudi' | 'outro';
 
@@ -11,22 +10,21 @@ export interface TribunalLink {
   url: string;
   sistema: TribunalSistema;
   alternativos?: { url: string; sistema: TribunalSistema; label?: string }[];
-  /** true = mesmo padrão e-SAJ (cpopg) — enrich local possível */
   esajFamily?: boolean;
 }
 
 export const TRIBUNAIS_TJ: TribunalLink[] = [
-  { codigo: '8.01', sigla: 'TJAC', nome: 'Acre', url: 'https://esaj.tjac.jus.br/cpopg/open.do', sistema: 'esaj', esajFamily: true, alternativos: [{ url: 'https://eproc.tjac.jus.br/eprocV2/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc', label: 'eproc' }] },
+  { codigo: '8.01', sigla: 'TJAC', nome: 'Acre', url: 'https://esaj.tjac.jus.br/cpopg/open.do', sistema: 'esaj', esajFamily: true },
   { codigo: '8.02', sigla: 'TJAL', nome: 'Alagoas', url: 'https://www2.tjal.jus.br/cpopg/open.do', sistema: 'esaj', esajFamily: true },
   { codigo: '8.03', sigla: 'TJAP', nome: 'Amapá', url: 'https://pje.tjap.jus.br/1g/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '8.04', sigla: 'TJAM', nome: 'Amazonas', url: 'https://consultasaj.tjam.jus.br/cpopg/open.do', sistema: 'esaj', esajFamily: true },
   { codigo: '8.05', sigla: 'TJBA', nome: 'Bahia', url: 'https://consultapublicapje.tjba.jus.br/pje/ConsultaPublica/listView.seam', sistema: 'pje' },
-  { codigo: '8.06', sigla: 'TJCE', nome: 'Ceará', url: 'https://esaj.tjce.jus.br/cpopg/open.do', sistema: 'esaj', esajFamily: true, alternativos: [{ url: 'https://pje-consulta.tjce.jus.br/pje1grau/ConsultaPublica/listView.seam', sistema: 'pje', label: 'PJe' }] },
+  { codigo: '8.06', sigla: 'TJCE', nome: 'Ceará', url: 'https://esaj.tjce.jus.br/cpopg/open.do', sistema: 'esaj', esajFamily: true },
   { codigo: '8.07', sigla: 'TJDFT', nome: 'DF', url: 'https://pje-consultapublica.tjdft.jus.br/consultapublica/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '8.08', sigla: 'TJES', nome: 'Espírito Santo', url: 'https://pje.tjes.jus.br/pje/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '8.09', sigla: 'TJGO', nome: 'Goiás', url: 'https://projudi.tjgo.jus.br/BuscaProcesso', sistema: 'projudi' },
   { codigo: '8.10', sigla: 'TJMA', nome: 'Maranhão', url: 'https://pje.tjma.jus.br/pje/ConsultaPublica/listView.seam', sistema: 'pje' },
-  { codigo: '8.11', sigla: 'TJMT', nome: 'Mato Grosso', url: 'https://pje.tjmt.jus.br/pje/ConsultaPublica/listView.seam', sistema: 'pje', alternativos: [{ url: 'https://consultaprocessual.tjmt.jus.br/', sistema: 'outro', label: 'Consulta' }] },
+  { codigo: '8.11', sigla: 'TJMT', nome: 'Mato Grosso', url: 'https://pje.tjmt.jus.br/pje/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '8.12', sigla: 'TJMS', nome: 'Mato Grosso do Sul', url: 'https://esaj.tjms.jus.br/cpopg5/open.do', sistema: 'esaj', esajFamily: true },
   { codigo: '8.13', sigla: 'TJMG', nome: 'Minas Gerais', url: 'https://pje-consulta-publica.tjmg.jus.br/', sistema: 'pje' },
   { codigo: '8.14', sigla: 'TJPA', nome: 'Pará', url: 'https://consultas.tjpa.jus.br/consultaunificada/consulta/principal', sistema: 'outro' },
@@ -36,12 +34,23 @@ export const TRIBUNAIS_TJ: TribunalLink[] = [
   { codigo: '8.18', sigla: 'TJPI', nome: 'Piauí', url: 'https://pje.tjpi.jus.br/1g/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '8.19', sigla: 'TJRJ', nome: 'Rio de Janeiro', url: 'https://tjrj.pje.jus.br/1g/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '8.20', sigla: 'TJRN', nome: 'Rio Grande do Norte', url: 'https://pje1gconsulta.tjrn.jus.br/consultapublica/ConsultaPublica/listView.seam', sistema: 'pje' },
-  { codigo: '8.21', sigla: 'TJRS', nome: 'Rio Grande do Sul', url: 'https://eproc1g.tjrs.jus.br/eproc/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc', alternativos: [{ url: 'https://www.tjrs.jus.br/novo/busca/?return=proc&client=wp_index', sistema: 'outro', label: 'Busca TJ' }] },
+  { codigo: '8.21', sigla: 'TJRS', nome: 'Rio Grande do Sul', url: 'https://eproc1g.tjrs.jus.br/eproc/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc' },
   { codigo: '8.22', sigla: 'TJRO', nome: 'Rondônia', url: 'https://pjepg.tjro.jus.br/consulta/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '8.23', sigla: 'TJRR', nome: 'Roraima', url: 'https://projudi.tjrr.jus.br/projudi/', sistema: 'projudi' },
   { codigo: '8.24', sigla: 'TJSC', nome: 'Santa Catarina', url: 'https://eprocwebcon.tjsc.jus.br/consulta1g/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc' },
   { codigo: '8.25', sigla: 'TJSE', nome: 'Sergipe', url: 'https://www.tjse.jus.br/portal/consultas/consulta-processual', sistema: 'outro' },
-  { codigo: '8.26', sigla: 'TJSP', nome: 'São Paulo', url: 'https://eproc-consulta.tjsp.jus.br/consulta_1g/externo_controlador.php?acao=tjsp@consulta_unificada_publica/consultar', sistema: 'eproc', esajFamily: true, alternativos: [{ url: 'https://esaj.tjsp.jus.br/cpopg/open.do', sistema: 'esaj', label: 'e-SAJ 1º grau' }, { url: 'https://esaj.tjsp.jus.br/cposg/open.do', sistema: 'esaj', label: 'e-SAJ 2º grau' }, { url: 'https://eproc.tjsp.jus.br/eproc/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc', label: 'eproc alt' }] },
+  {
+    codigo: '8.26',
+    sigla: 'TJSP',
+    nome: 'São Paulo',
+    url: 'https://eproc-consulta.tjsp.jus.br/consulta_1g/externo_controlador.php?acao=tjsp@consulta_unificada_publica/consultar',
+    sistema: 'eproc',
+    esajFamily: true,
+    alternativos: [
+      { url: 'https://esaj.tjsp.jus.br/cpopg/open.do', sistema: 'esaj', label: 'e-SAJ 1º grau' },
+      { url: 'https://esaj.tjsp.jus.br/cposg/open.do', sistema: 'esaj', label: 'e-SAJ 2º grau' },
+    ],
+  },
   { codigo: '8.27', sigla: 'TJTO', nome: 'Tocantins', url: 'https://eproc1.tjto.jus.br/eprocV2_prod_1grau/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc' },
 ];
 
@@ -57,9 +66,7 @@ export const TODOS_TRIBUNAIS = [...TRIBUNAIS_TJ, ...TRIBUNAIS_TRF];
 export function codigoJusticaFromCnj(cnj: string): string | null {
   const d = String(cnj || '').replace(/\D/g, '');
   if (d.length >= 20) {
-    const j = d[13];
-    const tr = d.slice(14, 16);
-    return `${j}.${tr}`;
+    return `${d[13]}.${d.slice(14, 16)}`;
   }
   const m = String(cnj).match(/\.(\d)\.(\d{2})\./);
   return m ? `${m[1]}.${m[2]}` : null;
