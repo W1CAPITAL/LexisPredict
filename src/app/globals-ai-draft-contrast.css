@@ -1,26 +1,22 @@
-[data-ai-draft],
+/* Contraste forte para rascunhos de IA */
 .ai-draft-preview {
-  background-color: #020617 !important;
-  color: #f8fafc !important;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 0.75rem;
-  padding: 1rem 1.25rem;
+  background: hsl(var(--background));
+}
+
+.ai-draft-body {
+  color: hsl(var(--foreground)) !important;
+  background: hsl(var(--muted) / 0.3);
   font-size: 0.875rem;
-  line-height: 1.55;
+  line-height: 1.6;
+}
+
+/* Garante texto legível em tema claro e escuro */
+.dark .ai-draft-body {
+  color: #f8fafc !important;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.ai-draft-preview .ai-draft-body {
   white-space: pre-wrap;
-}
-[data-ai-draft] *,
-.ai-draft-preview * {
-  color: #f8fafc !important;
-}
-[data-ai-draft] textarea,
-.ai-draft-preview textarea {
-  background-color: #020617 !important;
-  color: #f8fafc !important;
-  border-color: rgba(148, 163, 184, 0.3) !important;
-  caret-color: #f8fafc;
-}
-.ai-draft-preview::placeholder,
-[data-ai-draft]::placeholder {
-  color: #94a3b8 !important;
+  word-break: break-word;
 }
