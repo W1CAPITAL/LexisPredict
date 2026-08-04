@@ -36,6 +36,7 @@ import {
   ScanLine,
   ClipboardList,
   Bot,
+  Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -112,6 +113,7 @@ function SidebarNavBody({
         { label: "Painel", href: "/", icon: LayoutDashboard },
         { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
         { label: "Processos", href: "/cases", icon: Briefcase },
+        { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
         { label: "Automação Judicial", href: "/tools/automacao", icon: Zap },
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
       ],
