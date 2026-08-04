@@ -146,8 +146,7 @@ function CasesContent() {
 
   const { isOperador, profile } = useAdmin();
   const { toast } = useToast();
-  const [isRecalibrating, setIsRecalibrating] = useState(false);
-
+  
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '' });
 
   const loadData = useCallback(async () => {
