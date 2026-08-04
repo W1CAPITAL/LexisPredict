@@ -32,7 +32,7 @@ export function MotorSelector({
   compact?: boolean;
   allowPuter?: boolean;
 }) {
-  const [internal, setInternal] = useState<MotorId>("xai");
+  const [internal, setInternal] = useState<MotorId>("claude");
 
   useEffect(() => {
     const v = (value as MotorId) || loadPreferredMotor();
@@ -68,12 +68,12 @@ export function MotorSelector({
         <SelectTrigger
           className={cn(
             "h-9 rounded-xl border-border/60 bg-background/80 font-bold text-[10px] uppercase tracking-wide",
-            compact ? "w-[140px]" : "w-[220px]"
+            compact ? "w-[140px]" : "w-[240px]"
           )}
         >
           <SelectValue placeholder="Motor" />
         </SelectTrigger>
-        <SelectContent className="rounded-xl">
+        <SelectContent className="rounded-xl max-h-[320px]">
           {list.map((m) => (
             <SelectItem key={m.id} value={m.id} className="text-xs">
               <div className="flex flex-col gap-0.5 py-0.5">

@@ -19,11 +19,11 @@ export async function getNeuralNucleusStatusAction() {
     success: true,
     engines,
     keys,
+    preferredDefault: 'claude',
     generatedAt: new Date().toISOString(),
   };
 }
 
-/** Catálogo serializável para cliente (sem process.env) */
 export async function listAiEnginesAction(surface?: AiEngineDef['surfaces'][number]) {
   const list = surface
     ? AI_ENGINES_CATALOG.filter((e) => e.surfaces.includes(surface))

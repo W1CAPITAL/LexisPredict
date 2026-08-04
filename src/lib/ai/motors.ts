@@ -1,5 +1,6 @@
 /**
  * Catálogo de motores neurais Lexis — Claude (Anthropic) como principal.
+ * Espelha Settings → Núcleo Neural e seletores de Sugerir resposta / Chat.
  */
 
 export type MotorId =
@@ -9,6 +10,7 @@ export type MotorId =
   | 'groq-llama'
   | 'openrouter'
   | 'airforce'
+  | 'gemini'
   | 'puter';
 
 export type MotorDef = {
@@ -25,7 +27,7 @@ export const MOTORS: MotorDef[] = [
     id: 'claude',
     label: 'Claude (Anthropic)',
     short: 'Claude',
-    desc: 'Motor principal do núcleo neural (ANTHROPIC_API_KEY / CLAUDE_API_KEY).',
+    desc: 'Motor principal — Messages API completa (ANTHROPIC_API_KEY).',
     scope: 'server',
     envKey: 'ANTHROPIC_API_KEY',
   },
@@ -33,14 +35,14 @@ export const MOTORS: MotorDef[] = [
     id: 'local_only',
     label: 'Motor Lexis Soberano',
     short: 'Local',
-    desc: 'Scripts determinísticos — sem API, sem custo, sempre disponível.',
+    desc: 'Scripts determinísticos — sem API, sem custo.',
     scope: 'local',
   },
   {
     id: 'xai',
     label: 'xAI Grok',
     short: 'xAI',
-    desc: 'Raciocínio jurídico (XAI_API_KEY / XAI_MODEL).',
+    desc: 'Raciocínio jurídico (XAI_API_KEY).',
     scope: 'server',
     envKey: 'XAI_API_KEY',
   },
@@ -48,15 +50,15 @@ export const MOTORS: MotorDef[] = [
     id: 'groq-llama',
     label: 'Groq Llama 3.3',
     short: 'Groq',
-    desc: 'Resposta rápida (GROQ_API_KEY / GROQ_MODEL).',
+    desc: 'Resposta rápida (GROQ_API_KEY).',
     scope: 'server',
     envKey: 'GROQ_API_KEY',
   },
   {
     id: 'openrouter',
-    label: 'OpenRouter (free/oss)',
+    label: 'OpenRouter',
     short: 'OR',
-    desc: 'Gateway multi-modelo (OPENROUTER_API_KEY / OPENROUTER_MODEL).',
+    desc: 'Gateway multi-modelo (OPENROUTER_API_KEY).',
     scope: 'server',
     envKey: 'OPENROUTER_API_KEY',
   },
@@ -64,20 +66,30 @@ export const MOTORS: MotorDef[] = [
     id: 'airforce',
     label: 'Airforce',
     short: 'AF',
-    desc: 'Fallback alternativo (AIRFORCE_API_KEY).',
+    desc: 'Fallback (AIRFORCE_API_KEY).',
     scope: 'server',
     envKey: 'AIRFORCE_API_KEY',
+  },
+  {
+    id: 'gemini',
+    label: 'Google Gemini',
+    short: 'Gemini',
+    desc: 'Visão/OCR (GEMINI_API_KEY).',
+    scope: 'server',
+    envKey: 'GEMINI_API_KEY',
   },
   {
     id: 'puter',
     label: 'Puter.js (User-Pays)',
     short: 'Puter',
-    desc: 'Browser — usuário cobre o uso; sem key no servidor.',
+    desc: 'Browser — usuário cobre o uso.',
     scope: 'browser',
   },
 ];
 
 export const STORAGE_KEY = 'lexisPredict_preferred_ia';
+/** Preferência: Claude analisa DJEN em busca de BA (opcional) */
+export const BA_CLAUDE_DJEN_KEY = 'lexisPredict_ba_claude_djen';
 
 export function getMotor(id: string): MotorDef {
   return MOTORS.find((m) => m.id === id) || MOTORS[0];
@@ -88,6 +100,8 @@ export function loadPreferredMotor(): MotorId {
   try {
     const v = localStorage.getItem(STORAGE_KEY) || 'claude';
     if (MOTORS.some((m) => m.id === v)) return v as MotorId;
+    if (v.includes('claude')) return 'claude';
+    if (v.includes('xai') || v.includes('grok')) return 'xai';
   } catch {
     /* */
   }
@@ -101,7 +115,21 @@ export function savePreferredMotor(id: MotorId | string) {
   window.dispatchEvent(new CustomEvent('lexis-motor-change', { detail: mid }));
 }
 
-/** Extrai CNJ (20 dígitos) de uma frase */
+export function loadBaClaudeDjenEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(BA_CLAUDE_DJEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveBaClaudeDjenEnabled(on: boolean) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(BA_CLAUDE_DJEN_KEY, on ? '1' : '0');
+  window.dispatchEvent(new CustomEvent('lexis-ba-claude-djen', { detail: on }));
+}
+
 export function extractCnjFromText(text: string): string | null {
   const m = String(text || '').match(
     /\d{7}[-.]?\d{2}[.]?\d{4}[.]?\d[.]?\d{2}[.]?\d{4}/
