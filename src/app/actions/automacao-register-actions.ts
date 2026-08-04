@@ -1,6 +1,7 @@
 /**
- * Cadastro direto na Automação Judicial → grava na carteira (Processos).
- * OCR/transcrição de print do tribunal → CNJ + texto.
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * Cadastro Automação Judicial → carteira (Processos) + OCR print.
+ * REGRA Next.js: neste arquivo só export async function (+ types/interfaces).
  */
 'use server';
 
@@ -10,26 +11,11 @@ import {
   getUserContext,
 } from '@/lib/server-db';
 import { processarCaso, type LegalCase } from '@/lib/case-logic';
-
-function digits(s: string) {
-  return String(s || '').replace(/\D/g, '');
-}
-
-function formatCnj(raw: string): string {
-  const d = digits(raw);
-  if (d.length !== 20) return raw.trim();
-  return `${d.slice(0, 7)}-${d.slice(7, 9)}.${d.slice(9, 13)}.${d.slice(13, 14)}.${d.slice(14, 16)}.${d.slice(16)}`;
-}
-
-/** Extrai CNJ de texto (OCR ou colagem) */
-export function extractCnjFromText(text: string): string | null {
-  const m = text.match(
-    /\d{7}[-.]?\d{2}[.]?\d{4}[.]?\d[.]?\d{2}[.]?\d{4}/
-  );
-  if (!m) return null;
-  const d = digits(m[0]);
-  return d.length === 20 ? formatCnj(d) : null;
-}
+import {
+  digitsOnly,
+  formatCnj,
+  extractCnjFromText,
+} from '@/lib/cnj-extract';
 
 export interface AutomacaoCadastroInput {
   protocolo: string;
@@ -39,34 +25,34 @@ export interface AutomacaoCadastroInput {
   classificacao?: string;
   ofensor?: string;
   observacao?: string;
-  /** Texto OCR / movimentações coladas */
   textoTribunal?: string;
 }
 
-/**
- * Upsert na carteira da empresa (mesmo store dos Processos).
- */
 export async function registerCaseFromAutomacaoAction(
   input: AutomacaoCadastroInput
 ) {
   try {
-    const { empresa_id, user_id } = await getUserContext();
+    const ctx = await getUserContext();
+    const empresa_id = ctx?.empresa_id;
+    const user_id = (ctx as any)?.user_id ?? (ctx as any)?.userId ?? null;
+
     if (!empresa_id) {
-      return { success: false, error: 'Sessão expirada.' };
+      return { success: false as const, error: 'Sessão expirada.' };
     }
 
     const protocolo = formatCnj(input.protocolo);
-    const dig = digits(protocolo);
+    const dig = digitsOnly(protocolo);
     if (dig.length !== 20) {
-      return { success: false, error: 'CNJ inválido (20 dígitos).' };
+      return { success: false as const, error: 'CNJ inválido (20 dígitos).' };
     }
     if (!input.cliente?.trim()) {
-      return { success: false, error: 'Informe o nome do cliente.' };
+      return { success: false as const, error: 'Informe o nome do cliente.' };
     }
 
-    const cases = (await getStoredCasesForEmpresa(empresa_id)) || [];
+    const cases: LegalCase[] =
+      (await getStoredCasesForEmpresa(empresa_id)) || [];
     const idx = cases.findIndex(
-      (c: LegalCase) => digits(c.protocolo) === dig
+      (c) => digitsOnly(c.protocolo || '') === dig
     );
 
     const obsParts = [
@@ -80,7 +66,7 @@ export async function registerCaseFromAutomacaoAction(
         : '',
     ].filter(Boolean);
 
-    const base: Partial<LegalCase> = {
+    const base = {
       protocolo,
       cliente: input.cliente.trim().toUpperCase(),
       telefone: input.telefone?.trim() || '',
@@ -99,13 +85,13 @@ export async function registerCaseFromAutomacaoAction(
     } else {
       const created = processarCaso({
         id: `auto-${dig}-${Date.now()}`,
-        protocolo,
-        cliente: base.cliente!,
-        telefone: base.telefone || '',
-        tribunal: base.tribunal || '',
-        observacao: base.observacao || '',
+        protocolo: base.protocolo,
+        cliente: base.cliente,
+        telefone: base.telefone,
+        tribunal: base.tribunal,
+        observacao: base.observacao,
         status: 'Sem Prazo',
-        created_by: user_id || undefined,
+        ...(user_id ? { created_by: user_id } : {}),
       } as LegalCase);
       next = [created, ...cases];
     }
@@ -113,7 +99,7 @@ export async function registerCaseFromAutomacaoAction(
     await saveStoredCasesForEmpresa(next, empresa_id);
 
     return {
-      success: true,
+      success: true as const,
       protocolo,
       created: idx < 0,
       message:
@@ -121,39 +107,32 @@ export async function registerCaseFromAutomacaoAction(
           ? 'Processo atualizado na carteira (aba Processos).'
           : 'Processo cadastrado na carteira (aba Processos).',
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Falha ao gravar na carteira.';
     console.error('[registerCaseFromAutomacao]', e);
-    return {
-      success: false,
-      error: e?.message || 'Falha ao gravar na carteira.',
-    };
+    return { success: false as const, error: msg };
   }
 }
 
-/**
- * Transcrição de print/PDF: texto puro ou visão (Gemini/xAI se houver chave).
- * Aceita text/plain colado ou dataURL de imagem.
- */
 export async function transcribeTribunalPrintAction(payload: {
   text?: string;
   imageBase64?: string;
   mimeType?: string;
 }) {
   try {
-    // 1) Texto já OCR no cliente ou colado
     if (payload.text && payload.text.trim().length > 10) {
       const text = payload.text.trim();
       return {
-        success: true,
+        success: true as const,
         text,
         cnj: extractCnjFromText(text),
-        engine: 'paste',
+        engine: 'paste' as const,
       };
     }
 
     if (!payload.imageBase64) {
       return {
-        success: false,
+        success: false as const,
         error: 'Envie uma imagem (print) ou cole o texto do tribunal.',
       };
     }
@@ -161,9 +140,7 @@ export async function transcribeTribunalPrintAction(payload: {
     const mime = payload.mimeType || 'image/png';
     const b64 = payload.imageBase64.replace(/^data:[^;]+;base64,/, '');
 
-    // 2) Gemini vision
-    const gemini =
-      process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const gemini = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (gemini) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemini}`;
@@ -175,13 +152,9 @@ export async function transcribeTribunalPrintAction(payload: {
               {
                 parts: [
                   {
-                    text: `Transcreva o texto legível deste print de processo judicial brasileiro.
-Extraia em especial: número CNJ, partes, movimentações, datas.
-Responda só com o texto transcrito, sem comentários.`,
+                    text: 'Transcreva o texto legível deste print de processo judicial brasileiro. Extraia CNJ, partes, movimentações e datas. Responda só com o texto transcrito.',
                   },
-                  {
-                    inline_data: { mime_type: mime, data: b64 },
-                  },
+                  { inline_data: { mime_type: mime, data: b64 } },
                 ],
               },
             ],
@@ -192,15 +165,15 @@ Responda só com o texto transcrito, sem comentários.`,
           const data = await res.json();
           const text =
             data?.candidates?.[0]?.content?.parts
-              ?.map((p: any) => p.text)
+              ?.map((p: { text?: string }) => p.text)
               .filter(Boolean)
               .join('\n') || '';
           if (text.trim()) {
             return {
-              success: true,
+              success: true as const,
               text: text.trim(),
               cnj: extractCnjFromText(text),
-              engine: 'gemini',
+              engine: 'gemini' as const,
             };
           }
         }
@@ -209,7 +182,6 @@ Responda só com o texto transcrito, sem comentários.`,
       }
     }
 
-    // 3) xAI vision (se disponível)
     const xai =
       process.env.XAI_API_KEY ||
       process.env.XAI_GROK_PRESTIGE_API_KEY ||
@@ -234,9 +206,7 @@ Responda só com o texto transcrito, sem comentários.`,
                   },
                   {
                     type: 'image_url',
-                    image_url: {
-                      url: `data:${mime};base64,${b64}`,
-                    },
+                    image_url: { url: `data:${mime};base64,${b64}` },
                   },
                 ],
               },
@@ -250,10 +220,10 @@ Responda só com o texto transcrito, sem comentários.`,
           const text = data?.choices?.[0]?.message?.content || '';
           if (text.trim()) {
             return {
-              success: true,
+              success: true as const,
               text: text.trim(),
               cnj: extractCnjFromText(text),
-              engine: 'xai',
+              engine: 'xai' as const,
             };
           }
         }
@@ -263,11 +233,12 @@ Responda só com o texto transcrito, sem comentários.`,
     }
 
     return {
-      success: false,
+      success: false as const,
       error:
-        'Não foi possível transcrever o print. Cole o texto manualmente ou configure GEMINI_API_KEY / XAI_API_KEY. Também pode usar a aba Motor de OCR.',
+        'Não foi possível transcrever o print. Cole o texto ou configure GEMINI_API_KEY / XAI_API_KEY.',
     };
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'Falha na transcrição' };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Falha na transcrição';
+    return { success: false as const, error: msg };
   }
 }
