@@ -4,8 +4,6 @@
 import { AIProvider, ChatMessage } from './types';
 import { callOpenAICompatible, buildEngineList } from './cascade';
 
-const TIMEOUT_MS = 45000;
-
 export async function callProvider(
   provider: AIProvider | string,
   messages: ChatMessage[],
@@ -16,29 +14,27 @@ export async function callProvider(
     list.find((e) => e.id === provider || e.id.includes(String(provider))) ||
     list[0];
 
-  if (!engine) {
-    throw new Error(`[PROVIDER] Nenhum motor disponível (configure ANTHROPIC_API_KEY).`);
-  }
-
+  const preferred = engine?.id || String(provider) || 'claude';
   const mapped = messages.map((m) => ({
-    role: m.role,
+    role: m.role as 'system' | 'user' | 'assistant',
     content: m.content,
   }));
 
-  const result = await callOpenAICompatible(engine, mapped, {
-    temperature: options.temperature,
-    max_tokens: 4096,
-  });
+  const result = await callOpenAICompatible(
+    engine || { id: preferred, url: '', model: 'auto' },
+    mapped,
+    { temperature: options.temperature, max_tokens: 4096 }
+  );
 
   return {
     content: result.text,
     provider: result.engineId,
-    model: engine.model,
+    model: result.model || engine?.model || preferred,
     usage: {
       promptTokens: 0,
       completionTokens: 0,
-      totalTokens: result.tokens,
+      totalTokens: result.tokens || 0,
     },
-    duration: result.latency,
+    duration: result.latencyMs || result.latency || 0,
   };
 }

@@ -21,6 +21,8 @@ import {
   History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MotorSelector } from "@/components/ai/motor-selector";
+import { loadPreferredMotor, type MotorId } from "@/lib/ai/motors";
 import {
   listBaQueueAction,
   scanOneClienteBaAction,
@@ -58,6 +60,11 @@ export default function BuscaApreensaoPage() {
   const [savedLogs, setSavedLogs] = useState<any[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [current, setCurrent] = useState<BaQueueItem | null>(null);
+  const [preferredMotor, setPreferredMotor] = useState<MotorId>("claude");
+
+  useEffect(() => {
+    setPreferredMotor(loadPreferredMotor());
+  }, []);
 
   const statusRef = useRef<Status>("idle");
   const indexRef = useRef(0);
@@ -130,7 +137,14 @@ export default function BuscaApreensaoPage() {
         advogadoOab: item.advogadoOab,
         protocolos: item.protocolos,
         createdBy: item.createdBy,
+        preferredMotor,
       });
+
+      const engLabel = (res as any).engineUsed || preferredMotor || '—';
+      addLog(`[IA: ${engLabel}] Cliente: ${item.nome}`);
+      if ((res as any).iaNote) {
+        addLog(String((res as any).iaNote));
+      }
 
       if (res.isRateLimited) {
         addLog(`429 — pausa ${DELAY_ON_429_MS / 1000}s (mesmo cliente)`);
@@ -231,6 +245,11 @@ export default function BuscaApreensaoPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <MotorSelector
+              value={preferredMotor}
+              onChange={(id) => setPreferredMotor(id)}
+              compact
+            />
             {(status === "idle" || status === "done") && (
               <Button onClick={start} disabled={loadingQueue} className="h-10 rounded-xl font-black uppercase text-[10px] bg-red-600 hover:bg-red-700 text-white">
                 <Play className="mr-2 h-4 w-4" /> Iniciar fila

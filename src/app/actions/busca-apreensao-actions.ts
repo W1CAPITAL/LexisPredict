@@ -216,6 +216,7 @@ export async function scanOneClienteBaAction(
     advogadoOab?: string | null;
     protocolos?: string[];
     createdBy?: string | null;
+    preferredMotor?: string | null;
   }
 ) {
   const ctx = await getUserContext();
@@ -396,6 +397,43 @@ export async function scanOneClienteBaAction(
 
   
 
+  // Confirmação opcional via IA (motor escolhido na UI)
+  let engineUsed: string | null = null;
+  let iaNote: string | null = null;
+  const motor = (meta?.preferredMotor || '').trim();
+  if (motor && motor !== 'local_only' && hits.length) {
+    try {
+      const { runCascade } = await import('@/lib/ai/cascade');
+      const teor = hits
+        .slice(0, 3)
+        .map((h) => h.trecho)
+        .join('\n---\n')
+        .slice(0, 5000);
+      const r = await runCascade({
+        preferred: motor,
+        surface: 'ba',
+        system:
+          'Classifique publicações DJEN. JSON: {"is_ba":boolean,"confidence":0-1,"reason":"string"}. is_ba só se mandado de busca e apreensão de bem.',
+        messages: [{ role: 'user', content: teor }],
+        max_tokens: 250,
+        temperature: 0,
+      });
+      engineUsed = `${r.engineId}:${r.model}`;
+      const m = r.text.match(/\{[\s\S]*\}/);
+      if (m) {
+        const j = JSON.parse(m[0]);
+        iaNote = j.is_ba
+          ? `IA ${engineUsed} CONFIRMA BA (${Math.round((j.confidence || 0) * 100)}%): ${j.reason || ''}`
+          : `IA ${engineUsed} NÃO confirma BA: ${j.reason || ''}`;
+      } else {
+        iaNote = `IA ${engineUsed} respondeu sem JSON.`;
+      }
+    } catch (e: any) {
+      engineUsed = motor;
+      iaNote = `IA ${motor} falhou: ${e?.message || e}`;
+    }
+  }
+
   return {
     success: true as const,
     hits,
@@ -404,6 +442,8 @@ export async function scanOneClienteBaAction(
     advogadoOab,
     isRateLimited: false,
     pubs: res.items.length,
+    engineUsed,
+    iaNote,
   };
 }
 

@@ -6,7 +6,10 @@ export type ValidateResult =
   | { ok: true; text: string }
   | { ok: false; error: string };
 
-export function validateAiText(raw: unknown, opts?: { minLen?: number; expectJson?: boolean }): ValidateResult {
+export function validateAiText(
+  raw: unknown,
+  opts?: { minLen?: number; expectJson?: boolean }
+): ValidateResult {
   const minLen = opts?.minLen ?? 2;
   if (raw == null) return { ok: false, error: 'Motor retornou vazio.' };
 
@@ -18,7 +21,6 @@ export function validateAiText(raw: unknown, opts?: { minLen?: number; expectJso
     return { ok: false, error: `Resposta inválida (muito curta: ${text.length} chars).` };
   }
 
-  // Lixo típico
   if (/^(undefined|null|NaN|\[object Object\])$/i.test(text)) {
     return { ok: false, error: `Resposta inválida: ${text}` };
   }
@@ -43,11 +45,23 @@ export function validateAiText(raw: unknown, opts?: { minLen?: number; expectJso
   return { ok: true, text };
 }
 
+/** Alias usado por chat-service */
+export function validateAIResponse(raw: unknown): ValidateResult {
+  return validateAiText(raw);
+}
+
+/** Remove cercas markdown / espaços */
+export function cleanResponse(raw: unknown): string {
+  let text = typeof raw === 'string' ? raw : String(raw ?? '');
+  text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+  return text;
+}
+
 export function formatAiErrorForUser(err: unknown, engine?: string): string {
   const msg = err instanceof Error ? err.message : String(err || 'Erro desconhecido');
   const eng = engine ? ` [${engine}]` : '';
   if (/api key|401|unauthorized|authentication/i.test(msg)) {
-    return `Erro de autenticação do motor${eng}: verifique ANTHROPIC_API_KEY no Vercel. Detalhe: ${msg}`;
+    return `Erro de autenticação do motor${eng}: verifique as keys no Vercel. Detalhe: ${msg}`;
   }
   if (/429|rate limit/i.test(msg)) {
     return `Limite de requisições do motor${eng}. Aguarde e tente de novo. Detalhe: ${msg}`;

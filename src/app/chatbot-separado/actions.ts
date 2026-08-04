@@ -1,7 +1,4 @@
 'use server';
-/**
- * Chatbot / Assistente — cascata completa (Claude Messages API + fallbacks).
- */
 import { chatAIFlow } from '@/ai/flows/chat-ai-flow';
 import type { VisionImage } from '@/lib/ai/cascade';
 
@@ -26,6 +23,7 @@ export async function perguntarChatbotIndependente(
           content: h.content,
         })),
       preferred: model || 'claude',
+      preferredModel: model || 'claude',
       baClaudeDjen: !!opts?.baClaudeDjen,
       images: opts?.images,
       temperature: opts?.temperature,
@@ -39,16 +37,16 @@ export async function perguntarChatbotIndependente(
       engineUtilizada: res.engineUtilizada,
       tokens: res.tokensConsumidos,
       latencia: res.latencia,
-      baHint: res.baHint,
+      baHint: res.baHint ?? null,
     };
   } catch (error: any) {
-    console.error('[CHATBOT]', error?.message);
     return {
       sucesso: false,
-      resposta: `Falha na comunicação: ${error?.message || error}. Verifique ANTHROPIC_API_KEY e o Núcleo Neural em Configurações.`,
+      resposta: `Falha: ${error?.message || error}`,
       engine: 'ERROR',
       engineUtilizada: 'ERROR',
       tokens: 0,
+      baHint: null,
     };
   }
 }

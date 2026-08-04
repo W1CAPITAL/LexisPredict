@@ -57,7 +57,7 @@ export default function OpsPage() {
     const res = await opsListTables();
     if (res.success) {
       setTables(res.tables);
-      if (res.tables.length && !res.tables.includes(table)) setTable(res.tables[0]);
+      if (res.tables.length && !res.tables.includes(table)) setTable(res.tables[0] as any);
     } else {
       toast({ title: "Acesso negado", description: res.error, variant: "destructive" });
     }

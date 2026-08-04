@@ -1,32 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { chatAIFlow } from '@/ai/flows/chat-ai-flow';
 
-/**
- * @fileOverview Handler de Chat IA v1.0
- * Fornece interface HTTP para consultas estratégicas via motores neurais.
- */
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { pergunta, historico, preferredModel } = body;
-
-    const result = await chatAIFlow({
-      pergunta,
-      historico,
-      preferredModel
+    const res = await chatAIFlow({
+      pergunta: body.pergunta || body.message || body.prompt || '',
+      historico: body.historico || body.history,
+      preferred: body.preferred || body.preferredModel || body.model || 'claude',
+      preferredModel: body.preferredModel || body.model,
+      tribunalContext: body.tribunalContext,
+      baClaudeDjen: !!body.baClaudeDjen,
+      images: body.images,
     });
-
-    // Retorna apenas propriedades existentes no tipo do chatAIFlow
-    return NextResponse.json({
-      response: result.resposta,
-      engine: result.engineUtilizada,
-      sucesso: result.sucesso
-    });
-  } catch (error: any) {
-    console.error("[CHAT API ERROR]", error.message);
+    return NextResponse.json(res);
+  } catch (e: any) {
     return NextResponse.json(
-      { sucesso: false, response: "Falha interna no motor neural." },
+      { sucesso: false, resposta: e?.message || 'Erro', engineUtilizada: 'ERROR' },
       { status: 500 }
     );
   }
