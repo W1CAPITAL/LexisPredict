@@ -1,5 +1,5 @@
 /**
- * Fila BA por nome do cliente (1 a 1, delay anti-429)
+ * Fila BA — cliente + advogado/OAB no mesmo card; logs sem lista de terceiros.
  */
 "use client";
 
@@ -12,27 +12,27 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import {
   ShieldAlert,
-  Loader2,
   Play,
   Pause,
   Square,
   ExternalLink,
-  Gavel,
   User,
   Briefcase,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   listBaQueueAction,
   scanOneClienteBaAction,
+  listBaScanLogsAction,
   type BaHit,
   type BaQueueItem,
 } from "@/app/actions/busca-apreensao-actions";
 
 type Status = "idle" | "running" | "paused" | "done";
 
-const DELAY_MS = 2800; // espaçamento entre clientes (anti-429)
-const DELAY_ON_429_MS = 45000; // pausa longa se 429
+const DELAY_MS = 2800;
+const DELAY_ON_429_MS = 45000;
 
 function sleep(ms: number, signal: { cancelled: boolean }) {
   return new Promise<void>((resolve) => {
@@ -55,8 +55,9 @@ export default function BuscaApreensaoPage() {
   const [index, setIndex] = useState(0);
   const [hits, setHits] = useState<BaHit[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
+  const [savedLogs, setSavedLogs] = useState<any[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
-  const [currentName, setCurrentName] = useState<string | null>(null);
+  const [current, setCurrent] = useState<BaQueueItem | null>(null);
 
   const statusRef = useRef<Status>("idle");
   const indexRef = useRef(0);
@@ -73,6 +74,11 @@ export default function BuscaApreensaoPage() {
     queueRef.current = queue;
   }, [queue]);
 
+  const loadSaved = useCallback(async () => {
+    const res = await listBaScanLogsAction(40);
+    if (res.success) setSavedLogs(res.logs);
+  }, []);
+
   const loadQueue = useCallback(async () => {
     setLoadingQueue(true);
     try {
@@ -83,17 +89,18 @@ export default function BuscaApreensaoPage() {
       } else {
         toast({ title: "Fila", description: res.error, variant: "destructive" });
       }
+      await loadSaved();
     } finally {
       setLoadingQueue(false);
     }
-  }, [toast]);
+  }, [toast, loadSaved]);
 
   useEffect(() => {
     loadQueue();
   }, [loadQueue]);
 
   const addLog = (line: string) => {
-    setLogs((prev) => [line, ...prev].slice(0, 80));
+    setLogs((prev) => [line, ...prev].slice(0, 60));
   };
 
   const runLoop = async (fromIndex: number) => {
@@ -111,35 +118,38 @@ export default function BuscaApreensaoPage() {
       const item = q[i];
       setIndex(i);
       indexRef.current = i;
-      setCurrentName(item.nome);
-      addLog(`Consultando: ${item.nome}`);
+      setCurrent(item);
 
-      const res = await scanOneClienteBaAction(item.nome);
+      const labelAdv = item.advogadoNome
+        ? ` · Adv: ${item.advogadoNome}${item.advogadoOab ? ` (OAB ${item.advogadoOab})` : ""}`
+        : "";
+      addLog(`${item.nome}${labelAdv}`);
+
+      const res = await scanOneClienteBaAction(item.nome, {
+        advogadoNome: item.advogadoNome,
+        advogadoOab: item.advogadoOab,
+        protocolos: item.protocolos,
+        createdBy: item.createdBy,
+      });
 
       if (res.isRateLimited) {
-        addLog(`429 Rate limit — aguardando ${DELAY_ON_429_MS / 1000}s…`);
-        toast({
-          title: "DJEN 429",
-          description: `Pausa de ${DELAY_ON_429_MS / 1000}s e retoma o mesmo cliente.`,
-          variant: "destructive",
-        });
+        addLog(`429 — pausa ${DELAY_ON_429_MS / 1000}s (mesmo cliente)`);
         await sleep(DELAY_ON_429_MS, cancelRef.current);
         if (cancelRef.current.cancelled) {
           setStatus("paused");
           return;
         }
-        // não avança índice — tenta de novo o mesmo
         continue;
       }
 
       if (!res.success) {
-        addLog(`Erro (${item.nome}): ${res.error || "falha"}`);
+        addLog(`Erro: ${res.error || "falha"}`);
       } else {
         const n = res.hits?.length || 0;
         addLog(
           n > 0
-            ? `BA encontrado: ${item.nome} (${n})`
-            : `OK sem BA: ${item.nome} (${res.pubs ?? 0} pubs)`
+            ? `BA: ${n} pub · ${item.nome}`
+            : `Sem BA · ${item.nome} (${res.pubs ?? 0} pubs)`
         );
         if (n > 0) {
           setHits((prev) => {
@@ -161,17 +171,16 @@ export default function BuscaApreensaoPage() {
 
     setStatus("done");
     statusRef.current = "done";
-    setCurrentName(null);
+    setCurrent(null);
     addLog("Fila concluída.");
+    await loadSaved();
     toast({ title: "Fila BA concluída" });
   };
 
   const start = async () => {
-    if (!queue.length) {
-      await loadQueue();
-    }
+    if (!queueRef.current.length) await loadQueue();
     if (!queueRef.current.length) {
-      toast({ title: "Fila vazia", description: "Nenhum cliente na carteira." });
+      toast({ title: "Fila vazia" });
       return;
     }
     setStatus("running");
@@ -192,15 +201,13 @@ export default function BuscaApreensaoPage() {
     cancelRef.current.cancelled = true;
     setStatus("paused");
     statusRef.current = "paused";
-    addLog("Pausado.");
   };
 
   const stop = () => {
     cancelRef.current.cancelled = true;
     setStatus("idle");
     statusRef.current = "idle";
-    setCurrentName(null);
-    addLog("Parado.");
+    setCurrent(null);
   };
 
   const total = queue.length;
@@ -217,21 +224,15 @@ export default function BuscaApreensaoPage() {
               <ShieldAlert className="text-red-600" size={20} />
             </div>
             <div>
-              <h1 className="text-sm font-black uppercase tracking-widest">
-                Busca e Apreensão
-              </h1>
+              <h1 className="text-sm font-black uppercase tracking-widest">Busca e Apreensão</h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">
-                Fila por nome do cliente · DJEN 1 a 1 · anti-429
+                Cliente + advogado/OAB · fila 1 a 1 · logs salvos no SQL
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {(status === "idle" || status === "done") && (
-              <Button
-                onClick={start}
-                disabled={loadingQueue}
-                className="h-10 rounded-xl font-black uppercase text-[10px] bg-red-600 hover:bg-red-700 text-white"
-              >
+              <Button onClick={start} disabled={loadingQueue} className="h-10 rounded-xl font-black uppercase text-[10px] bg-red-600 hover:bg-red-700 text-white">
                 <Play className="mr-2 h-4 w-4" /> Iniciar fila
               </Button>
             )}
@@ -250,33 +251,23 @@ export default function BuscaApreensaoPage() {
                 </Button>
               </>
             )}
-            <Button asChild variant="outline" size="sm" className="h-10 rounded-xl text-[9px] font-black uppercase">
-              <Link href="/cases?filter=hoje">Processos de hoje</Link>
-            </Button>
           </div>
         </header>
 
         <div className="px-4 sm:px-8 py-4 border-b border-border/40 space-y-2 shrink-0">
-          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-            <span>
-              {status === "running" && currentName
-                ? `Consultando: ${currentName}`
-                : status === "paused"
-                  ? "Pausado"
-                  : status === "done"
-                    ? "Concluído"
-                    : loadingQueue
-                      ? "Carregando fila…"
-                      : `${total} clientes na fila`}
+          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest gap-2 flex-wrap">
+            <span className="truncate">
+              {current
+                ? `${current.nome}${current.advogadoNome ? ` · ${current.advogadoNome}` : ""}${current.advogadoOab ? ` · OAB ${current.advogadoOab}` : ""}`
+                : loadingQueue
+                  ? "Carregando…"
+                  : `${total} clientes`}
             </span>
             <span>
               {done}/{total || 0} ({pct}%)
             </span>
           </div>
           <Progress value={pct} className="h-2" />
-          <p className="text-[9px] text-muted-foreground font-bold uppercase">
-            Delay {DELAY_MS / 1000}s entre clientes · se 429, espera {DELAY_ON_429_MS / 1000}s e repete o mesmo nome
-          </p>
         </div>
 
         <div className="flex-1 overflow-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -284,25 +275,23 @@ export default function BuscaApreensaoPage() {
             <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               Alertas BA ({hits.length})
             </h2>
-            {hits.length === 0 && (
-              <p className="text-sm text-muted-foreground py-10 text-center font-bold uppercase tracking-wide">
-                Nenhum BA ainda — inicie a fila
-              </p>
-            )}
             {hits.map((h) => (
-              <div
-                key={h.id}
-                className="border-2 border-red-600 rounded-xl p-4 bg-card/50 space-y-2 shadow-[3px_3px_0_#dc2626]"
-              >
+              <div key={h.id} className="border-2 border-red-600 rounded-xl p-4 bg-card/50 space-y-2 shadow-[3px_3px_0_#dc2626]">
                 <div className="flex flex-wrap justify-between gap-2">
-                  <div>
-                    <Badge className="bg-red-600 text-white font-black uppercase text-[8px] mb-1">
-                      {h.motivoBa}
-                    </Badge>
-                    <p className="font-black text-sm uppercase">{h.clienteBusca}</p>
+                  <div className="space-y-1">
+                    <Badge className="bg-red-600 text-white font-black uppercase text-[8px]">{h.motivoBa}</Badge>
+                    <p className="font-black text-sm uppercase flex flex-wrap items-center gap-2">
+                      <User size={14} /> {h.clienteNome}
+                      {h.advogadoNome && (
+                        <span className="font-bold text-muted-foreground normal-case text-xs">
+                          · <Briefcase size={12} className="inline" /> {h.advogadoNome}
+                          {h.advogadoOab ? ` · OAB ${h.advogadoOab}` : ""}
+                        </span>
+                      )}
+                    </p>
                     <p className="font-mono text-xs font-bold">{h.processo || "—"}</p>
                     <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                      {h.data || "—"} · {h.tribunal || ""} {h.orgao || ""}
+                      {h.data || "—"} · {h.tribunal || ""}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -312,38 +301,54 @@ export default function BuscaApreensaoPage() {
                       </Button>
                     )}
                     {h.link && (
-                      <Button asChild variant="outline" size="sm" className="rounded-xl text-[8px] font-black uppercase h-8">
-                        <a href={h.link} target="_blank" rel="noreferrer">
-                          <ExternalLink size={12} />
-                        </a>
+                      <Button asChild variant="outline" size="sm" className="rounded-xl h-8">
+                        <a href={h.link} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a>
                       </Button>
                     )}
                   </div>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {h.matches.map((m, i) => (
-                    <Badge key={i} variant="secondary" className="text-[8px] font-black uppercase gap-1">
-                      {m.tipo === "cliente" || m.tipo === "titular" ? <User size={10} /> : <Briefcase size={10} />}
-                      {m.tipo}: {m.nome}
-                    </Badge>
-                  ))}
                 </div>
                 <p className="text-[11px] text-muted-foreground line-clamp-4 whitespace-pre-wrap">{h.trecho}</p>
               </div>
             ))}
           </div>
 
-          <div className="lg:col-span-2 space-y-2">
-            <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-              Log da fila
-            </h2>
-            <div className="border-2 border-border rounded-xl p-3 max-h-[60vh] overflow-auto bg-secondary/20 font-mono text-[10px] space-y-1">
-              {logs.length === 0 && <p className="text-muted-foreground">—</p>}
-              {logs.map((l, i) => (
-                <div key={i} className="border-b border-border/30 pb-1">
-                  {l}
-                </div>
-              ))}
+          <div className="lg:col-span-2 space-y-4">
+            <div>
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
+                Log da sessão
+              </h2>
+              <div className="border-2 border-border rounded-xl p-3 max-h-[28vh] overflow-auto bg-secondary/20 font-mono text-[10px] space-y-1">
+                {logs.map((l, i) => (
+                  <div key={i} className="border-b border-border/30 pb-1">{l}</div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1">
+                <History size={12} /> Salvos (SQL · seu usuário)
+              </h2>
+              <div className="border-2 border-border rounded-xl p-3 max-h-[32vh] overflow-auto text-[10px] space-y-2">
+                {savedLogs.length === 0 && (
+                  <p className="text-muted-foreground font-bold uppercase">
+                    Nenhum log salvo — rode o SQL se a tabela não existir
+                  </p>
+                )}
+                {savedLogs.map((row) => (
+                  <div key={row.id} className="border-b border-border/40 pb-2">
+                    <p className="font-black uppercase">
+                      {row.cliente_nome}
+                      {row.advogado_nome ? ` · ${row.advogado_nome}` : ""}
+                      {row.advogado_oab ? ` · OAB ${row.advogado_oab}` : ""}
+                    </p>
+                    <p className="text-muted-foreground font-bold">
+                      {row.motivo_ba} · {row.data_publicacao || row.created_at?.slice?.(0, 10) || ""}
+                    </p>
+                    {row.processo_djen && (
+                      <p className="font-mono">{row.processo_djen}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
