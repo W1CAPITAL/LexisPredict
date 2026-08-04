@@ -22,6 +22,9 @@ import {
   publicacaoBateComCarteira,
   mesmoCnj,
   digitsOnly,
+  detectarBaCompleto,
+  labelTipoBa,
+  type BaTipo,
 } from '@/lib/busca-apreensao-logic';
 
 export interface BaHit {
@@ -29,9 +32,7 @@ export interface BaHit {
   data: string | null;
   tribunal: string | null;
   orgao: string | null;
-  /** CNJ vindo da publicação DJEN */
   processoDjen: string | null;
-  /** CNJ da nossa carteira/planilha (quando houver) */
   protocoloCarteira: string | null;
   protocolosCarteira: string[];
   clienteNome: string;
@@ -41,6 +42,12 @@ export interface BaHit {
   motivoBa: string;
   link: string | null;
   createdBy: string | null;
+  tipoBa: BaTipo;
+  alertarOperacional: boolean;
+  ufCarteira: string | null;
+  ufMandado: string | null;
+  geoMotivo: string;
+  geoDistante: boolean;
 }
 
 export interface BaQueueItem {
@@ -348,14 +355,18 @@ export async function scanOneClienteBaAction(
   const seenProcesso = new Set<string>();
 
   for (const item of res.items || []) {
-    const det = textoIndicaBuscaApreensao(item.texto || '');
-    if (!det.hit) continue;
-
     const processoDjen = item.numero_processo
       ? String(item.numero_processo)
       : null;
 
-    // Vínculo com a carteira do usuário: CNJ ou nome do cliente (advogado NÃO bloqueia)
+    const full = detectarBaCompleto({
+      texto: item.texto || '',
+      processoDjen,
+      tribunalSigla: item.siglaTribunal || null,
+      protocolosCarteira: protocolos,
+    });
+    if (!full.hit) continue;
+
     const vinculo = publicacaoBateComCarteira({
       texto: item.texto || '',
       processoDjen,
@@ -404,10 +415,16 @@ export async function scanOneClienteBaAction(
       clienteNome: nome,
       advogadoNome,
       advogadoOab,
-      trecho: `[${vinculo.motivoMatch}] ${(item.texto || '').slice(0, 480)}`,
-      motivoBa: det.motivo || 'BUSCA E APREENSÃO',
+      trecho: `[${vinculo.motivoMatch}] [${labelTipoBa(full.tipo)}] ${full.geo.motivoGeo}${full.geo.distante ? ' · GEO DISTANTE' : ''}\n${(item.texto || '').slice(0, 480)}`,
+      motivoBa: full.motivo || 'BUSCA E APREENSÃO',
       link: item.link,
       createdBy,
+      tipoBa: full.tipo,
+      alertarOperacional: full.alertarOperacional,
+      ufCarteira: full.geo.ufCarteira,
+      ufMandado: full.geo.ufMandado,
+      geoMotivo: full.geo.motivoGeo,
+      geoDistante: full.geo.distante,
     });
   }
 
