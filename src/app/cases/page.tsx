@@ -23,7 +23,8 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
-import { exportCasesToCSVAction } from '@/app/actions/export-actions';
+import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
+import { runCasesPlanilhaExport } from '@/lib/run-cases-export';
 import { format, parseISO, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -178,19 +179,32 @@ function CasesContent() {
     }
   };
 
+  const handleExportXlsx = async () => {
+    setExporting(true);
+    try {
+      await runCasesPlanilhaExport(toast);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleExportCSV = async () => {
     setExporting(true);
     try {
       const res = await exportCasesToCSVAction();
-      if (res.success && res.base64) {
-        const link = document.createElement('a');
-        link.href = `data:text/csv;base64,${res.base64}`;
-        link.download = res.filename || 'export_processos.csv';
-        link.click();
-        toast({ title: "Exportação Concluída" });
+      if (res.success && (res as any).base64) {
+        const a = document.createElement('a');
+        a.href = `data:text/csv;base64,${(res as any).base64}`;
+        a.download = (res as any).filename || 'export_processos.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast({ title: 'CSV exportado', description: `${(res as any).count || ''} processos` });
       } else {
-        toast({ title: "Falha na Exportação", description: res.error, variant: "destructive" });
+        toast({ title: 'Falha CSV', description: (res as any).error || 'Erro', variant: 'destructive' });
       }
+    } catch (e: any) {
+      toast({ title: 'Falha CSV', description: e?.message || 'Erro', variant: 'destructive' });
     } finally {
       setExporting(false);
     }
@@ -344,8 +358,25 @@ function CasesContent() {
              <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Carteira do Gabinete</h1>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={exporting} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary">
-              {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />} Extrair Planilha
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleExportXlsx}
+              disabled={exporting}
+              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
+              Exportar XLSX
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={exporting}
+              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
+            >
+              {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
+              CSV
             </Button>
             <Button
               variant="outline"
