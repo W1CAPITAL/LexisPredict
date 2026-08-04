@@ -20,10 +20,10 @@ function EngineOption({
     engine.status === "ONLINE"
       ? "bg-emerald-500/10 text-emerald-500"
       : engine.status === "ZERO-TOKEN"
-      ? "bg-sky-500/10 text-sky-500"
-      : engine.status === "SEMPRE"
-      ? "bg-violet-500/10 text-violet-500"
-      : "bg-amber-500/10 text-amber-600";
+        ? "bg-sky-500/10 text-sky-500"
+        : engine.status === "SEMPRE"
+          ? "bg-violet-500/10 text-violet-500"
+          : "bg-amber-500/10 text-amber-600";
 
   return (
     <label
@@ -44,7 +44,12 @@ function EngineOption({
           <p className="text-[10px] text-muted-foreground mt-1">{engine.desc}</p>
         </div>
       </div>
-      <Badge className={cn("border-none text-[8px] font-black uppercase px-2 py-0.5", statusColor)}>
+      <Badge
+        className={cn(
+          "border-none text-[8px] font-black uppercase px-2 py-0.5",
+          statusColor
+        )}
+      >
         {engine.status}
       </Badge>
     </label>
@@ -63,7 +68,9 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
   useEffect(() => {
     const saved = localStorage.getItem("lexisPredict_preferred_ia") || "xai";
     setIaModel(saved);
-    setScanWithFreeAi(localStorage.getItem("lexisPredict_scan_puter_ai") === "1");
+    setScanWithFreeAi(
+      localStorage.getItem("lexisPredict_scan_puter_ai") === "1"
+    );
   }, []);
 
   const handleChangeModel = (val: string) => {
@@ -80,7 +87,9 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
     toast({ title: "Prioridade Alterada", description: val });
   };
 
-  const oficiais = AI_ENGINES.filter((e) => e.group === "oficial" || e.group === "local");
+  const oficiais = AI_ENGINES.filter(
+    (e) => e.group === "oficial" || e.group === "local"
+  );
   const puters = AI_ENGINES.filter((e) => e.group === "puter");
 
   return (
@@ -92,7 +101,6 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
       </CardHeader>
 
       <CardContent className="p-8 space-y-8">
-        {/* Aviso de sigilo */}
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-4">
           <ShieldCheck className="text-amber-500 mt-1 shrink-0" size={18} />
           <div>
@@ -100,12 +108,12 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
               Protocolo de Sigilo Ativo
             </p>
             <p className="text-[9px] font-bold text-amber-600/80 uppercase leading-relaxed mt-1">
-              As IAs estão instruídas a nunca citar nomes de empresas. Todo despacho é gerado em tom institucional neutro.
+              As IAs estão instruídas a nunca citar nomes de empresas. Todo
+              despacho é gerado em tom institucional neutro.
             </p>
           </div>
         </div>
 
-        {/* Motores oficiais */}
         <div className="space-y-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             Motores Oficiais (tokens no Vercel)
@@ -123,7 +131,6 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
           </RadioGroup>
         </div>
 
-        {/* Motores Puter (zero-token) */}
         <div className="space-y-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             Zero-Token no Servidor (Puter no browser)
@@ -141,18 +148,18 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
           </RadioGroup>
         </div>
 
-        {/* Scanner + Puter */}
         <div className="p-5 border border-border rounded-lg space-y-3">
           <p className="text-[10px] font-black uppercase tracking-widest">
             Scanner tribunal + IA sem seus tokens
           </p>
           <p className="text-[10px] text-muted-foreground">
-            Pós-scan DataJud/DJEN: interpretação/rascunho via Puter (Claude/Grok),
-            sem chamar XAI/GROQ/Gemini do Vercel. Scripts Lexis seguem 1ª linha.
+            Pós-scan DataJud/DJEN e Busca e Apreensão: interpretação/rascunho via
+            Puter (Claude/Grok), sem chamar XAI/GROQ/Gemini do Vercel. Scripts
+            Lexis seguem 1ª linha.
           </p>
           <label className="flex items-center justify-between gap-4 cursor-pointer">
             <span className="text-[11px] font-bold uppercase">
-              Ativar análise pós-scan via Puter
+              Ativar análise pós-scan / BA via Puter
             </span>
             <input
               type="checkbox"
@@ -165,9 +172,14 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
                 }
                 const on = e.target.checked;
                 setScanWithFreeAi(on);
-                localStorage.setItem("lexisPredict_scan_puter_ai", on ? "1" : "0");
+                localStorage.setItem(
+                  "lexisPredict_scan_puter_ai",
+                  on ? "1" : "0"
+                );
                 toast({
-                  title: on ? "Scanner + Puter IA ativo" : "Scanner + Puter IA off",
+                  title: on
+                    ? "Scanner + Puter IA ativo"
+                    : "Scanner + Puter IA off",
                 });
               }}
             />

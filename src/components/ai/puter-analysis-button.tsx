@@ -30,14 +30,16 @@ export function PuterAnalysisButton({
   const [draft, setDraft] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
-    const preferred = localStorage.getItem("lexisPredict_preferred_ia") || "xai";
-    const scanPuter = localStorage.getItem("lexisPredict_scan_puter_ai") === "1";
+    const preferred =
+      localStorage.getItem("lexisPredict_preferred_ia") || "xai";
+    const scanPuter =
+      localStorage.getItem("lexisPredict_scan_puter_ai") === "1";
 
-    // Só usa Puter se estiver ativado e o motor preferido for Puter
     if (!scanPuter || !isPuterEngine(preferred)) {
       toast({
         title: "Puter não ativo",
-        description: "Ative “Scanner + Puter IA” e escolha um motor Puter em Configurações → Núcleo Neural.",
+        description:
+          "Ative “Scanner + Puter IA” e escolha um motor Puter em Configurações → Núcleo Neural.",
         variant: "destructive",
       });
       return;
@@ -63,6 +65,7 @@ ${contexto || "Nenhuma"}
 Regras:
 - Linguagem simples, sem juridiquês.
 - Não prometa resultado nem dinheiro na conta.
+- Nunca cite nomes de empresas ou escritórios.
 - Se houver trânsito em julgado + documentos novos, explique que o escritório está analisando.
 - Se for busca e apreensão, seja urgente mas calmo.
 - Mostre que a equipe está trabalhando.

@@ -33,9 +33,16 @@ export async function ensurePuterLoaded(): Promise<boolean> {
   if (window.puter) return true;
 
   return new Promise((resolve) => {
+    const existing = document.querySelector('script[data-puter="1"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(!!window.puter));
+      setTimeout(() => resolve(!!window.puter), 2500);
+      return;
+    }
     const script = document.createElement("script");
     script.src = "https://js.puter.com/v2/";
     script.async = true;
+    script.dataset.puter = "1";
     script.onload = () => resolve(!!window.puter);
     script.onerror = () => resolve(false);
     document.head.appendChild(script);
@@ -50,7 +57,10 @@ export async function puterChat(params: {
   try {
     const loaded = await ensurePuterLoaded();
     if (!loaded || !window.puter) {
-      return { success: false, error: "Puter.js não carregou. Verifique a conexão." };
+      return {
+        success: false,
+        error: "Puter.js não carregou. Verifique a conexão.",
+      };
     }
 
     const modelKey = params.model || "puter-claude";
@@ -60,7 +70,6 @@ export async function puterChat(params: {
       ? `${params.system}\n\n${params.prompt}`
       : params.prompt;
 
-    // API Puter (chat)
     const response = await window.puter.ai.chat(fullPrompt, {
       model,
     });
@@ -68,7 +77,8 @@ export async function puterChat(params: {
     const text =
       typeof response === "string"
         ? response
-        : response?.message?.content ||
+        : response?.message?.content?.[0]?.text ||
+          response?.message?.content ||
           response?.text ||
           response?.content ||
           JSON.stringify(response);
@@ -92,6 +102,7 @@ Regras obrigatórias:
 - Linguagem clara, direta e para leigo (sem juridiquês desnecessário).
 - Nunca invente fatos ou valores.
 - Nunca prometa resultado ou dinheiro na conta do cliente.
+- Nunca cite nomes de empresas, escritórios ou marcas comerciais.
 - Alinhe expectativas (ex: compensação de valores, abatimento de dívida).
 - Mostre que o escritório está trabalhando ativamente.
 - Tom profissional, calmo e protetivo para o escritório.

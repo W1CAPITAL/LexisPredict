@@ -10,7 +10,6 @@ export interface AiEngine {
 }
 
 export const AI_ENGINES: AiEngine[] = [
-  // Oficiais (tokens no Vercel)
   {
     id: "xai",
     label: "xAI GROK 4.5",
@@ -43,8 +42,6 @@ export const AI_ENGINES: AiEngine[] = [
     group: "local",
     requiresToken: false,
   },
-
-  // Zero-token no servidor (Puter no browser)
   {
     id: "puter-claude",
     label: "Puter · Claude",
