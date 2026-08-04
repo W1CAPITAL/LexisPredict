@@ -417,7 +417,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3">
             {isSuperadmin && (
               <Button asChild variant="outline" size="sm" className="h-9 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-primary/50">
-                <Link href="/settings/ops">
+                <Link href="/ops">
                   <Database size={12} className="mr-2" />
                   Operações de dados
                 </Link>
@@ -455,7 +455,7 @@ export default function SettingsPage() {
                 {isMasterUnlocked && <NavButton active={activeTab === 'Export'} onClick={() => setActiveTab('Export')} icon={<Archive size={14}/>} label="Exportação Master" />}
                 {isSuperadmin && (
                   <Link
-                    href="/settings/ops"
+                    href="/ops"
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-left border-2 border-primary/40 bg-primary/10 text-foreground hover:bg-primary hover:text-black"
                   >
                     <Database size={14} />
