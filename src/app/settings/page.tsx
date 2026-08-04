@@ -44,7 +44,8 @@ import {
   EyeOff,
   Briefcase,
   Unlock,
-  Type
+  Type,
+  Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -69,7 +70,9 @@ import { uploadUserAvatarAction, uploadAdvogadoAvatarAction, removeAvatarAction 
 import { fetchKnowledgeDocsAction, uploadKnowledgeDocAction, deleteKnowledgeDocAction } from '@/app/actions/knowledge-actions';
 import { saveAs } from 'file-saver';
 import { useAuth } from '@/components/auth/auth-provider';
+import { checkIfSuperAdmin } from '@/lib/supabase';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -162,6 +165,7 @@ export default function SettingsPage() {
 
   const isSupervisor = profile?.cargo === 'Supervisor' || profile?.cargo === 'Superadmin';
   const isAdmin = profile?.cargo === 'Administrador' || isSupervisor;
+  const isSuperadmin = checkIfSuperAdmin(profile);
 
   useEffect(() => {
     setMounted(true);
@@ -410,7 +414,17 @@ export default function SettingsPage() {
           <div className="flex items-center gap-4">
              <h1 className="font-black text-sm tracking-[0.2em] uppercase">Gabinete Mission Control</h1>
           </div>
-          <Badge variant="outline" className="text-primary text-[9px] uppercase font-black tracking-[0.3em] rounded-none px-3 py-1 border-primary/50">Enterprise Edition v25.0</Badge>
+          <div className="flex items-center gap-3">
+            {isSuperadmin && (
+              <Button asChild variant="outline" size="sm" className="h-9 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-primary/50">
+                <Link href="/settings/ops">
+                  <Database size={12} className="mr-2" />
+                  Operações de dados
+                </Link>
+              </Button>
+            )}
+            <Badge variant="outline" className="text-primary text-[9px] uppercase font-black tracking-[0.3em] rounded-none px-3 py-1 border-primary/50">Enterprise Edition v25.0</Badge>
+          </div>
         </header>
 
         <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full">
@@ -439,6 +453,15 @@ export default function SettingsPage() {
                 <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
                 <NavButton active={activeTab === 'Engine'} onClick={() => setActiveTab('Engine')} icon={<Cpu size={14}/>} label="Núcleo Neural" />
                 {isMasterUnlocked && <NavButton active={activeTab === 'Export'} onClick={() => setActiveTab('Export')} icon={<Archive size={14}/>} label="Exportação Master" />}
+                {isSuperadmin && (
+                  <Link
+                    href="/settings/ops"
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-left border-2 border-primary/40 bg-primary/10 text-foreground hover:bg-primary hover:text-black"
+                  >
+                    <Database size={14} />
+                    Operações de dados
+                  </Link>
+                )}
               </nav>
             </aside>
 
