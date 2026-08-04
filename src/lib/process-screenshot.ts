@@ -37,7 +37,7 @@ export async function captureProcessScreenshot(
       },
       executablePath,
       headless: true,
-      ignoreHTTPSErrors: true,
+      acceptInsecureCerts: true,
     });
 
     const page = await browser.newPage();

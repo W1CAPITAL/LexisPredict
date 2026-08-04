@@ -11,10 +11,10 @@
 declare global {
   interface Window {
     puter?: {
-      ai: {
+      ai?: {
         chat: (
-          prompt: string | any,
-          options?: { model?: string; temperature?: number; max_tokens?: number }
+          prompt: string,
+          opts?: { model?: string; stream?: boolean; temperature?: number; max_tokens?: number }
         ) => Promise<any>;
       };
     };

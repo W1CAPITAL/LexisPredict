@@ -61,7 +61,7 @@ export default function AssistentePage() {
           role: "assistant",
           content:
             (res.resposta || "Sem resposta.") +
-            (res.engineUtilizada ? `\n\n— motor: ${res.engineUtilizada}${cnj ? ` · CNJ ${cnj}` : ""}` : ""),
+            ((res as any).engine || (res as any).engineUtilizada ? `\n\n— motor: ${(res as any).engine || (res as any).engineUtilizada}${cnj ? ` · CNJ ${cnj}` : ""}` : ""),
         },
       ]);
     } catch {

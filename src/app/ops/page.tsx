@@ -54,7 +54,7 @@ export default function SettingsOpsPage() {
 
   // --- Lexis ---
   const [tables, setTables] = useState<string[]>([]);
-  const [table, setTable] = useState("processos");
+  const [table, setTable] = useState<string>("processos");
   const [rows, setRows] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -88,7 +88,7 @@ export default function SettingsOpsPage() {
     if (!table) return;
     setLoading(true);
     try {
-      const res = await opsListRows(table, 100, search);
+      const res = await opsListRows(table as any, 100, search);
       if (res.success) setRows(res.data || []);
       else {
         setRows([]);
@@ -148,7 +148,7 @@ export default function SettingsOpsPage() {
     if (!deleteId) return;
     setDeleting(true);
     try {
-      const res = await opsDeleteRow(table, deleteId);
+      const res = await opsDeleteRow(table as any, deleteId);
       if (res.success) {
         toast({ title: "Registro removido" });
         setDeleteId(null);
@@ -187,7 +187,7 @@ export default function SettingsOpsPage() {
     setSaving(true);
     try {
       const parsed = JSON.parse(editJson);
-      const res = await opsUpsertRow(table, parsed);
+      const res = await opsUpsertRow(table as any, parsed);
       if (res.success) {
         toast({ title: "Registro salvo" });
         setEditRow(null);

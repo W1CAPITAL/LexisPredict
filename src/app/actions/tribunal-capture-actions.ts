@@ -135,7 +135,7 @@ async function captureUrlScreenshot(
       defaultViewport: { width: 1400, height: 900 },
       executablePath,
       headless: true,
-      ignoreHTTPSErrors: true,
+      acceptInsecureCerts: true, // HTTPS de tribunais
     });
 
     const page = await browser.newPage();

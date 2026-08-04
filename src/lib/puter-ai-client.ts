@@ -10,7 +10,7 @@ declare global {
       ai?: {
         chat: (
           prompt: string,
-          opts?: { model?: string; stream?: boolean; temperature?: number }
+          opts?: { model?: string; stream?: boolean; temperature?: number; max_tokens?: number }
         ) => Promise<any>;
       };
     };
