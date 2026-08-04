@@ -1,0 +1,8 @@
+Em src/lib/tribunais-cnj.ts, altere a linha do "26":
+
+  "26": {
+    nome: "TJSP",
+    sistema: "eproc",
+    consultaUrl: () =>
+      "https://eproc-consulta.tjsp.jus.br/consulta_1g/externo_controlador.php?acao=tjsp@consulta_unificada_publica/consultar"
+  },

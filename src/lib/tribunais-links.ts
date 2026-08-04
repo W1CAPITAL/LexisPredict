@@ -41,7 +41,7 @@ export const TRIBUNAIS_TJ: TribunalLink[] = [
   { codigo: '8.23', sigla: 'TJRR', nome: 'Roraima', url: 'https://projudi.tjrr.jus.br/projudi/', sistema: 'projudi' },
   { codigo: '8.24', sigla: 'TJSC', nome: 'Santa Catarina', url: 'https://eprocwebcon.tjsc.jus.br/consulta1g/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc' },
   { codigo: '8.25', sigla: 'TJSE', nome: 'Sergipe', url: 'https://www.tjse.jus.br/portal/consultas/consulta-processual', sistema: 'outro' },
-  { codigo: '8.26', sigla: 'TJSP', nome: 'São Paulo', url: 'https://esaj.tjsp.jus.br/cpopg/open.do', sistema: 'esaj', esajFamily: true, alternativos: [{ url: 'https://eproc.tjsp.jus.br/eproc/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc', label: 'eproc' }, { url: 'https://esaj.tjsp.jus.br/cposg/open.do', sistema: 'esaj', label: '2º grau' }] },
+  { codigo: '8.26', sigla: 'TJSP', nome: 'São Paulo', url: 'https://eproc-consulta.tjsp.jus.br/consulta_1g/externo_controlador.php?acao=tjsp@consulta_unificada_publica/consultar', sistema: 'eproc', esajFamily: true, alternativos: [{ url: 'https://esaj.tjsp.jus.br/cpopg/open.do', sistema: 'esaj', label: 'e-SAJ 1º grau' }, { url: 'https://esaj.tjsp.jus.br/cposg/open.do', sistema: 'esaj', label: 'e-SAJ 2º grau' }, { url: 'https://eproc.tjsp.jus.br/eproc/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc', label: 'eproc alt' }] },
   { codigo: '8.27', sigla: 'TJTO', nome: 'Tocantins', url: 'https://eproc1.tjto.jus.br/eprocV2_prod_1grau/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc' },
 ];
 

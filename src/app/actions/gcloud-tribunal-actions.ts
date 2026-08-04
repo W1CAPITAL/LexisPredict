@@ -1,34 +1,44 @@
 /**
- * Compat do botão "Abrir tribunal" — usa stack Enriquecer e-SAJ (sem GCloud Run).
+ * Abrir tribunal: eproc prioritário (TJSP), e-SAJ secundário.
+ * Sem GCloud Run. Embed no app usa openUrl retornada aqui.
  */
 'use server';
 
+import { enrichWithEsaJAction } from '@/app/actions/esa-j-actions';
 import {
-  enrichWithEsaJAction,
-  getConsultaUrlAction,
-} from '@/app/actions/esa-j-actions';
+  getConsultaUrlForCnj,
+  getTribunalByCnj,
+  getFallbacksForCnj,
+} from '@/lib/tribunais-links';
 import { getTribunalFromCnj } from '@/lib/tribunais-cnj';
 
 export async function openTribunalViaGcloudAction(
   cnjRaw: string,
-  action: 'open' | 'fetch' | 'screenshot' = 'fetch'
+  _action: 'open' | 'fetch' | 'screenshot' = 'fetch'
 ) {
   const cnj = cnjRaw.trim();
   const dig = cnj.replace(/\D/g, '');
   if (dig.length !== 20) {
-    return { success: false, error: 'CNJ inválido (20 dígitos).', usedGcloud: false, usedEsaj: false };
+    return {
+      success: false,
+      error: 'CNJ inválido (20 dígitos).',
+      usedGcloud: false,
+      usedEsaj: false,
+    };
   }
 
-  const tribunal = getTribunalFromCnj(cnj);
-  const consulta = await getConsultaUrlAction(cnj);
-  const openUrl = consulta?.url || null;
+  const link = getTribunalByCnj(cnj);
+  const openUrl =
+    getConsultaUrlForCnj(cnj) ||
+    getTribunalFromCnj(cnj)?.consultaUrl(cnj) ||
+    null;
+  const fallbacks = getFallbacksForCnj(cnj);
 
-  // Sempre tenta enrich e-SAJ (mesmo do botão Enriquecer)
   let enrich: any = null;
   try {
     enrich = await enrichWithEsaJAction(cnj);
   } catch (e: any) {
-    enrich = { success: false, note: e?.message || 'Falha enrich' };
+    enrich = { success: false, note: e?.message || 'Falha enrich e-SAJ' };
   }
 
   const usedEsaj = !!(enrich?.success && enrich?.data);
@@ -38,13 +48,13 @@ export async function openTribunalViaGcloudAction(
     usedGcloud: false,
     usedEsaj,
     openUrl,
-    tribunal: consulta?.nome || tribunal?.nome || enrich?.data?.tribunal,
-    sistema: consulta?.sistema || tribunal?.sistema,
-    message: usedEsaj
-      ? `Enriquecido via e-SAJ · ${consulta?.nome || ''}`
-      : openUrl
-        ? `URL do ${consulta?.nome || 'tribunal'} pronta (enrich e-SAJ indisponível neste CNJ)`
-        : enrich?.note || 'Sem URL e sem enrich',
+    tribunal: link?.sigla || getTribunalFromCnj(cnj)?.nome,
+    sistema: link?.sistema || getTribunalFromCnj(cnj)?.sistema,
+    nome: link?.nome,
+    fallbacks,
+    message: openUrl
+      ? `Principal: ${link?.sistema || 'consulta'} · ${link?.sigla || ''}`
+      : enrich?.note || 'Sem URL',
     data: enrich?.data || null,
     note: enrich?.note,
   };
@@ -54,6 +64,6 @@ export async function pingGcloudTribunalGatewayAction() {
   return {
     configured: true,
     ok: true,
-    message: 'Stack interno Enriquecer e-SAJ (sem GCloud Run)',
+    message: 'eproc prioritário (SP) · embed no app · e-SAJ secundário',
   };
 }

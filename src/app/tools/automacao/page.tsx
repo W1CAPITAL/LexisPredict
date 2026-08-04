@@ -74,6 +74,9 @@ export default function AutomacaoJudicialPage() {
   const [portalExpanded, setPortalExpanded] = useState(true);
   const [gcloudInfo, setGcloudInfo] = useState<any>(null);
   const [gcloudConfigured, setGcloudConfigured] = useState<boolean | null>(null);
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [embedTitle, setEmbedTitle] = useState('');
+  const [embedExpanded, setEmbedExpanded] = useState(true);
 
   const cleanCnj = cnj.replace(/\D/g, "");
   const tribunalPreview = cnj.trim() ? getTribunalByCnj(cnj) : null;
@@ -136,30 +139,28 @@ export default function AutomacaoJudicialPage() {
       return;
     }
 
-    // Abre a aba no MESMO clique (antes do await) — senão o browser bloqueia popup
     const preview = getTribunalByCnj(cnj);
-    const immediateUrl = preview?.url || "about:blank";
-    const win = window.open(immediateUrl, "_blank");
+    // TJSP: eproc principal (já no mapa); fallback e-SAJ nos alternativos
+    const primaryUrl = preview?.url || null;
+    if (!primaryUrl) {
+      toast({ title: "Tribunal sem URL", variant: "destructive" });
+      return;
+    }
+
+    // Abre DENTRO do app (iframe) — não redireciona o navegador
+    setEmbedUrl(primaryUrl);
+    setEmbedTitle(`${preview?.sigla || "Tribunal"} · ${preview?.sistema || ""}`);
+    setEmbedExpanded(true);
 
     setLoading("gcloud");
     try {
       const res = await openTribunalViaGcloudAction(cnj, "fetch");
       setGcloudInfo(res);
 
-      if (res.openUrl && win && !win.closed) {
-        try {
-          if (res.openUrl !== immediateUrl) {
-            win.location.href = res.openUrl;
-          }
-        } catch {
-          /* aba já no tribunal */
-        }
-      } else if (res.openUrl && (!win || win.closed)) {
-        toast({
-          title: "Popup bloqueado",
-          description: "Permita janelas pop-up para este site.",
-          variant: "destructive",
-        });
+      // Se o servidor devolver URL (ex. eproc), usa no embed
+      if (res.openUrl) {
+        setEmbedUrl(res.openUrl);
+        setEmbedTitle(`${res.tribunal || preview?.sigla || "Tribunal"} · ${res.sistema || preview?.sistema || ""}`);
       }
 
       if (res.data) {
@@ -168,23 +169,36 @@ export default function AutomacaoJudicialPage() {
           data: res.data,
           note: res.message,
           multi: {
-            tribunal: res.tribunal,
-            sistema: res.sistema,
-            url: res.openUrl || immediateUrl,
-            modo: res.usedEsaj ? "esaj_enrich" : "consulta_publica",
-            nome: res.tribunal,
+            tribunal: res.tribunal || preview?.sigla,
+            sistema: res.sistema || preview?.sistema,
+            url: res.openUrl || primaryUrl,
+            modo: res.usedEsaj ? "esaj_enrich" : "consulta_embed",
+            nome: res.tribunal || preview?.nome,
+            fallbacks: preview?.alternativos || [],
           },
         });
+      } else {
+        setResultado((prev: any) => ({
+          ...prev,
+          success: true,
+          note: res.message,
+          multi: {
+            tribunal: preview?.sigla,
+            sistema: preview?.sistema,
+            url: primaryUrl,
+            modo: "consulta_embed",
+            nome: preview?.nome,
+            fallbacks: preview?.alternativos || [],
+          },
+        }));
       }
 
       toast({
-        title: res.usedEsaj
-          ? `e-SAJ · ${res.tribunal || ""}`
-          : `Tribunal · ${res.tribunal || ""}`,
-        description: res.message || "Nova aba + dados na tela",
+        title: `${preview?.sigla || "Tribunal"} no app`,
+        description: "Consulta embutida abaixo. Use e-SAJ nos botões alternativos se precisar.",
       });
     } catch (e: any) {
-      toast({ title: "Erro ao abrir tribunal", description: e.message, variant: "destructive" });
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
     } finally {
       setLoading(null);
     }
@@ -199,11 +213,10 @@ export default function AutomacaoJudicialPage() {
     try {
       const res = await getMultiConsultaUrlAction(cnj);
       if (res.url) {
-        window.open(res.url, "_blank", "noopener,noreferrer");
-        toast({
-          title: `Abrindo ${res.tribunal || "tribunal"}`,
-          description: res.sistema || "",
-        });
+        setEmbedUrl(res.url);
+        setEmbedTitle(`${res.tribunal || "Tribunal"} · ${res.sistema || ""}`);
+        setEmbedExpanded(true);
+        toast({ title: `Abrindo ${res.tribunal || "tribunal"} no app` });
       } else {
         toast({ title: "URL não encontrada", variant: "destructive" });
       }
@@ -353,19 +366,72 @@ export default function AutomacaoJudicialPage() {
                     ) : (
                       <Cloud className="h-4 w-4" />
                     )}
-                    Abrir tribunal (e-SAJ / consulta)
+                    Abrir tribunal no app
                   </Button>
                 </div>
                 {gcloudConfigured === false && (
                   <p className="text-[11px] text-muted-foreground">
-                    Usa o mesmo motor do Enriquecer e-SAJ (crawler + URL do tribunal). Sem GCloud Run.
+                    TJSP: eproc principal (embutido no app). e-SAJ fica como alternativa.
                   </p>
                 )}
                 {gcloudConfigured === true && (
                   <p className="text-[11px] text-emerald-600 font-medium">
-                    Stack e-SAJ do app ativo (enrich + consulta).
+                    Consulta embutida no app (eproc prioritário em SP).
                   </p>
                 )}
+                {embedUrl && (
+                  <div className="rounded-xl border-2 border-primary/30 overflow-hidden bg-white mt-4">
+                    <div className="h-11 flex items-center justify-between px-2 bg-muted/60 border-b gap-2">
+                      <span className="text-[10px] font-bold truncate px-2">
+                        {embedTitle || "Consulta no app"} — {embedUrl.replace(/^https?:\/\//, "").slice(0, 48)}…
+                      </span>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => setEmbedExpanded((v) => !v)}
+                        >
+                          {embedExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          title="Abrir em nova aba (opcional)"
+                          onClick={() => window.open(embedUrl, "_blank", "noopener,noreferrer")}
+                        >
+                          <ExternalLink size={14} />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => setEmbedUrl(null)}
+                        >
+                          <X size={14} />
+                        </Button>
+                      </div>
+                    </div>
+                    {embedExpanded && (
+                      <iframe
+                        src={embedUrl}
+                        title={embedTitle || "Tribunal"}
+                        className="w-full border-0 bg-white"
+                        style={{ height: "min(75vh, 800px)", minHeight: 520 }}
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                    )}
+                    <p className="text-[10px] text-muted-foreground p-2 border-t">
+                      Se a tela ficar em branco, o tribunal bloqueou iframe — use o ícone de nova aba. Em SP o principal é eproc; e-SAJ nos alternativos.
+                    </p>
+                  </div>
+                )}
+
               </CardContent>
             </Card>
 
