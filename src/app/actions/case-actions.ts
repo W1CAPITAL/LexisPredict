@@ -327,13 +327,17 @@ export async function auditCaseCoreSystem(
   // --- IA OmniRoute/Claude: classifica cumprimento, encerrado, procedência, BA, alertas ---
   try {
     const { enrichScanPatchWithAi } = await import('@/lib/ai/scan-ai-enrich');
+    const preferredAi =
+      process.env.SCAN_AI_PREFERRED ||
+      process.env.LEXIS_SCAN_AI ||
+      'groq'; // default barato; override no Vercel se quiser claude
     const enriched = await enrichScanPatchWithAi({
       protocolo,
       cliente: target.cliente,
       movimentos,
       comunicacoes,
       patch,
-      preferred: 'claude',
+      preferred: preferredAi,
     });
     Object.assign(patch, enriched.patch);
     if (enriched.aiEngine) {

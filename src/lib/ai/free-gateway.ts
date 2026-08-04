@@ -128,6 +128,10 @@ export async function freeComplete(opts: {
   system?: string;
   user: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  /** Ex.: claude, groq, openrouter, xai, gemini */
+  preferred?: string;
+  /** Se true, NÃO tenta outros motores após falha do preferido */
+  exclusive?: boolean;
 }): Promise<FreeResult> {
   const messages: FreeMsg[] = [];
   if (opts.system) messages.push({ role: 'system', content: compact(opts.system, 4000) });
@@ -137,109 +141,134 @@ export async function freeComplete(opts: {
   messages.push({ role: 'user', content: compact(opts.user, 6000) });
 
   const errors: string[] = [];
+  const pref = (opts.preferred || '').toLowerCase();
+  const exclusive = !!opts.exclusive && !!pref && pref !== 'auto';
 
-  // 1) Anthropic
-  try {
-    return await callAnthropicDirect(messages);
-  } catch (e: any) {
-    errors.push(`anthropic: ${e?.message || e}`);
+  type Step = { id: string; run: () => Promise<FreeResult> };
+  const steps: Step[] = [];
+
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  if (anthropicKey) {
+    steps.push({ id: 'claude', run: () => callAnthropicDirect(messages) });
   }
-
-  // 2) Groq (free tier com key grátis no browser)
   const groq = process.env.GROQ_API_KEY || process.env.GROQ_KEY;
   if (groq) {
-    try {
-      return await callOpenAIShape(
-        'https://api.groq.com/openai/v1/chat/completions',
-        groq,
-        process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        messages,
-        'groq'
-      );
-    } catch (e: any) {
-      errors.push(`groq: ${e?.message || e}`);
-    }
+    steps.push({
+      id: 'groq',
+      run: () =>
+        callOpenAIShape(
+          'https://api.groq.com/openai/v1/chat/completions',
+          groq,
+          process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          messages,
+          'groq'
+        ),
+    });
   }
-
-  // 3) OpenRouter free model
   const or = process.env.OPENROUTER_API_KEY;
   if (or) {
-    try {
-      return await callOpenAIShape(
-        'https://openrouter.ai/api/v1/chat/completions',
-        or,
-        process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free',
-        messages,
-        'openrouter',
-        {
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://private-assecom.vercel.app',
-          'X-Title': 'LexisPredict',
-        }
-      );
-    } catch (e: any) {
-      errors.push(`openrouter: ${e?.message || e}`);
-    }
+    steps.push({
+      id: 'openrouter',
+      run: () =>
+        callOpenAIShape(
+          'https://openrouter.ai/api/v1/chat/completions',
+          or,
+          process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free',
+          messages,
+          'openrouter',
+          {
+            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://private-assecom.vercel.app',
+            'X-Title': 'LexisPredict',
+          }
+        ),
+    });
   }
-
-  // 4) xAI
   const xai =
     process.env.XAI_API_KEY ||
     process.env.XAI_GROK_PRESTIGE_API_KEY ||
     process.env.GROK_API_KEY;
   if (xai) {
-    try {
-      return await callOpenAIShape(
-        'https://api.x.ai/v1/chat/completions',
-        xai,
-        process.env.XAI_MODEL || 'grok-2-1212',
-        messages,
-        'xai'
-      );
-    } catch (e: any) {
-      errors.push(`xai: ${e?.message || e}`);
-    }
+    steps.push({
+      id: 'xai',
+      run: () =>
+        callOpenAIShape(
+          'https://api.x.ai/v1/chat/completions',
+          xai,
+          process.env.XAI_MODEL || 'grok-2-1212',
+          messages,
+          'xai'
+        ),
+    });
   }
-
-  // 5) Gemini
-  const gem =
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const gem = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (gem) {
+    steps.push({
+      id: 'gemini',
+      run: async () => {
+        const t0 = Date.now();
+        const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gem}`;
+        const sys = messages.find((m) => m.role === 'system')?.content || '';
+        const userParts = messages
+          .filter((m) => m.role !== 'system')
+          .map((m) => `${m.role}: ${m.content}`)
+          .join('\n\n');
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: compact(`${sys}\n\n${userParts}`, 10000) }] }],
+          }),
+          signal: AbortSignal.timeout(90000),
+        });
+        const raw = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error((raw as any)?.error?.message || `gemini HTTP ${res.status}`);
+        }
+        const text =
+          (raw as any)?.candidates?.[0]?.content?.parts?.map((x: any) => x.text).join('\n') || '';
+        if (!String(text).trim()) throw new Error('gemini vazio');
+        return { text: String(text).trim(), engine: `gemini:${model}`, latencyMs: Date.now() - t0 };
+      },
+    });
+  }
+
+  // Ordena: preferred primeiro
+  if (pref) {
+    steps.sort((a, b) => {
+      const as = pref.includes(a.id) || a.id.includes(pref.split(':')[0]) ? 0 : 1;
+      const bs = pref.includes(b.id) || b.id.includes(pref.split(':')[0]) ? 0 : 1;
+      return as - bs;
+    });
+  }
+
+  let ordered = steps;
+  if (exclusive) {
+    ordered = steps.filter(
+      (s) => pref.includes(s.id) || s.id.includes(pref.split(':')[0]) || pref === s.id
+    );
+    if (ordered.length === 0) ordered = steps.slice(0, 1); // evita lista vazia se typo
+  }
+
+  for (const step of ordered) {
     try {
-      const t0 = Date.now();
-      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gem}`;
-      const sys = messages.find((m) => m.role === 'system')?.content || '';
-      const userParts = messages
-        .filter((m) => m.role !== 'system')
-        .map((m) => `${m.role}: ${m.content}`)
-        .join('\n\n');
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: compact(`${sys}\n\n${userParts}`, 10000) }] }],
-        }),
-        signal: AbortSignal.timeout(60000),
-      });
-      const raw = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((raw as any)?.error?.message || `Gemini HTTP ${res.status}`);
-      const text =
-        (raw as any)?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
-      if (!text.trim()) throw new Error('Gemini vazio');
-      return { text: text.trim(), engine: `gemini:${model}`, latencyMs: Date.now() - t0 };
+      return await step.run();
     } catch (e: any) {
-      errors.push(`gemini: ${e?.message || e}`);
+      errors.push(`${step.id}: ${e?.message || e}`);
+      if (exclusive) break; // não tenta o próximo
     }
   }
 
-  // 6) Pollinations — SEM KEY (último recurso público)
-  try {
-    return await callPollinations(messages);
-  } catch (e: any) {
-    errors.push(`pollinations: ${e?.message || e}`);
+  // Pollinations só em modo não exclusivo / auto
+  if (!exclusive) {
+    try {
+      return await callPollinations(messages);
+    } catch (e: any) {
+      errors.push(`pollinations: ${e?.message || e}`);
+    }
   }
 
   throw new Error(
-    `Nenhum motor disponível. Coloque no Vercel uma key grátis (GROQ_API_KEY ou OPENROUTER_API_KEY ou GEMINI_API_KEY ou ANTHROPIC_API_KEY). Detalhes: ${errors.slice(0, 4).join(' | ')}`
+    `Nenhum motor disponível. ${errors.join(' | ') || 'Configure GROQ_API_KEY / OPENROUTER / ANTHROPIC no Vercel.'}`
   );
 }

@@ -24,22 +24,34 @@ export function mesmoCnj(a: string | null | undefined, b: string | null | undefi
   return da === db || da.endsWith(db) || db.endsWith(da);
 }
 
-export function textoIndicaBuscaApreensao(raw: string | null | undefined): {
-  hit: boolean;
-  motivo: string | null;
-} {
-  const upper = normalizeName(String(raw || ''));
+export function textoIndicaBuscaApreensao(texto: string): { hit: boolean; motivo: string | null } {
+  const upper = String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
   if (!upper) return { hit: false, motivo: null };
-  const patterns: Array<{ re: RegExp; label: string }> = [
-    { re: /BUSCA\s+E\s+APREENSAO/, label: 'BUSCA E APREENSÃO' },
-    { re: /MANDADO\s+DE\s+BUSCA\s+E\s+APREENSAO/, label: 'MANDADO DE BUSCA E APREENSÃO' },
-    { re: /CUMPRA[\-\s]?SE\s+O\s+MANDADO\s+DE\s+BUSCA/, label: 'CUMPRA-SE MANDADO DE BUSCA' },
+
+  // Menção só em jurisprudência/ementa/exemplo → NÃO conta
+  const incidental =
+    /NOS\s+TERMOS\s+DO\s+ART/.test(upper) &&
+    /BUSCA\s+E\s+APREENS/.test(upper) &&
+    !/MANDADO|CUMPRA-SE|DEFIRO\s+A\s+BUSCA|DEFERID[AO]\s+O\s+PEDIDO\s+DE\s+BUSCA/.test(upper);
+  if (incidental) return { hit: false, motivo: null };
+
+  const strong = [
+    { re: /MANDADO\s+DE\s+BUSCA\s+E\s+APREENS/, label: 'MANDADO DE BUSCA E APREENSÃO' },
+    { re: /CUMPRA-SE\s+MANDADO\s+DE\s+BUSCA/, label: 'CUMPRA-SE MANDADO DE BUSCA' },
+    { re: /DEFIRO\s+.{0,40}BUSCA\s+E\s+APREENS/, label: 'DEFIRO BUSCA E APREENSÃO' },
+    { re: /DEFERID[AO]\s+.{0,40}BUSCA\s+E\s+APREENS/, label: 'DEFERIDA BUSCA E APREENSÃO' },
+    { re: /EXPED[IA].{0,20}MANDADO\s+DE\s+BUSCA/, label: 'EXPEDIÇÃO DE MANDADO DE BUSCA' },
     { re: /APREENSAO\s+DE\s+VEICULO/, label: 'APREENSÃO DE VEÍCULO' },
     { re: /APREENSAO\s+DO\s+VEICULO/, label: 'APREENSÃO DO VEÍCULO' },
+    { re: /REINTEGRACAO\s+DE\s+POSSE.{0,30}VEICULO/, label: 'REINTEGRAÇÃO DE POSSE VEÍCULO' },
   ];
-  for (const p of patterns) {
+  for (const p of strong) {
     if (p.re.test(upper)) return { hit: true, motivo: p.label };
   }
+  // "AÇÃO DE BUSCA E APREENSÃO" sozinha (classe de outro processo / citação) NÃO basta
   return { hit: false, motivo: null };
 }
 

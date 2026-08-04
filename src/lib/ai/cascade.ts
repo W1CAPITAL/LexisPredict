@@ -118,11 +118,19 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     system += `\n\nCONTEXTO TRIBUNAL:\n${String(opts.tribunalContext).slice(0, 8000)}`;
   }
 
-  const preferred = opts.preferred || opts.forceEngineId || 'claude';
+  const exclusive = !!(opts.forceEngineId || (opts.preferred && opts.preferred !== 'auto'));
+  const preferred = (opts.forceEngineId || opts.preferred || 'auto').toLowerCase();
+  const errors: string[] = [];
 
-  // OmniRoute
+  // --- OmniRoute (só se preferred for omni/claude/auto) ---
   const omni = process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL || '';
-  if (omni.trim() && (preferred.includes('claude') || preferred.includes('omni') || preferred === 'auto')) {
+  const wantOmni =
+    preferred === 'auto' ||
+    preferred.includes('omni') ||
+    preferred === 'claude' ||
+    preferred.includes('anthropic');
+
+  if (omni.trim() && wantOmni) {
     try {
       const base = omni.replace(/\/$/, '').endsWith('/v1')
         ? omni.replace(/\/$/, '')
@@ -166,22 +174,63 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
             gateway: base,
           };
         }
+      } else {
+        errors.push(`omniroute: HTTP ${res.status}`);
       }
-    } catch {
-      /* free gateway */
+    } catch (e: any) {
+      errors.push(`omniroute: ${e?.message || e}`);
+    }
+    // Se pediu só Claude/Omni e falhou, NÃO queima Groq/Gemini/etc.
+    if (exclusive && (preferred.includes('claude') || preferred.includes('omni') || preferred.includes('anthropic'))) {
+      throw new Error(
+        `Motor ${preferred} indisponível. ${errors.join(' | ') || 'Sem resposta.'} ` +
+          `Não houve fallback para outras IAs (modo exclusivo).`
+      );
     }
   }
 
-  const r = await freeComplete({ system, user, history });
-  const parts = r.engine.split(':');
-  return {
-    text: r.text,
-    engineId: parts[0] || r.engine,
-    model: parts[1] || 'default',
-    latencyMs: r.latencyMs,
-    latency: r.latencyMs,
-    tokens: 0,
-  };
+  // --- Lista de engines filtrada: se exclusive, só o id pedido ---
+  let list = buildEngineList(preferred === 'auto' ? undefined : preferred);
+  if (exclusive && preferred !== 'auto') {
+    list = list.filter(
+      (e) =>
+        e.id === preferred ||
+        preferred.includes(e.id) ||
+        e.id.includes(preferred.replace('groq:llama', 'groq'))
+    );
+    if (list.length === 0) {
+      // tenta match parcial
+      list = buildEngineList().filter(
+        (e) => preferred.includes(e.id) || e.id.includes(preferred.split(':')[0])
+      );
+    }
+  }
+
+  const { freeComplete } = await import('@/lib/ai/free-gateway');
+  // freeComplete interno: se preferred exclusivo, passe preferência
+  try {
+    const r = await freeComplete({
+      system,
+      user,
+      history,
+      preferred: exclusive ? preferred : undefined,
+      exclusive,
+    } as any);
+    const parts = r.engine.split(':');
+    return {
+      text: r.text,
+      engineId: parts[0] || r.engine,
+      model: parts[1] || 'default',
+      latencyMs: r.latencyMs,
+      latency: r.latencyMs,
+      tokens: 0,
+    };
+  } catch (e: any) {
+    errors.push(e?.message || String(e));
+    throw new Error(
+      `Nenhum motor disponível para "${preferred}". ${errors.join(' | ')}`
+    );
+  }
 }
 
 /** Overloads compatíveis com veredito / provider antigos */

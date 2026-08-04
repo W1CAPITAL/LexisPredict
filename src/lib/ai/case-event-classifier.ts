@@ -28,6 +28,11 @@ export type AiCaseClassification = {
 };
 
 const SYSTEM = `Você classifica andamentos processuais brasileiros (DataJud/DJEN).
+
+REGRA CRÍTICA — busca_apreensao=true SOMENTE se houver:
+- mandado/ordem de busca e apreensão DE BEM (veículo, etc.) no processo da parte; ou
+- cumprimento de liminar/mandado de apreensão efetivamente deferido contra o bem do cliente.
+NÃO marque BA se a menção for: jurisprudência citada, exemplo, ementa de outro caso, "ação de busca e apreensão" só no nome da classe de processo alheio, ou fundamentação doutrinária. Menção incidental = busca_apreensao false.
 Responda APENAS JSON:
 {"evento_tipo":"ba|sentenca_procedente|sentenca_improcedente|sentenca_parcial|cumprimento_sentenca|transito_ou_baixa|cancelamento_distribuicao|liminar|novo_andamento_relevante|rotina","evento_resumo":"...","severidade":"critica|alta|media|baixa|positiva|info","alertar":true/false,"motivo_alerta":null,"flags":{"encerrado":false,"cumprimento_sentenca":false,"procedente":false,"improcedente":false,"parcial":false,"liminar":false,"busca_apreensao":false,"cancelamento_distribuicao":false,"novo_relevante":false}}`;
 
@@ -95,9 +100,11 @@ DJEN:\n${djenTxt || '(vazio)'}
 Classifique.`;
 
   try {
+    const pref = input.preferred || process.env.SCAN_AI_PREFERRED || 'groq';
     const r = await runCascade({
-      preferred: input.preferred || 'claude',
-      surface: 'audit',
+      preferred: pref,
+      forceEngineId: pref === 'auto' ? undefined : pref,
+      surface: 'scan',
       system: SYSTEM,
       messages: [{ role: 'user', content: user }],
       temperature: 0.1,
@@ -124,69 +131,3 @@ Classifique.`;
 }
 
 /** Pura — NÃO exportar como Server Action */
-export function mergeAiIntoScanPatch(
-  patch: Record<string, any>,
-  ai: AiCaseClassification | null
-): Record<string, any> {
-  if (!ai) return patch;
-  const out = { ...patch };
-  out.ai_evento_tipo = ai.evento_tipo;
-  out.ai_evento_resumo = ai.evento_resumo;
-  out.ai_severidade = ai.severidade;
-  out.ai_engine = ai.engine;
-  out.ai_classificado_em = new Date().toISOString();
-
-  if (ai.flags.encerrado) {
-    out.datajud_encerrado_tribunal = true;
-    out.datajud_encerrado_motivo =
-      out.datajud_encerrado_motivo || ai.evento_resumo || 'IA: encerrado/baixa';
-  }
-  if (ai.flags.cumprimento_sentenca) {
-    out.em_cumprimento_sentenca = true;
-    out.cumprimento_sentenca_motivo =
-      out.cumprimento_sentenca_motivo || ai.evento_resumo || 'IA: cumprimento';
-    out.cumprimento_sentenca_consultado_em = new Date().toISOString();
-  }
-  if (ai.flags.busca_apreensao) {
-    out.indicio_busca_apreensao = true;
-    out.busca_apreensao_motivo =
-      out.busca_apreensao_motivo || ai.evento_resumo || 'IA: BA';
-    out.busca_apreensao_confianca = out.busca_apreensao_confianca ?? 0.85;
-  }
-  if (ai.flags.cancelamento_distribuicao) {
-    out.evento_tipo = 'cancelamento_distribuicao';
-  }
-
-  const rank: Record<string, number> = {
-    ba: 100,
-    cancelamento_distribuicao: 95,
-    transito_ou_baixa: 90,
-    transito_baixa: 90,
-    cumprimento_sentenca: 80,
-    sentenca_improcedente: 75,
-    sentenca_procedente: 70,
-    sentenca_parcial: 65,
-    liminar: 60,
-    novo_andamento_relevante: 40,
-    rotina: 10,
-  };
-  const cur = String(out.evento_tipo || 'rotina');
-  const next = String(ai.evento_tipo || 'rotina');
-  if ((rank[next] ?? 0) >= (rank[cur] ?? 0)) {
-    out.evento_tipo = next;
-    out.evento_resumo = ai.evento_resumo || out.evento_resumo;
-    out.evento_fonte = out.evento_fonte || 'ai_omniroute';
-  }
-
-  if (ai.alertar) {
-    out.tem_novo_andamento = true;
-    out.alerta_ia = true;
-    out.alerta_ia_motivo = ai.motivo_alerta || ai.evento_resumo;
-    const p = Number(out.scan_priority || 40);
-    if (ai.severidade === 'critica') out.scan_priority = Math.max(p, 100);
-    else if (ai.severidade === 'alta') out.scan_priority = Math.max(p, 90);
-    else if (ai.severidade === 'positiva') out.scan_priority = Math.max(p, 70);
-    else out.scan_priority = Math.max(p, 75);
-  }
-  return out;
-}

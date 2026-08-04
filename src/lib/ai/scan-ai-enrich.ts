@@ -1,9 +1,7 @@
 'use server';
 
-import {
-  classifyCaseEventsWithAi,
-  mergeAiIntoScanPatch,
-} from '@/lib/ai/case-event-classifier';
+import { classifyCaseEventsWithAi } from '@/lib/ai/case-event-classifier';
+import { mergeAiIntoScanPatch } from '@/lib/ai/merge-scan-patch';
 
 export async function enrichScanPatchWithAi(opts: {
   protocolo: string;
@@ -28,7 +26,7 @@ export async function enrichScanPatchWithAi(opts: {
     cliente: opts.cliente,
     movimentos: opts.movimentos,
     comunicacoes: opts.comunicacoes,
-    preferred: opts.preferred || process.env.SCAN_AI_PREFERRED || 'claude',
+    preferred: opts.preferred || process.env.SCAN_AI_PREFERRED || 'groq',
   });
   if (!ai) return { patch: opts.patch, aiEngine: null };
   return { patch: mergeAiIntoScanPatch(opts.patch, ai), aiEngine: ai.engine };
