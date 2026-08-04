@@ -9,8 +9,8 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Search, Trash2, Edit2, CheckCircle2, Zap, Loader2, CalendarDays, Sparkles, 
   History, AlertCircle, FileSearch, ShieldAlert, Copy, MessageSquareQuote, 
-  Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown, FileSpreadsheet,
-  Briefcase, RefreshCcw, Plus
+  Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown,
+  Briefcase, RefreshCcw
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -23,7 +23,7 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
-import { exportCasesToCSVAction, exportCasesToXlsxAction } from '@/app/actions/export-actions';
+import { exportCasesToCSVAction } from '@/app/actions/export-actions';
 import { format, parseISO, isValid } from 'date-fns';
 import { useAdmin } from '@/hooks/use-admin';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,20 +32,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
-import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
-import { NovoProcessoButton } from '@/components/cases/novo-processo-button';
-import { ExportDossieClienteButton } from '@/components/cases/export-dossie-cliente-button';
 
 const CaseRow = React.memo(({ 
   c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest
 }: { 
   c: LegalCase, isOperador: boolean, onLogReturn: (c: LegalCase) => void, onEdit: (c: LegalCase) => void, onDelete: (id: string) => void, onScan: (c: LegalCase) => void, onSuggest: (c: LegalCase) => void
 }) => {
+  const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const sinal = useMemo(() => getSinalCapa(c), [c]);
@@ -56,7 +54,7 @@ const CaseRow = React.memo(({
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground font-black text-[14px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
-            
+            {c.indicio_busca_apreensao && <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse"><ShieldAlert size={10} className="mr-1" /> B.A.</Badge>}
             {c.datajud_encerrado_tribunal && <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">Encerrado</Badge>}
             {c.tem_novo_andamento && <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">Novidade</Badge>}
           </div>
@@ -102,7 +100,6 @@ const CaseRow = React.memo(({
       </td>
       <td className="px-8 py-5 text-right">
         <div className="flex items-center justify-end gap-2">
-          <ExportDossieClienteButton protocolo={c.protocolo} />
           <button disabled={suggestLoading} onClick={async () => { setSuggestLoading(true); await onSuggest(c); setSuggestLoading(false); }} className={cn("text-amber-600 hover:bg-amber-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Sugerir Resposta">
             {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
           </button>
@@ -131,8 +128,6 @@ function CasesContent() {
   const [quickFilter, setQuickFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [exportingXlsx, setExportingXlsx] = useState(false);
-  const [isRecalibrating, setIsRecalibrating] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
@@ -165,19 +160,19 @@ function CasesContent() {
   useEffect(() => { loadData(); }, [loadData]);
 
   
-    const handleRecalibratePrazos = async () => {
+  const handleRecalibratePrazos = async () => {
     if (isRecalibrating) return;
     setIsRecalibrating(true);
     try {
       const res = await recalibrateCasesAction();
-      if (res?.success) {
+      if (res.success) {
         await loadData();
-        toast({ title: "Prazos recalibrados", description: res.message || `${res.updated ?? 0} processos atualizados.` });
+        toast({ title: "Prazos recalibrados", description: res.message || `${res.updated} processos atualizados.` });
       } else {
-        toast({ title: "Falha na recalibração", description: res?.error || "Resposta vazia do servidor", variant: "destructive" });
+        toast({ title: "Falha na recalibração", description: res.error || "Tente novamente", variant: "destructive" });
       }
     } catch (e: any) {
-      toast({ title: "Erro", description: e?.message || "Falha ao recalibrar", variant: "destructive" });
+      toast({ title: "Erro", description: e?.message || "Falha", variant: "destructive" });
     } finally {
       setIsRecalibrating(false);
     }
@@ -198,29 +193,6 @@ function CasesContent() {
       }
     } finally {
       setExporting(false);
-    }
-  };
-
-
-  const handleExportXlsx = async () => {
-    setExportingXlsx(true);
-    try {
-      const res = await exportCasesToXlsxAction();
-      if (res.success && res.base64) {
-        const link = document.createElement('a');
-        link.href = `data:${res.mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};base64,${res.base64}`;
-        link.download = res.filename || 'Gabinete_LexisPredict.xlsx';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        toast({ title: 'Excel exportado', description: res.count != null ? `${res.count} processos em XLSX` : undefined });
-      } else {
-        toast({ title: 'Falha no Excel', description: (res as any).error || 'Tente de novo', variant: 'destructive' });
-      }
-    } catch (e: any) {
-      toast({ title: 'Erro XLSX', description: e?.message, variant: 'destructive' });
-    } finally {
-      setExportingXlsx(false);
     }
   };
 
@@ -245,36 +217,16 @@ function CasesContent() {
     try {
       const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
       if (res.success && res.case) {
-        const movimentos = res.movimentos || [];
-        const comunicacoes = res.comunicacoes || [];
-        setHistoryResult({ case: res.case, movimentos, djenComunicacoes: comunicacoes });
+        setHistoryResult({ case: res.case, movimentos: res.movimentos || [], djenComunicacoes: res.comunicacoes || [] });
         setAiDraft(null);
-        const djenTexts = comunicacoes.map((d: any) => plainTextFromDjen(d.texto)).filter(Boolean) as string[];
-        const suggestions = suggestScripts({
-          clienteNome: c.cliente,
-          protocolo: c.protocolo,
-          ultimoRetorno: c.ultimoRetorno,
-          eventoTipo: res.case.evento_tipo as any,
-          eventoResumo: res.case.evento_resumo,
-          movimentos,
-          djenTexts,
-          tem_novo_andamento: !!res.case.tem_novo_andamento,
-          datajud_encerrado_tribunal: !!res.case.datajud_encerrado_tribunal,
-          indicio_busca_apreensao: false,
-          em_cumprimento_sentenca: !!res.case.em_cumprimento_sentenca,
-        });
+        const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
+        const suggestions = suggestScripts({ clienteNome: c.cliente, protocolo: c.protocolo, ultimoRetorno: c.ultimoRetorno, eventoTipo: res.case.evento_tipo, eventoResumo: res.case.evento_resumo, movimentos: res.movimentos || [], djenTexts, tem_novo_andamento: res.case.tem_novo_andamento, datajud_encerrado_tribunal: res.case.datajud_encerrado_tribunal, indicio_busca_apreensao: res.case.indicio_busca_apreensao, em_cumprimento_sentenca: res.case.em_cumprimento_sentenca });
         setSuggestedScripts(suggestions);
         setShowScripts(true);
         setIsHistoryModalOpen(true);
         updateCaseByProtocolo(c.protocolo, (res.casePatch as Record<string, any>) || {});
-      } else {
-        toast({ title: 'Falha ao consultar', description: (res as any).error || 'Não foi possível gerar sugestões.', variant: 'destructive' });
       }
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e?.message || 'Falha ao sugerir resposta', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const handleGenerateAIDraft = async () => {
@@ -283,7 +235,7 @@ function CasesContent() {
     setAiDraft(null);
     try {
       const djenTexts = (historyResult.djenComunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
-      const res = await gerarRascunhoEstrategico({ clienteNome: historyResult.case.cliente, protocolo: historyResult.case.protocolo, ultimoRetorno: historyResult.case.ultimoRetorno, movimentos: historyResult.movimentos, djenTexts, eventoTipo: historyResult.case.evento_tipo, eventoResumo: historyResult.case.evento_resumo, preferredModel: selectedMotor, empresaId: profile?.empresa_id, tem_novo_andamento: historyResult.case.tem_novo_andamento, datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal, indicio_busca_apreensao: false, em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca });
+      const res = await gerarRascunhoEstrategico({ clienteNome: historyResult.case.cliente, protocolo: historyResult.case.protocolo, ultimoRetorno: historyResult.case.ultimoRetorno, movimentos: historyResult.movimentos, djenTexts, eventoTipo: historyResult.case.evento_tipo, eventoResumo: historyResult.case.evento_resumo, preferredModel: selectedMotor, empresaId: profile?.empresa_id, tem_novo_andamento: historyResult.case.tem_novo_andamento, datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal, indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao, em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca });
       if (res.rascunho) { setAiDraft(res.rascunho); toast({ title: "Draft Gerado" }); }
     } finally { setIsGeneratingAIDraft(false); }
   };
@@ -348,51 +300,17 @@ function CasesContent() {
   };
 
   const filtered = useMemo(() => {
-  const lower = search.toLowerCase();
-  return cases.filter(c => {
-    const match = c.cliente.toLowerCase().includes(lower) || c.protocolo.includes(search);
+    const lower = search.toLowerCase();
+    return cases.filter(c => {
+      const match = c.cliente.toLowerCase().includes(lower) || c.protocolo.includes(search);
+      if (quickFilter === 'updated') return match && !!c.tem_novo_andamento;
+      if (quickFilter === 'active') return match && !isCasoEncerrado(c);
+      if (quickFilter === 'closed') return match && isCasoEncerrado(c);
+      return match;
+    });
+  }, [cases, search, quickFilter]);
 
-    if (quickFilter === 'updated') return match && !!c.tem_novo_andamento;
-    if (quickFilter === 'active') return match && !isCasoEncerrado(c);
-    if (quickFilter === 'closed') return match && isCasoEncerrado(c);
-    
-    if (quickFilter === 'today') {
-      return match && (c.status === 'É Hoje' || c.diasFaltando === 0);
-    }
-
-    return match;
-  });
-}, [cases, search, quickFilter]);
-
-  const handleExportDjenPDF = async (item: any) => {
-    if (!historyResult) return;
-    try {
-      const texto = plainTextFromDjen(item.texto || item.conteudo || '');
-      const res = await generateDjenPublicationPDFAction({
-        titulo: item.tipoComunicacao || item.tipoDocumento || 'DECISÃO / PUBLICAÇÃO OFICIAL',
-        protocolo: historyResult.case.protocolo,
-        data: item.data_disponibilizacao
-          ? new Date(item.data_disponibilizacao).toLocaleDateString('pt-BR')
-          : 'S/D',
-        orgao: item.nomeOrgao || item.siglaTribunal || '',
-        texto: texto || 'Conteúdo não disponível.',
-      });
-      if (res.success && res.base64) {
-        const link = document.createElement('a');
-        link.href = `data:application/pdf;base64,${res.base64}`;
-        const tipo = String(item.tipoComunicacao || 'publicacao').replace(/\s+/g, '_');
-        link.download = `${tipo}_${historyResult.case.protocolo}.pdf`;
-        link.click();
-        toast({ title: 'PDF exportado', description: 'Decisão/publicação DJEN baixada.' });
-      } else {
-        toast({ title: 'Falha no PDF', description: (res as any).error || 'Erro', variant: 'destructive' });
-      }
-    } catch (e: any) {
-      toast({ title: 'Erro ao exportar', description: e?.message || 'Falha', variant: 'destructive' });
-    }
-  };
-
-    const unifiedHistory = useMemo(() => {
+  const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
     const movs = (historyResult.movimentos || []).map(m => ({ type: 'court', date: m.dataHora ? new Date(m.dataHora) : new Date(0), title: m.nome, subtitle: m.complemento || '', raw: m }));
     const djen = (historyResult.djenComunicacoes || []).map(d => ({ 
@@ -414,22 +332,10 @@ function CasesContent() {
              <Briefcase size={20} className="text-primary" />
              <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Carteira do Gabinete</h1>
           </div>
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            <NovoProcessoButton cases={cases} setCases={setCases} />
+          <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={exporting} className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary">
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />} Extrair Planilha
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportXlsx}
-              disabled={exportingXlsx}
-              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-primary/40 text-primary hover:bg-primary/5"
-            >
-              {exportingXlsx ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileSpreadsheet size={16} className="mr-2" />}
-              Exportar Excel
-            </Button>
-
             <Button
               variant="outline"
               size="sm"
@@ -453,13 +359,7 @@ function CasesContent() {
               <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
                 <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-black uppercase text-[10px]"><SelectValue /></SelectTrigger>
-               <SelectContent>
-  <SelectItem value="all">Todos</SelectItem>
-  <SelectItem value="today">Hoje</SelectItem>
-  <SelectItem value="active">Ativos</SelectItem>
-  <SelectItem value="updated">Com Novidade</SelectItem>
-  <SelectItem value="closed">Arquivados</SelectItem>
-</SelectContent>
+                <SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="active">Ativos</SelectItem><SelectItem value="updated">Com Novidade</SelectItem><SelectItem value="closed">Arquivados</SelectItem></SelectContent>
               </Select>
             </div>
             <div className={cn("flex-1", ui.tableWrap)}>
@@ -505,16 +405,6 @@ function CasesContent() {
                                 {(item.type === 'djen' && (item.raw.link || historyResult?.case.djen_ultimo_link)) && (
                                   <a href={item.raw.link || historyResult?.case.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline"><Globe size={10} /> Abrir no D.O.</a>
                                 )}
-                                {item.type === 'djen' && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleExportDjenPDF(item.raw)}
-                                    className="h-7 px-2 text-[8px] font-black uppercase border-blue-600 text-blue-700 hover:bg-blue-600 hover:text-white gap-1"
-                                  >
-                                    <Download size={12} /> Exportar PDF
-                                  </Button>
-                                )}
                              </div>
                              <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
                           </div>
@@ -541,16 +431,7 @@ function CasesContent() {
                           {isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}
                         </Button>
                       </div>
-                      {(aiDraft !== null && aiDraft !== undefined) && (
-                        <div className="mt-3">
-                          <AiDraftPreview
-                            text={aiDraft || ""}
-                            editable
-                            onChange={(v) => setAiDraft(v)}
-                            minHeight="140px"
-                          />
-                        </div>
-                      )}
+                      {aiDraft && <div className="space-y-3 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className="text-white/80 italic text-xs">"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
                     </div>
                   </section>
                 </div>

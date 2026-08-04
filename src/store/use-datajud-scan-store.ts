@@ -1,10 +1,6 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * MOTOR DE ESTADO DO SCANNER GLOBAL v10.1 — PERSISTÊNCIA + RETOMADA + TELEMETRIA
- *
- * - Retoma de onde parou ao recarregar a página / sair do app
- * - Telemetria de saúde por tribunal
- * - Logs recentes persistidos
+ * MOTOR DE ESTADO DO SCANNER GLOBAL v10.0 — BOTH real + nuvem contínua (sem Cron)
  */
 import { create } from 'zustand';
 import { scanSingleCaseAction } from '@/app/actions/case-actions';
@@ -51,8 +47,6 @@ interface DataJudScanState {
   manualDjenAlerts: number;
   manualErrors: number;
   lastLogs: ScanLog[];
-  /** Protocolos já processados nesta sessão de scan (para retomada estável) */
-  processedProtocols: string[];
 
   scanMode: ScanMode;
   setScanMode: (mode: ScanMode) => void;
@@ -64,43 +58,15 @@ interface DataJudScanState {
   pauseCloudScan: () => void;
   startManualScan: () => Promise<void>;
   pauseManualScan: () => void;
-  resumeManualScan: () => Promise<void>;
   resetScan: () => void;
   pollStatus: () => Promise<void>;
   updateCourtHealth: (courtId: string, latency: number, success: boolean) => void;
   runInitialHealthCheck: (protocols: string[]) => Promise<void>;
   addLog: (log: ScanLog) => void;
-  hydrateFromStorage: () => void;
 }
-
-const STORAGE_KEY = 'lexis_datajud_scan_v10';
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-function saveToStorage(state: Partial<DataJudScanState>) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        manualStatus: state.manualStatus,
-        manualTotal: state.manualTotal,
-        manualDone: state.manualDone,
-        manualAlerts: state.manualAlerts,
-        manualClosed: state.manualClosed,
-        manualDjenAlerts: state.manualDjenAlerts,
-        manualErrors: state.manualErrors,
-        lastLogs: (state.lastLogs || []).slice(0, 40),
-        processedProtocols: state.processedProtocols || [],
-        scanMode: state.scanMode,
-        courtHealthMap: state.courtHealthMap || {},
-        savedAt: Date.now(),
-      })
-    );
-  } catch {
-    // quota / private mode
-  }
-}
+const CLOUD_POLL_MS = 7000; // mais ciclos/hora sem Cron Vercel
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
@@ -120,55 +86,20 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   manualDjenAlerts: 0,
   manualErrors: 0,
   lastLogs: [],
-  processedProtocols: [],
 
   scanMode: 'both',
-  setScanMode: (scanMode) => {
-    set({ scanMode });
-    saveToStorage(get());
-  },
+  setScanMode: (scanMode) => set({ scanMode }),
   isMinimized: true,
   courtHealthMap: {},
-
-  hydrateFromStorage: () => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      // Se estava running, volta como paused (usuário precisa confirmar retomada)
-      const status: ScanStatus =
-        saved.manualStatus === 'running' ? 'paused' : saved.manualStatus || 'idle';
-      set({
-        manualStatus: status,
-        manualTotal: saved.manualTotal || 0,
-        manualDone: saved.manualDone || 0,
-        manualAlerts: saved.manualAlerts || 0,
-        manualClosed: saved.manualClosed || 0,
-        manualDjenAlerts: saved.manualDjenAlerts || 0,
-        manualErrors: saved.manualErrors || 0,
-        lastLogs: Array.isArray(saved.lastLogs) ? saved.lastLogs : [],
-        processedProtocols: Array.isArray(saved.processedProtocols)
-          ? saved.processedProtocols
-          : [],
-        scanMode: saved.scanMode || 'both',
-        courtHealthMap: saved.courtHealthMap || {},
-      });
-    } catch {
-      // ignore
-    }
-  },
 
   toggleMinimize: () => set((state) => ({ isMinimized: !state.isMinimized })),
 
   addLog: (log) =>
     set((state) => {
       const filtered = state.lastLogs.filter(
-        (l) => l.protocolo !== log.protocolo || l.engine !== log.engine
+        (l) => !(l.protocolo === log.protocolo && l.engine === log.engine)
       );
-      const next = { lastLogs: [log, ...filtered].slice(0, 50) };
-      setTimeout(() => saveToStorage({ ...get(), ...next }), 0);
-      return next;
+      return { lastLogs: [log, ...filtered].slice(0, 60) };
     }),
 
   updateCourtHealth: (courtId, latency, success) => {
@@ -189,24 +120,24 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       let newStatus: 'online' | 'slow' | 'offline' = 'online';
       if (newRate < 0.4) newStatus = 'offline';
       else if (newAvgLatency > 15000 || newRate < 0.7) newStatus = 'slow';
-      const courtHealthMap = {
-        ...state.courtHealthMap,
-        [courtId]: {
-          ...current,
-          totalCalls: newTotal,
-          successCalls: newSuccess,
-          successRate: newRate,
-          avgLatency: newAvgLatency,
-          status: newStatus,
+      return {
+        courtHealthMap: {
+          ...state.courtHealthMap,
+          [courtId]: {
+            ...current,
+            totalCalls: newTotal,
+            successCalls: newSuccess,
+            successRate: newRate,
+            avgLatency: newAvgLatency,
+            status: newStatus,
+          },
         },
       };
-      setTimeout(() => saveToStorage({ ...get(), courtHealthMap }), 0);
-      return { courtHealthMap };
     });
   },
 
   runInitialHealthCheck: async (protocols) => {
-    for (const proto of protocols.slice(0, 10)) {
+    for (const proto of protocols.slice(0, 8)) {
       const start = Date.now();
       const res = await scanSingleCaseAction(proto, { fast: true, mode: 'both' });
       const latency = Date.now() - start;
@@ -219,53 +150,43 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     set({ status: 'running', isMinimized: false, cycles: 0 });
     if (pollTimer) clearInterval(pollTimer);
     get().pollStatus();
-    pollTimer = setInterval(() => get().pollStatus(), 10000);
+    pollTimer = setInterval(() => get().pollStatus(), CLOUD_POLL_MS);
   },
 
   pauseCloudScan: () => {
     set({ status: 'paused' });
-    if (pollTimer) clearInterval(pollTimer);
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
   },
 
+  /**
+   * Scanner LOCAL — respeita scanMode:
+   * - datajud = só tribunal
+   * - djen = só diário
+   * - both = DataJud + DJEN (mesmo núcleo auditCaseCoreSystem)
+   */
   startManualScan: async () => {
-    // Novo scan: limpa progresso anterior
+    const mode = get().scanMode || 'both';
+    const cases = useAppStore.getState().cases.filter((c) => !isCasoEncerrado(c));
+    if (cases.length === 0) return;
+
     set({
       manualStatus: 'running',
+      manualTotal: cases.length,
       manualDone: 0,
       manualAlerts: 0,
       manualClosed: 0,
       manualDjenAlerts: 0,
       manualErrors: 0,
-      processedProtocols: [],
-      isMinimized: false,
     });
-    saveToStorage(get());
-    await get().resumeManualScan();
-  },
 
-  resumeManualScan: async () => {
-    const mode = get().scanMode;
-    const allCases = useAppStore.getState().cases.filter((c) => !isCasoEncerrado(c));
-    if (allCases.length === 0) {
-      set({ manualStatus: 'done', manualTotal: 0 });
-      saveToStorage(get());
-      return;
-    }
-
-    const processed = new Set(get().processedProtocols || []);
-    const remaining = allCases.filter((c) => !processed.has(c.protocolo));
-
-    set({
-      manualStatus: 'running',
-      manualTotal: allCases.length,
-      isMinimized: false,
-    });
-    saveToStorage(get());
-
-    for (const c of remaining) {
+    for (const c of cases) {
       if (get().manualStatus !== 'running') break;
 
       const start = Date.now();
+      // mode explícito: both | datajud | djen
       const res = await scanSingleCaseAction(c.protocolo, { mode, fast: true });
       const latency = Date.now() - start;
       const patch = (res.casePatch as Record<string, any>) || {};
@@ -274,16 +195,19 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         if (patch.tem_atualizacao_pos_retorno) set((s) => ({ manualAlerts: s.manualAlerts + 1 }));
         if (patch.djen_nova_comunicacao) set((s) => ({ manualDjenAlerts: s.manualDjenAlerts + 1 }));
         if (patch.datajud_encerrado_tribunal) set((s) => ({ manualClosed: s.manualClosed + 1 }));
-        useAppStore.getState().updateCaseByProtocolo(c.protocolo, patch);
+        useAppStore.getState().updateCaseByProtocolo?.(c.protocolo, patch);
       } else if (!res.success) {
         set((s) => ({ manualErrors: s.manualErrors + 1 }));
       }
+
+      const srcLabel =
+        mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN';
 
       get().addLog({
         protocolo: c.protocolo,
         message:
           (patch.evento_resumo as string) ||
-          (res.success ? 'Monitoramento Regular' : 'Falha na Fonte'),
+          (res.success ? 'Monitoramento Regular' : (res as any).error || 'Falha na Fonte'),
         latency,
         success: !!res.success,
         type: patch.datajud_encerrado_tribunal
@@ -294,34 +218,27 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
               ? 'ok'
               : 'error',
         engine: 'Local',
-        source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
+        source: srcLabel,
       });
 
-      processed.add(c.protocolo);
-      set((s) => ({
-        manualDone: s.manualDone + 1,
-        processedProtocols: Array.from(processed),
-      }));
-
+      set((s) => ({ manualDone: s.manualDone + 1 }));
       const courtId = c.protocolo.split('.')[4];
       if (courtId) get().updateCourtHealth(courtId, latency, !!res.success);
-      saveToStorage(get());
-      await new Promise((r) => setTimeout(r, 600));
+
+      // intervalo leve entre CNJs (rate limit CNJ)
+      await new Promise((r) => setTimeout(r, 450));
     }
 
-    if (get().manualStatus === 'running') {
-      set({ manualStatus: 'done' });
-      saveToStorage(get());
-    }
+    if (get().manualStatus === 'running') set({ manualStatus: 'done' });
   },
 
-  pauseManualScan: () => {
-    set({ manualStatus: 'paused' });
-    saveToStorage(get());
-  },
+  pauseManualScan: () => set({ manualStatus: 'paused' }),
 
   resetScan: () => {
-    if (pollTimer) clearInterval(pollTimer);
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
     set({
       status: 'idle',
       total: 0,
@@ -339,49 +256,47 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       manualClosed: 0,
       manualDjenAlerts: 0,
       lastLogs: [],
-      processedProtocols: [],
     });
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {}
-    }
   },
 
+  /**
+   * Nuvem contínua SEM Cron:
+   * a cada poll dispara worker (micro-lote) + lê métricas.
+   * NÃO para quando pending===0 — continua reprocessando os mais antigos (rotação 24h).
+   */
   pollStatus: async () => {
     if (get().status !== 'running') return;
     try {
       set((s) => ({ cycles: s.cycles + 1 }));
-      fetch('/api/datajud-trigger', { method: 'POST' }).catch(() => {});
+
+      // Fire-and-forget: worker mode=both
+      fetch('/api/datajud-trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'both' }),
+      }).catch(() => {});
+
       const res = await fetch('/api/datajud-status');
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error('status');
       const metrics = await res.json();
+
       set({
-        total: metrics.total,
-        done: metrics.audited,
-        pending: metrics.pending,
-        alerts: metrics.alerts,
-        cloudDjenAlerts: metrics.djenAlerts,
-        closed: metrics.closed,
+        total: metrics.total ?? 0,
+        done: metrics.audited ?? 0,
+        pending: metrics.pending ?? 0,
+        alerts: metrics.alerts ?? 0,
+        cloudDjenAlerts: metrics.djenAlerts ?? 0,
+        closed: metrics.closed ?? 0,
       });
+
       if (metrics.recentLogs?.length > 0) {
-        metrics.recentLogs.forEach((log: ScanLog) => get().addLog(log));
+        metrics.recentLogs.forEach((log: ScanLog) =>
+          get().addLog({ ...log, engine: log.engine || 'Nuvem' })
+        );
       }
-      if (metrics.pending === 0 && metrics.total > 0) {
-        set({ status: 'done' });
-        if (pollTimer) clearInterval(pollTimer);
-      }
-    } catch {
-      console.warn('[Cloud Polling Error]');
+      // NÃO set status done — vigilância contínua enquanto o operador mantiver "running"
+    } catch (e) {
+      console.warn('[Cloud Polling Error]', e);
     }
   },
 }));
-
-// Auto-hydrate no client
-if (typeof window !== 'undefined') {
-  setTimeout(() => {
-    try {
-      useDataJudScanStore.getState().hydrateFromStorage();
-    } catch {}
-  }, 50);
-}

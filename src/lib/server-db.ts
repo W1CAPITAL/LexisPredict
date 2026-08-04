@@ -119,14 +119,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       djen_nova_comunicacao: item.djen_nova_comunicacao,
       djen_ultimo_resumo: item.djen_ultimo_resumo,
       djen_ultimo_link: item.djen_ultimo_link,
-      djen_ultima_data: item.djen_ultima_data,
-      djen_count: item.djen_count ?? (item.dados as any)?.djen_count,
-      djen_consultado_em: item.djen_consultado_em,
-      tem_novo_andamento: !!(item.tem_atualizacao_pos_retorno || item.djen_nova_comunicacao || (item.dados as any)?.tem_novo_andamento),
-      scan_priority: item.scan_priority,
-      evento_tipo: (item.dados as any)?.evento_tipo,
-      evento_resumo: (item.dados as any)?.evento_resumo,
-      evento_fonte: (item.dados as any)?.evento_fonte,
+      djen_ultima_data: item.djen_ultima_data
     }));
   } catch (error) {
     return [];
@@ -197,41 +190,19 @@ export async function searchKnowledgeChunksSystem(keywords: string[], empresaId:
 export async function getGlobalPendingProcessesSystem(limit: number, empresaId: string): Promise<LegalCase[]> {
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
-  const statusFilter = `(${statusExcluidos.map(s => `"${s}"`).join(',')})`;
 
   const { data, error } = await admin
     .from('processos')
     .select('*')
     .eq('empresa_id', empresaId)
-    .not('status', 'in', statusFilter)
-    .order('scan_priority', { ascending: false, nullsFirst: false })
+    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`)
+    .order('scan_priority', { ascending: false })
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
-    .limit(Math.max(limit * 3, 24));
+    .limit(limit);
 
-  if (error || !data) {
-    console.error('[getGlobalPendingProcessesSystem]', error);
-    return [];
-  }
+  if (error || !data) return [];
 
-  const agora = Date.now();
-  const MIN_RESYNC_MS = 90 * 60 * 1000; // 90 min cooldown (BA prioridade 100 ignora)
-
-  const ranked = data
-    .map((item) => {
-      const last = item.datajud_consultado_em ? new Date(item.datajud_consultado_em).getTime() : 0;
-      const age = last ? agora - last : Number.POSITIVE_INFINITY;
-      const prio = item.scan_priority ?? 40;
-      const eligible = prio >= 100 || age >= MIN_RESYNC_MS || !last;
-      return { item, prio, age, eligible };
-    })
-    .filter((x) => x.eligible)
-    .sort((a, b) => b.prio - a.prio || b.age - a.age)
-    .slice(0, limit)
-    .map((x) => x.item);
-
-  const finalRows = ranked.length > 0 ? ranked : data.slice(0, limit);
-
-  return finalRows.map(item => processarCaso({
+  return data.map(item => processarCaso({
     ...(item.dados as any),
     id: item.id.toString(),
     db_id: item.id.toString(),
@@ -242,7 +213,6 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     datajud_ultimo_nome: item.datajud_ultimo_nome,
     datajud_consultado_em: item.datajud_consultado_em,
     tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno,
-    tem_novo_andamento: !!(item.tem_atualizacao_pos_retorno || item.djen_nova_comunicacao || (item.dados as any)?.tem_novo_andamento),
     datajud_encerrado_tribunal: item.datajud_encerrado_tribunal,
     datajud_encerrado_motivo: item.datajud_encerrado_motivo,
     datajud_hash: item.datajud_hash,
@@ -256,10 +226,7 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     djen_nova_comunicacao: item.djen_nova_comunicacao,
     djen_ultimo_resumo: item.djen_ultimo_resumo,
     djen_ultimo_link: item.djen_ultimo_link,
-    djen_ultima_data: item.djen_ultima_data,
-    djen_count: item.djen_count ?? (item.dados as any)?.djen_count,
-    djen_consultado_em: item.djen_consultado_em,
-    scan_priority: item.scan_priority,
+    djen_ultima_data: item.djen_ultima_data
   }));
 }
 
@@ -267,20 +234,20 @@ export async function getScanStatusMetrics(empresaId: string) {
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
   const statusFilter = `(${statusExcluidos.map(s => `"${s}"`).join(',')})`;
-  const staleIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const hourIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
   const { count: total } = await admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
     .eq('empresa_id', empresaId);
 
+  // Carteira ativa (não encerrada no gabinete)
   const { count: active } = await admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
     .eq('empresa_id', empresaId)
     .not('status', 'in', statusFilter);
 
+  // Ainda sem nenhuma consulta DataJud
   const { count: neverScanned } = await admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
@@ -288,18 +255,9 @@ export async function getScanStatusMetrics(empresaId: string) {
     .not('status', 'in', statusFilter)
     .is('datajud_consultado_em', null);
 
-  const { count: stale } = await admin
-    .from('processos')
-    .select('*', { count: 'exact', head: true })
-    .eq('empresa_id', empresaId)
-    .not('status', 'in', statusFilter)
-    .or(`datajud_consultado_em.is.null,datajud_consultado_em.lt.${staleIso}`);
-
-  const { count: scanned1h } = await admin
-    .from('processos')
-    .select('*', { count: 'exact', head: true })
-    .eq('empresa_id', empresaId)
-    .gte('datajud_consultado_em', hourIso);
+  const activeN = active || 0;
+  const pendingN = neverScanned || 0;
+  const auditedN = Math.max(0, activeN - pendingN);
 
   const { count: alerts } = await admin
     .from('processos')
@@ -319,35 +277,21 @@ export async function getScanStatusMetrics(empresaId: string) {
     .eq('empresa_id', empresaId)
     .eq('datajud_encerrado_tribunal', true);
 
-  const { count: baCount } = await admin
-    .from('processos')
-    .select('*', { count: 'exact', head: true })
-    .eq('empresa_id', empresaId)
-    .eq('indicio_busca_apreensao', true);
-
   const { data: recent } = await admin
     .from('processos')
-    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao, datajud_ultimo_nome, datajud_consultado_em, djen_consultado_em')
+    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao, datajud_ultimo_nome, datajud_consultado_em')
     .eq('empresa_id', empresaId)
     .not('datajud_consultado_em', 'is', null)
     .order('datajud_consultado_em', { ascending: false })
-    .limit(15);
-
-  const activeN = active || 0;
-  const pendingN = stale || 0;
-  const auditedN = Math.max(0, activeN - (neverScanned || 0));
+    .limit(10);
 
   return {
     total: total || 0,
-    active: activeN,
     pending: pendingN,
-    neverScanned: neverScanned || 0,
-    audited: auditedN,
-    scanned1h: scanned1h || 0,
     alerts: alerts || 0,
     djenAlerts: djenAlerts || 0,
     closed: closed || 0,
-    ba: baCount || 0,
+    audited: auditedN,
     recentLogs: recent?.map(r => ({
       protocolo: r.protocolo_ref,
       message: r.datajud_encerrado_tribunal
@@ -362,8 +306,7 @@ export async function getScanStatusMetrics(empresaId: string) {
         : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao)
           ? 'update'
           : 'ok',
-      engine: 'Nuvem' as const,
-      at: r.datajud_consultado_em,
+      engine: 'Nuvem'
     })) || []
   };
 }

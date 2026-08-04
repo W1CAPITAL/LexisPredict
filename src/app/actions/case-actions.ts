@@ -175,8 +175,6 @@ export async function auditCaseCoreSystem(
           cumprimento_sentenca_consultado_em: new Date().toISOString(),
           datajud_consultado_em: new Date().toISOString(),
           tribunal: dataJud.tribunal || target.tribunal,
-          datajud_last_ok: true,
-          datajud_last_error: null,
         });
 
         // Hierarquia de Mérito DataJud (com sentença explícita)
@@ -225,10 +223,8 @@ export async function auditCaseCoreSystem(
           eventResumo = upd.nomeUltimo || eventResumo;
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('[auditCaseCoreSystem] DataJud fail', protocolo, e);
-      patch.datajud_last_ok = false;
-      patch.datajud_last_error = e?.message || 'DataJud fail';
     }
   }
 
@@ -259,8 +255,6 @@ export async function auditCaseCoreSystem(
           djen_ultimo_link: djenSync.link || target.djen_ultimo_link || null,
           djen_count: djenRes.count ?? target.djen_count ?? comunicacoes.length,
           djen_consultado_em: new Date().toISOString(),
-          djen_last_ok: true,
-          djen_last_error: null,
         });
 
         if (djenSync.alerta && comunicacoes[0]) {
@@ -271,10 +265,8 @@ export async function auditCaseCoreSystem(
           }
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('[auditCaseCoreSystem] DJEN fail', protocolo, e);
-      patch.djen_last_ok = false;
-      patch.djen_last_error = e?.message || 'DJEN fail';
     }
   }
 
@@ -332,11 +324,7 @@ export async function auditCaseCoreSystem(
     patch.scan_priority = 40;
   }
 
-  const eraNovo =
-    !target.tem_novo_andamento &&
-    !!(patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao);
-
-  if (eraNovo) {
+  if (patch.tem_novo_andamento) {
     await logAlertEvent({
       empresaId,
       protocolo,
