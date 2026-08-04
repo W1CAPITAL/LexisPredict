@@ -37,6 +37,7 @@ import {
   FileSearch,
   Upload,
   ImageIcon,
+  Camera,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -47,6 +48,7 @@ import {
   registerCaseFromAutomacaoAction,
   transcribeTribunalPrintAction,
 } from "@/app/actions/automacao-register-actions";
+import { captureTribunalAutoAction } from "@/app/actions/tribunal-capture-actions";
 import {
   getTribunalByCnj,
   getFallbacksForCnj,
@@ -75,6 +77,7 @@ export default function AutomacaoJudicialPage() {
   const [resultado, setResultado] = useState<any>(null);
   const [doneSteps, setDoneSteps] = useState<Set<string>>(new Set());
   const [ocrText, setOcrText] = useState("");
+  const [capturePreview, setCapturePreview] = useState<string | null>(null);
   const [cliente, setCliente] = useState("");
   const [telefone, setTelefone] = useState("");
   const [classificacao, setClassificacao] = useState("");
@@ -163,6 +166,68 @@ export default function AutomacaoJudicialPage() {
       }
     } catch (e: any) {
       toast({ title: "Erro no print", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+
+  /** Captura automática pelo servidor (Chromium) — qualquer tribunal do CNJ */
+  const runAutoCapture = async () => {
+    if (cleanCnj.length !== 20) {
+      toast({ title: "CNJ inválido", variant: "destructive" });
+      return;
+    }
+    setLoading("auto-capture");
+    setCapturePreview(null);
+    try {
+      const preview = getTribunalByCnj(cnj);
+      if (preview?.url) {
+        openEmbed(preview.url, `${preview.sigla} · captura automática`);
+      }
+      const res = await captureTribunalAutoAction(cnj, preview?.url);
+      if (res.success && res.imageBase64) {
+        setCapturePreview(res.imageBase64);
+        toast({
+          title: "Screenshot capturado",
+          description: `${res.tribunal || "Tribunal"} · enviando ao OCR…`,
+        });
+        // OCR imediato
+        const ocr = await transcribeTribunalPrintAction({
+          imageBase64: res.imageBase64,
+          mimeType: "image/png",
+        });
+        if (ocr.success && ocr.text) {
+          setOcrText(ocr.text);
+          if (ocr.cnj) setCnj(ocr.cnj);
+          markDone("captura");
+          toast({
+            title: "Captura + OCR ok",
+            description: ocr.cnj || "Revise o texto transcrito",
+          });
+        } else {
+          markDone("captura");
+          toast({
+            title: "Print ok — OCR parcial",
+            description: ocr.error || "Revise/cole o texto",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: res.needsHuman ? "CAPTCHA / bloqueio" : "Captura falhou",
+          description:
+            res.error ||
+            "Abra o tribunal no embed, resolva o CAPTCHA e use «Enviar print».",
+          variant: "destructive",
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "Erro na captura automática",
+        description: e?.message || "Tente o print manual",
+        variant: "destructive",
+      });
     } finally {
       setLoading(null);
     }
@@ -397,7 +462,37 @@ export default function AutomacaoJudicialPage() {
                     <div className="rounded-xl border border-dashed border-border p-4 space-y-3">
                       <p className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
                         <ImageIcon size={14} />
-                        Print / screenshot do tribunal
+                        
+                      <div className="rounded-xl border-2 border-cyan-600/40 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 space-y-3 mb-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-cyan-900 dark:text-cyan-200">
+                          Captura automática pelo app (qualquer tribunal)
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          O servidor abre a consulta pública do tribunal do CNJ, tira o screenshot e envia ao OCR.
+                          Se houver CAPTCHA, use o embed no app e «Enviar print» abaixo.
+                        </p>
+                        <Button
+                          type="button"
+                          onClick={runAutoCapture}
+                          disabled={loading === "auto-capture" || cleanCnj.length !== 20}
+                          className="h-11 font-black uppercase text-[10px] tracking-widest gap-2 bg-cyan-700 hover:bg-cyan-800 text-white"
+                        >
+                          {loading === "auto-capture" ? (
+                            <Loader2 className="animate-spin" size={16} />
+                          ) : (
+                            <Camera size={16} />
+                          )}
+                          Capturar screenshot automático
+                        </Button>
+                        {capturePreview && (
+                          <div className="mt-2 rounded-lg border overflow-hidden max-h-48">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={capturePreview} alt="Captura tribunal" className="w-full object-contain max-h-48 bg-black" />
+                          </div>
+                        )}
+                      </div>
+
+                      Print / screenshot do tribunal
                       </p>
                       <input
                         ref={fileRef}

@@ -1,14 +1,5 @@
-/**
- * Contraste do rascunho gerado por IA (Processos / Tarefas).
- * Importar no globals.css:
- *   @import "./globals-ai-draft-contrast.css";
- */
-
 [data-ai-draft],
-.ai-draft-preview,
-.ai-rascunho-preview,
-.rascunho-ia,
-.draft-neural-preview {
+.ai-draft-preview {
   background-color: #020617 !important;
   color: #f8fafc !important;
   border: 1px solid rgba(148, 163, 184, 0.4);
@@ -18,29 +9,18 @@
   line-height: 1.55;
   white-space: pre-wrap;
 }
-
 [data-ai-draft] *,
-.ai-draft-preview *,
-.ai-rascunho-preview *,
-.rascunho-ia *,
-.draft-neural-preview * {
+.ai-draft-preview * {
   color: #f8fafc !important;
 }
-
 [data-ai-draft] textarea,
-.ai-draft-preview textarea,
-.rascunho-ia textarea,
-.draft-neural-preview textarea,
-[data-ai-draft] pre,
-.ai-draft-preview pre {
+.ai-draft-preview textarea {
   background-color: #020617 !important;
   color: #f8fafc !important;
   border-color: rgba(148, 163, 184, 0.3) !important;
   caret-color: #f8fafc;
 }
-
-[data-ai-draft]::placeholder,
-.ai-draft-preview textarea::placeholder,
-.ai-draft-preview::placeholder {
+.ai-draft-preview::placeholder,
+[data-ai-draft]::placeholder {
   color: #94a3b8 !important;
 }

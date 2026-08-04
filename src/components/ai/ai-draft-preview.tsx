@@ -10,9 +10,7 @@ import { Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AiDraftPreviewProps = {
-  /** Texto gerado pela IA / motor Lexis */
   text: string;
-  /** editable = textarea; readOnly = div */
   editable?: boolean;
   onChange?: (value: string) => void;
   className?: string;
@@ -82,11 +80,7 @@ export function AiDraftPreview({
           )}
           style={{ minHeight }}
         >
-          {text?.trim() ? (
-            text
-          ) : (
-            <span className="text-slate-400">{placeholder}</span>
-          )}
+          {text?.trim() ? text : <span className="text-slate-400">{placeholder}</span>}
         </div>
       )}
     </div>
