@@ -114,7 +114,6 @@ function SidebarNavBody({
         { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
         { label: "Processos", href: "/cases", icon: Briefcase },
         { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
-        { label: "Automação Judicial", href: "/tools/automacao", icon: Zap },
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
       ],
     },
