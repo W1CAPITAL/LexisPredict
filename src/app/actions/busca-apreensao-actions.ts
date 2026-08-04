@@ -1,11 +1,14 @@
 /**
- * Server Actions — Varredura Busca e Apreensão (DJEN)
- * Isolado: não altera scanner DataJud / case-actions de lote.
+ * Varredura Busca e Apreensão — SOMENTE processos da carteira do usuário (empresa).
+ * Consulta DJEN por CNJ de cada processo; não busca publicação genérica de terceiros.
  */
 'use server';
 
-import { getUserContext, getStoredCasesForEmpresa, listAdvogadosBanca } from '@/lib/server-db';
-import { fetchDjenPorTexto } from '@/lib/djen-busca-texto';
+import {
+  getUserContext,
+  getStoredCasesForEmpresa,
+  listAdvogadosBanca,
+} from '@/lib/server-db';
 import { fetchDjenComunicacoes } from '@/lib/djen';
 import {
   textoIndicaBuscaApreensao,
@@ -19,15 +22,18 @@ export interface BaHit {
   tribunal: string | null;
   orgao: string | null;
   processo: string | null;
+  cliente: string | null;
   trecho: string;
   motivoBa: string;
   link: string | null;
   matches: MatchResult[];
-  fonte: 'teor_djen' | 'carteira_cnj';
+  fonte: 'carteira_cnj';
 }
 
 function daysAgoIso(days: number): string {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0];
 }
 
 function todayIso(): string {
@@ -35,27 +41,30 @@ function todayIso(): string {
 }
 
 /**
- * 1) Busca no DJEN por teor "busca e apreensão" / "busca e apreensao"
- * 2) Filtra só itens que realmente indicam BA
- * 3) Cruza com clientes da carteira + advogados da banca + advogado do processo
+ * Varre DJEN apenas nos CNJs da carteira da empresa do usuário logado.
  */
 export async function runBuscaApreensaoDjenAction(opts?: {
   dias?: number;
-  pagina?: number;
-  /** também varre até N processos ativos da carteira no DJEN por CNJ */
-  varreduraCarteira?: boolean;
-  limiteCarteira?: number;
+  /** limite de processos ativos a consultar (default 80) */
+  limite?: number;
+  /** incluir encerrados */
+  incluirEncerrados?: boolean;
 }) {
   try {
     const ctx = await getUserContext();
     const empresa_id = ctx?.empresa_id;
     if (!empresa_id) {
-      return { success: false as const, error: 'Sessão expirada.', hits: [] as BaHit[] };
+      return {
+        success: false as const,
+        error: 'Sessão expirada.',
+        hits: [] as BaHit[],
+      };
     }
 
     const dias = Math.min(Math.max(opts?.dias ?? 30, 1), 90);
     const dataInicio = daysAgoIso(dias);
     const dataFim = todayIso();
+    const limite = Math.min(Math.max(opts?.limite ?? 80, 1), 150);
 
     const cases = (await getStoredCasesForEmpresa(empresa_id)) || [];
     const advs = (await listAdvogadosBanca()) || [];
@@ -78,126 +87,118 @@ export async function runBuscaApreensaoDjenAction(opts?: {
       }))
       .filter((a) => a.nome.length >= 6);
 
+    // Só carteira do usuário/empresa
+    let fila = cases.filter((c: any) => {
+      const proto = String(c.protocolo || c.protocolo_ref || '').replace(/\D/g, '');
+      if (proto.length !== 20) return false;
+      if (opts?.incluirEncerrados) return true;
+      const st = String(c.status || c.situacao || '').toUpperCase();
+      return !/(ENCERRADO|ARQUIVADO)/.test(st) || st === 'É HOJE' || st === 'VENCIDO';
+    });
+
+    // Prioriza quem já tem indício BA ou status crítico
+    fila = [...fila].sort((a: any, b: any) => {
+      const pa = a.indicio_busca_apreensao ? 0 : 1;
+      const pb = b.indicio_busca_apreensao ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return 0;
+    });
+
+    fila = fila.slice(0, limite);
+
     const hits: BaHit[] = [];
     const seen = new Set<string>();
+    let scanned = 0;
+    let errors = 0;
+    let geoBlocked = false;
+    let rateLimited = false;
 
-    const pushHit = (h: BaHit) => {
-      const key = `${h.processo || ''}|${h.data || ''}|${h.motivoBa}|${h.id}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      hits.push(h);
-    };
+    for (const c of fila) {
+      const proto = String(c.protocolo || c.protocolo_ref || '');
+      const clienteNome = String(c.cliente || '');
+      scanned++;
 
-    // --- Busca por teor (duas grafias) ---
-    const queries = ['busca e apreensão', 'busca e apreensao', 'mandado de busca e apreensão'];
-    for (const q of queries) {
-      const res = await fetchDjenPorTexto(q, {
+      const res = await fetchDjenComunicacoes(proto, {
         dataInicio,
         dataFim,
-        pagina: opts?.pagina || 1,
-        itensPorPagina: 50,
       });
+
       if (!res.success) {
-        if (res.isGeoBlocked || res.isRateLimited) {
-          return {
-            success: false as const,
-            error: res.error || 'Falha DJEN',
-            hits,
-            geoBlocked: !!res.isGeoBlocked,
-            rateLimited: !!res.isRateLimited,
-          };
-        }
+        errors++;
+        if (res.isGeoBlocked) geoBlocked = true;
+        if (res.isRateLimited) rateLimited = true;
+        if (geoBlocked || rateLimited) break;
         continue;
       }
+
       for (const item of res.items) {
         const det = textoIndicaBuscaApreensao(item.texto);
         if (!det.hit) continue;
+
         const matches = cruzarPublicacaoComCarteira(item.texto || '', {
           clientes,
           advogadosBanca,
           advogadosProcesso,
         });
-        // Só lista se cruzou com carteira/banca OU se o usuário quiser ver tudo
-        // Regra: prioriza matches; se não houver match, ainda inclui com matches=[]
-        // para o operador filtrar na UI "só da banca"
-        pushHit({
-          id: String(item.id),
+
+        // Garante vínculo com o processo da carteira
+        if (clienteNome && !matches.some((m) => m.tipo === 'cliente' && m.protocolo === proto)) {
+          matches.unshift({
+            tipo: 'cliente',
+            nome: clienteNome,
+            protocolo: proto,
+          });
+        }
+
+        const key = `${proto}|${item.id}|${item.data_disponibilizacao || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        hits.push({
+          id: key,
           data: item.data_disponibilizacao,
           tribunal: item.siglaTribunal,
           orgao: item.nomeOrgao,
-          processo: item.numero_processo,
+          processo: item.numero_processo || proto,
+          cliente: clienteNome || null,
           trecho: (item.texto || '').slice(0, 500),
           motivoBa: det.motivo || 'BUSCA E APREENSÃO',
           link: item.link,
           matches,
-          fonte: 'teor_djen',
+          fonte: 'carteira_cnj',
         });
       }
     }
 
-    // --- Varredura opcional da carteira (CNJ a CNJ, lote pequeno) ---
-    if (opts?.varreduraCarteira) {
-      const limite = Math.min(opts?.limiteCarteira ?? 25, 40);
-      const ativos = cases
-        .filter((c: any) => {
-          const st = String(c.status || c.situacao || '').toUpperCase();
-          return !/(ENCERRADO|ARQUIVADO|BAIXA)/.test(st);
-        })
-        .slice(0, limite);
+    hits.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
 
-      for (const c of ativos) {
-        const proto = String(c.protocolo || c.protocolo_ref || '');
-        if (!proto) continue;
-        const res = await fetchDjenComunicacoes(proto, {
-          dataInicio,
-          dataFim,
-        });
-        if (!res.success) continue;
-        for (const item of res.items) {
-          const det = textoIndicaBuscaApreensao(item.texto);
-          if (!det.hit) continue;
-          const matches = cruzarPublicacaoComCarteira(item.texto || '', {
-            clientes,
-            advogadosBanca,
-            advogadosProcesso,
-          });
-          // Garante ao menos match pelo cliente do processo
-          if (c.cliente && !matches.some((m) => m.tipo === 'cliente')) {
-            matches.unshift({
-              tipo: 'cliente',
-              nome: String(c.cliente),
-              protocolo: proto,
-            });
-          }
-          pushHit({
-            id: String(item.id) + '-c-' + proto,
-            data: item.data_disponibilizacao,
-            tribunal: item.siglaTribunal,
-            orgao: item.nomeOrgao,
-            processo: item.numero_processo || proto,
-            trecho: (item.texto || '').slice(0, 500),
-            motivoBa: det.motivo || 'BUSCA E APREENSÃO',
-            link: item.link,
-            matches,
-            fonte: 'carteira_cnj',
-          });
-        }
-      }
+    if (geoBlocked) {
+      return {
+        success: false as const,
+        error:
+          'DJEN geo-bloqueou o servidor (403). Vercel deve estar em São Paulo (gru1).',
+        hits,
+        scanned,
+        geoBlocked: true,
+      };
     }
-
-    // Ordena: com match na banca/carteira primeiro
-    hits.sort((a, b) => {
-      const sa = a.matches.length ? 0 : 1;
-      const sb = b.matches.length ? 0 : 1;
-      if (sa !== sb) return sa - sb;
-      return String(b.data || '').localeCompare(String(a.data || ''));
-    });
+    if (rateLimited) {
+      return {
+        success: false as const,
+        error: 'Rate limit DJEN (429). Aguarde e tente de novo.',
+        hits,
+        scanned,
+        rateLimited: true,
+      };
+    }
 
     return {
       success: true as const,
       hits,
-      scannedQueries: queries.length,
+      scanned,
+      errors,
       carteiraSize: cases.length,
+      filaSize: fila.length,
       bancaSize: advogadosBanca.length,
       periodo: { dataInicio, dataFim },
     };

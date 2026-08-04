@@ -124,7 +124,7 @@ function CasesContent() {
   const { cases, setCases, updateCaseByProtocolo, removeCase } = useAppStore();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [quickFilter, setQuickFilter] = useState('all');
+  const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -299,14 +299,25 @@ function CasesContent() {
     }
   };
 
-  const filtered = useMemo(() => {
-    const lower = search.toLowerCase();
+    const filtered = useMemo(() => {
+    const q = (search || '').toLowerCase().trim();
     return cases.filter(c => {
-      const match = c.cliente.toLowerCase().includes(lower) || c.protocolo.includes(search);
-      if (quickFilter === 'updated') return match && !!c.tem_novo_andamento;
-      if (quickFilter === 'active') return match && !isCasoEncerrado(c);
-      if (quickFilter === 'closed') return match && isCasoEncerrado(c);
-      return match;
+      const match =
+        !q ||
+        (c.cliente || '').toLowerCase().includes(q) ||
+        (c.protocolo || '').toLowerCase().includes(q) ||
+        (c.advogado || '').toLowerCase().includes(q) ||
+        (c.observacao || '').toLowerCase().includes(q);
+      if (!match) return false;
+      if (quickFilter === 'updated') return !!c.tem_novo_andamento;
+      if (quickFilter === 'active') return !isCasoEncerrado(c);
+      if (quickFilter === 'closed') return isCasoEncerrado(c);
+      if (quickFilter === 'hoje' || quickFilter === 'today') {
+        const st = String(c.status || '');
+        return st === 'É Hoje' || st === 'E Hoje' || st.toLowerCase() === 'é hoje';
+      }
+      if (quickFilter === 'vencido') return String(c.status || '') === 'Vencido';
+      return true;
     });
   }, [cases, search, quickFilter]);
 
@@ -359,7 +370,7 @@ function CasesContent() {
               <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
                 <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-black uppercase text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="active">Ativos</SelectItem><SelectItem value="updated">Com Novidade</SelectItem><SelectItem value="closed">Arquivados</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="hoje">É Hoje</SelectItem><SelectItem value="vencido">Vencido</SelectItem><SelectItem value="active">Ativos</SelectItem><SelectItem value="updated">Com Novidade</SelectItem><SelectItem value="closed">Arquivados</SelectItem></SelectContent>
               </Select>
             </div>
             <div className={cn("flex-1", ui.tableWrap)}>
