@@ -32,6 +32,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
+import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
@@ -540,7 +541,16 @@ function CasesContent() {
                           {isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}
                         </Button>
                       </div>
-                      {aiDraft && <div className="space-y-3 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className="text-white/80 italic text-xs">"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
+                      {(aiDraft !== null && aiDraft !== undefined) && (
+                        <div className="mt-3">
+                          <AiDraftPreview
+                            text={aiDraft || ""}
+                            editable
+                            onChange={(v) => setAiDraft(v)}
+                            minHeight="140px"
+                          />
+                        </div>
+                      )}
                     </div>
                   </section>
                 </div>

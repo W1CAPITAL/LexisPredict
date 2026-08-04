@@ -66,6 +66,7 @@ import {
 import { format, parseISO, startOfDay, differenceInDays } from 'date-fns';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
+import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { useAuth } from '@/components/auth/auth-provider';
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
@@ -563,7 +564,16 @@ export default function TarefasPage() {
                         </Select>
                         <Button onClick={handleGenerateAIDraft} disabled={isGeneratingAIDraft} className="h-10 px-6 bg-white text-black font-black uppercase text-[10px] rounded-lg">{isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}</Button>
                       </div>
-                      {aiDraft && <div className="space-y-3 animate-in fade-in duration-500 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className={cn("text-white/80 italic", ui.readable)}>"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
+                      {(aiDraft !== null && aiDraft !== undefined) && (
+                        <div className="mt-3 animate-in fade-in duration-500">
+                          <AiDraftPreview
+                            text={aiDraft || ""}
+                            editable
+                            onChange={(v) => setAiDraft(v)}
+                            minHeight="140px"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {suggestedScripts.length > 0 && (
