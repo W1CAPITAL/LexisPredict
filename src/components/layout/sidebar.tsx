@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
+import { DollarSign,
   LayoutDashboard,
   Briefcase,
   Upload,
@@ -112,6 +112,7 @@ function SidebarNavBody({
       items: [
         { label: "Painel", href: "/", icon: LayoutDashboard },
         { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
+        { label: "Finanças", href: "/financas", icon: DollarSign },
         { label: "Processos", href: "/cases", icon: Briefcase },
         { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),

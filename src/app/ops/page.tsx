@@ -43,7 +43,7 @@ export default function OpsPage() {
   const isSuper = checkIfSuperAdmin(profile);
 
   const [tables, setTables] = useState<string[]>([]);
-  const [table, setTable] = useState<string>("processos");
+  const [table, setTable] = useState<"processos" | "usuarios" | "empresas" | "advogados_banca" | string>("processos");
   const [rows, setRows] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,7 @@ export default function OpsPage() {
     const res = await opsListTables();
     if (res.success) {
       setTables(res.tables);
-      if (res.tables.length && !res.tables.includes(table)) setTable(res.tables[0] as any);
+      if (res.tables.length && !res.tables.includes(table as any)) setTable(res.tables[0] as any);
     } else {
       toast({ title: "Acesso negado", description: res.error, variant: "destructive" });
     }
@@ -67,7 +67,7 @@ export default function OpsPage() {
     if (!table) return;
     setLoading(true);
     try {
-      const res = await opsListRows(table as any, 100, search);
+      const res = await opsListRows(String(table), 100, search);
       if (res.success) setRows(res.data || []);
       else {
         setRows([]);
