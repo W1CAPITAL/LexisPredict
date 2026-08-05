@@ -24,9 +24,10 @@ export interface ScanLog {
   message: string;
   latency: number;
   success: boolean;
-  type: 'update' | 'closed' | 'error' | 'ok';
+  type: 'update' | 'closed' | 'error' | 'ok' | 'ai';
   engine: 'Local' | 'Nuvem';
-  source?: 'DataJud' | 'DJEN' | 'Both';
+  source?: 'DataJud' | 'DJEN' | 'Both' | 'Claude';
+  aiEngine?: string | null;
 }
 
 interface DataJudScanState {
@@ -203,22 +204,37 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const srcLabel =
         mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN';
 
+      const aiLine =
+        (res as any).aiLogLine ||
+        (patch.ai_log_line as string) ||
+        null;
+      const aiEng = (res as any).aiEngine || patch.ai_engine || null;
+      const baseMsg =
+        (patch.evento_resumo as string) ||
+        (res.success ? 'Monitoramento Regular' : (res as any).error || 'Falha na Fonte');
+      const message = aiLine
+        ? aiLine
+        : aiEng
+          ? `[IA: ${aiEng}] ${baseMsg}${patch.ai_flags_label ? ` | ${patch.ai_flags_label}` : ''}`
+          : baseMsg;
+
       get().addLog({
         protocolo: c.protocolo,
-        message:
-          (patch.evento_resumo as string) ||
-          (res.success ? 'Monitoramento Regular' : (res as any).error || 'Falha na Fonte'),
+        message,
         latency,
         success: !!res.success,
         type: patch.datajud_encerrado_tribunal
           ? 'closed'
-          : patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao
-            ? 'update'
-            : res.success
-              ? 'ok'
-              : 'error',
+          : patch.indicio_busca_apreensao || patch.alerta_ia
+            ? 'ai'
+            : patch.tem_atualizacao_pos_retorno || patch.djen_nova_comunicacao
+              ? 'update'
+              : res.success
+                ? 'ok'
+                : 'error',
         engine: 'Local',
-        source: srcLabel,
+        source: aiEng ? 'Claude' : srcLabel,
+        aiEngine: aiEng,
       });
 
       set((s) => ({ manualDone: s.manualDone + 1 }));

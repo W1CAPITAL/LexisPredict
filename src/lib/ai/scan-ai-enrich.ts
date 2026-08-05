@@ -4,8 +4,8 @@ import { classifyCaseEventsWithAi } from '@/lib/ai/case-event-classifier';
 import { mergeAiIntoScanPatch } from '@/lib/ai/merge-scan-patch';
 
 /**
- * Enrich do scanner DataJud/DJEN com Claude (OmniRoute) prioritário.
- * preferred padrão: claude (cascade cai em openrouter/groq se falhar).
+ * Enrich do scanner DataJud/DJEN com Claude via OmniRoute (padrão).
+ * SCAN_AI=0 desliga. SCAN_AI_PREFERRED=claude|omniroute|groq|auto
  */
 export async function enrichScanPatchWithAi(opts: {
   protocolo: string;
@@ -15,19 +15,29 @@ export async function enrichScanPatchWithAi(opts: {
   patch: Record<string, any>;
   preferred?: string;
   enabled?: boolean;
-}): Promise<{ patch: Record<string, any>; aiEngine: string | null }> {
-  if (opts.enabled === false) return { patch: opts.patch, aiEngine: null };
+}): Promise<{
+  patch: Record<string, any>;
+  aiEngine: string | null;
+  aiLogLine: string | null;
+  aiFlagsLabel: string | null;
+}> {
+  if (opts.enabled === false)
+    return { patch: opts.patch, aiEngine: null, aiLogLine: null, aiFlagsLabel: null };
   if (process.env.SCAN_AI === '0' || process.env.SCAN_AI === 'false') {
-    return { patch: opts.patch, aiEngine: null };
+    return { patch: opts.patch, aiEngine: null, aiLogLine: null, aiFlagsLabel: null };
   }
+
   const hasMaterial =
     (opts.movimentos && opts.movimentos.length > 0) ||
     (opts.comunicacoes && opts.comunicacoes.length > 0);
-  if (!hasMaterial) return { patch: opts.patch, aiEngine: null };
+  if (!hasMaterial)
+    return { patch: opts.patch, aiEngine: null, aiLogLine: null, aiFlagsLabel: null };
 
+  // Padrão: Claude (OmniRoute) — o que o usuário configurou no app
   const preferred =
     opts.preferred ||
     process.env.SCAN_AI_PREFERRED ||
+    process.env.LEXIS_SCAN_AI ||
     'claude';
 
   const ai = await classifyCaseEventsWithAi({
@@ -37,27 +47,15 @@ export async function enrichScanPatchWithAi(opts: {
     comunicacoes: opts.comunicacoes,
     preferred,
   });
-  if (!ai) return { patch: opts.patch, aiEngine: null };
+  if (!ai)
+    return { patch: opts.patch, aiEngine: null, aiLogLine: null, aiFlagsLabel: null };
 
-  let patch = mergeAiIntoScanPatch(opts.patch, ai);
+  const patch = mergeAiIntoScanPatch(opts.patch, ai);
 
-  // Espelha flags de mérito / BA tipado no patch
-  const f = ai.flags || ({} as any);
-  patch = {
-    ...patch,
-    ai_evento_tipo: ai.evento_tipo,
-    ai_evento_resumo: ai.evento_resumo,
-    ai_severidade: ai.severidade,
-    ai_engine: ai.engine,
-    sentenca_procedente: !!f.procedente,
-    sentenca_improcedente: !!f.improcedente,
-    sentenca_parcial: !!f.parcial,
-    cumprimento_sentenca: !!f.cumprimento_sentenca || !!patch.cumprimento_sentenca,
-    indicio_busca_apreensao: !!f.busca_apreensao,
-    ba_tipo: f.ba_tipo || null,
-    datajud_encerrado_tribunal:
-      !!f.encerrado || !!patch.datajud_encerrado_tribunal,
+  return {
+    patch,
+    aiEngine: ai.engine,
+    aiLogLine: patch.ai_log_line || null,
+    aiFlagsLabel: patch.ai_flags_label || null,
   };
-
-  return { patch, aiEngine: ai.engine };
 }

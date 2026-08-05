@@ -637,7 +637,14 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
           {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <UserCheck size={24} />}
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
-          {group.hasBA ? <Badge className="bg-red-600 text-white text-[8px] font-black uppercase">CRÍTICO: B.A.</Badge> : group.hasClosedCourt ? <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase">BAIXA TRIBUNAL</Badge> : group.hasUpdate ? <Badge variant="destructive" className="text-[7px] font-black uppercase animate-pulse">NOVO EVENTO</Badge> : <Badge variant="outline" className="text-[8px] font-black uppercase">Monitoramento</Badge>}
+          {group.hasBA ? <Badge className="bg-red-600 text-white text-[8px] font-black uppercase">CRÍTICO: B.A.</Badge> : null}
+          {group.hasClosedCourt ? <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase">BAIXA TRIBUNAL</Badge> : null}
+          {group.cases?.some((x: any) => x.em_cumprimento_sentenca || x.cumprimento_sentenca) ? <Badge className="bg-amber-500 text-black text-[8px] font-black uppercase">CUMPRIMENTO</Badge> : null}
+          {group.cases?.some((x: any) => x.sentenca_procedente || x.merito_resultado === 'procedente') ? <Badge className="bg-emerald-600 text-white text-[8px] font-black uppercase">PROCEDENTE</Badge> : null}
+          {group.cases?.some((x: any) => x.sentenca_improcedente || x.merito_resultado === 'improcedente') ? <Badge className="bg-slate-700 text-white text-[8px] font-black uppercase">IMPROCEDENTE</Badge> : null}
+          {group.cases?.some((x: any) => x.alerta_ia) ? <Badge className="bg-red-700 text-white text-[8px] font-black uppercase animate-pulse">ALERTA IA</Badge> : null}
+          {group.hasUpdate && !group.hasBA ? <Badge variant="destructive" className="text-[7px] font-black uppercase animate-pulse">NOVO EVENTO</Badge> : null}
+          {!group.hasBA && !group.hasClosedCourt && !group.hasUpdate ? <Badge variant="outline" className="text-[8px] font-black uppercase">Monitoramento</Badge> : null}
         </div>
       </div>
       <div className="space-y-1 flex-1">

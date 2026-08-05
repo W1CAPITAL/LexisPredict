@@ -324,13 +324,15 @@ export async function auditCaseCoreSystem(
     patch.scan_priority = 40;
   }
 
-  // --- IA OmniRoute/Claude: classifica cumprimento, encerrado, procedência, BA, alertas ---
+  // --- IA Claude via OmniRoute: flags (encerrado, cumprimento, mérito, BA, prioridade) ---
+  let aiLogLine: string | null = null;
+  let aiEngine: string | null = null;
   try {
     const { enrichScanPatchWithAi } = await import('@/lib/ai/scan-ai-enrich');
     const preferredAi =
       process.env.SCAN_AI_PREFERRED ||
       process.env.LEXIS_SCAN_AI ||
-      'groq'; // default barato; override no Vercel se quiser claude
+      'claude'; // Claude/OmniRoute padrão no Scanner Tribunal
     const enriched = await enrichScanPatchWithAi({
       protocolo,
       cliente: target.cliente,
@@ -340,8 +342,17 @@ export async function auditCaseCoreSystem(
       preferred: preferredAi,
     });
     Object.assign(patch, enriched.patch);
+    aiEngine = enriched.aiEngine;
+    aiLogLine = enriched.aiLogLine;
     if (enriched.aiEngine) {
-      console.info('[scan-ai]', protocolo, enriched.aiEngine, patch.evento_tipo, patch.alerta_ia);
+      console.info(
+        '[scan-ai]',
+        protocolo,
+        enriched.aiEngine,
+        patch.evento_tipo,
+        patch.ai_flags_label,
+        patch.alerta_ia
+      );
     }
   } catch (e: any) {
     console.error('[scan-ai] skip', e?.message || e);
@@ -370,17 +381,18 @@ export async function auditCaseCoreSystem(
     };
   }
 
-  const updatedCase = processarCaso({ ...target, ...patch });
+    const updatedCase = processarCaso({ ...target, ...patch });
   return {
     success: true,
     casePatch: patch,
     case: updatedCase,
     movimentos,
     comunicacoes,
+    aiEngine: aiEngine || patch.ai_engine || null,
+    aiLogLine: aiLogLine || patch.ai_log_line || null,
+    aiFlagsLabel: patch.ai_flags_label || null,
   };
-}
-
-export async function scanSingleCaseAction(
+}export async function scanSingleCaseAction(
   protocolo: string,
   options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean } = {}
 ) {

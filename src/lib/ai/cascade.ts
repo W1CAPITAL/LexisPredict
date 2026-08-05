@@ -166,8 +166,8 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
           const latencyMs = Date.now() - t0;
           return {
             text: text.trim(),
-            engineId: 'omniroute',
-            model: (raw as any)?.model || 'claude',
+            engineId: 'claude',
+            model: (raw as any)?.model || process.env.OMNIROUTE_MODEL_CLAUDE || 'claude-sonnet',
             latencyMs,
             latency: latencyMs,
             tokens: (raw as any)?.usage?.total_tokens,

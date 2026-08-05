@@ -220,10 +220,14 @@ export function DataJudScannerPanel() {
                           <div className="flex items-center gap-2">
                              <Badge className={cn(
                                "text-[7px] font-black uppercase px-1 py-0 border-none",
+                               log.source === 'Claude' ? "bg-violet-600 text-white" :
                                log.engine === 'Local' ? "bg-slate-200 text-slate-700" : "bg-blue-600 text-white"
-                             )}>{log.engine}</Badge>
-                             <span className="text-[8px] font-bold text-black/40 uppercase truncate">
-                               {log.source ? `[${log.source}] ` : ""}{log.message}
+                             )}>{log.source === 'Claude' ? 'Claude AI' : log.engine}</Badge>
+                             <span className={cn(
+                               "text-[8px] font-bold uppercase truncate max-w-[220px]",
+                               log.source === 'Claude' || log.type === 'ai' ? "text-violet-800" : "text-black/40"
+                             )}>
+                               {log.message}
                              </span>
                           </div>
                        </div>
@@ -256,6 +260,7 @@ function LogTypeIcon({ type }: { type: ScanLog['type'] }) {
   switch (type) {
     case 'closed': return <Gavel size={14} className="text-emerald-600 shrink-0" />;
     case 'update': return <Zap size={14} className="text-blue-600 shrink-0" />;
+    case 'ai': return <CloudLightning size={14} className="text-violet-600 shrink-0" />;
     case 'error': return <AlertCircle size={14} className="text-red-600 shrink-0" />;
     default: return <CheckCircle2 size={14} className="text-slate-400 shrink-0" />;
   }
