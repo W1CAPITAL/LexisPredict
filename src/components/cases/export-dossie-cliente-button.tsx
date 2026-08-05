@@ -1,98 +1,86 @@
+
 "use client";
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, Save, X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { exportClienteDossieAction } from "@/app/actions/dossie-cliente-action";
-import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { FileDown, Loader2, Sparkles } from "lucide-react";
+import {
+  exportClienteDossieAction,
+  type DossieEditableFields,
+} from "@/app/actions/dossie-cliente-action";
 
-type Props = {
+export function ExportDossieClienteButton({
+  protocolo,
+  className,
+}: {
   protocolo: string;
   className?: string;
-  size?: "icon" | "sm";
-};
-
-export function ExportDossieClienteButton({ protocolo, className, size = "icon" }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [preview, setPreview] = useState<any>(null);
-  const [edited, setEdited] = useState({
-    resumo: "",
-    pontosFortes: "",
-    pontosAtencao: "",
-    leituraEstrategica: "",
-    planoAcao: "",
-  });
+}) {
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [engine, setEngine] = useState<string>("");
+  const [edited, setEdited] = useState<DossieEditableFields>({});
 
-  // 1º clique → carrega o dossiê e abre o modal editável
-  const handleOpen = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!protocolo || loading) return;
+  const set = (k: keyof DossieEditableFields, v: string | number) =>
+    setEdited((prev) => ({ ...prev, [k]: v }));
 
+  const openPreview = async () => {
     setLoading(true);
     try {
-      const res = await exportClienteDossieAction(protocolo, { previewOnly: true });
-
-      if (!res?.success) {
+      const res = await exportClienteDossieAction(protocolo, {
+        previewOnly: true,
+        useClaude: true,
+      });
+      if (!res.success) {
         toast({
-          title: "Falha ao carregar dossiê",
-          description: (res as any)?.error || "Não foi possível gerar a análise",
+          title: "Dossiê",
+          description: (res as any).error || "Falha",
           variant: "destructive",
         });
         return;
       }
-
-      const data = (res as any).preview;
-      setPreview(data);
-
-      // Preenche os campos editáveis
-      setEdited({
-        resumo: data.resumoProcesso || "",
-        pontosFortes: (data.risco?.pontosFortes || []).join("\n• "),
-        pontosAtencao: (data.risco?.pontosAtencao || []).join("\n• "),
-        leituraEstrategica: data.risco?.leituraEstrategica || "",
-        planoAcao: (data.risco?.planoAcao || []).join("\n• "),
-      });
-
+      setEdited((res as any).preview || {});
+      setEngine((res as any).engine || "");
       setOpen(true);
-    } catch (err: any) {
-      toast({ title: "Erro", description: err?.message || "Falha", variant: "destructive" });
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: e?.message || "Falha",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // 2º passo → gera o PDF final com as edições
-  const handleGeneratePDF = async () => {
-    if (!preview) return;
-    setLoading(true);
+  const generatePdf = async () => {
+    setSaving(true);
     try {
       const res = await exportClienteDossieAction(protocolo, {
-        editedContent: edited,
+        previewOnly: false,
+        useClaude: false, // já editado; não gasta 2ª chamada
+        edited,
       });
-
-      if (!res?.success || !(res as any).base64) {
+      if (!res.success || !(res as any).base64) {
         toast({
-          title: "Falha no PDF",
-          description: (res as any)?.error || "Não foi possível gerar o PDF",
+          title: "PDF",
+          description: (res as any).error || "Falha ao gerar",
           variant: "destructive",
         });
         return;
       }
-
       const bin = atob((res as any).base64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -100,136 +88,136 @@ export function ExportDossieClienteButton({ protocolo, className, size = "icon" 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = (res as any).filename || "dossie-cliente.pdf";
+      a.download = (res as any).filename || "dossie.pdf";
       a.click();
       URL.revokeObjectURL(url);
-
-      toast({
-        title: "Dossiê gerado com sucesso",
-        description: `Risco ${(res as any).risco || ""} (${(res as any).score ?? "—"}/100)`,
-      });
       setOpen(false);
-    } catch (err: any) {
-      toast({ title: "Erro", description: err?.message || "Falha no download", variant: "destructive" });
+      toast({ title: "Dossiê gerado", description: (res as any).filename });
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: e?.message || "Falha",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  const Field = ({
+    label,
+    k,
+    rows,
+  }: {
+    label: string;
+    k: keyof DossieEditableFields;
+    rows?: number;
+  }) => (
+    <div className="space-y-1">
+      <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+        {label}
+      </Label>
+      {rows ? (
+        <textarea
+          className="w-full min-h-[72px] rounded-xl border-2 border-border bg-background p-2 text-xs font-medium"
+          rows={rows}
+          value={String(edited[k] ?? "")}
+          onChange={(e) => set(k, e.target.value)}
+        />
+      ) : (
+        <Input
+          className="h-10 rounded-xl text-xs font-bold"
+          value={String(edited[k] ?? "")}
+          onChange={(e) => set(k, e.target.value)}
+        />
+      )}
+    </div>
+  );
 
   return (
     <>
       <Button
         type="button"
-        variant={size === "sm" ? "outline" : "ghost"}
-        size={size === "sm" ? "sm" : "icon"}
-        onClick={handleOpen}
-        disabled={loading}
-        title="Dossiê reputacional (editável)"
-        className={cn(
-          size === "sm"
-            ? "h-9 rounded-xl font-black uppercase text-[9px] tracking-widest gap-1 border-2"
-            : "h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary",
-          className
-        )}
+        variant="outline"
+        className={className || "rounded-xl font-black uppercase text-[9px]"}
+        onClick={openPreview}
+        disabled={loading || !protocolo}
       >
-        {loading ? <Loader2 size={14} className="animate-spin" /> : <FileText size={size === "sm" ? 14 : 15} />}
-        {size === "sm" && "Dossiê"}
+        {loading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <FileDown className="mr-2 h-4 w-4" />
+        )}
+        Dossiê PDF
       </Button>
 
-      {/* ====== MODAL EDITÁVEL ====== */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl border-2 border-black">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Dossiê Reputacional – Edição
-            </DialogTitle>
-            <DialogDescription>
-              Revise e edite os pontos antes de gerar o PDF final.
-              {preview && (
-                <span className="ml-2">
-                  <Badge variant="secondary">
-                    Risco: {preview.risco?.nivel} ({preview.risco?.score}/100)
-                  </Badge>
+            <DialogTitle className="font-black uppercase text-sm tracking-widest flex items-center gap-2">
+              <Sparkles size={16} className="text-primary" />
+              Revisar dossiê antes do PDF
+              {engine ? (
+                <span className="text-[9px] font-bold text-muted-foreground normal-case">
+                  · motor: {engine}
                 </span>
-              )}
-            </DialogDescription>
+              ) : null}
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5 py-2">
-            {/* Resumo Executivo */}
-            <div className="space-y-2">
-              <Label>Resumo Executivo</Label>
-              <Textarea
-                value={edited.resumo}
-                onChange={(e) => setEdited({ ...edited, resumo: e.target.value })}
-                rows={4}
-                className="text-sm"
-              />
-            </div>
+          <p className="text-[11px] text-muted-foreground">
+            Edite qualquer campo. Só depois clique em <strong>Gerar PDF</strong>.
+          </p>
 
-            {/* Pontos Fortes */}
-            <div className="space-y-2">
-              <Label className="text-green-700 dark:text-green-400">Pontos Fortes</Label>
-              <Textarea
-                value={edited.pontosFortes}
-                onChange={(e) => setEdited({ ...edited, pontosFortes: e.target.value })}
-                rows={4}
-                className="text-sm border-green-200"
-                placeholder="Um ponto por linha..."
-              />
-            </div>
-
-            {/* Pontos de Atenção / Negativos */}
-            <div className="space-y-2">
-              <Label className="text-amber-700 dark:text-amber-400">
-                Pontos de Atenção (o que pode prejudicar)
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Cliente" k="cliente" />
+            <Field label="Protocolo" k="protocolo" />
+            <Field label="Advogado" k="advogado" />
+            <Field label="Escritório" k="escritorio" />
+            <Field label="Tribunal" k="tribunal" />
+            <Field label="Status" k="status" />
+            <Field label="Telefone" k="telefone" />
+            <Field label="Parte contrária" k="parteContraria" />
+            <Field label="Último retorno" k="ultimoRetorno" />
+            <Field label="Próximo prazo" k="proximoPrazo" />
+            <Field label="Fase atual" k="faseAtual" />
+            <Field label="Nível de risco" k="nivel" />
+            <div className="space-y-1">
+              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                Score (0-100)
               </Label>
-              <Textarea
-                value={edited.pontosAtencao}
-                onChange={(e) => setEdited({ ...edited, pontosAtencao: e.target.value })}
-                rows={5}
-                className="text-sm border-amber-200"
-                placeholder="Um ponto por linha..."
+              <Input
+                type="number"
+                className="h-10 rounded-xl text-xs font-bold"
+                value={Number(edited.score ?? 0)}
+                onChange={(e) => set("score", Number(e.target.value))}
               />
             </div>
-
-            {/* Leitura Estratégica */}
-            <div className="space-y-2">
-              <Label>Leitura Estratégica / Reputacional</Label>
-              <Textarea
-                value={edited.leituraEstrategica}
-                onChange={(e) => setEdited({ ...edited, leituraEstrategica: e.target.value })}
-                rows={3}
-                className="text-sm"
-              />
-            </div>
-
-            {/* Plano de Ação */}
-            <div className="space-y-2">
-              <Label>Plano de Ação Recomendado</Label>
-              <Textarea
-                value={edited.planoAcao}
-                onChange={(e) => setEdited({ ...edited, planoAcao: e.target.value })}
-                rows={4}
-                className="text-sm"
-                placeholder="Um item por linha..."
-              />
-            </div>
+            <Field label="Chance / orientação" k="chanceRuim" />
           </div>
 
+          <Field label="Resumo do processo" k="resumoProcesso" rows={4} />
+          <Field label="Observações CRM" k="observacao" rows={2} />
+          <Field label="Pontos fortes (1 por linha)" k="pontosFortes" rows={3} />
+          <Field label="Pontos de atenção (1 por linha)" k="pontosAtencao" rows={3} />
+          <Field label="Plano de ação (1 por linha)" k="planoAcao" rows={3} />
+          <Field label="Leitura estratégica" k="leituraEstrategica" rows={3} />
+
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
-              <X className="h-4 w-4 mr-1" />
+            <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleGeneratePDF} disabled={loading} className="gap-2">
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+            <Button
+              className="rounded-xl font-black uppercase text-[10px] bg-black text-white"
+              onClick={generatePdf}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Save className="h-4 w-4" />
+                <FileDown className="mr-2 h-4 w-4" />
               )}
-              Gerar PDF Final
+              Gerar PDF
             </Button>
           </DialogFooter>
         </DialogContent>

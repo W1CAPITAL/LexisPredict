@@ -1,5 +1,9 @@
-"use server";
 
+'use server';
+
+/**
+ * Dossiê do cliente — preview editável + PDF (Claude/OmniRoute + local).
+ */
 import React from "react";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -7,6 +11,7 @@ import { getUserContext, getStoredCasesForEmpresa } from "@/lib/server-db";
 import { scanSingleCaseAction } from "@/app/actions/case-actions";
 import { scoreRiscoProcesso } from "@/lib/dossie-cliente-risco";
 import { plainTextFromDjen } from "@/lib/djen";
+import type { DossieClientePdfData } from "@/components/pdf/dossie-cliente-pdf";
 
 async function loadLogoBase64(): Promise<string | null> {
   try {
@@ -21,22 +26,160 @@ function guessParteContraria(texts: string[]): string {
   const blob = texts.join(" ");
   const m =
     blob.match(/BANCO\s+([A-ZÁÉÍÓÚÃÕÂÊÔÇ][A-ZÁÉÍÓÚÃÕÂÊÔÇ\s\.]+?)(?:\s+S\.?A\.?|\s+S\/A)/i) ||
-    blob.match(/R[EÉ](?:U|QUERID[OA])\s*:\s*([^\n]+)/i) ||
-    blob.match(/PARTE\s+R[EÉ]\s*:\s*([^\n]+)/i);
+    blob.match(/R[EÉ](?:U|QUERID[OA])\s*:\s*([^\n]+)/i);
   if (m) return m[0].replace(/\s+/g, " ").trim().slice(0, 80);
   return "";
 }
 
+/** Todos os campos do PDF — editáveis no modal antes de gerar */
+export type DossieEditableFields = {
+  cliente?: string;
+  protocolo?: string;
+  advogado?: string;
+  escritorio?: string;
+  tribunal?: string;
+  status?: string;
+  telefone?: string;
+  observacao?: string;
+  ultimoRetorno?: string;
+  proximoPrazo?: string;
+  parteContraria?: string;
+  resumoProcesso?: string;
+  faseAtual?: string;
+  score?: number;
+  nivel?: string;
+  chanceRuim?: string;
+  pontosFortes?: string; // linhas
+  pontosAtencao?: string;
+  planoAcao?: string;
+  leituraEstrategica?: string;
+};
+
 type Options = {
   previewOnly?: boolean;
-  editedContent?: {
-    resumo?: string;
-    pontosFortes?: string;
-    pontosAtencao?: string;
-    leituraEstrategica?: string;
-    planoAcao?: string;
-  };
+  useClaude?: boolean;
+  edited?: DossieEditableFields;
 };
+
+
+async function enrichWithClaude(bruto: string): Promise<Partial<DossieEditableFields> | null> {
+  try {
+    // Prefer superfície oficial dossiê (OmniRoute/Claude)
+    try {
+      const { runClaudeSurface } = await import("@/lib/ai/claude-surfaces");
+      const surf = await runClaudeSurface({
+        surface: "dossie",
+        content: bruto.slice(0, 12000),
+        enabled: true,
+        preferred: "claude",
+        maxTokens: 4096,
+        extraSystem: `Além do resumo, se possível ao final inclua um bloco JSON com:
+{"resumoProcesso":"...","faseAtual":"...","score":0,"nivel":"...","chanceRuim":"...","pontosFortes":[],"pontosAtencao":[],"planoAcao":[],"leituraEstrategica":"...","parteContraria":""}`,
+      });
+      if (surf?.text) {
+        const text = surf.text;
+        let clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const a = clean.indexOf("{");
+        const b = clean.lastIndexOf("}");
+        if (a >= 0 && b > a) {
+          try {
+            const parsed = JSON.parse(clean.slice(a, b + 1));
+            return {
+              resumoProcesso: parsed.resumoProcesso || text.slice(0, 1200),
+              faseAtual: parsed.faseAtual,
+              score: parsed.score,
+              nivel: parsed.nivel,
+              chanceRuim: parsed.chanceRuim,
+              pontosFortes: Array.isArray(parsed.pontosFortes)
+                ? parsed.pontosFortes.join("
+")
+                : parsed.pontosFortes,
+              pontosAtencao: Array.isArray(parsed.pontosAtencao)
+                ? parsed.pontosAtencao.join("
+")
+                : parsed.pontosAtencao,
+              planoAcao: Array.isArray(parsed.planoAcao)
+                ? parsed.planoAcao.join("
+")
+                : parsed.planoAcao,
+              leituraEstrategica: parsed.leituraEstrategica,
+              parteContraria: parsed.parteContraria,
+            };
+          } catch {
+            return { resumoProcesso: text.slice(0, 2000), leituraEstrategica: text.slice(0, 800) };
+          }
+        }
+        return { resumoProcesso: text.slice(0, 2000), leituraEstrategica: text.slice(0, 800) };
+      }
+    } catch (e: any) {
+      console.warn("[dossie] surface:", e?.message);
+    }
+
+    // Fallback: runCascade direto
+    const { runCascade } = await import("@/lib/ai/cascade");
+    const system = `Você é o motor de dossiê operacional LexisPredict.
+Responda APENAS JSON válido com:
+resumoProcesso, faseAtual, score (0-100), nivel, chanceRuim,
+pontosFortes[], pontosAtencao[], planoAcao[], leituraEstrategica, parteContraria.
+Não invente CNJ/nomes/datas ausentes.`;
+    const r = await runCascade({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `Dados brutos do caso:
+
+${bruto.slice(0, 12000)}` },
+      ],
+      preferred: "claude",
+      temperature: 0.2,
+      max_tokens: 4096,
+    });
+    const text = (r as any)?.text || "";
+    if (!text) {
+      console.error("[dossie-claude]", (r as any)?.error || "sem texto");
+      return null;
+    }
+    let clean = String(text).replace(/```json/gi, "").replace(/```/g, "").trim();
+    const a = clean.indexOf("{");
+    const b = clean.lastIndexOf("}");
+    if (a < 0 || b <= a) {
+      return { resumoProcesso: text.slice(0, 2000) };
+    }
+    const parsed = JSON.parse(clean.slice(a, b + 1));
+    return {
+      resumoProcesso: parsed.resumoProcesso,
+      faseAtual: parsed.faseAtual,
+      score: parsed.score,
+      nivel: parsed.nivel,
+      chanceRuim: parsed.chanceRuim,
+      pontosFortes: Array.isArray(parsed.pontosFortes)
+        ? parsed.pontosFortes.join("
+")
+        : parsed.pontosFortes,
+      pontosAtencao: Array.isArray(parsed.pontosAtencao)
+        ? parsed.pontosAtencao.join("
+")
+        : parsed.pontosAtencao,
+      planoAcao: Array.isArray(parsed.planoAcao)
+        ? parsed.planoAcao.join("
+")
+        : parsed.planoAcao,
+      leituraEstrategica: parsed.leituraEstrategica,
+      parteContraria: parsed.parteContraria,
+    };
+  } catch (e: any) {
+    console.error("[dossie-claude]", e?.message);
+    return null;
+  }
+}
+
+
+function linesToArr(s?: string): string[] {
+  if (!s) return [];
+  return s
+    .split("\n")
+    .map((l) => l.replace(/^•\s*/, "").trim())
+    .filter(Boolean);
+}
 
 export async function exportClienteDossieAction(
   protocolo: string,
@@ -49,9 +192,7 @@ export async function exportClienteDossieAction(
     }
 
     const cnj = String(protocolo || "").trim();
-    if (!cnj) {
-      return { success: false as const, error: "Protocolo inválido" };
-    }
+    if (!cnj) return { success: false as const, error: "Protocolo inválido" };
 
     const cases = await getStoredCasesForEmpresa(ctx.empresa_id, false);
     const target =
@@ -68,11 +209,10 @@ export async function exportClienteDossieAction(
       };
     }
 
-    // Scan de movimentos + DJEN
     let movimentos: any[] = [];
     let comunicacoes: any[] = [];
     try {
-      const scan = await scanSingleCaseAction(cnj, { mode: "both" });
+      const scan = await scanSingleCaseAction(cnj, { mode: "both" } as any);
       if (scan && (scan as any).success !== false) {
         movimentos = (scan as any).movimentos || [];
         comunicacoes = (scan as any).comunicacoes || [];
@@ -89,108 +229,122 @@ export async function exportClienteDossieAction(
         String(d.texto || d.conteudo || "")
     );
 
-    // Análise de Risco
     const risco = scoreRiscoProcesso(target as any, { movimentos, djenTexts });
+    const parteGuess = guessParteContraria([
+      ...djenTexts,
+      String(target.observacao || ""),
+    ]);
 
-    // Resumo Executivo padrão
-    const resumoExec = [
+    const resumoLocal = [
       `O processo de ${target.cliente || "cliente"} (${target.protocolo || cnj}${
         target.tribunal ? `, ${target.tribunal}` : ""
       }) encontra-se na fase de ${risco.faseAtual}.`,
       risco.resumo,
       `O índice de risco da carteira é ${risco.score}/100 (${risco.nivel}). ${risco.chanceRuim}`,
       risco.leituraEstrategica,
-    ].join(" ");
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-    // ======================================================
-    // MODO PREVIEW (abre o modal editável)
-    // ======================================================
-    if (options?.previewOnly) {
-      return {
-        success: true as const,
-        preview: {
-          resumoProcesso: resumoExec,
-          risco: {
-            score: risco.score,
-            nivel: risco.nivel,
-            chanceRuim: risco.chanceRuim,
-            drivers: risco.drivers,
-            pontosFortes: risco.pontosFortes || [],
-            pontosAtencao: risco.pontosAtencao || [],
-            planoAcao: risco.planoAcao || [],
-            leituraEstrategica: risco.leituraEstrategica || "",
-            faseAtual: risco.faseAtual,
-          },
-        },
-      };
+    // Claude / OmniRoute (opcional, default true)
+    let claudePart: Partial<DossieEditableFields> | null = null;
+    if (options?.useClaude !== false) {
+      const bruto = [
+        `Cliente: ${target.cliente}`,
+        `Protocolo: ${target.protocolo}`,
+        `Status: ${target.status}`,
+        `Advogado: ${target.advogado}`,
+        `Tribunal: ${target.tribunal || ""}`,
+        `Prazo: ${target.proximoPrazo || ""}`,
+        `Último retorno: ${target.ultimoRetorno || ""}`,
+        `Obs: ${target.observacao || ""}`,
+        `Risco local: ${risco.score} ${risco.nivel} fase ${risco.faseAtual}`,
+        `Movimentos: ${JSON.stringify(movimentos.slice(0, 15))}`,
+        `DJEN: ${djenTexts.slice(0, 3).join(" | ").slice(0, 2000)}`,
+      ].join("\n");
+      claudePart = await enrichWithClaude(bruto);
     }
 
-    // ======================================================
-    // MODO FINAL (gera o PDF com possíveis edições)
-    // ======================================================
-    const edited = options?.editedContent;
-
-    const pontosFortes = edited?.pontosFortes
-      ? edited.pontosFortes
-          .split("\n")
-          .map((l) => l.replace(/^•\s*/, "").trim())
-          .filter(Boolean)
-      : risco.pontosFortes || [];
-
-    const pontosAtencao = edited?.pontosAtencao
-      ? edited.pontosAtencao
-          .split("\n")
-          .map((l) => l.replace(/^•\s*/, "").trim())
-          .filter(Boolean)
-      : risco.pontosAtencao || [];
-
-    const planoAcao = edited?.planoAcao
-      ? edited.planoAcao
-          .split("\n")
-          .map((l) => l.replace(/^•\s*/, "").trim())
-          .filter(Boolean)
-      : risco.planoAcao || [];
-
-    const movNorm = (movimentos || []).map((m: any) => ({
-      data: m.dataHora || m.data || m.data_hora || "",
-      nome: m.nome || m.descricao || "Movimento",
-      complemento: m.complemento || m.complementoTabelado || "",
-    }));
-
-    const djenNorm = (comunicacoes || []).map((d: any) => ({
-      data: d.data_disponibilizacao || d.data || "",
-      tipo: d.tipoComunicacao || d.tipo || "DJEN",
-      texto:
-        plainTextFromDjen?.(d.texto || d.conteudo || "") ||
-        String(d.texto || d.conteudo || ""),
-      link: d.link || d.url || "",
-    }));
-
-    const pdfData = {
-      logoBase64: await loadLogoBase64(),
-      cliente: String(target.cliente || "CLIENTE"),
+    const basePreview: DossieEditableFields = {
+      cliente: target.cliente || "",
       protocolo: String(target.protocolo || cnj),
       advogado: target.advogado || "",
       escritorio: target.escritorio || "",
       tribunal: target.tribunal || "",
-      status: target.status || (target as any).situacao || "",
+      status: String(target.status || ""),
       telefone: target.telefone || "",
       observacao: target.observacao || "",
       ultimoRetorno: target.ultimoRetorno || "",
       proximoPrazo: target.proximoPrazo || "",
-      parteContraria: guessParteContraria(djenTexts) || "",
-      resumoProcesso: edited?.resumo || resumoExec,
+      parteContraria: claudePart?.parteContraria || parteGuess || "",
+      resumoProcesso: claudePart?.resumoProcesso || resumoLocal,
+      faseAtual: claudePart?.faseAtual || risco.faseAtual,
+      score: claudePart?.score ?? risco.score,
+      nivel: claudePart?.nivel || risco.nivel,
+      chanceRuim: claudePart?.chanceRuim || risco.chanceRuim,
+      pontosFortes:
+        claudePart?.pontosFortes ||
+        (risco.pontosFortes || []).join("\n"),
+      pontosAtencao:
+        claudePart?.pontosAtencao ||
+        (risco.pontosAtencao || []).join("\n"),
+      planoAcao:
+        claudePart?.planoAcao || (risco.planoAcao || []).join("\n"),
+      leituraEstrategica:
+        claudePart?.leituraEstrategica || risco.leituraEstrategica || "",
+    };
+
+    if (options?.previewOnly) {
+      return {
+        success: true as const,
+        preview: basePreview,
+        engine: claudePart ? "claude+local" : "local",
+        movimentosCount: movimentos.length,
+        djenCount: comunicacoes.length,
+      };
+    }
+
+    const ed = { ...basePreview, ...(options?.edited || {}) };
+
+    const movNorm = (movimentos || []).slice(0, 40).map((m: any) => ({
+      data: m.dataHora || m.data || m.data_disponibilizacao || "",
+      nome: m.nome || m.movimento || "",
+      complemento: m.complemento || m.descricao || "",
+    }));
+
+    const djenNorm = (comunicacoes || []).slice(0, 10).map((d: any) => ({
+      data: d.data_disponibilizacao || d.data || "",
+      tipo: d.tipoComunicacao || d.tipo || "",
+      texto: plainTextFromDjen?.(d.texto || "") || String(d.texto || ""),
+      link: d.link || "",
+    }));
+
+    const logoBase64 = await loadLogoBase64();
+
+    const pdfData: DossieClientePdfData = {
+      logoBase64,
+      cliente: ed.cliente || "Cliente",
+      protocolo: ed.protocolo || cnj,
+      advogado: ed.advogado,
+      escritorio: ed.escritorio,
+      tribunal: ed.tribunal,
+      status: ed.status,
+      telefone: ed.telefone,
+      observacao: ed.observacao,
+      ultimoRetorno: ed.ultimoRetorno,
+      proximoPrazo: ed.proximoPrazo,
+      parteContraria: ed.parteContraria,
+      resumoProcesso: ed.resumoProcesso || resumoLocal,
       risco: {
-        score: risco.score,
-        nivel: risco.nivel,
-        chanceRuim: risco.chanceRuim,
-        drivers: risco.drivers,
-        pontosFortes,
-        pontosAtencao,
-        planoAcao,
-        leituraEstrategica:
-          edited?.leituraEstrategica || risco.leituraEstrategica || "",
-        faseAtual: risco.faseAtual,
+        score: Number(ed.score ?? risco.score) || 0,
+        nivel: ed.nivel || risco.nivel,
+        chanceRuim: ed.chanceRuim || risco.chanceRuim,
+        drivers: risco.drivers || [],
+        pontosFortes: linesToArr(ed.pontosFortes),
+        pontosAtencao: linesToArr(ed.pontosAtencao),
+        planoAcao: linesToArr(ed.planoAcao),
+        leituraEstrategica: ed.leituraEstrategica || "",
+        faseAtual: ed.faseAtual || risco.faseAtual,
       },
       movimentos: movNorm,
       djen: djenNorm,
@@ -205,13 +359,13 @@ export async function exportClienteDossieAction(
     const buf = await renderToBuffer(element);
     const base64 = Buffer.from(buf).toString("base64");
 
-    const safeName = String(target.cliente || "cliente")
+    const safeName = String(ed.cliente || "cliente")
       .slice(0, 40)
       .replace(/[^\w\s-]/gi, "")
       .trim()
       .replace(/\s+/g, "_");
 
-    const filename = `Dossie_${safeName}_${String(target.protocolo || cnj)
+    const filename = `Dossie_${safeName}_${String(ed.protocolo || cnj)
       .replace(/\D/g, "")
       .slice(-8)}.pdf`;
 
@@ -220,8 +374,8 @@ export async function exportClienteDossieAction(
       base64,
       filename,
       mime: "application/pdf",
-      risco: risco.nivel,
-      score: risco.score,
+      risco: ed.nivel,
+      score: ed.score,
     };
   } catch (e: any) {
     console.error("[exportClienteDossieAction]", e);

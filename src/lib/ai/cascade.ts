@@ -4,6 +4,29 @@
  */
 import { freeComplete } from '@/lib/ai/free-gateway';
 
+
+/** Limpa URL colada no Vercel (=https://..., aspas, espaços) */
+export function cleanGatewayBaseUrl(raw: string | undefined | null): string {
+  if (!raw) return '';
+  let s = String(raw).trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  // erro clássico: colar "=https://..." no painel de env
+  while (s.startsWith('=')) s = s.slice(1).trim();
+  s = s.replace(/\s+/g, '');
+  s = s.replace(/\/+$/, '');
+  // se colaram já com /v1/chat/completions, corta
+  const cut = s.indexOf('/chat/completions');
+  if (cut > 0) s = s.slice(0, cut);
+  if (s.endsWith('/v1')) {
+    /* ok */
+  } else if (s.includes('://')) {
+    /* base host — add /v1 later */
+  }
+  return s;
+}
+
 export type CascadeEngine = {
   id: string;
   url: string;
@@ -49,7 +72,7 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
     {
       id: 'omniroute',
       url: 'omniroute',
-      key: process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL || undefined,
+      key: cleanGatewayBaseUrl(process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL) || undefined,
       model: process.env.OMNIROUTE_MODEL_CLAUDE || 'claude-sonnet-4-20250514',
       kind: 'omniroute',
     },
@@ -123,7 +146,7 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   const errors: string[] = [];
 
   // --- OmniRoute (só se preferred for omni/claude/auto) ---
-  const omni = process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL || '';
+  const omni = cleanGatewayBaseUrl(process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL || '');
   const wantOmni =
     preferred === 'auto' ||
     preferred.includes('omni') ||
@@ -132,9 +155,11 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
 
   if (omni.trim() && wantOmni) {
     try {
-      const base = omni.replace(/\/$/, '').endsWith('/v1')
-        ? omni.replace(/\/$/, '')
-        : `${omni.replace(/\/$/, '')}/v1`;
+      const cleaned = cleanGatewayBaseUrl(omni);
+      if (!cleaned.startsWith('http')) {
+        throw new Error(`OMNIROUTE_BASE_URL inválida: "${omni.slice(0, 40)}"`);
+      }
+      const base = cleaned.endsWith('/v1') ? cleaned : `${cleaned}/v1`;
       const key =
         process.env.OMNIROUTE_API_KEY ||
         process.env.ANTHROPIC_API_KEY ||
