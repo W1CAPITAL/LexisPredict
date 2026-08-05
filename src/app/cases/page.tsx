@@ -23,7 +23,6 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
-import { saveOneCaseAction, deleteOneCaseAction } from '@/app/actions/case-save-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
 import { runCasesPlanilhaExport } from '@/lib/run-cases-export';
 import { format, parseISO, isValid } from 'date-fns';
@@ -79,10 +78,16 @@ const CaseRow = React.memo(({
                 {sinal.data && <span className="text-[8px] font-bold text-black/30 ml-auto">{format(parseISO(sinal.data), 'dd/MM/yy')}</span>}
              </div>
              <p className="text-[11px] font-bold text-foreground/80 uppercase italic leading-tight line-clamp-2">{sinal.detalhe}</p>
-             {c.djen_ultimo_link && (
-                <a href={c.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase hover:underline mt-1">
-                   <Globe size={10} /> Abrir no Diário Oficial
-                </a>
+             {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  {c.djen_ultimo_link ? (
+                    <a href={c.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase hover:underline">
+                       <Globe size={10} /> Abrir no D.O. / Baixar comunicação
+                    </a>
+                  ) : (
+                    <span className="text-[9px] font-black text-blue-700/80 uppercase">Há publicação DJEN — abra a Auditoria 3D para o link</span>
+                  )}
+                </div>
              )}
           </div>
         </div>
@@ -152,7 +157,6 @@ function CasesContent() {
 
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
@@ -309,44 +313,18 @@ function CasesContent() {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCase || isSavingEdit) return;
-    setIsSavingEdit(true);
-    try {
-      const updatedCase = processarCaso({ ...editingCase, ...formState });
-      // Atômico: 1 processo — não reenvia a carteira inteira (evita travar)
-      const res = await saveOneCaseAction(updatedCase);
-      if (res.success) {
-        const updatedList = cases.map(c =>
-          c.id === editingCase.id || c.protocolo === editingCase.protocolo
-            ? (res.case || updatedCase)
-            : c
-        );
-        setCases(updatedList);
-        setIsModalOpen(false);
-        toast({ title: "Alterações salvas" });
-      } else {
-        toast({ title: "Falha ao salvar", description: res.message, variant: "destructive" as any });
-      }
-    } catch (err: any) {
-      toast({ title: "Erro ao salvar", description: err?.message || "Tente de novo", variant: "destructive" as any });
-    } finally {
-      setIsSavingEdit(false);
-    }
+    if (!editingCase) return;
+    const updatedCase = processarCaso({ ...editingCase, ...formState });
+    const updatedList = cases.map(c => c.id === editingCase.id ? updatedCase : c);
+    const res = await syncRepoCases(updatedList);
+    if (res.success) { setCases(updatedList); setIsModalOpen(false); toast({ title: "Alterações Salvas" }); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Deseja remover este processo permanentemente do gabinete?")) return;
-    const target = cases.find(c => c.id === id);
-    if (!target?.protocolo) {
-      toast({ title: "Protocolo não encontrado", variant: "destructive" as any });
-      return;
-    }
-    const res = await deleteOneCaseAction(target.protocolo);
-    if (res.success) {
-      removeCase(id);
-      toast({ title: "Processo removido" });
-    } else {
-      toast({ title: "Falha ao remover", description: res.message, variant: "destructive" as any });
+    if (confirm("Deseja remover este processo permanentemente do gabinete?")) {
+      const updatedList = cases.filter(c => c.id !== id);
+      const res = await syncRepoCases(updatedList);
+      if (res.success) { removeCase(id); toast({ title: "Processo Removido" }); }
     }
   };
 
@@ -481,8 +459,38 @@ function CasesContent() {
                           <div className="flex items-start justify-between mb-3">
                              <div className="flex items-center gap-2">
                                 <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
-                                {(item.type === 'djen' && (item.raw.link || historyResult?.case.djen_ultimo_link)) && (
-                                  <a href={item.raw.link || historyResult?.case.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline"><Globe size={10} /> Abrir no D.O.</a>
+                                {item.type === 'djen' && (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {(item.raw.link || historyResult?.case.djen_ultimo_link) && (
+                                      <a href={item.raw.link || historyResult?.case.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
+                                        <Globe size={10} /> Abrir no D.O.
+                                      </a>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="flex items-center gap-1 text-[8px] font-black text-emerald-700 uppercase hover:underline"
+                                      onClick={async () => {
+                                        try {
+                                          const texto = (item.raw.texto || item.raw.conteudo || historyResult?.case.djen_ultimo_resumo || '').toString();
+                                          const res = await generateDjenPublicationPDFAction({
+                                            titulo: item.raw.tipoComunicacao || item.raw.tipoDocumento || item.title || 'PUBLICAÇÃO DJEN',
+                                            protocolo: historyResult?.case.protocolo || '',
+                                            data: item.date ? item.date.toLocaleDateString('pt-BR') : 'S/D',
+                                            orgao: item.raw.nomeOrgao || item.subtitle || '',
+                                            texto: texto || 'Conteúdo não disponível.',
+                                          });
+                                          if (res.success && res.base64) {
+                                            const a = document.createElement('a');
+                                            a.href = `data:application/pdf;base64,${res.base64}`;
+                                            a.download = `DJEN_${historyResult?.case.protocolo || 'pub'}.pdf`;
+                                            a.click();
+                                          }
+                                        } catch { /* */ }
+                                      }}
+                                    >
+                                      <Download size={10} /> Exportar PDF
+                                    </button>
+                                  </div>
                                 )}
                              </div>
                              <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
@@ -576,7 +584,7 @@ function CasesContent() {
                 </div>
                 <div className="space-y-2"><Label className={ui.label}>Observações</Label><Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl bg-secondary/20 border-none font-bold uppercase text-xs min-h-[120px] resize-none" /></div>
               </div>
-              <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0"><Button type="submit" disabled={isSavingEdit} className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl">{isSavingEdit ? "Salvando…" : "Salvar Alterações"}</Button></DialogFooter>
+              <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0"><Button type="submit" className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl">Salvar Alterações</Button></DialogFooter>
             </form>
           </DialogContent>
         </Dialog>

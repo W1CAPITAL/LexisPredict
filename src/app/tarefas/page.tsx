@@ -565,8 +565,8 @@ export default function TarefasPage() {
                            <div className="flex items-start justify-between mb-3">
                              <div className="flex items-center gap-3">
                                <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
-                               {item.type === 'djen' && item.raw.link && (
-                                 <a href={item.raw.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
+                               {item.type === 'djen' && (item.raw.link || historyResult?.case?.djen_ultimo_link) && (
+                                 <a href={item.raw.link || historyResult?.case?.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
                                    <Globe size={10} /> Abrir no D.O.
                                  </a>
                                )}
@@ -721,7 +721,20 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
            <Button variant="ghost" size="icon" asChild className={cn("text-emerald-600 hover:bg-emerald-50", ui.touch)} title="WhatsApp"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
            <Button variant="ghost" size="icon" onClick={onMarkContacted} className={cn("text-slate-400 hover:text-emerald-600", ui.touch)} title="Marcar Contatado"><UserCheck size={18} /></Button>
         </div>
-        <Button variant="ghost" asChild className="h-10 px-3 sm:px-4 rounded-xl text-[10px] font-black uppercase hover:text-primary transition-all"><Link href={`/cases?search=${encodeURIComponent(group.cliente)}`}>Gerir <ChevronRight size={14} className="ml-1 hidden sm:inline" /></Link></Button>
+                {(() => {
+           const djenCase = (group.cases || []).find((c: any) => c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao);
+           if (!djenCase) return null;
+           return (
+             <>
+               {djenCase.djen_ultimo_link ? (
+                 <Button variant="ghost" size="icon" asChild className={cn("text-blue-600 hover:bg-blue-50", ui.touch)} title="Abrir / baixar comunicação DJEN">
+                   <a href={djenCase.djen_ultimo_link} target="_blank" rel="noopener noreferrer"><Globe size={18} /></a>
+                 </Button>
+               ) : null}
+             </>
+           );
+        })()}
+<Button variant="ghost" asChild className="h-10 px-3 sm:px-4 rounded-xl text-[10px] font-black uppercase hover:text-primary transition-all"><Link href={`/cases?search=${encodeURIComponent(group.cliente)}`}>Gerir <ChevronRight size={14} className="ml-1 hidden sm:inline" /></Link></Button>
       </div>
     </div>
   );
