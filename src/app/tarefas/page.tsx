@@ -45,6 +45,7 @@ import {
   isCasoTranquilo,
   temCumprimento,
 } from '@/lib/flags-operacionais';
+import { pesoFila, pesoGrupo, rotuloPrioridade, faixaPrioridade } from '@/lib/fila-prioridade';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { ui } from '@/lib/responsive-ui';
@@ -680,6 +681,11 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
           {group.hasBA ? <Badge className="bg-red-600 text-white text-[8px] font-black uppercase">CRÍTICO: B.A.</Badge> : null}
+          {group.cases?.[0] ? (
+            <Badge variant="outline" className="text-[7px] font-black uppercase border-black/20">
+              {rotuloPrioridade(group.cases[0] as any)} · {faixaPrioridade(group.cases[0] as any)}
+            </Badge>
+          ) : null}
           {group.hasClosedCourt ? <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase">BAIXA TRIBUNAL</Badge> : null}
           {group.cases?.some((x: any) => x.em_cumprimento_sentenca || x.cumprimento_sentenca) ? <Badge className="bg-amber-500 text-black text-[8px] font-black uppercase">CUMPRIMENTO</Badge> : null}
           {group.cases?.some((x: any) => x.sentenca_procedente || x.merito_resultado === 'procedente') ? <Badge className="bg-emerald-600 text-white text-[8px] font-black uppercase">PROCEDENTE</Badge> : null}

@@ -45,6 +45,7 @@ import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
+import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
 import Link from 'next/link';
 import { getTranslation } from '@/lib/i18n';
 import { useAppStore } from '@/store/use-app-store';
