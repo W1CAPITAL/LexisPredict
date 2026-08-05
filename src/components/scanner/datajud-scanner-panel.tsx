@@ -42,7 +42,8 @@ export function DataJudScannerPanel() {
     manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
     isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
     startManualScan, pauseManualScan, resetScan,
-    scanMode, setScanMode
+    scanMode, setScanMode,
+    claudeAiEnabled, setClaudeAiEnabled
   } = useDataJudScanStore();
   
   const cloudPct = Math.round((done / (total || 1)) * 100);
@@ -117,6 +118,38 @@ export function DataJudScannerPanel() {
                    </Label>
                 </div>
              </RadioGroup>
+          </section>
+
+          <section className="p-5 bg-violet-50 border-2 border-violet-600/30 space-y-3">
+             <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-violet-900">Claude AI (OmniRoute)</p>
+                  <p className="text-[8px] font-bold text-violet-700/80 uppercase mt-1">
+                    Análise neural de flags · só após ativar
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant={claudeAiEnabled ? "default" : "outline"}
+                  onClick={() => setClaudeAiEnabled(!claudeAiEnabled)}
+                  disabled={manualStatus === 'running' || status === 'running'}
+                  className={cn(
+                    "h-10 px-4 font-black uppercase text-[9px] tracking-widest",
+                    claudeAiEnabled ? "bg-violet-700 text-white hover:bg-violet-800" : "border-violet-400 text-violet-800"
+                  )}
+                >
+                  {claudeAiEnabled ? "Claude ON" : "Ativar Claude AI"}
+                </Button>
+             </div>
+             {claudeAiEnabled ? (
+               <p className="text-[9px] font-bold text-violet-900">
+                 Nos logs: Claude AI trabalhando + o que encontrou (encerrado, cumprimento, mérito, BA, custas, prioridade).
+               </p>
+             ) : (
+               <p className="text-[9px] font-bold text-muted-foreground">
+                 Desligado: só DataJud/DJEN. Ative Claude AI antes da varredura local.
+               </p>
+             )}
           </section>
 
           {/* ENGINE 1: CLOUD AUDIT (DATAJUD + DJEN) */}

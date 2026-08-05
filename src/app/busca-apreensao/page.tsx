@@ -130,7 +130,7 @@ function HitCard({ h }: { h: BaHit }) {
             </Badge>
             {distante && (
               <Badge className="bg-slate-600 text-white text-[8px] font-black uppercase gap-1">
-                <MapPin size={10} /> Geo distante — não alarmar
+                <MapPin size={10} /> OUTRO ESTADO — ALARMAR
               </Badge>
             )}
             {!alertar && !distante && (
@@ -159,7 +159,7 @@ function HitCard({ h }: { h: BaHit }) {
           <p className="text-[10px] text-muted-foreground font-bold uppercase">
             {h.data || "—"} · {h.tribunal || ""}
           </p>
-          {(h as any).geoMotivo && (
+          {((h as any).geoDistante || (h as any).geoMotivo) && (
             <p className="text-[10px] flex items-center gap-1 text-muted-foreground">
               <MapPin size={10} /> {(h as any).geoMotivo}
             </p>
@@ -470,8 +470,8 @@ export default function BuscaApreensaoPage() {
           </div>
           <p className="text-[10px] text-muted-foreground flex items-start gap-1">
             <Info size={12} className="mt-0.5 shrink-0" />
-            Mandado em UF/região longe do processo da carteira aparece como{" "}
-            <strong>Geo distante</strong> e não gera alerta operacional forte.
+            Se o mandado for de OUTRO ESTADO (UF diferente da carteira), o card mostra OUTRO ESTADO — ALARMAR em destaque{" "}
+            <strong>OUTRO ESTADO</strong> e não gera alerta operacional forte.
           </p>
         </div>
 
@@ -549,7 +549,7 @@ export default function BuscaApreensaoPage() {
                           </Badge>
                           {distante && (
                             <Badge className="bg-slate-600 text-white text-[7px]">
-                              Geo distante
+                              OUTRO ESTADO
                             </Badge>
                           )}
                         </div>

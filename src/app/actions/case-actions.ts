@@ -99,7 +99,7 @@ export async function auditCaseCoreSystem(
   protocolo: string,
   empresaId: string,
   mode: 'datajud' | 'djen' | 'both' = 'both',
-  options: { fast?: boolean } = {}
+  options: { fast?: boolean; useClaudeAi?: boolean } = {}
 ) {
   const admin = await getSupabaseAdmin();
   const { data: dbItem } = await admin
@@ -332,7 +332,14 @@ export async function auditCaseCoreSystem(
     const preferredAi =
       process.env.SCAN_AI_PREFERRED ||
       process.env.LEXIS_SCAN_AI ||
-      'claude'; // Claude/OmniRoute padrão no Scanner Tribunal
+      'claude';
+    // Claude/OmniRoute só se o operador ativar no Scanner (useClaudeAi)
+    // ou SCAN_AI_FORCE=1 no ambiente
+    const forceEnv = process.env.SCAN_AI_FORCE === '1' || process.env.SCAN_AI_FORCE === 'true';
+    const useClaude = options.useClaudeAi === true || forceEnv;
+    if (!useClaude) {
+      // skip IA — heurística DataJud/DJEN já aplicada no patch
+    } else {
     const enriched = await enrichScanPatchWithAi({
       protocolo,
       cliente: target.cliente,
@@ -340,10 +347,15 @@ export async function auditCaseCoreSystem(
       comunicacoes,
       patch,
       preferred: preferredAi,
+      enabled: true,
     });
     Object.assign(patch, enriched.patch);
     aiEngine = enriched.aiEngine;
-    aiLogLine = enriched.aiLogLine;
+    aiLogLine = enriched.aiLogLine || (
+      enriched.aiEngine
+        ? `[Claude AI / ${enriched.aiEngine}] ${patch.evento_resumo || 'análise concluída'}${patch.ai_flags_label ? ' | ' + patch.ai_flags_label : ''}`
+        : null
+    );
     if (enriched.aiEngine) {
       console.info(
         '[scan-ai]',
@@ -354,6 +366,7 @@ export async function auditCaseCoreSystem(
         patch.alerta_ia
       );
     }
+    } // end useClaude
   } catch (e: any) {
     console.error('[scan-ai] skip', e?.message || e);
   }
@@ -394,7 +407,7 @@ export async function auditCaseCoreSystem(
   };
 }export async function scanSingleCaseAction(
   protocolo: string,
-  options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean } = {}
+  options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
 ) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false, error: '401' };
@@ -403,7 +416,7 @@ export async function auditCaseCoreSystem(
     protocolo,
     safeEmpresaId,
     options.mode || 'both',
-    { fast: options.fast }
+    { fast: options.fast, useClaudeAi: options.useClaudeAi === true }
   );
 }
 

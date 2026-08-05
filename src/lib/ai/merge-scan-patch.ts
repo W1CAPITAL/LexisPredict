@@ -54,7 +54,14 @@ export function mergeAiIntoScanPatch(
   // Liminar / audiência / custas
   if (f.liminar) out.tem_liminar = true;
   if (f.audiencia) out.tem_audiencia = true;
-  if (f.custas) out.tem_custas = true;
+  if (f.custas) {
+    out.tem_custas = true;
+    out.alerta_custas = true;
+  }
+  if (ai.severidade === 'critica' || ai.alertar) {
+    out.prioridade_critica_ia = true;
+    out.alerta_ia = true;
+  }
 
   // BA estrito
   if (f.busca_apreensao) {

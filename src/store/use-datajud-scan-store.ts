@@ -51,6 +51,9 @@ interface DataJudScanState {
 
   scanMode: ScanMode;
   setScanMode: (mode: ScanMode) => void;
+  /** Claude via OmniRoute no scanner — só após o operador ativar */
+  claudeAiEnabled: boolean;
+  setClaudeAiEnabled: (on: boolean) => void;
   isMinimized: boolean;
   courtHealthMap: Record<string, CourtHealth>;
 
@@ -90,6 +93,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
   scanMode: 'both',
   setScanMode: (scanMode) => set({ scanMode }),
+  claudeAiEnabled: false,
+  setClaudeAiEnabled: (claudeAiEnabled) => set({ claudeAiEnabled }),
   isMinimized: true,
   courtHealthMap: {},
 
@@ -183,12 +188,48 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       manualErrors: 0,
     });
 
+    const useClaude = get().claudeAiEnabled === true;
+    if (useClaude) {
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message: 'Claude AI (OmniRoute) ATIVADO — analisará cada CNJ após DataJud/DJEN',
+        latency: 0,
+        success: true,
+        type: 'ai',
+        engine: 'Local',
+        source: 'Claude',
+        aiEngine: 'claude',
+      });
+    } else {
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message: 'Scanner sem Claude AI (só DataJud/DJEN). Ative o botão Claude AI para análise neural.',
+        latency: 0,
+        success: true,
+        type: 'ok',
+        engine: 'Local',
+        source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
+      });
+    }
+
     for (const c of cases) {
       if (get().manualStatus !== 'running') break;
 
       const start = Date.now();
+      if (useClaude) {
+        get().addLog({
+          protocolo: c.protocolo,
+          message: 'Claude AI trabalhando neste CNJ…',
+          latency: 0,
+          success: true,
+          type: 'ai',
+          engine: 'Local',
+          source: 'Claude',
+          aiEngine: 'claude',
+        });
+      }
       // mode explícito: both | datajud | djen
-      const res = await scanSingleCaseAction(c.protocolo, { mode, fast: true });
+      const res = await scanSingleCaseAction(c.protocolo, { mode, fast: true, useClaudeAi: useClaude });
       const latency = Date.now() - start;
       const patch = (res.casePatch as Record<string, any>) || {};
 
