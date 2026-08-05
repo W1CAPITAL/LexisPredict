@@ -66,6 +66,7 @@ export default function RevogacaoPoderesPage() {
   const [reinforcing, setReinforcing] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [onlyElegiveis, setOnlyElegiveis] = useState(true);
+  const [useClaude, setUseClaude] = useState(false);
   const [advNome, setAdvNome] = useState("");
 
   useEffect(() => {
@@ -122,7 +123,7 @@ export default function RevogacaoPoderesPage() {
     const next = [...items];
     for (const it of alvo) {
       try {
-        const r = await reforcoTribunalRevogacaoAction(it.protocolo);
+        const r = await reforcoTribunalRevogacaoAction(it.protocolo, { useClaude });
         if (r.success) {
           const idx = next.findIndex((x) => x.protocolo === it.protocolo);
           if (idx >= 0) {
@@ -134,7 +135,12 @@ export default function RevogacaoPoderesPage() {
               cumprimento: r.cumprimento,
               ultimoAdvogadoDetectado:
                 r.ultimoAdvogadoDetectado || next[idx].ultimoAdvogadoDetectado,
+              advogadosDjen: (r as any).advogadosDjen || next[idx].advogadosDjen || [],
+              viabilidade: (r as any).viabilidade || null,
+              viavelSubstabelecer: (r as any).viavelSubstabelecer ?? r.elegivel,
               djenChecked: true,
+              analiseClaude: (r as any).analiseClaude || null,
+              engineClaude: (r as any).engineClaude || null,
             };
           }
         }
@@ -168,8 +174,13 @@ export default function RevogacaoPoderesPage() {
         advogadoRevogarId: leavingId,
         advogadoNovoId: enteringId,
         ultimoAdvogadoDetectado: it.ultimoAdvogadoDetectado,
+        advogadosDjen: (it as any).advogadosDjen || [],
+        viabilidade: (it as any).viabilidade || null,
         observacaoScanner: it.motivo,
         comarca: it.uf || "São Paulo",
+        useClaude,
+        analiseClaude: (it as any).analiseClaude || null,
+        engineClaude: (it as any).engineClaude || null,
       });
       if (!res.success || !(res as any).base64) {
         toast({
@@ -179,8 +190,22 @@ export default function RevogacaoPoderesPage() {
         });
         return;
       }
-      downloadBase64Pdf((res as any).base64, (res as any).filename || "revogacao.pdf");
-      toast({ title: "PDF baixado", description: it.protocolo });
+      const b64 = (res as any).base64 as string;
+      // PDF em base64 comeca com JVBERi0 (%PDF)
+      if (!b64.startsWith("JVBERi0")) {
+        toast({
+          title: "PDF invalido",
+          description: "O servidor nao devolveu um PDF real. Tente de novo.",
+          variant: "destructive",
+        });
+        return;
+      }
+      downloadBase64Pdf(b64, (res as any).filename || "revogacao.pdf");
+      toast({
+        title: "PDF baixado",
+        description: `${it.protocolo} · ${((res as any).bytes / 1024).toFixed(1)} KB` +
+          ((res as any).engineClaude ? ` · IA ${(res as any).engineClaude}` : ""),
+      });
     } finally {
       setDownloading(null);
     }
@@ -314,6 +339,14 @@ export default function RevogacaoPoderesPage() {
             />
             <span className="font-bold uppercase text-[9px]">Só elegíveis</span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useClaude}
+              onChange={(e) => setUseClaude(e.target.checked)}
+            />
+            <span className="font-bold uppercase text-[9px]">Claude / OmniRoute no PDF</span>
+          </label>
           <Button
             size="sm"
             variant="secondary"
@@ -375,6 +408,7 @@ export default function RevogacaoPoderesPage() {
                   {it.ultimoAdvogadoDetectado
                     ? ` · Ref. adv.: ${it.ultimoAdvogadoDetectado}`
                     : ""}
+                  {(it as any).viabilidade ? ` · ${(it as any).viabilidade}` : ""}
                 </p>
               </div>
               <Button

@@ -1,6 +1,5 @@
 /**
- * Lógica de revogação de poderes + substabelecimento.
- * Match de advogado na carteira, UF via CNJ/tribunal, elegibilidade do processo.
+ * Revogação + substabelecimento — match, UF, elegibilidade, leitura DJEN.
  */
 
 export function normalizeName(s: string): string {
@@ -13,13 +12,11 @@ export function normalizeName(s: string): string {
     .trim();
 }
 
-/** Match flexível: nome completo ou tokens principais */
 export function nomesCorrespondem(a: string, b: string): boolean {
   const na = normalizeName(a);
   const nb = normalizeName(b);
   if (!na || !nb) return false;
-  if (na === nb) return true;
-  if (na.includes(nb) || nb.includes(na)) return true;
+  if (na === nb || na.includes(nb) || nb.includes(na)) return true;
   const ta = na.split(' ').filter((w) => w.length >= 3);
   const tb = nb.split(' ').filter((w) => w.length >= 3);
   if (ta.length < 2 || tb.length < 2) return false;
@@ -29,10 +26,8 @@ export function nomesCorrespondem(a: string, b: string): boolean {
   return hit >= Math.min(2, Math.ceil(Math.min(ta.length, tb.length) * 0.6));
 }
 
-/** Extrai UF aproximada do CNJ (20 dígitos) ou do campo tribunal */
 export function ufFromProtocolo(protocolo: string, tribunal?: string): string | null {
   const dig = String(protocolo || '').replace(/\D/g, '');
-  // CNJ: NNNNNNN DD AAAA J TR OOOO — TR em posições 13-14 (1-based 14-15)
   if (dig.length >= 16) {
     const tr = dig.slice(13, 15);
     const map: Record<string, string> = {
@@ -48,8 +43,7 @@ export function ufFromProtocolo(protocolo: string, tribunal?: string): string | 
   const m = t.match(/\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/);
   if (m) return m[1];
   const tjm = t.match(/TJ([A-Z]{2})/);
-  if (tjm) return tjm[1];
-  return null;
+  return tjm ? tjm[1] : null;
 }
 
 export function processoElegivelRevogacao(c: {
@@ -58,9 +52,7 @@ export function processoElegivelRevogacao(c: {
   evento_tipo?: string | null;
   status?: string | null;
 }): { ok: boolean; motivo: string } {
-  if (c.datajud_encerrado_tribunal) {
-    return { ok: false, motivo: 'Encerrado no tribunal (DataJud)' };
-  }
+  if (c.datajud_encerrado_tribunal) return { ok: false, motivo: 'Encerrado no tribunal (DataJud)' };
   if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca') {
     return { ok: false, motivo: 'Em cumprimento de sentença' };
   }
@@ -98,9 +90,73 @@ export function oabLabel(adv: any, preferUf?: string): { completa: string; curta
 }
 
 export function dataExtenso(d = new Date()): string {
-  return d.toLocaleDateString('pt-BR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+export function extrairAdvogadosDoTexto(texto: string): string[] {
+  const t = String(texto || '');
+  const found: string[] = [];
+  const patterns = [
+    /Dr\.?\s*([A-ZÁÉÍÓÚÂÊÔÃÕ][A-Za-zÀ-ú\s'.]{4,50})/g,
+    /Dra\.?\s*([A-ZÁÉÍÓÚÂÊÔÃÕ][A-Za-zÀ-ú\s'.]{4,50})/g,
+    /advogad[oa]\s+([A-ZÁÉÍÓÚÂÊÔÃÕ][A-Za-zÀ-ú\s'.]{4,50})/gi,
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    const r = new RegExp(re.source, re.flags);
+    while ((m = r.exec(t)) !== null) {
+      const n = (m[1] || '').trim();
+      if (n.length >= 5 && !/INTIMACAO|PUBLICACAO|PROCESSO/.test(normalizeName(n))) {
+        found.push(n.replace(/\s+/g, ' ').slice(0, 60));
+      }
+    }
+  }
+  return Array.from(new Set(found)).slice(0, 8);
+}
+
+export function avaliarViabilidadeSubstabelecimento(opts: {
+  textos: string[];
+  encerradoFlag?: boolean;
+  cumprimentoFlag?: boolean;
+}): {
+  viavel: boolean;
+  nivel: 'recomendado' | 'possivel_com_ressalva' | 'nao_recomendado' | 'indefinido';
+  motivo: string;
+} {
+  const blob = normalizeName(opts.textos.join(' '));
+  if (opts.encerradoFlag || /TRANSITO EM JULGADO|BAIXA DEFINITIVA|ARQUIVAMENTO DEFINITIVO/.test(blob)) {
+    return {
+      viavel: false,
+      nivel: 'nao_recomendado',
+      motivo:
+        'Indícios de trânsito/baixa/arquivamento: substabelecimento costuma ser inócuo; use só se houver pendência residual de intimação.',
+    };
+  }
+  if (opts.cumprimentoFlag || /CUMPRIMENTO DE SENTENCA|EXECUCAO DE SENTENCA/.test(blob)) {
+    return {
+      viavel: true,
+      nivel: 'possivel_com_ressalva',
+      motivo:
+        'Fase de cumprimento/execução: possível, confira se o patrono atual ainda figura nas intimações.',
+    };
+  }
+  if (/SENTENCA|ACORDAO|RECURSO|APELACAO|AGRAVO|INSTRUCAO|SANEADOR|CITACAO|INTIMACAO/.test(blob)) {
+    return {
+      viavel: true,
+      nivel: 'recomendado',
+      motivo: 'Movimentação ativa típica — substabelecimento sem reserva usualmente adequado.',
+    };
+  }
+  if (!blob.trim()) {
+    return {
+      viavel: true,
+      nivel: 'indefinido',
+      motivo: 'Sem teor DJEN suficiente; elegibilidade baseada na carteira/DataJud.',
+    };
+  }
+  return {
+    viavel: true,
+    nivel: 'possivel_com_ressalva',
+    motivo: 'Teor sem bloqueio claro; valide o último advogado intimado no tribunal antes de protocolar.',
+  };
 }

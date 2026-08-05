@@ -1,58 +1,23 @@
-/**
- * Carta de Revogação de Poderes + Substabelecimento sem reserva.
- */
-import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
-
-try {
-  Font.register({
-    family: 'Times-Roman',
-    fonts: [
-      { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman.ttf' },
-      {
-        src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman-Bold.ttf',
-        fontWeight: 'bold',
-      },
-    ],
-  });
-} catch {
-  /* */
-}
+import React from \"react\";
+import { Page, Text, View, Document, StyleSheet } from \"@react-pdf/renderer\";
 
 const s = StyleSheet.create({
   page: {
-    padding: '28mm 22mm',
-    fontFamily: 'Times-Roman',
-    fontSize: 11.5,
-    lineHeight: 1.55,
-    textAlign: 'justify',
-    color: '#0a0a0a',
+    paddingTop: 48, paddingBottom: 48, paddingHorizontal: 48,
+    fontFamily: \"Helvetica\", fontSize: 11, lineHeight: 1.5,
+    textAlign: \"justify\", color: \"#0a0a0a\",
   },
-  title: {
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: 13,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  subtitle: {
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: 11,
-    marginBottom: 22,
-  },
-  p: { marginBottom: 12, textIndent: 36 },
-  bold: { fontWeight: 'bold' },
-  meta: { fontSize: 9, color: '#334155', marginBottom: 14, textAlign: 'center' },
-  date: { textAlign: 'center', marginTop: 28, marginBottom: 36 },
-  sig: { textAlign: 'center', marginTop: 18, alignItems: 'center' },
-  line: {
-    width: '55%',
-    borderTop: '1pt solid #000',
-    alignSelf: 'center',
-    marginBottom: 6,
-  },
-  footer: { position: 'absolute', bottom: 18, left: 22, right: 22, fontSize: 8, color: '#64748b', textAlign: 'center' },
+  title: { textAlign: \"center\", fontFamily: \"Helvetica-Bold\", fontSize: 13, marginBottom: 4, textTransform: \"uppercase\" },
+  subtitle: { textAlign: \"center\", fontFamily: \"Helvetica-Bold\", fontSize: 10, marginBottom: 10 },
+  meta: { fontSize: 8, color: \"#334155\", marginBottom: 14, textAlign: \"center\" },
+  p: { marginBottom: 11, textIndent: 28 },
+  bold: { fontFamily: \"Helvetica-Bold\" },
+  box: { backgroundColor: \"#f8fafc\", borderWidth: 1, borderColor: \"#e2e8f0\", padding: 8, marginBottom: 12, fontSize: 8 },
+  warn: { backgroundColor: \"#fff7ed\", borderWidth: 1, borderColor: \"#fdba74\", padding: 8, marginBottom: 12, fontSize: 8 },
+  date: { textAlign: \"center\", marginTop: 22, marginBottom: 28 },
+  sig: { textAlign: \"center\", marginTop: 16 },
+  line: { width: 220, borderTopWidth: 1, borderTopColor: \"#000\", alignSelf: \"center\", marginBottom: 4 },
+  footer: { position: \"absolute\", bottom: 24, left: 48, right: 48, fontSize: 7, color: \"#64748b\", textAlign: \"center\" },
 });
 
 export type RevogacaoPdfData = {
@@ -61,135 +26,111 @@ export type RevogacaoPdfData = {
   clienteNome: string;
   protocolo: string;
   tribunal?: string;
-  /** Advogado cujos poderes se revogam / substabelecente */
-  revogado: {
-    nome: string;
-    oabCompleta: string;
-    oabCurta: string;
-    nacionalidade?: string;
-    estadoCivil?: string;
-    endereco?: string;
-  };
-  /** Advogado que recebe os poderes */
-  substabelecido: {
-    nome: string;
-    oabCompleta: string;
-    oabCurta: string;
-    nacionalidade?: string;
-    estadoCivil?: string;
-    endereco?: string;
-    email?: string;
-    telefone?: string;
-  };
+  revogado: { nome: string; oabCompleta: string; oabCurta: string; nacionalidade?: string; estadoCivil?: string; endereco?: string };
+  substabelecido: { nome: string; oabCompleta: string; oabCurta: string; nacionalidade?: string; estadoCivil?: string; endereco?: string; email?: string; telefone?: string };
   ultimoAdvogadoDetectado?: string | null;
+  advogadosDjen?: string[];
+  viabilidade?: string | null;
   observacaoScanner?: string | null;
+  analiseClaude?: string | null;
+  engineClaude?: string | null;
 };
 
 export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
   const {
-    comarca,
-    dataExtenso,
-    clienteNome,
-    protocolo,
-    tribunal,
-    revogado,
-    substabelecido,
-    ultimoAdvogadoDetectado,
-    observacaoScanner,
+    comarca, dataExtenso, clienteNome, protocolo, tribunal, revogado, substabelecido,
+    ultimoAdvogadoDetectado, advogadosDjen, viabilidade, observacaoScanner, analiseClaude, engineClaude,
   } = data;
-
   return (
     <Document>
-      <Page size="A4" style={s.page}>
-        <Text style={s.title}>Revogação de mandato e substabelecimento</Text>
+      <Page size=\"A4\" style={s.page}>
+        <Text style={s.title}>Revogacao de mandato e substabelecimento</Text>
         <Text style={s.subtitle}>(sem reserva de poderes)</Text>
         <Text style={s.meta}>
-          Processo nº {protocolo}
-          {tribunal ? ` · ${tribunal}` : ''}
-          {ultimoAdvogadoDetectado
-            ? ` · Advogado atual nos autos (referência): ${ultimoAdvogadoDetectado}`
-            : ''}
+          Processo n. {protocolo}{tribunal ? \" - \" + tribunal : \"\"}
+          {ultimoAdvogadoDetectado ? \" - Advogado de referencia: \" + ultimoAdvogadoDetectado : \"\"}
         </Text>
-
+        {viabilidade ? (
+          <View style={s.warn}>
+            <Text style={s.bold}>Analise de oportunidade (scanner / DJEN)</Text>
+            <Text>{viabilidade}</Text>
+          </View>
+        ) : null}
+        {(advogadosDjen && advogadosDjen.length > 0) || observacaoScanner ? (
+          <View style={s.box}>
+            {advogadosDjen && advogadosDjen.length > 0 ? (
+              <Text>Advogados em DJEN recente: {advogadosDjen.join(\"; \")}</Text>
+            ) : null}
+            {observacaoScanner ? <Text>Nota: {observacaoScanner}</Text> : null}
+          </View>
+        ) : null}
         <View style={s.p}>
           <Text>
-            O(A) advogado(a){' '}
-            <Text style={s.bold}>{revogado.nome.toUpperCase()}</Text>,{' '}
-            {revogado.nacionalidade || 'brasileiro(a)'}, {revogado.estadoCivil || 'estado civil não informado'},
+            O(A) advogado(a) <Text style={s.bold}>{String(revogado.nome || \"\").toUpperCase()}</Text>,{\" \"}
+            {revogado.nacionalidade || \"brasileiro(a)\"}, {revogado.estadoCivil || \"estado civil nao informado\"},
             inscrito(a) na <Text style={s.bold}>{revogado.oabCompleta}</Text>
-            {revogado.endereco ? `, com endereço profissional em ${revogado.endereco}` : ''}, no exercício
-            dos poderes que lhe foram outorgados pela parte{' '}
-            <Text style={s.bold}>{clienteNome.toUpperCase()}</Text> nos autos do processo nº{' '}
-            <Text style={s.bold}>{protocolo}</Text>,{' '}
-            <Text style={s.bold}>REVOGA</Text> os poderes antes conferidos a si para a prática de atos neste
-            feito, na medida em que{' '}
-            <Text style={s.bold}>SUBSTABELECE, SEM RESERVA DE PODERES</Text>, na pessoa do(a) advogado(a){' '}
-            <Text style={s.bold}>{substabelecido.nome.toUpperCase()}</Text>,{' '}
-            {substabelecido.nacionalidade || 'brasileiro(a)'},{' '}
-            {substabelecido.estadoCivil || 'estado civil não informado'}, inscrito(a) na{' '}
+            {revogado.endereco ? \", com endereco profissional em \" + revogado.endereco : \"\"}, no exercicio dos
+            poderes que lhe foram outorgados pela parte{\" \"}
+            <Text style={s.bold}>{String(clienteNome || \"\").toUpperCase()}</Text> nos autos do processo n.{\" \"}
+            <Text style={s.bold}>{protocolo}</Text>, <Text style={s.bold}>REVOGA</Text> os poderes antes
+            conferidos a si para a pratica de atos neste feito, na medida em que{\" \"}
+            <Text style={s.bold}>SUBSTABELECE, SEM RESERVA DE PODERES</Text>, na pessoa do(a) advogado(a){\" \"}
+            <Text style={s.bold}>{String(substabelecido.nome || \"\").toUpperCase()}</Text>,{\" \"}
+            {substabelecido.nacionalidade || \"brasileiro(a)\"},{\" \"}
+            {substabelecido.estadoCivil || \"estado civil nao informado\"}, inscrito(a) na{\" \"}
             <Text style={s.bold}>{substabelecido.oabCompleta}</Text>
-            {substabelecido.endereco ? `, com endereço profissional em ${substabelecido.endereco}` : ''}
-            {substabelecido.email ? `, e-mail ${substabelecido.email}` : ''}
-            {substabelecido.telefone ? `, telefone ${substabelecido.telefone}` : ''}, todos os poderes
-            outorgados pela parte acima identificada, para o foro em geral, com a cláusula ad judicia et extra,
+            {substabelecido.endereco ? \", com endereco profissional em \" + substabelecido.endereco : \"\"}
+            {substabelecido.email ? \", e-mail \" + substabelecido.email : \"\"}
+            {substabelecido.telefone ? \", telefone \" + substabelecido.telefone : \"\"}, todos os poderes
+            outorgados pela parte acima identificada, para o foro em geral, com a clausula ad judicia et extra,
             inclusive os especiais de substabelecer, acordar, discordar, transigir, desistir, receber e dar
-            quitação, firmar compromisso e quanto mais se faça necessário ao bom andamento da causa.
+            quitacao, firmar compromisso e quanto mais se faca necessario ao bom andamento da causa.
           </Text>
         </View>
-
         <View style={s.p}>
           <Text>
-            Requer-se a exclusão do(a) advogado(a) substabelecente{' '}
-            <Text style={s.bold}>{revogado.nome.toUpperCase()}</Text> (
+            Requer-se a exclusao do(a) advogado(a) substabelecente{\" \"}
+            <Text style={s.bold}>{String(revogado.nome || \"\").toUpperCase()}</Text> (
             <Text style={s.bold}>{revogado.oabCurta}</Text>) da contracapa dos autos e de qualquer cadastro de
-            intimação, passando as futuras intimações e publicações a serem dirigidas{' '}
-            <Text style={s.bold}>exclusivamente</Text> ao(à) substabelecido(a){' '}
-            <Text style={s.bold}>{substabelecido.nome.toUpperCase()}</Text> (
-            <Text style={s.bold}>{substabelecido.oabCurta}</Text>), nos termos do art. 272, § 5º, do Código de
+            intimacao, passando as futuras intimacoes e publicacoes a serem dirigidas{\" \"}
+            <Text style={s.bold}>exclusivamente</Text> ao(a) substabelecido(a){\" \"}
+            <Text style={s.bold}>{String(substabelecido.nome || \"\").toUpperCase()}</Text> (
+            <Text style={s.bold}>{substabelecido.oabCurta}</Text>), nos termos do art. 272, paragrafo 5o, do Codigo de
             Processo Civil, sob pena de nulidade.
           </Text>
         </View>
-
         <View style={s.p}>
           <Text>
-            Declara o(a) substabelecente que o presente instrumento é lavrado para regularização da
-            representação processual, sem prejuízo das responsabilidades profissionais já assumidas até a
-            data desta assinatura, e que a parte outorgante permanece com a tutela de seus interesses
-            assegurada pelo(a) novo(a) patrono(a).
+            Declara o(a) substabelecente que o presente instrumento e lavrado para regularizacao da
+            representacao processual, sem prejuizo das responsabilidades profissionais ja assumidas ate a data
+            desta assinatura, e que a parte outorgante permanece com a tutela de seus interesses assegurada
+            pelo(a) novo(a) patrono(a).
           </Text>
         </View>
-
-        {observacaoScanner ? (
-          <View style={s.p}>
-            <Text style={{ fontSize: 9, color: '#475569' }}>
-              Nota operacional (scanner LexisPredict): {observacaoScanner}
+        {analiseClaude ? (
+          <View style={s.box}>
+            <Text style={s.bold}>
+              Parecer auxiliar de IA{engineClaude ? \" (\" + engineClaude + \")\" : \"\"} — nao substitui analise humana
             </Text>
+            <Text>{analiseClaude}</Text>
           </View>
         ) : null}
-
-        <Text style={s.date}>
-          {comarca}, {dataExtenso}.
-        </Text>
-
+        <Text style={s.date}>{comarca}, {dataExtenso}.</Text>
         <View style={s.sig}>
           <View style={s.line} />
-          <Text style={s.bold}>{revogado.nome.toUpperCase()}</Text>
+          <Text style={s.bold}>{String(revogado.nome || \"\").toUpperCase()}</Text>
           <Text>{revogado.oabCurta}</Text>
-          <Text style={{ fontSize: 9 }}>Substabelecente / poderes revogados neste feito</Text>
+          <Text style={{ fontSize: 8 }}>Substabelecente</Text>
         </View>
-
-        <View style={{ marginTop: 28 }} />
-
+        <View style={{ marginTop: 24 }} />
         <View style={s.sig}>
           <View style={s.line} />
-          <Text style={s.bold}>{substabelecido.nome.toUpperCase()}</Text>
+          <Text style={s.bold}>{String(substabelecido.nome || \"\").toUpperCase()}</Text>
           <Text>{substabelecido.oabCurta}</Text>
-          <Text style={{ fontSize: 9 }}>Substabelecido / intimações exclusivas</Text>
+          <Text style={{ fontSize: 8 }}>Substabelecido / intimacoes exclusivas</Text>
         </View>
-
         <Text style={s.footer}>
-          LexisPredict · Documento gerado para uso profissional · Conferir dados da banca e do processo antes
-          do protocolo
+          LexisPredict · Conferir dados da banca e do tribunal antes do protocolo · {new Date().toISOString()}
         </Text>
       </Page>
     </Document>
