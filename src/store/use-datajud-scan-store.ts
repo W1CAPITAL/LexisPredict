@@ -175,18 +175,65 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
    */
   startManualScan: async () => {
     const mode = get().scanMode || 'both';
-    const cases = useAppStore.getState().cases.filter((c) => !isCasoEncerrado(c));
-    if (cases.length === 0) return;
-
+    // Feedback imediato na UI (evita "cliquei e nada acontece")
     set({
+      isMinimized: false,
       manualStatus: 'running',
-      manualTotal: cases.length,
       manualDone: 0,
       manualAlerts: 0,
       manualClosed: 0,
       manualDjenAlerts: 0,
       manualErrors: 0,
     });
+    get().addLog({
+      protocolo: 'SISTEMA',
+      message: 'Iniciando varredura local… carregando carteira',
+      latency: 0,
+      success: true,
+      type: 'ok',
+      engine: 'Local',
+      source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
+    });
+
+    let cases = (useAppStore.getState().cases || []).filter((c) => !isCasoEncerrado(c));
+
+    // Se a store estiver vazia (ex.: RLS / refresh), tenta buscar no servidor
+    if (cases.length === 0) {
+      try {
+        const { fetchRepoCases } = await import('@/app/actions/case-actions');
+        const remote = await fetchRepoCases();
+        if (Array.isArray(remote) && remote.length > 0) {
+          const setCases = useAppStore.getState().setCases;
+          if (typeof setCases === 'function') setCases(remote);
+          cases = remote.filter((c: any) => !isCasoEncerrado(c));
+        }
+      } catch (e: any) {
+        get().addLog({
+          protocolo: 'SISTEMA',
+          message: `Falha ao carregar carteira: ${e?.message || e}`,
+          latency: 0,
+          success: false,
+          type: 'error',
+          engine: 'Local',
+        });
+      }
+    }
+
+    if (cases.length === 0) {
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message:
+          'Nenhum processo ativo na memória. Abra Dashboard/Processos, aguarde carregar e tente de novo. (RLS/empresa_id pode zerar a lista.)',
+        latency: 0,
+        success: false,
+        type: 'error',
+        engine: 'Local',
+      });
+      set({ manualStatus: 'idle', manualTotal: 0 });
+      return;
+    }
+
+    set({ manualTotal: cases.length });
 
     const useClaude = get().claudeAiEnabled === true;
     if (useClaude) {
@@ -229,9 +276,28 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         });
       }
       // mode explícito: both | datajud | djen
-      const res = await scanSingleCaseAction(c.protocolo, { mode, fast: true, useClaudeAi: useClaude });
+      let res: any;
+      try {
+        res = await scanSingleCaseAction(c.protocolo, {
+          mode,
+          fast: true,
+          useClaudeAi: useClaude,
+        });
+      } catch (err: any) {
+        const latency = Date.now() - start;
+        set((s) => ({ manualErrors: s.manualErrors + 1, manualDone: s.manualDone + 1 }));
+        get().addLog({
+          protocolo: c.protocolo,
+          message: `Erro no scanner: ${err?.message || err}`,
+          latency,
+          success: false,
+          type: 'error',
+          engine: 'Local',
+        });
+        continue;
+      }
       const latency = Date.now() - start;
-      const patch = (res.casePatch as Record<string, any>) || {};
+      const patch = (res?.casePatch as Record<string, any>) || {};
 
       if (res.success && res.casePatch) {
         if (patch.tem_atualizacao_pos_retorno) set((s) => ({ manualAlerts: s.manualAlerts + 1 }));

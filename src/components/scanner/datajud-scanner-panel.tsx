@@ -204,8 +204,14 @@ export function DataJudScannerPanel() {
                   <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
                     Varredura imediata baseada no modo selecionado. Ideal para triagem de urgência na tela.
                   </p>
-                  <Button onClick={startManualScan} className="w-full h-11 bg-white text-black font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all">
-                    Iniciar Varredura Local
+                  <Button
+                    onClick={() => {
+                      void startManualScan();
+                    }}
+                    disabled={manualStatus === 'running'}
+                    className="w-full h-11 bg-white text-black font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all"
+                  >
+                    {manualStatus === 'running' ? 'Varredura em andamento…' : 'Iniciar Varredura Local'}
                   </Button>
                </div>
              ) : (
