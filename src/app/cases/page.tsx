@@ -23,6 +23,7 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
+import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
 import { runCasesPlanilhaExport } from '@/lib/run-cases-export';
 import { format, parseISO, isValid } from 'date-fns';
@@ -117,6 +118,9 @@ const CaseRow = React.memo(({
         <div className="flex items-center justify-end gap-2">
           <button disabled={suggestLoading} onClick={async () => { setSuggestLoading(true); await onSuggest(c); setSuggestLoading(false); }} className={cn("text-amber-600 hover:bg-amber-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Sugerir Resposta">
             {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
+          </button>
+          <button type="button" onClick={() => onDossie?.(c)} className={cn("text-slate-700 hover:bg-slate-100 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Dossiê do processo (PDF)">
+            <FileDown size={18} />
           </button>
           <button disabled={loading} onClick={async () => { setLoading(true); await onScan(c); setLoading(false); }} className={cn("text-primary hover:bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Auditoria 3D">
             {loading ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
@@ -433,7 +437,7 @@ function CasesContent() {
                 </thead>
                 <tbody className="divide-y divide-border/20">
                   {filtered.map((c) => (
-                    <CaseRow key={c.id} c={c} isOperador={isOperador} onLogReturn={handleLogReturn} onEdit={handleEdit} onDelete={handleDelete} onScan={handleSingleScan} onSuggest={handleSuggestClick} />
+                    <CaseRow key={c.id} c={c} isOperador={isOperador} onLogReturn={handleLogReturn} onEdit={handleEdit} onDelete={handleDelete} onScan={handleSingleScan} onSuggest={handleSuggestClick} onDossie={handleDossieProcesso} />
                   ))}
                 </tbody>
               </table>

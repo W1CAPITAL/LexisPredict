@@ -5,6 +5,7 @@
  */
 
 import type { EventoTipo } from './case-logic';
+import { detectarAudienciaPendente } from './audiencia-detect';
 
 const RE_AUDIENCIA =
   /AUDI[EÊ]NCIA|AUDIENCIA|CONCILIA[CÇ][AÃ]O|INSTRU[CÇ][AÃ]O|JULGAMENTO\s+DESIGNAD|SESS[AÃ]O\s+DE\s+JULGAMENTO/i;
@@ -46,7 +47,8 @@ export function classifyMeritoFromText(text: string | null | undefined): MeritoD
     };
   }
 
-  const isAudiencia = RE_AUDIENCIA.test(t);
+  const aud = detectarAudienciaPendente(t);
+  const isAudiencia = aud.isAudienciaPendente;
   const isParcial = RE_PARCIAL.test(t);
   const isProcedente = !isParcial && RE_PROCEDENTE.test(t);
   const isImprocedente = !isParcial && RE_IMPROCEDENTE.test(t);
@@ -54,9 +56,7 @@ export function classifyMeritoFromText(text: string | null | undefined): MeritoD
 
   let eventoTipo: EventoTipo | null = null;
   if (isAudiencia) {
-    if (/CONCILIA/i.test(t)) eventoTipo = 'audiencia_conciliacao';
-    else if (/INSTRU/i.test(t)) eventoTipo = 'audiencia_instrucao';
-    else eventoTipo = 'audiencia_julgamento';
+    eventoTipo = (aud.tipo as EventoTipo) || 'audiencia_julgamento';
   } else if (isParcial) eventoTipo = 'sentenca_parcial';
   else if (isProcedente) eventoTipo = 'sentenca_procedente';
   else if (isImprocedente) eventoTipo = 'sentenca_improcedente';
@@ -161,7 +161,7 @@ export function hasAudienciaPosRetorno(c: {
     );
   }
   const text = `${c.evento_resumo || ''} ${c.datajud_ultimo_nome || ''} ${c.djen_ultimo_resumo || ''}`;
-  if (!RE_AUDIENCIA.test(text)) return false;
+  if (!detectarAudienciaPendente(text).isAudienciaPendente) return false;
   return isDataAposRetorno(
     c.evento_data || c.datajud_ultimo_movimento || c.djen_ultima_data,
     c.ultimoRetorno

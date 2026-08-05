@@ -1,3 +1,4 @@
+import { detectarAudienciaPendente } from './audiencia-detect';
 /**
  * @fileOverview Motor de Consulta e Higiene DJEN v8.6 — PROTOCOLO BRASIL (gru1)
  * API oficial: https://comunicaapi.pje.jus.br/api/v1/comunicacao
@@ -110,7 +111,7 @@ export function summarizeDjenKeywords(raw: string | null | undefined): string {
   if (/(CUMPRIMENTO\s+DE\s+SENTENÇA|EXECUÇÃO\s+DE\s+SENTENÇA)/.test(upper)) return 'Cumprimento de sentença';
   if (/(AUDIÊNCIA\s+DE\s+CONCILIAÇÃO|AUDIÊNCIA\s+DE\s+MEDIAÇÃO)/.test(upper)) return 'Audiência de conciliação/mediação';
   if (/(AUDIÊNCIA\s+DE\s+INSTRUÇÃO)/.test(upper)) return 'Audiência de instrução';
-  if (/(AUDIÊNCIA)/.test(upper)) return 'Audiência designada';
+  if (detectarAudienciaPendente(upper).isAudienciaPendente) return detectarAudienciaPendente(upper).resumo || 'Audiência designada';
   if (/(LIMINAR|TUTELA\s+DE\s+URGÊNCIA|ANTECIPAÇÃO\s+DE\s+TUTELA)/.test(upper)) return 'Liminar / tutela de urgência';
   if (/(AJG|JUSTIÇA\s+GRATUITA|GRATUIDADE|HIPOSSUFICI)/.test(upper)) return 'Justiça gratuita (AJG)';
   if (/(CUSTAS|TAXAS?\s+JUDICI[AÁ]RIAS|PREPARO)/.test(upper)) return 'Custas / preparo';
