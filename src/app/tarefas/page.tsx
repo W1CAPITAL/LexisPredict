@@ -504,6 +504,12 @@ export default function TarefasPage() {
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">Audit Híbrida Ativa</Badge>
+            <Button asChild size="sm" className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black">
+              <Link href="/cases?new=1">
+                <Plus size={16} className="mr-2 inline" />
+                Novo Processo
+              </Link>
+            </Button>
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary"><RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} /></Button>
           </div>
         </header>
