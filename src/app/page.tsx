@@ -43,6 +43,8 @@ import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
+import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
+import { countBaFromCases } from '@/lib/flags-operacionais';
 import Link from 'next/link';
 import { getTranslation } from '@/lib/i18n';
 import { useAppStore } from '@/store/use-app-store';
@@ -63,6 +65,7 @@ export default function Dashboard() {
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false);
   const t = getTranslation(locale);
@@ -79,6 +82,10 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const caseData = await fetchRepoCases();
+        try {
+          const baRes = await fetchBaHitProtocolosAction();
+          if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
+        } catch { /* */ }
       if (Array.isArray(caseData)) {
         setCases(caseData);
         updateLastSync();
@@ -119,7 +126,8 @@ export default function Dashboard() {
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento || !!c.tem_atualizacao_pos_retorno).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
-    const countBA = ativos.filter(c => !!c.indicio_busca_apreensao || c.evento_tipo === 'ba').length;
+    const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
+    const countBA = countBaFromCases(ativos as any, baSet);
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca').length;
     // MÉRITO OBRIGATÓRIO
     const countProcedente = ativos.filter(c =>
@@ -161,7 +169,7 @@ export default function Dashboard() {
       countEncerradoTribunal, countBA, countCumprimento,
       countProcedente, countImprocedente, countAudiencia
     };
-  }, [cases, t]);
+  }, [cases, t, baHitDigits]);
 
   const priorityQueue = useMemo(() => {
     return cases

@@ -37,6 +37,15 @@ import {
   Building2
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic';
+import {
+  temBaCarteira,
+  temNovidadeIdentificada,
+  temAudienciaPendente,
+  isCasoProblematico,
+  isCasoTranquilo,
+  temCumprimento,
+} from '@/lib/flags-operacionais';
+import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
@@ -98,6 +107,8 @@ export default function TarefasPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba'>('all');
+  const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [dailyMeta, setDailyMeta] = useState(25);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
@@ -152,6 +163,10 @@ export default function TarefasPage() {
     setLoading(true);
     try {
       const data = await fetchRepoCases();
+      try {
+        const baRes = await fetchBaHitProtocolosAction();
+        if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
+      } catch { /* */ }
       if (Array.isArray(data)) setCases(data);
     } finally { setLoading(false); }
   }, []);
@@ -375,7 +390,11 @@ export default function TarefasPage() {
       const g = groups[nome];
       g.totalAtivos++;
       g.cases.push(c);
-      if (c.evento_tipo === 'ba' || (c as any).indicio_busca_apreensao) g.hasBA = true;
+      const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
+      if (temBaCarteira(c as any, baSet)) g.hasBA = true;
+      if (temNovidadeIdentificada(c as any)) g.hasUpdate = true;
+      if (temAudienciaPendente(c as any)) (g as any).hasAudiencia = true;
+      if (temCumprimento(c as any)) (g as any).hasCumprimento = true;
       if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
       if (c.tem_novo_andamento) g.hasUpdate = true;
       
@@ -403,7 +422,19 @@ export default function TarefasPage() {
     });
 
     const sortedAll = Object.values(groups)
-      .filter(g => (g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search)) && (officeFilter === 'all' || g.escritorio === officeFilter))
+      .filter(g => {
+        const matchSearch = (g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search));
+        const matchOffice = officeFilter === 'all' || g.escritorio === officeFilter;
+        if (!matchSearch || !matchOffice) return false;
+        const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
+        const sample = g.cases[0] as any;
+        if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
+        if (filaFiltro === 'ba') return g.hasBA;
+        if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
+        if (filaFiltro === 'problematicos') return g.cases.some((c: any) => isCasoProblematico(c, baSet)) || g.hasBA || g.hasClosedCourt || g.hasUpdate;
+        if (filaFiltro === 'tranquilos') return g.cases.every((c: any) => isCasoTranquilo(c, baSet)) && !g.hasBA && !g.hasClosedCourt;
+        return true;
+      })
       .sort((a, b) => {
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
@@ -428,7 +459,7 @@ export default function TarefasPage() {
 
     const pending = sortedAll.filter(g => !contactedSet.has(g.cliente));
     return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(g.cliente)), totalPendingCount: pending.length };
-  }, [cases, search, officeFilter, contatadosHoje, dailyMeta]);
+  }, [cases, search, officeFilter, contatadosHoje, dailyMeta, filaFiltro, baHitDigits]);
 
   const distinctOffices = useMemo(() => {
     const set = new Set<string>();
@@ -482,6 +513,17 @@ export default function TarefasPage() {
                    <SelectContent className="bg-white border-2 border-black rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">TODOS ESCRITÓRIOS</SelectItem>
                       {distinctOffices.map(off => <SelectItem key={off} value={off} className="font-black uppercase text-[10px]">{off}</SelectItem>)}
+                   </SelectContent>
+                </Select>
+                <Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
+                   <SelectTrigger className="h-12 w-full md:w-[260px] bg-[#f8f9fb] border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
+                   <SelectContent className="bg-white border-2 border-black rounded-xl">
+                      <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
+                      <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
+                      <SelectItem value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
+                      <SelectItem value="tranquilos" className="font-black uppercase text-[10px]">Casos tranquilos</SelectItem>
+                      <SelectItem value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
+                      <SelectItem value="ba" className="font-black uppercase text-[10px]">Busca e apreensão</SelectItem>
                    </SelectContent>
                 </Select>
              </div>
@@ -643,7 +685,9 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
           {group.cases?.some((x: any) => x.sentenca_procedente || x.merito_resultado === 'procedente') ? <Badge className="bg-emerald-600 text-white text-[8px] font-black uppercase">PROCEDENTE</Badge> : null}
           {group.cases?.some((x: any) => x.sentenca_improcedente || x.merito_resultado === 'improcedente') ? <Badge className="bg-slate-700 text-white text-[8px] font-black uppercase">IMPROCEDENTE</Badge> : null}
           {group.cases?.some((x: any) => x.alerta_ia) ? <Badge className="bg-red-700 text-white text-[8px] font-black uppercase animate-pulse">ALERTA IA</Badge> : null}
-          {group.hasUpdate && !group.hasBA ? <Badge variant="destructive" className="text-[7px] font-black uppercase animate-pulse">NOVO EVENTO</Badge> : null}
+          {group.hasUpdate && !group.hasBA ? <Badge variant="destructive" className="text-[7px] font-black uppercase animate-pulse">NOVIDADE IDENTIFICADA</Badge> : null}
+          {(group as any).hasAudiencia ? <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase">AUDIÊNCIA PENDENTE</Badge> : null}
+          {(group as any).hasCumprimento ? <Badge className="bg-purple-700 text-white text-[7px] font-black uppercase">CUMPRIMENTO</Badge> : null}
           {!group.hasBA && !group.hasClosedCourt && !group.hasUpdate ? <Badge variant="outline" className="text-[8px] font-black uppercase">Monitoramento</Badge> : null}
         </div>
       </div>
