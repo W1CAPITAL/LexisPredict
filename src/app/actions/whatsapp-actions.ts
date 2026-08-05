@@ -89,3 +89,39 @@ export async function fetchWhatsAppHistoryAction(phone: string) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Rascunho WhatsApp com Claude AI (opt-in).
+ */
+export async function generateWhatsAppClaudeDraftAction(input: {
+  clienteNome?: string;
+  protocolo?: string;
+  contexto?: string;
+  evento_resumo?: string | null;
+  useClaude?: boolean;
+}) {
+  if (input.useClaude === false) {
+    return { success: false as const, error: 'Claude desativado' };
+  }
+  try {
+    const { draftWhatsAppWithClaude } = await import('@/lib/ai/claude-surfaces');
+    const blob = [
+      `Cliente: ${input.clienteNome || '—'}`,
+      `CNJ: ${input.protocolo || '—'}`,
+      `Evento: ${input.evento_resumo || '—'}`,
+      `Contexto: ${input.contexto || '—'}`,
+      'Redija mensagem curta para WhatsApp.',
+    ].join('\n');
+    const r = await draftWhatsAppWithClaude(blob, true);
+    if (!r) return { success: false as const, error: 'Sem resposta Claude' };
+    console.info('[whatsapp-claude]', r.logLine);
+    return {
+      success: true as const,
+      texto: r.text,
+      engine: r.engineLabel,
+      logLine: r.logLine,
+    };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha Claude' };
+  }
+}

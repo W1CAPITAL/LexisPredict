@@ -195,6 +195,26 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textTransform: "uppercase",
   },
+  claudeBox: {
+    backgroundColor: "#f5f3ff",
+    borderWidth: 1,
+    borderColor: "#c4b5fd",
+    padding: 10,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  claudeTitle: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#5b21b6",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  claudeBody: {
+    fontSize: 9.5,
+    lineHeight: 1.5,
+    color: COLORS.ink,
+  },
   disclaimer: {
     marginTop: 16,
     fontSize: 7.5,
@@ -298,12 +318,17 @@ export type DjenPdfData = {
   cliente?: string;
   tribunal?: string;
   logoBase64?: string | null;
+  /** Parecer Claude AI sobre a publicação */
+  analiseClaude?: string | null;
+  claudeEngine?: string | null;
 };
 
 export function DjenPublicationPDF({ data }: { data: DjenPdfData }) {
   const texto = data.texto || "";
   const highlights = extractHighlights(texto);
   const geradoEm = new Date().toLocaleString("pt-BR");
+  const analiseClaude = data.analiseClaude || null;
+  const claudeEngine = data.claudeEngine || "Claude AI";
 
   return (
     <Document
@@ -379,6 +404,16 @@ export function DjenPublicationPDF({ data }: { data: DjenPdfData }) {
             ))}
           </View>
         )}
+
+
+        {analiseClaude ? (
+          <View style={styles.claudeBox}>
+            <Text style={styles.claudeTitle}>
+              {claudeEngine} — Explicação da publicação
+            </Text>
+            <Text style={styles.claudeBody}>{analiseClaude}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Teor da publicação</Text>
         <View style={styles.body}>{renderHighlightedText(texto)}</View>

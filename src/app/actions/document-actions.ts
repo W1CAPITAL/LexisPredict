@@ -23,9 +23,43 @@ export async function generateDjenPublicationPDFAction(data: any) {
   try {
     const renderToBuffer = await getRenderToBuffer();
     const { DjenPublicationPDF } = await import('@/components/pdf/djen-publication-pdf');
-    const element = React.createElement(DjenPublicationPDF as any, { data }) as any;
+
+    // Claude AI explica a publicação (opt-in: data.useClaude !== false se texto houver)
+    let analiseClaude: string | null = data?.analiseClaude || null;
+    let claudeEngine: string | null = null;
+    const wantClaude = data?.useClaude !== false && !!(data?.texto || data?.teor);
+    if (wantClaude && !analiseClaude) {
+      try {
+        const { explainDjenWithClaude } = await import('@/lib/ai/claude-surfaces');
+        const r = await explainDjenWithClaude(
+          {
+            texto: data.texto || data.teor,
+            processo: data.protocolo || data.processo,
+            tribunal: data.tribunal || data.orgao,
+            nomeParte: data.cliente || data.nomeParte,
+            dataDisponibilizacao: data.data,
+          },
+          true
+        );
+        if (r) {
+          analiseClaude = r.text;
+          claudeEngine = r.engineLabel;
+          console.info('[DJEN-PDF]', r.logLine);
+        }
+      } catch (e: any) {
+        analiseClaude = `Claude AI indisponível: ${e?.message || e}`;
+      }
+    }
+
+    const payload = { ...data, analiseClaude, claudeEngine };
+    const element = React.createElement(DjenPublicationPDF as any, { data: payload }) as any;
     const pdfBuffer = await renderToBuffer(element);
-    return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
+    return {
+      success: true,
+      base64: Buffer.from(pdfBuffer).toString('base64'),
+      analiseClaude,
+      claudeEngine,
+    };
   } catch (e: any) {
     console.error("[Selagem] Falha no PDF DJEN:", e.message || e);
     return { error: "Falha técnica ao selar a publicação do Diário." };

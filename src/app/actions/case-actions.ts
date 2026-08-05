@@ -405,7 +405,9 @@ export async function auditCaseCoreSystem(
     aiLogLine: aiLogLine || patch.ai_log_line || null,
     aiFlagsLabel: patch.ai_flags_label || null,
   };
-}export async function scanSingleCaseAction(
+}
+
+export async function scanSingleCaseAction(
   protocolo: string,
   options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
 ) {
@@ -529,5 +531,41 @@ export async function recalibrateCasesAction() {
     };
   } catch (e: any) {
     return { success: false, error: e?.message || 'Erro', updated: 0 };
+  }
+}
+
+/** Parecer Claude AI para Auditoria 3D (opt-in no modal). */
+export async function generateAudit3dClaudeAction(input: {
+  protocolo: string;
+  cliente?: string;
+  movimentos?: any[];
+  comunicacoes?: any[];
+  useClaude?: boolean;
+}) {
+  if (input.useClaude === false) {
+    return { success: false as const, error: 'Claude desativado' };
+  }
+  try {
+    const { analyzeCaseWithClaude } = await import('@/lib/ai/claude-surfaces');
+    const mov = (input.movimentos || [])
+      .slice(0, 12)
+      .map((m: any) => `- ${m.dataHora || m.data || ''} ${m.nome || m.descricao || ''}`)
+      .join('\n');
+    const djen = (input.comunicacoes || [])
+      .slice(0, 8)
+      .map((c: any) => `- ${c.data_disponibilizacao || ''} ${String(c.texto || '').slice(0, 200)}`)
+      .join('\n');
+    const blob = `CNJ ${input.protocolo} ${input.cliente || ''}\nDATAJUD:\n${mov}\nDJEN:\n${djen}`;
+    const r = await analyzeCaseWithClaude(blob, 'audit3d', true);
+    if (!r) return { success: false as const, error: 'Sem resposta' };
+    console.info('[audit3d-claude]', r.logLine);
+    return {
+      success: true as const,
+      texto: r.text,
+      engine: r.engineLabel,
+      logLine: r.logLine,
+    };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha Claude' };
   }
 }

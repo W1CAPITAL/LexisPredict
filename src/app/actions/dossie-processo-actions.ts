@@ -63,25 +63,20 @@ export async function generateDossieProcessoPDFAction(protocolo: string, opts?: 
     let analiseClaude: string | null = null;
     if (opts?.useClaude) {
       try {
-        const { runCascade } = await import('@/lib/ai/cascade');
+        const { analyzeCaseWithClaude } = await import('@/lib/ai/claude-surfaces');
         const blob = [
           `CNJ ${c.protocolo} cliente ${c.cliente}`,
+          `Status: ${c.status || ''} tribunal ${c.tribunal || ''}`,
           `DataJud: ${c.datajud_ultimo_nome || ''} ${c.datajud_ultimo_movimento || ''}`,
           `DJEN: ${c.djen_ultimo_resumo || ''}`,
-          `Obs: ${(c.observacao || '').slice(0, 400)}`,
+          `Flags: BA=${!!c.indicio_busca_apreensao} encerrado=${!!c.datajud_encerrado_tribunal} cumprimento=${!!c.em_cumprimento_sentenca} custas=${!!(c as any).tem_custas}`,
+          `Obs: ${String(c.observacao || '').slice(0, 400)}`,
         ].join('\n');
-        const r = await runCascade({
-          preferred: 'claude',
-          surface: 'scan',
-          system:
-            'Você é analista de gabinete. Em 5-8 linhas, em português, resuma risco operacional, se há audiência DESIGNADA (não mera menção), custas, BA só se vinculada ao CNJ, e próximo passo interno. Sem inventar valores nem resultados de mérito.',
-          messages: [{ role: 'user', content: blob }],
-          max_tokens: 400,
-          temperature: 0.2,
-        });
-        analiseClaude = r.text?.slice(0, 1200) || null;
+        const r = await analyzeCaseWithClaude(blob, 'dossie', true);
+        analiseClaude = r?.text?.slice(0, 1500) || null;
+        if (r) console.info('[dossie-claude]', r.logLine);
       } catch (e: any) {
-        analiseClaude = `Claude indisponível: ${e?.message || e}`;
+        analiseClaude = `Claude AI indisponível: ${e?.message || e}`;
       }
     }
 
