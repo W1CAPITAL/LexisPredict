@@ -127,6 +127,7 @@ function SidebarNavBody({
         { label: "Procuração", href: "/documents", icon: FileText },
         { label: "Habilitação", href: "/habilitacao-peca", icon: FileSignature },
         { label: "Substabelecimento", href: "/substabelecimento", icon: Files },
+        { label: "Revogação poderes", href: "/revogacao-poderes", icon: Scale },
         { label: "Subst. simples", href: "/substabelecimento-simples", icon: ClipboardList },
         { label: "Peça de subst.", href: "/substabelecimento-peca", icon: Files },
         { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
