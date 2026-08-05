@@ -16,6 +16,7 @@ import {
   normalizeName,
   extrairAdvogadosDoTexto,
   avaliarViabilidadeSubstabelecimento,
+  extrairCpfDoTexto,
 } from '@/lib/revogacao-logic';
 import type { RevogacaoPdfData } from '@/components/pdf/revogacao-poderes-pdf';
 
@@ -145,6 +146,7 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
   let djenOk = false;
   const textos: string[] = [];
   let advogadosDjen: string[] = [];
+  let cpfDetectado: string | null = null;
 
   try {
     const { fetchDataJud } = await import('@/lib/datajud');
@@ -191,6 +193,13 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
     }
   } catch { /* */ }
 
+  if (!cpfDetectado) {
+    for (const tx of textos) {
+      const cpf = extrairCpfDoTexto(tx);
+      if (cpf) { cpfDetectado = cpf; break; }
+    }
+  }
+
   const via = avaliarViabilidadeSubstabelecimento({
     textos,
     encerradoFlag: encerrado,
@@ -205,8 +214,7 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
       const r = await runCascade({
         preferred: 'claude',
         surface: 'revogacao',
-        system: `Voce e assistente de gabinete juridico brasileiro. Avalie se faz sentido REVOGAR poderes e SUBSTABELECER sem reserva neste processo agora.
-Responda em portugues, objetivo (max 120 palavras): (1) quem parece ser o advogado atual segundo o teor; (2) se a fase processual recomenda substabelecimento; (3) ressalvas. Nao invente fatos fora do texto.`,
+        system: `Classifique ELEGIBILIDADE para revogacao/substabelecimento. Responda JSON: {"elegivel":boolean,"motivo":"string curta","advogado_atual":"string|null","cpf":"string|null"}. Sem texto fora do JSON. Nao invente.`,
         messages: [{
           role: 'user',
           content: `Protocolo: ${protocolo}\nEncerrado_flag: ${encerrado}\nCumprimento_flag: ${cumprimento}\nAdvogados_DJEN: ${advogadosDjen.join(', ') || '(nenhum)'}\nTeor:\n${textos.join('\n---\n').slice(0, 6000)}`,
@@ -242,6 +250,7 @@ Responda em portugues, objetivo (max 120 palavras): (1) quem parece ser o advoga
     djenChecked: djenOk,
     analiseClaude,
     engineClaude,
+    cpfDetectado,
   };
 }
 
@@ -257,9 +266,7 @@ export async function generateRevogacaoPdfAction(input: {
   viabilidade?: string | null;
   observacaoScanner?: string | null;
   comarca?: string;
-  useClaude?: boolean;
-  analiseClaude?: string | null;
-  engineClaude?: string | null;
+  clienteCpf?: string | null;
 }) {
   const ctx = await getUserContext();
   if (!ctx?.empresa_id) return { success: false as const, error: 'Sessao expirada' };
@@ -280,24 +287,10 @@ export async function generateRevogacaoPdfAction(input: {
     return { success: false as const, error: 'Cliente/protocolo obrigatorios' };
   }
 
-  let analiseClaude = input.analiseClaude || null;
-  let engineClaude = input.engineClaude || null;
   let viabilidade = input.viabilidade || null;
   let ultimoAdv = input.ultimoAdvogadoDetectado || null;
   let advsDjen = input.advogadosDjen || [];
-
-  if (input.useClaude && !analiseClaude) {
-    try {
-      const reforco = await reforcoTribunalRevogacaoAction(input.protocolo, { useClaude: true });
-      if (reforco.success) {
-        analiseClaude = reforco.analiseClaude;
-        engineClaude = reforco.engineClaude;
-        if (!viabilidade) viabilidade = reforco.viabilidade;
-        if (!ultimoAdv) ultimoAdv = reforco.ultimoAdvogadoDetectado;
-        if (!advsDjen.length) advsDjen = reforco.advogadosDjen || [];
-      }
-    } catch { /* */ }
-  }
+  // Claude NAO e embutido no PDF — so elegibilidade no scanner
 
   const preferUf = input.uf || undefined;
   const data: RevogacaoPdfData = {
@@ -312,8 +305,7 @@ export async function generateRevogacaoPdfAction(input: {
     advogadosDjen: advsDjen,
     viabilidade,
     observacaoScanner: input.observacaoScanner || null,
-    analiseClaude,
-    engineClaude,
+    clienteCpf: (input as any).clienteCpf || null,
   };
 
   try {
@@ -336,7 +328,6 @@ export async function generateRevogacaoPdfAction(input: {
       filename: `Revogacao_Substabelecimento_${safeClient}_${input.protocolo.replace(/\D/g, '').slice(0, 20)}.pdf`,
       mime: 'application/pdf',
       bytes: buf.length,
-      engineClaude,
     };
   } catch (e: any) {
     console.error('[revogacao-pdf]', e);

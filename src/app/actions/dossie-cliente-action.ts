@@ -92,16 +92,13 @@ async function enrichWithClaude(bruto: string, preferredMotor?: string): Promise
               nivel: parsed.nivel,
               chanceRuim: parsed.chanceRuim,
               pontosFortes: Array.isArray(parsed.pontosFortes)
-                ? parsed.pontosFortes.join("
-")
+                ? parsed.pontosFortes.join("\n")
                 : parsed.pontosFortes,
               pontosAtencao: Array.isArray(parsed.pontosAtencao)
-                ? parsed.pontosAtencao.join("
-")
+                ? parsed.pontosAtencao.join("\n")
                 : parsed.pontosAtencao,
               planoAcao: Array.isArray(parsed.planoAcao)
-                ? parsed.planoAcao.join("
-")
+                ? parsed.planoAcao.join("\n")
                 : parsed.planoAcao,
               leituraEstrategica: parsed.leituraEstrategica,
               parteContraria: parsed.parteContraria,
@@ -153,16 +150,13 @@ ${bruto.slice(0, 12000)}` },
       nivel: parsed.nivel,
       chanceRuim: parsed.chanceRuim,
       pontosFortes: Array.isArray(parsed.pontosFortes)
-        ? parsed.pontosFortes.join("
-")
+        ? parsed.pontosFortes.join("\n")
         : parsed.pontosFortes,
       pontosAtencao: Array.isArray(parsed.pontosAtencao)
-        ? parsed.pontosAtencao.join("
-")
+        ? parsed.pontosAtencao.join("\n")
         : parsed.pontosAtencao,
       planoAcao: Array.isArray(parsed.planoAcao)
-        ? parsed.planoAcao.join("
-")
+        ? parsed.planoAcao.join("\n")
         : parsed.planoAcao,
       leituraEstrategica: parsed.leituraEstrategica,
       parteContraria: parsed.parteContraria,

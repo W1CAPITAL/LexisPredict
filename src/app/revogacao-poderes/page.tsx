@@ -1,18 +1,16 @@
 /**
- * Revogação de poderes + substabelecimento
- * 1) Escolhe advogado a revogar (banca) + UF
- * 2) Scanner lista só processos desse advogado na carteira do usuário
- * 3) Filtra elegíveis (não encerrado / não cumprimento)
- * 4) Opcional: reforço DJEN/DataJud
- * 5) Escolhe advogado novo (banca) → baixar PDF por processo
+ * Revogacao de poderes + substabelecimento
+ * Fila 1 a 1 (como BA). Claude so na elegibilidade (nao no PDF).
+ * CPF: flag exige CPF; autofill se achar no DJEN; opcao separada de preencher automatico.
  */
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -34,8 +32,9 @@ import {
   Download,
   RefreshCcw,
   Search,
-  Shield,
-  FileText,
+  Play,
+  Pause,
+  Square,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +43,8 @@ const UFS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
   "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ];
+
+const DELAY_MS = 2500;
 
 function downloadBase64Pdf(base64: string, filename: string) {
   const a = document.createElement("a");
@@ -54,6 +55,22 @@ function downloadBase64Pdf(base64: string, filename: string) {
   a.remove();
 }
 
+function sleep(ms: number, signal: { cancelled: boolean }) {
+  return new Promise<void>((resolve) => {
+    const t = setTimeout(() => resolve(), ms);
+    const iv = setInterval(() => {
+      if (signal.cancelled) {
+        clearTimeout(t);
+        clearInterval(iv);
+        resolve();
+      }
+    }, 200);
+    setTimeout(() => clearInterval(iv), ms + 50);
+  });
+}
+
+type QueueStatus = "idle" | "running" | "paused" | "done";
+
 export default function RevogacaoPoderesPage() {
   const { toast } = useToast();
   const [banca, setBanca] = useState<any[]>([]);
@@ -63,11 +80,38 @@ export default function RevogacaoPoderesPage() {
   const [items, setItems] = useState<RevogacaoCaseItem[]>([]);
   const [loadingScan, setLoadingScan] = useState(false);
   const [loadingBanca, setLoadingBanca] = useState(true);
-  const [reinforcing, setReinforcing] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [onlyElegiveis, setOnlyElegiveis] = useState(true);
-  const [useClaude, setUseClaude] = useState(false);
+  /** Claude so para classificar elegibilidade na fila — nunca no PDF */
+  const [useClaudeElegibilidade, setUseClaudeElegibilidade] = useState(false);
+  /** Exige CPF no PDF / formulario */
+  const [requireCpf, setRequireCpf] = useState(false);
+  /** Se true, preenche CPF automaticamente quando DJEN trouxer */
+  const [autoFillCpf, setAutoFillCpf] = useState(true);
+  const [cpfByProtocolo, setCpfByProtocolo] = useState<Record<string, string>>({});
   const [advNome, setAdvNome] = useState("");
+  const [logs, setLogs] = useState<string[]>([]);
+
+  const [qStatus, setQStatus] = useState<QueueStatus>("idle");
+  const [qIndex, setQIndex] = useState(0);
+  const statusRef = useRef<QueueStatus>("idle");
+  const indexRef = useRef(0);
+  const itemsRef = useRef<RevogacaoCaseItem[]>([]);
+  const cancelRef = useRef({ cancelled: false });
+
+  useEffect(() => {
+    statusRef.current = qStatus;
+  }, [qStatus]);
+  useEffect(() => {
+    indexRef.current = qIndex;
+  }, [qIndex]);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  const addLog = (line: string) => {
+    setLogs((prev) => [line, ...prev].slice(0, 80));
+  };
 
   useEffect(() => {
     (async () => {
@@ -92,6 +136,8 @@ export default function RevogacaoPoderesPage() {
       return;
     }
     setLoadingScan(true);
+    cancelRef.current.cancelled = true;
+    setQStatus("idle");
     try {
       const res = await scanCarteiraRevogacaoAction({
         advogadoRevogarId: leavingId,
@@ -104,64 +150,115 @@ export default function RevogacaoPoderesPage() {
       }
       setItems(res.items);
       setAdvNome(res.advogadoNome || "");
+      setQIndex(0);
+      addLog(`Carteira: ${res.total} processos · ${res.elegiveis} elegiveis (heuristica)`);
       toast({
-        title: "Scanner concluído",
-        description: `${res.elegiveis} elegíveis de ${res.total} processo(s) do advogado`,
+        title: "Fila montada",
+        description: `${res.elegiveis} elegiveis de ${res.total}`,
       });
     } finally {
       setLoadingScan(false);
     }
   }, [leavingId, uf, toast]);
 
-  const runReforco = async () => {
-    const alvo = items.filter((i) => (onlyElegiveis ? i.elegivel : true)).slice(0, 40);
-    if (!alvo.length) {
-      toast({ title: "Nada para reforçar" });
+  const processOne = async (it: RevogacaoCaseItem) => {
+    addLog(`→ ${it.cliente} · ${it.protocolo}`);
+    const r = await reforcoTribunalRevogacaoAction(it.protocolo, {
+      useClaude: useClaudeElegibilidade,
+    });
+    if (!r.success) {
+      addLog(`  falha tribunal: ${(r as any).error || "?"}`);
+      return it;
+    }
+    const cpfDj = (r as any).cpfDetectado as string | null;
+    if (cpfDj && autoFillCpf) {
+      setCpfByProtocolo((prev) => ({ ...prev, [it.protocolo]: cpfDj }));
+      addLog(`  CPF DJEN: ${cpfDj}`);
+    }
+    if (useClaudeElegibilidade && (r as any).analiseClaude) {
+      addLog(`  [IA elegibilidade] ${String((r as any).analiseClaude).slice(0, 160)}`);
+    }
+    addLog(
+      `  ${r.elegivel ? "ELEGIVEL" : "FORA"} · ${r.motivo}` +
+        (r.ultimoAdvogadoDetectado ? ` · adv ${r.ultimoAdvogadoDetectado}` : "")
+    );
+    return {
+      ...it,
+      elegivel: r.elegivel,
+      motivo: r.motivo,
+      encerrado: r.encerrado,
+      cumprimento: r.cumprimento,
+      ultimoAdvogadoDetectado: r.ultimoAdvogadoDetectado || it.ultimoAdvogadoDetectado,
+      advogadosDjen: (r as any).advogadosDjen || [],
+      viabilidade: (r as any).viabilidade || null,
+      viavelSubstabelecer: (r as any).viavelSubstabelecer ?? r.elegivel,
+      djenChecked: true,
+      analiseClaude: (r as any).analiseClaude || null,
+      engineClaude: (r as any).engineClaude || null,
+    } as RevogacaoCaseItem;
+  };
+
+  const runQueue = async (from: number) => {
+    cancelRef.current.cancelled = false;
+    setQStatus("running");
+    statusRef.current = "running";
+    const list = itemsRef.current;
+    let i = from;
+    while (i < list.length) {
+      if (cancelRef.current.cancelled || statusRef.current === "paused") {
+        setQStatus("paused");
+        statusRef.current = "paused";
+        return;
+      }
+      setQIndex(i);
+      indexRef.current = i;
+      const updated = await processOne(list[i]);
+      setItems((prev) => {
+        const next = [...prev];
+        next[i] = updated;
+        return next;
+      });
+      i += 1;
+      if (i < list.length) await sleep(DELAY_MS, cancelRef.current);
+    }
+    setQStatus("done");
+    statusRef.current = "done";
+    addLog("Fila 1 a 1 concluida");
+    toast({ title: "Fila concluida" });
+  };
+
+  const startQueue = () => {
+    if (!items.length) {
+      toast({ title: "Escaneie a carteira antes" });
       return;
     }
-    setReinforcing(true);
-    const next = [...items];
-    for (const it of alvo) {
-      try {
-        const r = await reforcoTribunalRevogacaoAction(it.protocolo, { useClaude });
-        if (r.success) {
-          const idx = next.findIndex((x) => x.protocolo === it.protocolo);
-          if (idx >= 0) {
-            next[idx] = {
-              ...next[idx],
-              elegivel: r.elegivel,
-              motivo: r.motivo,
-              encerrado: r.encerrado,
-              cumprimento: r.cumprimento,
-              ultimoAdvogadoDetectado:
-                r.ultimoAdvogadoDetectado || next[idx].ultimoAdvogadoDetectado,
-              advogadosDjen: (r as any).advogadosDjen || next[idx].advogadosDjen || [],
-              viabilidade: (r as any).viabilidade || null,
-              viavelSubstabelecer: (r as any).viavelSubstabelecer ?? r.elegivel,
-              djenChecked: true,
-              analiseClaude: (r as any).analiseClaude || null,
-              engineClaude: (r as any).engineClaude || null,
-            };
-          }
-        }
-      } catch {
-        /* */
-      }
-      // leve pausa anti rate-limit
-      await new Promise((r) => setTimeout(r, 400));
-    }
-    setItems(next);
-    setReinforcing(false);
-    toast({ title: "Reforço tribunal concluído", description: `${alvo.length} processo(s)` });
+    runQueue(0);
+  };
+  const pauseQueue = () => {
+    cancelRef.current.cancelled = true;
+    setQStatus("paused");
+  };
+  const resumeQueue = () => runQueue(indexRef.current);
+  const stopQueue = () => {
+    cancelRef.current.cancelled = true;
+    setQStatus("idle");
   };
 
   const downloadOne = async (it: RevogacaoCaseItem) => {
-    if (!leavingId || !enteringId) {
-      toast({ title: "Selecione os dois advogados da banca", variant: "destructive" });
+    if (!leavingId || !enteringId || leavingId === enteringId) {
+      toast({
+        title: "Selecione dois advogados diferentes na banca",
+        variant: "destructive",
+      });
       return;
     }
-    if (leavingId === enteringId) {
-      toast({ title: "Advogados devem ser diferentes", variant: "destructive" });
+    const cpf = cpfByProtocolo[it.protocolo] || "";
+    if (requireCpf && !cpf.replace(/\D/g, "").match(/^\d{11}$/)) {
+      toast({
+        title: "CPF obrigatorio",
+        description: "Preencha o CPF do cliente ou ative autofill apos o reforco DJEN.",
+        variant: "destructive",
+      });
       return;
     }
     setDownloading(it.protocolo);
@@ -177,10 +274,8 @@ export default function RevogacaoPoderesPage() {
         advogadosDjen: (it as any).advogadosDjen || [],
         viabilidade: (it as any).viabilidade || null,
         observacaoScanner: it.motivo,
-        comarca: it.uf || "São Paulo",
-        useClaude,
-        analiseClaude: (it as any).analiseClaude || null,
-        engineClaude: (it as any).engineClaude || null,
+        comarca: it.uf || "Sao Paulo",
+        clienteCpf: cpf || null,
       });
       if (!res.success || !(res as any).base64) {
         toast({
@@ -191,11 +286,10 @@ export default function RevogacaoPoderesPage() {
         return;
       }
       const b64 = (res as any).base64 as string;
-      // PDF em base64 comeca com JVBERi0 (%PDF)
       if (!b64.startsWith("JVBERi0")) {
         toast({
           title: "PDF invalido",
-          description: "O servidor nao devolveu um PDF real. Tente de novo.",
+          description: "Servidor nao devolveu PDF real",
           variant: "destructive",
         });
         return;
@@ -203,26 +297,15 @@ export default function RevogacaoPoderesPage() {
       downloadBase64Pdf(b64, (res as any).filename || "revogacao.pdf");
       toast({
         title: "PDF baixado",
-        description: `${it.protocolo} · ${((res as any).bytes / 1024).toFixed(1)} KB` +
-          ((res as any).engineClaude ? ` · IA ${(res as any).engineClaude}` : ""),
+        description: `${it.protocolo} · ${(((res as any).bytes || 0) / 1024).toFixed(1)} KB`,
       });
     } finally {
       setDownloading(null);
     }
   };
 
-  const downloadAllElegiveis = async () => {
-    const list = items.filter((i) => i.elegivel);
-    for (const it of list) {
-      await downloadOne(it);
-      await new Promise((r) => setTimeout(r, 500));
-    }
-  };
-
-  const visible = useMemo(
-    () => (onlyElegiveis ? items.filter((i) => i.elegivel) : items),
-    [items, onlyElegiveis]
-  );
+  const visible = onlyElegiveis ? items.filter((i) => i.elegivel) : items;
+  const current = items[qIndex] || null;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -235,10 +318,10 @@ export default function RevogacaoPoderesPage() {
             </div>
             <div>
               <h1 className="text-sm font-black uppercase tracking-widest">
-                Revogação + Substabelecimento
+                Revogacao + Substabelecimento
               </h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                Carteira do usuário · banca · filtro UF · scanner · PDF
+                Fila 1 a 1 · DJEN · CPF · Claude so elegibilidade
               </p>
             </div>
           </div>
@@ -246,7 +329,7 @@ export default function RevogacaoPoderesPage() {
 
         <div className="shrink-0 p-4 border-b grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 bg-card/40">
           <div>
-            <Label className="text-[9px] font-black uppercase">Advogado a revogar (banca)</Label>
+            <Label className="text-[9px] font-black uppercase">Advogado a revogar</Label>
             <Select value={leavingId} onValueChange={setLeavingId} disabled={loadingBanca}>
               <SelectTrigger className="h-11 rounded-xl mt-1">
                 <SelectValue placeholder="Selecione" />
@@ -261,7 +344,7 @@ export default function RevogacaoPoderesPage() {
             </Select>
           </div>
           <div>
-            <Label className="text-[9px] font-black uppercase">Novo patrono / substabelecido</Label>
+            <Label className="text-[9px] font-black uppercase">Novo patrono</Label>
             <Select value={enteringId} onValueChange={setEnteringId} disabled={loadingBanca}>
               <SelectTrigger className="h-11 rounded-xl mt-1">
                 <SelectValue placeholder="Selecione" />
@@ -301,130 +384,175 @@ export default function RevogacaoPoderesPage() {
               ) : (
                 <Search className="mr-2" size={14} />
               )}
-              Escanear carteira
+              Montar fila
             </Button>
-            <Button
-              variant="outline"
-              onClick={runReforco}
-              disabled={reinforcing || !items.length}
-              className="h-11 rounded-xl font-black uppercase text-[10px]"
-            >
-              {reinforcing ? (
-                <Loader2 className="animate-spin mr-2" size={14} />
-              ) : (
-                <Shield className="mr-2" size={14} />
-              )}
-              Reforço DJEN/DataJud
-            </Button>
+            {qStatus === "idle" || qStatus === "done" ? (
+              <Button
+                onClick={startQueue}
+                disabled={!items.length}
+                className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600"
+              >
+                <Play className="mr-2" size={14} /> Fila 1 a 1
+              </Button>
+            ) : null}
+            {qStatus === "running" ? (
+              <Button onClick={pauseQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
+                <Pause className="mr-2" size={14} /> Pausar
+              </Button>
+            ) : null}
+            {qStatus === "paused" ? (
+              <>
+                <Button onClick={resumeQueue} className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600">
+                  <Play className="mr-2" size={14} /> Continuar
+                </Button>
+                <Button onClick={stopQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
+                  <Square className="mr-2" size={14} /> Parar
+                </Button>
+              </>
+            ) : null}
           </div>
         </div>
 
         <div className="shrink-0 px-4 py-2 flex flex-wrap items-center gap-3 border-b text-[11px]">
           <Badge variant="outline" className="font-black uppercase">
-            {items.length} encontrados
+            {items.length} na fila
           </Badge>
           <Badge className="bg-emerald-600 font-black uppercase">
-            {items.filter((i) => i.elegivel).length} elegíveis
+            {items.filter((i) => i.elegivel).length} elegiveis
           </Badge>
+          {qStatus === "running" || qStatus === "paused" ? (
+            <Badge variant="secondary">
+              Item {Math.min(qIndex + 1, items.length)}/{items.length}
+              {current ? ` · ${current.cliente.slice(0, 24)}` : ""}
+            </Badge>
+          ) : null}
           {advNome ? (
             <span className="text-muted-foreground">
-              Advogado filtrado: <strong>{advNome}</strong>
+              Advogado: <strong>{advNome}</strong>
             </span>
           ) : null}
           <label className="flex items-center gap-2 ml-auto cursor-pointer">
-            <input
-              type="checkbox"
-              checked={onlyElegiveis}
-              onChange={(e) => setOnlyElegiveis(e.target.checked)}
-            />
-            <span className="font-bold uppercase text-[9px]">Só elegíveis</span>
+            <input type="checkbox" checked={onlyElegiveis} onChange={(e) => setOnlyElegiveis(e.target.checked)} />
+            <span className="font-bold uppercase text-[9px]">So elegiveis</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={useClaude}
-              onChange={(e) => setUseClaude(e.target.checked)}
+              checked={useClaudeElegibilidade}
+              onChange={(e) => setUseClaudeElegibilidade(e.target.checked)}
             />
-            <span className="font-bold uppercase text-[9px]">Claude / OmniRoute no PDF</span>
+            <span className="font-bold uppercase text-[9px]">Claude so elegibilidade</span>
           </label>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-xl font-black uppercase text-[9px]"
-            disabled={!items.some((i) => i.elegivel) || !!downloading}
-            onClick={downloadAllElegiveis}
-          >
-            <Download size={12} className="mr-1" /> Baixar todos elegíveis
-          </Button>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={requireCpf} onChange={(e) => setRequireCpf(e.target.checked)} />
+            <span className="font-bold uppercase text-[9px]">Exigir CPF no PDF</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={autoFillCpf} onChange={(e) => setAutoFillCpf(e.target.checked)} />
+            <span className="font-bold uppercase text-[9px]">Autofill CPF do DJEN</span>
+          </label>
           <Button size="sm" variant="ghost" className="rounded-xl" onClick={runScan}>
             <RefreshCcw size={12} />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 space-y-2">
-          {!items.length && !loadingScan ? (
-            <div className="text-center py-20 text-muted-foreground text-sm max-w-lg mx-auto">
-              <FileText className="mx-auto mb-3 opacity-40" size={36} />
-              <p className="font-bold">
-                Selecione o advogado a revogar, a UF (opcional) e clique em{" "}
-                <span className="text-foreground">Escanear carteira</span>.
-              </p>
-              <p className="text-xs mt-2">
-                O scanner usa só os processos do usuário em que o campo advogado bate com a banca.
-                Encerrados e cumprimento de sentença saem da lista de elegíveis. O PDF usa nome, OAB,
-                endereço e contato da banca.
-              </p>
-            </div>
-          ) : null}
-
-          {visible.map((it) => (
-            <div
-              key={it.protocolo + it.id}
-              className={cn(
-                "rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 bg-card/80",
-                it.elegivel ? "border-emerald-500/40" : "border-border/40 opacity-80"
-              )}
-            >
-              <div className="min-w-0">
-                <p className="font-black text-sm uppercase truncate">{it.cliente}</p>
-                <p className="font-mono text-xs text-muted-foreground">{it.protocolo}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Carteira: {it.advogadoCarteira}
-                  {it.uf ? ` · UF ${it.uf}` : ""}
-                  {it.tribunal ? ` · ${it.tribunal}` : ""}
-                  {it.djenChecked ? " · tribunal OK" : ""}
-                </p>
-                <p className="text-[10px] mt-0.5">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[8px] uppercase font-black mr-1",
-                      it.elegivel ? "border-emerald-600 text-emerald-700" : "border-red-500 text-red-600"
-                    )}
-                  >
-                    {it.elegivel ? "Elegível" : "Fora"}
-                  </Badge>
-                  {it.motivo}
-                  {it.ultimoAdvogadoDetectado
-                    ? ` · Ref. adv.: ${it.ultimoAdvogadoDetectado}`
-                    : ""}
-                  {(it as any).viabilidade ? ` · ${(it as any).viabilidade}` : ""}
-                </p>
+        <div className="flex-1 overflow-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-2">
+            {!items.length && !loadingScan ? (
+              <div className="text-center py-16 text-muted-foreground text-sm">
+                Monte a fila (carteira do advogado) e rode a <strong>Fila 1 a 1</strong> para
+                consultar DJEN/DataJud. Claude, se marcado, so classifica elegibilidade — nao entra
+                no PDF.
               </div>
-              <Button
-                className="h-10 rounded-xl font-black uppercase text-[10px] bg-emerald-600 hover:bg-emerald-700"
-                disabled={!it.elegivel || downloading === it.protocolo}
-                onClick={() => downloadOne(it)}
-              >
-                {downloading === it.protocolo ? (
-                  <Loader2 className="animate-spin mr-2" size={14} />
-                ) : (
-                  <Download className="mr-2" size={14} />
+            ) : null}
+            {visible.map((it) => (
+              <div
+                key={it.protocolo + it.id}
+                className={cn(
+                  "rounded-xl border p-4 flex flex-col gap-2 bg-card/80",
+                  it.elegivel ? "border-emerald-500/40" : "border-border/40 opacity-80",
+                  current?.protocolo === it.protocolo && qStatus === "running"
+                    ? "ring-2 ring-primary"
+                    : ""
                 )}
-                Baixar PDF
-              </Button>
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-black text-sm uppercase truncate">{it.cliente}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{it.protocolo}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {it.advogadoCarteira}
+                      {it.uf ? ` · UF ${it.uf}` : ""}
+                      {it.djenChecked ? " · tribunal OK" : ""}
+                    </p>
+                    <p className="text-[10px] mt-0.5">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[8px] uppercase font-black mr-1",
+                          it.elegivel
+                            ? "border-emerald-600 text-emerald-700"
+                            : "border-red-500 text-red-600"
+                        )}
+                      >
+                        {it.elegivel ? "Elegivel" : "Fora"}
+                      </Badge>
+                      {it.motivo}
+                      {(it as any).viabilidade ? ` · ${(it as any).viabilidade}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    className="h-10 rounded-xl font-black uppercase text-[10px] bg-emerald-600 hover:bg-emerald-700"
+                    disabled={!it.elegivel || downloading === it.protocolo}
+                    onClick={() => downloadOne(it)}
+                  >
+                    {downloading === it.protocolo ? (
+                      <Loader2 className="animate-spin mr-2" size={14} />
+                    ) : (
+                      <Download className="mr-2" size={14} />
+                    )}
+                    Baixar PDF
+                  </Button>
+                </div>
+                {(requireCpf || autoFillCpf || cpfByProtocolo[it.protocolo]) && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[9px] font-black uppercase shrink-0">CPF</Label>
+                    <Input
+                      className="h-9 rounded-lg font-mono text-xs"
+                      placeholder="000.000.000-00"
+                      value={cpfByProtocolo[it.protocolo] || ""}
+                      onChange={(e) =>
+                        setCpfByProtocolo((prev) => ({
+                          ...prev,
+                          [it.protocolo]: e.target.value,
+                        }))
+                      }
+                    />
+                    {cpfByProtocolo[it.protocolo] ? (
+                      <Badge variant="secondary" className="text-[8px]">
+                        preenchido
+                      </Badge>
+                    ) : requireCpf ? (
+                      <Badge variant="destructive" className="text-[8px]">
+                        obrigatorio
+                      </Badge>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border bg-card/60 p-3 h-fit max-h-[70vh] overflow-auto">
+            <p className="text-[10px] font-black uppercase mb-2">Log da fila</p>
+            <div className="space-y-1 font-mono text-[10px] text-muted-foreground">
+              {logs.length === 0 ? <p>—</p> : null}
+              {logs.map((l, i) => (
+                <p key={i} className="border-b border-border/30 pb-1">
+                  {l}
+                </p>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </main>
     </div>

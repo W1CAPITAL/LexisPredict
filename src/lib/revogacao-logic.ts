@@ -160,3 +160,23 @@ export function avaliarViabilidadeSubstabelecimento(opts: {
     motivo: 'Teor sem bloqueio claro; valide o último advogado intimado no tribunal antes de protocolar.',
   };
 }
+
+
+/** Extrai CPF (11 digitos) de teor DJEN/decisao */
+export function extrairCpfDoTexto(texto: string): string | null {
+  const t = String(texto || '');
+  // formatos 000.000.000-00 ou so digitos com contexto CPF
+  const m1 = t.match(/CPF[:\s\/]*([\d]{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+  if (m1) {
+    const d = m1[1].replace(/\D/g, '');
+    if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+  const m2 = t.match(/\b(\d{3}\.\d{3}\.\d{3}-\d{2})\b/);
+  if (m2) return m2[1];
+  const m3 = t.match(/\b(\d{11})\b/);
+  if (m3 && /CPF/i.test(t)) {
+    const d = m3[1];
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+  return null;
+}

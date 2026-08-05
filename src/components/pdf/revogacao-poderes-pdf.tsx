@@ -68,6 +68,7 @@ export type RevogacaoPdfData = {
   comarca: string;
   dataExtenso: string;
   clienteNome: string;
+  clienteCpf?: string | null;
   protocolo: string;
   tribunal?: string;
   revogado: {
@@ -101,6 +102,7 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
     comarca,
     dataExtenso,
     clienteNome,
+    clienteCpf,
     protocolo,
     tribunal,
     revogado,
@@ -109,8 +111,6 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
     advogadosDjen,
     viabilidade,
     observacaoScanner,
-    analiseClaude,
-    engineClaude,
   } = data;
 
   return (
@@ -119,7 +119,7 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
         <Text style={s.title}>Revogacao de mandato e substabelecimento</Text>
         <Text style={s.subtitle}>(sem reserva de poderes)</Text>
         <Text style={s.meta}>
-          Processo n. {protocolo}
+          Processo n. {protocolo}{clienteCpf ? " · CPF " + clienteCpf : ""}
           {tribunal ? " - " + tribunal : ""}
           {ultimoAdvogadoDetectado
             ? " - Advogado de referencia: " + ultimoAdvogadoDetectado
@@ -204,16 +204,7 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
           </Text>
         </View>
 
-        {analiseClaude ? (
-          <View style={s.box}>
-            <Text style={s.bold}>
-              Parecer auxiliar de IA
-              {engineClaude ? " (" + engineClaude + ")" : ""} — nao substitui analise
-              humana
-            </Text>
-            <Text>{analiseClaude}</Text>
-          </View>
-        ) : null}
+        {/* Claude nao aparece no PDF */}
 
         <Text style={s.date}>
           {comarca}, {dataExtenso}.
