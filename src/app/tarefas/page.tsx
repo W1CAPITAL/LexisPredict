@@ -45,7 +45,7 @@ import {
   isCasoTranquilo,
   temCumprimento,
 } from '@/lib/flags-operacionais';
-import { pesoFila, pesoGrupo, rotuloPrioridade, faixaPrioridade } from '@/lib/fila-prioridade';
+import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade, scorePreditivo } from '@/lib/fila-prioridade';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { ui } from '@/lib/responsive-ui';
@@ -684,6 +684,7 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
           {group.cases?.[0] ? (
             <Badge variant="outline" className="text-[7px] font-black uppercase border-black/20">
               {rotuloPrioridade(group.cases[0] as any)} · {faixaPrioridade(group.cases[0] as any)}
+              {' · pred ' + scorePreditivo(group.cases[0] as any) + '%'}
             </Badge>
           ) : null}
           {group.hasClosedCourt ? <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase">BAIXA TRIBUNAL</Badge> : null}

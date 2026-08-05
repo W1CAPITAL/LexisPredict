@@ -1,17 +1,6 @@
 /**
- * Priorização automática da fila crítica (Tarefas + Dashboard).
- * Score único e estável — quanto maior, mais urgente.
- *
- * Hierarquia:
- * 0 BA operacional (prisão > veículo > imóvel > penhora > genérico)
- * 1 Baixa / trânsito no tribunal
- * 2 Sentença (improcedente > procedente > parcial)
- * 3 Audiência pendente
- * 4 Cumprimento de sentença
- * 5 Custas / prioridade IA Claude
- * 6 Novidade pós-retorno (DataJud ∪ DJEN)
- * 7 Status de prazo (crítico / vencido / hoje / atenção)
- * 8 Tempo sem retorno + dias de prazo
+ * Priorização automática + camada preditiva (heurística + sinais Claude).
+ * Pesos calibrados para carteira de volume (1000+ processos).
  *
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -25,6 +14,43 @@ import {
   isSentencaProcedente,
 } from './merito-detect';
 
+/** Pesos base — ajustáveis sem mudar a hierarquia */
+export const PRIORITY_WEIGHTS = {
+  ba_prisao: 1500,
+  ba_veiculo: 1420,
+  ba_imovel: 1360,
+  ba_penhora: 1300,
+  ba_generico: 1240,
+  ba_geo_penalty: -40, // outro estado: ainda urgente, mas um pouco abaixo
+
+  baixa_tribunal: 980,
+  sentenca_improcedente: 900,
+  sentenca_procedente: 860,
+  sentenca_parcial: 820,
+  sentenca_generica: 780,
+
+  audiencia: 740,
+  cumprimento: 680,
+
+  ia_critica: 620,
+  ia_alta: 480,
+  ia_alerta: 400,
+  custas: 360,
+
+  novidade: 420,
+
+  status_critico: 380,
+  status_vencido: 320,
+  status_hoje: 280,
+  status_atencao: 140,
+
+  /** Camada preditiva (0–max) */
+  pred_sem_retorno_cap: 100,
+  pred_prazo_cap: 40,
+  pred_scan_priority_cap: 80,
+  pred_risco_compound_cap: 120,
+} as const;
+
 function baTipo(c: LegalCase): string | null {
   const t = (c as any).ba_tipo || (c as any).busca_apreensao_tipo || null;
   if (t) return String(t).toUpperCase();
@@ -34,7 +60,6 @@ function baTipo(c: LegalCase): string | null {
 
 function temBaOperacional(c: LegalCase): boolean {
   if ((c as any).ba_alertar_operacional === false) return false;
-  // Geo distante ainda prioriza, mas um pouco abaixo (operador precisa ver)
   return !!(
     c.evento_tipo === 'ba' ||
     (c as any).indicio_busca_apreensao ||
@@ -65,71 +90,7 @@ function temCumprimento(c: LegalCase): boolean {
   );
 }
 
-/** Peso maior = mais urgente (ordenar desc) */
-export function pesoFila(c: LegalCase): number {
-  let w = 0;
-
-  // 0. Busca e apreensão
-  if (temBaOperacional(c)) {
-    const tipo = baTipo(c);
-    const geoDist = !!(c as any).ba_geo_distante;
-    if (tipo === 'PRISAO') w += geoDist ? 1480 : 1500;
-    else if (tipo === 'VEICULO') w += geoDist ? 1430 : 1450;
-    else if (tipo === 'IMOVEL') w += geoDist ? 1380 : 1400;
-    else if (tipo === 'PENHORA_BENS') w += geoDist ? 1330 : 1350;
-    else w += geoDist ? 1280 : 1300;
-  }
-
-  // 1. Baixa / trânsito
-  if (
-    c.datajud_encerrado_tribunal ||
-    c.evento_tipo === 'transito_ou_baixa' ||
-    c.evento_tipo === 'transito_baixa'
-  ) {
-    w += 1000;
-  }
-
-  // 2. Sentença
-  if (isSentencaImprocedente(c) || c.evento_tipo === 'sentenca_improcedente') w += 920;
-  else if (isSentencaProcedente(c) || c.evento_tipo === 'sentenca_procedente') w += 900;
-  else if (c.evento_tipo === 'sentenca_parcial' || c.evento_tipo === 'liminar') w += 880;
-  else if (String(c.evento_tipo || '').startsWith('sentenca')) w += 860;
-
-  // 3. Audiência pendente
-  if (temAudiencia(c)) w += 800;
-
-  // 4. Cumprimento
-  if (temCumprimento(c)) w += 700;
-
-  // 5. Claude / custas / prioridade IA
-  if ((c as any).prioridade_critica_ia || (c as any).alerta_ia) w += 650;
-  if ((c as any).tem_custas || (c as any).alerta_custas) w += 620;
-  if ((c as any).ai_severidade === 'critica') w += 50;
-  else if ((c as any).ai_severidade === 'alta') w += 30;
-
-  // 6. Novidade pós-retorno
-  if (temNovidade(c)) w += 500;
-
-  // 7. Prazo
-  if (c.status === 'Caso Crítico') w += 400;
-  else if (c.status === 'Vencido') w += 350;
-  else if (c.status === 'É Hoje') w += 300;
-  else if (c.status === 'Atenção') w += 150;
-
-  // 8. Tempo sem retorno + prazo
-  const dias = diasSemRetorno(c.ultimoRetorno);
-  if (dias != null) w += Math.min(120, Math.floor(dias / 2));
-  if (typeof c.diasFaltando === 'number') w += Math.max(0, 30 - c.diasFaltando);
-
-  // scan_priority gravado pelo motor (0–100)
-  if (typeof (c as any).scan_priority === 'number') {
-    w += Math.min(100, Math.max(0, (c as any).scan_priority));
-  }
-
-  return w;
-}
-
-function diasSemRetorno(ultimoRetorno?: string | null): number | null {
+function diasSemRetorno(ultimoRetorno?: string | null): number {
   if (!ultimoRetorno || !String(ultimoRetorno).trim()) return 90;
   try {
     const raw = String(ultimoRetorno).trim();
@@ -143,7 +104,136 @@ function diasSemRetorno(ultimoRetorno?: string | null): number | null {
   }
 }
 
-/** Faixa automática para UI */
+/**
+ * Score preditivo 0–100: probabilidade operacional de “precisar de contato já”.
+ * Não substitui o peso jurídico; multiplica/compõe o risco.
+ */
+export function scorePreditivo(c: LegalCase): number {
+  let s = 0;
+
+  // Sinais duros
+  if (temBaOperacional(c)) s += 35;
+  if (c.datajud_encerrado_tribunal) s += 22;
+  if (isSentencaImprocedente(c)) s += 20;
+  if (isSentencaProcedente(c)) s += 12;
+  if (temCumprimento(c)) s += 18;
+  if (temAudiencia(c)) s += 16;
+  if (temNovidade(c)) s += 14;
+  if ((c as any).tem_custas || (c as any).alerta_custas) s += 10;
+
+  // Claude / OmniRoute
+  const sev = String((c as any).ai_severidade || '').toLowerCase();
+  if (sev === 'critica') s += 25;
+  else if (sev === 'alta') s += 18;
+  else if (sev === 'media') s += 8;
+  if ((c as any).prioridade_critica_ia || (c as any).alerta_ia) s += 15;
+  if ((c as any).ai_alertar) s += 8;
+
+  // Comportamento operacional
+  const dias = diasSemRetorno(c.ultimoRetorno);
+  s += Math.min(20, Math.floor(dias / 5)); // 0–20 conforme atraso de contato
+
+  if (c.status === 'Caso Crítico' || c.status === 'Vencido') s += 12;
+  else if (c.status === 'É Hoje') s += 8;
+  else if (c.status === 'Atenção') s += 4;
+
+  // scan_priority 0–100 → até 10 pts
+  if (typeof (c as any).scan_priority === 'number') {
+    s += Math.min(10, Math.round((c as any).scan_priority / 10));
+  }
+
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
+/** Interpretação do score preditivo */
+export function rotuloPreditivo(score: number): string {
+  if (score >= 75) return 'Risco preditivo crítico';
+  if (score >= 55) return 'Risco preditivo alto';
+  if (score >= 35) return 'Atenção preditiva';
+  if (score >= 20) return 'Monitorar';
+  return 'Estável';
+}
+
+/** Peso maior = mais urgente */
+export function pesoFila(c: LegalCase): number {
+  const W = PRIORITY_WEIGHTS;
+  let w = 0;
+
+  // 0. BA
+  if (temBaOperacional(c)) {
+    const tipo = baTipo(c);
+    const geo = !!(c as any).ba_geo_distante;
+    let base = W.ba_generico;
+    if (tipo === 'PRISAO') base = W.ba_prisao;
+    else if (tipo === 'VEICULO') base = W.ba_veiculo;
+    else if (tipo === 'IMOVEL') base = W.ba_imovel;
+    else if (tipo === 'PENHORA_BENS') base = W.ba_penhora;
+    w += base + (geo ? W.ba_geo_penalty : 0);
+  }
+
+  // 1. Baixa
+  if (
+    c.datajud_encerrado_tribunal ||
+    c.evento_tipo === 'transito_ou_baixa' ||
+    c.evento_tipo === 'transito_baixa'
+  ) {
+    w += W.baixa_tribunal;
+  }
+
+  // 2. Sentença
+  if (isSentencaImprocedente(c) || c.evento_tipo === 'sentenca_improcedente')
+    w += W.sentenca_improcedente;
+  else if (isSentencaProcedente(c) || c.evento_tipo === 'sentenca_procedente')
+    w += W.sentenca_procedente;
+  else if (c.evento_tipo === 'sentenca_parcial' || c.evento_tipo === 'liminar')
+    w += W.sentenca_parcial;
+  else if (String(c.evento_tipo || '').startsWith('sentenca'))
+    w += W.sentenca_generica;
+
+  // 3. Audiência
+  if (temAudiencia(c)) w += W.audiencia;
+
+  // 4. Cumprimento
+  if (temCumprimento(c)) w += W.cumprimento;
+
+  // 5. IA Claude
+  const sev = String((c as any).ai_severidade || '').toLowerCase();
+  if (sev === 'critica' || (c as any).prioridade_critica_ia) w += W.ia_critica;
+  else if (sev === 'alta') w += W.ia_alta;
+  else if ((c as any).alerta_ia || (c as any).ai_alertar) w += W.ia_alerta;
+
+  if ((c as any).tem_custas || (c as any).alerta_custas) w += W.custas;
+
+  // 6. Novidade
+  if (temNovidade(c)) w += W.novidade;
+
+  // 7. Prazo
+  if (c.status === 'Caso Crítico') w += W.status_critico;
+  else if (c.status === 'Vencido') w += W.status_vencido;
+  else if (c.status === 'É Hoje') w += W.status_hoje;
+  else if (c.status === 'Atenção') w += W.status_atencao;
+
+  // 8. Camada preditiva (compõe, não domina BA/sentença)
+  const pred = scorePreditivo(c);
+  w += Math.round((pred / 100) * W.pred_risco_compound_cap);
+
+  const dias = diasSemRetorno(c.ultimoRetorno);
+  w += Math.min(W.pred_sem_retorno_cap, Math.floor(dias / 2));
+
+  if (typeof c.diasFaltando === 'number') {
+    w += Math.min(W.pred_prazo_cap, Math.max(0, 30 - c.diasFaltando));
+  }
+
+  if (typeof (c as any).scan_priority === 'number') {
+    w += Math.min(
+      W.pred_scan_priority_cap,
+      Math.max(0, (c as any).scan_priority)
+    );
+  }
+
+  return w;
+}
+
 export type FaixaPrioridade =
   | 'critica'
   | 'alta'
@@ -153,10 +243,12 @@ export type FaixaPrioridade =
 
 export function faixaPrioridade(c: LegalCase): FaixaPrioridade {
   const p = pesoFila(c);
-  if (p >= 1200) return 'critica';
-  if (p >= 800) return 'alta';
-  if (p >= 500) return 'media';
-  if (p >= 300) return 'baixa';
+  const pred = scorePreditivo(c);
+  // Faixa híbrida: peso estrutural + preditivo
+  if (p >= 1200 || pred >= 75) return 'critica';
+  if (p >= 750 || pred >= 55) return 'alta';
+  if (p >= 450 || pred >= 35) return 'media';
+  if (p >= 250 || pred >= 20) return 'baixa';
   return 'rotina';
 }
 
@@ -177,17 +269,26 @@ export function ordenarFilaCritica(
         isSentencaImprocedente(c) ||
         (c as any).prioridade_critica_ia ||
         (c as any).alerta_ia ||
+        scorePreditivo(c) >= 35 ||
         ['Caso Crítico', 'Vencido', 'É Hoje', 'Atenção'].includes(c.status || '')
     )
-    .sort((a, b) => pesoFila(b) - pesoFila(a));
+    .sort((a, b) => {
+      const d = pesoFila(b) - pesoFila(a);
+      if (d !== 0) return d;
+      return scorePreditivo(b) - scorePreditivo(a);
+    });
 
   return typeof limit === 'number' ? list.slice(0, limit) : list;
 }
 
-/** Prioridade automática de um grupo (cliente com vários CNJs) = max dos processos */
 export function pesoGrupo(cases: LegalCase[]): number {
   if (!cases?.length) return 0;
   return Math.max(...cases.map((c) => pesoFila(c)));
+}
+
+export function predGrupo(cases: LegalCase[]): number {
+  if (!cases?.length) return 0;
+  return Math.max(...cases.map((c) => scorePreditivo(c)));
 }
 
 export function rotuloPrioridade(c: LegalCase): string {
@@ -211,28 +312,42 @@ export function rotuloPrioridade(c: LegalCase): string {
   if (temNovidade(c)) return 'Nova movimentação';
   if (c.status === 'Vencido' || c.status === 'Caso Crítico') return 'Prazo vencido';
   if (c.status === 'É Hoje') return 'Prazo hoje';
+  const pred = scorePreditivo(c);
+  if (pred >= 55) return rotuloPreditivo(pred);
   return 'Acompanhar';
 }
 
-/**
- * Aplica priorização automática: devolve lista ordenada + metadados.
- * Use na fila de Tarefas e no preview do Dashboard.
- */
 export function priorizarAutomatico(
   cases: LegalCase[],
   opts?: { limit?: number; onlyCritical?: boolean }
-): Array<{ case: LegalCase; peso: number; faixa: FaixaPrioridade; rotulo: string }> {
+): Array<{
+  case: LegalCase;
+  peso: number;
+  preditivo: number;
+  faixa: FaixaPrioridade;
+  rotulo: string;
+  rotuloPred: string;
+}> {
   let list = (cases || []).filter((c) => !isCasoEncerrado(c));
   if (opts?.onlyCritical) {
     list = ordenarFilaCritica(list, opts.limit);
   } else {
-    list = [...list].sort((a, b) => pesoFila(b) - pesoFila(a));
+    list = [...list].sort((a, b) => {
+      const d = pesoFila(b) - pesoFila(a);
+      if (d !== 0) return d;
+      return scorePreditivo(b) - scorePreditivo(a);
+    });
     if (typeof opts?.limit === 'number') list = list.slice(0, opts.limit);
   }
-  return list.map((c) => ({
-    case: c,
-    peso: pesoFila(c),
-    faixa: faixaPrioridade(c),
-    rotulo: rotuloPrioridade(c),
-  }));
+  return list.map((c) => {
+    const pred = scorePreditivo(c);
+    return {
+      case: c,
+      peso: pesoFila(c),
+      preditivo: pred,
+      faixa: faixaPrioridade(c),
+      rotulo: rotuloPrioridade(c),
+      rotuloPred: rotuloPreditivo(pred),
+    };
+  });
 }
