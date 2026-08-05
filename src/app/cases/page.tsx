@@ -41,9 +41,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
 
 const CaseRow = React.memo(({ 
-  c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest
+  c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest, onDossie
 }: { 
-  c: LegalCase, isOperador: boolean, onLogReturn: (c: LegalCase) => void, onEdit: (c: LegalCase) => void, onDelete: (id: string) => void, onScan: (c: LegalCase) => void, onSuggest: (c: LegalCase) => void
+  c: LegalCase;
+  isOperador: boolean;
+  onLogReturn: (c: LegalCase) => void;
+  onEdit: (c: LegalCase) => void;
+  onDelete: (id: string) => void;
+  onScan: (c: LegalCase) => void;
+  onSuggest: (c: LegalCase) => void;
+  onDossie?: (c: LegalCase) => void;
 }) => {
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -277,6 +284,42 @@ function CasesContent() {
     setActiveGroup(c);
     setAttendanceForm({ observacao: c.observacao || '', proximoRetorno: c.proximoPrazo || '', situacao: c.situacao || 'EM ANDAMENTO', applyToAll: true });
     setIsAttendanceOpen(true);
+  };
+
+  const handleDossieProcesso = async (c: LegalCase) => {
+    if (!c?.protocolo) {
+      toast({ title: 'Protocolo ausente', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await generateDossieProcessoPDFAction(c.protocolo, { useClaude: true });
+      if (!(res as any)?.success || !(res as any)?.base64) {
+        toast({
+          title: 'Falha no dossiê',
+          description: (res as any)?.error || 'Não foi possível gerar o PDF',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = `data:application/pdf;base64,${(res as any).base64}`;
+      a.download =
+        (res as any).filename ||
+        `Dossie_${String(c.cliente || 'processo').replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast({ title: 'Dossiê PDF gerado', description: c.protocolo });
+    } catch (e: any) {
+      toast({
+        title: 'Falha no dossiê',
+        description: e?.message || 'Erro',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveAttendance = async () => {

@@ -329,7 +329,7 @@ export async function scanOneClienteBaAction(
       if (resOab?.isRateLimited) {
         // não aborta a varredura principal — só ignora reforço
       } else if (resOab.success && resOab.items.length) {
-        const seenIds = new Set(res.items.map((i) => String(i.id)));
+        const seenIds = new Set(res.items.map((i: any) => String(i.id)));
         for (const it of resOab.items) {
           if (!seenIds.has(String(it.id))) res.items.push(it);
         }
@@ -349,7 +349,7 @@ export async function scanOneClienteBaAction(
           itensPorPagina: 15,
         });
         if (resCnj.success && resCnj.items?.length) {
-          const seenIds = new Set(res.items.map((i) => String(i.id)));
+          const seenIds = new Set(res.items.map((i: any) => String(i.id)));
           for (const it of resCnj.items) {
             if (!seenIds.has(String(it.id))) res.items.push(it);
           }
