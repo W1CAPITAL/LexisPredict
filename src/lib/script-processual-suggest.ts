@@ -167,7 +167,7 @@ function detectSignals(U: string, input: ScriptInput): Signals {
     (/custas?\s+processuais?\s+em\s+aberto|efetue\s+o\s+pagamento\s+das\s+custas|intimação\s+da\(s\)\s+parte\(s\)\s+requerente|parte\s+autora.{0,40}pagamento|recolhimento\s+das\s+custas\s+judiciais|primeira\s+parcela\s+das\s+custas|taxa\s+judici[aá]ria.{0,40}requerente/i.test(
       U
     ) ||
-      (/custas\s+em\s+aberto|recolher\s+as\s+custas|pagamento\s+taxa\s+judici|guia\s+gerada|juntada.{0,20}guia|ato\s+ordinat[oó]rio.{0,80}guia/i.test(U) &&
+      (/custas\s+em\s+aberto|recolher\s+as\s+custas|pagamento\s+taxa\s+judici/i.test(U) &&
         !/requerida|r[eé]u\b/i.test(U)));
 
   const cancelamentoDistribuicao =

@@ -1,3 +1,21 @@
+
+function forceCustasIfGuia(text: string, parsed: any): any {
+  if (!parsed) return parsed;
+  const U = (text || '').toUpperCase();
+  if (/GUIA\s+GERADA|JUNTADA\s*[-–]?\s*GUIA|TAXA\s+JUDICI|UFESP|RECOLHER\s+AS\s+CUSTAS|RECOLHIMENTO\s+DAS\s+CUSTAS|GUIA\s+DE\s+CUSTAS/.test(U)) {
+    parsed.evento_tipo = 'custas';
+    parsed.flags = { ...(parsed.flags || {}), custas: true };
+    if (!parsed.evento_resumo || !/CUSTAS|GUIA|TAXA|UFESP/i.test(String(parsed.evento_resumo))) {
+      parsed.evento_resumo = 'Custas / guia gerada (recolhimento)';
+    }
+    if (!parsed.severidade || parsed.severidade === 'info' || parsed.severidade === 'baixa') {
+      parsed.severidade = 'alta';
+    }
+    parsed.alertar = true;
+    parsed.motivo_alerta = parsed.motivo_alerta || 'Guia de custas / taxa judiciária identificada';
+  }
+  return parsed;
+}
 /**
  * Classificador neural DataJud/DJEN — Claude via OmniRoute/OpenRouter prioritário.
  */
@@ -36,7 +54,8 @@ FLAGS OBRIGATÓRIAS (boolean):
 - encerrado (trânsito, baixa definitiva, extinção)
 - liminar
 - audiencia
-- custas (guia/taxa/UFESP a recolher — não confunda com renda)
+- custas: true quando houver GUIA GERADA, Juntada de Guia, taxa judiciária, UFESP, DARE, preparo, recolhimento de custas — mesmo que o cabeçalho diga só "Intimação" / "Ato ordinatório" / "Ciência". NÃO classifique como mero "intimacao_ciencia" ou rotina se o evento for Guia Gerada.
+- NÃO confunda renda de cônjuge/salário com custas
 - busca_apreensao: true SÓ com mandado/ordem de BA de bem ou prisão efetivos
 - ba_tipo: VEICULO | PRISAO | PENHORA_BENS | IMOVEL | GENERICO | null
 - cancelamento_distribuicao (art. 290 etc.)
@@ -136,7 +155,7 @@ Classifique com flags precisas.`;
       max_tokens: 800,
     });
 
-    const j = parseJson(r.text);
+    const j = forceCustasIfGuia(r.text || "", parseJson(r.text));
     if (!j || !j.evento_tipo) return null;
 
     const flags = { ...DEFAULT_FLAGS, ...(j.flags || {}) };

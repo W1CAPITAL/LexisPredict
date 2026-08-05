@@ -24,9 +24,9 @@ export async function getNeuralNucleusStatusAction() {
   };
 }
 
-export async function listAiEnginesAction(surface?: AiEngineDef['surfaces'][number]) {
+export async function listAiEnginesAction(surface?: 'ba' | 'scan' | 'chat' | 'veredito' | 'all') {
   const list = surface
-    ? AI_ENGINES_CATALOG.filter((e: AiEngineDef) => (e.surfaces || ["all"]).includes(surface))
+    ? AI_ENGINES_CATALOG.filter((e: AiEngineDef) => ((e.surfaces || ["all"]) as string[]).includes(surface))
     : AI_ENGINES_CATALOG;
   return { success: true, engines: list };
 }

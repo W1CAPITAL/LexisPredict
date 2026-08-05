@@ -41,7 +41,7 @@ export function DataJudScannerPanel() {
     status, total, done, alerts, cloudDjenAlerts, closed, pending, cycles,
     manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
     isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
-    startManualScan, pauseManualScan, resetScan,
+    startManualScan, resumeManualScan, pauseManualScan, resetScan,
     scanMode, setScanMode,
     claudeAiEnabled, setClaudeAiEnabled
   } = useDataJudScanStore();
@@ -233,7 +233,7 @@ export function DataJudScannerPanel() {
                     {manualStatus === 'running' ? (
                       <Button variant="outline" onClick={pauseManualScan} className="flex-1 border-2 border-black rounded-none font-black text-[9px] uppercase h-10"><Pause size={12} className="mr-2" /> Pausar</Button>
                     ) : (
-                      <Button onClick={startManualScan} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase h-10"><Play size={12} className="mr-2" /> Retomar</Button>
+                      <Button onClick={() => void resumeManualScan()} className="flex-1 bg-black text-white border-2 border-black rounded-none font-black text-[9px] uppercase h-10"><Play size={12} className="mr-2" /> Retomar de onde parou</Button>
                     )}
                   </div>
                </div>

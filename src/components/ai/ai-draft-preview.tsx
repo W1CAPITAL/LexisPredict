@@ -10,12 +10,16 @@ type Props = {
   text: string;
   className?: string;
   title?: string;
+  minHeight?: string;
+  editable?: boolean;
+  onChange?: (v: string) => void;
 };
 
 export function AiDraftPreview({
   text,
   className,
   title = "Rascunho gerado",
+  minHeight,
 }: Props) {
   const { toast } = useToast();
   const [copied, setCopied] = React.useState(false);
@@ -58,6 +62,7 @@ export function AiDraftPreview({
       <div
         data-ai-draft
         className="p-4 ai-draft-body whitespace-pre-wrap text-sm leading-relaxed text-slate-50 bg-slate-950"
+        style={minHeight ? { minHeight } : undefined}
       >
         {text}
       </div>

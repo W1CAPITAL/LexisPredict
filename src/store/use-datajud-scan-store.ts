@@ -60,7 +60,8 @@ interface DataJudScanState {
   toggleMinimize: () => void;
   startCloudScan: () => void;
   pauseCloudScan: () => void;
-  startManualScan: () => Promise<void>;
+  startManualScan: (opts?: { resume?: boolean }) => Promise<void>;
+  resumeManualScan: () => Promise<void>;
   pauseManualScan: () => void;
   resetScan: () => void;
   pollStatus: () => Promise<void>;
@@ -173,17 +174,23 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
    * - djen = só diário
    * - both = DataJud + DJEN (mesmo núcleo auditCaseCoreSystem)
    */
-  startManualScan: async () => {
+  startManualScan: async (opts?: { resume?: boolean }) => {
     const mode = get().scanMode || 'both';
+    const resume = opts?.resume === true;
+    const startFrom = resume ? Math.max(0, get().manualDone || 0) : 0;
     // Feedback imediato na UI (evita "cliquei e nada acontece")
     set({
       isMinimized: false,
       manualStatus: 'running',
-      manualDone: 0,
-      manualAlerts: 0,
-      manualClosed: 0,
-      manualDjenAlerts: 0,
-      manualErrors: 0,
+      ...(resume
+        ? {}
+        : {
+            manualDone: 0,
+            manualAlerts: 0,
+            manualClosed: 0,
+            manualDjenAlerts: 0,
+            manualErrors: 0,
+          }),
     });
     get().addLog({
       protocolo: 'SISTEMA',
@@ -234,6 +241,28 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     }
 
     set({ manualTotal: cases.length });
+    if (startFrom > 0 && startFrom < cases.length) {
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message: `Retomando da posição ${startFrom + 1}/${cases.length}`,
+        latency: 0,
+        success: true,
+        type: 'ok',
+        engine: 'Local',
+      });
+      cases = cases.slice(startFrom);
+    } else if (resume && startFrom >= cases.length) {
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message: 'Nada a retomar — fila já concluída. Inicie nova varredura.',
+        latency: 0,
+        success: true,
+        type: 'ok',
+        engine: 'Local',
+      });
+      set({ manualStatus: 'done' });
+      return;
+    }
 
     const useClaude = get().claudeAiEnabled === true;
     if (useClaude) {
@@ -353,6 +382,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     }
 
     if (get().manualStatus === 'running') set({ manualStatus: 'done' });
+  },
+
+  resumeManualScan: async () => {
+    if (get().manualStatus === 'running') return;
+    await get().startManualScan({ resume: true });
   },
 
   pauseManualScan: () => set({ manualStatus: 'paused' }),
