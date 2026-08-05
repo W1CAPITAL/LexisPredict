@@ -12,12 +12,27 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { FileDown, Loader2, Sparkles } from "lucide-react";
 import {
   exportClienteDossieAction,
   type DossieEditableFields,
 } from "@/app/actions/dossie-cliente-action";
+
+const MOTORS = [
+  { id: "auto", label: "Auto (OmniRoute → Grok → Groq → local)" },
+  { id: "omniroute", label: "OmniRoute / Claude (gateway)" },
+  { id: "xai", label: "xAI Grok" },
+  { id: "groq-llama", label: "Groq Llama" },
+  { id: "local_only", label: "Só motor local (sem IA)" },
+];
 
 export function ExportDossieClienteButton({
   protocolo,
@@ -31,6 +46,7 @@ export function ExportDossieClienteButton({
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [engine, setEngine] = useState<string>("");
+  const [motor, setMotor] = useState("auto");
   const [edited, setEdited] = useState<DossieEditableFields>({});
 
   const set = (k: keyof DossieEditableFields, v: string | number) =>
@@ -41,8 +57,9 @@ export function ExportDossieClienteButton({
     try {
       const res = await exportClienteDossieAction(protocolo, {
         previewOnly: true,
-        useClaude: true,
-      });
+        useClaude: motor !== "local_only",
+        preferredMotor: motor,
+      } as any);
       if (!res.success) {
         toast({
           title: "Dossiê",
@@ -70,9 +87,10 @@ export function ExportDossieClienteButton({
     try {
       const res = await exportClienteDossieAction(protocolo, {
         previewOnly: false,
-        useClaude: false, // já editado; não gasta 2ª chamada
+        useClaude: false,
+        preferredMotor: motor,
         edited,
-      });
+      } as any);
       if (!res.success || !(res as any).base64) {
         toast({
           title: "PDF",
@@ -136,20 +154,34 @@ export function ExportDossieClienteButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        className={className || "rounded-xl font-black uppercase text-[9px]"}
-        onClick={openPreview}
-        disabled={loading || !protocolo}
-      >
-        {loading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <FileDown className="mr-2 h-4 w-4" />
-        )}
-        Dossiê PDF
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={motor} onValueChange={setMotor}>
+          <SelectTrigger className="h-9 w-[220px] rounded-xl text-[9px] font-black uppercase">
+            <SelectValue placeholder="Motor IA" />
+          </SelectTrigger>
+          <SelectContent>
+            {MOTORS.map((m) => (
+              <SelectItem key={m.id} value={m.id} className="text-[10px] font-bold">
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          className={className || "rounded-xl font-black uppercase text-[9px]"}
+          onClick={openPreview}
+          disabled={loading || !protocolo}
+        >
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <FileDown className="mr-2 h-4 w-4" />
+          )}
+          Dossiê PDF
+        </Button>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl border-2 border-black">
@@ -166,7 +198,7 @@ export function ExportDossieClienteButton({
           </DialogHeader>
 
           <p className="text-[11px] text-muted-foreground">
-            Edite qualquer campo. Só depois clique em <strong>Gerar PDF</strong>.
+            Edite os campos abaixo. O PDF só é gerado depois de você confirmar.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

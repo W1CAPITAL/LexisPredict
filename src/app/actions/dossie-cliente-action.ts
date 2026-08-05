@@ -58,11 +58,12 @@ export type DossieEditableFields = {
 type Options = {
   previewOnly?: boolean;
   useClaude?: boolean;
+  preferredMotor?: string;
   edited?: DossieEditableFields;
 };
 
 
-async function enrichWithClaude(bruto: string): Promise<Partial<DossieEditableFields> | null> {
+async function enrichWithClaude(bruto: string, preferredMotor?: string): Promise<Partial<DossieEditableFields> | null> {
   try {
     // Prefer superfície oficial dossiê (OmniRoute/Claude)
     try {
@@ -71,7 +72,7 @@ async function enrichWithClaude(bruto: string): Promise<Partial<DossieEditableFi
         surface: "dossie",
         content: bruto.slice(0, 12000),
         enabled: true,
-        preferred: "claude",
+        preferred: preferredMotor === "auto" ? "auto" : (preferredMotor || "auto"),
         maxTokens: 4096,
         extraSystem: `Além do resumo, se possível ao final inclua um bloco JSON com:
 {"resumoProcesso":"...","faseAtual":"...","score":0,"nivel":"...","chanceRuim":"...","pontosFortes":[],"pontosAtencao":[],"planoAcao":[],"leituraEstrategica":"...","parteContraria":""}`,
@@ -129,7 +130,7 @@ Não invente CNJ/nomes/datas ausentes.`;
 
 ${bruto.slice(0, 12000)}` },
       ],
-      preferred: "claude",
+      preferred: preferredMotor === "auto" ? "auto" : (preferredMotor || "auto"),
       temperature: 0.2,
       max_tokens: 4096,
     });
@@ -262,7 +263,7 @@ export async function exportClienteDossieAction(
         `Movimentos: ${JSON.stringify(movimentos.slice(0, 15))}`,
         `DJEN: ${djenTexts.slice(0, 3).join(" | ").slice(0, 2000)}`,
       ].join("\n");
-      claudePart = await enrichWithClaude(bruto);
+      claudePart = await enrichWithClaude(bruto, options?.preferredMotor || "auto");
     }
 
     const basePreview: DossieEditableFields = {
