@@ -268,10 +268,18 @@ export default function BuscaApreensaoPage() {
           createdBy: item.createdBy,
           preferredMotor,
         });
+        if (!res) {
+          setLogs((prev) => [`✗ ${item.nome}: resposta vazia do servidor`, ...prev]);
+          continue;
+        }
         if (res.isRateLimited) {
           setLogs((prev) => [`429 rate limit — aguardando`, ...prev]);
           await sleep(DELAY_ON_429_MS, cancelRef.current);
           i--;
+          continue;
+        }
+        if (!res.success && res.error) {
+          setLogs((prev) => [`✗ ${item.nome}: ${res.error}`, ...prev]);
           continue;
         }
         if (res.hits?.length) {

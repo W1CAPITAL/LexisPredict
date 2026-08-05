@@ -249,6 +249,7 @@ export async function scanOneClienteBaAction(
     };
   }
 
+  try { // BA_SCAN_OUTER_TRY
   const advogadoNome = meta?.advogadoNome?.trim() || null;
   let advogadoOab = meta?.advogadoOab?.trim() || null;
   const protocolos = meta?.protocolos || [];
@@ -265,11 +266,32 @@ export async function scanOneClienteBaAction(
     .split('T')[0];
 
   // ========== 1) PRINCIPAL: DJEN pelo NOME DO CLIENTE ==========
-  let res = await fetchDjenPorNomeParte(nome, {
-    dataInicio,
-    dataFim,
-    itensPorPagina: 40,
-  });
+  let res: any = null;
+  try {
+    res = await fetchDjenPorNomeParte(nome, {
+      dataInicio,
+      dataFim,
+      itensPorPagina: 40,
+    });
+  } catch (e: any) {
+    return {
+      success: false as const,
+      error: e?.message || 'Falha ao consultar DJEN.',
+      hits: [] as BaHit[],
+      isRateLimited: false,
+      nome,
+    };
+  }
+
+  if (!res || typeof res !== 'object') {
+    return {
+      success: false as const,
+      error: 'Resposta vazia do DJEN.',
+      hits: [] as BaHit[],
+      isRateLimited: false,
+      nome,
+    };
+  }
 
   if (res.isRateLimited) {
     return {
@@ -304,7 +326,7 @@ export async function scanOneClienteBaAction(
         nomeParte: nome,
         itensPorPagina: 20,
       });
-      if (resOab.isRateLimited) {
+      if (resOab?.isRateLimited) {
         // não aborta a varredura principal — só ignora reforço
       } else if (resOab.success && resOab.items.length) {
         const seenIds = new Set(res.items.map((i) => String(i.id)));
@@ -478,10 +500,19 @@ export async function scanOneClienteBaAction(
     advogadoNome,
     advogadoOab,
     isRateLimited: false,
-    pubs: res.items.length,
+    pubs: Array.isArray(res?.items) ? res.items.length : 0,
     engineUsed,
     iaNote,
   };
+  } catch (e: any) {
+    return {
+      success: false as const,
+      error: e?.message || 'Erro no scan BA.',
+      hits: [] as BaHit[],
+      isRateLimited: false,
+      nome: String(nomeCliente || ''),
+    };
+  }
 }
 
 /** Logs salvos do usuário (ou empresa se master). */
