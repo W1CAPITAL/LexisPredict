@@ -72,7 +72,7 @@ async function enrichWithClaude(bruto: string, preferredMotor?: string): Promise
         surface: "dossie",
         content: bruto.slice(0, 12000),
         enabled: true,
-        preferred: preferredMotor === "auto" ? "auto" : (preferredMotor || "auto"),
+        preferred: preferredMotor === "local_only" ? "auto" : (preferredMotor || "claude"),
         maxTokens: 4096,
         extraSystem: `Além do resumo, se possível ao final inclua um bloco JSON com:
 {"resumoProcesso":"...","faseAtual":"...","score":0,"nivel":"...","chanceRuim":"...","pontosFortes":[],"pontosAtencao":[],"planoAcao":[],"leituraEstrategica":"...","parteContraria":""}`,
@@ -130,7 +130,7 @@ Não invente CNJ/nomes/datas ausentes.`;
 
 ${bruto.slice(0, 12000)}` },
       ],
-      preferred: preferredMotor === "auto" ? "auto" : (preferredMotor || "auto"),
+      preferred: preferredMotor === "local_only" ? "auto" : (preferredMotor || "claude"),
       temperature: 0.2,
       max_tokens: 4096,
     });
@@ -247,9 +247,11 @@ export async function exportClienteDossieAction(
       .filter(Boolean)
       .join(" ");
 
-    // Claude / OmniRoute (opcional, default true)
+    // Claude / OmniRoute: obrigatório no preview; PDF final usa campos já editados
     let claudePart: Partial<DossieEditableFields> | null = null;
-    if (options?.useClaude !== false) {
+    let claudeError: string | null = null;
+    const wantClaude = options?.previewOnly === true || options?.useClaude === true;
+    if (wantClaude) {
       const bruto = [
         `Cliente: ${target.cliente}`,
         `Protocolo: ${target.protocolo}`,
@@ -263,7 +265,11 @@ export async function exportClienteDossieAction(
         `Movimentos: ${JSON.stringify(movimentos.slice(0, 15))}`,
         `DJEN: ${djenTexts.slice(0, 3).join(" | ").slice(0, 2000)}`,
       ].join("\n");
-      claudePart = await enrichWithClaude(bruto, options?.preferredMotor || "auto");
+      const pref = options?.preferredMotor === "local_only" ? "claude" : (options?.preferredMotor || "claude");
+      claudePart = await enrichWithClaude(bruto, pref);
+      if (!claudePart) {
+        claudeError = "Claude indisponível. Configure Anthropic no painel OmniRoute (Providers) ou verifique OMNIROUTE_BASE_URL. Preview preenchido com score local.";
+      }
     }
 
     const basePreview: DossieEditableFields = {
@@ -295,11 +301,22 @@ export async function exportClienteDossieAction(
         claudePart?.leituraEstrategica || risco.leituraEstrategica || "",
     };
 
+    if (claudeError) {
+      basePreview.leituraEstrategica = [
+        claudeError,
+        basePreview.leituraEstrategica || "",
+      ].filter(Boolean).join("\n\n");
+      if (!basePreview.resumoProcesso) {
+        basePreview.resumoProcesso = resumoLocal;
+      }
+    }
+
     if (options?.previewOnly) {
       return {
         success: true as const,
         preview: basePreview,
-        engine: claudePart ? "claude+local" : "local",
+        engine: claudePart ? "Claude AI (OmniRoute)+local" : (claudeError ? "local (Claude falhou)" : "local"),
+        claudeError,
         movimentosCount: movimentos.length,
         djenCount: comunicacoes.length,
       };

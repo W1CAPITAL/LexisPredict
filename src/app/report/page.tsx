@@ -31,7 +31,8 @@ import {
   FileText,
   AlertCircle,
   StickyNote,
-  User
+  User,
+  Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -44,7 +45,7 @@ import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSinalCapa } from "@/lib/sinal-capa";
 import { calcularProbabilidadeEncerramento } from "@/lib/probabilidade-encerramento";
 import { calcularScoreAdvogado } from "@/lib/score-engine";
-import Image from "next/image";
+import { generateRelatorioClaudeAction } from "@/app/actions/report-claude-action";
 
 export default function UnifiedReport() {
   const { setCases } = useAppStore();
@@ -53,6 +54,11 @@ export default function UnifiedReport() {
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [claudeText, setClaudeText] = useState("");
+  const [claudeLoading, setClaudeLoading] = useState(false);
+  const [claudeError, setClaudeError] = useState("");
+  const [claudeReady, setClaudeReady] = useState(false);
+  const [claudeEngine, setClaudeEngine] = useState("");
  
   const { profile, loading: authLoading } = useAuth();
 
@@ -174,8 +180,60 @@ export default function UnifiedReport() {
     };
   }, [cases, profile]);
 
+  const buildResumoCarteira = () => {
+    const topCrit = metrics.topCriticos.slice(0, 8).map((i) =>
+      `${i.case.cliente} | ${i.case.protocolo} | ${i.sinal.titulo}`
+    ).join("\n");
+    const topCh = metrics.topChance.slice(0, 5).map((i) =>
+      `${i.case.cliente} | ${i.case.protocolo} | ${i.prob}%`
+    ).join("\n");
+    return [
+      `Auditor: ${profile?.nome || "—"} | Cargo: ${profile?.cargo || "—"}`,
+      `Ativos: ${metrics.activeTotal}`,
+      `Vencidos: ${metrics.countVencido} | É hoje: ${metrics.countHoje}`,
+      `Novidades (andamento): ${metrics.countNovoAndamento}`,
+      `Baixas tribunal: ${metrics.countEncerradoTribunal}`,
+      `Busca e apreensão: ${metrics.countBA}`,
+      `Cumprimento de sentença: ${metrics.countCumprimento}`,
+      `Risco carteira: ${metrics.riskScore}%`,
+      `Procedentes (lista): ${metrics.listProcedente.length}`,
+      `Improcedentes (lista): ${metrics.listImprocedente.length}`,
+      `Top críticos:\n${topCrit || "(nenhum)"}`,
+      `Top chance encerramento:\n${topCh || "(nenhum)"}`,
+      `Anotações no gabinete: ${notes.length}`,
+    ].join("\n");
+  };
+
+  const handleGenerateClaude = async () => {
+    setClaudeLoading(true);
+    setClaudeError("");
+    setClaudeReady(false);
+    try {
+      const res = await generateRelatorioClaudeAction({
+        resumoCarteira: buildResumoCarteira(),
+        useClaude: true,
+      });
+      if (!res.success) {
+        setClaudeError(res.error || "Falha Claude");
+        setClaudeText("");
+        setClaudeEngine(res.engineLabel || "");
+        return;
+      }
+      setClaudeText(res.texto);
+      setClaudeEngine(res.engineLabel || "Claude AI");
+      setClaudeReady(true);
+    } catch (e: any) {
+      setClaudeError(e?.message || "Falha ao chamar Claude");
+      setClaudeReady(false);
+    } finally {
+      setClaudeLoading(false);
+    }
+  };
+
   const handlePrint = () => {
-    document.title = `Dossie_Lexis_${new Date().toISOString().split('T')[0]}`;
+    if (!claudeReady) return;
+    const d = new Date().toLocaleString("pt-BR");
+    document.title = `Dossie_Operacional_Claude_${d}`;
     window.print();
   };
 
@@ -199,9 +257,29 @@ export default function UnifiedReport() {
             </Button>
             <Badge className="bg-black text-primary font-black uppercase text-[10px] px-4 rounded-none h-8">Sincronia Omni 100%</Badge>
           </div>
-          <Button onClick={handlePrint} className="bg-black hover:bg-black/90 text-white font-black uppercase text-[10px] h-10 px-8 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
-            <Printer size={16} className="mr-2" /> Imprimir Dossiê PDF
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleGenerateClaude}
+              disabled={claudeLoading}
+              className="bg-primary hover:bg-primary/90 text-black font-black uppercase text-[10px] h-10 px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000]"
+            >
+              {claudeLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Sparkles size={16} className="mr-2" />}
+              Gerar parecer Claude AI
+            </Button>
+            <Button
+              onClick={handlePrint}
+              disabled={!claudeReady}
+              title={!claudeReady ? "Gere o parecer Claude antes de exportar o PDF oficial" : "Exportar PDF operacional"}
+              className={cn(
+                "font-black uppercase text-[10px] h-10 px-8 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all",
+                claudeReady
+                  ? "bg-black hover:bg-black/90 text-white"
+                  : "bg-gray-300 text-black/40 cursor-not-allowed shadow-none"
+              )}
+            >
+              <Printer size={16} className="mr-2" /> Imprimir / Exportar PDF operacional
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -244,6 +322,53 @@ export default function UnifiedReport() {
            <KpiCard label="Busca e Apreensão" value={metrics.countBA} color="text-red-700" />
            <KpiCard label="Baixas Tribunal" value={metrics.countEncerradoTribunal} color="text-emerald-600" />
            <KpiCard label="Fase Executiva" value={metrics.countCumprimento} color="text-blue-500" />
+        </section>
+
+        <section className="bg-white border-2 border-black break-inside-avoid">
+           <div className="bg-black text-white p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3">
+                <Sparkles className="text-primary" size={14}/> Análise Claude AI — Relatório
+              </h3>
+              <div className="flex items-center gap-2">
+                {claudeReady ? (
+                  <Badge className="bg-emerald-500 text-white font-black text-[8px] uppercase">Parecer pronto · PDF liberado</Badge>
+                ) : (
+                  <Badge className="bg-amber-500 text-black font-black text-[8px] uppercase">PDF oficial bloqueado até Claude</Badge>
+                )}
+                {claudeEngine ? (
+                  <Badge variant="outline" className="border-white/30 text-white text-[8px] font-black">{claudeEngine}</Badge>
+                ) : null}
+              </div>
+           </div>
+           <div className="p-8 space-y-4">
+              <p className="text-[9px] font-black uppercase tracking-widest opacity-50">
+                Dossiê Operacional · Claude AI · {new Date().toLocaleString("pt-BR")}
+              </p>
+              {claudeError ? (
+                <div className="border-2 border-red-600 bg-red-50 p-4 text-[11px] font-bold text-red-800 whitespace-pre-wrap">
+                  {claudeError}
+                  <p className="mt-2 text-[10px] font-black uppercase">
+                    Se HTTP 404/402: configure Anthropic em OmniRoute → Providers.
+                  </p>
+                </div>
+              ) : null}
+              {claudeLoading ? (
+                <div className="flex items-center gap-3 text-[11px] font-black uppercase opacity-60">
+                  <Loader2 className="animate-spin" size={18} /> Gerando parecer Claude…
+                </div>
+              ) : null}
+              {claudeText ? (
+                <div className="text-[12px] font-medium leading-relaxed whitespace-pre-wrap border-2 border-black/10 p-6 bg-[#fafafa]">
+                  {claudeText}
+                </div>
+              ) : (
+                !claudeLoading && !claudeError ? (
+                  <p className="text-[11px] font-bold uppercase opacity-40 italic">
+                    Clique em &quot;Gerar parecer Claude AI&quot; para liberar o PDF operacional oficial.
+                  </p>
+                ) : null
+              )}
+           </div>
         </section>
 
         <section className="bg-white border-2 border-black break-inside-avoid">
@@ -430,7 +555,9 @@ export default function UnifiedReport() {
               <div className="w-10 h-10 border-4 border-black flex items-center justify-center bg-black"><Zap size={20} className="text-primary" /></div>
               <div>
                 <p className="text-[10px] tracking-[0.4em] uppercase text-black font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
-                <p className="text-[7px] font-bold uppercase opacity-30 tracking-[0.2em]">Relatório consolidado de integridade atômica</p>
+                <p className="text-[7px] font-bold uppercase opacity-30 tracking-[0.2em]">
+                  Dossiê Operacional · Claude AI · métricas locais + parecer
+                </p>
               </div>
            </div>
            <p className="text-[9px] font-black uppercase text-black/60">Copyright © 2026 LexisPredict Elite</p>

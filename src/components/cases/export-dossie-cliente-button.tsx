@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -26,12 +25,13 @@ import {
   type DossieEditableFields,
 } from "@/app/actions/dossie-cliente-action";
 
+/** Default = Claude / OmniRoute (sem local_only no enriquecimento) */
 const MOTORS = [
-  { id: "auto", label: "Auto (OmniRoute → Grok → Groq → local)" },
-  { id: "omniroute", label: "OmniRoute / Claude (gateway)" },
+  { id: "claude", label: "Claude / OmniRoute (padrão)" },
+  { id: "omniroute", label: "OmniRoute gateway" },
+  { id: "auto", label: "Auto (OmniRoute → Grok → Groq)" },
   { id: "xai", label: "xAI Grok" },
   { id: "groq-llama", label: "Groq Llama" },
-  { id: "local_only", label: "Só motor local (sem IA)" },
 ];
 
 export function ExportDossieClienteButton({
@@ -46,7 +46,8 @@ export function ExportDossieClienteButton({
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [engine, setEngine] = useState<string>("");
-  const [motor, setMotor] = useState("auto");
+  const [claudeWarn, setClaudeWarn] = useState<string>("");
+  const [motor, setMotor] = useState("claude");
   const [edited, setEdited] = useState<DossieEditableFields>({});
 
   const set = (k: keyof DossieEditableFields, v: string | number) =>
@@ -54,11 +55,12 @@ export function ExportDossieClienteButton({
 
   const openPreview = async () => {
     setLoading(true);
+    setClaudeWarn("");
     try {
       const res = await exportClienteDossieAction(protocolo, {
         previewOnly: true,
-        useClaude: motor !== "local_only",
-        preferredMotor: motor,
+        useClaude: true,
+        preferredMotor: motor || "claude",
       } as any);
       if (!res.success) {
         toast({
@@ -70,6 +72,14 @@ export function ExportDossieClienteButton({
       }
       setEdited((res as any).preview || {});
       setEngine((res as any).engine || "");
+      if ((res as any).claudeError) {
+        setClaudeWarn(String((res as any).claudeError));
+        toast({
+          title: "Claude com falha",
+          description: String((res as any).claudeError).slice(0, 180),
+          variant: "destructive",
+        });
+      }
       setOpen(true);
     } catch (e: any) {
       toast({
@@ -82,6 +92,7 @@ export function ExportDossieClienteButton({
     }
   };
 
+  /** PDF final: usa apenas campos editados — não reconsulta Claude */
   const generatePdf = async () => {
     setSaving(true);
     try {
@@ -156,7 +167,7 @@ export function ExportDossieClienteButton({
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Select value={motor} onValueChange={setMotor}>
-          <SelectTrigger className="h-9 w-[220px] rounded-xl text-[9px] font-black uppercase">
+          <SelectTrigger className="h-9 w-[240px] rounded-xl text-[9px] font-black uppercase">
             <SelectValue placeholder="Motor IA" />
           </SelectTrigger>
           <SelectContent>
@@ -197,8 +208,15 @@ export function ExportDossieClienteButton({
             </DialogTitle>
           </DialogHeader>
 
+          {claudeWarn ? (
+            <p className="text-[11px] text-red-600 font-bold border border-red-200 bg-red-50 p-2 rounded-lg">
+              {claudeWarn}
+            </p>
+          ) : null}
+
           <p className="text-[11px] text-muted-foreground">
-            Edite os campos abaixo. O PDF só é gerado depois de você confirmar.
+            Edite os campos abaixo. O PDF (layout premium Marlene) só é gerado depois de você
+            confirmar — sem nova chamada à IA.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
