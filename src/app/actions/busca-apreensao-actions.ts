@@ -268,7 +268,7 @@ export async function scanOneClienteBaAction(
   let res = await fetchDjenPorNomeParte(nome, {
     dataInicio,
     dataFim,
-    itensPorPagina: 50,
+    itensPorPagina: 40,
   });
 
   if (res.isRateLimited) {
@@ -295,7 +295,7 @@ export async function scanOneClienteBaAction(
 
   // ========== 2) OPCIONAL: reforço OAB só se poucos resultados ==========
   // Advogado NÃO é critério de aceite do hit — só amplia a varredura DJEN.
-  if (res.success && advogadoOab && (res.items?.length || 0) < 5) {
+  if (res.success && advogadoOab && (res.items?.length || 0) < 3) {
     const oabDigits = advogadoOab.replace(/\D/g, '');
     if (oabDigits.length >= 4) {
       const resOab = await fetchDjenPorTexto(`busca e apreensão ${oabDigits}`, {
@@ -317,7 +317,7 @@ export async function scanOneClienteBaAction(
 
   // ========== 3) OPCIONAL: varre CNJs da carteira no teor BA ==========
   if (res.success && protocolos.length) {
-    for (const p of protocolos.slice(0, 8)) {
+    for (const p of protocolos.slice(0, 5)) {
       const dig = digitsOnly(p);
       if (dig.length < 15) continue;
       try {

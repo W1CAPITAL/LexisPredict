@@ -211,6 +211,8 @@ export default function BuscaApreensaoPage() {
   const [preferredMotor, setPreferredMotor] = useState<MotorId>("claude");
   const [filtroTipo, setFiltroTipo] = useState<string>("ALL");
   const [filtroGeo, setFiltroGeo] = useState<"ALL" | "ALERTAR" | "DISTANTE">("ALL");
+  const [filtroOrdem, setFiltroOrdem] = useState<"recentes" | "antigos" | "nome">("recentes");
+  const [ordemHistorico, setOrdemHistorico] = useState<"recentes" | "antigos">("recentes");
 
   useEffect(() => {
     setPreferredMotor(loadPreferredMotor());
@@ -326,15 +328,35 @@ export default function BuscaApreensaoPage() {
   const done = Math.min(index, total);
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
+  const historicoOrdenado = useMemo(() => {
+    const list = [...(savedLogs || [])];
+    list.sort((a: any, b: any) => {
+      const ta = new Date(a.created_at || 0).getTime();
+      const tb = new Date(b.created_at || 0).getTime();
+      return ordemHistorico === "recentes" ? tb - ta : ta - tb;
+    });
+    return list;
+  }, [savedLogs, ordemHistorico]);
+
   const hitsFiltrados = useMemo(() => {
-    return hits.filter((h: any) => {
+    const filtered = hits.filter((h: any) => {
       if (filtroTipo !== "ALL" && h.tipoBa !== filtroTipo) return false;
       if (filtroGeo === "DISTANTE" && !h.geoDistante) return false;
       if (filtroGeo === "ALERTAR" && (h.geoDistante || h.alertarOperacional === false))
         return false;
       return true;
     });
-  }, [hits, filtroTipo, filtroGeo]);
+    const ts = (h: any) => {
+      const raw = h.dataDisponibilizacao || h.data_disponibilizacao || h.data || h.created_at || 0;
+      const n = new Date(raw).getTime();
+      return Number.isFinite(n) ? n : 0;
+    };
+    const list = [...filtered];
+    if (filtroOrdem === "recentes") list.sort((a, b) => ts(b) - ts(a));
+    else if (filtroOrdem === "antigos") list.sort((a, b) => ts(a) - ts(b));
+    else list.sort((a, b) => String(a.nomeCliente || a.nome || "").localeCompare(String(b.nomeCliente || b.nome || ""), "pt-BR"));
+    return list;
+  }, [hits, filtroTipo, filtroGeo, filtroOrdem]);
 
   const contagemTipos = useMemo(() => {
     const c: Record<string, number> = {};
@@ -482,7 +504,27 @@ export default function BuscaApreensaoPage() {
             </h2>
             {hitsFiltrados.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Nenhum hit neste filtro. Rode a fila ou limpe o filtro.
+                
+          <div className="flex flex-wrap gap-2 items-center mb-4">
+            <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mr-1">Ordenar</span>
+            {([
+              ["recentes", "Mais recentes"],
+              ["antigos", "Mais antigos"],
+              ["nome", "Nome A–Z"],
+            ] as const).map(([k, label]) => (
+              <Button
+                key={k}
+                type="button"
+                size="sm"
+                variant={filtroOrdem === k ? "default" : "outline"}
+                onClick={() => setFiltroOrdem(k)}
+                className="h-8 text-[9px] font-black uppercase tracking-widest"
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+Nenhum hit neste filtro. Rode a fila ou limpe o filtro.
               </p>
             )}
             {hitsFiltrados.map((h) => (
@@ -506,6 +548,9 @@ export default function BuscaApreensaoPage() {
             <div>
               <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1">
                 <History size={12} /> Já escaneados (SQL)
+                <Button type="button" size="sm" variant="outline" className="ml-auto h-7 text-[8px] font-black uppercase" onClick={() => setOrdemHistorico((o) => o === "recentes" ? "antigos" : "recentes")}>
+                  {ordemHistorico === "recentes" ? "Mais recentes" : "Mais antigos"}
+                </Button>
               </h2>
               <div className="border-2 border-border rounded-xl p-3 max-h-[40vh] overflow-auto text-[10px] space-y-2">
                 {savedLogs.length === 0 && (

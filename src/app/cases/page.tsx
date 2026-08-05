@@ -23,6 +23,7 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
+import { saveOneCaseAction, deleteOneCaseAction } from '@/app/actions/case-save-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
 import { runCasesPlanilhaExport } from '@/lib/run-cases-export';
 import { format, parseISO, isValid } from 'date-fns';
@@ -151,6 +152,7 @@ function CasesContent() {
 
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
@@ -307,18 +309,44 @@ function CasesContent() {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCase) return;
-    const updatedCase = processarCaso({ ...editingCase, ...formState });
-    const updatedList = cases.map(c => c.id === editingCase.id ? updatedCase : c);
-    const res = await syncRepoCases(updatedList);
-    if (res.success) { setCases(updatedList); setIsModalOpen(false); toast({ title: "Alterações Salvas" }); }
+    if (!editingCase || isSavingEdit) return;
+    setIsSavingEdit(true);
+    try {
+      const updatedCase = processarCaso({ ...editingCase, ...formState });
+      // Atômico: 1 processo — não reenvia a carteira inteira (evita travar)
+      const res = await saveOneCaseAction(updatedCase);
+      if (res.success) {
+        const updatedList = cases.map(c =>
+          c.id === editingCase.id || c.protocolo === editingCase.protocolo
+            ? (res.case || updatedCase)
+            : c
+        );
+        setCases(updatedList);
+        setIsModalOpen(false);
+        toast({ title: "Alterações salvas" });
+      } else {
+        toast({ title: "Falha ao salvar", description: res.message, variant: "destructive" as any });
+      }
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar", description: err?.message || "Tente de novo", variant: "destructive" as any });
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Deseja remover este processo permanentemente do gabinete?")) {
-      const updatedList = cases.filter(c => c.id !== id);
-      const res = await syncRepoCases(updatedList);
-      if (res.success) { removeCase(id); toast({ title: "Processo Removido" }); }
+    if (!confirm("Deseja remover este processo permanentemente do gabinete?")) return;
+    const target = cases.find(c => c.id === id);
+    if (!target?.protocolo) {
+      toast({ title: "Protocolo não encontrado", variant: "destructive" as any });
+      return;
+    }
+    const res = await deleteOneCaseAction(target.protocolo);
+    if (res.success) {
+      removeCase(id);
+      toast({ title: "Processo removido" });
+    } else {
+      toast({ title: "Falha ao remover", description: res.message, variant: "destructive" as any });
     }
   };
 
@@ -548,7 +576,7 @@ function CasesContent() {
                 </div>
                 <div className="space-y-2"><Label className={ui.label}>Observações</Label><Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl bg-secondary/20 border-none font-bold uppercase text-xs min-h-[120px] resize-none" /></div>
               </div>
-              <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0"><Button type="submit" className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl">Salvar Alterações</Button></DialogFooter>
+              <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0"><Button type="submit" disabled={isSavingEdit} className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl">{isSavingEdit ? "Salvando…" : "Salvar Alterações"}</Button></DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
