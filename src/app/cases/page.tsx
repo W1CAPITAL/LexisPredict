@@ -10,7 +10,7 @@ import {
   Search, Trash2, Edit2, CheckCircle2, Zap, Loader2, CalendarDays, Sparkles, 
   History, AlertCircle, FileSearch, ShieldAlert, Copy, MessageSquareQuote, 
   Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown,
-  Briefcase, RefreshCcw
+  Briefcase, RefreshCcw, Plus
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -186,7 +186,25 @@ function CasesContent() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  
+  useEffect(() => {
+    if (searchParams.get('new') === '1' && isOperador) {
+      setEditingCase(null);
+      setFormState({
+        cliente: '',
+        protocolo: '',
+        advogado: '',
+        proximoPrazo: '',
+        situacao: 'EM ANDAMENTO',
+        ultimoRetorno: '',
+        statusManual: 'Automatico',
+        observacao: '',
+        telefone: '',
+        escritorio: '',
+      });
+      setIsModalOpen(true);
+    }
+  }, [searchParams, isOperador]);
+
   const handleRecalibratePrazos = async () => {
     if (isRecalibrating) return;
     setIsRecalibrating(true);
@@ -352,26 +370,109 @@ function CasesContent() {
     toast({ title: "Copiado" });
   };
 
-  const handleEdit = (c: LegalCase) => {
-    setEditingCase(c);
-    setFormState({ cliente: c.cliente, protocolo: c.protocolo, advogado: c.advogado, proximoPrazo: c.proximoPrazo, situacao: c.situacao, ultimoRetorno: c.ultimoRetorno, statusManual: c.statusManual, observacao: c.observacao || '', telefone: c.telefone || '', escritorio: c.escritorio || '' });
+  const emptyForm = () => ({
+    cliente: '',
+    protocolo: '',
+    advogado: '',
+    proximoPrazo: '',
+    situacao: 'EM ANDAMENTO',
+    ultimoRetorno: '',
+    statusManual: 'Automatico',
+    observacao: '',
+    telefone: '',
+    escritorio: '',
+  });
+
+  const handleNewCase = () => {
+    setEditingCase(null);
+    setFormState(emptyForm());
     setIsModalOpen(true);
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
+  const handleEdit = (c: LegalCase) => {
+    setEditingCase(c);
+    setFormState({
+      cliente: c.cliente || '',
+      protocolo: c.protocolo || '',
+      advogado: c.advogado || '',
+      proximoPrazo: c.proximoPrazo || '',
+      situacao: c.situacao || 'EM ANDAMENTO',
+      ultimoRetorno: c.ultimoRetorno || '',
+      statusManual: c.statusManual || 'Automatico',
+      observacao: c.observacao || '',
+      telefone: c.telefone || '',
+      escritorio: c.escritorio || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveCase = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCase) return;
-    const updatedCase = processarCaso({ ...editingCase, ...formState });
-    const updatedList = cases.map(c => c.id === editingCase.id ? updatedCase : c);
+    const cliente = (formState.cliente || '').trim();
+    const protocolo = (formState.protocolo || '').trim();
+    if (!cliente || !protocolo) {
+      toast({ title: 'Campos obrigatórios', description: 'Informe cliente e protocolo (CNJ).', variant: 'destructive' });
+      return;
+    }
+    if (editingCase) {
+      const updatedCase = processarCaso({ ...editingCase, ...formState, cliente, protocolo });
+      const updatedList = cases.map(c => (c.id === editingCase.id ? updatedCase : c));
+      const res = await syncRepoCases(updatedList);
+      if (res.success) {
+        setCases(updatedList);
+        setIsModalOpen(false);
+        setEditingCase(null);
+        toast({ title: 'Alterações salvas' });
+      } else {
+        toast({ title: 'Falha ao salvar', description: (res as any).error || 'Tente novamente', variant: 'destructive' });
+      }
+      return;
+    }
+    // Novo processo
+    const dup = cases.some(c => String(c.protocolo || '').replace(/\D/g, '') === protocolo.replace(/\D/g, ''));
+    if (dup) {
+      toast({ title: 'Protocolo já existe', description: 'Este CNJ já está na carteira.', variant: 'destructive' });
+      return;
+    }
+    const id =
+      (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `new_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const novo = processarCaso({
+      id,
+      cliente: cliente.toUpperCase(),
+      protocolo,
+      advogado: (formState.advogado || '').toUpperCase(),
+      escritorio: (formState.escritorio || '').toUpperCase(),
+      telefone: formState.telefone || '',
+      proximoPrazo: formState.proximoPrazo || '',
+      situacao: formState.situacao || 'EM ANDAMENTO',
+      ultimoRetorno: formState.ultimoRetorno || '',
+      statusManual: formState.statusManual || 'Automatico',
+      observacao: (formState.observacao || '').toUpperCase(),
+      status: 'EM ANDAMENTO',
+    } as any);
+    const updatedList = [novo, ...cases];
     const res = await syncRepoCases(updatedList);
-    if (res.success) { setCases(updatedList); setIsModalOpen(false); toast({ title: "Alterações Salvas" }); }
+    if (res.success) {
+      setCases(updatedList);
+      setIsModalOpen(false);
+      setEditingCase(null);
+      setFormState(emptyForm());
+      toast({ title: 'Processo adicionado', description: protocolo });
+    } else {
+      toast({ title: 'Falha ao adicionar', description: (res as any).error || 'Tente novamente', variant: 'destructive' });
+    }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Deseja remover este processo permanentemente do gabinete?")) {
+    if (confirm('Deseja remover este processo permanentemente do gabinete?')) {
       const updatedList = cases.filter(c => c.id !== id);
       const res = await syncRepoCases(updatedList);
-      if (res.success) { removeCase(id); toast({ title: "Processo Removido" }); }
+      if (res.success) {
+        removeCase(id);
+        toast({ title: 'Processo removido' });
+      }
     }
   };
 
@@ -451,6 +552,16 @@ function CasesContent() {
               {isRecalibrating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CalendarDays className="w-4 h-4 mr-1" />}
               Recalibrar Prazos
             </Button>
+            {isOperador && (
+              <Button
+                size="sm"
+                onClick={handleNewCase}
+                className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black"
+              >
+                <Plus size={16} className="mr-2" />
+                Novo Processo
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
               <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />
             </Button>
@@ -610,28 +721,45 @@ function CasesContent() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <Dialog open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if (!open) setEditingCase(null); }}>
           <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl p-0 h-[90vh] flex flex-col overflow-hidden">
-            <form onSubmit={handleSaveEdit} className="flex flex-col h-full">
+            <form onSubmit={handleSaveCase} className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
-                <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><Edit2 size={18} className="text-primary"/> Editar Registro</DialogTitle>
+                <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2">
+                  {editingCase ? <Edit2 size={18} className="text-primary"/> : <Plus size={18} className="text-primary"/>}
+                  {editingCase ? 'Editar Registro' : 'Novo Processo'}
+                </DialogTitle>
               </DialogHeader>
               <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label className={ui.label}>Cliente</Label><Input value={formState.cliente} onChange={e => setFormState({...formState, cliente: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-black uppercase text-xs" /></div>
-                  <div className="space-y-2"><Label className={ui.label}>Protocolo (CNJ)</Label><Input value={formState.protocolo} onChange={e => setFormState({...formState, protocolo: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs" /></div>
+                  <div className="space-y-2"><Label className={ui.label}>Cliente *</Label><Input required value={formState.cliente} onChange={e => setFormState({...formState, cliente: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-black uppercase text-xs" placeholder="NOME COMPLETO" /></div>
+                  <div className="space-y-2"><Label className={ui.label}>Protocolo (CNJ) *</Label><Input required value={formState.protocolo} onChange={e => setFormState({...formState, protocolo: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs" placeholder="0000000-00.0000.0.00.0000" disabled={!!editingCase} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label className={ui.label}>Advogado</Label><Input value={formState.advogado} onChange={e => setFormState({...formState, advogado: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" /></div>
                   <div className="space-y-2"><Label className={ui.label}>Escritório</Label><Input value={formState.escritorio} onChange={e => setFormState({...formState, escritorio: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label className={ui.label}>Próximo Prazo</Label><Input value={formState.proximoPrazo} onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold text-xs" /></div>
+                  <div className="space-y-2"><Label className={ui.label}>Próximo Prazo</Label><Input value={formState.proximoPrazo} onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold text-xs" placeholder="dd/mm/aaaa" /></div>
                   <div className="space-y-2"><Label className={ui.label}>Telefone</Label><Input value={formState.telefone} onChange={e => setFormState({...formState, telefone: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs" /></div>
+                </div>
+                <div className="space-y-2">
+                  <Label className={ui.label}>Situação</Label>
+                  <Select value={formState.situacao} onValueChange={(val) => setFormState({...formState, situacao: val})}>
+                    <SelectTrigger className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">EM ANDAMENTO</SelectItem>
+                      <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase">ENCERRADO</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2"><Label className={ui.label}>Observações</Label><Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl bg-secondary/20 border-none font-bold uppercase text-xs min-h-[120px] resize-none" /></div>
               </div>
-              <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0"><Button type="submit" className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl">Salvar Alterações</Button></DialogFooter>
+              <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0">
+                <Button type="submit" className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl">
+                  {editingCase ? 'Salvar Alterações' : 'Adicionar Processo'}
+                </Button>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
