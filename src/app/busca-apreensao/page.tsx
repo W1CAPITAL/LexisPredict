@@ -354,7 +354,7 @@ export default function BuscaApreensaoPage() {
     const list = [...filtered];
     if (filtroOrdem === "recentes") list.sort((a, b) => ts(b) - ts(a));
     else if (filtroOrdem === "antigos") list.sort((a, b) => ts(a) - ts(b));
-    else list.sort((a, b) => String(a.nomeCliente || a.nome || "").localeCompare(String(b.nomeCliente || b.nome || ""), "pt-BR"));
+    else list.sort((a, b) => String((a as any).clienteNome || (a as any).nomeCliente || "").localeCompare(String((b as any).clienteNome || (b as any).nomeCliente || ""), "pt-BR"));
     return list;
   }, [hits, filtroTipo, filtroGeo, filtroOrdem]);
 

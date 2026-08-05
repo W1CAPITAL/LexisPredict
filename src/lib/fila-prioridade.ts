@@ -15,7 +15,7 @@ import {
 } from './merito-detect';
 
 /** Pesos base — ajustáveis sem mudar a hierarquia */
-export const PRIORITY_WEIGHTS = {
+export const PRIORITY_WEIGHTS: Record<string, number> = {
   ba_prisao: 1500,
   ba_veiculo: 1420,
   ba_imovel: 1360,
@@ -49,7 +49,7 @@ export const PRIORITY_WEIGHTS = {
   pred_prazo_cap: 40,
   pred_scan_priority_cap: 80,
   pred_risco_compound_cap: 120,
-} as const;
+};
 
 function baTipo(c: LegalCase): string | null {
   const t = (c as any).ba_tipo || (c as any).busca_apreensao_tipo || null;
@@ -163,11 +163,11 @@ export function pesoFila(c: LegalCase): number {
   if (temBaOperacional(c)) {
     const tipo = baTipo(c);
     const geo = !!(c as any).ba_geo_distante;
-    let base = W.ba_generico;
-    if (tipo === 'PRISAO') base = W.ba_prisao;
-    else if (tipo === 'VEICULO') base = W.ba_veiculo;
-    else if (tipo === 'IMOVEL') base = W.ba_imovel;
-    else if (tipo === 'PENHORA_BENS') base = W.ba_penhora;
+    let base: number = W.ba_generico as number;
+    if (tipo === 'PRISAO') base = W.ba_prisao as number;
+    else if (tipo === 'VEICULO') base = W.ba_veiculo as number;
+    else if (tipo === 'IMOVEL') base = W.ba_imovel as number;
+    else if (tipo === 'PENHORA_BENS') base = W.ba_penhora as number;
     w += base + (geo ? W.ba_geo_penalty : 0);
   }
 

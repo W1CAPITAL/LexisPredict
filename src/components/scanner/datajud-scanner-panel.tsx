@@ -46,6 +46,7 @@ export function DataJudScannerPanel() {
     claudeAiEnabled, setClaudeAiEnabled
   } = useDataJudScanStore();
   
+  const isManualRunning = manualStatus === 'running';
   const cloudPct = Math.round((done / (total || 1)) * 100);
   const manualPct = Math.round((manualDone / (manualTotal || 1)) * 100);
 
@@ -208,10 +209,10 @@ export function DataJudScannerPanel() {
                     onClick={() => {
                       void startManualScan();
                     }}
-                    disabled={manualStatus === 'running'}
+                    disabled={false}
                     className="w-full h-11 bg-white text-black font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all"
                   >
-                    {manualStatus === 'running' ? 'Varredura em andamento…' : 'Iniciar Varredura Local'}
+                    Iniciar Varredura Local
                   </Button>
                </div>
              ) : (

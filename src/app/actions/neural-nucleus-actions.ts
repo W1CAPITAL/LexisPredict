@@ -8,7 +8,7 @@ import {
 
 export async function getNeuralNucleusStatusAction() {
   const keys = resolveOfficialKeysPresent();
-  const engines = AI_ENGINES_CATALOG.map((e) => ({
+  const engines = AI_ENGINES_CATALOG.map((e: AiEngineDef) => ({
     ...e,
     configured:
       e.kind === 'lexis' ||
@@ -26,7 +26,7 @@ export async function getNeuralNucleusStatusAction() {
 
 export async function listAiEnginesAction(surface?: AiEngineDef['surfaces'][number]) {
   const list = surface
-    ? AI_ENGINES_CATALOG.filter((e) => e.surfaces.includes(surface))
+    ? AI_ENGINES_CATALOG.filter((e: AiEngineDef) => (e.surfaces || ["all"]).includes(surface))
     : AI_ENGINES_CATALOG;
   return { success: true, engines: list };
 }

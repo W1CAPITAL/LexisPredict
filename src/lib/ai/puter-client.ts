@@ -8,18 +8,8 @@
  * ATENÇÃO: não envie secrets/processos sensíveis em massa; use só o prompt de atendimento.
  */
 
-declare global {
-  interface Window {
-    puter?: {
-      ai?: {
-        chat: (
-          prompt: string,
-          opts?: { model?: string; stream?: boolean; temperature?: number; max_tokens?: number }
-        ) => Promise<any>;
-      };
-    };
-  }
-}
+// Window.puter tipado em puter-ai-client.ts (any) — evita conflito de declaração.
+
 
 let loading: Promise<void> | null = null;
 

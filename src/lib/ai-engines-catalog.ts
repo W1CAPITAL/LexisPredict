@@ -83,3 +83,31 @@ export function getEngineById(id: string): AiEngine | undefined {
 export function isPuterEngine(id: string): boolean {
   return id.startsWith("puter-");
 }
+
+
+/** Aliases para neural-nucleus-actions e painéis legados */
+export type AiEngineDef = AiEngine & {
+  kind?: 'lexis' | 'puter' | 'official';
+  surfaces?: Array<'chat' | 'scan' | 'ba' | 'veredito' | 'all'>;
+};
+
+export const AI_ENGINES_CATALOG: AiEngineDef[] = AI_ENGINES.map((e) => ({
+  ...e,
+  kind:
+    e.group === 'local'
+      ? 'lexis'
+      : e.group === 'puter'
+        ? 'puter'
+        : 'official',
+  surfaces: ['all', 'chat', 'scan', 'ba', 'veredito'] as AiEngineDef['surfaces'],
+}));
+
+export function resolveOfficialKeysPresent(): Record<string, boolean> {
+  return {
+    xai: !!(process.env.XAI_API_KEY || process.env.XAI_GROK_PRESTIGE_API_KEY),
+    'groq-llama': !!process.env.GROQ_API_KEY,
+    gemini: !!process.env.GEMINI_API_KEY,
+    claude: !!(process.env.ANTHROPIC_API_KEY || process.env.OMNIROUTE_API_KEY),
+    omniroute: !!process.env.OMNIROUTE_API_KEY,
+  };
+}

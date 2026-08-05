@@ -37,6 +37,7 @@ import {
   Building2
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic';
+import { gerarTarefasJuridicas } from '@/lib/automacao-tarefas';
 import {
   temBaCarteira,
   temNovidadeIdentificada,
@@ -462,6 +463,14 @@ export default function TarefasPage() {
     return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(g.cliente)), totalPendingCount: pending.length };
   }, [cases, search, officeFilter, contatadosHoje, dailyMeta, filaFiltro, baHitDigits]);
 
+  const autoTarefas = useMemo(() => {
+    try {
+      return gerarTarefasJuridicas(cases || [], { limit: 40 });
+    } catch {
+      return [];
+    }
+  }, [cases]);
+
   const distinctOffices = useMemo(() => {
     const set = new Set<string>();
     cases.forEach(c => {
@@ -501,7 +510,7 @@ export default function TarefasPage() {
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
           <section className={ui.metrics}>
-            <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
+            <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes · auto {autoTarefas.length}</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
             <div className="premium-card p-6 border-l-4 border-l-primary relative group"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Dia</p><div className="flex items-center gap-4"><span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span><div className="flex items-center gap-1.5 ml-auto"><Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button><Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button></div></div></div>
             <div className="premium-card p-6 border-l-4 border-l-emerald-500"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Finalizados</p><h3 className="text-3xl font-black text-emerald-600 tabular-nums">{contatadosHoje.length}</h3></div>
           </section>
@@ -609,12 +618,7 @@ export default function TarefasPage() {
                       </div>
                       {(aiDraft !== null && aiDraft !== undefined) && (
                         <div className="mt-3 animate-in fade-in duration-500">
-                          <AiDraftPreview
-                            text={aiDraft || ""}
-                            editable
-                            onChange={(v) => setAiDraft(v)}
-                            minHeight="140px"
-                          />
+                          <AiDraftPreview text={aiDraft || ""} minHeight="140px" />
                         </div>
                       )}
                     </div>
