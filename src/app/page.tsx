@@ -206,7 +206,7 @@ export default function Dashboard() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
-        <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
+        <header className="h-auto border-b border-border/50 glass-header flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
               <LayoutDashboard size={20} className="text-foreground" />

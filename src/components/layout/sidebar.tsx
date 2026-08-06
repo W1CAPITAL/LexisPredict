@@ -43,6 +43,7 @@ import { DollarSign,
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MetalButton } from "@/components/ui/metal-button";
+import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   Sheet,
@@ -177,15 +178,16 @@ function SidebarNavBody({
         style={{ overflowAnchor: "none", WebkitOverflowScrolling: "touch" }}
       >
         <div className="px-1">
-          <MetalButton
+          <LiquidMetalButton
             onClick={onToggleMinimize}
             preset="chromatic"
+            mode="liquid"
             strength={1}
-            className="w-full h-11 rounded-xl font-semibold text-[11px] tracking-wide gap-2.5 metal-scanner-btn"
+            className="w-full h-11 rounded-xl font-semibold text-[11px] tracking-wide gap-2.5"
           >
             <Zap className={cn("w-4 h-4", status === "running" && "animate-pulse text-amber-400")} />
             {!collapsed && "Scanner tribunal"}
-          </MetalButton>
+          </LiquidMetalButton>
         </div>
 
         {navGroups.map((group) => (

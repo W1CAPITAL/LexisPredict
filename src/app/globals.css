@@ -1,6 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import "../styles/glass-liquid.css";
+
+@import "../styles/leather-notes.css";
 
 @import "../styles/metal-tokens.css";
 
