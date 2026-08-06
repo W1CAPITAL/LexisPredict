@@ -1,4 +1,5 @@
 "use client";
+import { FeatureShaderGrid } from "@/components/ui/feature-shader-card";
 
 /**
  * Página de treinamento — vídeo + atalho para o Guia interativo atualizado
@@ -163,6 +164,10 @@ export default function OnboardingVideoPage() {
           </span>
           <span className="hidden sm:inline">LexisPredict Enterprise</span>
         </footer>
+      
+        <div className="px-6 pb-10 max-w-4xl mx-auto w-full">
+          <FeatureShaderGrid />
+        </div>
       </main>
     </div>
   );

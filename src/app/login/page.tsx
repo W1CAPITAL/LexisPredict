@@ -151,7 +151,7 @@ export default function LoginPage() {
                   />
                 </div>
               </div>
-              <Button type="submit" disabled={isSubmitting || authLoading} className="w-full h-14 bg-black text-white border-2 border-black font-black uppercase text-[11px] tracking-widest hover:bg-white hover:text-black transition-all shadow-[8px_8px_0px_#00D1FF] hover:shadow-none rounded-none">
+              <Button type="submit" disabled={isSubmitting || authLoading} variant="liquid" className="w-full h-14 rounded-xl font-black uppercase text-[11px] tracking-widest">
                 {isSubmitting ? "Sincronizando..." : "Acessar Sistema"}
               </Button>
             </form>

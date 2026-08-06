@@ -271,3 +271,11 @@
   background: hsl(var(--foreground));
   color: hsl(var(--background));
 }
+
+
+/* Liquid glass (Cult-inspired) — Lexis primary */
+@layer utilities {
+  .liquid-btn {
+    isolation: isolate;
+  }
+}
