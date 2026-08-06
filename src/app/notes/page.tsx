@@ -45,7 +45,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NotesQuickAddPopover } from "@/components/notes/notes-quick-add-popover";
-import { TextureCardStyled } from "@/components/ui/texture-card";
+import { TextureCardStyled, TextureCardHeader, TextureCardTitle, TextureCardContent, TextureSeparator } from "@/components/ui/texture-card";
+import { TextureButton } from "@/components/ui/texture-button";
+import { MetalButton } from "@/components/ui/metal-button";
 
 function parseNoteContent(raw: any): { text: string; imageUrl?: string } {
   if (!raw) return { text: "" };
@@ -239,28 +241,32 @@ export default function NotesPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
+            <MetalButton
+              preset="gold"
               onClick={handleIAAnalysis}
               disabled={isAnalyzing || notes.length === 0}
-              className="h-10 bg-black text-white border-2 border-black font-black uppercase text-[10px] px-6 shadow-[4px_4px_0px_#c9a227] hover:shadow-none transition-all rounded-none"
+              className="h-10 font-black uppercase text-[10px] px-6 rounded-full"
             >
               {isAnalyzing ? <Loader2 className="animate-spin mr-2" size={14} /> : <Sparkles className="mr-2" size={14} />}
               Analisar IA
-            </Button>
-            <Button
-              variant="ghost"
+            </MetalButton>
+            <MetalButton
+              preset="silver"
+              variant="outline"
               size="icon"
               onClick={() => loadData(true)}
-              className="border-2 border-black h-10 w-10 rounded-none"
+              className="h-10 w-10 rounded-full"
+              aria-label="Atualizar notas"
             >
               <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
-            </Button>
+            </MetalButton>
           </div>
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-8 space-y-6">
           {/* Nova nota */}
-          <div className="border-2 border-black bg-white p-4 shadow-[6px_6px_0_#000] space-y-3 max-w-3xl">
+          <TextureCardStyled className="p-0 max-w-3xl">
+          <div className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <Label className="text-[9px] font-black uppercase">Nova anotação</Label>
               <NotesQuickAddPopover enabled={!!isOperador} onSaved={() => loadData(true)} />
@@ -330,6 +336,7 @@ export default function NotesPage() {
               className="pl-10 h-11 border-2 border-black rounded-none"
             />
           </div>
+          </TextureCardStyled>
 
           {loading ? (
             <div className="flex justify-center py-20">
@@ -347,7 +354,7 @@ export default function NotesPage() {
                 return (
                   <div
                     key={note.id}
-                    className="group border-2 border-black bg-white p-4 shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] transition-shadow flex flex-col gap-3"
+                    className="group border border-border texture-card bg-card/95 p-4 shadow-sm rounded-2xl hover:shadow-[6px_6px_0_#000] transition-shadow flex flex-col gap-3"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>

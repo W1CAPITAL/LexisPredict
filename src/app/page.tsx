@@ -205,7 +205,7 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
         <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
@@ -220,14 +220,14 @@ export default function Dashboard() {
                 <AlertCircle size={14} /> Alerta de Mérito Ativo
               </Badge>
             )}
-            <Button variant="outline" size="sm" asChild className={cn("premium-card h-10 px-4 sm:px-6 rounded-xl text-[11px] font-black uppercase tracking-wider border-none", ui.touch)}>
+            <MetalButton preset="chromatic" variant="outline" size="sm" asChild className={cn("h-10 px-4 sm:px-6 rounded-full text-[11px] font-black uppercase tracking-wider", ui.touch)}>
               <Link href="/report">
                 <FileDown size={16} className="mr-2 hidden sm:inline" /> Dossiê Operacional
               </Link>
-            </Button>
-            <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
+            </MetalButton>
+            <MetalButton preset="silver" variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar">
                <RefreshCcw size={18} className={cn(loading && "animate-spin text-primary")} />
-            </Button>
+            </MetalButton>
           </div>
         </header>
 
@@ -380,8 +380,7 @@ export default function Dashboard() {
             <section className="rounded-2xl border border-border/50 bg-card/40 p-3 sm:p-4 shadow-sm">
             <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Painel KPI · Efferd</p>
             <EfferdPanel
-              compact
-              totalProcessos={cases.length}
+                            totalProcessos={cases.length}
               ativos={metrics.activeTotal}
               pendentes={metrics.countNovoAndamento + metrics.countHoje}
               vencidos={metrics.countVencido}
