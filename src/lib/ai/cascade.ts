@@ -27,6 +27,27 @@ export function cleanGatewayBaseUrl(raw: string | undefined | null): string {
   return s;
 }
 
+
+/** Resposta inutil do gateway (emoji sozinho, pontuacao, modelo lixo tipo felo-chat) */
+export function isLowQualityAiText(text: string, model?: string): boolean {
+  const m = String(model || '').toLowerCase();
+  if (m.includes('felo') || m.includes('pickle') || m.includes('nemotron-3-ultra-free')) {
+    // modelos conhecidos por devolver lixo curto — so aceita se texto for substantivo
+  }
+  const t = String(text || '').trim();
+  if (!t) return true;
+  // so emoji / pontuacao / 1-2 chars
+  const semEmoji = t.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '').trim();
+  const soPontuacao = !/[a-zA-Z0-9\u00C0-\u024F]/.test(semEmoji);
+  if (soPontuacao) return true;
+  if (t.length <= 2) return true;
+  if (/^[.?!,;…]+$/.test(t)) return true;
+  if (/^(ok|sim|nao|não|\.+|\?+)$/i.test(t) && t.length < 4) return true;
+  // cumprimentos: minimo de conteudo util (ex.: "Oi! Tudo bem?" passa)
+  if (t.length < 8 && !/[a-zA-Z\u00C0-\u024F]{3,}/.test(t)) return true;
+  return false;
+}
+
 export type CascadeEngine = {
   id: string;
   url: string;
@@ -145,6 +166,81 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   const preferred = (opts.forceEngineId || opts.preferred || 'auto').toLowerCase();
   const errors: string[] = [];
 
+
+  // --- Anthropic direto (quando Claude e a preferencia e ha API key) ---
+  const anthropicKey =
+    process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_KEY;
+  const wantClaudeDirect =
+    !!anthropicKey &&
+    (preferred === 'claude' ||
+      preferred.includes('anthropic') ||
+      preferred === 'auto');
+  if (wantClaudeDirect) {
+    try {
+      const { freeComplete } = await import('@/lib/ai/free-gateway');
+      // usa so anthropic via exclusive path interno — callAnthropic
+      const sys = system || '';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model:
+            process.env.ANTHROPIC_MODEL ||
+            process.env.CLAUDE_MODEL ||
+            'claude-sonnet-4-20250514',
+          max_tokens: opts.max_tokens ?? 4096,
+          temperature: opts.temperature ?? 0.4,
+          system: sys || undefined,
+          messages: [
+            ...history.map((h) => ({ role: h.role, content: h.content })),
+            {
+              role: 'user',
+              content: opts.images?.length
+                ? // vision: so texto aqui; imagem fica no omni se necessario
+                  String(user)
+                : String(user),
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(90000),
+      });
+      const raw = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const text = Array.isArray((raw as any)?.content)
+          ? (raw as any).content
+              .filter((b: any) => b.type === 'text')
+              .map((b: any) => b.text)
+              .join('\n')
+          : '';
+        if (text.trim() && !isLowQualityAiText(text.trim())) {
+          return {
+            text: text.trim(),
+            engineId: 'claude',
+            model:
+              process.env.ANTHROPIC_MODEL ||
+              process.env.CLAUDE_MODEL ||
+              'claude-sonnet-4-20250514',
+            latencyMs: 0,
+            latency: 0,
+            tokens: (raw as any)?.usage?.input_tokens
+              ? (raw as any).usage.input_tokens + ((raw as any).usage.output_tokens || 0)
+              : undefined,
+          };
+        }
+      } else {
+        errors.push(
+          `anthropic-direct: ${(raw as any)?.error?.message || res.status}`
+        );
+      }
+    } catch (e: any) {
+      errors.push(`anthropic-direct: ${e?.message || e}`);
+    }
+  }
+
   // --- OmniRoute (só se preferred for omni/claude/auto) ---
   const omni = cleanGatewayBaseUrl(process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL || '');
   const wantOmni =
@@ -172,13 +268,18 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
 
       // Modelos: NÃO use claude-sonnet-4-* se Anthropic não estiver cadastrado no painel OmniRoute
       // (isso gera HTTP 404 "No active credentials for provider: anthropic").
+      // Preferir modelos uteis; evitar auto/best-free que roteia para felo-chat / lixo
       const modelCandidates = [
-        process.env.OMNIROUTE_MODEL,
         process.env.OMNIROUTE_MODEL_CLAUDE,
+        process.env.OMNIROUTE_MODEL,
+        process.env.ANTHROPIC_MODEL,
+        'claude-sonnet-4-20250514',
+        'claude-3-5-sonnet-latest',
+        'anthropic/claude-sonnet-4',
         'auto/best-chat',
-        'auto/best-free',
+        'gpt-4o-mini',
         'auto',
-      ].filter(Boolean) as string[];
+      ].filter((v, i, a) => !!v && a.indexOf(v) === i) as string[];
 
       const t0 = Date.now();
       let lastStatus = 0;
@@ -246,12 +347,24 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
             raw?.choices?.[0]?.message?.content ||
             raw?.choices?.[0]?.text ||
             '';
-          if (String(text).trim()) {
+          const resolvedModel = String(raw?.model || model || '');
+          const trimmed = String(text).trim();
+          // Rejeita felo-chat e respostas vazias/emoji
+          if (
+            /felo/i.test(resolvedModel) ||
+            isLowQualityAiText(trimmed, resolvedModel)
+          ) {
+            errors.push(
+              `omniroute[${resolvedModel}]: resposta baixa qualidade (${trimmed.slice(0, 40) || 'vazio'})`
+            );
+            continue;
+          }
+          if (trimmed) {
             const latencyMs = Date.now() - t0;
             return {
-              text: String(text).trim(),
+              text: trimmed,
               engineId: 'omniroute',
-              model: raw?.model || model,
+              model: resolvedModel,
               latencyMs,
               latency: latencyMs,
               tokens: raw?.usage?.total_tokens,
