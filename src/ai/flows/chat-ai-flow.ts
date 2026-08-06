@@ -1,8 +1,11 @@
 'use server';
+
 /**
- * Assistente Lexis — qualquer tema, PDF/imagem, thinking limpo na UI, respostas rapidas.
+ * Assistente Lexis — qualquer tema, PDF/imagem, thinking limpo, respostas rapidas.
+ * Helpers sincronos ficam em chat-parse.ts (sem use server).
  */
 import { runCascade, type ChatTurn, type VisionImage } from '@/lib/ai/cascade';
+import { parseThinkingAnswer, isSimplePrompt } from '@/lib/ai/chat-parse';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
 
@@ -46,55 +49,6 @@ export type ChatAiOutput = {
   sucesso: boolean;
   baHint?: string | null;
 };
-
-/** Extrai thinking/answer e NUNCA deixa tags cruas na resposta */
-export function parseThinkingAnswer(raw: string): { thinking: string | null; answer: string } {
-  let t = String(raw || '').trim();
-  if (!t) return { thinking: null, answer: '' };
-
-  // normaliza variantes
-  t = t
-    .replace(/<\s*thinking\s*>/gi, '<thinking>')
-    .replace(/<\s*\/\s*thinking\s*>/gi, '</thinking>')
-    .replace(/<\s*answer\s*>/gi, '<answer>')
-    .replace(/<\s*\/\s*answer\s*>/gi, '</answer>');
-
-  const thinkM = t.match(/<thinking>([\s\S]*?)<\/thinking>/i);
-  const ansM = t.match(/<answer>([\s\S]*?)<\/answer>/i);
-
-  let thinking: string | null = thinkM ? thinkM[1].trim() : null;
-  let answer = ansM ? ansM[1].trim() : t;
-
-  // se nao achou answer mas tem thinking, remove bloco thinking do texto
-  if (!ansM && thinkM) {
-    answer = t.replace(/<thinking>[\s\S]*?<\/thinking>/i, '').trim();
-  }
-
-  // limpa qualquer tag residual
-  answer = answer
-    .replace(/<\/?thinking>/gi, '')
-    .replace(/<\/?answer>/gi, '')
-    .replace(/<\/?raciocinio>/gi, '')
-    .replace(/<\/?resposta>/gi, '')
-    .trim();
-
-  if (thinking) {
-    thinking = thinking.replace(/<\/?thinking>/gi, '').trim();
-  }
-
-  return { thinking: thinking || null, answer: answer || t.replace(/<[^>]+>/g, '').trim() };
-}
-
-function isSimplePrompt(pergunta: string, hasAttach: boolean): boolean {
-  if (hasAttach) return false;
-  const p = pergunta.trim().toLowerCase();
-  if (p.length > 80) return false;
-  if (/^\s*(oi|ola|olá|hey|hello|hi|bom dia|boa tarde|boa noite|obrigad[oa]|valeu|ok|blz|eai|e aí)\s*[!.?]*\s*$/i.test(p)) {
-    return true;
-  }
-  if (p.split(/\s+/).length <= 4 && !/\d{7}/.test(p)) return true;
-  return false;
-}
 
 export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const pergunta = String(input.pergunta || '').trim();
