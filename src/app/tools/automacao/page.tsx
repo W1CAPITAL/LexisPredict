@@ -125,6 +125,7 @@ export default function CadastroProcessoPage() {
         tribunal: res.tribunal || prev.tribunal,
         orgao_julgador: res.orgao_julgador || prev.orgao_julgador,
         nacionalidade: prev.nacionalidade || "BRASILEIRA",
+        cpf: (res as any).cpf || prev.cpf,
       }));
       setMeta({
         fonte: res.fonte,
@@ -134,9 +135,16 @@ export default function CadastroProcessoPage() {
         poloAtivo: res.poloAtivo,
         poloPassivo: res.poloPassivo,
       });
+      const filled = [
+        res.cliente && "cliente",
+        res.parte_passiva && "réu",
+        res.classe_acao && "classe",
+        res.advogado && "advogado",
+        (res as any).cpf && "CPF",
+      ].filter(Boolean);
       toast({
-        title: "Dados oficiais carregados",
-        description: `${res.fonte || "CNJ"} · ${res.cliente || "revise o cliente"}`,
+        title: filled.length ? "Dados oficiais carregados" : "Consulta ok — complete manualmente",
+        description: `${res.fonte || "CNJ"} · ${filled.length ? filled.join(", ") : "partes não indexadas no tribunal"}`,
       });
     } catch (e: any) {
       toast({ title: "Erro", description: e?.message || "Falha", variant: "destructive" });

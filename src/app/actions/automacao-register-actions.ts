@@ -62,16 +62,19 @@ export interface CadastroEnrichResult {
   djenResumo?: string | null;
   movimentosResumo?: string | null;
   fonte?: string;
+  cpf?: string;
 }
 
 function pickAdvogadoFromPartes(partes: any[]): string {
   for (const p of partes || []) {
-    const reps = p?.representantes || p?.advogados || p?.advogado || [];
+    const reps = p?.representantes || p?.advogados || p?.advogado || p?.representanteProcessual || [];
     const list = Array.isArray(reps) ? reps : [reps];
     for (const r of list) {
       if (!r) continue;
-      const nome = String(r?.nome || r?.nomeAdvogado || r || '').trim();
-      if (nome && nome.length > 3) return nome.toUpperCase();
+      const nome = String(r?.nome || r?.nomeAdvogado || (typeof r === 'string' ? r : '')).trim();
+      if (nome && nome.length > 3 && !/BANCO|S\.?A\.?|LTDA/.test(nome.toUpperCase())) {
+        return nome.toUpperCase();
+      }
     }
     const tipo = String(p?.tipo || p?.tipoParte || '').toUpperCase();
     if (/ADVOGADO|OAB/.test(tipo)) {
@@ -83,49 +86,108 @@ function pickAdvogadoFromPartes(partes: any[]): string {
 }
 
 function extractCnpjFromText(text: string): string | null {
-  const m = text.match(
-    /\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/
-  );
+  const m = text.match(/\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/);
   if (!m) return null;
   const d = m[1].replace(/\D/g, '');
   return d.length === 14 ? d : null;
 }
 
+function extractCpfFromText(text: string): string | null {
+  const m = text.match(/\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b/);
+  if (!m) return null;
+  const d = m[1].replace(/\D/g, '');
+  return d.length === 11 ? d : null;
+}
+
 function extractPossibleBankName(text: string): string | null {
   const upper = text.toUpperCase();
   const banks = [
-    'BANCO DO BRASIL',
-    'BANCO ITAÚ',
-    'BANCO ITAU',
-    'ITAÚ UNIBANCO',
-    'ITAU UNIBANCO',
-    'BANCO BRADESCO',
-    'BANCO SANTANDER',
-    'CAIXA ECONÔMICA',
-    'CAIXA ECONOMICA',
-    'NUBANK',
-    'BANCO INTER',
-    'BANCO PAN',
-    'BANCO BMG',
-    'BANCO C6',
-    'BANCO SAFRA',
-    'BANCO ORIGINAL',
-    'BANCO DAYCOVAL',
-    'BANCO VOTORANTIM',
-    'BANCO MERCANTIL',
-    'CREFISA',
-    'LOSANGO',
-    'FINASA',
+    'BANCO DO BRASIL', 'BANCO ITAÚ', 'BANCO ITAU', 'ITAÚ UNIBANCO', 'ITAU UNIBANCO',
+    'BANCO BRADESCO', 'BANCO SANTANDER', 'CAIXA ECONÔMICA', 'CAIXA ECONOMICA',
+    'NUBANK', 'BANCO INTER', 'BANCO PAN', 'BANCO BMG', 'BANCO C6', 'BANCO SAFRA',
+    'BANCO ORIGINAL', 'BANCO DAYCOVAL', 'BANCO VOTORANTIM', 'BANCO MERCANTIL',
+    'CREFISA', 'LOSANGO', 'FINASA', 'BANCO AGIBANK', 'BANCO MASTER',
   ];
   for (const b of banks) {
     if (upper.includes(b)) return b;
   }
+  // razão social genérica
+  const m = upper.match(
+    /\b((?:BANCO|FINANCEIRA|CREDITO|CRÉDITO|SEGURADORA)[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9\s\.\,\&\-]{3,60}(?:S\.?\s*A\.?|LTDA\.?|S\/A)?)/
+  );
+  if (m) return m[1].trim().replace(/\s+/g, ' ');
   return null;
 }
 
+/** Extrai autor/réu de texto de intimação / publicação */
+function parsePartesFromTexto(text: string): { ativo: string[]; passivo: string[]; advogados: string[] } {
+  const ativo: string[] = [];
+  const passivo: string[] = [];
+  const advogados: string[] = [];
+  if (!text) return { ativo, passivo, advogados };
+
+  const lines = text.replace(/\r/g, '\n').split('\n').map((l) => l.trim()).filter(Boolean);
+  const blob = text.replace(/\s+/g, ' ');
+
+  const pushUnique = (arr: string[], v: string) => {
+    const n = v.replace(/\s+/g, ' ').trim().toUpperCase();
+    if (n.length < 5 || n.length > 120) return;
+    if (/ADVOGADO|OAB|DR\.|DRA\./.test(n) && !/BANCO/.test(n)) return;
+    if (!arr.includes(n)) arr.push(n);
+  };
+
+  // Padrões rotulados
+  const patternsAtivo = [
+    /(?:AUTOR(?:A|ES)?|REQUERENTE|EXEQUENTE|RECLAMANTE|APELANTE|AGRAVANTE|IMPETRANTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.]+?)(?:\s*[-–,;]|\s+CPF|\s+RG|\s+OAB|\s+e\s|\s+x\s|\s+versus)/i,
+    /(?:AUTOR(?:A|ES)?|REQUERENTE)\s*[:\-–]\s*([^\n\r;]{5,80})/i,
+  ];
+  const patternsPassivo = [
+    /(?:R[EÉ]U|REQUERID[OA]|EXECUTAD[OA]|RECLAMAD[OA]|APELAD[OA]|AGRAVAD[OA]|IMPETRAD[OA])\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç0-9\s\.\&\-]+?)(?:\s*[-–,;]|\s+CNPJ|\s+CPF|\s+OAB|\s+e\s)/i,
+    /(?:R[EÉ]U|REQUERID[OA])\s*[:\-–]\s*([^\n\r;]{5,90})/i,
+  ];
+
+  for (const re of patternsAtivo) {
+    const m = blob.match(re);
+    if (m?.[1]) pushUnique(ativo, m[1]);
+  }
+  for (const re of patternsPassivo) {
+    const m = blob.match(re);
+    if (m?.[1]) pushUnique(passivo, m[1]);
+  }
+
+  // "FULANO x BANCO..."
+  const vs = blob.match(
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s]{4,50}?)\s+(?:x|versus|vs\.?|contra)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9][A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9\s\.\&\-]{3,60})/i
+  );
+  if (vs) {
+    pushUnique(ativo, vs[1]);
+    pushUnique(passivo, vs[2]);
+  }
+
+  // OAB
+  const oabRe = /(?:Dr\.?a?|Advogad[oa])\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]{4,50}?)(?:\s*[-–,]\s*)?OAB/gi;
+  let om: RegExpExecArray | null;
+  while ((om = oabRe.exec(blob)) !== null) {
+    const n = om[1].trim().toUpperCase();
+    if (n.length > 4 && !advogados.includes(n)) advogados.push(n);
+  }
+  const oab2 = blob.matchAll(/([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s]{5,45})\s*[-–,]?\s*OAB\s*[/:]?\s*[A-Z]{2}\s*\d{3,7}/gi);
+  for (const m of oab2) {
+    const n = m[1].trim().toUpperCase();
+    if (n.length > 4 && !/BANCO|TRIBUNAL|JUIZO|VARA/.test(n) && !advogados.includes(n)) {
+      advogados.push(n);
+    }
+  }
+
+  const bank = extractPossibleBankName(text);
+  if (bank) pushUnique(passivo, bank);
+
+  return { ativo, passivo, advogados };
+}
+
 /**
- * Enriquecimento por CNJ: DataJud (partes/classe) + DJEN (publicações).
- * Substitui o fluxo de screenshot automático do tribunal.
+ * Enriquecimento por CNJ: DataJud (partes/classe) + DJEN (publicações/destinatários).
+ * Prioridade: preencher cliente + réu + classe o mais rápido possível.
  */
 export async function enrichCadastroByCnjAction(
   cnjInput: string
@@ -138,12 +200,21 @@ export async function enrichCadastroByCnjAction(
     }
 
     const tribMeta = extrairTribunal(protocolo);
-    const [dj, djen] = await Promise.all([
-      fetchDataJud(protocolo, 1, { fast: false }),
-      fetchDjenComunicacoes(protocolo, {
-        siglaTribunal: tribMeta.tribunal !== 'Outros' ? tribMeta.tribunal : undefined,
-      }),
+
+    // DataJud primeiro (partes). DJEN em paralelo, janela menor = mais rápido.
+    const djenOpts = {
+      siglaTribunal: tribMeta.tribunal !== 'Outros' ? tribMeta.tribunal : undefined,
+      dataInicio: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      dataFim: new Date().toISOString().split('T')[0],
+    };
+
+    const [djSettled, djenSettled] = await Promise.allSettled([
+      fetchDataJud(protocolo, 1, { fast: true }),
+      fetchDjenComunicacoes(protocolo, djenOpts),
     ]);
+
+    const dj = djSettled.status === 'fulfilled' ? djSettled.value : null;
+    const djen = djenSettled.status === 'fulfilled' ? djenSettled.value : null;
 
     let cliente = '';
     let parte_passiva = '';
@@ -156,24 +227,49 @@ export async function enrichCadastroByCnjAction(
     let poloAtivo: string[] = [];
     let poloPassivo: string[] = [];
     let movimentosResumo: string | null = null;
+    let cpfHint: string | null = null;
     const fontes: string[] = [];
 
     if (dj && !dj.error) {
       fontes.push('DataJud');
-      classe_acao = String(dj.classe || '').toUpperCase() || '';
+      classe_acao = String(dj.classe || '').toUpperCase();
+      if (classe_acao === 'N/A') classe_acao = '';
       tribunal = String(dj.tribunal || tribunal).toUpperCase();
       orgao_julgador = String(dj.orgaoJulgador || '').toUpperCase() || '';
       dataAjuizamento = dj.dataAjuizamento || null;
-      poloAtivo = Array.isArray(dj.poloAtivo) ? dj.poloAtivo : [];
-      poloPassivo = Array.isArray(dj.poloPassivo) ? dj.poloPassivo : [];
-      if (!poloAtivo.length && Array.isArray(dj.partes)) {
-        const polos = extrairPolos(dj.partes);
-        poloAtivo = polos.ativo;
-        poloPassivo = polos.passivo;
+
+      let polos = {
+        ativo: Array.isArray(dj.poloAtivo) ? [...dj.poloAtivo] : [],
+        passivo: Array.isArray(dj.poloPassivo) ? [...dj.poloPassivo] : [],
+        outros: [] as string[],
+      };
+      if ((!polos.ativo.length || !polos.passivo.length) && Array.isArray(dj.partes)) {
+        const p2 = extrairPolos(dj.partes);
+        if (!polos.ativo.length) polos.ativo = p2.ativo;
+        if (!polos.passivo.length) polos.passivo = p2.passivo;
+        polos.outros = p2.outros;
       }
+      poloAtivo = polos.ativo.map((n) => String(n).toUpperCase());
+      poloPassivo = polos.passivo.map((n) => String(n).toUpperCase());
       cliente = poloAtivo[0] || '';
       parte_passiva = poloPassivo[0] || '';
       advogado = pickAdvogadoFromPartes(dj.partes || []);
+
+      // CPF nas partes DataJud (quando o tribunal indexa)
+      for (const p of dj.partes || []) {
+        const doc = String(
+          p?.numeroDocumentoPrincipal || p?.numeroDocumento || p?.cpf || p?.documento || ''
+        ).replace(/\D/g, '');
+        const polo = String(p?.polo || p?.tipoPolo || '').toUpperCase();
+        if (doc.length === 11 && (/ATIVO|AUTOR|A\b/.test(polo) || !cpfHint)) {
+          cpfHint = doc;
+          if (/ATIVO|AUTOR/.test(polo)) break;
+        }
+        if (doc.length === 14 && !parte_passiva_cnpj) {
+          parte_passiva_cnpj = doc;
+        }
+      }
+
       const movs = Array.isArray(dj.movimentos) ? dj.movimentos : [];
       if (movs.length) {
         const sorted = [...movs].sort(
@@ -206,25 +302,64 @@ export async function enrichCadastroByCnjAction(
       if (!orgao_julgador && first.nomeOrgao) {
         orgao_julgador = String(first.nomeOrgao).toUpperCase();
       }
-      // Heurística de partes no texto das publicações
-      const corpus = djen.items
-        .slice(0, 8)
-        .map((i) => plainTextFromDjen(i.texto || ''))
-        .join('\n');
-      if (!parte_passiva) {
-        const bank = extractPossibleBankName(corpus);
-        if (bank) parte_passiva = bank;
+
+      // Destinatários estruturados
+      for (const it of djen.items) {
+        for (const d of it.destinatarios || []) {
+          const nome = String(d.nome || '').trim().toUpperCase();
+          if (!nome) continue;
+          const polo = String(d.polo || '').toUpperCase();
+          if (/ATIVO|AUTOR|REQUERENTE/.test(polo) || (!polo && !/BANCO|S\.?A\.?|LTDA/.test(nome))) {
+            if (!poloAtivo.includes(nome)) poloAtivo.push(nome);
+            if (!cliente && !/BANCO|S\.?A\.?|LTDA|FINANCEIRA/.test(nome)) cliente = nome;
+          }
+          if (/PASSIVO|R[EÉ]U|REQUERIDO/.test(polo) || /BANCO|S\.?A\.?|LTDA|FINANCEIRA/.test(nome)) {
+            if (!poloPassivo.includes(nome)) poloPassivo.push(nome);
+            if (!parte_passiva) parte_passiva = nome;
+          }
+          for (const a of d.advogados || []) {
+            if (a && !advogado) advogado = String(a).toUpperCase();
+          }
+        }
       }
+
+      const corpus = djen.items
+        .slice(0, 12)
+        .map((i) => String(i.texto || ''))
+        .join('\n');
+
+      const parsed = parsePartesFromTexto(corpus);
+      if (!cliente && parsed.ativo[0]) {
+        cliente = parsed.ativo[0];
+        poloAtivo = [...new Set([...poloAtivo, ...parsed.ativo])];
+      }
+      if (!parte_passiva && parsed.passivo[0]) {
+        parte_passiva = parsed.passivo[0];
+        poloPassivo = [...new Set([...poloPassivo, ...parsed.passivo])];
+      }
+      if (!advogado && parsed.advogados[0]) advogado = parsed.advogados[0];
       if (!parte_passiva_cnpj) {
         const cnpj = extractCnpjFromText(corpus);
         if (cnpj) parte_passiva_cnpj = cnpj;
       }
+      if (!cpfHint) cpfHint = extractCpfFromText(corpus);
+      if (!parte_passiva) {
+        const bank = extractPossibleBankName(corpus);
+        if (bank) parte_passiva = bank;
+      }
     }
 
-    if (!fontes.length && dj?.error) {
+    // Fallback: se ainda sem cliente mas há poloAtivo
+    if (!cliente && poloAtivo[0]) cliente = poloAtivo[0];
+    if (!parte_passiva && poloPassivo[0]) parte_passiva = poloPassivo[0];
+
+    if (!fontes.length) {
       return {
         success: false,
-        error: dj.message || djen?.error || 'Sem dados no DataJud/DJEN para este CNJ.',
+        error:
+          (dj as any)?.message ||
+          djen?.error ||
+          'Sem dados no DataJud/DJEN para este CNJ. Preencha manualmente.',
         protocolo,
       };
     }
@@ -246,7 +381,9 @@ export async function enrichCadastroByCnjAction(
       djenResumo,
       movimentosResumo,
       fonte: fontes.join('+') || 'CNJ',
-    };
+      // @ts-expect-error campo extra consumido pela UI
+      cpf: cpfHint || undefined,
+    } as CadastroEnrichResult;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Falha no enriquecimento.';
     console.error('[enrichCadastroByCnj]', e);

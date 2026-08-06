@@ -18,6 +18,8 @@ export interface DjenComunicacao {
   link: string | null;
   tipoDocumento: string | null;
   nomeClasse: string | null;
+  /** Destinatários / partes quando o tribunal envia na API */
+  destinatarios?: Array<{ nome?: string; polo?: string; advogados?: string[] }>;
 }
 
 export interface DjenFetchResult {
@@ -264,6 +266,18 @@ export async function fetchDjenComunicacoes(
 
       const mappedItems: DjenComunicacao[] = rawItems.map((item: any) => {
         const plainText = plainTextFromDjen(item.texto || '');
+        const destRaw = item.destinatarios || item.destinatario || item.partes || [];
+        const destList = Array.isArray(destRaw) ? destRaw : [destRaw];
+        const destinatarios = destList
+          .filter(Boolean)
+          .map((d: any) => ({
+            nome: String(d?.nome || d?.nomeDestinatario || d?.razaoSocial || '').trim() || undefined,
+            polo: String(d?.polo || d?.tipoPolo || d?.tipo || '').trim() || undefined,
+            advogados: Array.isArray(d?.advogados)
+              ? d.advogados.map((a: any) => String(a?.nome || a || '').trim()).filter(Boolean)
+              : undefined,
+          }))
+          .filter((d: any) => d.nome);
         return {
           id: item.id || item.comunicacao_id,
           hash: item.hash,
@@ -279,6 +293,7 @@ export async function fetchDjenComunicacoes(
           link: item.link || null,
           tipoDocumento: item.tipoDocumento || item.tipodocumento || null,
           nomeClasse: item.nomeClasse || item.nomeclasse || null,
+          destinatarios: destinatarios.length ? destinatarios : undefined,
         };
       });
 
