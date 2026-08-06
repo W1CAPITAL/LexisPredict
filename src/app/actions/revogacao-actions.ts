@@ -2,7 +2,7 @@
 
 /**
  * Scanner + PDF de revogacao/substabelecimento.
- * Puxa CPF, e-mail, estado civil, endereco, banco e acao da carteira (Processos).
+ * Reforco exclusivo DJEN (sem DataJud) + dados da carteira. Preenche CPF/email/banco/acao.
  */
 import React from 'react';
 import { getUserContext, getStoredCasesForEmpresa, listAdvogadosBanca } from '@/lib/server-db';
@@ -256,8 +256,14 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
   const textos: string[] = [];
   let advogadosDjen: string[] = [];
   let cpfDetectado: string | null = null;
+  let emailDetectado: string | null = null;
+  let estadoCivilDetectado: string | null = null;
+  let enderecoDetectado: string | null = null;
+  let bancoDetectado: string | null = null;
+  let acaoDetectada: string | null = null;
+  let cnpjPassivo: string | null = null;
 
-  // Preferir CPF já cadastrado na carteira
+  // 1) Carteira local (instantâneo) — base para preencher campos
   try {
     const cases = (await getStoredCasesForEmpresa(ctx.empresa_id, false)) || [];
     const dig = onlyDigits(protocolo);
@@ -266,66 +272,101 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
     );
     if (found) {
       const extra = pickFromCase(found);
-      if (extra.cpf && onlyDigits(extra.cpf).length === 11) {
-        cpfDetectado = extra.cpf;
-      }
+      if (extra.cpf && onlyDigits(extra.cpf).length === 11) cpfDetectado = extra.cpf;
+      if (extra.email) emailDetectado = extra.email;
+      if (extra.estado_civil) estadoCivilDetectado = extra.estado_civil;
+      if (extra.endereco) enderecoDetectado = extra.endereco;
+      if (extra.parte_passiva) bancoDetectado = extra.parte_passiva;
+      if (extra.classe_acao) acaoDetectada = extra.classe_acao;
+      if (extra.parte_passiva_cnpj) cnpjPassivo = extra.parte_passiva_cnpj;
+      if (found.datajud_encerrado_tribunal) encerrado = true;
+      if (found.em_cumprimento_sentenca) cumprimento = true;
     }
   } catch { /* */ }
 
+  // 2) SOMENTE DJEN (sem DataJud) — janela 90 dias para velocidade
   try {
-    const { fetchDataJud } = await import('@/lib/datajud');
-    const dj = await fetchDataJud(protocolo, 1, { fast: true });
-    if (dj && !dj.error) {
-      const movs = dj.movimentos || [];
-      for (const m of movs.slice(0, 20)) {
-        const n = String(m.nome || m.descricao || '');
-        if (n) textos.push(n);
-      }
-      const blob = textos.join(' | ').toUpperCase();
-      if (/TRANSITO|BAIXA DEFINIT|ARQUIV|EXTIN/.test(blob)) encerrado = true;
-      if (/CUMPRIMENTO\s+DE\s+SENTENCA|EXECUCAO\s+DE\s+SENTENCA/.test(blob)) cumprimento = true;
-      if (movs[0]) {
-        ultimoNome = movs[0].nome || movs[0].descricao || null;
-        resumo = String(ultimoNome || '').slice(0, 180);
-      }
-    }
-  } catch { /* */ }
-
-  try {
-    const { fetchDjenPorTexto } = await import('@/lib/djen-busca-texto');
-    const dig = protocolo.replace(/\D/g, '');
-    if (dig.length >= 15) {
-      const r = await fetchDjenPorTexto(dig, {
-        dataInicio: new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10),
+    const { fetchDjenComunicacoes, plainTextFromDjen } = await import('@/lib/djen');
+    const dig = onlyDigits(protocolo);
+    if (dig.length === 20) {
+      const r = await fetchDjenComunicacoes(protocolo, {
+        dataInicio: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
         dataFim: new Date().toISOString().slice(0, 10),
-        itensPorPagina: 15,
       });
       if (r.success && r.items?.length) {
         djenOk = true;
+        const first = r.items[0];
+        if (first.nomeClasse && !acaoDetectada) {
+          acaoDetectada = String(first.nomeClasse).toUpperCase();
+        }
         for (const it of r.items) {
-          const tx = String(it.texto || '');
-          if (tx) {
-            textos.push(tx);
-            advogadosDjen.push(...extrairAdvogadosDoTexto(tx));
+          const tx = plainTextFromDjen(String(it.texto || ''));
+          if (tx) textos.push(tx);
+          advogadosDjen.push(...extrairAdvogadosDoTexto(tx || String(it.texto || '')));
+          for (const d of it.destinatarios || []) {
+            const nome = String(d.nome || '').trim().toUpperCase();
+            if (!nome) continue;
+            const polo = String(d.polo || '').toUpperCase();
+            if (
+              /PASSIVO|R[EÉ]U|REQUERID|EXECUTAD/.test(polo) ||
+              /BANCO|S\.?\s*A\.?|LTDA|FINANCEIRA|SAFRA|ITA[UÚ]|BRADESCO|SANTANDER|CAIXA|INTER\b|NUBANK|PAN\b|BMG|C6/.test(nome)
+            ) {
+              if (!bancoDetectado) bancoDetectado = nome;
+            }
+            for (const a of d.advogados || []) {
+              const an = String(a || '').trim();
+              if (an) advogadosDjen.push(an);
+            }
           }
         }
-        advogadosDjen = Array.from(new Set(advogadosDjen)).slice(0, 8);
+        advogadosDjen = Array.from(new Set(advogadosDjen.map((a) => a.toUpperCase()))).slice(0, 8);
         if (advogadosDjen[0]) ultimoNome = advogadosDjen[0];
-        const up = textos.join(' ').toUpperCase();
-        if (/TRANSITO EM JULGADO|BAIXA DEFINITIVA|ARQUIVAMENTO/.test(up)) encerrado = true;
+
+        const corpus = textos.join('\n');
+        const up = corpus.toUpperCase();
+        if (/TRANSITO EM JULGADO|BAIXA DEFINITIVA|ARQUIVADO DEFINIT|ARQUIVAMENTO DEFINIT/.test(up)) {
+          encerrado = true;
+        }
+        if (/CUMPRIMENTO\s+DE\s+SENTEN[CÇ]A|EXECU[CÇ][AÃ]O\s+DE\s+SENTEN[CÇ]A/.test(up)) {
+          cumprimento = true;
+        }
+        if (!cpfDetectado) {
+          const cpf = extrairCpfDoTexto(corpus);
+          if (cpf) cpfDetectado = formatCpfMask(cpf);
+        }
+        if (!emailDetectado) {
+          const em = corpus.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+          if (em) emailDetectado = em[0].toLowerCase();
+        }
+        if (!estadoCivilDetectado) {
+          const ec = up.match(/\b(SOLTEIR[OA]|CASAD[OA]|DIVORCIAD[OA]|VI[UÚ]V[OA]|UNI[AÃ]O EST[AÁ]VEL)\b/);
+          if (ec) estadoCivilDetectado = ec[1];
+        }
+        if (!cnpjPassivo) {
+          const m = corpus.match(/\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/);
+          if (m) {
+            const d = m[1].replace(/\D/g, '');
+            if (d.length === 14) cnpjPassivo = d;
+          }
+        }
+        if (!bancoDetectado) {
+          const banks = [
+            'BANCO DO BRASIL', 'BANCO ITAÚ', 'BANCO ITAU', 'ITAÚ UNIBANCO', 'ITAU UNIBANCO',
+            'BANCO BRADESCO', 'BANCO SANTANDER', 'CAIXA ECONÔMICA', 'CAIXA ECONOMICA',
+            'NUBANK', 'BANCO INTER', 'BANCO PAN', 'BANCO BMG', 'BANCO C6', 'BANCO SAFRA',
+            'BANCO ORIGINAL', 'BANCO DAYCOVAL', 'CREFISA', 'BANCO AGIBANK', 'BANCO MASTER',
+          ];
+          for (const b of banks) {
+            if (up.includes(b)) {
+              bancoDetectado = b;
+              break;
+            }
+          }
+        }
+        if (textos[0]) resumo = textos[0].slice(0, 180);
       }
     }
   } catch { /* */ }
-
-  if (!cpfDetectado) {
-    for (const tx of textos) {
-      const cpf = extrairCpfDoTexto(tx);
-      if (cpf) {
-        cpfDetectado = formatCpfMask(cpf);
-        break;
-      }
-    }
-  }
 
   const via = avaliarViabilidadeSubstabelecimento({
     textos,
@@ -344,7 +385,7 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
         system: `Classifique ELEGIBILIDADE para revogacao/substabelecimento. Responda JSON: {"elegivel":boolean,"motivo":"string curta","advogado_atual":"string|null","cpf":"string|null"}. Sem texto fora do JSON. Nao invente.`,
         messages: [{
           role: 'user',
-          content: `Protocolo: ${protocolo}\nEncerrado_flag: ${encerrado}\nCumprimento_flag: ${cumprimento}\nAdvogados_DJEN: ${advogadosDjen.join(', ') || '(nenhum)'}\nTeor:\n${textos.join('\n---\n').slice(0, 6000)}`,
+          content: `Protocolo: ${protocolo}\nEncerrado_flag: ${encerrado}\nCumprimento_flag: ${cumprimento}\nAdvogados_DJEN: ${advogadosDjen.join(', ') || '(nenhum)'}\nTeor:\n${textos.join('\n---\n').slice(0, 4000)}`,
         }],
         temperature: 0.2,
         max_tokens: 400,
@@ -364,7 +405,7 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
     cumprimento,
     elegivel,
     motivo: encerrado
-      ? 'Encerrado/baixa (tribunal)'
+      ? 'Encerrado/baixa (DJEN)'
       : cumprimento
         ? 'Cumprimento de sentenca'
         : via.motivo,
@@ -378,6 +419,12 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
     analiseClaude,
     engineClaude,
     cpfDetectado,
+    emailDetectado,
+    estadoCivilDetectado,
+    enderecoDetectado,
+    bancoDetectado,
+    acaoDetectada,
+    cnpjPassivo,
   };
 }
 

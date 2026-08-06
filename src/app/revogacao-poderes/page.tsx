@@ -44,7 +44,7 @@ const UFS = [
   "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ];
 
-const DELAY_MS = 2500;
+const DELAY_MS = 400;
 
 function downloadBase64Pdf(base64: string, filename: string) {
   const a = document.createElement("a");
@@ -197,23 +197,58 @@ export default function RevogacaoPoderesPage() {
       useClaude: useClaudeElegibilidade,
     });
     if (!r.success) {
-      addLog(`  falha tribunal: ${(r as any).error || "?"}`);
+      addLog(`  falha DJEN: ${(r as any).error || "?"}`);
       return it;
     }
-    const cpfDj = (r as any).cpfDetectado as string | null;
-    if (cpfDj && autoFillCpf) {
-      setCpfByProtocolo((prev) => {
-        if (prev[it.protocolo]?.replace(/\D/g, '').length === 11) return prev;
-        addLog(`  CPF (carteira/DJEN): ${cpfDj}`);
-        return { ...prev, [it.protocolo]: cpfDj };
-      });
+    const anyR = r as any;
+    if (autoFillCpf) {
+      const cpfDj = anyR.cpfDetectado as string | null;
+      if (cpfDj) {
+        setCpfByProtocolo((prev) => {
+          if (prev[it.protocolo]?.replace(/\D/g, "").length === 11) return prev;
+          addLog(`  CPF: ${cpfDj}`);
+          return { ...prev, [it.protocolo]: cpfDj };
+        });
+      }
+      if (anyR.emailDetectado) {
+        setEmailByProtocolo((prev) => {
+          if (prev[it.protocolo]) return prev;
+          return { ...prev, [it.protocolo]: String(anyR.emailDetectado) };
+        });
+      }
+      if (anyR.estadoCivilDetectado) {
+        setEstadoCivilByProtocolo((prev) => {
+          if (prev[it.protocolo]) return prev;
+          return { ...prev, [it.protocolo]: String(anyR.estadoCivilDetectado) };
+        });
+      }
+      if (anyR.enderecoDetectado) {
+        setEnderecoByProtocolo((prev) => {
+          if (prev[it.protocolo]) return prev;
+          return { ...prev, [it.protocolo]: String(anyR.enderecoDetectado) };
+        });
+      }
+      if (anyR.bancoDetectado) {
+        setBancoByProtocolo((prev) => {
+          if (prev[it.protocolo]) return prev;
+          addLog(`  Banco: ${anyR.bancoDetectado}`);
+          return { ...prev, [it.protocolo]: String(anyR.bancoDetectado) };
+        });
+      }
+      if (anyR.acaoDetectada) {
+        setAcaoByProtocolo((prev) => {
+          if (prev[it.protocolo]) return prev;
+          return { ...prev, [it.protocolo]: String(anyR.acaoDetectada) };
+        });
+      }
     }
-    if (useClaudeElegibilidade && (r as any).analiseClaude) {
-      addLog(`  [IA elegibilidade] ${String((r as any).analiseClaude).slice(0, 160)}`);
+    if (useClaudeElegibilidade && anyR.analiseClaude) {
+      addLog(`  [IA elegibilidade] ${String(anyR.analiseClaude).slice(0, 160)}`);
     }
     addLog(
       `  ${r.elegivel ? "ELEGIVEL" : "FORA"} · ${r.motivo}` +
-        (r.ultimoAdvogadoDetectado ? ` · adv ${r.ultimoAdvogadoDetectado}` : "")
+        (r.ultimoAdvogadoDetectado ? ` · adv ${r.ultimoAdvogadoDetectado}` : "") +
+        (anyR.djenChecked ? " · DJEN" : " · sem DJEN")
     );
     return {
       ...it,
@@ -222,12 +257,18 @@ export default function RevogacaoPoderesPage() {
       encerrado: r.encerrado,
       cumprimento: r.cumprimento,
       ultimoAdvogadoDetectado: r.ultimoAdvogadoDetectado || it.ultimoAdvogadoDetectado,
-      advogadosDjen: (r as any).advogadosDjen || [],
-      viabilidade: (r as any).viabilidade || null,
-      viavelSubstabelecer: (r as any).viavelSubstabelecer ?? r.elegivel,
+      advogadosDjen: anyR.advogadosDjen || [],
+      viabilidade: anyR.viabilidade || null,
+      viavelSubstabelecer: anyR.viavelSubstabelecer ?? r.elegivel,
       djenChecked: true,
-      analiseClaude: (r as any).analiseClaude || null,
-      engineClaude: (r as any).engineClaude || null,
+      analiseClaude: anyR.analiseClaude || null,
+      engineClaude: anyR.engineClaude || null,
+      cpf: anyR.cpfDetectado || it.cpf,
+      email: anyR.emailDetectado || it.email,
+      estado_civil: anyR.estadoCivilDetectado || it.estado_civil,
+      endereco: anyR.enderecoDetectado || it.endereco,
+      parte_passiva: anyR.bancoDetectado || it.parte_passiva,
+      classe_acao: anyR.acaoDetectada || it.classe_acao,
     } as RevogacaoCaseItem;
   };
 
@@ -238,7 +279,8 @@ export default function RevogacaoPoderesPage() {
     const list = itemsRef.current;
     let i = from;
     while (i < list.length) {
-      if (cancelRef.current.cancelled || statusRef.current === "paused") {
+      // pause/stop usam cancelRef (evita narrowing TS de statusRef === "paused")
+      if (cancelRef.current.cancelled) {
         setQStatus("paused");
         statusRef.current = "paused";
         return;
