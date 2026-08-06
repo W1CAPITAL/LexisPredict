@@ -220,12 +220,12 @@ export default function Dashboard() {
                 <AlertCircle size={14} /> Alerta de Mérito Ativo
               </Badge>
             )}
-            <MetalButton preset="chromatic" variant="outline" size="sm" asChild className={cn("h-10 px-4 sm:px-6 rounded-full text-[11px] font-black uppercase tracking-wider", ui.touch)}>
+            <MetalButton preset="chromatic" strength={1} variant="outline" size="sm" asChild className={cn("h-10 px-4 sm:px-6 rounded-full text-[11px] font-black uppercase tracking-wider", ui.touch)}>
               <Link href="/report">
                 <FileDown size={16} className="mr-2 hidden sm:inline" /> Dossiê Operacional
               </Link>
             </MetalButton>
-            <MetalButton preset="silver" variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar">
+            <MetalButton preset="silver" strength={1} variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar">
                <RefreshCcw size={18} className={cn(loading && "animate-spin text-primary")} />
             </MetalButton>
           </div>
@@ -244,6 +244,23 @@ export default function Dashboard() {
 
           <ScrollArea className="flex-1 overflow-auto">
             <TabsContent value="overview" className="p-4 sm:p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
+            {/* EFFORD — topo do dashboard */}
+            <div className="mb-6">
+              <section className="rounded-2xl border border-border/50 bg-card/50 p-3 sm:p-5 shadow-sm backdrop-blur-sm">
+                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Painel KPI · Efferd</p>
+                <EfferdPanel
+                  totalProcessos={cases.length}
+                  ativos={metrics.activeTotal}
+                  pendentes={metrics.countNovoAndamento + metrics.countHoje}
+                  vencidos={metrics.countVencido}
+                  novidades={metrics.countNovoAndamento}
+                  baixas={metrics.countEncerradoTribunal}
+                  hoje={metrics.countHoje}
+                  riskScore={metrics.riskScore}
+                />
+              </section>
+            </div>
+
               <section className={ui.metrics5}>
                 <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} />
                 <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" />
@@ -375,25 +392,6 @@ export default function Dashboard() {
                    </section>
 
                    
-          <div className="orbit-surface overflow-hidden mb-6 orbit-enter">
-            <div className="orbit-gradient-bar h-1 w-full" />
-            <section className="rounded-2xl border border-border/50 bg-card/40 p-3 sm:p-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Painel KPI · Efferd</p>
-            <EfferdPanel
-                            totalProcessos={cases.length}
-              ativos={metrics.activeTotal}
-              pendentes={metrics.countNovoAndamento + metrics.countHoje}
-              vencidos={metrics.countVencido}
-              novidades={metrics.countNovoAndamento}
-              baixas={metrics.countEncerradoTribunal}
-              hoje={metrics.countHoje}
-              riskScore={metrics.riskScore}
-              className="p-4"
-            />
-            </section>
-          </div>
-<OfficeStats cases={cases} />
-                </div>
 
                 <div className="xl:col-span-4 space-y-8">
                    {iaInsights && (

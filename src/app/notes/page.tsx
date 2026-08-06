@@ -85,6 +85,7 @@ export default function NotesPage() {
   const { toast } = useToast();
 
   const [newNote, setNewNote] = useState({ title: "", content: "" });
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
   const loadData = useCallback(async (force = false) => {
     if (!force && initialLoadDone.current) return;
@@ -354,18 +355,30 @@ export default function NotesPage() {
                 return (
                   <div
                     key={note.id}
-                    className="group border border-border texture-card bg-card/95 p-4 shadow-sm rounded-2xl hover:shadow-[6px_6px_0_#000] transition-shadow flex flex-col gap-3"
+                    className={cn(
+                      "leather-card p-4 flex flex-col gap-3 relative z-0",
+                      expandedNoteId === note.id ? "leather-card--expanded" : "leather-card--collapsed"
+                    )}
+                    onClick={() => setExpandedNoteId(expandedNoteId === note.id ? null : note.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setExpandedNoteId(expandedNoteId === note.id ? null : note.id);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h3 className="font-black uppercase text-xs tracking-wide">
+                        <h3 className="leather-card__title">
                           {note.title || "Nota"}
                         </h3>
-                        <span className="text-[9px] text-black/40 font-black uppercase tracking-[0.15em]">
+                        <span className="leather-card__meta">
                           {(note as any).updatedAt || (note as any).createdAt || ""}
                         </span>
                       </div>
-                      <div className="flex gap-1 shrink-0">
+                      <div className="leather-card__actions flex gap-1 shrink-0">
                         {img && (
                           <Button
                             variant="ghost"
@@ -403,7 +416,7 @@ export default function NotesPage() {
                         <img src={img} alt="" className="object-cover w-full h-full" />
                       </div>
                     )}
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed flex-1">
+                    <p className="leather-card__body text-sm whitespace-pre-wrap leading-relaxed flex-1">
                       {parsed.text}
                     </p>
                     <Badge variant="outline" className="w-fit text-[8px] font-black uppercase rounded-none border-black">

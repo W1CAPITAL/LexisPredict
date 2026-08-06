@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Painel KPI Efferd — animações fortes (LazyMotion) + gráficos sempre visíveis.
- * compact = menos colunas de KPI; gráficos continuam.
+ * Painel KPI Efferd — topo do dashboard, cards legíveis + gráficos.
  */
 import React, { useMemo } from "react";
 import { LazyMotion, domAnimation, m } from "framer-motion";
@@ -34,18 +33,29 @@ type Kpi = {
   value: string | number;
   hint?: string;
   icon: React.ReactNode;
-  tone?: "default" | "danger" | "ok" | "warn";
+  tone?: "default" | "danger" | "ok" | "warn" | "info" | "violet";
 };
 
-const toneCls = {
-  default: "border-border/70 bg-card/90",
-  danger: "border-red-500/50 bg-red-500/10 shadow-[0_0_24px_rgba(239,68,68,0.12)]",
-  ok: "border-emerald-500/45 bg-emerald-500/10",
-  warn: "border-amber-500/45 bg-amber-500/10",
+const toneCls: Record<string, string> = {
+  default: "bg-slate-50 border-slate-200/90 dark:bg-slate-900/60 dark:border-slate-700",
+  danger: "bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:border-rose-800/60",
+  ok: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800/60",
+  warn: "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800/60",
+  info: "bg-sky-50 border-sky-200 dark:bg-sky-950/40 dark:border-sky-800/60",
+  violet: "bg-violet-50 border-violet-200 dark:bg-violet-950/40 dark:border-violet-800/60",
+};
+
+const iconTone: Record<string, string> = {
+  default: "bg-slate-900 text-white dark:bg-white dark:text-slate-900",
+  danger: "bg-rose-600 text-white",
+  ok: "bg-emerald-600 text-white",
+  warn: "bg-amber-500 text-white",
+  info: "bg-sky-600 text-white",
+  violet: "bg-violet-600 text-white",
 };
 
 const BAR_COLORS = [
-  "hsl(var(--primary))",
+  "#2563eb",
   "#34d399",
   "#fbbf24",
   "#f87171",
@@ -54,43 +64,48 @@ const BAR_COLORS = [
 ];
 
 function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
+  const tone = k.tone || "default";
   return (
     <m.div
-      initial={{ opacity: 0, y: 18, scale: 0.96 }}
+      initial={{ opacity: 0, y: 14, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{
         type: "spring",
-        stiffness: 380,
+        stiffness: 400,
         damping: 28,
-        delay: delay * 0.05,
+        delay: delay * 0.04,
       }}
-      whileHover={{ y: -3, transition: { duration: 0.15 } }}
+      whileHover={{ y: -4, transition: { duration: 0.15 } }}
       className={cn(
-        "relative overflow-hidden rounded-2xl border p-4 backdrop-blur-md",
-        "shadow-sm hover:shadow-md transition-shadow",
-        toneCls[k.tone || "default"]
+        "relative overflow-hidden rounded-2xl border p-4 sm:p-5 min-h-[118px]",
+        "shadow-[0_8px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_12px_32px_rgba(15,23,42,0.1)]",
+        "transition-shadow",
+        toneCls[tone]
       )}
     >
-      <div className="absolute inset-0 opacity-[0.07] pointer-events-none bg-[radial-gradient(circle_at_20%_0%,hsl(var(--primary)),transparent_55%)]" />
-      <div className="relative flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground truncate">
+      <div className="relative z-10 flex flex-col h-full gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300 leading-tight">
             {k.label}
           </p>
-          <m.p
-            className="text-2xl sm:text-3xl font-black mt-1 tabular-nums tracking-tight"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: delay * 0.05 + 0.15 }}
+          <div
+            className={cn(
+              "h-9 w-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+              iconTone[tone]
+            )}
           >
-            {k.value}
-          </m.p>
-          {k.hint ? (
-            <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{k.hint}</p>
-          ) : null}
+            {k.icon}
+          </div>
         </div>
-        <div className="h-10 w-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
-          {k.icon}
+        <div className="mt-auto">
+          <p className="text-3xl sm:text-4xl font-black tabular-nums tracking-tighter text-slate-900 dark:text-white leading-none">
+            {k.value}
+          </p>
+          {k.hint ? (
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 font-medium">
+              {k.hint}
+            </p>
+          ) : null}
         </div>
       </div>
     </m.div>
@@ -107,7 +122,6 @@ export type LexisDashboardProps = {
   hoje?: number;
   riskScore?: number;
   className?: string;
-  /** Só reduz grid de KPI; gráficos permanecem */
   compact?: boolean;
 };
 
@@ -155,159 +169,141 @@ export function Dashboard({
     {
       label: "Carteira",
       value: totalProcessos,
-      icon: <Briefcase size={18} />,
+      icon: <Briefcase size={16} />,
+      tone: "info",
       hint: "Total na empresa",
     },
     {
-      label: "Pendentes / sinal",
+      label: "Pendentes",
       value: pendentes,
-      icon: <Activity size={18} />,
+      icon: <Activity size={16} />,
       tone: pendentes > 0 ? "warn" : "ok",
       hint: "Andamentos + prazos do dia",
     },
     {
       label: "Vencidos",
       value: vencidos,
-      icon: <AlertTriangle size={18} />,
+      icon: <AlertTriangle size={16} />,
       tone: vencidos > 0 ? "danger" : "ok",
+      hint: "Prazo estourado",
     },
     {
       label: "Novidades CNJ",
       value: novidades,
-      icon: <TrendingUp size={18} />,
+      icon: <TrendingUp size={16} />,
       tone: novidades > 0 ? "warn" : "default",
+      hint: "Movimento após retorno",
     },
     {
       label: "É hoje",
       value: hoje,
-      icon: <Clock size={18} />,
+      icon: <Clock size={16} />,
       tone: hoje > 0 ? "warn" : "default",
+      hint: "Retorno / prazo hoje",
     },
     {
       label: "Baixas tribunal",
       value: baixas,
-      icon: <Gavel size={18} />,
+      icon: <Gavel size={16} />,
       tone: "ok",
+      hint: "Encerrados no CNJ",
     },
   ];
 
   const risk = typeof riskScore === "number" ? riskScore : 0;
+  const gridCls = compact
+    ? "grid grid-cols-2 sm:grid-cols-3 gap-3"
+    : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3";
 
   return (
     <LazyMotion features={domAnimation} strict>
       <div className={cn("space-y-5", className)}>
-        {/* Telemetria strip */}
-        <m.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2"
-        >
-          <Signal size={14} className="text-primary" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            Telemetria unificada
+        {/* Risco */}
+        <div className="flex items-center gap-3 px-1">
+          <Signal size={14} className="text-muted-foreground shrink-0" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+            Risco
           </span>
-          <span className="text-[11px] font-bold tabular-nums">
-            {novidades} novidades · {vencidos} vencidos · {baixas} baixas
-          </span>
-          <div className="ml-auto flex items-center gap-2 min-w-[120px] max-w-[200px] flex-1">
-            <span className="text-[9px] font-black uppercase text-muted-foreground">Risco</span>
-            <div className="h-1.5 flex-1 rounded-full bg-secondary overflow-hidden">
-              <m.div
-                className={cn(
-                  "h-full rounded-full",
-                  risk >= 60 ? "bg-red-500" : risk >= 35 ? "bg-amber-500" : "bg-emerald-500"
-                )}
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, risk)}%` }}
-                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-              />
-            </div>
-            <span className="text-xs font-black tabular-nums">{risk}%</span>
+          <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <m.div
+              className={cn(
+                "h-full rounded-full",
+                risk >= 60 ? "bg-rose-500" : risk >= 35 ? "bg-amber-500" : "bg-emerald-500"
+              )}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(100, Math.max(0, risk))}%` }}
+              transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            />
           </div>
-        </m.div>
+          <span className="text-sm font-black tabular-nums w-12 text-right">{risk}%</span>
+        </div>
 
-        <div
-          className={cn(
-            "grid gap-3",
-            compact
-              ? "grid-cols-2 md:grid-cols-3"
-              : "grid-cols-2 md:grid-cols-3 xl:grid-cols-6"
-          )}
-        >
+        <div className={gridCls}>
           {kpis.map((k, i) => (
             <KpiCard key={k.label} k={k} delay={i} />
           ))}
         </div>
 
-        {/* Gráficos — sempre */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <m.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.45 }}
-            className="rounded-2xl border border-border/60 bg-card/90 p-4 h-[280px] shadow-sm"
-          >
-            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground mb-3">
               Fluxo semanal (modelo operacional)
             </p>
-            <ResponsiveContainer width="100%" height="88%">
-              <AreaChart data={series}>
-                <defs>
-                  <linearGradient id="gScans" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} width={28} />
-                <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="scans"
-                  name="Sinais"
-                  stroke="hsl(var(--primary))"
-                  fill="url(#gScans)"
-                  strokeWidth={2.5}
-                  animationDuration={900}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="retornos"
-                  name="Pendências"
-                  stroke="hsl(var(--muted-foreground))"
-                  fill="transparent"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 4"
-                  animationDuration={900}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </m.div>
+            <div className="h-[200px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={series}>
+                  <defs>
+                    <linearGradient id="efferdScans" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} width={36} />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="scans"
+                    stroke="#2563eb"
+                    fill="url(#efferdScans)"
+                    strokeWidth={2}
+                    name="Sinais"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="retornos"
+                    stroke="#94a3b8"
+                    fill="transparent"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 4"
+                    name="Retornos"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-          <m.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28, duration: 0.45 }}
-            className="rounded-2xl border border-border/60 bg-card/90 p-4 h-[280px] shadow-sm"
-          >
-            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground mb-3">
               Distribuição da carteira
             </p>
-            <ResponsiveContainer width="100%" height="88%">
-              <BarChart data={bars}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} />
-                <YAxis tick={{ fontSize: 10 }} width={28} />
-                <Tooltip />
-                <Bar dataKey="v" name="Qtd" radius={[8, 8, 0, 0]} animationDuration={900}>
-                  {bars.map((_, i) => (
-                    <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </m.div>
+            <div className="h-[200px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bars}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} width={40} />
+                  <Tooltip />
+                  <Bar dataKey="v" radius={[6, 6, 0, 0]} name="Qtd">
+                    {bars.map((_, i) => (
+                      <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </div>
     </LazyMotion>

@@ -1,43 +1,26 @@
-/**
- * Design tokens — efeitos metálicos LexisPredict
- * Importar em globals.css: @import '../styles/metal-tokens.css';
- */
+
 :root {
-  /* Strength / intensity */
-  --metal-strength-soft: 0.55;
-  --metal-strength-default: 0.88;
+  --metal-strength-soft: 0.85;
+  --metal-strength-default: 1;
   --metal-strength-strong: 1;
-
-  /* Preset hues (CSS fallbacks when WebGL off / reduced-motion) */
-  --metal-chromatic-from: #7dd3fc;
-  --metal-chromatic-via: #c4b5fd;
-  --metal-chromatic-to: #f9a8d4;
-  --metal-silver-from: #e2e8f0;
+  --metal-chromatic-from: #38bdf8;
+  --metal-chromatic-via: #a78bfa;
+  --metal-chromatic-to: #f472b6;
+  --metal-silver-from: #f8fafc;
   --metal-silver-via: #94a3b8;
-  --metal-silver-to: #f8fafc;
-  --metal-gold-from: #fde68a;
+  --metal-silver-to: #475569;
+  --metal-gold-from: #fef3c7;
   --metal-gold-via: #f59e0b;
-  --metal-gold-to: #fef3c7;
-
-  /* Ring / edge */
-  --metal-ring: color-mix(in oklab, white 28%, transparent);
-  --metal-shadow: 0 8px 28px color-mix(in oklab, var(--primary, #2563eb) 22%, transparent);
-  --metal-shadow-hover: 0 12px 36px color-mix(in oklab, var(--primary, #2563eb) 32%, transparent);
-
-  /* Motion (synced with framer tokens below) */
-  --motion-spring-stiff: 400;
-  --motion-spring-damp: 28;
-  --motion-stagger: 0.045s;
-  --motion-fade-duration: 0.28s;
+  --metal-gold-to: #b45309;
+  --metal-ring: color-mix(in oklab, white 40%, transparent);
+  --metal-shadow: 0 10px 32px rgba(37, 99, 235, 0.35);
+  --metal-shadow-hover: 0 14px 40px rgba(37, 99, 235, 0.45);
 }
-
 .dark {
-  --metal-ring: color-mix(in oklab, white 14%, transparent);
-  --metal-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-  --metal-shadow-hover: 0 12px 36px rgba(0, 0, 0, 0.55);
+  --metal-ring: color-mix(in oklab, white 20%, transparent);
+  --metal-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  --metal-shadow-hover: 0 14px 40px rgba(0, 0, 0, 0.6);
 }
-
-/* Fallback metallic surface when metal=false or reduced motion */
 .metal-surface {
   position: relative;
   isolation: isolate;
@@ -50,32 +33,11 @@
   transform: translateY(-1px);
 }
 .metal-surface--chromatic {
-  background-image: linear-gradient(
-    135deg,
-    var(--metal-chromatic-from),
-    var(--metal-chromatic-via),
-    var(--metal-chromatic-to)
-  );
+  background-image: linear-gradient(135deg, var(--metal-chromatic-from), var(--metal-chromatic-via), var(--metal-chromatic-to));
 }
 .metal-surface--silver {
-  background-image: linear-gradient(
-    135deg,
-    var(--metal-silver-from),
-    var(--metal-silver-via),
-    var(--metal-silver-to)
-  );
+  background-image: linear-gradient(135deg, var(--metal-silver-from), var(--metal-silver-via), var(--metal-silver-to));
 }
 .metal-surface--gold {
-  background-image: linear-gradient(
-    135deg,
-    var(--metal-gold-from),
-    var(--metal-gold-via),
-    var(--metal-gold-to)
-  );
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .metal-surface:hover {
-    transform: none;
-  }
+  background-image: linear-gradient(135deg, var(--metal-gold-from), var(--metal-gold-via), var(--metal-gold-to));
 }

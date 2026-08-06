@@ -1,6 +1,5 @@
 /**
- * Política única de metal automático (shadcn Button).
- * Centraliza regras — UI e tokens não duplicam lógica.
+ * Política metal — força alta nos CTAs (pedido: metal bem visível).
  */
 import type { MetalFxPreset } from "metal-fx";
 
@@ -16,14 +15,16 @@ export type ButtonVariant =
   | undefined;
 
 export type ButtonSize = "default" | "sm" | "lg" | "icon" | null | undefined;
-
 export type MetalMode = boolean | "auto";
 
-/** Variantes que merecem anel WebGL por padrão */
-const METAL_VARIANTS = new Set<string>(["default", "liquid", "destructive"]);
+const METAL_VARIANTS = new Set<string>([
+  "default",
+  "liquid",
+  "destructive",
+  "secondary",
+]);
 
-/** Nunca metal automático (densidade de UI / performance) */
-const NEVER_AUTO = new Set<string>(["ghost", "link", "outline"]);
+const NEVER_AUTO = new Set<string>(["ghost", "link"]);
 
 export function resolveMetalEnabled(opts: {
   metal?: MetalMode;
@@ -46,12 +47,11 @@ export function resolveMetalEnabled(opts: {
   if (metal === true) return true;
   if (metal === false) return false;
 
-  // auto
-  if (size === "icon") return false;
+  // auto: inclui secondary e outline com fundo; icon também pode ser metal
   const v = variant ?? "default";
   if (NEVER_AUTO.has(v)) return false;
-  if (METAL_VARIANTS.has(v)) return true;
-  // secondary: CSS token only (no WebGL) — treat as false here
+  if (METAL_VARIANTS.has(v) || v === "outline") return true;
+  if (size === "icon" && (v === "default" || v === "secondary")) return true;
   return false;
 }
 
@@ -61,10 +61,12 @@ export function resolveMetalPreset(
 ): MetalFxPreset {
   if (preset) return preset;
   if (variant === "destructive") return "gold";
+  if (variant === "secondary") return "silver";
   if (variant === "liquid") return "chromatic";
   return "chromatic";
 }
 
+/** Força máxima padrão — efeito bem perceptível */
 export function resolveMetalStrength(
   strength?: number,
   size?: ButtonSize
@@ -72,9 +74,9 @@ export function resolveMetalStrength(
   if (typeof strength === "number" && strength >= 0 && strength <= 1) {
     return strength;
   }
-  if (size === "sm") return 0.72;
-  if (size === "lg") return 0.95;
-  return 0.88;
+  if (size === "sm") return 0.95;
+  if (size === "lg") return 1;
+  return 1; // default full strength
 }
 
 export function metalSurfaceClass(preset: MetalFxPreset = "chromatic"): string {

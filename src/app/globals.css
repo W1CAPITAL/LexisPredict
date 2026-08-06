@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "../styles/leather-notes.css";
+
 @import "../styles/metal-tokens.css";
 
 @import "./globals-ai-draft-contrast.css";
