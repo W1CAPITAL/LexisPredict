@@ -64,6 +64,7 @@ const emptyForm = () => ({
   parte_passiva: "",
   parte_passiva_cnpj: "",
   advogado: "",
+  advogado_passivo: "",
   escritorio: "",
   classe_acao: "",
   tribunal: "",
@@ -121,6 +122,7 @@ export default function CadastroProcessoPage() {
         parte_passiva: res.parte_passiva || prev.parte_passiva,
         parte_passiva_cnpj: res.parte_passiva_cnpj || prev.parte_passiva_cnpj,
         advogado: res.advogado || prev.advogado,
+        advogado_passivo: (res as any).advogado_passivo || prev.advogado_passivo,
         classe_acao: res.classe_acao || prev.classe_acao,
         tribunal: res.tribunal || prev.tribunal,
         orgao_julgador: res.orgao_julgador || prev.orgao_julgador,
@@ -139,7 +141,8 @@ export default function CadastroProcessoPage() {
         res.cliente && "cliente",
         res.parte_passiva && "réu",
         res.classe_acao && "classe",
-        res.advogado && "advogado",
+        res.advogado && "adv. ativo",
+        (res as any).advogado_passivo && "adv. passivo",
         (res as any).cpf && "CPF",
       ].filter(Boolean);
       toast({
@@ -181,6 +184,7 @@ export default function CadastroProcessoPage() {
         classe_acao: form.classe_acao,
         orgao_julgador: form.orgao_julgador,
         advogado: form.advogado,
+        advogado_passivo: form.advogado_passivo,
         escritorio: form.escritorio,
         proximoPrazo: form.proximoPrazo,
         situacao: form.situacao,
@@ -471,11 +475,21 @@ export default function CadastroProcessoPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase">Advogado responsável</Label>
+                  <Label className="text-[10px] font-black uppercase">Advogado polo ativo (mais recente)</Label>
                   <Input
                     value={form.advogado}
                     onChange={(e) => setField("advogado", e.target.value.toUpperCase())}
                     className="h-11 rounded-xl font-bold uppercase text-xs"
+                    placeholder="Advogado do autor / cliente"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Advogado polo passivo (mais recente)</Label>
+                  <Input
+                    value={form.advogado_passivo}
+                    onChange={(e) => setField("advogado_passivo", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                    placeholder="Advogado do réu / banco"
                   />
                 </div>
                 <div className="space-y-2">
