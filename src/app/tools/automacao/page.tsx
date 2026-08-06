@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * Cadastro de processo (ex-Automação Judicial)
  * Fluxo principal: CNJ → DJEN (exclusivo, rápido) → formulário completo → carteira
  * Sem screenshot automático do tribunal.
  */
-"use client";
 
 import React, { useMemo, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";

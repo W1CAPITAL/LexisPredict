@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * @fileOverview Componente de Instalação Móvel v110.0
  * Gerencia o prompt de instalação PWA ou fornece instruções para iOS/Android.
  * Otimizado com cleanup de listeners e detecção inteligente de plataforma.
  */
-"use client";
 
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Download, Info } from 'lucide-react';

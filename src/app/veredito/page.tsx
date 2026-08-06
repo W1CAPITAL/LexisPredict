@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * Consulta de processo — SEM fetch DataJud no browser (evita CORS).
  * Tudo via server actions.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
-"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/layout/sidebar";

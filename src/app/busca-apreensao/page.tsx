@@ -1,7 +1,8 @@
+"use client";
+
 /**
  * Fila BA — tipos claros (veículo/prisão/penhora/imóvel) + geo + histórico visual.
  */
-"use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";

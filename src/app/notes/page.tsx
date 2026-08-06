@@ -1,8 +1,9 @@
+"use client";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * Notas / anotações do CRM — criar, editar e excluir (persistido em Supabase).
  */
-"use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Sidebar } from "@/components/layout/sidebar";

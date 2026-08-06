@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * Chatbot independente + easter egg legível:
  * ao enviar URL mediari.app/analise, abre o site embutido no app (sem UI de “surpresa”).
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
-"use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";

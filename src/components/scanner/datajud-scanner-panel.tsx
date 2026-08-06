@@ -1,9 +1,9 @@
+"use client";
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
  */
-"use client";
 
 import React from 'react';
 import { useDataJudScanStore, ScanLog } from '@/store/use-datajud-scan-store';

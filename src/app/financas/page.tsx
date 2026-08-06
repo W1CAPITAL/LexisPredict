@@ -1,8 +1,9 @@
+"use client";
+
 /**
  * Finanças / Honorários — escopo Lexis: valores ligados a cliente/processo da carteira.
  * Não é ERP; é controle operacional de honorários, custas e sucumbência.
  */
-"use client";
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";

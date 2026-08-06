@@ -1,9 +1,10 @@
+"use client";
+
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
-"use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';

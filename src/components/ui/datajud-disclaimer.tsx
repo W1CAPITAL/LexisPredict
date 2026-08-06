@@ -1,7 +1,8 @@
+"use client";
+
 /**
  * Aviso honesto sobre limites DataJud / DJEN — reduz suporte e expectativa irreal.
  */
-"use client";
 
 import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";

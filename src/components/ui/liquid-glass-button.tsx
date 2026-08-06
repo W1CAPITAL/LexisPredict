@@ -1,8 +1,9 @@
+"use client";
+
 /**
  * Liquid Glass Button — estilo premium (Cult / glass)
  * Use variant="liquid" no Button ou <LiquidButton>
  */
-"use client";
 
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";

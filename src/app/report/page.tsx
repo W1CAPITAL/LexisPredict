@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
  * DOSSIÊ OPERACIONAL v25.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
  */
-"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import { LegalCase, CaseNote } from "@/lib/case-logic";

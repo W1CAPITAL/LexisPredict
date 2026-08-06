@@ -1,8 +1,9 @@
+"use client";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
-"use client";
 
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';

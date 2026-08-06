@@ -1,7 +1,8 @@
+"use client";
+
 /**
  * Botão visível: Exportar XLSX Dossiê (não altera o CSV).
  */
-"use client";
 
 import React, { useState } from "react";
 import { FileSpreadsheet, Loader2 } from "lucide-react";

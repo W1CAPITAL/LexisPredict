@@ -1,10 +1,11 @@
+"use client";
+
 /**
  * Settings → Núcleo Neural
  * - Lista TODOS os motores (oficial / Lexis / Puter)
  * - Seletor de motor preferido
  * - Opção: Claude + DJEN identifica Busca e Apreensão
  */
-"use client";
 
 import React, { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";

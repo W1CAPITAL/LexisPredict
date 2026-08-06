@@ -1,8 +1,9 @@
+"use client";
+
 /**
  * Botão conectado a tribunais-links — abre consulta pública (eproc preferencial).
  * Usar em: Cases, Tarefas, Veredito, Scanner, Automação Judicial.
  */
-"use client";
 
 import React from "react";
 import { ExternalLink, Scale } from "lucide-react";

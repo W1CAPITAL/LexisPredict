@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * Centro de Alertas removido (v12) — redireciona para o Dashboard.
  * Motivo: excesso de falsos positivos de BA e ruído operacional.
  */
-"use client";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";

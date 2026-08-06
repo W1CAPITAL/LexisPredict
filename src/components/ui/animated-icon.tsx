@@ -1,8 +1,9 @@
+"use client";
+
 /**
  * Ícones com microanimações (estilo Grok): glow, float, pulse, shimmer.
  * Uso: <AnimatedIcon icon={Bot} variant="glow" />
  */
-"use client";
 
 import React from "react";
 import { cn } from "@/lib/utils";

@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * Revogacao de poderes + substabelecimento
  * Fila 1 a 1 (como BA). Claude so na elegibilidade (nao no PDF).
  * CPF: flag exige CPF; autofill se achar no DJEN; opcao separada de preencher automatico.
  */
-"use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";

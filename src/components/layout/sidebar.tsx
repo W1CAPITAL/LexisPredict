@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * Sidebar — menu enxuto, nomes claros, sem Notificações / Omni Export / Dossiê.
  * Scroll estável (conteúdo fora do pai).
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
-"use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";

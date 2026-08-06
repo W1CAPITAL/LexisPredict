@@ -1,7 +1,9 @@
+"use client";
+
 /**
  * Assistente IA Lexis — Claude/OmniRoute, thinking visivel, PDF + imagens.
  */
-"use client";
+
 import { PromptLibraryPanel } from "@/components/ai/prompt-library";
 import { AiInstructionsPanel, buildInstructionsPrefix } from "@/components/ai/ai-instructions";
 import { Typewriter } from "@/components/ui/typewriter";

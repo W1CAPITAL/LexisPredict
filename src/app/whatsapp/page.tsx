@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * Terminal WhatsApp — layout de conversa + histórico + sugestões por tribunal.
  * Envio: Evolution (se env) OU wa.me (sem API).
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
-"use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";

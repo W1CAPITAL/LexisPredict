@@ -1,7 +1,8 @@
+"use client";
+
 /**
  * Navegador interno — abre links no app (iframe), mesmo padrão da Automação Judicial.
  */
-"use client";
 
 import React, { useCallback, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";

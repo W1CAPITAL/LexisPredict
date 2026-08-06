@@ -1,8 +1,9 @@
+"use client";
+
 /**
  * Painel OPCIONAL — planilha local (sem Supabase).
  * Não altera o fluxo padrão; só aparece se o usuário ativar.
  */
-"use client";
 
 import React, { useRef, useState } from "react";
 import {
