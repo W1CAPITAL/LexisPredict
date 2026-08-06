@@ -1,16 +1,20 @@
 "use client";
 
 /**
- * shadcn Button + MetalFx opcional (metal-fx).
- * - metal="auto" (padrão): anel metálico em default | liquid | destructive (não em icon/ghost/link)
- * - metal={true|false}: força liga/desliga
- * - preset: chromatic | silver | gold
+ * shadcn Button + metal-fx (política em @/lib/metal-policy).
  */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { MetalFx, type MetalFxPreset } from "metal-fx";
+import { MetalFx } from "metal-fx";
 import { cn } from "@/lib/utils";
+import {
+  resolveMetalEnabled,
+  resolveMetalPreset,
+  resolveMetalStrength,
+  type MetalMode,
+} from "@/lib/metal-policy";
+import type { MetalFxPreset } from "metal-fx";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -48,8 +52,7 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
-  /** auto | true | false — ver cabeçalho do arquivo */
-  metal?: boolean | "auto";
+  metal?: MetalMode;
   metalPreset?: MetalFxPreset;
   metalStrength?: number;
 }
@@ -66,24 +69,6 @@ function useReducedMotion() {
   return reduced;
 }
 
-function shouldMetal(
-  metal: boolean | "auto" | undefined,
-  variant: ButtonProps["variant"],
-  size: ButtonProps["size"]
-) {
-  if (metal === true) return true;
-  if (metal === false) return false;
-  // auto
-  if (size === "icon") return false;
-  if (variant === "ghost" || variant === "link" || variant === "outline") return false;
-  return (
-    variant === "default" ||
-    variant === "liquid" ||
-    variant === "destructive" ||
-    variant == null
-  );
-}
-
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
@@ -92,8 +77,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       metal = "auto",
-      metalPreset = "chromatic",
-      metalStrength = 0.88,
+      metalPreset,
+      metalStrength,
       ...props
     },
     ref
@@ -103,21 +88,32 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => setMounted(true), []);
 
-    const cls = cn(buttonVariants({ variant, size, className }));
-    const enableMetal =
-      mounted && !reduced && !asChild && shouldMetal(metal, variant, size);
+    const enableMetal = resolveMetalEnabled({
+      metal,
+      variant,
+      size,
+      asChild,
+      reducedMotion: reduced,
+      mounted,
+    });
+    const preset = resolveMetalPreset(metalPreset, variant);
+    const strength = resolveMetalStrength(metalStrength, size);
 
     const node = (
-      <Comp className={cls} ref={ref} {...props} />
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
     );
 
     if (!enableMetal) return node;
 
     return (
       <MetalFx
-        preset={metalPreset}
+        preset={preset}
         variant={size === "icon" ? "circle" : "button"}
-        strength={metalStrength}
+        strength={strength}
         theme="auto"
         normalizeHostStyles
         className="inline-flex"

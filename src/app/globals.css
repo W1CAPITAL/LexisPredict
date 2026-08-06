@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "../styles/metal-tokens.css";
+
 @import "./globals-ai-draft-contrast.css";
 @import "./globals-orbit-theme.css";
 @import "./globals-ui-fx.css";

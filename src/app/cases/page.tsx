@@ -15,7 +15,7 @@ import {
   Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown,
   Briefcase, RefreshCcw, Plus
 } from 'lucide-react';
-import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
+import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
@@ -23,9 +23,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
+import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
@@ -525,7 +526,43 @@ function CasesContent() {
       return;
     }
     if (editingCase) {
-      const updatedCase = processarCaso({ ...editingCase, ...formState, cliente, protocolo });
+      const digits = protocolo.replace(/\D/g, '');
+      if (digits.length !== 20) {
+        toast({ title: 'CNJ inválido', description: 'O protocolo deve ter 20 dígitos.', variant: 'destructive' });
+        return;
+      }
+      const oldDigits = String(editingCase.protocolo || '').replace(/\D/g, '');
+      const cnjChanged = digits !== oldDigits;
+      if (cnjChanged) {
+        const dup = cases.some(
+          c => c.id !== editingCase.id && String(c.protocolo || '').replace(/\D/g, '') === digits
+        );
+        if (dup) {
+          toast({ title: 'Protocolo já existe', description: 'Este CNJ já está na carteira.', variant: 'destructive' });
+          return;
+        }
+      }
+      const tribunalData = extrairTribunal(protocolo);
+      const updatedCase = processarCaso({
+        ...editingCase,
+        ...formState,
+        cliente,
+        protocolo,
+        tribunal: tribunalData?.tribunal || editingCase.tribunal,
+      });
+      if (cnjChanged) {
+        const res = await updateCaseCnjAction(String(editingCase.protocolo || ''), updatedCase);
+        if (res?.success) {
+          const updatedList = cases.map(c => (c.id === editingCase.id ? updatedCase : c));
+          setCases(updatedList);
+          setIsModalOpen(false);
+          setEditingCase(null);
+          toast({ title: 'CNJ atualizado', description: `${editingCase.protocolo} → ${protocolo}` });
+        } else {
+          toast({ title: 'Falha ao salvar CNJ', description: (res as any)?.error || (res as any)?.message || 'Tente novamente', variant: 'destructive' });
+        }
+        return;
+      }
       const updatedList = cases.map(c => (c.id === editingCase.id ? updatedCase : c));
       const res = await syncRepoCases(updatedList);
       if (res.success) {
@@ -913,7 +950,35 @@ function CasesContent() {
               <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label className={ui.label}>Cliente *</Label><Input required value={formState.cliente} onChange={e => setFormState({...formState, cliente: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-black uppercase text-xs" placeholder="NOME COMPLETO" /></div>
-                  <div className="space-y-2"><Label className={ui.label}>Protocolo (CNJ) *</Label><Input required value={formState.protocolo} onChange={e => setFormState({...formState, protocolo: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs" placeholder="0000000-00.0000.0.00.0000" disabled={!!editingCase} /></div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className={ui.label}>Protocolo (CNJ) *</Label>
+                      {editingCase && (
+                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                          Editável · altera a chave no banco
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      required
+                      value={formState.protocolo}
+                      onChange={e => setFormState({ ...formState, protocolo: e.target.value })}
+                      onBlur={e => {
+                        const d = e.target.value.replace(/\D/g, '');
+                        if (d.length === 20) {
+                          const fmt = `${d.slice(0,7)}-${d.slice(7,9)}.${d.slice(9,13)}.${d.slice(13,14)}.${d.slice(14,16)}.${d.slice(16,20)}`;
+                          setFormState(s => ({ ...s, protocolo: fmt }));
+                        }
+                      }}
+                      className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs"
+                      placeholder="0000000-00.0000.0.00.0000"
+                    />
+                    {editingCase && formState.protocolo.replace(/\D/g, '') !== String(editingCase.protocolo || '').replace(/\D/g, '') && (
+                      <p className="text-[10px] text-muted-foreground">
+                        CNJ anterior: <span className="font-mono">{editingCase.protocolo}</span>
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label className={ui.label}>Advogado</Label><Input value={formState.advogado} onChange={e => setFormState({...formState, advogado: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" /></div>
