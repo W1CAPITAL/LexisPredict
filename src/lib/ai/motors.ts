@@ -11,6 +11,7 @@ export type MotorId =
   | 'openrouter'
   | 'airforce'
   | 'gemini'
+  | 'gpt4free'
   | 'puter';
 
 export type MotorDef = {
@@ -77,6 +78,14 @@ export const MOTORS: MotorDef[] = [
     desc: 'Visão e OCR (Gemini).',
     scope: 'server',
     envKey: 'GEMINI_API_KEY',
+  },
+  {
+    id: 'gpt4free',
+    label: 'GPT4Free (gratis)',
+    short: 'G4F',
+    desc: 'Fallback OpenAI-compativel (gptgod / self-host gpt4free-ts).',
+    scope: 'server',
+    envKey: 'GPT4FREE_BASE_URL',
   },
   {
     id: 'puter',

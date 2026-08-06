@@ -233,6 +233,18 @@ export async function freeComplete(opts: {
     });
   }
 
+
+  // GPT4Free / gptgod — fallback (https://github.com/xiangsx/gpt4free-ts)
+  if (process.env.GPT4FREE_BASE_URL || process.env.GPTGOD_BASE_URL || process.env.G4F_BASE_URL) {
+    steps.push({
+      id: 'gpt4free',
+      run: async () => {
+        const { callGpt4Free } = await import('@/lib/ai/gpt4free-gateway');
+        return callGpt4Free(messages as any, { max_tokens: 2048 });
+      },
+    });
+  }
+
   // Ordena: preferred primeiro
   if (pref) {
     steps.sort((a, b) => {

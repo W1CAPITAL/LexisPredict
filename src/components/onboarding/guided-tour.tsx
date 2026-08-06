@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * @fileOverview Guia interativo LexisPredict v13 — alinhado ao produto atual
- * (sidebar 2026: Painel, Fila, Processos, Veredito, Documentos, Scanner, Analytics…)
+ * Guia interativo LexisPredict — revisao completa (produto atual 2026).
+ * Cobre: operacao, scanners, IA, documentos, BA, revogacao, financas, CRM.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -33,7 +33,8 @@ import {
   Bot,
   ClipboardList,
   Search,
-  FileSpreadsheet,
+  Gavel,
+  DollarSign,
   Globe,
   CheckCircle2,
 } from "lucide-react";
@@ -55,193 +56,237 @@ interface TourStep {
   dicas?: string[];
 }
 
-/** Passos alinhados à sidebar e fluxos reais (agosto/2026) */
 const TOUR_STEPS: TourStep[] = [
+  {
+    title: "Bem-vindo ao LexisPredict",
+    content:
+      "SaaS multi-tenant de operacao juridica: carteira, prazos, atendimento, auditoria CNJ (DataJud), diario oficial (DJEN), documentos, equipe e IA (Claude/OmniRoute + cascata). Este guia percorre o menu real do app — use como treinamento de novos operadores.",
+    icon: <Sparkles />,
+    route: "/",
+    porQue: "Entender o mapa antes de operar volume.",
+    rotina: "Rodar o guia uma vez → fixar Painel + Fila + Processos como rotina diaria.",
+    ganho: "Onboarding em minutos, sem depender de video desatualizado.",
+    metrica: "Operador novo produtivo no mesmo dia.",
+    tempo: "12–20 min (guia completo)",
+    dicas: [
+      "Em divergencia entre video e tela, confie neste guia e no menu lateral.",
+      "DataJud e DJEN sao triagem — nao substituem PJe/e-SAJ.",
+    ],
+  },
   {
     title: "Painel — radar do gabinete",
     content:
-      "Visão matinal da carteira: vencidos, andamentos novos, baixas no tribunal, risco global e fila prioritária. Telemetria unifica sinais do DataJud (movimentos do tribunal) e do DJEN (publicações no diário oficial). Não substitui os autos — é triagem para decidir o que atender primeiro.",
+      "Visao matinal: vencidos, andamentos novos, baixas, risco global e fila prioritaria. Telemetria une DataJud (movimentos) e DJEN (publicacoes). Indices de risco explicam fatores (prazo, BA, silencio do cliente) — use para priorizar, nao como laudo juridico.",
     icon: <Zap />,
     route: "/",
-    porQue: "Saber em segundos o que exige ação humana hoje.",
-    rotina:
-      "Abrir o dia no Painel → olhar Vencido / Andamentos / Baixas → abrir a fila prioritária → ir para Fila de contato ou Processos.",
+    porQue: "Saber em segundos o que exige acao humana hoje.",
+    rotina: "Abrir o dia no Painel → Vencido / Andamentos / Baixas → fila prioritaria → Fila de contato ou Processos.",
     ganho: "Triagem matinal em menos de um minuto.",
-    metrica: "Menos tempo escolhendo o que fazer; mais tempo atendendo.",
+    metrica: "Menos tempo escolhendo; mais tempo atendendo.",
     tempo: "30–60 s",
-    dicas: [
-      "Use “Rede Judicial” só para diagnosticar latência dos tribunais.",
-      "Números zero em Baixas ou Andamentos após um scan costumam indicar sincronização — rode o Scanner e atualize.",
-    ],
+    dicas: ["Apos scan em lote, atualize o Painel.", "Risco global e operacional + processual combinados."],
   },
   {
     title: "Fila de contato (Tarefas)",
     content:
-      "Ordem operacional de atendimento: eventos críticos e novidades antes de prazo genérico. Cada card reúne o cliente e os processos que pedem retorno. Use Sugerir resposta para mensagens prontas ao cliente (WhatsApp/e-mail) e registre o atendimento para zerar alertas só depois do contato humano.",
+      "Ordem de atendimento: criticos e novidades antes de prazo generico. Cards por cliente. Sugerir resposta gera mensagens para WhatsApp/e-mail (scripts Lexis + IA Claude/OmniRoute). Auditoria 3D nesta tela consulta so DJEN (rapido). Registre o contato para zerar a fila.",
     icon: <ListTodo />,
     route: "/tarefas",
-    porQue: "Garantir ordem de contato correta sob volume alto.",
-    rotina:
-      "Trabalhar o topo da fila → Sugerir resposta / copiar texto → contatar → Registrar atendimento (próximo retorno).",
-    ganho: "Foco no crítico antes do genérico.",
-    metrica: "Menos clientes críticos sem retorno no mesmo dia.",
-    tempo: "1–3 min por card",
+    porQue: "Nao perder retorno ao cliente apos novidade no tribunal.",
+    rotina: "Filtrar novidade/BA/problema → Sugerir resposta → copiar → registrar atendimento.",
+    ganho: "Fila objetiva, rascunhos prontos.",
+    metrica: "Meta do dia e finalizados no topo da tela.",
+    tempo: "2–5 min por cliente",
     dicas: [
-      "O bloco âmbar “Resposta para o Cliente” fica no topo do modal — copie antes de rolar a cronologia.",
-      "Exportar PDF da publicação DJEN está disponível quando houver link do diário.",
+      "Sugerir resposta usa DataJud+DJEN; Auditoria 3D usa so DJEN.",
+      "Refine o rascunho com o teor real antes de enviar ao cliente.",
     ],
   },
   {
-    title: "Processos — carteira completa",
+    title: "Processos — carteira",
     content:
-      "Lista de toda a carteira da empresa logada. Filtre por escritório, status, ativos/encerrados ou novidade. Abra a Auditoria 3D (DataJud + DJEN), sugira resposta, registre atendimento. Exportar Excel gera relatório operacional formatado (assistente, escritório, advogado, cliente, protocolo, status, observações, movimentação, retornos) — sem IDs internos de banco.",
+      "Lista completa da carteira do usuario/empresa. Adicionar processo, editar, scan, sugerir resposta, dossie do cliente/processo, exportar Excel (abas limpas de auditoria), recalibrar prazos. Isolamento por empresa_id e perfil.",
     icon: <Briefcase />,
     route: "/cases",
-    porQue: "Gestão individual com evidência do tribunal e do diário.",
-    rotina:
-      "Buscar CNJ ou cliente → filtrar escritório/status → Auditoria 3D → ler cronologia → sugerir resposta → registrar atendimento.",
-    ganho: "Histórico, despacho e planilha no mesmo fluxo.",
-    metrica: "Zero novidade esquecida sem triagem.",
-    tempo: "2 min",
+    porQue: "Fonte de verdade da operacao diaria.",
+    rotina: "Filtrar novidade/vencido → acao no card → exportar quando precisar reportar.",
+    ganho: "Carteira grande (ex.: 1000+ processos) operavel na UI.",
+    metrica: "Menos planilha paralela fora do sistema.",
+    tempo: "conforme volume",
+    dicas: ["Botao de novo processo fica no topo da aba.", "Excel exporta so dados do usuario logado, formatado."],
+  },
+  {
+    title: "Scanner tribunal (DataJud + DJEN)",
+    content:
+      "Motor de sincronizacao: DataJud (movimentos CNJ) e DJEN (diario). Lotes sequenciais por estabilidade. Flags: novidade, encerrado, cumprimento, indicios BA. IA opcional (Claude/OmniRoute) classifica eventos — escolha o motor no scanner e veja no log qual IA rodou.",
+    icon: <Globe />,
+    route: "/",
+    porQue: "Atualizar a carteira sem abrir processo a processo no tribunal.",
+    rotina: "Disparar scanner → acompanhar log → tratar novidades na Fila/Processos.",
+    ganho: "Cobertura de volume inviavel manualmente.",
+    metrica: "Taxa de sucesso DataJud/DJEN por empresa (telemetria).",
+    tempo: "minutos a horas conforme lote",
     dicas: [
-      "“Extrair Planilha” (CSV) e “Exportar Excel” usam só os processos da sua empresa (multi-tenant).",
-      "Flags de novidade só descem após atendimento humano registrado.",
+      "Vercel Hobby: cron limitado; operacao real e lote manual/nuvem.",
+      "DJEN pode falhar fora do Brasil (403) — deploy em gru1 ajuda.",
+    ],
+  },
+  {
+    title: "Busca e Apreensao",
+    content:
+      "Varredura DJEN por teor de BA, cruzamento com clientes da carteira e banca. IA confirma se e mandado real de apreensao de bem (nao basta a palavra aparecer). Log mostra a IA usada. Filtro 'so com match' prioriza o que e seu.",
+    icon: <Gavel />,
+    route: "/busca-apreensao",
+    porQue: "Detectar BA relevante sem ler o diario inteiro.",
+    rotina: "Periodo 7–60 dias → Varrer → so match → abrir teor → acionar equipe.",
+    ganho: "Alerta operacional precoce.",
+    metrica: "Matches na carteira vs ruido.",
+    tempo: "5–15 min",
+    dicas: ["Priorize nome do cliente; advogado e criterio auxiliar.", "Claude/OmniRoute reduz falso positivo."],
+  },
+  {
+    title: "Assistente IA (/chat)",
+    content:
+      "Copiloto geral: qualquer pergunta (nao so processo). Anexe PDF ou imagem (decisao ou qualquer documento). Pensamento visivel em perguntas complexas. CNJ na mensagem dispara consulta DJEN automatica. Motores: Claude/OmniRoute, Groq, xAI, OpenRouter, GPT4Free (fallback gratis), etc.",
+    icon: <Bot />,
+    route: "/chat",
+    porQue: "Acelerar analise, redacao e leitura de pecas.",
+    rotina: "Perguntar → anexar PDF/print se houver → revisar resposta → copiar ao cliente se couber.",
+    ganho: "Leitura e rascunho em segundos.",
+    metrica: "Menos tempo em teor extenso.",
+    tempo: "1–3 min",
+    dicas: [
+      "Oi/cumprimento usa caminho rapido (sem tags XML na tela).",
+      "PDF escaneado: use print/OCR se a extracao falhar.",
+      "Nunca envie ao cliente sem revisao humana.",
     ],
   },
   {
     title: "Consulta processo (Veredito)",
     content:
-      "Auditoria 3D Elite sob demanda: busca por CNJ, CPF/CNPJ ou nome da parte. Cruza DataJud (classe, grau, polos ativo/passivo, movimentos) com publicações DJEN. Parecer determinístico funciona mesmo sem chave de IA; com IA, o contexto inclui as duas fontes.",
+      "Consulta pontual de CNJ com contexto tribunal e apoio de IA. Complementa o scanner quando voce precisa de um processo especifico agora.",
     icon: <Scale />,
     route: "/veredito",
-    porQue: "Consultar um processo fora da fila sem perder o cruzamento tribunal + diário.",
-    rotina:
-      "Escolher modo (CNJ / CPF / Nome) → buscar → abrir processo → ler polos, movimentos e publicações → usar parecer / rascunho se precisar.",
-    ganho: "Consulta forense rápida com polos e DJEN visíveis.",
-    metrica: "Menos idas manuais ao PJe só para “o que saiu”.",
+    porQue: "Olho cirurgico em um CNJ sem varrer a carteira inteira.",
+    rotina: "Colar CNJ → consultar → ler movimentacoes/publicacoes → decidir proximo passo.",
+    ganho: "Resposta rapida em reuniao ou ligacao.",
+    metrica: "Tempo ate teor util.",
     tempo: "1–2 min",
-    dicas: [
-      "CPF nem sempre está indexado em todos os tribunais (LGPD/schema) — se vier vazio, tente nome ou CNJ.",
-      "DJEN exige IP no Brasil em produção (região Vercel gru1 / São Paulo).",
-    ],
+    dicas: ["Combine com Assistente se precisar de mensagem ao cliente."],
   },
   {
-    title: "DataJud Scanner",
+    title: "Cadastro / Automacao judicial",
     content:
-      "Botão fixo na sidebar: varredura híbrida DataJud e/ou DJEN na carteira. Progresso local (retoma se recarregar a página). Use lotes conscientes — a API pública não é PJe e pode rate-limitar. Logs de erro (403 geo, 429, timeout) aparecem no status do caso.",
-    icon: <ScanLine />,
-    route: "/",
-    porQue: "Atualizar a carteira em lote sem abrir processo por processo.",
-    rotina:
-      "Abrir Scanner → escolher modo (DataJud, DJEN ou ambos) → iniciar → acompanhar progresso → revisar Fila / Processos.",
-    ganho: "Carteira sincronizada em background operacional.",
-    metrica: "Menos “achismo” de andamento antigo na tela.",
-    tempo: "Depende do volume",
-    dicas: [
-      "Lotes grandes são sequenciais de propósito (estabilidade).",
-      "Se DJEN falhar com 403, confira a região do deploy (Brasil).",
-    ],
+      "Pipeline 01–08: captura, triagem, cadastro na carteira, classificacao, demanda, analise, devolutiva, recomendacoes. Custas TJSP em subaba. eproc SP prioritario; e-SAJ secundario. Captura e OCR de prints do tribunal.",
+    icon: <ClipboardList />,
+    route: "/tools/automacao",
+    porQue: "Entrada padronizada de novos casos e custas.",
+    rotina: "Capturar → triar → cadastrar → seguir pipeline ate recomendacao.",
+    ganho: "Menos erro de cadastro manual.",
+    metrica: "Casos novos consistentes na carteira.",
+    tempo: "conforme peca",
+    dicas: ["Subaba Custas para guias TJSP.", "Sidebar: item Cadastro."],
   },
   {
-    title: "Documentos jurídicos",
+    title: "Documentos: procuracao, habilitacao, substabelecimento",
     content:
-      "Procuração, Habilitação, Substabelecimento, Subst. simples e Peça de substabelecimento. Extração assistida + revisão humana + PDF profissional. Opção de incluir ou omitir nome/CNPJ do banco conforme a estratégia do caso.",
+      "Geracao de pecas e formularios: Procuracao, Habilitacao, Substabelecimento (varios fluxos), Revogacao de poderes com substabelecimento (fila 1 a 1, DJEN, CPF opcional do diario, PDF judicial sem mencionar IA).",
     icon: <FileSignature />,
     route: "/documents",
-    porQue: "Gerar peças padronizadas sem recomeçar do zero a cada contrato.",
-    rotina:
-      "Colar/extrair dados → revisar campos → escolher se inclui banco → pré-visualizar → gerar PDF.",
-    ganho: "Peça alinhada ao padrão do gabinete em minutos.",
-    metrica: "Menos retrabalho de digitação e formatação.",
-    tempo: "3–5 min",
+    porQue: "Padronizar pecas com dados da banca e da carteira.",
+    rotina: "Escolher peca → selecionar advogado/cliente → validar elegibilidade → baixar PDF.",
+    ganho: "Documento pronto para protocolo/assinatura.",
+    metrica: "Menos retrabalho de minuta.",
+    tempo: "3–10 min",
     dicas: [
-      "Habilitação e substabelecimentos ficam em rotas próprias no menu Operações.",
-      "Sempre confira CPF/RG e poderes antes de protocolar.",
+      "Revogacao: /revogacao-poderes — scanner em fila, Claude so na elegibilidade.",
+      "Dados do advogado vêm da Banca (Configuracoes).",
     ],
   },
   {
-    title: "Importar carteira (CSV)",
+    title: "Financas e honorarios",
     content:
-      "Entrada em volume a partir de planilha. Normalização de CNJ, deduplicação e vínculo à empresa logada. Ideal na migração do Excel caótico para o gabinete digital.",
+      "Modulo financeiro alinhado ao gabinete: acompanhamento de valores/honorarios no escopo da operacao (nao substitui ERP contábil completo).",
+    icon: <DollarSign />,
+    route: "/financas",
+    porQue: "Ligar carteira processual a cobranca basica.",
+    rotina: "Registrar/consultar honorarios vinculados ao fluxo operacional.",
+    ganho: "Visibilidade minima de financeiro no mesmo login.",
+    metrica: "Menos planilha solta de honorarios.",
+    tempo: "conforme uso",
+    dicas: ["Use junto com exportacoes quando for reportar ao socio."],
+  },
+  {
+    title: "Notas CRM e historico do cliente",
+    content:
+      "Anotacoes por cliente/protocolo, edicao, sync com historico. Apoio ao atendimento e ao dossie.",
+    icon: <StickyNote />,
+    route: "/notes",
+    porQue: "Nao perder combinados e observacoes de ligacao.",
+    rotina: "Apos contato → gravar nota → ela alimenta dossie/CRM.",
+    ganho: "Memoria da equipe no processo certo.",
+    metrica: "Menos 'ninguem anotou'.",
+    tempo: "30 s–2 min",
+    dicas: ["Se notas falharem ao carregar, reporte digest do erro de Server Component."],
+  },
+  {
+    title: "Importar, OCR, WhatsApp",
+    content:
+      "Importacao em lote para a carteira; OCR de prints/documentos; atalhos WhatsApp para contato. Ferramentas de apoio ao volume.",
     icon: <Upload />,
     route: "/import",
-    porQue: "Subir centenas de processos sem cadastro manual um a um.",
-    rotina:
-      "Preparar CSV → mapear colunas → importar → validar amostra em Processos → rodar Scanner.",
-    ganho: "Migração controlada com rastreio por empresa.",
-    metrica: "Carteira utilizável no mesmo dia da importação.",
-    tempo: "5–15 min",
-    dicas: [
-      "CNJ com 20 dígitos é a chave de dedupe.",
-      "Após importar, um scan híbrido alimenta andamentos e DJEN.",
-    ],
+    porQue: "Entrar com base legada e prints do tribunal.",
+    rotina: "Importar planilha → OCR se precisar texto → contatar via WhatsApp.",
+    ganho: "Migracao e captura sem retrabalho total.",
+    metrica: "Volume importado vs erros de linha.",
+    tempo: "conforme arquivo",
+    dicas: ["Valide amostra apos import antes de scan em massa."],
   },
   {
-    title: "WhatsApp e Assistente",
+    title: "Equipe, Configuracoes e Banca",
     content:
-      "Atalhos de comunicação e chat de apoio. Scripts de resposta na Fila/Processos já montam o texto ao cliente; o Assistente ajuda em rascunhos e dúvidas operacionais. Nada disso substitui a análise do advogado responsável.",
-    icon: <MessageCircle />,
-    route: "/whatsapp",
-    porQue: "Encurtar o caminho entre a novidade do processo e a mensagem ao cliente.",
-    rotina:
-      "Gerar texto em Sugerir resposta → abrir WhatsApp/copiar → registrar atendimento no app.",
-    ganho: "Contato mais rápido com linguagem padronizada do gabinete.",
-    metrica: "Menor tempo entre novidade e primeiro contato.",
-    tempo: "1 min",
-    dicas: [
-      "Sempre personalize tom e fatos sensíveis antes de enviar.",
-      "O Assistente (/chat) não inventa movimento de tribunal — confira a Auditoria 3D.",
-    ],
-  },
-  {
-    title: "Equipe e permissões",
-    content:
-      "Gestão de operadores, cargos e escopo multi-tenant. Administradores e supervisores veem a carteira da empresa; isolamento por empresa_id impede vazamento entre gabinetes.",
-    icon: <Users />,
-    route: "/team",
-    porQue: "Escalar atendimento sem misturar carteiras de clientes diferentes.",
-    rotina:
-      "Convidar operador → definir cargo → validar que só vê processos da empresa → acompanhar KPIs se disponível.",
-    ganho: "Time alinhado com o mesmo radar e as mesmas regras.",
-    metrica: "Menos retrabalho por acesso errado ou dado cruzado.",
-    tempo: "2 min",
-    dicas: ["Apenas perfis admin/supervisor acessam Equipe."],
-  },
-  {
-    title: "Indicadores e Urgências",
-    content:
-      "Analytics consolida volume, status e distribuição. Urgências destaca o que não pode esperar (prazos e sinais críticos). Use junto com o Painel: números para gestão, fila para execução.",
-    icon: <BarChart3 />,
-    route: "/analytics",
-    porQue: "Enxergar a carteira como operação, não só como lista de CNJs.",
-    rotina:
-      "Semanalmente revisar Indicadores → cruzar com Urgências → ajustar capacidade da equipe.",
-    ganho: "Decisão de gestão com base na carteira real.",
-    metrica: "Menos surpresa de acúmulo de vencidos.",
-    tempo: "3–5 min",
-    dicas: [
-      "Export Excel no Processos complementa o dossiê com planilha operacional.",
-      "Urgências não substituem a Fila de contato no dia a dia.",
-    ],
-  },
-  {
-    title: "Configurações e Treinamento",
-    content:
-      "Preferências da conta, tema e atalhos. Esta tela de Treinamento (/onboarding) e o Guia interativo (tour) existem para onboarding de novos operadores — o vídeo de apoio pode atrasar em relação à UI; o guia escrito segue o menu atual.",
+      "Equipe (admin): usuarios e papeis. Configuracoes: tema, nucleo neural (motores IA), banca de advogados com telefone, e-mail, endereco profissional e dados para procuracao. Nucleo neural: Claude, Groq, xAI, OpenRouter, GPT4Free, Puter, etc.",
     icon: <Settings />,
     route: "/settings",
-    porQue: "Padronizar o ambiente e treinar quem chega no gabinete.",
-    rotina:
-      "Configurar tema/preferências → rodar o Guia completo uma vez → usar /onboarding se houver vídeo institucional.",
-    ganho: "Operador novo produtivo no mesmo dia.",
-    metrica: "Menos dúvidas repetidas de “onde fica X”.",
-    tempo: "5–10 min (guia completo)",
+    porQue: "Governanca multi-tenant e dados certos nas pecas.",
+    rotina: "Cadastrar banca completa → escolher motor padrao → convidar equipe.",
+    ganho: "Pecas e IA alinhadas ao escritorio.",
+    metrica: "Zero peca com advogado incompleto.",
+    tempo: "10–20 min setup",
+    dicas: ["Nunca cole API keys na UI — so no Vercel Env.", "GPT4Free e fallback; preferira Claude/OmniRoute."],
+  },
+  {
+    title: "Indicadores, Urgencias e Relatorios",
+    content:
+      "Analytics da carteira, urgencias e relatorios (incluindo enriquecimento Claude/OmniRoute quando configurado). Dossie operacional estrategico (PDF premium) a partir do dashboard/processo — risco, timeline, DJEN, plano de acao.",
+    icon: <BarChart3 />,
+    route: "/analytics",
+    porQue: "Gestao e prestacao de contas com evidencia.",
+    rotina: "Semana: indicadores → urgencias → dossies dos casos criticos.",
+    ganho: "Narrativa executiva pronta.",
+    metrica: "Tempo ate PDF de dossie.",
+    tempo: "5–15 min",
+    dicas: ["Dossie do cliente/processo sai das abas Processos com botao dedicado."],
+  },
+  {
+    title: "Boas praticas e limites",
+    content:
+      "LexisPredict e triagem e operacao. DataJud pode atrasar; DJEN pode 403 fora do BR; heuristica de BA/encerramento nao e garantia juridica; IA erra — revise sempre. Isolamento por empresa_id. Software proprietario.",
+    icon: <ShieldAlert />,
+    route: "/",
+    porQue: "Operar com expectativa correta e risco controlado.",
+    rotina: "Triagem no Lexis → decisao grave no sistema do tribunal.",
+    ganho: "Menos falso positivo e menos expectativa irreal do cliente.",
+    metrica: "Revisao humana em 100% das mensagens externas.",
+    tempo: "continuo",
     dicas: [
-      "Reabra o guia a qualquer momento pelo menu (Treinamento) ou pelo atalho de tour na sidebar.",
-      "Em dúvida operacional grave, priorize o tribunal oficial (PJe/e-SAJ).",
+      "Deploy Vercel em Sao Paulo (gru1) para DJEN.",
+      "Um caminho de deploy: git push → Vercel (evite upload parcial).",
+      "Reabra este guia em Treinamento (/onboarding) quando entrar gente nova.",
     ],
   },
 ];
+
 
 export function GuidedTour() {
   const router = useRouter();
