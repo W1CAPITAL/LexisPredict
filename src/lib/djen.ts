@@ -1,3 +1,4 @@
+import { perfCached, PerfKeys } from '@/lib/performance-motor';
 import { detectarAudienciaPendente } from './audiencia-detect';
 /**
  * @fileOverview Motor de Consulta e Higiene DJEN v8.6 — PROTOCOLO BRASIL (gru1)
@@ -189,9 +190,31 @@ export async function fetchDjenComunicacoes(
   }
 
   const dataFim = opts?.dataFim || new Date().toISOString().split('T')[0];
+  const dataInicioEarly =
+    opts?.dataInicio ||
+    new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const cacheKey = PerfKeys.djen(digits, dataInicioEarly, dataFim) + ':' + (opts?.siglaTribunal || '');
+  return perfCached(cacheKey, () => fetchDjenComunicacoesUncached(protocolo, opts), 90_000);
+}
+
+async function fetchDjenComunicacoesUncached(
+  protocolo: string,
+  opts?: {
+    siglaTribunal?: string;
+    meio?: 'D' | 'E' | null;
+    dataInicio?: string;
+    dataFim?: string;
+  }
+): Promise<DjenFetchResult> {
+  const digits = protocolo.replace(/\D/g, '');
+  if (digits.length !== 20) {
+    return { success: false, error: 'CNJ Inválido (requer 20 dígitos)', count: 0, items: [] };
+  }
+
+  const dataFim = opts?.dataFim || new Date().toISOString().split('T')[0];
   const dataInicio =
     opts?.dataInicio ||
-    new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const masked = `${digits.substring(0, 7)}-${digits.substring(7, 9)}.${digits.substring(9, 13)}.${digits.substring(13, 14)}.${digits.substring(14, 16)}.${digits.substring(16, 20)}`;
   const cnjOptions = [digits, masked];
@@ -214,7 +237,7 @@ export async function fetchDjenComunicacoes(
       if (opts?.meio) params.append('meio', opts.meio);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const response = await fetch(`${DJEN_URL}?${params.toString()}`, {
         method: 'GET',

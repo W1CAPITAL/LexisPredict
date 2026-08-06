@@ -1,6 +1,9 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  // Desempenho: compressão e menos source maps em produção
+  compress: true,
+  productionBrowserSourceMaps: false,
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,

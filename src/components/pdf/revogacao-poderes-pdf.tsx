@@ -126,9 +126,6 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
     revogado,
     substabelecido,
     ultimoAdvogadoDetectado,
-    advogadosDjen,
-    viabilidade,
-    observacaoScanner,
     partePassiva,
     partePassivaCnpj,
     classeAcao,
@@ -165,22 +162,6 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
                 {partePassivaCnpj ? ` · CNPJ ${partePassivaCnpj}` : ""}
               </Text>
             ) : null}
-          </View>
-        ) : null}
-
-        {viabilidade ? (
-          <View style={s.warn}>
-            <Text style={s.bold}>Analise de oportunidade (scanner / DJEN)</Text>
-            <Text>{viabilidade}</Text>
-          </View>
-        ) : null}
-
-        {(advogadosDjen && advogadosDjen.length > 0) || observacaoScanner ? (
-          <View style={s.box}>
-            {advogadosDjen && advogadosDjen.length > 0 ? (
-              <Text>Advogados em DJEN recente: {advogadosDjen.join("; ")}</Text>
-            ) : null}
-            {observacaoScanner ? <Text>Nota: {observacaoScanner}</Text> : null}
           </View>
         ) : null}
 

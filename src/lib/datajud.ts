@@ -3,6 +3,8 @@
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
+import { perfCached, PerfKeys, perfLog, perfNow } from '@/lib/performance-motor';
+
 export const COURT_ALIASES: Record<string, string> = {
   "8.01": "tjac", "8.02": "tjal", "8.03": "tjap", "8.04": "tjam", "8.05": "tjba",
   "8.06": "tjce", "8.07": "tjdft", "8.08": "tjes", "8.09": "tjgo", "8.10": "tjma",
@@ -252,6 +254,15 @@ export async function searchDataJudByCpf(
 }
 
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
+  // Cache + dedupe só na 1ª tentativa (retries ficam fora do cache hit)
+  if (attempt === 1) {
+    const key = PerfKeys.datajud(cnj, options.fast === true);
+    return perfCached(key, () => fetchDataJudUncached(cnj, 1, options), options.fast ? 60_000 : 120_000);
+  }
+  return fetchDataJudUncached(cnj, attempt, options);
+}
+
+async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   const startTime = Date.now();
 
@@ -293,7 +304,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     if (response.status === 429) {
       if (attempt < maxAttempts) {
         await sleep(1200 * attempt + Math.random() * 400);
-        return fetchDataJud(cnj, attempt + 1, options);
+        return fetchDataJudUncached(cnj, attempt + 1, options);
       }
       return {
         numeroProcesso: cnjLimpo,
@@ -307,7 +318,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
     if (response.status >= 500 && attempt < maxAttempts) {
       await sleep(800 * attempt);
-      return fetchDataJud(cnj, attempt + 1, options);
+      return fetchDataJudUncached(cnj, attempt + 1, options);
     }
 
     if (!response.ok) {
@@ -326,7 +337,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
     if (data._shards?.failed > 0 && (!data.hits?.hits || data.hits.hits.length === 0)) {
       if (attempt < maxAttempts) {
         await sleep(600);
-        return fetchDataJud(cnj, attempt + 1, options);
+        return fetchDataJudUncached(cnj, attempt + 1, options);
       }
       return {
         numeroProcesso: cnjLimpo,
@@ -378,7 +389,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
 
     if (isTimeout && attempt < maxAttempts) {
       await sleep(700 * attempt);
-      return fetchDataJud(cnj, attempt + 1, options);
+      return fetchDataJudUncached(cnj, attempt + 1, options);
     }
 
     return {
