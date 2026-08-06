@@ -20,7 +20,7 @@ export interface MotorDespachoInput {
   djenTexts?: string[];
   eventoTipo?: EventoTipo | null;
   eventoResumo?: string | null;
-  preferredModel?: string; // 'xai' | 'groq-llama' | 'local_only' | ...
+  preferredModel?: string; // 'claude' | 'groq-llama' | 'local_only' | ...
   empresaId?: string;
   tem_novo_andamento?: boolean;
   datajud_encerrado_tribunal?: boolean;
@@ -172,7 +172,7 @@ Redija a mensagem final ao cliente, honesta e tranquilizadora quando for o caso,
     const response = await perguntarIA({
       pergunta: userPrompt,
       historico: [{ role: 'system', content: systemPrompt }],
-      preferredModel: preferredModel || 'xai',
+      preferredModel: preferredModel || 'claude',
     });
 
     const engine =

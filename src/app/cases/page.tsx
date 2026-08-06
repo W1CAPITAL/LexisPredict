@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
@@ -39,7 +39,6 @@ import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
-import { normalizeMovimentosList, parseTimelineDate } from '@/lib/timeline-normalize';
 
 const CaseRow = React.memo(({ 
   c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest, onDossie
@@ -267,9 +266,9 @@ function CasesContent() {
     if (!c.protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: true });
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
       if (res.success && res.case) {
-        setHistoryResult({ case: res.case, movimentos: [], djenComunicacoes: res.comunicacoes || [] });
+        setHistoryResult({ case: res.case, movimentos: res.movimentos || [], djenComunicacoes: res.comunicacoes || [] });
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setAiDraft(null);
@@ -283,8 +282,8 @@ function CasesContent() {
     setLoading(true);
     setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: false });
-      const movimentos = normalizeMovimentosList((res as any).movimentos || []).slice(0, 60);
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: true });
+      const movimentos = ((res as any).movimentos || []).slice(0, 30);
       const comunicacoes = (res as any).comunicacoes || [];
       const caseData = (res as any).case || c;
 
@@ -567,7 +566,7 @@ function CasesContent() {
 
   const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
-    const movs = normalizeMovimentosList(historyResult.movimentos || []).map(m => ({ type: 'court', date: parseTimelineDate(m.dataHora), title: m.nome || 'Movimentação tribunal', subtitle: m.complemento || '', raw: m }));
+    const movs = (historyResult.movimentos || []).map(m => ({ type: 'court', date: m.dataHora ? new Date(m.dataHora) : new Date(0), title: m.nome, subtitle: m.complemento || '', raw: m }));
     const djen = (historyResult.djenComunicacoes || []).map(d => ({ 
       type: 'djen', 
       date: d.data_disponibilizacao ? new Date(d.data_disponibilizacao) : new Date(0), 
@@ -792,7 +791,7 @@ function CasesContent() {
                           <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-white border-2 border-black rounded-lg">
                             <SelectItem value="local_only" className="text-[9px] font-black uppercase">Script Lexis (sem IA)</SelectItem>
-                            <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok (rascunho livre)</SelectItem>
+                            <SelectItem value="claude" className="text-[9px] font-black uppercase">Claude AI (OmniRoute)</SelectItem>
                             <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
                           </SelectContent>
                         </Select>
