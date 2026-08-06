@@ -37,6 +37,21 @@ import {
 import { DataJudDisclaimer } from "@/components/ui/datajud-disclaimer";
 import { cn } from "@/lib/utils";
 
+function splitThinking(raw: string): { thinking: string | null; answer: string } {
+  const t = String(raw || "");
+  const thinkM = t.match(/<\s*thinking\s*>([\s\S]*?)<\s*\/\s*thinking\s*>/i);
+  const ansM = t.match(/<\s*answer\s*>([\s\S]*?)<\s*\/\s*answer\s*>/i);
+  if (ansM || thinkM) {
+    return {
+      thinking: thinkM ? thinkM[1].trim() : null,
+      answer: (ansM ? ansM[1] : t.replace(/<\s*thinking\s*>[\s\S]*?<\s*\/\s*thinking\s*>/i, ""))
+        .replace(/<\/?\s*(thinking|answer)\s*>/gi, "")
+        .trim(),
+    };
+  }
+  return { thinking: null, answer: t };
+}
+
 type Msg = {
   role: "user" | "assistant";
   content: string;
@@ -71,7 +86,7 @@ export default function AssistentePage() {
     {
       role: "assistant",
       content:
-        "Assistente Lexis (Claude via OmniRoute). Pergunte sobre processos, atendimento, peças ou operação. Anexe PDF ou print — eu leio o teor, mostro o raciocínio e respondo de forma acionável.",
+        "Assistente Lexis (Claude via OmniRoute). Pergunte qualquer coisa. Anexe PDF ou imagem — leio o teor, mostro o raciocínio quando fizer sentido e respondo de forma clara.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -162,12 +177,15 @@ export default function AssistentePage() {
         max_tokens: 4096,
       });
 
+      const raw = res.resposta || "Sem resposta.";
+      const fromServer = (res as any).thinking as string | null;
+      const split = splitThinking(raw);
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
-          content: res.resposta || "Sem resposta.",
-          thinking: (res as any).thinking || null,
+          content: split.answer || raw.replace(/<\/?\s*(thinking|answer)\s*>/gi, "").trim(),
+          thinking: fromServer || split.thinking,
           engine: res.engineUtilizada || res.engine,
         },
       ]);
