@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
@@ -39,6 +39,7 @@ import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
+import { normalizeMovimentosList, parseTimelineDate } from '@/lib/timeline-normalize';
 
 const CaseRow = React.memo(({ 
   c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest, onDossie
@@ -266,9 +267,9 @@ function CasesContent() {
     if (!c.protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: true });
       if (res.success && res.case) {
-        setHistoryResult({ case: res.case, movimentos: res.movimentos || [], djenComunicacoes: res.comunicacoes || [] });
+        setHistoryResult({ case: res.case, movimentos: [], djenComunicacoes: res.comunicacoes || [] });
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setAiDraft(null);
@@ -282,8 +283,8 @@ function CasesContent() {
     setLoading(true);
     setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: true });
-      const movimentos = ((res as any).movimentos || []).slice(0, 30);
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: false });
+      const movimentos = normalizeMovimentosList((res as any).movimentos || []).slice(0, 60);
       const comunicacoes = (res as any).comunicacoes || [];
       const caseData = (res as any).case || c;
 
@@ -566,7 +567,7 @@ function CasesContent() {
 
   const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
-    const movs = (historyResult.movimentos || []).map(m => ({ type: 'court', date: m.dataHora ? new Date(m.dataHora) : new Date(0), title: m.nome, subtitle: m.complemento || '', raw: m }));
+    const movs = normalizeMovimentosList(historyResult.movimentos || []).map(m => ({ type: 'court', date: parseTimelineDate(m.dataHora), title: m.nome || 'Movimentação tribunal', subtitle: m.complemento || '', raw: m }));
     const djen = (historyResult.djenComunicacoes || []).map(d => ({ 
       type: 'djen', 
       date: d.data_disponibilizacao ? new Date(d.data_disponibilizacao) : new Date(0), 

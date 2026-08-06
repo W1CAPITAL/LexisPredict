@@ -49,6 +49,7 @@ import {
 import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade, scorePreditivo } from '@/lib/fila-prioridade';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
+import { normalizeMovimentosList, parseTimelineDate } from '@/lib/timeline-normalize';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +62,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -179,11 +181,11 @@ export default function TarefasPage() {
     if (!protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(protocolo);
+      const res = await scanSingleCaseAction(protocolo, { mode: 'djen', fast: true });
       if (res.success && res.case) {
         setHistoryResult({ 
           case: res.case, 
-          movimentos: res.movimentos || [],
+          movimentos: [],
           djenComunicacoes: res.comunicacoes || []
         });
         setIsHistoryModalOpen(true);
@@ -200,8 +202,8 @@ export default function TarefasPage() {
     setLoading(true);
     setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(protocolo, { mode: 'both', fast: true });
-      const movimentos = ((res as any).movimentos || []).slice(0, 30);
+      const res = await scanSingleCaseAction(protocolo, { mode: 'both', fast: false });
+      const movimentos = normalizeMovimentosList((res as any).movimentos || []).slice(0, 60);
       const comunicacoes = (res as any).comunicacoes || [];
       const caseData = (res as any).case;
 
@@ -486,7 +488,7 @@ export default function TarefasPage() {
 
   const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
-    const movs = (historyResult.movimentos || []).map(m => ({ type: 'court', date: m.dataHora ? new Date(m.dataHora) : new Date(0), title: m.nome, subtitle: m.complemento || '', raw: m }));
+    const movs = normalizeMovimentosList(historyResult.movimentos || []).map(m => ({ type: 'court', date: parseTimelineDate(m.dataHora), title: m.nome || 'Movimentação tribunal', subtitle: m.complemento || '', raw: m }));
     const djen = (historyResult.djenComunicacoes || []).map(d => ({ 
       type: 'djen', 
       date: d.data_disponibilizacao ? new Date(d.data_disponibilizacao) : new Date(0), 
@@ -570,6 +572,7 @@ export default function TarefasPage() {
           <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
             <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
               <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
+              <DialogDescription className="sr-only">Cronologia DJEN e tribunal e respostas sugeridas ao cliente.</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
               <ScrollArea className="flex-1 w-full h-full">

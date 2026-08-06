@@ -12,6 +12,7 @@ import {
   updateCaseDataJudSystem,
   getSupabaseAdmin
 } from '@/lib/server-db';
+import { normalizeMovimentosList } from '@/lib/timeline-normalize';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
@@ -159,7 +160,7 @@ export async function auditCaseCoreSystem(
           : await fetchDataJud(protocolo, 1, options);
       if (dataJud && !dataJud.error) {
         datajudOk = true;
-        movimentos = dataJud.movimentos || [];
+        movimentos = normalizeMovimentosList(dataJud.movimentos || []);
         const upd = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
         const enc = detectarEncerradoNoTribunal(movimentos);
         const ba = analisarBuscaApreensao(dataJud);
@@ -415,7 +416,7 @@ export async function auditCaseCoreSystem(
     success: true,
     casePatch: patch,
     case: updatedCase,
-    movimentos,
+    movimentos: normalizeMovimentosList(movimentos).slice(0, 80),
     comunicacoes,
     aiEngine: aiEngine || patch.ai_engine || null,
     aiLogLine: aiLogLine || patch.ai_log_line || null,
