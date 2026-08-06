@@ -20,6 +20,7 @@ import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCum
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
 import { detectarNovaComunicacaoDjen } from '@/lib/djen-sync';
+import { resolveDjenPublicacaoLink } from '@/lib/djen';
 import { isAfter, parse, isValid, parseISO } from 'date-fns';
 
 function movimentoAindaPosRetorno(
@@ -299,7 +300,11 @@ export async function auditCaseCoreSystem(
         Object.assign(patch, {
           djen_ultima_data: djenSync.dataUltima || target.djen_ultima_data || null,
           djen_ultimo_resumo: resumoKw,
-          djen_ultimo_link: djenSync.link || target.djen_ultimo_link || null,
+          djen_ultimo_link:
+            djenSync.link ||
+            resolveDjenPublicacaoLink(comunicacoes[0], protoSafe || protocolo) ||
+            target.djen_ultimo_link ||
+            null,
           djen_count: djenRes.count ?? target.djen_count ?? comunicacoes.length,
           djen_consultado_em: new Date().toISOString(),
         });
@@ -465,6 +470,45 @@ export async function auditCaseCoreSystem(
       movimentos,
       comunicacoes,
     };
+  }
+
+
+  try {
+    await logAlertEvent({
+      empresaId,
+      protocolo: protoSafe || protocolo,
+      eventType: 'persisted',
+      source: mode,
+      payload: {
+        datajudOk,
+        djenOk,
+        movCount: movimentos.length,
+        djenCount: comunicacoes.length,
+        djenLink: patch.djen_ultimo_link || null,
+        evento_tipo: patch.evento_tipo || eventTipo,
+        offline: !datajudOk && !djenOk,
+      },
+    });
+    if (datajudOk) {
+      await logScanMetric({ empresaId, source: 'datajud', success: true, protocolo: protoSafe || protocolo });
+    }
+    if (djenOk) {
+      await logScanMetric({ empresaId, source: 'djen', success: true, protocolo: protoSafe || protocolo });
+    }
+    console.info(
+      '[audit-detail]',
+      JSON.stringify({
+        protocolo: protoSafe || protocolo,
+        mode,
+        datajudOk,
+        djenOk,
+        mov: movimentos.length,
+        djen: comunicacoes.length,
+        link: patch.djen_ultimo_link || null,
+      })
+    );
+  } catch (e) {
+    console.error('[audit-detail] log fail', e);
   }
 
     const updatedCase = processarCaso({ ...target, ...patch });

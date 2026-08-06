@@ -23,6 +23,7 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
+import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
 import { runCasesPlanilhaExport } from '@/lib/run-cases-export';
@@ -89,13 +90,35 @@ const CaseRow = React.memo(({
              <p className="text-[11px] font-bold text-foreground/80 uppercase italic leading-tight line-clamp-2">{sinal.detalhe}</p>
              {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  {c.djen_ultimo_link ? (
-                    <a href={c.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase hover:underline">
-                       <Globe size={10} /> Abrir no D.O. / Baixar comunicação
-                    </a>
-                  ) : (
-                    <span className="text-[9px] font-black text-blue-700/80 uppercase">Há publicação DJEN — abra a Auditoria 3D para o link</span>
-                  )}
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase hover:underline disabled:opacity-50"
+                    disabled={loading}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (c.djen_ultimo_link) {
+                        window.open(c.djen_ultimo_link, '_blank', 'noopener,noreferrer');
+                        return;
+                      }
+                      setLoading(true);
+                      try {
+                        const r = await openDjenPublicacaoAction(c.protocolo);
+                        if (r.success && (r as any).link) {
+                          window.open((r as any).link, '_blank', 'noopener,noreferrer');
+                        } else {
+                          alert((r as any).error || 'Sem link DJEN no momento');
+                        }
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    <Globe size={10} />
+                    {c.djen_ultimo_link
+                      ? 'Abrir publicação no Diário Oficial'
+                      : 'Abrir publicação DJEN (buscar link)'}
+                  </button>
                 </div>
              )}
           </div>

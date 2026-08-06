@@ -23,6 +23,27 @@ export interface DjenComunicacao {
   destinatarios?: Array<{ nome?: string; polo?: string; advogados?: string[] }>;
 }
 
+
+/** Monta URL do diario oficial quando a API nao envia `link`. */
+export function resolveDjenPublicacaoLink(
+  item: Partial<DjenComunicacao> | null | undefined,
+  protocolo?: string | null
+): string | null {
+  if (!item && !protocolo) return null;
+  const direct = item?.link ? String(item.link).trim() : '';
+  if (direct.startsWith('http')) return direct;
+  const hash = item?.hash ? String(item.hash).trim() : '';
+  if (hash) return `https://comunica.pje.jus.br/consulta?hash=${encodeURIComponent(hash)}`;
+  const id = item?.id != null ? String(item.id).trim() : '';
+  if (id) return `https://comunica.pje.jus.br/consulta?id=${encodeURIComponent(id)}`;
+  const digits = String(protocolo || item?.numero_processo || '').replace(/\D/g, '');
+  if (digits.length === 20) {
+    const masked = `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+    return `https://comunica.pje.jus.br/#/consulta?numeroProcesso=${encodeURIComponent(masked)}`;
+  }
+  return null;
+}
+
 export interface DjenFetchResult {
   success: boolean;
   error?: string;
@@ -313,18 +334,22 @@ async function fetchDjenComunicacoesUncached(
           numero_processo:
             item.numeroProcesso || item.numeroprocessocommascara || null,
           meio: item.meio || null,
-          link: item.link || null,
+          link: item.link || (item.hash ? `https://comunica.pje.jus.br/consulta?hash=${item.hash}` : null) || null,
           tipoDocumento: item.tipoDocumento || item.tipodocumento || null,
           nomeClasse: item.nomeClasse || item.nomeclasse || null,
           destinatarios: destinatarios.length ? destinatarios : undefined,
         };
       });
 
+      const enriched = mappedItems.map((it) => ({
+        ...it,
+        link: resolveDjenPublicacaoLink(it, digits) || it.link,
+      }));
       // HTTP 200 com lista vazia = sucesso (processo sem publicação no período)
       return {
         success: true,
-        count: data.count ?? mappedItems.length,
-        items: mappedItems,
+        count: data.count ?? enriched.length,
+        items: enriched,
       };
     } catch (e: any) {
       if (e?.name === 'AbortError') {
