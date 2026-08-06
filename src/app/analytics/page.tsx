@@ -1,4 +1,6 @@
 "use client";
+import { Dashboard as EfferdPanel } from "@/components/dashboard/efferd-dashboard-panel";
+
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
@@ -160,6 +162,9 @@ export default function AnalyticsPage() {
             </Button>
           </div>
         </header>
+          <div className="px-4 sm:px-8">
+            <EfferdPanel className="!p-0 border rounded-2xl overflow-hidden mb-6" />
+          </div>
 
         <div className="flex-1 overflow-auto p-10 space-y-10 max-w-[1600px] mx-auto w-full pb-32">
           {/* TOP CARDS */}
