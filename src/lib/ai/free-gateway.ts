@@ -184,20 +184,24 @@ export async function freeComplete(opts: {
     });
   }
   const xai =
-    process.env.XAI_API_KEY ||
     process.env.XAI_GROK_PRESTIGE_API_KEY ||
+    process.env.XAI_API_KEY ||
     process.env.GROK_API_KEY;
   if (xai) {
     steps.push({
       id: 'xai',
-      run: () =>
-        callOpenAIShape(
-          'https://api.x.ai/v1/chat/completions',
-          xai,
-          process.env.XAI_MODEL || 'grok-2-1212',
-          messages,
-          'xai'
-        ),
+      run: async () => {
+        const { callXaiPrestige } = await import('@/lib/ai/xai-prestige');
+        const r = await callXaiPrestige(messages as any, {
+          max_tokens: 4096,
+          temperature: 0.4,
+        });
+        return {
+          text: r.text,
+          engine: `${r.engine}:${r.model}`,
+          latencyMs: r.latencyMs,
+        };
+      },
     });
   }
   const gem = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;

@@ -107,7 +107,7 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
     {
       id: 'xai',
       url: 'https://api.x.ai/v1/chat/completions',
-      key: process.env.XAI_API_KEY || process.env.XAI_GROK_PRESTIGE_API_KEY || process.env.GROK_API_KEY,
+      key: process.env.XAI_GROK_PRESTIGE_API_KEY || process.env.XAI_API_KEY || process.env.GROK_API_KEY,
       model: process.env.XAI_MODEL || 'grok-2-1212',
       kind: 'openai',
     },
@@ -166,6 +166,43 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   const preferred = (opts.forceEngineId || opts.preferred || 'auto').toLowerCase();
   const errors: string[] = [];
 
+
+
+  // --- xAI Prestige direto (quando preferred = xai/grok) ---
+  const wantXai =
+    preferred === 'xai' ||
+    preferred.includes('grok') ||
+    preferred.includes('prestige');
+  if (wantXai || preferred === 'auto') {
+    try {
+      const { isXaiConfigured, callXaiPrestige } = await import('@/lib/ai/xai-prestige');
+      if (isXaiConfigured()) {
+        const msgs: Array<{ role: string; content: string }> = [];
+        if (system) msgs.push({ role: 'system', content: system });
+        for (const h of history) msgs.push(h);
+        msgs.push({ role: 'user', content: String(user) });
+        const r = await callXaiPrestige(msgs, {
+          max_tokens: opts.max_tokens ?? 4096,
+          temperature: opts.temperature ?? 0.4,
+        });
+        if (r.text.trim()) {
+          return {
+            text: r.text,
+            engineId: 'xai',
+            model: r.model,
+            latencyMs: r.latencyMs,
+            latency: r.latencyMs,
+            tokens: r.tokens,
+          };
+        }
+      }
+    } catch (e: any) {
+      errors.push(`xai-prestige: ${e?.message || e}`);
+      if (wantXai && preferred !== 'auto') {
+        // continua para freeComplete fallback
+      }
+    }
+  }
 
   // --- Anthropic direto (quando Claude e a preferencia e ha API key) ---
   const anthropicKey =

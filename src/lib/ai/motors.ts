@@ -41,11 +41,11 @@ export const MOTORS: MotorDef[] = [
   },
   {
     id: 'xai',
-    label: 'xAI Grok',
-    short: 'xAI',
-    desc: 'Raciocínio jurídico (xAI Grok).',
+    label: 'xAI Grok Prestige',
+    short: 'Grok',
+    desc: 'Grok via XAI_GROK_PRESTIGE_API_KEY — raciocinio juridico no Assistente.',
     scope: 'server',
-    envKey: 'XAI_API_KEY',
+    envKey: 'XAI_GROK_PRESTIGE_API_KEY',
   },
   {
     id: 'groq-llama',
