@@ -138,10 +138,25 @@ export async function auditCaseCoreSystem(
   let datajudOk = false;
   let djenOk = false;
 
+  // Pré-busca paralela (both) — reduz lag do Sugerir resposta / auditoria pontual
+  let preDataJud: any = null;
+  let preDjen: any = null;
+  if (mode === 'both') {
+    const [djS, djenS] = await Promise.allSettled([
+      fetchDataJud(protocolo, 1, { ...options, fast: options.fast !== false }),
+      fetchDjenComunicacoes(protocolo),
+    ]);
+    if (djS.status === 'fulfilled') preDataJud = djS.value;
+    if (djenS.status === 'fulfilled') preDjen = djenS.value;
+  }
+
   // --- BLOCO DATAJUD ---
   if (mode === 'datajud' || mode === 'both') {
     try {
-      const dataJud = await fetchDataJud(protocolo, 1, options);
+      const dataJud =
+        mode === 'both'
+          ? preDataJud
+          : await fetchDataJud(protocolo, 1, options);
       if (dataJud && !dataJud.error) {
         datajudOk = true;
         movimentos = dataJud.movimentos || [];
@@ -231,8 +246,9 @@ export async function auditCaseCoreSystem(
   // --- BLOCO DJEN ---
   if (mode === 'djen' || mode === 'both') {
     try {
-      const djenRes = await fetchDjenComunicacoes(protocolo);
-      if (djenRes.success) {
+      const djenRes =
+        mode === 'both' ? preDjen : await fetchDjenComunicacoes(protocolo);
+      if (djenRes && djenRes.success) {
         djenOk = true;
         comunicacoes = djenRes.items || [];
         const djenSync = detectarNovaComunicacaoDjen(target.ultimoRetorno, comunicacoes);

@@ -282,15 +282,21 @@ function CasesContent() {
     setLoading(true);
     setAiDraft(null);
     try {
-      // Rápido: só DataJud (sem DJEN, sem Claude). Scripts = motor local fixo.
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'datajud', fast: true });
-      const movimentos = ((res as any).movimentos || []).slice(0, 15);
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: true });
+      const movimentos = ((res as any).movimentos || []).slice(0, 30);
+      const comunicacoes = (res as any).comunicacoes || [];
       const caseData = (res as any).case || c;
+
       setHistoryResult({
         case: caseData,
         movimentos,
-        djenComunicacoes: (res as any).comunicacoes || [],
+        djenComunicacoes: comunicacoes,
       });
+
+      const djenTexts = comunicacoes
+        .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || ''))
+        .filter(Boolean);
+
       const suggestions = suggestScripts({
         clienteNome: c.cliente,
         protocolo: c.protocolo,
@@ -299,7 +305,7 @@ function CasesContent() {
         eventoResumo: caseData.evento_resumo || c.evento_resumo,
         datajud_ultimo_nome: caseData.datajud_ultimo_nome || c.datajud_ultimo_nome,
         movimentos,
-        djenTexts: [],
+        djenTexts,
         tem_novo_andamento: caseData.tem_novo_andamento ?? c.tem_novo_andamento,
         datajud_encerrado_tribunal: caseData.datajud_encerrado_tribunal ?? c.datajud_encerrado_tribunal,
         indicio_busca_apreensao: caseData.indicio_busca_apreensao ?? c.indicio_busca_apreensao,
@@ -308,8 +314,15 @@ function CasesContent() {
       setSuggestedScripts(suggestions);
       setShowScripts(true);
       setIsHistoryModalOpen(true);
-      if ((res as any).success && (res as any).casePatch) {
+      if ((res as any).casePatch) {
         updateCaseByProtocolo(c.protocolo, (res as any).casePatch || {});
+      }
+      if (!movimentos.length && !comunicacoes.length) {
+        toast({
+          title: 'Cronologia vazia',
+          description: 'DataJud e DJEN sem retorno agora. Tente de novo em instantes.',
+          variant: 'destructive',
+        });
       }
     } finally {
       setLoading(false);

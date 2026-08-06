@@ -198,64 +198,67 @@ export default function TarefasPage() {
   const handleSuggestClick = async (protocolo: string, cliente: string, ultimoRetorno: string | null) => {
     if (!protocolo) return;
     setLoading(true);
+    setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(protocolo, { mode: 'both' });
-      if (res.success && res.case) {
-        const movimentos = res.movimentos || [];
-        const comunicacoes = res.comunicacoes || [];
+      const res = await scanSingleCaseAction(protocolo, { mode: 'both', fast: true });
+      const movimentos = ((res as any).movimentos || []).slice(0, 30);
+      const comunicacoes = (res as any).comunicacoes || [];
+      const caseData = (res as any).case;
+
+      if (caseData || movimentos.length || comunicacoes.length) {
         setHistoryResult({
-          case: res.case,
+          case: caseData || ({ protocolo, cliente } as any),
           movimentos,
           djenComunicacoes: comunicacoes,
         });
-        setAiDraft(null);
 
         const djenTexts = comunicacoes
           .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ''))
           .filter(Boolean) as string[];
 
-        // Inclui complementos longos dos movimentos no corpus (muitas vezes o teor está aí)
-        const movimentosEnriquecidos = (movimentos || []).map((m: any) => ({
+        const movimentosEnriquecidos = movimentos.map((m: any) => ({
           ...m,
           complemento: m.complemento || m.complementoTabelado || m.descricao || '',
           descricao: m.descricao || m.nome || '',
         }));
 
         const suggestions = suggestScripts({
-          clienteNome: cliente || res.case.cliente,
+          clienteNome: cliente || caseData?.cliente,
           protocolo,
-          ultimoRetorno: ultimoRetorno || res.case.ultimoRetorno,
-          eventoTipo: res.case.evento_tipo as any,
-          evento_tipo: res.case.evento_tipo as any,
-          eventoResumo: res.case.evento_resumo,
-          evento_resumo: res.case.evento_resumo,
-          djen_ultimo_resumo: res.case.djen_ultimo_resumo,
-          datajud_ultimo_nome: res.case.datajud_ultimo_nome,
+          ultimoRetorno: ultimoRetorno || caseData?.ultimoRetorno,
+          eventoTipo: caseData?.evento_tipo as any,
+          evento_tipo: caseData?.evento_tipo as any,
+          eventoResumo: caseData?.evento_resumo,
+          evento_resumo: caseData?.evento_resumo,
+          djen_ultimo_resumo: caseData?.djen_ultimo_resumo,
+          datajud_ultimo_nome: caseData?.datajud_ultimo_nome,
           movimentos: movimentosEnriquecidos,
           djenTexts,
-          tem_novo_andamento: !!res.case.tem_novo_andamento,
-          tem_atualizacao_pos_retorno: !!res.case.tem_atualizacao_pos_retorno,
-          djen_nova_comunicacao: !!res.case.djen_nova_comunicacao,
-          datajud_encerrado_tribunal: !!res.case.datajud_encerrado_tribunal,
-          indicio_busca_apreensao: res.case.evento_tipo === 'ba',
-          em_cumprimento_sentenca: !!res.case.em_cumprimento_sentenca,
+          tem_novo_andamento: !!caseData?.tem_novo_andamento,
+          tem_atualizacao_pos_retorno: !!caseData?.tem_atualizacao_pos_retorno,
+          djen_nova_comunicacao: !!caseData?.djen_nova_comunicacao,
+          datajud_encerrado_tribunal: !!caseData?.datajud_encerrado_tribunal,
+          indicio_busca_apreensao: caseData?.evento_tipo === 'ba' || !!caseData?.indicio_busca_apreensao,
+          em_cumprimento_sentenca: !!caseData?.em_cumprimento_sentenca,
         });
         setSuggestedScripts(suggestions);
         setShowScripts(true);
         setIsHistoryModalOpen(true);
-        setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? res.case! : c)));
+        if (caseData) {
+          setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? caseData : c)));
+        }
         toast({
           title: suggestions.length
             ? `${suggestions.length} resposta(s) para o cliente`
             : 'Auditoria aberta',
-          description: suggestions.length
-            ? 'Role até o final do modal: resposta baseada no teor DataJud/DJEN.'
-            : 'Use o rascunho por IA se precisar.',
+          description:
+            `${movimentos.length} mov. tribunal · ${comunicacoes.length} DJEN` +
+            (suggestions.length ? ' — role até as respostas.' : ''),
         });
       } else {
         toast({
           title: 'Falha ao consultar processo',
-          description: (res as any).error || 'Não foi possível gerar sugestões agora.',
+          description: (res as any).error || 'DataJud e DJEN sem retorno.',
           variant: 'destructive',
         });
       }
@@ -314,6 +317,7 @@ export default function TarefasPage() {
           : 'S/D',
         orgao: item.nomeOrgao || item.siglaTribunal || '',
         texto: texto || 'Conteúdo não disponível.',
+        useClaude: false,
       });
       if (res.success && res.base64) {
         const link = document.createElement('a');
