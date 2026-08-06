@@ -1,5 +1,5 @@
 /**
- * Assistente IA — Claude completo + todos os motores + BA Claude/DJEN opcional.
+ * Assistente IA Lexis — Claude/OmniRoute, thinking visivel, PDF + imagens.
  */
 "use client";
 
@@ -10,8 +10,22 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Send, Bot, User, Loader2, Copyright, Search, ShieldAlert, ImagePlus } from "lucide-react";
-import { perguntarChatbotIndependente } from "@/app/chatbot-separado/actions";
+import {
+  Send,
+  Bot,
+  User,
+  Loader2,
+  Copyright,
+  ImagePlus,
+  FileText,
+  Brain,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
+import {
+  perguntarChatbotIndependente,
+  extractPdfTextForChatAction,
+} from "@/app/chatbot-separado/actions";
 import { MotorSelector } from "@/components/ai/motor-selector";
 import {
   loadPreferredMotor,
@@ -23,14 +37,41 @@ import {
 import { DataJudDisclaimer } from "@/components/ui/datajud-disclaimer";
 import { cn } from "@/lib/utils";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  thinking?: string | null;
+  engine?: string;
+};
+
+function ThinkingBlock({ text }: { text: string }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="mb-2 rounded-xl border border-violet-500/30 bg-violet-500/5 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-violet-700 dark:text-violet-300"
+      >
+        <Brain size={12} />
+        Pensamento
+        {open ? <ChevronDown size={12} className="ml-auto" /> : <ChevronRight size={12} className="ml-auto" />}
+      </button>
+      {open ? (
+        <pre className="px-3 pb-3 text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground font-sans max-h-48 overflow-auto">
+          {text}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
 
 export default function AssistentePage() {
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "assistant",
       content:
-        "Assistente Lexis (Claude + cascata). Envie um CNJ para consultar DataJud/DJEN. Anexe print se quiser análise visual (Claude vision). Ative BA+Claude se quiser confirmação de busca e apreensão no teor do diário.",
+        "Assistente Lexis (Claude via OmniRoute). Pergunte sobre processos, atendimento, peças ou operação. Anexe PDF ou print — eu leio o teor, mostro o raciocínio e respondo de forma acionável.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -41,8 +82,13 @@ export default function AssistentePage() {
     mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
     data: string;
   } | null>(null);
+  const [pendingPdf, setPendingPdf] = useState<{ name: string; text: string; chars: number } | null>(
+    null
+  );
+  const [pdfLoading, setPdfLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const imgRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setModel(loadPreferredMotor());
@@ -53,57 +99,82 @@ export default function AssistentePage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  const onFile = async (file: File | null) => {
+  const onImage = async (file: File | null) => {
     if (!file || !file.type.startsWith("image/")) return;
     const buf = await file.arrayBuffer();
     const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-    const mediaType = (file.type as any) || "image/png";
-    setPendingImage({ mediaType, data: b64 });
+    setPendingImage({ mediaType: (file.type as any) || "image/png", data: b64 });
+  };
+
+  const onPdf = async (file: File | null) => {
+    if (!file) return;
+    setPdfLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("pdf", file);
+      const res = await extractPdfTextForChatAction(fd);
+      if (!res.success) {
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: `PDF: ${(res as any).error || "falha na leitura"}` },
+        ]);
+        return;
+      }
+      setPendingPdf({ name: res.name, text: res.text, chars: res.chars });
+    } finally {
+      setPdfLoading(false);
+      if (pdfRef.current) pdfRef.current.value = "";
+    }
   };
 
   const send = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const text = input.trim();
-    if ((!text && !pendingImage) || loading) return;
+    if ((!text && !pendingImage && !pendingPdf) || loading) return;
 
-    const cnj = extractCnjFromText(text);
-    const display = pendingImage
-      ? `${text || "(imagem)"}\n[anexo: print]`
-      : text;
-    const next: Msg[] = [...messages, { role: "user", content: display }];
-    setMessages(next);
+    const userLabel = [
+      text || (pendingPdf ? `(PDF: ${pendingPdf.name})` : "") || "(anexo)",
+      pendingImage ? "[imagem]" : "",
+      pendingPdf ? `[pdf ${pendingPdf.chars} chars]` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    setMessages((m) => [...m, { role: "user", content: userLabel }]);
     setInput("");
     const img = pendingImage;
+    const pdf = pendingPdf;
     setPendingImage(null);
+    setPendingPdf(null);
     setLoading(true);
 
     try {
-      const history = next.slice(-10).map((m) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: m.content,
-      }));
-      const res = await perguntarChatbotIndependente(text || "Analise a imagem.", history, model, {
+      const history = messages
+        .filter((x) => x.role === "user" || x.role === "assistant")
+        .slice(-12)
+        .map((x) => ({ role: x.role, content: x.content }));
+
+      const res = await perguntarChatbotIndependente(text || "Analise o material anexado.", history, model, {
         baClaudeDjen: baClaude,
         images: img ? [img] : undefined,
+        pdfText: pdf?.text,
+        pdfName: pdf?.name,
+        max_tokens: 4096,
       });
-      setMessages((prev) => [
-        ...prev,
+
+      setMessages((m) => [
+        ...m,
         {
           role: "assistant",
-          content:
-            (res.resposta || "Sem resposta.") +
-            (res.engine || res.engineUtilizada
-              ? `\n\n— motor: ${res.engine || res.engineUtilizada}${cnj ? ` · CNJ ${cnj}` : ""}${baClaude ? " · BA-Claude on" : ""}`
-              : ""),
+          content: res.resposta || "Sem resposta.",
+          thinking: (res as any).thinking || null,
+          engine: res.engineUtilizada || res.engine,
         },
       ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Falha ao contatar o motor. Verifique ENVs e Configurações → Núcleo Neural.",
-        },
+    } catch (err: any) {
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: `Erro: ${err?.message || err}` },
       ]);
     } finally {
       setLoading(false);
@@ -111,122 +182,152 @@ export default function AssistentePage() {
   };
 
   return (
-    <div className="flex h-screen bg-transparent font-sans text-foreground overflow-hidden relative z-10">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden glass-panel">
-        <header className="shrink-0 border-b border-border px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="shrink-0 border-b px-4 py-3 flex flex-wrap items-center gap-3 bg-card/40">
           <div className="flex items-center gap-2">
-            <Bot size={18} className="text-primary" />
+            <Bot className="text-primary" size={20} />
             <div>
               <h1 className="text-sm font-black uppercase tracking-widest">Assistente IA</h1>
-              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <Search size={10} /> Claude Messages API · CNJ · visão · BA opcional
+              <p className="text-[10px] text-muted-foreground font-bold uppercase">
+                Claude · OmniRoute · PDF · Vision · Pensamento visível
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-1.5 bg-amber-500/5 border-amber-500/20">
-              <ShieldAlert size={14} className="text-amber-600" />
-              <Label htmlFor="chat-ba-claude" className="text-[10px] font-bold">
-                BA+Claude/DJEN
-              </Label>
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <MotorSelector value={model} onChange={setModel} />
+            <div className="flex items-center gap-2">
               <Switch
                 id="chat-ba-claude"
                 checked={baClaude}
-                onCheckedChange={(on) => {
-                  setBaClaude(on);
-                  saveBaClaudeDjenEnabled(on);
+                onCheckedChange={(v) => {
+                  setBaClaude(v);
+                  saveBaClaudeDjenEnabled(v);
                 }}
               />
+              <Label htmlFor="chat-ba-claude" className="text-[10px] font-bold">
+                BA + Claude/DJEN
+              </Label>
             </div>
-            <MotorSelector value={model} onChange={setModel} />
           </div>
         </header>
 
-        <ScrollArea className="flex-1 px-4 sm:px-6 py-4">
+        <ScrollArea className="flex-1 px-4 py-6">
           <div className="max-w-3xl mx-auto space-y-4">
-            {messages.map((m, i) => (
+            {messages.map((msg, i) => (
               <div
                 key={i}
                 className={cn(
-                  "flex gap-2",
-                  m.role === "user" ? "justify-end" : "justify-start"
+                  "flex gap-3",
+                  msg.role === "user" ? "justify-end" : "justify-start"
                 )}
               >
-                {m.role === "assistant" && (
-                  <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                    <Bot size={16} />
+                {msg.role === "assistant" ? (
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Bot size={16} className="text-primary" />
                   </div>
-                )}
+                ) : null}
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words",
-                    m.role === "user"
+                    "rounded-2xl px-4 py-3 max-w-[85%] text-sm leading-relaxed",
+                    msg.role === "user"
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted/80 border border-border"
+                      : "bg-secondary/80 border border-border/50"
                   )}
                 >
-                  {m.content}
+                  {msg.role === "assistant" && msg.thinking ? (
+                    <ThinkingBlock text={msg.thinking} />
+                  ) : null}
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {msg.role === "assistant" && msg.engine ? (
+                    <p className="mt-2 text-[9px] font-mono text-muted-foreground opacity-70">
+                      {msg.engine}
+                    </p>
+                  ) : null}
                 </div>
-                {m.role === "user" && (
-                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                {msg.role === "user" ? (
+                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                     <User size={16} />
                   </div>
-                )}
+                ) : null}
               </div>
             ))}
-            {loading && (
+            {loading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                <Loader2 className="animate-spin" size={14} /> Consultando motor
-                {extractCnjFromText(messages[messages.length - 1]?.content || "")
-                  ? " + DataJud/DJEN…"
-                  : "…"}
+                <Loader2 className="animate-spin" size={14} />
+                Claude está pensando…
               </div>
-            )}
+            ) : null}
             <div ref={bottomRef} />
           </div>
         </ScrollArea>
 
         <form onSubmit={send} className="shrink-0 border-t border-border p-4 sm:px-6 bg-card/50">
-          {pendingImage && (
-            <div className="max-w-3xl mx-auto mb-2 text-[10px] text-muted-foreground flex items-center gap-2">
-              <ImagePlus size={12} /> Print anexado (Claude vision)
-              <button
-                type="button"
-                className="underline"
-                onClick={() => setPendingImage(null)}
-              >
-                remover
-              </button>
+          {(pendingImage || pendingPdf) && (
+            <div className="max-w-3xl mx-auto mb-2 flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+              {pendingImage && (
+                <span className="flex items-center gap-1">
+                  <ImagePlus size={12} /> Print anexado
+                  <button type="button" className="underline" onClick={() => setPendingImage(null)}>
+                    remover
+                  </button>
+                </span>
+              )}
+              {pendingPdf && (
+                <span className="flex items-center gap-1">
+                  <FileText size={12} /> PDF {pendingPdf.name} ({pendingPdf.chars} chars)
+                  <button type="button" className="underline" onClick={() => setPendingPdf(null)}>
+                    remover
+                  </button>
+                </span>
+              )}
             </div>
           )}
           <div className="max-w-3xl mx-auto flex gap-2">
             <input
-              ref={fileRef}
+              ref={imgRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => onFile(e.target.files?.[0] || null)}
+              onChange={(e) => onImage(e.target.files?.[0] || null)}
+            />
+            <input
+              ref={pdfRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => onPdf(e.target.files?.[0] || null)}
             />
             <Button
               type="button"
               variant="outline"
               className="h-12 w-12 rounded-xl shrink-0"
-              onClick={() => fileRef.current?.click()}
-              title="Anexar print (vision)"
+              onClick={() => imgRef.current?.click()}
+              title="Anexar imagem"
             >
               <ImagePlus size={18} />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 w-12 rounded-xl shrink-0"
+              onClick={() => pdfRef.current?.click()}
+              disabled={pdfLoading}
+              title="Anexar PDF"
+            >
+              {pdfLoading ? <Loader2 className="animate-spin" size={18} /> : <FileText size={18} />}
             </Button>
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ex.: Resumo do 0001234-56.2024.8.26.0100 e o que falar ao cliente"
+              placeholder="Pergunte qualquer coisa do gabinete… ou anexe PDF/print"
               className="h-12 rounded-xl"
               disabled={loading}
             />
             <Button
               type="submit"
-              disabled={loading || (!input.trim() && !pendingImage)}
+              disabled={loading || (!input.trim() && !pendingImage && !pendingPdf)}
               className="h-12 px-5 rounded-xl shrink-0"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
