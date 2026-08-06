@@ -192,7 +192,7 @@ export async function fetchDjenComunicacoes(
   const dataFim = opts?.dataFim || new Date().toISOString().split('T')[0];
   const dataInicioEarly =
     opts?.dataInicio ||
-    new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const cacheKey = PerfKeys.djen(digits, dataInicioEarly, dataFim) + ':' + (opts?.siglaTribunal || '');
   return perfCached(cacheKey, () => fetchDjenComunicacoesUncached(protocolo, opts), 90_000);
 }
@@ -214,7 +214,7 @@ async function fetchDjenComunicacoesUncached(
   const dataFim = opts?.dataFim || new Date().toISOString().split('T')[0];
   const dataInicio =
     opts?.dataInicio ||
-    new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const masked = `${digits.substring(0, 7)}-${digits.substring(7, 9)}.${digits.substring(9, 13)}.${digits.substring(13, 14)}.${digits.substring(14, 16)}.${digits.substring(16, 20)}`;
   const cnjOptions = [digits, masked];
@@ -237,7 +237,7 @@ async function fetchDjenComunicacoesUncached(
       if (opts?.meio) params.append('meio', opts.meio);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 28000);
 
       const response = await fetch(`${DJEN_URL}?${params.toString()}`, {
         method: 'GET',

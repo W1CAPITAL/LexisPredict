@@ -268,16 +268,24 @@ function CasesContent() {
     try {
       // Auditoria 3D: EXCLUSIVO DJEN (sem DataJud)
       const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: true });
-      if (res.success && res.case) {
-        setHistoryResult({
-          case: res.case,
-          movimentos: [],
-          djenComunicacoes: res.comunicacoes || [],
-        });
-        setIsHistoryModalOpen(true);
-        setShowScripts(false);
-        setAiDraft(null);
+      const coms = (res as any).comunicacoes || [];
+      setHistoryResult({
+        case: (res as any).case || c,
+        movimentos: [],
+        djenComunicacoes: coms,
+      });
+      setIsHistoryModalOpen(true);
+      setShowScripts(false);
+      setAiDraft(null);
+      if ((res as any).casePatch) {
         updateCaseByProtocolo(c.protocolo, (res.casePatch as Record<string, any>) || {});
+      }
+      if (!coms.length) {
+        toast({
+          title: (res as any).offline ? 'DJEN offline' : 'Sem publicacoes DJEN',
+          description: String((res as any).error || 'Nenhuma comunicacao no periodo ou falha de rede (403/429).'),
+          variant: 'destructive',
+        });
       }
     } finally { setLoading(false); }
   };
@@ -323,9 +331,12 @@ function CasesContent() {
         updateCaseByProtocolo(c.protocolo, (res as any).casePatch || {});
       }
       if (!movimentos.length && !comunicacoes.length) {
+        const err = String((res as any).error || '');
         toast({
-          title: 'Cronologia vazia',
-          description: 'DataJud e DJEN sem retorno agora. Tente de novo em instantes.',
+          title: (res as any).offline ? 'Tribunal offline' : 'Cronologia vazia',
+          description: err
+            ? err.slice(0, 180)
+            : 'DataJud/DJEN sem publicacoes no periodo ou falha de rede. Confira CNJ e regiao gru1. Tente de novo.',
           variant: 'destructive',
         });
       }

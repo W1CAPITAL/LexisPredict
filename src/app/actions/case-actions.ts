@@ -139,16 +139,40 @@ export async function auditCaseCoreSystem(
   let datajudOk = false;
   let djenOk = false;
 
-  // Pré-busca paralela (both) — reduz lag do Sugerir resposta / auditoria pontual
+  // Pré-busca paralela (both) — Sugerir resposta / auditoria
   let preDataJud: any = null;
   let preDjen: any = null;
+  const digits = String(protocolo || '').replace(/\D/g, '');
+  const protoSafe = digits.length === 20 ? digits : protocolo;
   if (mode === 'both') {
     const [djS, djenS] = await Promise.allSettled([
-      fetchDataJud(protocolo, 1, { ...options, fast: options.fast !== false }),
-      fetchDjenComunicacoes(protocolo),
+      fetchDataJud(protoSafe, 1, { ...options, fast: options.fast !== false }),
+      fetchDjenComunicacoes(protoSafe, {
+        dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      }),
     ]);
     if (djS.status === 'fulfilled') preDataJud = djS.value;
     if (djenS.status === 'fulfilled') preDjen = djenS.value;
+    // Retry DJEN se falhou na paralela
+    if (!preDjen || preDjen.success === false) {
+      try {
+        await new Promise((r) => setTimeout(r, 800));
+        preDjen = await fetchDjenComunicacoes(protoSafe, {
+          dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        });
+      } catch {
+        /* */
+      }
+    }
+    // Retry DataJud se erro
+    if (!preDataJud || preDataJud.error) {
+      try {
+        await new Promise((r) => setTimeout(r, 600));
+        preDataJud = await fetchDataJud(protoSafe, 1, { ...options, fast: false });
+      } catch {
+        /* */
+      }
+    }
   }
 
   // --- BLOCO DATAJUD ---
@@ -247,8 +271,22 @@ export async function auditCaseCoreSystem(
   // --- BLOCO DJEN ---
   if (mode === 'djen' || mode === 'both') {
     try {
-      const djenRes =
-        mode === 'both' ? preDjen : await fetchDjenComunicacoes(protocolo);
+      let djenRes =
+        mode === 'both'
+          ? preDjen
+          : await fetchDjenComunicacoes(protoSafe || protocolo, {
+              dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+                .toISOString()
+                .split('T')[0],
+            });
+      if ((!djenRes || djenRes.success === false) && mode === 'djen') {
+        await new Promise((r) => setTimeout(r, 900));
+        djenRes = await fetchDjenComunicacoes(protoSafe || protocolo, {
+          dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0],
+        });
+      }
       if (djenRes && djenRes.success) {
         djenOk = true;
         comunicacoes = djenRes.items || [];
@@ -288,11 +326,16 @@ export async function auditCaseCoreSystem(
   }
 
   if (!datajudOk && !djenOk) {
+    // Soft-fail: UI ainda abre; mostra toast. Nao derruba como 500.
     return {
-      success: false,
-      error: 'OFFLINE',
+      success: true,
+      offline: true,
+      error:
+        'OFFLINE: DataJud e DJEN sem retorno (rede, 403 geo, rate limit ou CNJ). Confira deploy em gru1 e tente de novo.',
       case: target,
-      casePatch: {},
+      casePatch: {
+        djen_consultado_em: new Date().toISOString(),
+      },
       movimentos: [],
       comunicacoes: [],
     };
