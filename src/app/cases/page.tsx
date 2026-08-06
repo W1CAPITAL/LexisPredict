@@ -174,7 +174,7 @@ function CasesContent() {
   const { isOperador, profile } = useAdmin();
   const { toast } = useToast();
   
-  const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '' });
+  const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -200,6 +200,14 @@ function CasesContent() {
         observacao: '',
         telefone: '',
         escritorio: '',
+        cpf: '',
+        email: '',
+        estado_civil: '',
+        emprego: '',
+        nacionalidade: 'BRASILEIRA',
+        parte_passiva: '',
+        parte_passiva_cnpj: '',
+        classe_acao: '',
       });
       setIsModalOpen(true);
     }
@@ -381,6 +389,14 @@ function CasesContent() {
     observacao: '',
     telefone: '',
     escritorio: '',
+    cpf: '',
+    email: '',
+    estado_civil: '',
+    emprego: '',
+    nacionalidade: 'BRASILEIRA',
+    parte_passiva: '',
+    parte_passiva_cnpj: '',
+    classe_acao: '',
   });
 
   const handleNewCase = () => {
@@ -402,6 +418,14 @@ function CasesContent() {
       observacao: c.observacao || '',
       telefone: c.telefone || '',
       escritorio: c.escritorio || '',
+      cpf: (c as any).cpf || '',
+      email: (c as any).email || '',
+      estado_civil: (c as any).estado_civil || '',
+      emprego: (c as any).emprego || '',
+      nacionalidade: (c as any).nacionalidade || 'BRASILEIRA',
+      parte_passiva: (c as any).parte_passiva || '',
+      parte_passiva_cnpj: (c as any).parte_passiva_cnpj || '',
+      classe_acao: (c as any).classe_acao || '',
     });
     setIsModalOpen(true);
   };
@@ -451,6 +475,14 @@ function CasesContent() {
       statusManual: formState.statusManual || 'Automatico',
       observacao: (formState.observacao || '').toUpperCase(),
       status: 'EM ANDAMENTO',
+      cpf: formState.cpf || '',
+      email: formState.email || '',
+      estado_civil: formState.estado_civil || '',
+      emprego: formState.emprego || '',
+      nacionalidade: formState.nacionalidade || 'BRASILEIRA',
+      parte_passiva: formState.parte_passiva || '',
+      parte_passiva_cnpj: formState.parte_passiva_cnpj || '',
+      classe_acao: formState.classe_acao || '',
     } as any);
     const updatedList = [novo, ...cases];
     const res = await syncRepoCases(updatedList);
@@ -742,6 +774,22 @@ function CasesContent() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label className={ui.label}>Próximo Prazo</Label><Input value={formState.proximoPrazo} onChange={e => setFormState({...formState, proximoPrazo: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold text-xs" placeholder="dd/mm/aaaa" /></div>
                   <div className="space-y-2"><Label className={ui.label}>Telefone</Label><Input value={formState.telefone} onChange={e => setFormState({...formState, telefone: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label className={ui.label}>CPF</Label><Input value={formState.cpf} onChange={e => setFormState({...formState, cpf: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs" placeholder="000.000.000-00" /></div>
+                  <div className="space-y-2"><Label className={ui.label}>E-mail</Label><Input value={formState.email} onChange={e => setFormState({...formState, email: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none text-xs" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label className={ui.label}>Estado civil</Label><Input value={formState.estado_civil} onChange={e => setFormState({...formState, estado_civil: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" /></div>
+                  <div className="space-y-2"><Label className={ui.label}>Emprego</Label><Input value={formState.emprego} onChange={e => setFormState({...formState, emprego: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label className={ui.label}>Nacionalidade</Label><Input value={formState.nacionalidade} onChange={e => setFormState({...formState, nacionalidade: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" /></div>
+                  <div className="space-y-2"><Label className={ui.label}>Classe / ação</Label><Input value={formState.classe_acao} onChange={e => setFormState({...formState, classe_acao: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label className={ui.label}>Parte passiva</Label><Input value={formState.parte_passiva} onChange={e => setFormState({...formState, parte_passiva: e.target.value.toUpperCase()})} className="rounded-xl h-11 bg-secondary/20 border-none font-bold uppercase text-xs" placeholder="BANCO..." /></div>
+                  <div className="space-y-2"><Label className={ui.label}>CNPJ passivo</Label><Input value={formState.parte_passiva_cnpj} onChange={e => setFormState({...formState, parte_passiva_cnpj: e.target.value})} className="rounded-xl h-11 bg-secondary/20 border-none font-mono text-xs" /></div>
                 </div>
                 <div className="space-y-2">
                   <Label className={ui.label}>Situação</Label>

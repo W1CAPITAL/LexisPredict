@@ -63,6 +63,15 @@ export interface LegalCase {
   cliente: string;
   protocolo: string;
   telefone?: string;
+  cpf?: string;
+  email?: string;
+  estado_civil?: string;
+  emprego?: string;
+  nacionalidade?: string;
+  parte_passiva?: string;
+  parte_passiva_cnpj?: string;
+  classe_acao?: string;
+  orgao_julgador?: string;
   advogado: string;
   escritorio: string;
   situacao: string;
@@ -296,6 +305,15 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     linkConsulta: tribunalData.link,
     observacao,
     telefone: (data.TELEFONE || data.telefone || '').replace(/\D/g, ''),
+    cpf: String(data.CPF || data.cpf || '').replace(/\D/g, '') || undefined,
+    email: String(data.EMAIL || data.email || '').trim().toLowerCase() || undefined,
+    estado_civil: fixEncoding(data.ESTADO_CIVIL || data.estado_civil || '').toUpperCase() || undefined,
+    emprego: fixEncoding(data.EMPREGO || data.PROFISSAO || data.emprego || data.profissao || '').toUpperCase() || undefined,
+    nacionalidade: fixEncoding(data.NACIONALIDADE || data.nacionalidade || 'BRASILEIRA').toUpperCase() || 'BRASILEIRA',
+    parte_passiva: fixEncoding(data.PARTE_PASSIVA || data.parte_passiva || data.REU || data.reu || '').toUpperCase() || undefined,
+    parte_passiva_cnpj: String(data.PARTE_PASSIVA_CNPJ || data.parte_passiva_cnpj || data.CNPJ_PASSIVO || '').replace(/\D/g, '') || undefined,
+    classe_acao: fixEncoding(data.CLASSE_ACAO || data.classe_acao || data.CLASSE || data.classe || data.tipo || '').toUpperCase() || undefined,
+    orgao_julgador: fixEncoding(data.ORGAO_JULGADOR || data.orgao_julgador || '').toUpperCase() || undefined,
     
     // EVENTO UNIFICADO
     tem_novo_andamento: novidadeUnificada,

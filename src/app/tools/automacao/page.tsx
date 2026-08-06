@@ -1,11 +1,11 @@
 /**
- * Automação Judicial — pipeline 01–08
- * Captura com print/OCR · Cadastro DIRETO na carteira (Processos)
- * eproc SP principal · embed no app · Custas subaba
+ * Cadastro de processo (ex-Automação Judicial)
+ * Fluxo principal: CNJ → DataJud + DJEN → formulário completo → carteira
+ * Sem screenshot automático do tribunal.
  */
 "use client";
 
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,338 +20,213 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Loader2,
   Search,
-  ExternalLink,
-  Scale,
-  Receipt,
-  Copy,
-  Maximize2,
-  Minimize2,
-  X,
-  AlertCircle,
+  ClipboardList,
   CheckCircle2,
-  ChevronRight,
-  Building2,
   Sparkles,
-  FileSearch,
-  Upload,
-  ImageIcon,
-  Camera,
+  ExternalLink,
+  Receipt,
+  User,
+  Building2,
+  Scale,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  enrichMultiTribunalAction,
-} from "@/app/actions/multi-tribunal-actions";
-import { openTribunalViaGcloudAction } from "@/app/actions/gcloud-tribunal-actions";
-import {
   registerCaseFromAutomacaoAction,
-  transcribeTribunalPrintAction,
+  enrichCadastroByCnjAction,
 } from "@/app/actions/automacao-register-actions";
-import { captureTribunalAutoAction } from "@/app/actions/tribunal-capture-actions";
-import {
-  getTribunalByCnj,
-  getFallbacksForCnj,
-} from "@/lib/tribunais-links";
-import {
-  AUTOMACAO_PIPELINE,
-  type PipelineStepId,
-} from "@/lib/automacao-pipeline";
+import { getTribunalByCnj } from "@/lib/tribunais-links";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export const PORTAL_CUSTAS_TJSP =
   "https://portaldecustas.tjsp.jus.br/portaltjsp/pages/custas/new";
 
-type TabId = "pipeline" | "custas";
+type TabId = "cadastro" | "custas";
 
-function onlyDigits(s: string) {
-  return s.replace(/\D/g, "");
-}
+const emptyForm = () => ({
+  protocolo: "",
+  cliente: "",
+  cpf: "",
+  email: "",
+  telefone: "",
+  estado_civil: "",
+  emprego: "",
+  nacionalidade: "BRASILEIRA",
+  parte_passiva: "",
+  parte_passiva_cnpj: "",
+  advogado: "",
+  escritorio: "",
+  classe_acao: "",
+  tribunal: "",
+  orgao_julgador: "",
+  situacao: "EM ANDAMENTO",
+  proximoPrazo: "",
+  observacao: "",
+});
 
-export default function AutomacaoJudicialPage() {
-  const [tab, setTab] = useState<TabId>("pipeline");
-  const [step, setStep] = useState<PipelineStepId>("captura");
-  const [cnj, setCnj] = useState("");
+export default function CadastroProcessoPage() {
+  const [tab, setTab] = useState<TabId>("cadastro");
   const [loading, setLoading] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<any>(null);
-  const [doneSteps, setDoneSteps] = useState<Set<string>>(new Set());
-  const [ocrText, setOcrText] = useState("");
-  const [capturePreview, setCapturePreview] = useState<string | null>(null);
-  const [cliente, setCliente] = useState("");
-  const [telefone, setTelefone] = useState("");
-  const [classificacao, setClassificacao] = useState("");
-  const [ofensor, setOfensor] = useState("");
-  const [observacao, setObservacao] = useState("");
-  const [insumos, setInsumos] = useState("");
-  const [firacNotes, setFiracNotes] = useState("");
-  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
-  const [embedTitle, setEmbedTitle] = useState("");
-  const [embedExpanded, setEmbedExpanded] = useState(true);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
-
+  const [form, setForm] = useState(emptyForm());
+  const [meta, setMeta] = useState<{
+    fonte?: string;
+    djenCount?: number;
+    djenResumo?: string | null;
+    movimentosResumo?: string | null;
+    poloAtivo?: string[];
+    poloPassivo?: string[];
+  } | null>(null);
   const [custasCnj, setCustasCnj] = useState("");
   const [custasCpf, setCustasCpf] = useState("");
+  const { toast } = useToast();
 
-  const cleanCnj = cnj.replace(/\D/g, "");
-  const tribunalPreview = cnj.trim() ? getTribunalByCnj(cnj) : null;
-  const fallbacks = cnj.trim() ? getFallbacksForCnj(cnj) : [];
+  const cleanCnj = form.protocolo.replace(/\D/g, "");
+  const tribunalPreview = form.protocolo.trim()
+    ? getTribunalByCnj(form.protocolo)
+    : null;
 
-  const currentMeta = useMemo(
-    () => AUTOMACAO_PIPELINE.find((s) => s.id === step)!,
-    [step]
-  );
+  const setField = (key: keyof ReturnType<typeof emptyForm>, value: string) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
-  const markDone = (id: string) =>
-    setDoneSteps((prev) => new Set(prev).add(id));
-
-  const openEmbed = (url: string, title: string) => {
-    setEmbedUrl(url);
-    setEmbedTitle(title);
-    setEmbedExpanded(true);
-  };
-
-  const doCopy = async (label: string, value: string) => {
-    if (!value.trim()) return;
-    try {
-      await navigator.clipboard.writeText(value.trim());
-      toast({ title: `${label} copiado` });
-    } catch {
-      /* ignore */
-    }
-  };
-
-  /** Print / screenshot → transcrição */
-  const onPrintFile = async (file: File) => {
-    setLoading("ocr");
-    try {
-      if (file.type.startsWith("text/") || file.name.endsWith(".txt")) {
-        const text = await file.text();
-        const res = await transcribeTribunalPrintAction({ text });
-        if (res.success && res.text) {
-          setOcrText(res.text);
-          if (res.cnj) setCnj(res.cnj);
-          toast({ title: "Texto importado", description: res.cnj || "Sem CNJ detectado" });
-        }
-        return;
-      }
-
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result));
-        r.onerror = reject;
-        r.readAsDataURL(file);
-      });
-
-      const res = await transcribeTribunalPrintAction({
-        imageBase64: dataUrl,
-        mimeType: file.type || "image/png",
-      });
-
-      if (res.success && res.text) {
-        setOcrText(res.text);
-        if (res.cnj) setCnj(res.cnj);
-        toast({
-          title: `Transcrição (${res.engine})`,
-          description: res.cnj || "Revise o texto e o CNJ",
-        });
-        markDone("captura");
-      } else {
-        toast({
-          title: "OCR falhou",
-          description: res.error || "Cole o texto manualmente",
-          variant: "destructive",
-        });
-      }
-    } catch (e: any) {
-      toast({ title: "Erro no print", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-
-  /** Captura automática pelo servidor (Chromium) — qualquer tribunal do CNJ */
-  const runAutoCapture = async () => {
+  /** Busca DataJud + DJEN e preenche o formulário */
+  const runEnrich = async () => {
     if (cleanCnj.length !== 20) {
-      toast({ title: "CNJ inválido", variant: "destructive" });
+      toast({ title: "CNJ inválido", description: "Informe 20 dígitos.", variant: "destructive" });
       return;
     }
-    setLoading("auto-capture");
-    setCapturePreview(null);
+    setLoading("enrich");
     try {
-      const preview = getTribunalByCnj(cnj);
-      if (preview?.url) {
-        openEmbed(preview.url, `${preview.sigla} · captura automática`);
-      }
-      const res = await captureTribunalAutoAction(cnj, preview?.url);
-      if (res.success && res.imageBase64) {
-        setCapturePreview(res.imageBase64);
-        toast({
-          title: "Screenshot capturado",
-          description: `${res.tribunal || "Tribunal"} · enviando ao OCR…`,
-        });
-        // OCR imediato
-        const ocr = await transcribeTribunalPrintAction({
-          imageBase64: res.imageBase64,
-          mimeType: "image/png",
-        });
-        if (ocr.success && ocr.text) {
-          setOcrText(ocr.text);
-          if (ocr.cnj) setCnj(ocr.cnj);
-          markDone("captura");
-          toast({
-            title: "Captura + OCR ok",
-            description: ocr.cnj || "Revise o texto transcrito",
-          });
-        } else {
-          markDone("captura");
-          toast({
-            title: "Print ok — OCR parcial",
-            description: ocr.error || "Revise/cole o texto",
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({
-          title: res.needsHuman ? "CAPTCHA / bloqueio" : "Captura falhou",
-          description:
-            res.error ||
-            "Abra o tribunal no embed, resolva o CAPTCHA e use «Enviar print».",
-          variant: "destructive",
-        });
-      }
-    } catch (e: any) {
-      toast({
-        title: "Erro na captura automática",
-        description: e?.message || "Tente o print manual",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const runCaptura = async () => {
-    if (cleanCnj.length !== 20) {
-      toast({ title: "CNJ inválido", variant: "destructive" });
-      return;
-    }
-    const preview = getTribunalByCnj(cnj);
-    if (preview?.url) {
-      openEmbed(preview.url, `${preview.sigla} · ${preview.sistema}`);
-    }
-    setLoading("captura");
-    try {
-      const res = await openTribunalViaGcloudAction(cnj, "fetch");
-      if (res.openUrl) {
-        openEmbed(
-          res.openUrl,
-          `${res.tribunal || preview?.sigla} · ${res.sistema || ""}`
-        );
-      }
-      if (res.data) {
-        setResultado({ success: true, data: res.data, note: res.message });
-        const g =
-          res.data["Primeiro Grau"] || res.data["Segundo Grau"];
-        if (g?.partes?.[0]?.nome && !cliente) {
-          setCliente(g.partes[0].nome);
-        }
-      }
-      markDone("captura");
-      toast({ title: "01 Captura", description: "Tribunal no app" });
-      setStep("triagem");
-    } catch (e: any) {
-      toast({ title: "Erro", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const runTriagem = async () => {
-    if (cleanCnj.length !== 20) {
-      toast({ title: "CNJ inválido", variant: "destructive" });
-      return;
-    }
-    setLoading("triagem");
-    try {
-      const res = await enrichMultiTribunalAction(cnj);
-      setResultado(res);
-      markDone("triagem");
-      setStep("cadastro");
-      toast({ title: "02 Triagem ok" });
-    } catch (e: any) {
-      toast({ title: "Erro", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  /** 03 Cadastro DIRETO → aba Processos */
-  const runCadastro = async () => {
-    setLoading("cadastro");
-    try {
-      const res = await registerCaseFromAutomacaoAction({
-        protocolo: cnj,
-        cliente,
-        telefone,
-        tribunal: tribunalPreview?.sigla || "",
-        classificacao,
-        ofensor,
-        observacao,
-        textoTribunal: ocrText,
-      });
+      const res = await enrichCadastroByCnjAction(form.protocolo);
       if (!res.success) {
         toast({
-          title: "Cadastro falhou",
-          description: res.error,
+          title: "Consulta incompleta",
+          description: res.error || "Sem dados oficiais",
           variant: "destructive",
         });
         return;
       }
-      markDone("cadastro");
-      toast({
-        title: res.created ? "Cadastrado na carteira" : "Atualizado na carteira",
-        description: "Disponível na aba Processos",
+      setForm((prev) => ({
+        ...prev,
+        protocolo: res.protocolo || prev.protocolo,
+        cliente: res.cliente || prev.cliente,
+        parte_passiva: res.parte_passiva || prev.parte_passiva,
+        parte_passiva_cnpj: res.parte_passiva_cnpj || prev.parte_passiva_cnpj,
+        advogado: res.advogado || prev.advogado,
+        classe_acao: res.classe_acao || prev.classe_acao,
+        tribunal: res.tribunal || prev.tribunal,
+        orgao_julgador: res.orgao_julgador || prev.orgao_julgador,
+        nacionalidade: prev.nacionalidade || "BRASILEIRA",
+      }));
+      setMeta({
+        fonte: res.fonte,
+        djenCount: res.djenCount,
+        djenResumo: res.djenResumo,
+        movimentosResumo: res.movimentosResumo,
+        poloAtivo: res.poloAtivo,
+        poloPassivo: res.poloPassivo,
       });
-      setStep("classificacao");
+      toast({
+        title: "Dados oficiais carregados",
+        description: `${res.fonte || "CNJ"} · ${res.cliente || "revise o cliente"}`,
+      });
     } catch (e: any) {
-      toast({ title: "Erro", description: e.message, variant: "destructive" });
+      toast({ title: "Erro", description: e?.message || "Falha", variant: "destructive" });
     } finally {
       setLoading(null);
     }
   };
 
-  const grau =
-    resultado?.data?.["Primeiro Grau"] ||
-    resultado?.data?.["Segundo Grau"] ||
-    null;
+  const runSave = async () => {
+    if (cleanCnj.length !== 20) {
+      toast({ title: "CNJ inválido", variant: "destructive" });
+      return;
+    }
+    if (!form.cliente.trim()) {
+      toast({ title: "Informe o cliente", variant: "destructive" });
+      return;
+    }
+    setLoading("save");
+    try {
+      const res = await registerCaseFromAutomacaoAction({
+        protocolo: form.protocolo,
+        cliente: form.cliente,
+        telefone: form.telefone,
+        tribunal: form.tribunal,
+        classificacao: form.classe_acao,
+        observacao: form.observacao,
+        cpf: form.cpf,
+        email: form.email,
+        estado_civil: form.estado_civil,
+        emprego: form.emprego,
+        nacionalidade: form.nacionalidade || "BRASILEIRA",
+        parte_passiva: form.parte_passiva,
+        parte_passiva_cnpj: form.parte_passiva_cnpj,
+        classe_acao: form.classe_acao,
+        orgao_julgador: form.orgao_julgador,
+        advogado: form.advogado,
+        escritorio: form.escritorio,
+        proximoPrazo: form.proximoPrazo,
+        situacao: form.situacao,
+      });
+      if (!res.success) {
+        toast({ title: "Cadastro falhou", description: res.error, variant: "destructive" });
+        return;
+      }
+      toast({
+        title: res.created ? "Processo cadastrado" : "Processo atualizado",
+        description: "Disponível na aba Processos",
+      });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message, variant: "destructive" });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const custasUrl = useMemo(() => {
+    const q = new URLSearchParams();
+    if (custasCnj.replace(/\D/g, "").length === 20) q.set("cnj", custasCnj);
+    return PORTAL_CUSTAS_TJSP;
+  }, [custasCnj]);
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto space-y-6 overflow-auto">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Scale className="w-6 h-6 text-primary" />
-            Automação Judicial
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Pipeline 01–08 · print/OCR · cadastro na carteira · eproc SP · Custas subaba
-          </p>
+      <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto space-y-6 overflow-auto">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
+              <ClipboardList className="w-6 h-6 text-primary" />
+              Cadastro
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Informe o CNJ → sistema consulta DataJud e DJEN → complete os dados do cliente e grave na carteira.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="rounded-xl font-black uppercase text-[10px]">
+            <Link href="/cases">Abrir Processos</Link>
+          </Button>
         </div>
 
         <div className="flex gap-2 border-b border-border">
           <button
             type="button"
-            onClick={() => setTab("pipeline")}
+            onClick={() => setTab("cadastro")}
             className={cn(
               "px-4 py-2.5 text-[11px] font-black uppercase tracking-widest rounded-t-xl border border-b-0",
-              tab === "pipeline" ? "bg-card border-border" : "text-muted-foreground border-transparent"
+              tab === "cadastro" ? "bg-card border-border" : "text-muted-foreground border-transparent"
             )}
           >
-            Pipeline operacional
+            Novo processo
           </button>
           <button
             type="button"
@@ -365,490 +240,329 @@ export default function AutomacaoJudicialPage() {
           </button>
         </div>
 
-        {tab === "pipeline" && (
+        {tab === "cadastro" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-              {AUTOMACAO_PIPELINE.map((s) => {
-                const active = step === s.id;
-                const done = doneSteps.has(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setStep(s.id)}
-                    className={cn(
-                      "text-left p-2.5 rounded-xl border transition-colors",
-                      active && "border-primary bg-primary/5",
-                      done && !active && "border-emerald-500/40 bg-emerald-500/5",
-                      !active && !done && "border-border/50"
-                    )}
-                  >
-                    <div className="flex items-center gap-1">
-                      {done ? (
-                        <CheckCircle2 size={12} className="text-emerald-600" />
-                      ) : (
-                        <span className="text-[9px] font-black text-muted-foreground">
-                          {s.num}
-                        </span>
-                      )}
-                      <span className="text-[10px] font-black uppercase truncate">
-                        {s.title}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <span className="text-primary font-black">{currentMeta.num}</span>
-                  {currentMeta.title}
+            {/* CNJ + buscar */}
+            <Card className="border-2 border-black/10 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+                  <Search size={16} className="text-primary" /> Consulta pelo CNJ
                 </CardTitle>
-                <CardDescription>{currentMeta.description}</CardDescription>
+                <CardDescription>
+                  Não abre o site do tribunal nem tira print. Usa DataJud (partes/classe) e DJEN (publicações).
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* CNJ sempre nos primeiros passos */}
-                {["captura", "triagem", "cadastro"].includes(step) && (
-                  <div className="space-y-2">
-                    <Label className="text-[9px] font-black uppercase">CNJ</Label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-[10px] font-black uppercase">Número do processo (CNJ)</Label>
                     <Input
-                      value={cnj}
-                      onChange={(e) => setCnj(e.target.value)}
-                      placeholder="0000000-00.0000.8.26.0000"
-                      className="font-mono h-12 text-lg"
+                      value={form.protocolo}
+                      onChange={(e) => setField("protocolo", e.target.value)}
+                      placeholder="0000000-00.0000.0.00.0000"
+                      className="h-12 font-mono rounded-xl"
                     />
-                    {tribunalPreview && (
-                      <div className="flex flex-wrap gap-2 text-[11px]">
-                        <Badge className="font-black">{tribunalPreview.sigla}</Badge>
-                        <Badge variant="outline" className="uppercase text-[9px]">
-                          {tribunalPreview.sistema} principal
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      onClick={runEnrich}
+                      disabled={loading === "enrich"}
+                      className="h-12 px-6 rounded-xl font-black uppercase text-[10px] bg-black text-white"
+                    >
+                      {loading === "enrich" ? (
+                        <Loader2 className="animate-spin mr-2" size={16} />
+                      ) : (
+                        <Sparkles className="mr-2" size={16} />
+                      )}
+                      Buscar no tribunal / DJEN
+                    </Button>
+                  </div>
+                </div>
+                {tribunalPreview && (
+                  <div className="flex flex-wrap gap-2 items-center text-[10px] font-bold uppercase text-muted-foreground">
+                    <Badge variant="outline">{tribunalPreview.sigla}</Badge>
+                    <span>{tribunalPreview.sistema}</span>
+                    {tribunalPreview.url && (
+                      <a
+                        href={tribunalPreview.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline"
+                      >
+                        <ExternalLink size={12} /> Abrir consulta pública (opcional)
+                      </a>
+                    )}
+                  </div>
+                )}
+                {meta && (
+                  <div className="rounded-xl border bg-secondary/30 p-4 space-y-2 text-[11px]">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="bg-emerald-600 text-white uppercase text-[8px]">
+                        <CheckCircle2 size={10} className="mr-1" /> {meta.fonte || "OK"}
+                      </Badge>
+                      {typeof meta.djenCount === "number" && (
+                        <Badge variant="outline" className="uppercase text-[8px]">
+                          DJEN {meta.djenCount}
                         </Badge>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* —— 01 CAPTURA + PRINT —— */}
-                {step === "captura" && (
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={runCaptura}
-                        disabled={!!loading}
-                        className="gap-2 h-11 font-bold"
-                      >
-                        {loading === "captura" ? (
-                          <Loader2 className="animate-spin h-4 w-4" />
-                        ) : (
-                          <Building2 className="h-4 w-4" />
-                        )}
-                        Capturar no app (eproc)
-                      </Button>
-                      {fallbacks.map((f, i) => (
-                        <Button
-                          key={i}
-                          type="button"
-                          variant="outline"
-                          className="h-11"
-                          onClick={() => openEmbed(f.url, f.label || f.sistema)}
-                        >
-                          {f.label || f.sistema}
-                        </Button>
-                      ))}
+                      )}
                     </div>
-
-                    <div className="rounded-xl border border-dashed border-border p-4 space-y-3">
-                      <p className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
-                        <ImageIcon size={14} />
-                        
-                      <div className="rounded-xl border-2 border-cyan-600/40 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 space-y-3 mb-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-cyan-900 dark:text-cyan-200">
-                          Captura automática pelo app (qualquer tribunal)
-                        </Label>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          O servidor abre a consulta pública do tribunal do CNJ, tira o screenshot e envia ao OCR.
-                          Se houver CAPTCHA, use o embed no app e «Enviar print» abaixo.
-                        </p>
-                        <Button
-                          type="button"
-                          onClick={runAutoCapture}
-                          disabled={loading === "auto-capture" || cleanCnj.length !== 20}
-                          className="h-11 font-black uppercase text-[10px] tracking-widest gap-2 bg-cyan-700 hover:bg-cyan-800 text-white"
-                        >
-                          {loading === "auto-capture" ? (
-                            <Loader2 className="animate-spin" size={16} />
-                          ) : (
-                            <Camera size={16} />
-                          )}
-                          Capturar screenshot automático
-                        </Button>
-                        {capturePreview && (
-                          <div className="mt-2 rounded-lg border overflow-hidden max-h-48">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={capturePreview} alt="Captura tribunal" className="w-full object-contain max-h-48 bg-black" />
-                          </div>
-                        )}
-                      </div>
-
-                      Print / screenshot do tribunal
+                    {meta.movimentosResumo && (
+                      <p>
+                        <span className="font-black uppercase text-muted-foreground">Últimos andamentos: </span>
+                        {meta.movimentosResumo}
                       </p>
-                      <input
-                        ref={fileRef}
-                        type="file"
-                        accept="image/*,.txt,.pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) onPrintFile(f);
-                          e.target.value = "";
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="gap-2 h-11"
-                        disabled={!!loading}
-                        onClick={() => fileRef.current?.click()}
-                      >
-                        {loading === "ocr" ? (
-                          <Loader2 className="animate-spin h-4 w-4" />
-                        ) : (
-                          <Upload className="h-4 w-4" />
-                        )}
-                        Enviar print e transcrever
-                      </Button>
-                      <Textarea
-                        value={ocrText}
-                        onChange={(e) => setOcrText(e.target.value)}
-                        placeholder="Ou cole aqui o texto do tribunal / OCR…"
-                        className="min-h-[100px] text-xs"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          if (!ocrText.trim()) return;
-                          setLoading("ocr");
-                          const res = await transcribeTribunalPrintAction({
-                            text: ocrText,
-                          });
-                          setLoading(null);
-                          if (res.cnj) {
-                            setCnj(res.cnj);
-                            toast({ title: "CNJ detectado", description: res.cnj });
-                          }
-                        }}
-                      >
-                        Detectar CNJ no texto
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {step === "triagem" && (
-                  <Button
-                    onClick={runTriagem}
-                    disabled={!!loading}
-                    className="gap-2 h-11 font-bold"
-                  >
-                    {loading === "triagem" ? (
-                      <Loader2 className="animate-spin h-4 w-4" />
-                    ) : (
-                      <Search className="h-4 w-4" />
                     )}
-                    Rodar triagem
-                  </Button>
-                )}
-
-                {/* —— 03 CADASTRO DIRETO —— */}
-                {step === "cadastro" && (
-                  <div className="space-y-3 border rounded-xl p-4 bg-card">
-                    <p className="text-sm text-muted-foreground">
-                      Grava direto na carteira — aparece na aba <strong>Processos</strong>.
-                    </p>
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label>Cliente *</Label>
-                        <Input
-                          value={cliente}
-                          onChange={(e) => setCliente(e.target.value)}
-                          placeholder="Nome completo"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Telefone</Label>
-                        <Input
-                          value={telefone}
-                          onChange={(e) => setTelefone(e.target.value)}
-                          placeholder="WhatsApp"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Classificação</Label>
-                        <Input
-                          value={classificacao}
-                          onChange={(e) => setClassificacao(e.target.value)}
-                          placeholder="Revisional, BA, cobrança…"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Ofensor</Label>
-                        <Input
-                          value={ofensor}
-                          onChange={(e) => setOfensor(e.target.value)}
-                          placeholder="Banco / financeira"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Observações</Label>
-                      <Textarea
-                        value={observacao}
-                        onChange={(e) => setObservacao(e.target.value)}
-                        className="min-h-[80px]"
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={runCadastro}
-                        disabled={!!loading || !cliente.trim()}
-                        className="h-11 font-bold gap-2"
-                      >
-                        {loading === "cadastro" ? (
-                          <Loader2 className="animate-spin h-4 w-4" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4" />
-                        )}
-                        Registrar na carteira (Processos)
-                      </Button>
-                      <Button asChild variant="outline" className="h-11">
-                        <Link
-                          href={`/cases?search=${encodeURIComponent(cnj || "")}`}
-                        >
-                          Abrir em Processos <ChevronRight size={14} />
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {step === "classificacao" && (
-                  <div className="space-y-3">
-                    <Input
-                      value={classificacao}
-                      onChange={(e) => setClassificacao(e.target.value)}
-                      placeholder="Serviço / produto"
-                    />
-                    <Input
-                      value={ofensor}
-                      onChange={(e) => setOfensor(e.target.value)}
-                      placeholder="Ofensor"
-                    />
-                    <Button
-                      onClick={() => {
-                        markDone("classificacao");
-                        setStep("demanda");
-                      }}
-                    >
-                      Avançar
-                    </Button>
-                  </div>
-                )}
-
-                {step === "demanda" && (
-                  <div className="space-y-3">
-                    <Textarea
-                      value={insumos}
-                      onChange={(e) => setInsumos(e.target.value)}
-                      placeholder="Insumos para acordo/defesa…"
-                      className="min-h-[100px]"
-                    />
-                    <Button
-                      onClick={() => {
-                        markDone("demanda");
-                        setStep("analise");
-                      }}
-                    >
-                      Avançar
-                    </Button>
-                  </div>
-                )}
-
-                {step === "analise" && (
-                  <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      Análise estilo FIRAC (fatos / questões / regras) — inspirado em pipelines
-                      de IA jurídica; sem inventar dados.
-                    </p>
-                    <Textarea
-                      value={firacNotes}
-                      onChange={(e) => setFiracNotes(e.target.value)}
-                      placeholder="Fatos:&#10;Questões:&#10;Riscos:&#10;Estratégia:"
-                      className="min-h-[120px] text-xs"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button asChild variant="secondary" className="gap-2">
-                        <Link href="/veredito">
-                          <FileSearch size={16} /> Veredito
-                        </Link>
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          markDone("analise");
-                          setStep("devolutiva");
-                        }}
-                      >
-                        Análise ok
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {step === "devolutiva" && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Rascunhos leigos: Tarefas / Processos → Sugerir resposta (Lexis + IA).
-                    </p>
-                    <Button asChild className="gap-2">
-                      <Link
-                        href={`/tarefas?search=${encodeURIComponent(cnj || "")}`}
-                      >
-                        <Sparkles size={16} /> Fila / sugestões
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        markDone("devolutiva");
-                        setStep("recomendacoes");
-                      }}
-                    >
-                      Avançar
-                    </Button>
-                  </div>
-                )}
-
-                {step === "recomendacoes" && (
-                  <div className="space-y-3">
-                    <Button asChild variant="outline">
-                      <Link href="/notes">Notas</Link>
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        markDone("recomendacoes");
-                        toast({ title: "Pipeline finalizado nesta sessão" });
-                      }}
-                    >
-                      Finalizar
-                    </Button>
-                  </div>
-                )}
-
-                {embedUrl && (
-                  <div className="rounded-xl border-2 border-primary/30 overflow-hidden bg-white">
-                    <div className="h-11 flex items-center justify-between px-2 bg-muted/60 border-b gap-2">
-                      <span className="text-[10px] font-bold truncate px-2">
-                        {embedTitle}
-                      </span>
-                      <div className="flex gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() => setEmbedExpanded((v) => !v)}
-                        >
-                          {embedExpanded ? (
-                            <Minimize2 size={14} />
-                          ) : (
-                            <Maximize2 size={14} />
-                          )}
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() =>
-                            window.open(embedUrl, "_blank", "noopener,noreferrer")
-                          }
-                        >
-                          <ExternalLink size={14} />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() => setEmbedUrl(null)}
-                        >
-                          <X size={14} />
-                        </Button>
-                      </div>
-                    </div>
-                    {embedExpanded && (
-                      <iframe
-                        src={embedUrl}
-                        title={embedTitle}
-                        className="w-full border-0"
-                        style={{ height: "min(70vh, 720px)", minHeight: 480 }}
-                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
+                    {meta.djenResumo && (
+                      <p>
+                        <span className="font-black uppercase text-muted-foreground">DJEN: </span>
+                        {meta.djenResumo}
+                      </p>
                     )}
-                    <p className="text-[10px] text-muted-foreground p-2 border-t flex gap-1">
-                      <AlertCircle size={12} className="mt-0.5 shrink-0" />
-                      Embed no app. Se ficar branco, use nova aba. SP = eproc principal.
-                    </p>
-                  </div>
-                )}
-
-                {grau?.movimentações?.length > 0 && (
-                  <div className="space-y-2 max-h-48 overflow-auto border rounded-xl p-3">
-                    {grau.movimentações.slice(0, 10).map((m: any, i: number) => (
-                      <div key={i} className="text-sm border-b pb-2">
-                        <span className="text-xs text-muted-foreground">{m.data}</span>
-                        <p>{m.descricao}</p>
-                      </div>
-                    ))}
+                    {(meta.poloAtivo?.length || meta.poloPassivo?.length) ? (
+                      <p>
+                        <span className="font-black uppercase text-muted-foreground">Polos: </span>
+                        Ativo: {(meta.poloAtivo || []).join(", ") || "—"} · Passivo:{" "}
+                        {(meta.poloPassivo || []).join(", ") || "—"}
+                      </p>
+                    ) : null}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Cliente */}
+            <Card className="border-2 border-black/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+                  <User size={16} className="text-primary" /> Cliente (polo ativo)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2 space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Nome completo *</Label>
+                  <Input
+                    value={form.cliente}
+                    onChange={(e) => setField("cliente", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-black uppercase text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">CPF</Label>
+                  <Input
+                    value={form.cpf}
+                    onChange={(e) => setField("cpf", e.target.value)}
+                    className="h-11 rounded-xl font-mono text-xs"
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">E-mail</Label>
+                  <Input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setField("email", e.target.value)}
+                    className="h-11 rounded-xl text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Telefone</Label>
+                  <Input
+                    value={form.telefone}
+                    onChange={(e) => setField("telefone", e.target.value)}
+                    className="h-11 rounded-xl font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Estado civil</Label>
+                  <Select
+                    value={form.estado_civil || "nao_informado"}
+                    onValueChange={(v) => setField("estado_civil", v === "nao_informado" ? "" : v)}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl font-bold uppercase text-xs">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nao_informado">Não informado</SelectItem>
+                      <SelectItem value="SOLTEIRO(A)">Solteiro(a)</SelectItem>
+                      <SelectItem value="CASADO(A)">Casado(a)</SelectItem>
+                      <SelectItem value="UNIÃO ESTÁVEL">União estável</SelectItem>
+                      <SelectItem value="DIVORCIADO(A)">Divorciado(a)</SelectItem>
+                      <SelectItem value="VIÚVO(A)">Viúvo(a)</SelectItem>
+                      <SelectItem value="SEPARADO(A)">Separado(a)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Emprego / profissão</Label>
+                  <Input
+                    value={form.emprego}
+                    onChange={(e) => setField("emprego", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Nacionalidade</Label>
+                  <Input
+                    value={form.nacionalidade}
+                    onChange={(e) => setField("nacionalidade", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                    placeholder="BRASILEIRA"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Parte passiva + processo */}
+            <Card className="border-2 border-black/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+                  <Building2 size={16} className="text-primary" /> Parte passiva e ação
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2 space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Parte passiva (banco / réu)</Label>
+                  <Input
+                    value={form.parte_passiva}
+                    onChange={(e) => setField("parte_passiva", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                    placeholder="Ex.: BANCO ITAÚ UNIBANCO S.A."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">CNPJ parte passiva</Label>
+                  <Input
+                    value={form.parte_passiva_cnpj}
+                    onChange={(e) => setField("parte_passiva_cnpj", e.target.value)}
+                    className="h-11 rounded-xl font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Classe / tipo da ação</Label>
+                  <Input
+                    value={form.classe_acao}
+                    onChange={(e) => setField("classe_acao", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                    placeholder="PROCEDIMENTO COMUM CÍVEL"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Tribunal</Label>
+                  <Input
+                    value={form.tribunal}
+                    onChange={(e) => setField("tribunal", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Órgão julgador</Label>
+                  <Input
+                    value={form.orgao_julgador}
+                    onChange={(e) => setField("orgao_julgador", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Advogado responsável</Label>
+                  <Input
+                    value={form.advogado}
+                    onChange={(e) => setField("advogado", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Escritório</Label>
+                  <Input
+                    value={form.escritorio}
+                    onChange={(e) => setField("escritorio", e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl font-bold uppercase text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Situação</Label>
+                  <Select value={form.situacao} onValueChange={(v) => setField("situacao", v)}>
+                    <SelectTrigger className="h-11 rounded-xl font-bold uppercase text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EM ANDAMENTO">EM ANDAMENTO</SelectItem>
+                      <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Próximo prazo</Label>
+                  <Input
+                    value={form.proximoPrazo}
+                    onChange={(e) => setField("proximoPrazo", e.target.value)}
+                    className="h-11 rounded-xl text-xs"
+                    placeholder="dd/mm/aaaa"
+                  />
+                </div>
+                <div className="sm:col-span-2 space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Observações</Label>
+                  <Textarea
+                    value={form.observacao}
+                    onChange={(e) => setField("observacao", e.target.value.toUpperCase())}
+                    className="min-h-[100px] rounded-xl font-bold uppercase text-xs resize-none"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={runSave}
+                disabled={!!loading}
+                className="h-14 flex-1 rounded-xl font-black uppercase text-[11px] bg-black text-white shadow-xl"
+              >
+                {loading === "save" ? (
+                  <Loader2 className="animate-spin mr-2" />
+                ) : (
+                  <CheckCircle2 className="mr-2" size={18} />
+                )}
+                Salvar na carteira (Processos)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-14 rounded-xl font-black uppercase text-[10px]"
+                onClick={() => {
+                  setForm(emptyForm());
+                  setMeta(null);
+                }}
+              >
+                Limpar
+              </Button>
+            </div>
           </div>
         )}
 
         {tab === "custas" && (
-          <Card className="border-amber-500/30">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Receipt className="text-amber-600" size={18} />
-                Portal de Custas TJSP
+              <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+                <Receipt size={16} /> Portal de custas TJSP
               </CardTitle>
+              <CardDescription>
+                Atalho para o portal oficial. O app não calcula custas automaticamente.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Input
-                value={custasCnj}
-                onChange={(e) => setCustasCnj(e.target.value)}
-                placeholder="CNJ"
-                className="font-mono"
-              />
-              <Input
-                value={custasCpf}
-                onChange={(e) =>
-                  setCustasCpf(onlyDigits(e.target.value).slice(0, 11))
-                }
-                placeholder="CPF"
-                className="font-mono"
-              />
-              <Button
-                className="bg-amber-600 hover:bg-amber-700"
-                onClick={() => {
-                  if (custasCnj) doCopy("CNJ", custasCnj);
-                  openEmbed(PORTAL_CUSTAS_TJSP, "Portal de Custas");
-                }}
-              >
-                Abrir portal no app
+            <CardContent className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">CNJ (referência)</Label>
+                  <Input value={custasCnj} onChange={(e) => setCustasCnj(e.target.value)} className="h-11 rounded-xl font-mono" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">CPF (referência)</Label>
+                  <Input value={custasCpf} onChange={(e) => setCustasCpf(e.target.value)} className="h-11 rounded-xl font-mono" />
+                </div>
+              </div>
+              <Button asChild className="rounded-xl font-black uppercase text-[10px]">
+                <a href={custasUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink size={14} className="mr-2" /> Abrir portal de custas
+                </a>
               </Button>
             </CardContent>
           </Card>
