@@ -1,4 +1,5 @@
 "use client";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
  * Sidebar — menu enxuto, nomes claros, sem Notificações / Omni Export / Dossiê.
@@ -271,14 +272,7 @@ function SidebarNavBody({
             >
               <LogOut size={16} />
             </button>
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              title="Tema"
-              className="h-9 w-9 text-sidebar-foreground/60 hover:text-primary rounded-lg flex items-center justify-center"
-            >
-              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
+            <ThemeToggle />
           </div>
           {showCollapseBtn && (
             <button

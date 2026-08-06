@@ -1,4 +1,5 @@
 "use client";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -409,6 +410,9 @@ export default function SettingsPage() {
   return (
     <div className="flex h-screen bg-transparent font-sans text-foreground overflow-hidden relative z-10">
       <Sidebar />
+      <div className="fixed bottom-4 right-4 z-50 rounded-full border bg-card shadow-lg p-1">
+        <ThemeToggle />
+      </div>
       <main className="flex-1 flex flex-col h-screen overflow-hidden glass-panel">
         <header className="h-16 border-b border-border bg-background/40 backdrop-blur-xl flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-4">

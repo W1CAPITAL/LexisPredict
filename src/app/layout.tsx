@@ -9,7 +9,7 @@ import { AppUpdateBanner } from '@/components/system/app-update-banner';
 import Script from 'next/script';
 
 export const viewport: Viewport = {
-  themeColor: '#000000',
+  themeColor: [{ media: '(prefers-color-scheme: light)', color: '#ffffff' }, { media: '(prefers-color-scheme: dark)', color: '#0f0f12' }],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -49,13 +49,19 @@ export default function RootLayout({
               try {
                 const root = document.documentElement;
                 
-                // Dark Mode Detection
-                const isDark = localStorage.getItem('lexis_dark_mode') === 'true';
-                if (isDark) {
-                  root.classList.add('dark');
+                // Dark Mode Detection (Orbit-style: light | dark | system)
+                var mode = localStorage.getItem('lexis_theme_mode');
+                var isDark;
+                if (mode === 'light') isDark = false;
+                else if (mode === 'dark') isDark = true;
+                else if (mode === 'system') {
+                  isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 } else {
-                  root.classList.remove('dark');
+                  isDark = localStorage.getItem('lexis_dark_mode') === 'true';
                 }
+                if (isDark) root.classList.add('dark');
+                else root.classList.remove('dark');
+                localStorage.setItem('lexis_dark_mode', String(isDark));
 
                 // Custom Color Hardware (Only if not dark)
                 if (!isDark) {
