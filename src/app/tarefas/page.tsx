@@ -179,11 +179,12 @@ export default function TarefasPage() {
     if (!protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(protocolo);
+      // Auditoria 3D: EXCLUSIVO DJEN (sem DataJud)
+      const res = await scanSingleCaseAction(protocolo, { mode: 'djen', fast: true });
       if (res.success && res.case) {
         setHistoryResult({ 
           case: res.case, 
-          movimentos: res.movimentos || [],
+          movimentos: [],
           djenComunicacoes: res.comunicacoes || []
         });
         setIsHistoryModalOpen(true);

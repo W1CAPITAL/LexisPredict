@@ -266,9 +266,14 @@ function CasesContent() {
     if (!c.protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
+      // Auditoria 3D: EXCLUSIVO DJEN (sem DataJud)
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: true });
       if (res.success && res.case) {
-        setHistoryResult({ case: res.case, movimentos: res.movimentos || [], djenComunicacoes: res.comunicacoes || [] });
+        setHistoryResult({
+          case: res.case,
+          movimentos: [],
+          djenComunicacoes: res.comunicacoes || [],
+        });
         setIsHistoryModalOpen(true);
         setShowScripts(false);
         setAiDraft(null);
