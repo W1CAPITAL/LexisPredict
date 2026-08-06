@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // metal-fx é ESM moderno — transpile no build
+  transpilePackages: ["metal-fx"],
   serverExternalPackages: [
     "tesseract.js",
     "pdfjs-dist",
@@ -29,60 +31,42 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "10mb",
     },
   },
-  // Cache webpack em disco — builds locais/CI mais estáveis
   webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = {
-        type: "filesystem",
-        buildDependencies: {
-          config: [path.join(__dirname, "next.config.ts")],
-        },
-      };
-    } else {
-      // Produção: cache filesystem reduz serialização de strings grandes
-      config.cache = {
-        type: "filesystem",
-        compression: "gzip",
-      };
+    config.cache = {
+      type: "filesystem",
+      compression: "gzip",
+      buildDependencies: {
+        config: [path.join(__dirname, "next.config.ts")],
+      },
+    };
+    if (!dev) {
+      // menos ruído de serialização em CI
+      config.infrastructureLogging = { level: "error" };
     }
     return config;
   },
-  headers: async () => {
-    return [
-      {
-        source: "/:path*",
-        headers: [
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
-        ],
-      },
-    ];
-  },
+  headers: async () => [
+    {
+      source: "/:path*",
+      headers: [
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        {
+          key: "Referrer-Policy",
+          value: "strict-origin-when-cross-origin",
+        },
+        {
+          key: "Permissions-Policy",
+          value: "camera=(), microphone=(), geolocation=()",
+        },
+      ],
+    },
+  ],
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "placehold.co",
-        port: "",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        port: "",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "picsum.photos",
-        port: "",
-        pathname: "/**",
-      },
+      { protocol: "https", hostname: "placehold.co", pathname: "/**" },
+      { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
+      { protocol: "https", hostname: "picsum.photos", pathname: "/**" },
     ],
   },
 };

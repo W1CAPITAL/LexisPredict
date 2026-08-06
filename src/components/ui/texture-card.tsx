@@ -12,9 +12,9 @@ export function TextureCardStyled({
     <div
       className={cn(
         "texture-card relative overflow-hidden rounded-[20px] border border-neutral-200/80 dark:border-neutral-800",
-        "bg-stone-50/90 dark:bg-neutral-950/90 shadow-[0_12px_40px_rgba(0,0,0,0.08)]",
-        "before:pointer-events-none before:absolute before:inset-0 before:opacity-[0.35]",
-        "before:bg-[url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E\")]",
+        "bg-stone-50/95 dark:bg-neutral-950/95 shadow-[0_12px_40px_rgba(0,0,0,0.08)]",
+        "before:pointer-events-none before:absolute before:inset-0 before:opacity-[0.28]",
+        "before:bg-[url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E\")]",
         className
       )}
       {...props}

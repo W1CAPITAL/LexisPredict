@@ -43,6 +43,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
+import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
@@ -376,6 +377,8 @@ export default function Dashboard() {
                    
           <div className="orbit-surface overflow-hidden mb-6 orbit-enter">
             <div className="orbit-gradient-bar h-1 w-full" />
+            <section className="rounded-2xl border border-border/50 bg-card/40 p-3 sm:p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Painel KPI · Efferd</p>
             <EfferdPanel
               compact
               totalProcessos={cases.length}
@@ -388,6 +391,7 @@ export default function Dashboard() {
               riskScore={metrics.riskScore}
               className="p-4"
             />
+            </section>
           </div>
 <OfficeStats cases={cases} />
                 </div>

@@ -1,6 +1,10 @@
 "use client";
 
+/**
+ * Painel KPI Efferd — LazyMotion (bundle menor) + Recharts.
+ */
 import React, { useMemo } from "react";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import {
   Area,
   AreaChart,
@@ -39,13 +43,12 @@ const toneCls = {
 
 function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
   return (
-    <div
+    <m.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: delay * 0.06, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "orbit-kpi p-4 orbit-enter",
-        delay === 1 && "orbit-enter-delay-1",
-        delay === 2 && "orbit-enter-delay-2",
-        delay === 3 && "orbit-enter-delay-3",
-        delay >= 4 && "orbit-enter-delay-4",
+        "orbit-kpi p-4 rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm",
         toneCls[k.tone || "default"]
       )}
     >
@@ -59,11 +62,11 @@ function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
             <p className="text-[11px] text-muted-foreground mt-1">{k.hint}</p>
           ) : null}
         </div>
-        <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+        <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
           {k.icon}
         </div>
       </div>
-    </div>
+    </m.div>
   );
 }
 
@@ -99,7 +102,10 @@ export function Dashboard({
       return {
         day: d,
         scans: Math.max(1, Math.round((novidades || 1) * wave + (i % 3))),
-        retornos: Math.max(0, Math.round((pendentes || 1) * (0.25 + (i % 5) * 0.08))),
+        retornos: Math.max(
+          0,
+          Math.round((pendentes || 1) * (0.25 + (i % 5) * 0.08))
+        ),
       };
     });
   }, [novidades, pendentes]);
@@ -108,95 +114,134 @@ export function Dashboard({
     () => [
       { name: "Carteira", v: totalProcessos },
       { name: "Ativos", v: ativos ?? totalProcessos },
-      { name: "Pendentes", v: pendentes },
       { name: "Novidades", v: novidades },
       { name: "Vencidos", v: vencidos },
       { name: "Baixas", v: baixas },
+      { name: "Hoje", v: hoje },
     ],
-    [totalProcessos, ativos, pendentes, novidades, vencidos, baixas]
+    [totalProcessos, ativos, novidades, vencidos, baixas, hoje]
   );
 
   const kpis: Kpi[] = [
-    { label: "Carteira", value: totalProcessos, hint: "Total de processos", icon: <Briefcase size={18} /> },
-    { label: "Ativos", value: ativos ?? totalProcessos, hint: "Não encerrados", icon: <Gavel size={18} />, tone: "ok" },
-    { label: "Pendentes / fila", value: pendentes, hint: "Contato / retorno", icon: <Clock size={18} />, tone: pendentes > 0 ? "warn" : "ok" },
-    { label: "Novidades", value: novidades, hint: "DataJud ∪ DJEN", icon: <Activity size={18} /> },
-    { label: "Vencidos", value: vencidos, hint: "Prazos em atraso", icon: <AlertTriangle size={18} />, tone: vencidos > 0 ? "danger" : "ok" },
-    { label: "Hoje", value: hoje, hint: "Prazo para hoje", icon: <Clock size={18} />, tone: hoje > 0 ? "warn" : "ok" },
+    {
+      label: "Carteira",
+      value: totalProcessos,
+      icon: <Briefcase size={18} />,
+      hint: "Processos na empresa",
+    },
+    {
+      label: "Pendentes / sinal",
+      value: pendentes,
+      icon: <Activity size={18} />,
+      tone: pendentes > 0 ? "warn" : "ok",
+    },
+    {
+      label: "Vencidos",
+      value: vencidos,
+      icon: <AlertTriangle size={18} />,
+      tone: vencidos > 0 ? "danger" : "ok",
+    },
+    {
+      label: "Novidades",
+      value: novidades,
+      icon: <TrendingUp size={18} />,
+      tone: novidades > 0 ? "warn" : "default",
+    },
+    {
+      label: "É hoje",
+      value: hoje,
+      icon: <Clock size={18} />,
+    },
+    {
+      label: "Baixas CNJ",
+      value: baixas,
+      icon: <Gavel size={18} />,
+      tone: "ok",
+    },
   ];
 
   return (
-    <div className={cn("space-y-6", !compact && "p-4 sm:p-6", className)}>
-      {!compact && (
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-              LexisPredict · Orbit
-            </p>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
-              <Gavel size={20} className="text-primary" />
-              Operação do gabinete
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Métricas reais · {totalProcessos} processos
-              {typeof riskScore === "number" ? ` · risco ${riskScore}%` : ""}
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase text-muted-foreground orbit-glass">
-            <span className="orbit-live-dot" /> Live ops
-            <TrendingUp size={14} className="text-emerald-500" />
-          </div>
+    <LazyMotion features={domAnimation} strict>
+      <div className={cn("space-y-6", className)}>
+        <div
+          className={cn(
+            "grid gap-3",
+            compact
+              ? "grid-cols-2 md:grid-cols-3"
+              : "grid-cols-2 md:grid-cols-3 xl:grid-cols-6"
+          )}
+        >
+          {kpis.map((k, i) => (
+            <KpiCard key={k.label} k={k} delay={i} />
+          ))}
         </div>
-      )}
 
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-3">
-        {kpis.map((k, i) => (
-          <KpiCard key={k.label} k={k} delay={i} />
-        ))}
+        {!compact && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <m.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="rounded-2xl border border-border/60 bg-card/80 p-4 h-[260px]"
+            >
+              <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2">
+                Fluxo semanal (modelo)
+              </p>
+              <ResponsiveContainer width="100%" height="90%">
+                <AreaChart data={series}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} width={28} />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="scans"
+                    stroke="hsl(var(--primary))"
+                    fill="hsl(var(--primary) / 0.2)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="retornos"
+                    stroke="hsl(var(--muted-foreground))"
+                    fill="hsl(var(--muted-foreground) / 0.1)"
+                    strokeWidth={1.5}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </m.div>
+
+            <m.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.28 }}
+              className="rounded-2xl border border-border/60 bg-card/80 p-4 h-[260px]"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Distribuição
+                </p>
+                {typeof riskScore === "number" ? (
+                  <span className="text-xs font-black tabular-nums text-primary">
+                    Risco {riskScore}%
+                  </span>
+                ) : null}
+              </div>
+              <ResponsiveContainer width="100%" height="90%">
+                <BarChart data={bars}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} />
+                  <YAxis tick={{ fontSize: 10 }} width={28} />
+                  <Tooltip />
+                  <Bar dataKey="v" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </m.div>
+          </div>
+        )}
       </div>
-
-      <div className="grid lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 orbit-surface p-4 orbit-enter orbit-enter-delay-2">
-          <p className="text-[10px] font-black uppercase text-muted-foreground mb-3">
-            Scans × retornos (semana · proporcional)
-          </p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={series}>
-                <defs>
-                  <linearGradient id="lexisScan" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(221 70% 48%)" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="hsl(221 70% 48%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={32} />
-                <Tooltip />
-                <Area type="monotone" dataKey="scans" name="Scans" stroke="hsl(221 70% 48%)" fill="url(#lexisScan)" strokeWidth={2} />
-                <Area type="monotone" dataKey="retornos" name="Retornos" stroke="hsl(152 60% 36%)" fill="transparent" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="lg:col-span-2 orbit-surface p-4 orbit-enter orbit-enter-delay-3">
-          <p className="text-[10px] font-black uppercase text-muted-foreground mb-3">
-            Distribuição real
-          </p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={bars}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-15} textAnchor="end" height={48} />
-                <YAxis tick={{ fontSize: 11 }} width={32} />
-                <Tooltip />
-                <Bar dataKey="v" name="Qtd" fill="hsl(221 70% 48%)" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-    </div>
+    </LazyMotion>
   );
 }
+
+export default Dashboard;
