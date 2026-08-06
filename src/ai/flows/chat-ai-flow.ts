@@ -6,6 +6,7 @@
  */
 import { runCascade, type ChatTurn, type VisionImage } from '@/lib/ai/cascade';
 import { parseThinkingAnswer, isSimplePrompt } from '@/lib/ai/chat-parse';
+import { extractCnjFromText } from '@/lib/ai/motors';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
 
@@ -82,8 +83,40 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   if (hasPdf) {
     userContent += `\n\n--- PDF${input.pdfName ? ` (${input.pdfName})` : ''} ---\n${String(input.pdfText).slice(0, 32000)}\n--- FIM ---`;
   }
-  if (input.tribunalContext) {
-    userContent += `\n\n--- CONTEXTO ---\n${String(input.tribunalContext).slice(0, 8000)}\n--- FIM ---`;
+
+  // Se citou CNJ e ainda nao ha contexto tribunal: puxa DJEN automaticamente
+  let tribunalCtx = input.tribunalContext || '';
+  const cnj = extractCnjFromText(pergunta + ' ' + (input.pdfText || '').slice(0, 500));
+  if (cnj && !String(tribunalCtx).trim()) {
+    try {
+      const { fetchDjenComunicacoes } = await import('@/lib/djen');
+      // format CNJ with punctuation if needed
+      const cnjFmt =
+        cnj.length === 20
+          ? `${cnj.slice(0, 7)}-${cnj.slice(7, 9)}.${cnj.slice(9, 13)}.${cnj.slice(13, 14)}.${cnj.slice(14, 16)}.${cnj.slice(16, 20)}`
+          : cnj;
+      const djen = await fetchDjenComunicacoes(cnjFmt);
+      const items = (djen as any)?.items || (djen as any)?.comunicacoes || [];
+      if ((djen as any)?.success && items.length) {
+        const blocos = items.slice(0, 12).map((d: any, i: number) => {
+          const data = d.data_disponibilizacao || d.data || '';
+          const tipo = d.tipoComunicacao || d.tipoDocumento || d.tipo || '';
+          const orgao = d.nomeOrgao || '';
+          const texto = String(d.texto || d.conteudo || d.inteiroTeor || '').slice(0, 2500);
+          return `[${i + 1}] ${data} | ${tipo} | ${orgao}\n${texto}`;
+        });
+        tribunalCtx = `CNJ ${cnjFmt}\nPublicacoes DJEN (${items.length}):\n` + blocos.join('\n---\n');
+      } else {
+        const err = (djen as any)?.error || '';
+        tribunalCtx = `CNJ ${cnjFmt}: sem publicacoes DJEN no periodo consultado.${err ? ' (' + err + ')' : ''} Interprete a estrutura do CNJ e oriente consulta no tribunal se necessario.`;
+      }
+    } catch (e: any) {
+      tribunalCtx = `CNJ detectado, mas falha ao consultar DJEN: ${e?.message || e}`;
+    }
+  }
+
+  if (tribunalCtx) {
+    userContent += `\n\n--- DJEN / PROCESSO ---\n${String(tribunalCtx).slice(0, 14000)}\n--- FIM ---`;
   }
   if (hasImg) {
     userContent += `\n\n[Imagem anexada — extraia texto e dados visiveis.]`;
