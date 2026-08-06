@@ -1,4 +1,6 @@
 "use client";
+import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
+
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -623,6 +625,19 @@ function CasesContent() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+          <div className="px-4 sm:px-6 pt-4">
+            <OpsOrbitalStrip
+              nodes={defaultOpsNodes({
+                total: cases.length,
+                pendentes: cases.filter((c: any) => c.status === "É Hoje" || c.tem_novo_andamento).length,
+                vencidos: cases.filter((c: any) => c.status === "Vencido" || c.status === "Caso Crítico").length,
+                novidades: cases.filter((c: any) => c.tem_novo_andamento).length,
+                ok: cases.filter((c: any) => c.status === "No Prazo").length,
+              })}
+              className="mb-4"
+            />
+          </div>
+
         <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between p-4 sm:px-10 shrink-0 z-40">
           <div className="flex items-center gap-4">
              <Briefcase size={20} className="text-primary" />

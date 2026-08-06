@@ -1,4 +1,6 @@
 "use client";
+import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
+
 
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 /**
@@ -480,6 +482,19 @@ export default function TarefasPage() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+          <div className="px-4 sm:px-6 pt-4">
+            <OpsOrbitalStrip
+              nodes={defaultOpsNodes({
+                total: cases.length,
+                pendentes: cases.filter((c: any) => c.status === "É Hoje" || c.tem_novo_andamento).length,
+                vencidos: cases.filter((c: any) => c.status === "Vencido" || c.status === "Caso Crítico").length,
+                novidades: cases.filter((c: any) => c.tem_novo_andamento).length,
+                ok: cases.filter((c: any) => c.status === "No Prazo").length,
+              })}
+              className="mb-4"
+            />
+          </div>
+
         <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg"><CheckCircle size={20} className="text-primary" /></div>

@@ -39,7 +39,7 @@ const toneCls = {
 
 function KpiCard({ k }: { k: Kpi }) {
   return (
-    <div className={cn("rounded-2xl border p-4 shadow-sm", toneCls[k.tone || "default"])}>
+    <div className={cn("rounded-2xl border p-4 shadow-sm backdrop-blur-sm", toneCls[k.tone || "default"])}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
@@ -59,61 +59,84 @@ function KpiCard({ k }: { k: Kpi }) {
 }
 
 export type LexisDashboardProps = {
-  totalProcessos?: number;
-  pendentes?: number;
-  vencidos?: number;
-  novidades?: number;
+  totalProcessos: number;
+  ativos?: number;
+  pendentes: number;
+  vencidos: number;
+  novidades: number;
+  baixas?: number;
+  hoje?: number;
+  riskScore?: number;
   className?: string;
+  /** Esconde header (quando embutido no painel) */
+  compact?: boolean;
 };
 
 /**
- * Painel visual estilo Efferd, alimentado por métricas Lexis (props opcionais).
+ * Painel visual estilo Efferd — SEMPRE receber métricas reais do / (page.tsx).
  */
 export function Dashboard({
-  totalProcessos = 0,
-  pendentes = 0,
-  vencidos = 0,
-  novidades = 0,
+  totalProcessos,
+  ativos,
+  pendentes,
+  vencidos,
+  novidades,
+  baixas = 0,
+  hoje = 0,
+  riskScore,
   className,
+  compact = false,
 }: LexisDashboardProps) {
-  const series = useMemo(
-    () =>
-      ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"].map((d, i) => ({
+  const base = Math.max(1, totalProcessos);
+  const series = useMemo(() => {
+    const days = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
+    return days.map((d, i) => {
+      const wave = 0.55 + ((i * 17) % 10) / 20;
+      return {
         day: d,
-        scans: Math.max(4, Math.round((novidades || 8) * (0.6 + (i % 5) * 0.15))),
-        retornos: Math.max(2, Math.round((pendentes || 10) * (0.3 + (i % 4) * 0.12))),
-      })),
-    [novidades, pendentes]
-  );
+        scans: Math.max(1, Math.round(novidades * wave + (i % 3))),
+        retornos: Math.max(0, Math.round(pendentes * (0.25 + (i % 5) * 0.08))),
+      };
+    });
+  }, [novidades, pendentes]);
 
   const bars = useMemo(
     () => [
-      { name: "Carteira", v: totalProcessos || 12 },
-      { name: "Pendentes", v: pendentes || 5 },
-      { name: "Novidades", v: novidades || 3 },
-      { name: "Vencidos", v: vencidos || 2 },
+      { name: "Carteira", v: totalProcessos },
+      { name: "Ativos", v: ativos ?? totalProcessos },
+      { name: "Pendentes", v: pendentes },
+      { name: "Novidades", v: novidades },
+      { name: "Vencidos", v: vencidos },
+      { name: "Baixas", v: baixas },
     ],
-    [totalProcessos, pendentes, novidades, vencidos]
+    [totalProcessos, ativos, pendentes, novidades, vencidos, baixas]
   );
 
   const kpis: Kpi[] = [
     {
       label: "Carteira",
       value: totalProcessos,
-      hint: "Processos ativos no gabinete",
+      hint: "Total de processos",
       icon: <Briefcase size={18} />,
     },
     {
-      label: "Pendentes",
+      label: "Ativos",
+      value: ativos ?? totalProcessos,
+      hint: "Não encerrados",
+      icon: <Gavel size={18} />,
+      tone: "ok",
+    },
+    {
+      label: "Pendentes / fila",
       value: pendentes,
-      hint: "Fila de contato",
+      hint: "Contato / retorno",
       icon: <Clock size={18} />,
       tone: pendentes > 0 ? "warn" : "ok",
     },
     {
       label: "Novidades",
       value: novidades,
-      hint: "DataJud / DJEN",
+      hint: "DataJud ∪ DJEN",
       icon: <Activity size={18} />,
       tone: novidades > 0 ? "default" : "ok",
     },
@@ -124,39 +147,49 @@ export function Dashboard({
       icon: <AlertTriangle size={18} />,
       tone: vencidos > 0 ? "danger" : "ok",
     },
+    {
+      label: "Hoje",
+      value: hoje,
+      hint: "Prazo para hoje",
+      icon: <Clock size={18} />,
+      tone: hoje > 0 ? "warn" : "ok",
+    },
   ];
 
   return (
-    <div className={cn("flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6", className)}>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-            LexisPredict · Painel
-          </p>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-2">
-            <Gavel size={22} className="text-primary" />
-            Operação do gabinete
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Visão executiva — métricas da carteira, fila e tribunal.
-          </p>
+    <div className={cn("space-y-6", !compact && "p-4 sm:p-6", className)}>
+      {!compact && (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+              LexisPredict · Painel
+            </p>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
+              <Gavel size={20} className="text-primary" />
+              Operação do gabinete
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Métricas reais da carteira · {totalProcessos} processos
+              {typeof riskScore === "number" ? ` · risco ${riskScore}%` : ""}
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase text-muted-foreground bg-card/80 backdrop-blur">
+            <TrendingUp size={14} className="text-emerald-500" />
+            Live ops
+          </div>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase text-muted-foreground">
-          <TrendingUp size={14} className="text-emerald-500" />
-          Live ops
-        </div>
-      </div>
+      )}
 
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-3">
         {kpis.map((k) => (
           <KpiCard key={k.label} k={k} />
         ))}
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 rounded-2xl border bg-card p-4 shadow-sm">
+        <div className="lg:col-span-3 rounded-2xl border bg-card/80 backdrop-blur p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase text-muted-foreground mb-3">
-            Scans × retornos (semana)
+            Scans × retornos (semana · proporcional à carteira)
           </p>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
@@ -169,7 +202,7 @@ export function Dashboard({
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={28} />
+                <YAxis tick={{ fontSize: 11 }} width={32} />
                 <Tooltip />
                 <Area
                   type="monotone"
@@ -192,21 +225,24 @@ export function Dashboard({
           </div>
         </div>
 
-        <div className="lg:col-span-2 rounded-2xl border bg-card p-4 shadow-sm">
+        <div className="lg:col-span-2 rounded-2xl border bg-card/80 backdrop-blur p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase text-muted-foreground mb-3">
-            Distribuição
+            Distribuição real
           </p>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={bars}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 11 }} width={28} />
+                <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-15} textAnchor="end" height={48} />
+                <YAxis tick={{ fontSize: 11 }} width={32} />
                 <Tooltip />
                 <Bar dataKey="v" name="Qtd" fill="hsl(221 70% 48%)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Base: {base} · baixas {baixas}
+          </p>
         </div>
       </div>
     </div>

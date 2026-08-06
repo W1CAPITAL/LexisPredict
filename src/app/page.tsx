@@ -1,4 +1,6 @@
 "use client";
+import { Dashboard as EfferdPanel } from "@/components/dashboard/efferd-dashboard-panel";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -371,7 +373,22 @@ export default function Dashboard() {
                       </div>
                    </section>
 
-                   <OfficeStats cases={cases} />
+                   
+          <div className="rounded-2xl border bg-card/50 backdrop-blur-md shadow-sm overflow-hidden mb-6">
+            <EfferdPanel
+              compact
+              totalProcessos={cases.length}
+              ativos={metrics.activeTotal}
+              pendentes={metrics.countNovoAndamento + metrics.countHoje}
+              vencidos={metrics.countVencido}
+              novidades={metrics.countNovoAndamento}
+              baixas={metrics.countEncerradoTribunal}
+              hoje={metrics.countHoje}
+              riskScore={metrics.riskScore}
+              className="p-4"
+            />
+          </div>
+<OfficeStats cases={cases} />
                 </div>
 
                 <div className="xl:col-span-4 space-y-8">
