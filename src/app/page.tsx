@@ -391,7 +391,8 @@ export default function Dashboard() {
                       </div>
                    </section>
 
-                   
+                <OfficeStats cases={cases} />
+                </div>
 
                 <div className="xl:col-span-4 space-y-8">
                    {iaInsights && (
