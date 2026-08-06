@@ -1,6 +1,6 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * Cadastro de processo → carteira + enriquecimento CNJ (DataJud + DJEN).
+ * Cadastro de processo → carteira + enriquecimento CNJ exclusivo via DJEN (rápido).
  * REGRA Next.js: neste arquivo só export async function (+ types/interfaces).
  */
 'use server';
@@ -16,7 +16,6 @@ import {
   formatCnj,
   extractCnjFromText,
 } from '@/lib/cnj-extract';
-import { fetchDataJud, extrairPolos } from '@/lib/datajud';
 import { fetchDjenComunicacoes, plainTextFromDjen } from '@/lib/djen';
 
 export interface AutomacaoCadastroInput {
@@ -186,8 +185,8 @@ function parsePartesFromTexto(text: string): { ativo: string[]; passivo: string[
 }
 
 /**
- * Enriquecimento por CNJ: DataJud (partes/classe) + DJEN (publicações/destinatários).
- * Prioridade: preencher cliente + réu + classe o mais rápido possível.
+ * Enriquecimento por CNJ — EXCLUSIVO DJEN (sem DataJud).
+ * Mais rápido; preenche polo ativo, passivo, classe, órgão, advogado, CPF/CNPJ quando o teor traz.
  */
 export async function enrichCadastroByCnjAction(
   cnjInput: string
@@ -200,21 +199,14 @@ export async function enrichCadastroByCnjAction(
     }
 
     const tribMeta = extrairTribunal(protocolo);
-
-    // DataJud primeiro (partes). DJEN em paralelo, janela menor = mais rápido.
     const djenOpts = {
       siglaTribunal: tribMeta.tribunal !== 'Outros' ? tribMeta.tribunal : undefined,
-      dataInicio: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      // Janela 120 dias: equilíbrio velocidade × cobertura de partes
+      dataInicio: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       dataFim: new Date().toISOString().split('T')[0],
     };
 
-    const [djSettled, djenSettled] = await Promise.allSettled([
-      fetchDataJud(protocolo, 1, { fast: true }),
-      fetchDjenComunicacoes(protocolo, djenOpts),
-    ]);
-
-    const dj = djSettled.status === 'fulfilled' ? djSettled.value : null;
-    const djen = djenSettled.status === 'fulfilled' ? djenSettled.value : null;
+    const djen = await fetchDjenComunicacoes(protocolo, djenOpts);
 
     let cliente = '';
     let parte_passiva = '';
@@ -226,141 +218,137 @@ export async function enrichCadastroByCnjAction(
     let dataAjuizamento: string | null = null;
     let poloAtivo: string[] = [];
     let poloPassivo: string[] = [];
-    let movimentosResumo: string | null = null;
     let cpfHint: string | null = null;
-    const fontes: string[] = [];
-
-    if (dj && !dj.error) {
-      fontes.push('DataJud');
-      classe_acao = String(dj.classe || '').toUpperCase();
-      if (classe_acao === 'N/A') classe_acao = '';
-      tribunal = String(dj.tribunal || tribunal).toUpperCase();
-      orgao_julgador = String(dj.orgaoJulgador || '').toUpperCase() || '';
-      dataAjuizamento = dj.dataAjuizamento || null;
-
-      let polos = {
-        ativo: Array.isArray(dj.poloAtivo) ? [...dj.poloAtivo] : [],
-        passivo: Array.isArray(dj.poloPassivo) ? [...dj.poloPassivo] : [],
-        outros: [] as string[],
-      };
-      if ((!polos.ativo.length || !polos.passivo.length) && Array.isArray(dj.partes)) {
-        const p2 = extrairPolos(dj.partes);
-        if (!polos.ativo.length) polos.ativo = p2.ativo;
-        if (!polos.passivo.length) polos.passivo = p2.passivo;
-        polos.outros = p2.outros;
-      }
-      poloAtivo = polos.ativo.map((n) => String(n).toUpperCase());
-      poloPassivo = polos.passivo.map((n) => String(n).toUpperCase());
-      cliente = poloAtivo[0] || '';
-      parte_passiva = poloPassivo[0] || '';
-      advogado = pickAdvogadoFromPartes(dj.partes || []);
-
-      // CPF nas partes DataJud (quando o tribunal indexa)
-      for (const p of dj.partes || []) {
-        const doc = String(
-          p?.numeroDocumentoPrincipal || p?.numeroDocumento || p?.cpf || p?.documento || ''
-        ).replace(/\D/g, '');
-        const polo = String(p?.polo || p?.tipoPolo || '').toUpperCase();
-        if (doc.length === 11 && (/ATIVO|AUTOR|A\b/.test(polo) || !cpfHint)) {
-          cpfHint = doc;
-          if (/ATIVO|AUTOR/.test(polo)) break;
-        }
-        if (doc.length === 14 && !parte_passiva_cnpj) {
-          parte_passiva_cnpj = doc;
-        }
-      }
-
-      const movs = Array.isArray(dj.movimentos) ? dj.movimentos : [];
-      if (movs.length) {
-        const sorted = [...movs].sort(
-          (a: any, b: any) =>
-            new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
-        );
-        movimentosResumo = sorted
-          .slice(0, 5)
-          .map((m: any) => `${m.nome || m.descricao || 'Mov.'}`)
-          .join(' · ');
-      }
-    }
-
     let djenResumo: string | null = null;
     let djenCount = 0;
-    if (djen?.success && djen.items?.length) {
-      fontes.push('DJEN');
-      djenCount = djen.count || djen.items.length;
-      const first = djen.items[0];
-      djenResumo =
-        first.nomeClasse ||
-        first.tipoComunicacao ||
-        (first.texto ? String(first.texto).slice(0, 160) : null);
-      if (!classe_acao && first.nomeClasse) {
-        classe_acao = String(first.nomeClasse).toUpperCase();
-      }
-      if (!tribunal || tribunal === 'OUTROS') {
-        tribunal = String(first.siglaTribunal || tribunal).toUpperCase();
-      }
-      if (!orgao_julgador && first.nomeOrgao) {
-        orgao_julgador = String(first.nomeOrgao).toUpperCase();
-      }
 
-      // Destinatários estruturados
-      for (const it of djen.items) {
-        for (const d of it.destinatarios || []) {
-          const nome = String(d.nome || '').trim().toUpperCase();
-          if (!nome) continue;
-          const polo = String(d.polo || '').toUpperCase();
-          if (/ATIVO|AUTOR|REQUERENTE/.test(polo) || (!polo && !/BANCO|S\.?A\.?|LTDA/.test(nome))) {
-            if (!poloAtivo.includes(nome)) poloAtivo.push(nome);
-            if (!cliente && !/BANCO|S\.?A\.?|LTDA|FINANCEIRA/.test(nome)) cliente = nome;
-          }
-          if (/PASSIVO|R[EÉ]U|REQUERIDO/.test(polo) || /BANCO|S\.?A\.?|LTDA|FINANCEIRA/.test(nome)) {
-            if (!poloPassivo.includes(nome)) poloPassivo.push(nome);
+    if (!djen?.success || !djen.items?.length) {
+      // 2ª tentativa: sem filtro de tribunal + janela 365 dias (só se vazio)
+      const djen2 = await fetchDjenComunicacoes(protocolo, {
+        dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        dataFim: new Date().toISOString().split('T')[0],
+      });
+      if (!djen2?.success || !djen2.items?.length) {
+        return {
+          success: false,
+          error:
+            djen?.error ||
+            djen2?.error ||
+            'Sem publicações no DJEN para este CNJ. Preencha manualmente.',
+          protocolo,
+          fonte: 'DJEN',
+        };
+      }
+      // usa a 2ª resposta
+      Object.assign(djen, djen2);
+    }
+
+    djenCount = djen.count || djen.items.length;
+    const first = djen.items[0];
+    djenResumo =
+      first.nomeClasse ||
+      first.tipoComunicacao ||
+      (first.texto ? String(plainTextFromDjen(String(first.texto))).slice(0, 160) : null);
+
+    if (first.nomeClasse) classe_acao = String(first.nomeClasse).toUpperCase();
+    if (first.siglaTribunal) tribunal = String(first.siglaTribunal).toUpperCase();
+    if (first.nomeOrgao) orgao_julgador = String(first.nomeOrgao).toUpperCase();
+    if (first.data_disponibilizacao) {
+      // não é ajuizamento, mas ajuda como referência
+      dataAjuizamento = first.data_disponibilizacao;
+    }
+
+    const pushUnique = (arr: string[], v: string) => {
+      const n = v.replace(/\s+/g, ' ').trim().toUpperCase();
+      if (n.length < 4 || n.length > 140) return;
+      if (!arr.includes(n)) arr.push(n);
+    };
+
+    const isBanco = (n: string) =>
+      /BANCO|S\.?\s*A\.?|LTDA|FINANCEIRA|CREDITO|CRÉDITO|SEGURADORA|COOPERATIVA|NUBANK|INTER\b|SAFRA|BRADESCO|ITA[UÚ]|SANTANDER|CAIXA/.test(
+        n.toUpperCase()
+      );
+
+    // 1) Destinatários estruturados de TODAS as comunicações
+    for (const it of djen.items) {
+      for (const d of it.destinatarios || []) {
+        const nome = String(d.nome || '').trim().toUpperCase();
+        if (!nome) continue;
+        const polo = String(d.polo || '').toUpperCase();
+
+        if (/ATIVO|AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE|APELANTE|AGRAVANTE|IMPETRANTE/.test(polo)) {
+          pushUnique(poloAtivo, nome);
+          if (!cliente && !isBanco(nome)) cliente = nome;
+        } else if (/PASSIVO|R[EÉ]U|REQUERID|EXECUTAD|RECLAMAD|APELAD|AGRAVAD|IMPETRAD/.test(polo)) {
+          pushUnique(poloPassivo, nome);
+          if (!parte_passiva) parte_passiva = nome;
+        } else if (isBanco(nome)) {
+          pushUnique(poloPassivo, nome);
+          if (!parte_passiva) parte_passiva = nome;
+        } else {
+          // polo vazio: pessoa física tende a ser ativo em intimações
+          if (!isBanco(nome)) {
+            pushUnique(poloAtivo, nome);
+            if (!cliente) cliente = nome;
+          } else {
+            pushUnique(poloPassivo, nome);
             if (!parte_passiva) parte_passiva = nome;
           }
-          for (const a of d.advogados || []) {
-            if (a && !advogado) advogado = String(a).toUpperCase();
-          }
         }
-      }
 
-      const corpus = djen.items
-        .slice(0, 12)
-        .map((i) => String(i.texto || ''))
-        .join('\n');
-
-      const parsed = parsePartesFromTexto(corpus);
-      if (!cliente && parsed.ativo[0]) {
-        cliente = parsed.ativo[0];
-        poloAtivo = [...new Set([...poloAtivo, ...parsed.ativo])];
-      }
-      if (!parte_passiva && parsed.passivo[0]) {
-        parte_passiva = parsed.passivo[0];
-        poloPassivo = [...new Set([...poloPassivo, ...parsed.passivo])];
-      }
-      if (!advogado && parsed.advogados[0]) advogado = parsed.advogados[0];
-      if (!parte_passiva_cnpj) {
-        const cnpj = extractCnpjFromText(corpus);
-        if (cnpj) parte_passiva_cnpj = cnpj;
-      }
-      if (!cpfHint) cpfHint = extractCpfFromText(corpus);
-      if (!parte_passiva) {
-        const bank = extractPossibleBankName(corpus);
-        if (bank) parte_passiva = bank;
+        for (const a of d.advogados || []) {
+          const an = String(a || '').trim().toUpperCase();
+          if (an.length > 4 && !advogado) advogado = an;
+        }
       }
     }
 
-    // Fallback: se ainda sem cliente mas há poloAtivo
+    // 2) Corpus textual (HTML → texto) das publicações mais recentes
+    const corpus = djen.items
+      .slice(0, 20)
+      .map((i) => plainTextFromDjen(String(i.texto || '')))
+      .filter(Boolean)
+      .join('\n');
+
+    const parsed = parsePartesFromTexto(corpus);
+    for (const n of parsed.ativo) pushUnique(poloAtivo, n);
+    for (const n of parsed.passivo) pushUnique(poloPassivo, n);
+    if (!cliente && parsed.ativo[0]) cliente = parsed.ativo[0];
+    if (!parte_passiva && parsed.passivo[0]) parte_passiva = parsed.passivo[0];
+    if (!advogado && parsed.advogados[0]) advogado = parsed.advogados[0];
+
+    // 3) CPF / CNPJ no teor
+    if (!cpfHint) cpfHint = extractCpfFromText(corpus);
+    if (!parte_passiva_cnpj) {
+      const cnpj = extractCnpjFromText(corpus);
+      if (cnpj) parte_passiva_cnpj = cnpj;
+    }
+    if (!parte_passiva) {
+      const bank = extractPossibleBankName(corpus);
+      if (bank) {
+        parte_passiva = bank;
+        pushUnique(poloPassivo, bank);
+      }
+    }
+
+    // 4) Heurística final: se só um nome “pessoa” e um “banco”
     if (!cliente && poloAtivo[0]) cliente = poloAtivo[0];
     if (!parte_passiva && poloPassivo[0]) parte_passiva = poloPassivo[0];
+    // Se cliente caiu em banco, troca
+    if (cliente && isBanco(cliente) && poloAtivo.find((n) => !isBanco(n))) {
+      cliente = poloAtivo.find((n) => !isBanco(n)) || cliente;
+    }
 
-    if (!fontes.length) {
+    if (!cliente && !parte_passiva && !classe_acao) {
       return {
         success: false,
         error:
-          (dj as any)?.message ||
-          djen?.error ||
-          'Sem dados no DataJud/DJEN para este CNJ. Preencha manualmente.',
+          'DJEN respondeu, mas sem partes legíveis no teor. Complete o formulário manualmente.',
         protocolo,
+        djenCount,
+        djenResumo,
+        tribunal,
+        fonte: 'DJEN',
       };
     }
 
@@ -379,13 +367,12 @@ export async function enrichCadastroByCnjAction(
       poloPassivo,
       djenCount,
       djenResumo,
-      movimentosResumo,
-      fonte: fontes.join('+') || 'CNJ',
-      // @ts-expect-error campo extra consumido pela UI
+      movimentosResumo: null,
+      fonte: 'DJEN',
       cpf: cpfHint || undefined,
     } as CadastroEnrichResult;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Falha no enriquecimento.';
+    const msg = e instanceof Error ? e.message : 'Falha no enriquecimento DJEN.';
     console.error('[enrichCadastroByCnj]', e);
     return { success: false, error: msg };
   }

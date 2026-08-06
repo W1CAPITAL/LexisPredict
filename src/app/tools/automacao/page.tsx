@@ -1,6 +1,6 @@
 /**
  * Cadastro de processo (ex-Automação Judicial)
- * Fluxo principal: CNJ → DataJud + DJEN → formulário completo → carteira
+ * Fluxo principal: CNJ → DJEN (exclusivo, rápido) → formulário completo → carteira
  * Sem screenshot automático do tribunal.
  */
 "use client";
@@ -97,7 +97,7 @@ export default function CadastroProcessoPage() {
   const setField = (key: keyof ReturnType<typeof emptyForm>, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  /** Busca DataJud + DJEN e preenche o formulário */
+  /** Busca exclusiva DJEN e preenche o formulário */
   const runEnrich = async () => {
     if (cleanCnj.length !== 20) {
       toast({ title: "CNJ inválido", description: "Informe 20 dígitos.", variant: "destructive" });
@@ -217,7 +217,7 @@ export default function CadastroProcessoPage() {
               Cadastro
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              Informe o CNJ → sistema consulta DataJud e DJEN → complete os dados do cliente e grave na carteira.
+              Informe o CNJ → consulta exclusiva no DJEN (publicações oficiais) → preenche polos e grave na carteira.
             </p>
           </div>
           <Button asChild variant="outline" className="rounded-xl font-black uppercase text-[10px]">
@@ -257,7 +257,7 @@ export default function CadastroProcessoPage() {
                   <Search size={16} className="text-primary" /> Consulta pelo CNJ
                 </CardTitle>
                 <CardDescription>
-                  Não abre o site do tribunal nem tira print. Usa DataJud (partes/classe) e DJEN (publicações).
+                  Não abre o site do tribunal. Consulta só o DJEN (mais rápido) e preenche polo ativo, passivo, classe e órgão.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -282,7 +282,7 @@ export default function CadastroProcessoPage() {
                       ) : (
                         <Sparkles className="mr-2" size={16} />
                       )}
-                      Buscar no tribunal / DJEN
+                      Buscar no DJEN
                     </Button>
                   </div>
                 </div>
