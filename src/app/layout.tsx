@@ -7,6 +7,7 @@ import { GuidedTour } from '@/components/onboarding/guided-tour';
 import { DataJudScannerPanel } from '@/components/scanner/datajud-scanner-panel';
 import { AppUpdateBanner } from '@/components/system/app-update-banner';
 import Script from 'next/script';
+import { MotionRoot } from "@/components/providers/motion-root";
 
 export const viewport: Viewport = {
   themeColor: [{ media: '(prefers-color-scheme: light)', color: '#ffffff' }, { media: '(prefers-color-scheme: dark)', color: '#0f0f12' }],
@@ -113,7 +114,7 @@ export default function RootLayout({
         <AuthProvider>
           <div className="relative z-10 min-h-screen">
             <GuidedTour />
-            {children}
+            <MotionRoot>{children}</MotionRoot>
             <DataJudScannerPanel />
             <AppUpdateBanner />
           </div>
