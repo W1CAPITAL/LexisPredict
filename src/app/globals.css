@@ -4,6 +4,7 @@
 
 @import "./globals-ai-draft-contrast.css";
 @import "./globals-orbit-theme.css";
+@import "./globals-ui-fx.css";
 
 @layer base {
   /* tokens: globals-orbit-theme.css */

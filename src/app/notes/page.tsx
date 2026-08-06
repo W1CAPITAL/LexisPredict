@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NotesQuickAddPopover } from "@/components/notes/notes-quick-add-popover";
+import { TextureCardStyled } from "@/components/ui/texture-card";
 
 function parseNoteContent(raw: any): { text: string; imageUrl?: string } {
   if (!raw) return { text: "" };

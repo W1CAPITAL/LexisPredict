@@ -1,0 +1,65 @@
+/* LexisPredict UI FX — sem @layer (seguro para @import no globals.css) */
+
+@keyframes metal-spin {
+  to {
+    --metal-angle: 360deg;
+  }
+}
+
+@property --metal-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+.metal-fx-wrap {
+  isolation: isolate;
+}
+
+.metal-fx-ring {
+  animation: metal-spin 4s linear infinite;
+  filter: blur(0.2px);
+  z-index: 0;
+}
+
+.metal-fx-glow {
+  filter: drop-shadow(0 0 10px rgba(99, 102, 241, calc(0.25 * var(--metal-strength, 0.85))));
+}
+
+.metal-fx-paused .metal-fx-ring {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metal-fx-ring {
+    animation: none !important;
+  }
+  .orbit-enter,
+  .orbit-kpi,
+  .liquid-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Texture helpers */
+.texture-btn {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.texture-btn:hover {
+  transform: translateY(-1px);
+}
+
+.texture-card {
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.texture-card:hover {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive sidebar helpers */
+@media (max-width: 767px) {
+  .lexis-sidebar-desktop {
+    display: none !important;
+  }
+}

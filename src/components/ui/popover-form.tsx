@@ -5,8 +5,6 @@ import { X, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-type FormState = "idle" | "loading" | "success";
-
 export function PopoverForm({
   title,
   open,
@@ -52,7 +50,7 @@ export function PopoverForm({
       </Button>
       {open ? (
         <div
-          className="absolute z-50 mt-2 right-0 sm:left-0 sm:right-auto rounded-2xl border-2 border-black bg-card shadow-[8px_8px_0_#000] overflow-hidden"
+          className="absolute z-50 mt-2 right-0 sm:left-0 sm:right-auto rounded-2xl border border-border bg-card shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200"
           style={{ width, minHeight: height }}
         >
           <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40">
@@ -122,8 +120,17 @@ export function PopoverFormSeparator() {
 }
 
 export function PopoverFormCutOutLeftIcon() {
-  return null;
+  return (
+    <svg width="8" height="16" viewBox="0 0 8 16" aria-hidden className="text-card fill-current">
+      <path d="M8 0v16H4C1.79 16 0 12.418 0 8S1.79 0 4 0H8z" />
+    </svg>
+  );
 }
+
 export function PopoverFormCutOutRightIcon() {
-  return null;
+  return (
+    <svg width="8" height="16" viewBox="0 0 8 16" aria-hidden className="text-card fill-current">
+      <path d="M0 0v16h4c2.21 0 4-3.582 4-8S6.21 0 4 0H0z" />
+    </svg>
+  );
 }
