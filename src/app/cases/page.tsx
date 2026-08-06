@@ -280,19 +280,40 @@ function CasesContent() {
   const handleSuggestClick = async (c: LegalCase) => {
     if (!c.protocolo) return;
     setLoading(true);
+    setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both' });
-      if (res.success && res.case) {
-        setHistoryResult({ case: res.case, movimentos: res.movimentos || [], djenComunicacoes: res.comunicacoes || [] });
-        setAiDraft(null);
-        const djenTexts = (res.comunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
-        const suggestions = suggestScripts({ clienteNome: c.cliente, protocolo: c.protocolo, ultimoRetorno: c.ultimoRetorno, eventoTipo: res.case.evento_tipo, eventoResumo: res.case.evento_resumo, movimentos: res.movimentos || [], djenTexts, tem_novo_andamento: res.case.tem_novo_andamento, datajud_encerrado_tribunal: res.case.datajud_encerrado_tribunal, indicio_busca_apreensao: res.case.indicio_busca_apreensao, em_cumprimento_sentenca: res.case.em_cumprimento_sentenca });
-        setSuggestedScripts(suggestions);
-        setShowScripts(true);
-        setIsHistoryModalOpen(true);
-        updateCaseByProtocolo(c.protocolo, (res.casePatch as Record<string, any>) || {});
+      // Rápido: só DataJud (sem DJEN, sem Claude). Scripts = motor local fixo.
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'datajud', fast: true });
+      const movimentos = ((res as any).movimentos || []).slice(0, 15);
+      const caseData = (res as any).case || c;
+      setHistoryResult({
+        case: caseData,
+        movimentos,
+        djenComunicacoes: (res as any).comunicacoes || [],
+      });
+      const suggestions = suggestScripts({
+        clienteNome: c.cliente,
+        protocolo: c.protocolo,
+        ultimoRetorno: c.ultimoRetorno,
+        eventoTipo: caseData.evento_tipo || c.evento_tipo,
+        eventoResumo: caseData.evento_resumo || c.evento_resumo,
+        datajud_ultimo_nome: caseData.datajud_ultimo_nome || c.datajud_ultimo_nome,
+        movimentos,
+        djenTexts: [],
+        tem_novo_andamento: caseData.tem_novo_andamento ?? c.tem_novo_andamento,
+        datajud_encerrado_tribunal: caseData.datajud_encerrado_tribunal ?? c.datajud_encerrado_tribunal,
+        indicio_busca_apreensao: caseData.indicio_busca_apreensao ?? c.indicio_busca_apreensao,
+        em_cumprimento_sentenca: caseData.em_cumprimento_sentenca ?? c.em_cumprimento_sentenca,
+      });
+      setSuggestedScripts(suggestions);
+      setShowScripts(true);
+      setIsHistoryModalOpen(true);
+      if ((res as any).success && (res as any).casePatch) {
+        updateCaseByProtocolo(c.protocolo, (res as any).casePatch || {});
       }
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGenerateAIDraft = async () => {
@@ -659,6 +680,7 @@ function CasesContent() {
                                     <button
                                       type="button"
                                       className="flex items-center gap-1 text-[8px] font-black text-emerald-700 uppercase hover:underline"
+                                      title="PDF rápido sem IA"
                                       onClick={async () => {
                                         try {
                                           const texto = (item.raw.texto || item.raw.conteudo || historyResult?.case.djen_ultimo_resumo || '').toString();
@@ -668,6 +690,7 @@ function CasesContent() {
                                             data: item.date ? item.date.toLocaleDateString('pt-BR') : 'S/D',
                                             orgao: item.raw.nomeOrgao || item.subtitle || '',
                                             texto: texto || 'Conteúdo não disponível.',
+                                            useClaude: false,
                                           });
                                           if (res.success && res.base64) {
                                             const a = document.createElement('a');
@@ -678,7 +701,33 @@ function CasesContent() {
                                         } catch { /* */ }
                                       }}
                                     >
-                                      <Download size={10} /> Exportar PDF
+                                      <Download size={10} /> PDF rápido
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="flex items-center gap-1 text-[8px] font-black text-violet-700 uppercase hover:underline"
+                                      title="PDF com explicação (Claude)"
+                                      onClick={async () => {
+                                        try {
+                                          const texto = (item.raw.texto || item.raw.conteudo || historyResult?.case.djen_ultimo_resumo || '').toString();
+                                          const res = await generateDjenPublicationPDFAction({
+                                            titulo: item.raw.tipoComunicacao || item.raw.tipoDocumento || item.title || 'PUBLICAÇÃO DJEN',
+                                            protocolo: historyResult?.case.protocolo || '',
+                                            data: item.date ? item.date.toLocaleDateString('pt-BR') : 'S/D',
+                                            orgao: item.raw.nomeOrgao || item.subtitle || '',
+                                            texto: texto || 'Conteúdo não disponível.',
+                                            useClaude: true,
+                                          });
+                                          if (res.success && res.base64) {
+                                            const a = document.createElement('a');
+                                            a.href = `data:application/pdf;base64,${res.base64}`;
+                                            a.download = `DJEN_detalhado_${historyResult?.case.protocolo || 'pub'}.pdf`;
+                                            a.click();
+                                          }
+                                        } catch { /* */ }
+                                      }}
+                                    >
+                                      <Download size={10} /> PDF detalhado
                                     </button>
                                   </div>
                                 )}
@@ -691,16 +740,45 @@ function CasesContent() {
                       ))}
                     </div>
                   </section>
+                  {showScripts && suggestedScripts.length > 0 && (
+                    <section className="space-y-4 pt-6 border-t">
+                      <h3 className={cn("text-emerald-700 flex items-center gap-2", ui.label)}>
+                        <MessageSquareQuote size={14} /> Sugerir resposta (scripts fixos — sem IA)
+                      </h3>
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase">
+                        Respostas padronizadas do gabinete. Revise antes de enviar. IA só no botão Rascunho abaixo.
+                      </p>
+                      <div className="space-y-3">
+                        {suggestedScripts.map((s, idx) => (
+                          <div key={s.id || idx} className="border-2 border-black p-4 rounded-xl bg-white space-y-2 shadow-[3px_3px_0_#000]">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[10px] font-black uppercase text-black">{s.titulo}</p>
+                              <span className="text-[8px] font-bold text-muted-foreground uppercase">{s.quandoUsar}</span>
+                            </div>
+                            <p className="text-xs text-black/80 whitespace-pre-wrap leading-relaxed">{s.texto}</p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-9 w-full text-[9px] font-black uppercase border-2 border-black rounded-lg"
+                              onClick={() => copyScript(s.texto)}
+                            >
+                              Copiar resposta
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <section className="space-y-6 pt-6 border-t">
-                    <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Sugestões Estratégicas</h3>
+                    <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Rascunho opcional (IA)</h3>
                     <div className="bg-black text-white p-6 space-y-4 rounded-xl">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Só gera se você clicar — não mistura com Sugerir Resposta</p>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Select value={selectedMotor} onValueChange={setSelectedMotor}>
                           <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-white border-2 border-black rounded-lg">
-                            <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
-                            <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok 2 Elite</SelectItem>
+                            <SelectItem value="local_only" className="text-[9px] font-black uppercase">Script Lexis (sem IA)</SelectItem>
+                            <SelectItem value="xai" className="text-[9px] font-black uppercase">xAI Grok (rascunho livre)</SelectItem>
                             <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>
                           </SelectContent>
                         </Select>
@@ -708,7 +786,7 @@ function CasesContent() {
                           {isGeneratingAIDraft ? <Loader2 size={12} className="animate-spin" /> : "Gerar Rascunho"}
                         </Button>
                       </div>
-                      {aiDraft && <div className="space-y-3 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className="text-white/80 italic text-xs">"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
+                      {aiDraft && <div className="space-y-3 mt-2"><div className="p-4 bg-white/5 border border-white/10 rounded-lg"><p className="text-white/80 italic text-xs whitespace-pre-wrap">"{aiDraft}"</p></div><Button onClick={() => copyScript(aiDraft)} variant="ghost" className="h-10 w-full text-[9px] font-black uppercase border border-white/20 hover:bg-white/10 text-white rounded-lg">Copiar Rascunho</Button></div>}
                     </div>
                   </section>
                 </div>

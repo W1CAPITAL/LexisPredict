@@ -24,10 +24,10 @@ export async function generateDjenPublicationPDFAction(data: any) {
     const renderToBuffer = await getRenderToBuffer();
     const { DjenPublicationPDF } = await import('@/components/pdf/djen-publication-pdf');
 
-    // Claude AI explica a publicação (opt-in: data.useClaude !== false se texto houver)
+    // Claude SOMENTE se useClaude === true (PDF detalhado). PDF rápido = sem IA.
     let analiseClaude: string | null = data?.analiseClaude || null;
     let claudeEngine: string | null = null;
-    const wantClaude = data?.useClaude !== false && !!(data?.texto || data?.teor);
+    const wantClaude = data?.useClaude === true && !!(data?.texto || data?.teor);
     if (wantClaude && !analiseClaude) {
       try {
         const { explainDjenWithClaude } = await import('@/lib/ai/claude-surfaces');
