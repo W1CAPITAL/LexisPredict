@@ -1,5 +1,5 @@
 "use client";
-import { FeatureShaderGrid } from "@/components/ui/feature-shader-card";
+import { HoverVideoPlayer } from "@/components/ui/hover-video-player";
 
 /**
  * Página de treinamento — vídeo + atalho para o Guia interativo atualizado
@@ -40,6 +40,11 @@ export default function OnboardingVideoPage() {
       <Sidebar />
       <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain lexis-surface p-4 lg:p-8 flex flex-col">
         <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col min-w-0">
+          <HoverVideoPlayer
+            videoSrc="/Onboarding_LexisPredict.mp4"
+            title="Treinamento LexisPredict"
+            className="mb-6"
+          />
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
             <div className="flex items-center gap-4 min-w-0">
               <Link href="/">
@@ -164,10 +169,6 @@ export default function OnboardingVideoPage() {
           </span>
           <span className="hidden sm:inline">LexisPredict Enterprise</span>
         </footer>
-      
-        <div className="px-6 pb-10 max-w-4xl mx-auto w-full">
-          <FeatureShaderGrid />
-        </div>
       </main>
     </div>
   );

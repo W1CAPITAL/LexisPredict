@@ -2,6 +2,10 @@
  * Assistente IA Lexis — Claude/OmniRoute, thinking visivel, PDF + imagens.
  */
 "use client";
+import { PromptLibraryPanel } from "@/components/ai/prompt-library";
+import { AiInstructionsPanel, buildInstructionsPrefix } from "@/components/ai/ai-instructions";
+import { Typewriter } from "@/components/ui/typewriter";
+
 
 import React, { useState, useRef, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -90,6 +94,7 @@ export default function AssistentePage() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [activeInstructions, setActiveInstructions] = useState<string[]>(["conciso", "cliente"]);
   const [loading, setLoading] = useState(false);
   const [model, setModel] = useState<MotorId>("claude");
   const [baClaude, setBaClaude] = useState(false);
@@ -144,7 +149,8 @@ export default function AssistentePage() {
 
   const send = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const text = input.trim();
+    const text = (buildInstructionsPrefix(activeInstructions) + input.trim()).trim();
+    const displayText = input.trim();
     if ((!text && !pendingImage && !pendingPdf) || loading) return;
 
     const userLabel = [
@@ -155,7 +161,7 @@ export default function AssistentePage() {
       .filter(Boolean)
       .join(" ");
 
-    setMessages((m) => [...m, { role: "user", content: userLabel }]);
+    setMessages((m) => [...m, { role: "user", content: userLabel.includes("data:") ? userLabel : (displayText || userLabel) }]);
     setInput("");
     const img = pendingImage;
     const pdf = pendingPdf;
@@ -302,7 +308,15 @@ export default function AssistentePage() {
               )}
             </div>
           )}
-          <div className="max-w-3xl mx-auto flex gap-2">
+          
+            <div className="flex flex-wrap items-center gap-2 px-1 pb-2">
+              <PromptLibraryPanel onInsert={(t) => setInput((prev) => (prev ? prev + "\n" + t : t))} />
+              <AiInstructionsPanel value={activeInstructions} onChange={setActiveInstructions} />
+              <p className="text-[10px] text-muted-foreground ml-auto hidden sm:block">
+                <Typewriter texts={["Resuma o processo…", "Explique o DJEN…", "Rascunho WhatsApp…"]} baseText="Ex.: " delay={1.2} />
+              </p>
+            </div>
+<div className="max-w-3xl mx-auto flex gap-2">
             <input
               ref={imgRef}
               type="file"

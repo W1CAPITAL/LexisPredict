@@ -43,6 +43,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { NotesQuickAddPopover } from "@/components/notes/notes-quick-add-popover";
 
 function parseNoteContent(raw: any): { text: string; imageUrl?: string } {
   if (!raw) return { text: "" };
@@ -258,7 +259,10 @@ export default function NotesPage() {
         <div className="flex-1 overflow-auto p-4 sm:p-8 space-y-6">
           {/* Nova nota */}
           <div className="border-2 border-black bg-white p-4 shadow-[6px_6px_0_#000] space-y-3 max-w-3xl">
-            <Label className="text-[9px] font-black uppercase">Nova anotação</Label>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <Label className="text-[9px] font-black uppercase">Nova anotação</Label>
+              <NotesQuickAddPopover enabled={!!isOperador} onSaved={() => loadData(true)} />
+            </div>
             <Input
               placeholder="Título (opcional)"
               value={newNote.title}
