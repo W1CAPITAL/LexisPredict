@@ -36,6 +36,7 @@ import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
+import { buildUnifiedTimeline } from '@/lib/timeline-normalize';
 import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
@@ -266,9 +267,9 @@ function CasesContent() {
     if (!c.protocolo) return;
     setLoading(true);
     try {
-      // Auditoria 3D: EXCLUSIVO DJEN (sem DataJud)
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: true });
-      const coms = (res as any).comunicacoes || [];
+      // Auditoria 3D: so DJEN (rapido)
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: false });
+      const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
         case: (res as any).case || c,
         movimentos: [],
@@ -276,18 +277,23 @@ function CasesContent() {
       });
       setIsHistoryModalOpen(true);
       setShowScripts(false);
+      setSuggestedScripts([]);
       setAiDraft(null);
       if ((res as any).casePatch) {
-        updateCaseByProtocolo(c.protocolo, (res.casePatch as Record<string, any>) || {});
+        updateCaseByProtocolo(c.protocolo, ((res as any).casePatch as Record<string, any>) || {});
       }
-      if (!coms.length) {
-        toast({
-          title: (res as any).offline ? 'DJEN offline' : 'Sem publicacoes DJEN',
-          description: String((res as any).error || 'Nenhuma comunicacao no periodo ou falha de rede (403/429).'),
-          variant: 'destructive',
-        });
-      }
-    } finally { setLoading(false); }
+      toast({
+        title: coms.length ? `DJEN: ${coms.length} publicacao(oes)` : 'DJEN sem retorno',
+        description: coms.length
+          ? 'Auditoria 3D (somente diario oficial).'
+          : String((res as any).error || 'Sem publicacoes no periodo ou falha de rede.'),
+        variant: coms.length ? 'default' : 'destructive',
+      });
+    } catch (e: any) {
+      toast({ title: 'Falha Auditoria 3D', description: e?.message || 'Erro DJEN', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSuggestClick = async (c: LegalCase) => {
@@ -295,9 +301,10 @@ function CasesContent() {
     setLoading(true);
     setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: true });
-      const movimentos = ((res as any).movimentos || []).slice(0, 30);
-      const comunicacoes = (res as any).comunicacoes || [];
+      // Auditoria unificada: DataJud + DJEN (obrigatorio para Sugerir resposta)
+      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: false });
+      const movimentos = normalizeMovList((res as any).movimentos);
+      const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       const caseData = (res as any).case || c;
 
       setHistoryResult({
@@ -307,13 +314,13 @@ function CasesContent() {
       });
 
       const djenTexts = comunicacoes
-        .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || ''))
+        .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ''))
         .filter(Boolean);
 
       const suggestions = suggestScripts({
-        clienteNome: c.cliente,
+        clienteNome: c.cliente || caseData.cliente,
         protocolo: c.protocolo,
-        ultimoRetorno: c.ultimoRetorno,
+        ultimoRetorno: c.ultimoRetorno || caseData.ultimoRetorno,
         eventoTipo: caseData.evento_tipo || c.evento_tipo,
         eventoResumo: caseData.evento_resumo || c.evento_resumo,
         datajud_ultimo_nome: caseData.datajud_ultimo_nome || c.datajud_ultimo_nome,
@@ -330,16 +337,19 @@ function CasesContent() {
       if ((res as any).casePatch) {
         updateCaseByProtocolo(c.protocolo, (res as any).casePatch || {});
       }
-      if (!movimentos.length && !comunicacoes.length) {
-        const err = String((res as any).error || '');
-        toast({
-          title: (res as any).offline ? 'Tribunal offline' : 'Cronologia vazia',
-          description: err
-            ? err.slice(0, 180)
-            : 'DataJud/DJEN sem publicacoes no periodo ou falha de rede. Confira CNJ e regiao gru1. Tente de novo.',
-          variant: 'destructive',
-        });
-      }
+      toast({
+        title: suggestions.length
+          ? `${suggestions.length} resposta(s) pronta(s)`
+          : 'Auditoria unificada',
+        description: `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`,
+        variant: movimentos.length || comunicacoes.length ? 'default' : 'destructive',
+      });
+    } catch (e: any) {
+      toast({
+        title: 'Falha na auditoria unificada',
+        description: e?.message || 'Erro ao consultar DataJud/DJEN',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -582,15 +592,7 @@ function CasesContent() {
 
   const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
-    const movs = (historyResult.movimentos || []).map(m => ({ type: 'court', date: m.dataHora ? new Date(m.dataHora) : new Date(0), title: m.nome, subtitle: m.complemento || '', raw: m }));
-    const djen = (historyResult.djenComunicacoes || []).map(d => ({ 
-      type: 'djen', 
-      date: d.data_disponibilizacao ? new Date(d.data_disponibilizacao) : new Date(0), 
-      title: summarizeDjenKeywords(d.texto), 
-      subtitle: d.nomeOrgao || '', 
-      raw: d 
-    }));
-    return [...movs, ...djen].sort((a, b) => b.date.getTime() - a.date.getTime());
+    return buildUnifiedTimeline(historyResult.movimentos, historyResult.djenComunicacoes);
   }, [historyResult]);
 
   return (
@@ -761,7 +763,7 @@ function CasesContent() {
                                   </div>
                                 )}
                              </div>
-                             <span className="text-[10px] font-black text-muted-foreground uppercase">{format(item.date, 'dd/MM/yyyy')}</span>
+                             <span className="text-[10px] font-black text-muted-foreground uppercase">{item.date && !Number.isNaN(item.date.getTime()) && item.date.getTime() > 0 ? format(item.date, 'dd/MM/yyyy') : 'S/D'}</span>
                           </div>
                           <h4 className="text-sm font-black uppercase text-foreground mb-1 leading-tight">{item.title}</h4>
                           <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.subtitle}</p>
@@ -921,6 +923,16 @@ function CasesContent() {
       </main>
     </div>
   );
+}
+
+function normalizeMovList(movs: any): any[] {
+  if (!Array.isArray(movs)) return [];
+  return movs.slice(0, 80).map((m: any) => ({
+    ...m,
+    dataHora: m?.dataHora || m?.data || m?.dataMovimento || null,
+    nome: m?.nome || m?.nomeMovimento || m?.descricao || 'Movimentação',
+    complemento: m?.complemento || m?.observacao || '',
+  }));
 }
 
 export default function CasesPage() {

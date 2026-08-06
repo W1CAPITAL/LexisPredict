@@ -118,16 +118,8 @@ export async function auditCaseCoreSystem(
     ultimoRetorno: dbItem.ultimo_retorno,
   });
 
-  if (isCasoEncerrado(target)) {
-    return {
-      success: true,
-      skipped: true,
-      case: target,
-      casePatch: {},
-      movimentos: [],
-      comunicacoes: [],
-    };
-  }
+  // Nao pular encerrados: Sugerir resposta / Auditoria precisam da cronologia
+  // (scripts e DJEN ainda fazem sentido para baixa / trânsito).
 
   const patch: Record<string, any> = {};
   let movimentos: any[] = [];
@@ -181,7 +173,7 @@ export async function auditCaseCoreSystem(
       const dataJud =
         mode === 'both'
           ? preDataJud
-          : await fetchDataJud(protocolo, 1, options);
+          : await fetchDataJud(protoSafe || protocolo, 1, { ...options, fast: options.fast !== false });
       if (dataJud && !dataJud.error) {
         datajudOk = true;
         movimentos = normalizeMovimentosList(dataJud.movimentos || []);
@@ -325,7 +317,28 @@ export async function auditCaseCoreSystem(
     }
   }
 
-  if (!datajudOk && !djenOk) {
+
+  // Ultima chance sequencial se ainda vazio (Sugerir resposta)
+  if (mode === 'both' && movimentos.length === 0 && comunicacoes.length === 0) {
+    try {
+      const dj = await fetchDataJud(protoSafe || protocolo, 1, { fast: false });
+      if (dj && !dj.error && Array.isArray(dj.movimentos) && dj.movimentos.length) {
+        datajudOk = true;
+        movimentos = normalizeMovimentosList(dj.movimentos);
+      }
+    } catch { /* */ }
+    try {
+      const dj = await fetchDjenComunicacoes(protoSafe || protocolo, {
+        dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      });
+      if (dj?.success && dj.items?.length) {
+        djenOk = true;
+        comunicacoes = dj.items;
+      }
+    } catch { /* */ }
+  }
+
+    if (!datajudOk && !djenOk) {
     // Soft-fail: UI ainda abre; mostra toast. Nao derruba como 500.
     return {
       success: true,

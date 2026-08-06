@@ -56,3 +56,47 @@ export function normalizeMovimentosList(movs: any[] | null | undefined): any[] {
     .map(normalizeDataJudMovimento)
     .sort((a, b) => parseTimelineDate(b.dataHora).getTime() - parseTimelineDate(a.dataHora).getTime());
 }
+
+
+export type UnifiedTimelineItem = {
+  type: 'court' | 'djen';
+  date: Date;
+  title: string;
+  subtitle: string;
+  raw: any;
+};
+
+export function buildUnifiedTimeline(
+  movimentos: any[] | null | undefined,
+  comunicacoes: any[] | null | undefined
+): UnifiedTimelineItem[] {
+  const movs = (movimentos || []).map((m) => {
+    const n = normalizeDataJudMovimento(m);
+    return {
+      type: 'court' as const,
+      date: parseTimelineDate(n.dataHora),
+      title: n.nome || 'Movimentação',
+      subtitle: n.complemento || '',
+      raw: n,
+    };
+  });
+  const djen = (comunicacoes || []).map((d) => {
+    const data =
+      d?.data_disponibilizacao || d?.dataDisponibilizacao || d?.data || null;
+    const texto = String(d?.texto || d?.conteudo || d?.inteiroTeor || '');
+    const title =
+      d?.tipoComunicacao ||
+      d?.tipoDocumento ||
+      (texto ? texto.slice(0, 120) : 'Publicação DJEN');
+    return {
+      type: 'djen' as const,
+      date: parseTimelineDate(data),
+      title: String(title),
+      subtitle: String(d?.nomeOrgao || d?.siglaTribunal || ''),
+      raw: d,
+    };
+  });
+  return [...movs, ...djen]
+    .filter((x) => x.date.getTime() > 0 || x.title)
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
+}
