@@ -1,19 +1,27 @@
 "use client";
 
 /**
- * MetalButton — strength 1.0 + fundo metálico reforçado.
+ * MetalButton — contraste alto em tema claro + WebGL.
+ * Fundo sólido SEMPRE (não depende só do shader).
  */
 import * as React from "react";
-import { MetalFx, type MetalFxPreset } from "metal-fx";
-import { cn } from "@/lib/utils";
+import { MetalFx, type MetalFxPreset, type MetalFxVariant } from "metal-fx";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export type MetalButtonProps = ButtonProps & {
+export type { MetalFxPreset };
+
+type MetalShared = {
   preset?: MetalFxPreset;
+  metalVariant?: MetalFxVariant;
   strength?: number;
-  metalVariant?: "button" | "circle";
   paused?: boolean;
+  disableGlow?: boolean;
+  theme?: "dark" | "light" | "auto";
+  metalFxClassName?: string;
 };
+
+export type MetalButtonProps = ButtonProps & MetalShared;
 
 function useReducedMotion() {
   const [reduced, setReduced] = React.useState(false);
@@ -27,64 +35,83 @@ function useReducedMotion() {
   return reduced;
 }
 
+function useIsDark() {
+  const [dark, setDark] = React.useState(false);
+  React.useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setDark(root.classList.contains("dark"));
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  return dark;
+}
+
 export const MetalButton = React.forwardRef<HTMLButtonElement, MetalButtonProps>(
   (
     {
-      preset = "chromatic",
-      strength = 1,
-      metalVariant,
-      paused = false,
       className,
-      size,
+      preset = "chromatic",
+      metalVariant = "button",
+      strength = 1,
+      paused = false,
+      disableGlow = false,
+      theme = "auto",
+      metalFxClassName,
+      children,
       variant = "default",
-      asChild,
       ...props
     },
     ref
   ) => {
     const reduced = useReducedMotion();
+    const isDark = useIsDark();
+    const effectivePaused = paused || reduced;
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => setMounted(true), []);
 
-    const shape = metalVariant || (size === "icon" ? "circle" : "button");
+    // Em tema claro, force shader "dark" para o metal aparecer no fundo branco
+    const fxTheme =
+      theme === "auto" ? (isDark ? "dark" : "dark") : theme;
 
-    // Fundo metálico CSS por baixo do WebGL (mais “peso” visual)
-    const metalBg =
+    const solidPreset =
       preset === "gold"
-        ? "bg-gradient-to-br from-amber-200 via-amber-400 to-amber-700 text-black border-amber-500/40"
+        ? "metal-btn-solid metal-btn-solid--gold"
         : preset === "silver"
-          ? "bg-gradient-to-br from-slate-100 via-slate-300 to-slate-500 text-slate-900 border-slate-400/50"
-          : "bg-gradient-to-br from-sky-300 via-violet-400 to-pink-400 text-slate-950 border-white/30";
+          ? "metal-btn-solid metal-btn-solid--silver"
+          : "metal-btn-solid metal-btn-solid--chromatic";
 
     const btn = (
       <Button
         ref={ref}
-        size={size}
         variant={variant}
-        asChild={asChild}
         metal={false}
         className={cn(
-          "shadow-[0_10px_28px_rgba(0,0,0,0.22)] hover:shadow-[0_14px_36px_rgba(0,0,0,0.28)]",
-          "border font-black",
-          metalBg,
+          "relative z-[1] rounded-full",
+          solidPreset,
           className
         )}
         {...props}
-      />
+      >
+        {children}
+      </Button>
     );
 
-    if (!mounted || reduced || paused || asChild) {
+    if (!mounted) {
       return btn;
     }
 
     return (
       <MetalFx
         preset={preset}
-        variant={shape}
-        strength={Math.min(1, Math.max(0.85, strength))}
-        theme="auto"
+        variant={metalVariant}
+        strength={Math.min(1, Math.max(0.9, strength))}
+        paused={effectivePaused}
+        disableGlow={disableGlow}
+        theme={fxTheme}
+        className={cn("inline-flex", metalFxClassName)}
         normalizeHostStyles
-        className="inline-flex"
       >
         {btn}
       </MetalFx>
@@ -93,6 +120,20 @@ export const MetalButton = React.forwardRef<HTMLButtonElement, MetalButtonProps>
 );
 MetalButton.displayName = "MetalButton";
 
-export function MetalIconButton(props: MetalButtonProps) {
-  return <MetalButton size="icon" metalVariant="circle" {...props} />;
-}
+export type MetalIconButtonProps = Omit<MetalButtonProps, "size"> & {
+  "aria-label": string;
+};
+
+export const MetalIconButton = React.forwardRef<
+  HTMLButtonElement,
+  MetalIconButtonProps
+>(({ metalVariant = "circle", className, ...props }, ref) => (
+  <MetalButton
+    ref={ref}
+    size="icon"
+    metalVariant={metalVariant}
+    className={cn("h-10 w-10", className)}
+    {...props}
+  />
+));
+MetalIconButton.displayName = "MetalIconButton";

@@ -1,12 +1,9 @@
 "use client";
 
-/**
- * shadcn Button + metal-fx (política em @/lib/metal-policy).
- */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { MetalFx } from "metal-fx";
+import { MetalFx, type MetalFxPreset } from "metal-fx";
 import { cn } from "@/lib/utils";
 import {
   resolveMetalEnabled,
@@ -14,25 +11,20 @@ import {
   resolveMetalStrength,
   type MetalMode,
 } from "@/lib/metal-policy";
-import type { MetalFxPreset } from "metal-fx";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         liquid:
-          "liquid-btn relative overflow-hidden rounded-full bg-primary/90 text-primary-foreground border border-white/20 shadow-[0_8px_28px_rgba(37,99,235,0.22)] backdrop-blur-md hover:scale-[1.02] hover:shadow-[0_12px_36px_rgba(37,99,235,0.32)] before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/20 before:to-transparent",
+          "liquid-btn relative overflow-hidden rounded-full bg-primary/90 text-primary-foreground border border-white/20",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -41,10 +33,7 @@ const buttonVariants = cva(
         icon: "h-10 w-10",
       },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
+    defaultVariants: { variant: "default", size: "default" },
   }
 );
 
@@ -99,9 +88,18 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const preset = resolveMetalPreset(metalPreset, variant);
     const strength = resolveMetalStrength(metalStrength, size);
 
+    const solid =
+      enableMetal
+        ? preset === "gold"
+          ? "metal-btn-solid metal-btn-solid--gold"
+          : preset === "silver"
+            ? "metal-btn-solid metal-btn-solid--silver"
+            : "metal-btn-solid metal-btn-solid--chromatic"
+        : "";
+
     const node = (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size, className }), solid)}
         ref={ref}
         {...props}
       />
@@ -114,7 +112,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         preset={preset}
         variant={size === "icon" ? "circle" : "button"}
         strength={strength}
-        theme="auto"
+        theme="dark"
         normalizeHostStyles
         className="inline-flex"
       >

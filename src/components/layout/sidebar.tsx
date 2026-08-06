@@ -42,6 +42,7 @@ import { DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { MetalButton } from "@/components/ui/metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   Sheet,
@@ -176,13 +177,15 @@ function SidebarNavBody({
         style={{ overflowAnchor: "none", WebkitOverflowScrolling: "touch" }}
       >
         <div className="px-1">
-          <Button
+          <MetalButton
             onClick={onToggleMinimize}
-            className="w-full h-11 bg-foreground text-background hover:bg-primary hover:text-primary-foreground rounded-xl font-semibold text-[11px] tracking-wide shadow-sm transition-all gap-2.5"
+            preset="chromatic"
+            strength={1}
+            className="w-full h-11 rounded-xl font-semibold text-[11px] tracking-wide gap-2.5 metal-scanner-btn"
           >
             <Zap className={cn("w-4 h-4", status === "running" && "animate-pulse text-amber-400")} />
             {!collapsed && "Scanner tribunal"}
-          </Button>
+          </MetalButton>
         </div>
 
         {navGroups.map((group) => (
@@ -202,9 +205,9 @@ function SidebarNavBody({
                   key={item.href + item.label}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
+                    "metal-nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
                     active
-                      ? "bg-primary/10 text-primary font-semibold shadow-[inset_3px_0_0_0_hsl(var(--primary))]"
+                      ? "bg-primary/10 text-primary font-semibold shadow-[inset_3px_0_0_0_hsl(var(--primary))] metal-nav-item--active"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
                   )}
                 >
