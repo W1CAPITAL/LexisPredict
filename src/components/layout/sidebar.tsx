@@ -150,7 +150,7 @@ function SidebarNavBody({
   ];
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-sidebar/95 backdrop-blur-md border-r border-sidebar-border overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden">
       <div className="h-[4.5rem] shrink-0 flex items-center px-5 border-b border-sidebar-border/80">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-md">
@@ -355,8 +355,8 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "hidden md:flex h-screen min-h-0 flex-col transition-[width] duration-300 z-50 shrink-0 overflow-hidden",
-          collapsed ? "w-20" : "w-72"
+          "hidden md:flex h-screen min-h-0 flex-col transition-[width] duration-300 ease-out z-50 shrink-0 overflow-hidden bg-sidebar/95 backdrop-blur-md border-r border-sidebar-border",
+          collapsed ? "w-[72px]" : "w-[280px]"
         )}
       >
         <SidebarNavBody {...bodyProps} showCollapseBtn />

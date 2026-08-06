@@ -5,7 +5,9 @@
    Respeita prefers-reduced-motion
    ========================================================================== */
 
-@layer base {
+
+/* tokens (sem sem wrapper de layer do Tailwind — evita erro PostCSS no import separado) */
+
   :root {
     /* Orbit light + Lexis primary */
     --background: 0 0% 100%;
@@ -100,7 +102,7 @@
     --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.35);
     --orbit-glow: 217 91% 60%;
   }
-}
+
 
 /* ---- Orbit surfaces ---- */
 .orbit-surface {
