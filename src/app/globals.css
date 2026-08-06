@@ -3,101 +3,10 @@
 @tailwind utilities;
 
 @import "./globals-ai-draft-contrast.css";
+@import "./globals-orbit-theme.css";
 
 @layer base {
-  :root {
-    /* LexisPredict Executive — light */
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 221 70% 48%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 214 25% 95%;
-    --secondary-foreground: 222 35% 18%;
-    --muted: 214 20% 96%;
-    --muted-foreground: 215 16% 42%;
-    --accent: 214 30% 94%;
-    --accent-foreground: 222 40% 14%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 152 60% 36%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 45%;
-    --warning-foreground: 0 0% 100%;
-    --border: 214 20% 90%;
-    --input: 214 20% 90%;
-    --ring: 221 70% 48%;
-    --radius: 0.75rem;
-
-    --bg-opacity: 0.92;
-    --sidebar-opacity: 0.97;
-    --glass-blur: 16px;
-
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 25% 28%;
-    --sidebar-primary: 221 70% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 214 30% 96%;
-    --sidebar-accent-foreground: 222 40% 14%;
-    --sidebar-border: 214 20% 92%;
-    --sidebar-ring: 221 70% 48%;
-
-    --chart-1: 221 70% 48%;
-    --chart-2: 152 55% 40%;
-    --chart-3: 38 90% 48%;
-    --chart-4: 0 72% 55%;
-    --chart-5: 262 55% 55%;
-
-    --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
-    --shadow-elevated: 0 4px 6px rgba(15, 23, 42, 0.04), 0 12px 28px rgba(15, 23, 42, 0.08);
-  }
-
-  .dark {
-    --background: 222 35% 7%;
-    --foreground: 210 30% 96%;
-    --card: 222 32% 9%;
-    --card-foreground: 210 30% 96%;
-    --popover: 222 32% 9%;
-    --popover-foreground: 210 30% 96%;
-    --primary: 217 85% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 25% 14%;
-    --secondary-foreground: 210 30% 96%;
-    --muted: 217 25% 13%;
-    --muted-foreground: 215 15% 62%;
-    --accent: 217 25% 15%;
-    --accent-foreground: 210 30% 96%;
-    --destructive: 0 70% 48%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 152 50% 42%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 90% 50%;
-    --warning-foreground: 222 47% 11%;
-    --border: 217 22% 18%;
-    --input: 217 22% 18%;
-    --ring: 217 85% 60%;
-
-    --sidebar-background: 222 35% 8%;
-    --sidebar-foreground: 210 25% 92%;
-    --sidebar-primary: 217 85% 60%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 217 25% 14%;
-    --sidebar-accent-foreground: 210 30% 96%;
-    --sidebar-border: 217 22% 16%;
-    --sidebar-ring: 217 85% 60%;
-
-    --chart-1: 217 85% 60%;
-    --chart-2: 152 50% 48%;
-    --chart-3: 38 90% 55%;
-    --chart-4: 0 72% 58%;
-    --chart-5: 262 60% 62%;
-
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.25);
-    --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.35);
-  }
+  /* tokens: globals-orbit-theme.css */
 }
 
 @layer base {
@@ -278,4 +187,11 @@
   .liquid-btn {
     isolation: isolate;
   }
+}
+
+
+/* Orbit-style theme transition */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.32s;
 }

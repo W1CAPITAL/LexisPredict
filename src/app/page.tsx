@@ -374,7 +374,8 @@ export default function Dashboard() {
                    </section>
 
                    
-          <div className="rounded-2xl border bg-card/50 backdrop-blur-md shadow-sm overflow-hidden mb-6">
+          <div className="orbit-surface overflow-hidden mb-6 orbit-enter">
+            <div className="orbit-gradient-bar h-1 w-full" />
             <EfferdPanel
               compact
               totalProcessos={cases.length}
