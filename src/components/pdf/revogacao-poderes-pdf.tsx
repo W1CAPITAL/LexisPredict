@@ -69,6 +69,13 @@ export type RevogacaoPdfData = {
   dataExtenso: string;
   clienteNome: string;
   clienteCpf?: string | null;
+  clienteEmail?: string | null;
+  clienteEstadoCivil?: string | null;
+  clienteEndereco?: string | null;
+  clienteNacionalidade?: string | null;
+  partePassiva?: string | null;
+  partePassivaCnpj?: string | null;
+  classeAcao?: string | null;
   protocolo: string;
   tribunal?: string;
   revogado: {
@@ -97,6 +104,17 @@ export type RevogacaoPdfData = {
   engineClaude?: string | null;
 };
 
+function qualificacaoCliente(data: RevogacaoPdfData): string {
+  const parts: string[] = [];
+  if (data.clienteNacionalidade) parts.push(String(data.clienteNacionalidade).toLowerCase());
+  if (data.clienteEstadoCivil) parts.push(String(data.clienteEstadoCivil).toLowerCase());
+  if (data.clienteCpf) parts.push(`inscrito(a) no CPF sob n. ${data.clienteCpf}`);
+  if (data.clienteEmail) parts.push(`e-mail ${data.clienteEmail}`);
+  if (data.clienteEndereco) parts.push(`residente e domiciliado(a) em ${data.clienteEndereco}`);
+  if (!parts.length) return "";
+  return ", " + parts.join(", ");
+}
+
 export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
   const {
     comarca,
@@ -111,7 +129,12 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
     advogadosDjen,
     viabilidade,
     observacaoScanner,
+    partePassiva,
+    partePassivaCnpj,
+    classeAcao,
   } = data;
+
+  const clienteQualif = qualificacaoCliente(data);
 
   return (
     <Document>
@@ -119,12 +142,31 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
         <Text style={s.title}>Revogacao de mandato e substabelecimento</Text>
         <Text style={s.subtitle}>(sem reserva de poderes)</Text>
         <Text style={s.meta}>
-          Processo n. {protocolo}{clienteCpf ? " · CPF " + clienteCpf : ""}
+          Processo n. {protocolo}
+          {clienteCpf ? " · CPF " + clienteCpf : ""}
           {tribunal ? " - " + tribunal : ""}
           {ultimoAdvogadoDetectado
             ? " - Advogado de referencia: " + ultimoAdvogadoDetectado
             : ""}
         </Text>
+
+        {(partePassiva || classeAcao) ? (
+          <View style={s.box}>
+            {classeAcao ? (
+              <Text>
+                <Text style={s.bold}>Acao / classe: </Text>
+                {classeAcao}
+              </Text>
+            ) : null}
+            {partePassiva ? (
+              <Text>
+                <Text style={s.bold}>Parte passiva: </Text>
+                {partePassiva}
+                {partePassivaCnpj ? ` · CNPJ ${partePassivaCnpj}` : ""}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {viabilidade ? (
           <View style={s.warn}>
@@ -153,9 +195,21 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
               ? ", com endereco profissional em " + revogado.endereco
               : ""}
             , no exercicio dos poderes que lhe foram outorgados pela parte{" "}
-            <Text style={s.bold}>{String(clienteNome || "").toUpperCase()}</Text> nos
-            autos do processo n. <Text style={s.bold}>{protocolo}</Text>,{" "}
-            <Text style={s.bold}>REVOGA</Text> os poderes antes conferidos a si para a
+            <Text style={s.bold}>{String(clienteNome || "").toUpperCase()}</Text>
+            {clienteQualif} nos autos do processo n.{" "}
+            <Text style={s.bold}>{protocolo}</Text>
+            {classeAcao ? (
+              <Text>
+                , referente a acao de <Text style={s.bold}>{classeAcao}</Text>
+              </Text>
+            ) : null}
+            {partePassiva ? (
+              <Text>
+                , em face de <Text style={s.bold}>{partePassiva}</Text>
+                {partePassivaCnpj ? ` (CNPJ ${partePassivaCnpj})` : ""}
+              </Text>
+            ) : null}
+            , <Text style={s.bold}>REVOGA</Text> os poderes antes conferidos a si para a
             pratica de atos neste feito, na medida em que{" "}
             <Text style={s.bold}>SUBSTABELECE, SEM RESERVA DE PODERES</Text>, na pessoa
             do(a) advogado(a){" "}
@@ -203,8 +257,6 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
             assegurada pelo(a) novo(a) patrono(a).
           </Text>
         </View>
-
-        {/* Claude nao aparece no PDF */}
 
         <Text style={s.date}>
           {comarca}, {dataExtenso}.

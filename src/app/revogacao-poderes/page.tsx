@@ -89,6 +89,14 @@ export default function RevogacaoPoderesPage() {
   /** Se true, preenche CPF automaticamente quando DJEN trouxer */
   const [autoFillCpf, setAutoFillCpf] = useState(true);
   const [cpfByProtocolo, setCpfByProtocolo] = useState<Record<string, string>>({});
+  const [emailByProtocolo, setEmailByProtocolo] = useState<Record<string, string>>({});
+  const [estadoCivilByProtocolo, setEstadoCivilByProtocolo] = useState<Record<string, string>>({});
+  const [enderecoByProtocolo, setEnderecoByProtocolo] = useState<Record<string, string>>({});
+  const [bancoByProtocolo, setBancoByProtocolo] = useState<Record<string, string>>({});
+  const [acaoByProtocolo, setAcaoByProtocolo] = useState<Record<string, string>>({});
+  /** Usuario escolhe se banco/acao entram no PDF */
+  const [incluirBancoNoPdf, setIncluirBancoNoPdf] = useState(false);
+  const [incluirAcaoNoPdf, setIncluirAcaoNoPdf] = useState(false);
   const [advNome, setAdvNome] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -151,10 +159,32 @@ export default function RevogacaoPoderesPage() {
       setItems(res.items);
       setAdvNome(res.advogadoNome || "");
       setQIndex(0);
-      addLog(`Carteira: ${res.total} processos · ${res.elegiveis} elegiveis (heuristica)`);
+      // Prefill a partir da carteira (Processos)
+      const cpfMap: Record<string, string> = {};
+      const emailMap: Record<string, string> = {};
+      const civilMap: Record<string, string> = {};
+      const endMap: Record<string, string> = {};
+      const bancoMap: Record<string, string> = {};
+      const acaoMap: Record<string, string> = {};
+      for (const it of res.items) {
+        if (it.cpf) cpfMap[it.protocolo] = String(it.cpf);
+        if (it.email) emailMap[it.protocolo] = String(it.email);
+        if (it.estado_civil) civilMap[it.protocolo] = String(it.estado_civil);
+        if (it.endereco) endMap[it.protocolo] = String(it.endereco);
+        if (it.parte_passiva) bancoMap[it.protocolo] = String(it.parte_passiva);
+        if (it.classe_acao) acaoMap[it.protocolo] = String(it.classe_acao);
+      }
+      setCpfByProtocolo(cpfMap);
+      setEmailByProtocolo(emailMap);
+      setEstadoCivilByProtocolo(civilMap);
+      setEnderecoByProtocolo(endMap);
+      setBancoByProtocolo(bancoMap);
+      setAcaoByProtocolo(acaoMap);
+      const comCpf = (res as any).comCpfCarteira ?? Object.keys(cpfMap).length;
+      addLog(`Carteira: ${res.total} processos · ${res.elegiveis} elegiveis · ${comCpf} com CPF cadastrado`);
       toast({
         title: "Fila montada",
-        description: `${res.elegiveis} elegiveis de ${res.total}`,
+        description: `${res.elegiveis} elegiveis de ${res.total} · ${comCpf} CPF da carteira`,
       });
     } finally {
       setLoadingScan(false);
@@ -172,8 +202,11 @@ export default function RevogacaoPoderesPage() {
     }
     const cpfDj = (r as any).cpfDetectado as string | null;
     if (cpfDj && autoFillCpf) {
-      setCpfByProtocolo((prev) => ({ ...prev, [it.protocolo]: cpfDj }));
-      addLog(`  CPF DJEN: ${cpfDj}`);
+      setCpfByProtocolo((prev) => {
+        if (prev[it.protocolo]?.replace(/\D/g, '').length === 11) return prev;
+        addLog(`  CPF (carteira/DJEN): ${cpfDj}`);
+        return { ...prev, [it.protocolo]: cpfDj };
+      });
     }
     if (useClaudeElegibilidade && (r as any).analiseClaude) {
       addLog(`  [IA elegibilidade] ${String((r as any).analiseClaude).slice(0, 160)}`);
@@ -275,7 +308,16 @@ export default function RevogacaoPoderesPage() {
         viabilidade: (it as any).viabilidade || null,
         observacaoScanner: it.motivo,
         comarca: it.uf || "Sao Paulo",
-        clienteCpf: cpf || null,
+        clienteCpf: cpf || it.cpf || null,
+        clienteEmail: emailByProtocolo[it.protocolo] || it.email || null,
+        clienteEstadoCivil: estadoCivilByProtocolo[it.protocolo] || it.estado_civil || null,
+        clienteEndereco: enderecoByProtocolo[it.protocolo] || it.endereco || null,
+        clienteNacionalidade: it.nacionalidade || "BRASILEIRA",
+        partePassiva: bancoByProtocolo[it.protocolo] || it.parte_passiva || null,
+        partePassivaCnpj: it.parte_passiva_cnpj || null,
+        classeAcao: acaoByProtocolo[it.protocolo] || it.classe_acao || null,
+        incluirPartePassivaNoPdf: incluirBancoNoPdf,
+        incluirAcaoNoPdf: incluirAcaoNoPdf,
       });
       if (!res.success || !(res as any).base64) {
         toast({
@@ -321,7 +363,7 @@ export default function RevogacaoPoderesPage() {
                 Revogacao + Substabelecimento
               </h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                Fila 1 a 1 · DJEN · CPF · Claude so elegibilidade
+                Fila 1 a 1 · CPF/e-mail da carteira · banco/acao opcionais no PDF
               </p>
             </div>
           </div>
@@ -449,7 +491,15 @@ export default function RevogacaoPoderesPage() {
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={autoFillCpf} onChange={(e) => setAutoFillCpf(e.target.checked)} />
-            <span className="font-bold uppercase text-[9px]">Autofill CPF do DJEN</span>
+            <span className="font-bold uppercase text-[9px]">Autofill CPF (carteira/DJEN)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={incluirBancoNoPdf} onChange={(e) => setIncluirBancoNoPdf(e.target.checked)} />
+            <span className="font-bold uppercase text-[9px]">Incluir banco no PDF</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={incluirAcaoNoPdf} onChange={(e) => setIncluirAcaoNoPdf(e.target.checked)} />
+            <span className="font-bold uppercase text-[9px]">Incluir acao no PDF</span>
           </label>
           <Button size="sm" variant="ghost" className="rounded-xl" onClick={runScan}>
             <RefreshCcw size={12} />
@@ -514,13 +564,13 @@ export default function RevogacaoPoderesPage() {
                     Baixar PDF
                   </Button>
                 </div>
-                {(requireCpf || autoFillCpf || cpfByProtocolo[it.protocolo]) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/30">
                   <div className="flex items-center gap-2">
-                    <Label className="text-[9px] font-black uppercase shrink-0">CPF</Label>
+                    <Label className="text-[9px] font-black uppercase shrink-0 w-16">CPF</Label>
                     <Input
                       className="h-9 rounded-lg font-mono text-xs"
                       placeholder="000.000.000-00"
-                      value={cpfByProtocolo[it.protocolo] || ""}
+                      value={cpfByProtocolo[it.protocolo] || it.cpf || ""}
                       onChange={(e) =>
                         setCpfByProtocolo((prev) => ({
                           ...prev,
@@ -528,17 +578,73 @@ export default function RevogacaoPoderesPage() {
                         }))
                       }
                     />
-                    {cpfByProtocolo[it.protocolo] ? (
-                      <Badge variant="secondary" className="text-[8px]">
-                        preenchido
-                      </Badge>
+                    {(cpfByProtocolo[it.protocolo] || it.cpf) ? (
+                      <Badge variant="secondary" className="text-[8px]">carteira</Badge>
                     ) : requireCpf ? (
-                      <Badge variant="destructive" className="text-[8px]">
-                        obrigatorio
-                      </Badge>
+                      <Badge variant="destructive" className="text-[8px]">obrigatorio</Badge>
                     ) : null}
                   </div>
-                )}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[9px] font-black uppercase shrink-0 w-16">E-mail</Label>
+                    <Input
+                      className="h-9 rounded-lg text-xs"
+                      value={emailByProtocolo[it.protocolo] || it.email || ""}
+                      onChange={(e) =>
+                        setEmailByProtocolo((prev) => ({ ...prev, [it.protocolo]: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[9px] font-black uppercase shrink-0 w-16">Est. civil</Label>
+                    <Input
+                      className="h-9 rounded-lg text-xs uppercase"
+                      value={estadoCivilByProtocolo[it.protocolo] || it.estado_civil || ""}
+                      onChange={(e) =>
+                        setEstadoCivilByProtocolo((prev) => ({
+                          ...prev,
+                          [it.protocolo]: e.target.value.toUpperCase(),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[9px] font-black uppercase shrink-0 w-16">Endereco</Label>
+                    <Input
+                      className="h-9 rounded-lg text-xs"
+                      value={enderecoByProtocolo[it.protocolo] || it.endereco || ""}
+                      onChange={(e) =>
+                        setEnderecoByProtocolo((prev) => ({ ...prev, [it.protocolo]: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[9px] font-black uppercase shrink-0 w-16">Banco</Label>
+                    <Input
+                      className="h-9 rounded-lg text-xs uppercase"
+                      placeholder="Parte passiva"
+                      value={bancoByProtocolo[it.protocolo] || it.parte_passiva || ""}
+                      onChange={(e) =>
+                        setBancoByProtocolo((prev) => ({
+                          ...prev,
+                          [it.protocolo]: e.target.value.toUpperCase(),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[9px] font-black uppercase shrink-0 w-16">Acao</Label>
+                    <Input
+                      className="h-9 rounded-lg text-xs uppercase"
+                      value={acaoByProtocolo[it.protocolo] || it.classe_acao || ""}
+                      onChange={(e) =>
+                        setAcaoByProtocolo((prev) => ({
+                          ...prev,
+                          [it.protocolo]: e.target.value.toUpperCase(),
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>

@@ -1,9 +1,8 @@
 'use server';
 
-
 /**
  * Scanner + PDF de revogacao/substabelecimento.
- * PDF via renderToBuffer (mesmo padrao de document-actions).
+ * Puxa CPF, e-mail, estado civil, endereco, banco e acao da carteira (Processos).
  */
 import React from 'react';
 import { getUserContext, getStoredCasesForEmpresa, listAdvogadosBanca } from '@/lib/server-db';
@@ -39,7 +38,111 @@ export type RevogacaoCaseItem = {
   djenChecked: boolean;
   analiseClaude?: string | null;
   engineClaude?: string | null;
+  /** Dados vindos da carteira (Processos / cadastro) */
+  cpf?: string | null;
+  email?: string | null;
+  telefone?: string | null;
+  estado_civil?: string | null;
+  endereco?: string | null;
+  nacionalidade?: string | null;
+  emprego?: string | null;
+  parte_passiva?: string | null;
+  parte_passiva_cnpj?: string | null;
+  classe_acao?: string | null;
 };
+
+function onlyDigits(s: string) {
+  return String(s || '').replace(/\D/g, '');
+}
+
+function formatCpfMask(digits: string) {
+  const d = onlyDigits(digits);
+  if (d.length !== 11) return d || '';
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function pickFromCase(c: any) {
+  const dados = typeof c.dados === 'object' && c.dados ? c.dados : {};
+  const cpfRaw =
+    c.cpf ||
+    dados.cpf ||
+    c.CPF ||
+    dados.CPF ||
+    '';
+  const email =
+    String(c.email || dados.email || c.EMAIL || dados.EMAIL || '').trim() || null;
+  const telefone =
+    onlyDigits(c.telefone || dados.telefone || '') || null;
+  const estado_civil =
+    String(
+      c.estado_civil ||
+        dados.estado_civil ||
+        c.estadoCivil ||
+        dados.estadoCivil ||
+        ''
+    )
+      .trim()
+      .toUpperCase() || null;
+  const endereco =
+    String(
+      c.endereco ||
+        dados.endereco ||
+        c.endereco_completo ||
+        dados.endereco_completo ||
+        [c.logradouro || dados.logradouro, c.cidade || dados.cidade, c.uf_cliente || dados.uf_cliente]
+          .filter(Boolean)
+          .join(', ')
+    )
+      .trim() || null;
+  const nacionalidade =
+    String(c.nacionalidade || dados.nacionalidade || 'BRASILEIRA')
+      .trim()
+      .toUpperCase() || 'BRASILEIRA';
+  const emprego =
+    String(c.emprego || dados.emprego || c.profissao || dados.profissao || '')
+      .trim()
+      .toUpperCase() || null;
+  const parte_passiva =
+    String(
+      c.parte_passiva ||
+        dados.parte_passiva ||
+        c.reu ||
+        dados.reu ||
+        ''
+    )
+      .trim()
+      .toUpperCase() || null;
+  const parte_passiva_cnpj =
+    onlyDigits(
+      c.parte_passiva_cnpj || dados.parte_passiva_cnpj || c.cnpj_passivo || ''
+    ) || null;
+  const classe_acao =
+    String(
+      c.classe_acao ||
+        dados.classe_acao ||
+        c.classe ||
+        dados.classe ||
+        c.tipo ||
+        dados.tipo ||
+        ''
+    )
+      .trim()
+      .toUpperCase() || null;
+
+  const cpfDigits = onlyDigits(cpfRaw);
+  return {
+    cpf: cpfDigits.length === 11 ? formatCpfMask(cpfDigits) : cpfDigits || null,
+    email,
+    telefone,
+    estado_civil,
+    endereco: endereco || null,
+    nacionalidade,
+    emprego,
+    parte_passiva,
+    parte_passiva_cnpj,
+    classe_acao,
+  };
+}
 
 function mapAdv(adv: any, preferUf?: string) {
   const o = oabLabel(adv, preferUf);
@@ -88,6 +191,7 @@ export async function scanCarteiraRevogacaoAction(opts: {
   const cases = (await getStoredCasesForEmpresa(ctx.empresa_id, false)) || [];
   const items: RevogacaoCaseItem[] = [];
   const ufFilter = (opts.uf || '').toUpperCase().trim();
+  let comCpf = 0;
 
   for (const raw of cases) {
     const c = raw as any;
@@ -101,6 +205,9 @@ export async function scanCarteiraRevogacaoAction(opts: {
     }
 
     const el = processoElegivelRevogacao(c);
+    const extra = pickFromCase(c);
+    if (extra.cpf && onlyDigits(extra.cpf).length === 11) comCpf += 1;
+
     items.push({
       id: String(c.id || c.db_id || c.protocolo),
       protocolo: String(c.protocolo || c.protocolo_ref || ''),
@@ -118,6 +225,7 @@ export async function scanCarteiraRevogacaoAction(opts: {
       viabilidade: null,
       viavelSubstabelecer: el.ok,
       djenChecked: false,
+      ...extra,
     });
   }
 
@@ -132,6 +240,7 @@ export async function scanCarteiraRevogacaoAction(opts: {
     advogadoNome: leaving.nome as string,
     total: items.length,
     elegiveis: items.filter((i) => i.elegivel).length,
+    comCpfCarteira: comCpf,
   };
 }
 
@@ -147,6 +256,21 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
   const textos: string[] = [];
   let advogadosDjen: string[] = [];
   let cpfDetectado: string | null = null;
+
+  // Preferir CPF já cadastrado na carteira
+  try {
+    const cases = (await getStoredCasesForEmpresa(ctx.empresa_id, false)) || [];
+    const dig = onlyDigits(protocolo);
+    const found = cases.find(
+      (c: any) => onlyDigits(c.protocolo || c.protocolo_ref || '') === dig
+    );
+    if (found) {
+      const extra = pickFromCase(found);
+      if (extra.cpf && onlyDigits(extra.cpf).length === 11) {
+        cpfDetectado = extra.cpf;
+      }
+    }
+  } catch { /* */ }
 
   try {
     const { fetchDataJud } = await import('@/lib/datajud');
@@ -196,7 +320,10 @@ export async function reforcoTribunalRevogacaoAction(protocolo: string, opts?: {
   if (!cpfDetectado) {
     for (const tx of textos) {
       const cpf = extrairCpfDoTexto(tx);
-      if (cpf) { cpfDetectado = cpf; break; }
+      if (cpf) {
+        cpfDetectado = formatCpfMask(cpf);
+        break;
+      }
     }
   }
 
@@ -267,6 +394,16 @@ export async function generateRevogacaoPdfAction(input: {
   observacaoScanner?: string | null;
   comarca?: string;
   clienteCpf?: string | null;
+  clienteEmail?: string | null;
+  clienteEstadoCivil?: string | null;
+  clienteEndereco?: string | null;
+  clienteNacionalidade?: string | null;
+  partePassiva?: string | null;
+  partePassivaCnpj?: string | null;
+  classeAcao?: string | null;
+  /** Se true, inclui banco/ação no corpo do PDF */
+  incluirPartePassivaNoPdf?: boolean;
+  incluirAcaoNoPdf?: boolean;
 }) {
   const ctx = await getUserContext();
   if (!ctx?.empresa_id) return { success: false as const, error: 'Sessao expirada' };
@@ -287,10 +424,34 @@ export async function generateRevogacaoPdfAction(input: {
     return { success: false as const, error: 'Cliente/protocolo obrigatorios' };
   }
 
-  let viabilidade = input.viabilidade || null;
-  let ultimoAdv = input.ultimoAdvogadoDetectado || null;
-  let advsDjen = input.advogadosDjen || [];
-  // Claude NAO e embutido no PDF — so elegibilidade no scanner
+  // Completar a partir da carteira se o front nao mandou
+  let clienteCpf = input.clienteCpf || null;
+  let clienteEmail = input.clienteEmail || null;
+  let clienteEstadoCivil = input.clienteEstadoCivil || null;
+  let clienteEndereco = input.clienteEndereco || null;
+  let clienteNacionalidade = input.clienteNacionalidade || null;
+  let partePassiva = input.partePassiva || null;
+  let partePassivaCnpj = input.partePassivaCnpj || null;
+  let classeAcao = input.classeAcao || null;
+
+  try {
+    const cases = (await getStoredCasesForEmpresa(ctx.empresa_id, false)) || [];
+    const dig = onlyDigits(input.protocolo);
+    const found = cases.find(
+      (c: any) => onlyDigits(c.protocolo || c.protocolo_ref || '') === dig
+    );
+    if (found) {
+      const extra = pickFromCase(found);
+      if (!clienteCpf && extra.cpf) clienteCpf = extra.cpf;
+      if (!clienteEmail && extra.email) clienteEmail = extra.email;
+      if (!clienteEstadoCivil && extra.estado_civil) clienteEstadoCivil = extra.estado_civil;
+      if (!clienteEndereco && extra.endereco) clienteEndereco = extra.endereco;
+      if (!clienteNacionalidade && extra.nacionalidade) clienteNacionalidade = extra.nacionalidade;
+      if (!partePassiva && extra.parte_passiva) partePassiva = extra.parte_passiva;
+      if (!partePassivaCnpj && extra.parte_passiva_cnpj) partePassivaCnpj = extra.parte_passiva_cnpj;
+      if (!classeAcao && extra.classe_acao) classeAcao = extra.classe_acao;
+    }
+  } catch { /* */ }
 
   const preferUf = input.uf || undefined;
   const data: RevogacaoPdfData = {
@@ -301,11 +462,18 @@ export async function generateRevogacaoPdfAction(input: {
     tribunal: input.tribunal || undefined,
     revogado: mapAdv(leaving, preferUf),
     substabelecido: mapAdv(entering, preferUf),
-    ultimoAdvogadoDetectado: ultimoAdv,
-    advogadosDjen: advsDjen,
-    viabilidade,
+    ultimoAdvogadoDetectado: input.ultimoAdvogadoDetectado || null,
+    advogadosDjen: input.advogadosDjen || [],
+    viabilidade: input.viabilidade || null,
     observacaoScanner: input.observacaoScanner || null,
-    clienteCpf: (input as any).clienteCpf || null,
+    clienteCpf,
+    clienteEmail,
+    clienteEstadoCivil,
+    clienteEndereco,
+    clienteNacionalidade,
+    partePassiva: input.incluirPartePassivaNoPdf ? partePassiva : null,
+    partePassivaCnpj: input.incluirPartePassivaNoPdf ? partePassivaCnpj : null,
+    classeAcao: input.incluirAcaoNoPdf ? classeAcao : null,
   };
 
   try {
