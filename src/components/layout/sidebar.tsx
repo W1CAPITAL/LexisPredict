@@ -39,6 +39,8 @@ import { DollarSign,
   ClipboardList,
   Bot,
   Gavel,
+  ShieldCheck,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -118,7 +120,9 @@ function SidebarNavBody({
         { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
         { label: "Finanças", href: "/financas", icon: DollarSign },
         { label: "Processos", href: "/cases", icon: Briefcase },
+        { label: "Processos da Empresa", href: "/processos", icon: FolderOpen },
         { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
+        ...(isAdmin ? [{ label: "Supervisão", href: "/supervisao", icon: ShieldCheck }] : []),
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
       ],
     },
