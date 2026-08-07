@@ -39,7 +39,7 @@ export function ExportXlsxDossieButton({
           title: "XLSX dossiê baixado",
           description:
             res.count != null
-              ? `${res.count} processos · Capa + Dashboard + Carteira`
+              ? `${res.count} processos · ${(res as any).escopo || 'Capa + Dashboard + Carteira'}`
               : undefined,
         });
       } else {

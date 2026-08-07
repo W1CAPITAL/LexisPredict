@@ -6,6 +6,7 @@
  * Abas: Capa | Dashboard | Analytics | Auditoria | Processos | Mapa_TJ |
  *       Por_Status | Por_Escritorio | Por_Advogado | Codigos_TJ
  *
+ * Melhorias v4: escopo Supervisor/Superadmin = carteira completa; capa com cargo/escopo.
  * Melhorias v3:
  * - Colunas com largura otimizada por aba
  * - Cabeçalho congelado + AutoFiltro na aba Processos
@@ -322,7 +323,13 @@ function sheetXml(
 
 export async function buildDossieXlsxBase64(
   cases: DossieCase[],
-  meta?: { usuario?: string; empresa?: string }
+  meta?: {
+    usuario?: string;
+    empresa?: string;
+    escopo?: string;
+    cargo?: string;
+    fullCarteira?: boolean;
+  }
 ): Promise<{
   base64: string;
   filename: string;
@@ -391,11 +398,13 @@ export async function buildDossieXlsxBase64(
   const capaRows: SheetRow[] = [
     { values: ['LEXISPREDICT'], styleRow: 'title' },
     { values: ['DOSSIÊ OPERACIONAL — RELATÓRIO EXECUTIVO DE CARTEIRA'], styleRow: 'title' },
-    { values: ['Planilha completa de todos os casos com painel analítico e auditoria automática.'], styleRow: 'normal' },
+    { values: [meta?.fullCarteira ? 'ESCOPO: CARTEIRA COMPLETA DA EMPRESA' : 'ESCOPO: CARTEIRA DO OPERADOR'], styleRow: meta?.fullCarteira ? 'kpi' : 'info' },
+    { values: ['Planilha profissional com painel analítico, auditoria e base completa de processos.'], styleRow: 'normal' },
     { values: [''], styleRow: 'normal' },
     { values: ['Gerado em', hora], styleRow: 'kpi' },
     { values: ['Usuário', meta?.usuario || '—'], styleRow: 'normal' },
-    { values: ['Escopo', 'Carteira visível ao usuário logado'], styleRow: 'normal' },
+    { values: ['Escopo', meta?.escopo || (meta?.fullCarteira ? 'Carteira completa da empresa' : 'Carteira do operador logado')], styleRow: 'info' },
+    { values: ['Cargo', meta?.cargo || '—'], styleRow: 'normal' },
     { values: ['Total de processos', n], styleRow: 'kpi' },
     { values: [''], styleRow: 'normal' },
     { values: ['Abas do relatório'], styleRow: 'section' },

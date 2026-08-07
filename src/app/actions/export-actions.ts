@@ -12,17 +12,48 @@ import { EXPORT_HEADERS, tribunalFromProtocolo } from '@/lib/xlsx-schema';
 
 type Row = Record<string, any>;
 
-/** Carrega só o que o usuário logado pode ver */
-async function loadCasesForSession(): Promise<{ cases: Row[]; email: string | null }> {
+/**
+ * Carrega carteira para exportação:
+ * - Supervisor / Superadmin / Administrador → TODOS os processos da empresa
+ * - Operador / Visualizador → apenas os processos do próprio usuário
+ */
+async function loadCasesForSession(): Promise<{
+  cases: Row[];
+  email: string | null;
+  escopo: string;
+  cargo: string | null;
+  fullCarteira: boolean;
+}> {
   const ctx = await getUserContext();
-  const { empresa_id, email } = ctx;
+  const { empresa_id, email, isMasterView, isSuperAdmin, isSupervisor, cargo } = ctx as any;
   if (!empresa_id) throw new Error('Sessão expirada. Refaça o login.');
 
-  // getStoredCasesForEmpresa já filtra por created_by se não for Master/Supervisor
-  const stored = await getStoredCasesForEmpresa(empresa_id, false);
-  if (stored?.length) return { cases: stored as Row[], email };
+  const fullCarteira = !!(
+    isMasterView ||
+    isSuperAdmin ||
+    isSupervisor ||
+    cargo === 'Superadmin' ||
+    cargo === 'Supervisor' ||
+    cargo === 'Administrador'
+  );
 
-  throw new Error('Nenhum processo na carteira visível para exportar.');
+  // isAdmin=true usa service role e NÃO filtra por created_by
+  const stored = await getStoredCasesForEmpresa(empresa_id, fullCarteira);
+  if (!stored?.length) {
+    throw new Error('Nenhum processo na carteira visível para exportar.');
+  }
+
+  const escopo = fullCarteira
+    ? `Carteira completa da empresa (${cargo || 'Supervisor/Superadmin'}) — ${stored.length} processo(s)`
+    : `Carteira do operador logado (${cargo || 'Operador'}) — ${stored.length} processo(s)`;
+
+  return {
+    cases: stored as Row[],
+    email: email || null,
+    escopo,
+    cargo: cargo || null,
+    fullCarteira,
+  };
 }
 
 function operationalCells(r: Row): (string | number)[] {
@@ -115,8 +146,13 @@ export async function exportCasesToCSVAction() {
  */
 export async function exportDossieXlsxAction() {
   try {
-    const { cases, email } = await loadCasesForSession();
-    const result = await buildDossieXlsxBase64(cases, { usuario: email || undefined });
+    const { cases, email, escopo, cargo, fullCarteira } = await loadCasesForSession();
+    const result = await buildDossieXlsxBase64(cases, {
+      usuario: email || undefined,
+      escopo,
+      cargo: cargo || undefined,
+      fullCarteira,
+    });
     return {
       success: true as const,
       base64: result.base64,
