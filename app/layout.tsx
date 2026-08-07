@@ -4,15 +4,12 @@ import '@/styles/lexis-responsive.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import Script from 'next/script';
-import dynamic from 'next/dynamic';
 import { MotionRoot } from "@/components/providers/motion-root";
 import { LexisErrorBoundary } from "@/components/system/error-boundary";
 import { MetalPrefsApplier } from "@/components/ui/metal-prefs-applier";
+import { ClientChrome } from "@/components/system/client-chrome";
 import { AUTHORITY_PRESETS, hexToHsl } from '@/lib/theme';
 
-const GuidedTour = dynamic(() => import('@/components/onboarding/guided-tour').then((m) => m.GuidedTour), { ssr: false });
-const DataJudScannerPanel = dynamic(() => import('@/components/scanner/datajud-scanner-panel').then((m) => m.DataJudScannerPanel), { ssr: false });
-const AppUpdateBanner = dynamic(() => import('@/components/system/app-update-banner').then((m) => m.AppUpdateBanner), { ssr: false });
 
 const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
   id: p.id,
@@ -201,13 +198,11 @@ export default function RootLayout({
         <AuthProvider>
           <MetalPrefsApplier />
           <div className="relative z-10 min-h-screen">
-            <GuidedTour />
+            <ClientChrome />
             <LexisErrorBoundary>
               <MotionRoot>{children}</MotionRoot>
             </LexisErrorBoundary>
-            <DataJudScannerPanel />
-            <AppUpdateBanner />
-          </div>
+            </div>
           <Toaster />
         </AuthProvider>
       </body>
