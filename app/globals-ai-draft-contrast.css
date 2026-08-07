@@ -1,0 +1,26 @@
+/* Contraste forte para rascunhos de IA — texto claro em fundo escuro */
+.ai-draft-preview {
+  background: #020617 !important;
+  border-color: rgba(148, 163, 184, 0.4) !important;
+}
+
+.ai-draft-body,
+[data-ai-draft] {
+  color: #f8fafc !important;
+  background: #020617 !important;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dark .ai-draft-body,
+.dark [data-ai-draft] {
+  color: #f8fafc !important;
+  background: #020617 !important;
+}
+
+.ai-draft-preview .ai-draft-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
