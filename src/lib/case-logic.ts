@@ -5,6 +5,7 @@
 
 import { startOfDay, differenceInCalendarDays, parseISO } from 'date-fns';
 import { sanitizeDateCell } from './csv-import-engine';
+import { isCasoEncerrado as isCasoEncerradoCore } from './status-encerrado';
 
 /**
  * LÓGICA JURÍDICA PURA — STATUS, RISCO, TRIBUNAL CNJ
@@ -188,14 +189,7 @@ export function calcularDiasFaltando(proximoISO: string | null): number | null {
 }
 
 export function isCasoEncerrado(c: any): boolean {
-  if (!c) return false;
-  // Prioridade 1: Auditoria Oficial Forte
-  if (c.datajud_encerrado_tribunal === true) return true;
-  
-  // Prioridade 2: Status Manual/Gabinete
-  const s = `${c.status || ''} ${c.situacao || ''} ${c.statusManual || ''}`.toUpperCase();
-  const encerrados = ['ENCERRADO', 'ARQUIVADO', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL'];
-  return encerrados.some(x => s.includes(x));
+  return isCasoEncerradoCore(c);
 }
 
 export function calcularStatus(

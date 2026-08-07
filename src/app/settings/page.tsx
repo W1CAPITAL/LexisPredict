@@ -1,4 +1,6 @@
 "use client";
+
+import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
@@ -243,12 +245,13 @@ export default function SettingsPage() {
     setLoadingKnowledge(false);
   };
 
-  const handleUnlockKnowledge = () => {
-    if (knowledgePassword === 'Ashley@25472053') {
+  const handleUnlockKnowledge = async () => {
+    const res = await verifyMasterPasswordAction(knowledgePassword);
+    if (res.ok) {
       setKnowledgeUnlocked(true);
       toast({ title: "Modo de Edição Liberado" });
     } else {
-      toast({ title: "Senha de Gabinete Inválida", variant: "destructive" });
+      toast({ title: res.error || "Senha de Gabinete Inválida", variant: "destructive" });
     }
   };
 
@@ -468,12 +471,13 @@ export default function SettingsPage() {
     persistOpacity(bgOpacity / 100, sidebarOpacity / 100, v);
   };
 
-  const handleUnlockExport = () => {
-    if (exportPassword === 'Abaira@185') {
+  const handleUnlockExport = async () => {
+    const res = await verifyMasterPasswordAction(exportPassword);
+    if (res.ok) {
       setIsExportUnlocked(true);
       toast({ title: "Acesso Autorizado" });
     } else {
-      toast({ title: "Acesso Negado", variant: "destructive" });
+      toast({ title: res.error || "Acesso Negado", variant: "destructive" });
     }
   };
 
@@ -720,10 +724,11 @@ export default function SettingsPage() {
                          <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest">Acesso de consulta liberado para toda a empresa.</p>
                       </div>
                       {isAdmin && (
-                        <Button onClick={() => {
+                        <Button onClick={async () => {
                           if (!knowledgeUnlocked) {
-                             const pass = prompt("Insira a senha master para gerenciar o conhecimento:");
-                             if (pass === 'Ashley@25472053') {
+                             const pass = prompt("Insira a senha de gabinete:");
+                             const auth = pass ? await verifyMasterPasswordAction(pass) : { ok: false };
+                             if (auth.ok) {
                                setKnowledgeUnlocked(true);
                                toast({ title: "Acesso de Gestão Liberado" });
                                setIsKnowledgeModalOpen(true);

@@ -15,7 +15,9 @@ export const COURT_ALIASES: Record<string, string> = {
   "4.04": "trf4", "4.05": "trf5", "4.06": "trf6"
 };
 
-const DATAJUD_API_KEY = process.env.DATAJUD_API_KEY || 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
+/** Chave DataJud: prefira env. Fallback = chave PÚBLICA oficial do CNJ (API pública). */
+const DATAJUD_PUBLIC_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
+const DATAJUD_API_KEY = (process.env.DATAJUD_API_KEY || '').trim() || DATAJUD_PUBLIC_KEY;
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));

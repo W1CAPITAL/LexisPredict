@@ -1,4 +1,6 @@
 /**
+ * Nota: módulo BA desativado (busca-apreensao.ts). Não priorizar falso positivo de BA.
+ *
  * Priorização automática + camada preditiva (heurística + sinais Claude).
  * Pesos calibrados para carteira de volume (1000+ processos).
  *
@@ -59,7 +61,7 @@ export const PRIORITY_WEIGHTS: Record<string, number> = {
 function baTipo(c: LegalCase): string | null {
   const t = (c as any).ba_tipo || (c as any).busca_apreensao_tipo || null;
   if (t) return String(t).toUpperCase();
-  if (c.evento_tipo === 'ba' || (c as any).indicio_busca_apreensao) return 'GENERICO';
+  if (c.evento_tipo === 'ba' || (c as any).indicio_busca_apreensao) return null; // BA desativado no produto
   return null;
 }
 

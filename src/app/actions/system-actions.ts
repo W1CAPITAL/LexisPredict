@@ -25,7 +25,7 @@ export async function exportFullSourceCodeAction() {
     dataExportacao: new Date().toISOString(),
     auditorTitular: "Davi Alves Figueredo",
     proprietario: "W1 Capital Assessoria Financeira Ltda",
-    instrucao: "ZIP protegido por protocolo de segurança Ashley@25472053"
+    instrucao: "ZIP protegido por senha de gabinete (configure MASTER_PASSWORD no servidor)."
   };
 
   zip.file("MANIFESTO_DE_INTEGRIDADE.json", JSON.stringify(manifest, null, 2));

@@ -17,12 +17,12 @@ export function useAdmin() {
   const isOperador = profile?.cargo === 'Operador' || isAdmin;
   
   /**
-   * Validação de senha mestre via Variável de Ambiente.
-   * Não utilizar strings hardcoded para evitar bloqueios de segurança.
+   * Senha mestre NÃO deve ser validada no client (NEXT_PUBLIC_* vaza no browser).
+   * Use verifyMasterPasswordAction (server action) em fluxos sensíveis.
    */
-  const login = (password: string) => {
-    const masterPass = process.env.NEXT_PUBLIC_MASTER_PASSWORD;
-    return password === masterPass;
+  const login = (_password: string) => {
+    console.warn('[useAdmin] login() no client está desativado por segurança. Use verifyMasterPasswordAction.');
+    return false;
   };
 
   return { 
