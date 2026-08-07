@@ -61,6 +61,21 @@ export function weekBounds(ref = new Date()) {
   return { start: startOfDay(start), end };
 }
 
+/** Extrai último retorno de várias formas do objeto caso */
+export function pickUltimoRetorno(c: any): string | null {
+  if (!c) return null;
+  const v =
+    c.ultimoRetorno ??
+    c.ultimo_retorno ??
+    c.ULTIMO_RETORNO ??
+    c.ultimoAtendimento ??
+    c.ultimo_atendimento ??
+    c.dataUltimoRetorno ??
+    c.data_ultimo_retorno ??
+    null;
+  return v != null ? String(v) : null;
+}
+
 export function isAtendidoNestaSemana(
   ultimoRetorno?: string | null,
   ref = new Date()
@@ -69,6 +84,13 @@ export function isAtendidoNestaSemana(
   if (!d) return false;
   const { start, end } = weekBounds(ref);
   return isWithinInterval(d, { start, end });
+}
+
+/** Aceita string OU objeto caso */
+export function casoAtendidoNestaSemana(c: any, ref = new Date()): boolean {
+  if (c == null) return false;
+  if (typeof c === 'string') return isAtendidoNestaSemana(c, ref);
+  return isAtendidoNestaSemana(pickUltimoRetorno(c), ref);
 }
 
 export type AtendimentoDia = {
@@ -89,7 +111,7 @@ export function buildAtendimentosPorDiaSemana(
   const counts = [0, 0, 0, 0, 0, 0, 0]; // sun..sat
 
   for (const c of cases || []) {
-    const raw = c.ultimoRetorno ?? c.ultimo_retorno;
+    const raw = pickUltimoRetorno(c as any);
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
     if (!isWithinInterval(d, { start, end })) continue;
@@ -109,9 +131,7 @@ export function countAtendidosNestaSemana(
   cases: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null }>,
   ref = new Date()
 ): number {
-  return (cases || []).filter((c) =>
-    isAtendidoNestaSemana(c.ultimoRetorno ?? c.ultimo_retorno, ref)
-  ).length;
+  return (cases || []).filter((c) => casoAtendidoNestaSemana(c, ref)).length;
 }
 
 export function labelSemanaAtual(ref = new Date()): string {

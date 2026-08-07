@@ -250,13 +250,9 @@ export default function UnifiedReport() {
   if (!mounted || loading || authLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-6">
-        <Loader2 className="w-12 h-12 text-black animate-spin" />
-        <p className="font-black tracking-[0.4em] text-[10px] text-black uppercase">Consolidando Dossiê Authority...</p>
-          <div className="rounded-2xl border-2 border-black bg-white p-5 mb-6 print:border print:shadow-none">
-            <p className="text-[10px] font-black uppercase tracking-widest text-black/50">Atendimentos nesta semana</p>
-            <p className="text-3xl font-black tabular-nums">{metrics.countAtendidosSemana ?? 0} <span className="text-sm font-bold text-black/40">casos · {metrics.semanaLabel}</span></p>
-            <p className="text-[11px] font-bold text-black/60 mt-2 uppercase tracking-wide">
-              {(metrics.serieAtendimentosSemana || []).map((d: any) => `${d.day}: ${d.atendimentos}`).join(' · ')}
+        <Loader2 className="w-12 h-12 text-foreground animate-spin" />
+        <p className="font-black tracking-[0.4em] text-[10px] text-foreground uppercase">Consolidando Dossiê Authority...</p>
+        <p className="text-[10px] text-muted-foreground mt-4 uppercase tracking-widest">Carregando carteira e atendimentos da semana…</p>
             </p>
           </div>
 
@@ -265,7 +261,7 @@ export default function UnifiedReport() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f2f2] text-black font-sans">
+    <div className="min-h-screen lexis-report-root font-sans text-foreground">
       
       <div className="print:hidden sticky top-0 z-[100] bg-white/80 backdrop-blur-xl border-b-2 border-black p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -333,14 +329,38 @@ export default function UnifiedReport() {
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6 break-inside-avoid">
-           <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} color="text-black" />
-           <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} color="text-red-600" />
-           <KpiCard label="Novidades Reais" value={metrics.countNovoAndamento} color="text-blue-600" />
-           <KpiCard label="Risco da Carteira" value={`${metrics.riskScore}%`} color={metrics.riskScore > 50 ? "text-red-600" : "text-emerald-600"} />
-           <KpiCard label="Busca e Apreensão" value={metrics.countBA} color="text-red-700" />
-           <KpiCard label="Baixas Tribunal" value={metrics.countEncerradoTribunal} color="text-emerald-600" />
-           <KpiCard label="Fase Executiva" value={metrics.countCumprimento} color="text-blue-500" />
+           <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} />
+           <KpiCard label="Atendidos esta semana" value={metrics.countAtendidosSemana ?? 0} tone="info" />
+           <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} tone="danger" />
+           <KpiCard label="Novidades Reais" value={metrics.countNovoAndamento} tone="info" />
+           <KpiCard label="Risco da Carteira" value={`${metrics.riskScore}%`} tone={metrics.riskScore > 50 ? "danger" : "ok"} />
+           <KpiCard label="Busca e Apreensão" value={metrics.countBA} />
+           <KpiCard label="Baixas Tribunal" value={metrics.countEncerradoTribunal} />
+           <KpiCard label="Fase Executiva" value={metrics.countCumprimento} />
         </section>
+
+        <section className="rounded-2xl border-2 border-border bg-card p-6 space-y-3 break-inside-avoid">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Atendimentos nesta semana</p>
+              <p className="text-3xl font-black tabular-nums text-foreground">{metrics.countAtendidosSemana ?? 0}
+                <span className="text-sm font-bold text-muted-foreground ml-2">casos · {metrics.semanaLabel}</span>
+              </p>
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              Supervisor / Admin: carteira completa da empresa
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(metrics.serieAtendimentosSemana || []).map((d: any) => (
+              <div key={d.day} className="min-w-[64px] rounded-xl border border-border bg-background/80 px-3 py-2 text-center">
+                <p className="text-[9px] font-black uppercase text-muted-foreground">{d.day}</p>
+                <p className="text-lg font-black tabular-nums text-foreground">{d.atendimentos}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
 
         <section className="bg-white border-2 border-black break-inside-avoid">
            <div className="bg-black text-white p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -585,30 +605,35 @@ export default function UnifiedReport() {
   );
 }
 
-function KpiCard({ label, value, color }: { label: string; value: any; color: string }) {
+function KpiCard({ label, value, tone = "default" }: { label: string; value: any; tone?: "default" | "danger" | "ok" | "info"; color?: string }) {
+  const valueCls =
+    tone === "danger" ? "lexis-kpi-value lexis-kpi-danger" :
+    tone === "ok" ? "lexis-kpi-value lexis-kpi-ok" :
+    tone === "info" ? "lexis-kpi-value lexis-kpi-info" :
+    "lexis-kpi-value";
   return (
-    <div className="bg-white border-2 border-black p-6 shadow-[8px_8px_0px_#000] group hover:bg-black transition-all">
-      <p className="text-[9px] font-black uppercase text-black/40 mb-2 group-hover:text-white/40 tracking-widest">{label}</p>
-      <p className={cn("text-3xl font-black tabular-nums group-hover:text-white transition-all", color)}>{value}</p>
+    <div className="lexis-kpi-card p-6 shadow-[6px_6px_0px_rgba(15,23,42,0.12)] transition-all">
+      <p className="lexis-kpi-label text-[9px] font-black uppercase mb-2 tracking-widest">{label}</p>
+      <p className={cn("text-3xl font-black tabular-nums", valueCls)}>{value}</p>
     </div>
   );
 }
 
 function MeritList({ title, data, icon, color }: { title: string, data: LegalCase[], icon: any, color: string }) {
   return (
-    <div className="bg-white border-2 border-black flex flex-col h-full">
-       <div className={cn("text-white p-3 flex items-center justify-between", color)}>
-          <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">{icon} {title}</span>
-          <Badge variant="outline" className="text-white border-white/30 text-[7px]">{data.length}</Badge>
+    <div className="lexis-kpi-card flex flex-col h-full overflow-hidden">
+       <div className={cn("text-white p-3 flex items-center justify-between", color)} data-keep-white>
+          <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" data-keep-white>{icon} {title}</span>
+          <Badge variant="outline" className="text-white border-white/30 text-[7px]" data-keep-white>{data.length}</Badge>
        </div>
        <div className="p-4 space-y-3 flex-1">
           {data.map((c, i) => (
-            <Link key={i} href={`/cases?search=${c.protocolo}`} className="block border-b border-black/5 pb-2 hover:opacity-70">
-               <p className="text-[9px] font-black uppercase truncate">{c.cliente}</p>
-               <p className="text-[7px] font-mono opacity-40">{c.protocolo}</p>
+            <Link key={i} href={`/cases?search=${c.protocolo}`} className="block border-b border-border/40 pb-2 hover:opacity-70">
+               <p className="text-[9px] font-black uppercase truncate text-foreground">{c.cliente}</p>
+               <p className="text-[7px] font-mono text-muted-foreground">{c.protocolo}</p>
             </Link>
           ))}
-          {data.length === 0 && <p className="text-[8px] font-black uppercase opacity-20 py-10 text-center">Nenhum caso nesta categoria</p>}
+          {data.length === 0 && <p className="text-[8px] font-black uppercase text-muted-foreground py-10 text-center">Nenhum caso nesta categoria</p>}
        </div>
     </div>
   );

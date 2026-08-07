@@ -270,7 +270,7 @@ export function Dashboard({
               Últimos atendimentos na semana
             </p>
             <p className="text-[9px] text-muted-foreground mb-3">
-              {semanaLabel} · {atendidosSemana} caso(s) com retorno nesta semana
+              {semanaLabel} · {atendidosSemana} caso(s) com retorno nesta semana (carteira completa da empresa)
             </p>
             <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">

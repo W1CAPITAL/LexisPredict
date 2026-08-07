@@ -1,24 +1,81 @@
 /**
- * Rede de segurança de contraste — evita texto branco em fundo claro
- * e texto escuro em fundo escuro nos temas.
+ * Rede de segurança de contraste — light / dark / temas custom.
+ * Evita branco-em-branco e preto-em-preto em cards, dossiê, report, dialogs.
  */
 
-/* Cards / painéis claros nunca herdam text-white "solto" */
-.bg-white :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])),
-.bg-card :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])),
-.bg-background :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])) {
-  color: hsl(var(--foreground)) !important;
+/* ---- Tokens semânticos sempre legíveis ---- */
+:root:not(.dark) {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
 }
 
-/* Áreas escuras forçam texto claro se alguém botou text-black */
-.bg-black :where(.text-black, .text-slate-900, .text-foreground),
-.bg-slate-950 :where(.text-black, .text-slate-900),
+/* Fundo claro: força texto escuro quando alguém usou text-white “solto” */
+.bg-white :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white]):not([data-metal])),
+.bg-card :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white]):not([data-metal])),
+.bg-background :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])),
+.bg-\[\#f3f2f2\] :where(.text-white:not(button):not([class*="bg-"])),
+.bg-\[\#fafafa\] :where(.text-white:not(button):not([class*="bg-"])),
+[class*="bg-slate-50"] :where(.text-white:not(button):not([class*="bg-"])),
+[class*="bg-gray-50"] :where(.text-white:not(button):not([class*="bg-"])) {
+  color: #0f172a !important;
+}
+
+/* Fundo escuro: força texto claro se botaram text-black */
+.bg-black :where(.text-black, .text-slate-900, .text-slate-800, .text-foreground),
+.bg-slate-950 :where(.text-black, .text-slate-900, .text-slate-800),
 .bg-zinc-950 :where(.text-black, .text-slate-900),
-[class*="bg-black"] :where(.text-black:not(button)) {
+.bg-slate-900 :where(.text-black, .text-slate-900),
+[class*="bg-black"] :where(.text-black:not(button):not([data-keep-black])),
+.dark .bg-card :where(.text-black:not(button):not([data-keep-black])) {
   color: #f8fafc !important;
 }
 
-/* muted em fundo claro deve ter contraste mínimo */
+/* Report / dossiê KPI: valor sempre contrastante no card claro */
+.lexis-kpi-card {
+  background: #ffffff !important;
+  border: 2px solid #0f172a !important;
+  color: #0f172a !important;
+}
+.dark .lexis-kpi-card {
+  background: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  color: #f8fafc !important;
+}
+.lexis-kpi-card .lexis-kpi-label {
+  color: #64748b !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-label {
+  color: #94a3b8 !important;
+}
+.lexis-kpi-card .lexis-kpi-value {
+  color: #0f172a !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value {
+  color: #f8fafc !important;
+}
+.lexis-kpi-card .lexis-kpi-value.text-danger,
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-danger {
+  color: #dc2626 !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-danger {
+  color: #f87171 !important;
+}
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-ok {
+  color: #059669 !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-ok {
+  color: #34d399 !important;
+}
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-info {
+  color: #2563eb !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-info {
+  color: #60a5fa !important;
+}
+
+/* muted */
 :root:not(.dark) .text-muted-foreground {
   color: hsl(240 4% 36%) !important;
 }
@@ -26,35 +83,41 @@
   color: hsl(240 5% 72%) !important;
 }
 
-/* Labels / uppercase densos legíveis */
-:root:not(.dark) .font-black.uppercase.text-black\/40,
-:root:not(.dark) .text-black\/30,
-:root:not(.dark) .text-black\/40 {
-  color: rgba(15, 23, 42, 0.55) !important;
-}
+/* opacidades de text-black em dark */
 .dark .text-black\/30,
 .dark .text-black\/40,
-.dark .text-black\/60 {
-  color: rgba(248, 250, 252, 0.65) !important;
+.dark .text-black\/50,
+.dark .text-black\/60,
+.dark .text-black\/70 {
+  color: rgba(248, 250, 252, 0.7) !important;
+}
+:root:not(.dark) .text-white\/30,
+:root:not(.dark) .text-white\/40,
+:root:not(.dark) .text-white\/50 {
+  color: rgba(15, 23, 42, 0.55) !important;
 }
 
-/* Tabelas */
-table td, table th {
-  color: inherit;
+/* Report page root: respeita tema */
+.lexis-report-root {
+  background: #f3f2f2;
+  color: #0f172a;
 }
+.dark .lexis-report-root {
+  background: #020617;
+  color: #f8fafc;
+}
+
+/* Tabelas / dialogs */
+table td, table th { color: inherit; }
 :root:not(.dark) table .text-white:not([class*="bg-"]) {
   color: hsl(var(--foreground)) !important;
 }
-
-/* Dialogs */
-[role="dialog"] {
-  color: hsl(var(--foreground));
-}
+[role="dialog"] { color: hsl(var(--foreground)); }
 [role="dialog"] .text-white:not(button):not([class*="bg-black"]):not([class*="bg-primary"]):not([class*="bg-red"]):not([class*="bg-emerald"]) {
   color: hsl(var(--foreground)) !important;
 }
 
-/* Badge neutro legível */
+/* Badge semana */
 .badge-semana {
   background: #2563eb !important;
   color: #fff !important;
@@ -63,4 +126,20 @@ table td, table th {
 .dark .badge-semana {
   background: #60a5fa !important;
   color: #0f172a !important;
+}
+
+/* Inputs / selects legíveis */
+input, textarea, select {
+  color: hsl(var(--foreground));
+}
+input::placeholder, textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.85;
+}
+
+/* Recharts tooltip */
+.recharts-default-tooltip {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
 }
