@@ -77,10 +77,16 @@
 }
 
 .glass-header {
+  /* Fallback: sem color-mix (browsers antigos) o header mantém fundo visível */
+  background: var(--glass-bg-strong);
   background: color-mix(in oklab, var(--glass-bg-strong) 90%, transparent);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border-bottom: 1px solid var(--glass-border-dark);
+}
+.dark .glass-header {
+  background: rgba(15, 23, 42, 0.62);
+  background: color-mix(in oklab, var(--glass-bg-strong) 90%, transparent);
 }
 
 .dark .glass,

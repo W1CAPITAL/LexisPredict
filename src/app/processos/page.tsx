@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import { fetchCompanyProcessosAction, registrarAuditoriaEventAction } from "@/app/actions/case-actions";
+import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   FileDown,
   Filter,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +66,7 @@ const ACTION_META: Record<string, { label: string; icon: React.ReactNode; tone: 
   edicao: { label: "Editou", icon: <Pencil size={13} />, tone: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25" },
   exclusao: { label: "Apagou", icon: <Trash2 size={13} />, tone: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/25" },
   criacao: { label: "Criou", icon: <FilePlus2 size={13} />, tone: "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/25" },
+  encerramento: { label: "Encerrou", icon: <CheckCircle2 size={13} />, tone: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25" },
 };
 
 function statusTone(status?: string) {
@@ -102,6 +105,7 @@ function Kpi({ icon, label, value, hint, tone = "default" }: {
 
 export default function ProcessosEmpresaPage() {
   const { profile } = useAuth();
+  const { toast } = useToast();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string }[]>([]);
@@ -112,6 +116,14 @@ export default function ProcessosEmpresaPage() {
   const [editing, setEditing] = useState<LegalCase | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [attending, setAttending] = useState<LegalCase | null>(null);
+  const [attendingOpen, setAttendingOpen] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceForm, setAttendanceForm] = useState({
+    situacao: "EM ANDAMENTO",
+    observacao: "",
+    proximoRetorno: "",
+  });
 
   const load = async () => {
     setLoading(true);
@@ -155,9 +167,84 @@ export default function ProcessosEmpresaPage() {
     setSaving(false);
   };
 
+  const todayBR = () => new Date().toLocaleDateString("pt-BR");
+
+  const openAttendance = (c: LegalCase) => {
+    setAttending(c);
+    setAttendanceForm({
+      situacao: c.situacao || "EM ANDAMENTO",
+      observacao: c.observacao || "",
+      proximoRetorno: c.proximoPrazo || "",
+    });
+    setAttendingOpen(true);
+  };
+
+  const saveAttendance = async () => {
+    if (!attending || attendanceSaving) return;
+    setAttendanceSaving(true);
+    try {
+      const situacao = attendanceForm.situacao === "ENCERRADO" ? "ENCERRADO" : "EM ANDAMENTO";
+      const updated: LegalCase = {
+        ...attending,
+        situacao,
+        ultimoRetorno: todayBR(),
+        observacao: attendanceForm.observacao.trim() || attending.observacao,
+        proximoPrazo: situacao === "ENCERRADO" ? "" : attendanceForm.proximoRetorno || attending.proximoPrazo,
+        tem_novo_andamento: false,
+        djen_nova_comunicacao: false,
+        tem_atualizacao_pos_retorno: false,
+        datajud_encerrado_tribunal: situacao === "ENCERRADO" ? true : attending.datajud_encerrado_tribunal,
+      };
+      const res = await saveOneCaseAction(updated);
+      if (res.success) {
+        await registrarAtendimentoAction([attending.protocolo], {
+          situacao,
+          via: "processos-da-empresa",
+          observacao: attendanceForm.observacao.trim() || null,
+        });
+        setAttendingOpen(false);
+        setAttending(null);
+        await load();
+        toast({ title: "Atendimento registrado", description: `${attending.cliente} • ${situacao}` });
+      } else {
+        toast({ title: "Falha ao registrar", description: res.message, variant: "destructive" });
+      }
+    } finally {
+      setAttendanceSaving(false);
+    }
+  };
+
+  const handleEncerrar = async (c: LegalCase) => {
+    if (!confirm(`Marcar "${c.cliente}" como ENCERRADO?\nO processo sai da carteira ativa.`)) return;
+    setSaving(true);
+    try {
+      const updated: LegalCase = {
+        ...c,
+        situacao: "ENCERRADO",
+        ultimoRetorno: todayBR(),
+        proximoPrazo: "",
+        tem_novo_andamento: false,
+        djen_nova_comunicacao: false,
+        tem_atualizacao_pos_retorno: false,
+      };
+      const res = await saveOneCaseAction(updated);
+      if (res.success) {
+        await registrarAuditoriaEventAction("encerramento", [c.protocolo], {
+          detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
+        });
+        await load();
+        toast({ title: "Processo encerrado", description: c.cliente });
+      } else {
+        toast({ title: "Falha ao encerrar", description: res.message, variant: "destructive" });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const exportCsv = () => {
     const head = ["cliente", "protocolo", "advogado", "escritorio", "tribunal", "status", "ultimoRetorno", "indicio_busca_apreensao", "criado_por"];
-    const lines = filtered.map((c) =>
+    const lines = cases.map((c) =>
       [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, c.status, c.ultimoRetorno, c.indicio_busca_apreensao ? "SIM" : "NAO", nomeByAuth.get(String(c.created_by || "")) || ""]
         .map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`)
         .join(";")
@@ -379,16 +466,35 @@ export default function ProcessosEmpresaPage() {
                               )}
                             </td>
                             <td className="px-6 py-3 text-center">
-                              <button
-                                onClick={() => {
-                                  setEditing(c);
-                                  setEditOpen(true);
-                                }}
-                                className="h-8 w-8 rounded-lg border border-border/60 bg-card/60 hover:bg-card hover:text-primary inline-flex items-center justify-center transition-colors"
-                                title="Editar processo"
-                              >
-                                <Pencil size={13} />
-                              </button>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => openAttendance(c)}
+                                  className="h-8 w-8 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center justify-center transition-colors"
+                                  title="Registrar atendimento"
+                                >
+                                  <UserCheck size={13} />
+                                </button>
+                                {!isCasoEncerrado(c) && (
+                                  <button
+                                    onClick={() => handleEncerrar(c)}
+                                    disabled={saving}
+                                    className="h-8 w-8 rounded-lg border border-border/60 bg-card/60 hover:bg-card hover:text-emerald-600 inline-flex items-center justify-center transition-colors"
+                                    title="Marcar como encerrado"
+                                  >
+                                    <CheckCircle2 size={13} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setEditing(c);
+                                    setEditOpen(true);
+                                  }}
+                                  className="h-8 w-8 rounded-lg border border-border/60 bg-card/60 hover:bg-card hover:text-primary inline-flex items-center justify-center transition-colors"
+                                  title="Editar processo"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -517,6 +623,68 @@ export default function ProcessosEmpresaPage() {
               <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
               <Button onClick={saveEdit} disabled={saving}>
                 {saving ? <Loader2 className="animate-spin" size={14} /> : "Salvar alterações"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={attendingOpen} onOpenChange={setAttendingOpen}>
+          <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black">
+                <UserCheck size={15} className="text-emerald-500" /> Registrar atendimento
+              </DialogTitle>
+            </DialogHeader>
+            {attending ? (
+              <div className="space-y-4 py-2">
+                <div className="rounded-xl border border-border bg-secondary/10 p-3">
+                  <p className="text-[11px] font-black uppercase truncate">{attending.cliente}</p>
+                  <p className="text-[9px] font-mono text-muted-foreground/60 truncate">{attending.protocolo}</p>
+                </div>
+
+                <div>
+                  <Label className="text-[9px] font-black uppercase">Resultado do contato</Label>
+                  <select
+                    value={attendanceForm.situacao}
+                    onChange={(e) => setAttendanceForm({ ...attendanceForm, situacao: e.target.value })}
+                    className="mt-1 w-full h-10 rounded-xl border border-border/60 bg-card px-3 text-[11px] font-bold uppercase"
+                  >
+                    <option value="EM ANDAMENTO">EM ANDAMENTO</option>
+                    <option value="ENCERRADO">ENCERRADO</option>
+                  </select>
+                  <p className="mt-1 text-[8px] font-bold uppercase text-muted-foreground/60">
+                    Encerrado tira o processo da carteira ativa e zera o próximo prazo.
+                  </p>
+                </div>
+
+                {attendanceForm.situacao !== "ENCERRADO" ? (
+                  <div>
+                    <Label className="text-[9px] font-black uppercase">Próximo retorno</Label>
+                    <Input
+                      type="date"
+                      value={toDateInput(attendanceForm.proximoRetorno)}
+                      onChange={(e) => setAttendanceForm({ ...attendanceForm, proximoRetorno: fromDateInput(e.target.value) })}
+                      className="mt-1 h-10"
+                    />
+                  </div>
+                ) : null}
+
+                <div>
+                  <Label className="text-[9px] font-black uppercase">Observação do atendimento</Label>
+                  <Textarea
+                    value={attendanceForm.observacao}
+                    onChange={(e) => setAttendanceForm({ ...attendanceForm, observacao: e.target.value })}
+                    rows={3}
+                    className="mt-1"
+                    placeholder="O que foi tratado com o cliente…"
+                  />
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAttendingOpen(false)} disabled={attendanceSaving}>Cancelar</Button>
+              <Button onClick={saveAttendance} disabled={attendanceSaving} className="bg-emerald-600 hover:bg-emerald-700">
+                {attendanceSaving ? <Loader2 className="animate-spin" size={14} /> : "Salvar atendimento"}
               </Button>
             </DialogFooter>
           </DialogContent>

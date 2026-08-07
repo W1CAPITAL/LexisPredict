@@ -375,7 +375,7 @@ export async function buildDossieXlsxBase64(
     if (r.atendido_semana) atendidosSemana++;
     if (r.retorno) comRetorno++;
     else semRetorno++;
-    if (isVencido(r.status) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || r.dias_sem_retorno > 30) criticos++;
+    if (isVencido(r.status) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || Number(r.dias_sem_retorno) > 30) criticos++;
 
     statusMap.set(r.status || '—', (statusMap.get(r.status || '—') || 0) + 1);
     escMap.set(r.escritorio || 'Sem escritório', (escMap.get(r.escritorio || 'Sem escritório') || 0) + 1);

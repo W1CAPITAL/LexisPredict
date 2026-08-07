@@ -3,12 +3,11 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { MetalFx, type MetalFxPreset } from "metal-fx";
+import type { MetalFxPreset } from "metal-fx";
 import { cn } from "@/lib/utils";
 import {
   resolveMetalEnabled,
   resolveMetalPreset,
-  resolveMetalStrength,
   type MetalMode,
 } from "@/lib/metal-policy";
 
@@ -86,7 +85,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       mounted,
     });
     const preset = resolveMetalPreset(metalPreset, variant);
-    const strength = resolveMetalStrength(metalStrength, size);
 
     const solid =
       enableMetal
@@ -97,27 +95,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             : "metal-btn-solid metal-btn-solid--chromatic"
         : "";
 
-    const node = (
+    return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }), solid)}
         ref={ref}
         {...props}
       />
-    );
-
-    if (!enableMetal) return node;
-
-    return (
-      <MetalFx
-        preset={preset}
-        variant={size === "icon" ? "circle" : "button"}
-        strength={strength}
-        theme="dark"
-        normalizeHostStyles
-        className="inline-flex"
-      >
-        {node}
-      </MetalFx>
     );
   }
 );

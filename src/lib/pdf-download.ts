@@ -15,7 +15,7 @@ export async function downloadPdf(
   filename: string
 ): Promise<boolean> {
   try {
-    const blob = await pdf(el).toBlob();
+    const blob = await pdf(el as Parameters<typeof pdf>[0]).toBlob();
     saveAs(blob, filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
     return true;
   } catch (e) {

@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Botão metal líquido (CSS animado) + opcional metal-fx WebGL.
+ * Botão metal líquido (CSS animado) — sem WebGL para nunca desaparecer.
  * preset: chromatic | silver | gold
  * mode: liquid | glass-liquid | solid
  */
 import * as React from "react";
-import { MetalFx, type MetalFxPreset } from "metal-fx";
+import type { MetalFxPreset } from "metal-fx";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -14,21 +14,9 @@ export type LiquidMetalButtonProps = ButtonProps & {
   preset?: MetalFxPreset;
   mode?: "liquid" | "glass-liquid" | "solid";
   strength?: number;
-  /** Desliga WebGL e usa só CSS líquido */
+  /** Mantido por compatibilidade de API (já é sempre CSS-only) */
   cssOnly?: boolean;
 };
-
-function useReducedMotion() {
-  const [r, setR] = React.useState(false);
-  React.useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const s = () => setR(mq.matches);
-    s();
-    mq.addEventListener("change", s);
-    return () => mq.removeEventListener("change", s);
-  }, []);
-  return r;
-}
 
 export const LiquidMetalButton = React.forwardRef<
   HTMLButtonElement,
@@ -46,10 +34,6 @@ export const LiquidMetalButton = React.forwardRef<
     },
     ref
   ) => {
-    const reduced = useReducedMotion();
-    const [mounted, setMounted] = React.useState(false);
-    React.useEffect(() => setMounted(true), []);
-
     const liquidCls =
       mode === "glass-liquid"
         ? "glass-liquid-btn"
@@ -65,7 +49,7 @@ export const LiquidMetalButton = React.forwardRef<
               preset === "silver" && "liquid-metal--silver"
             );
 
-    const btn = (
+    return (
       <Button
         ref={ref}
         metal={false}
@@ -78,24 +62,6 @@ export const LiquidMetalButton = React.forwardRef<
       >
         {children}
       </Button>
-    );
-
-    if (!mounted || cssOnly || reduced || mode === "glass-liquid") {
-      return btn;
-    }
-
-    return (
-      <MetalFx
-        preset={preset}
-        variant="button"
-        strength={strength}
-        theme="dark"
-        normalizeHostStyles
-        disableGlow
-        className="metal-fx-host inline-flex items-center justify-center min-h-[2.25rem] opacity-100"
-      >
-        {btn}
-      </MetalFx>
     );
   }
 );

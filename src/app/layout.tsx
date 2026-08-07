@@ -184,10 +184,12 @@ export default function RootLayout({
                 if (wallpaper) {
                   var wp = wallpaper;
                   if (wp.indexOf('gradient') === -1 && wp.indexOf('url(') !== 0) wp = 'url(' + wp + ')';
+                  root.classList.add('lexis-wallpaper-active');
                   root.style.backgroundImage = wp;
                   root.style.backgroundSize = 'cover';
                   root.style.backgroundPosition = 'center';
                   root.style.backgroundAttachment = 'fixed';
+                  try { if (document.body) document.body.style.backgroundColor = 'transparent'; } catch (e2) {}
                 }
               } catch (e) {}
             })()

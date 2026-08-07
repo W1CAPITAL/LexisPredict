@@ -87,4 +87,37 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* ============================================================
+     Impressão de páginas operacionais (ex.: Painel de Supervisão).
+     Sem o antigo print.css, estas regras garantem que o "Imprimir
+     / PDF completo" sai inteiro, sem sidebar e sem botões de ação.
+     ============================================================ */
+
+  /* Remonta o shell de tela cheia para o conteúdo fluir em várias páginas */
+  .flex.h-screen {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main.flex-1 {
+    overflow: visible !important;
+  }
+
+  /* Esconde a navegação lateral, overlays e menus */
+  aside,
+  [role="dialog"],
+  .sheet-overlay {
+    display: none !important;
+  }
+
+  /* Cabeçalho: mantém só o título, esconde a coluna de ações */
+  .glass-header {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-bottom: 1px solid #000000 !important;
+  }
+  .glass-header > div:not(:first-child) {
+    display: none !important;
+  }
 }
