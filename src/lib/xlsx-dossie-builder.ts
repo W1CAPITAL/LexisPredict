@@ -293,7 +293,7 @@ function filterXml(firstCol: number, firstRow: number, lastCol: number, lastRow:
 
 function sheetXml(
   rows: SheetRow[],
-  opts?: { widths?: number[]; freeze?: number; filter?: boolean }
+  opts?: { widths?: number[]; freeze?: number; filter?: boolean; merges?: string[]; rowHeights?: Record<number, number> }
 ): string {
   let body = '';
   rows.forEach((row, i) => {
@@ -302,11 +302,16 @@ function sheetXml(
     if (row.styleRow) styleId = STYLE_IDS[row.styleRow];
     else if (i % 2 === 0 && rows[0]?.styleRow === 'header') styleId = STYLE_IDS.zebra;
     const cells = row.values.map((v, c) => cellXml(r, c, v, styleId)).join('');
-    body += `<row r="${r}">${cells}</row>`;
+    const hAttr =
+      opts?.heights && opts.heights[r] != null ? ` ht="${opts.heights[r]}" customHeight="1"` : '';
+    body += `<row r="${r}"${hAttr}>${cells}</row>`;
   });
   const widthXml = opts?.widths?.length ? colsXml(opts.widths) : '';
   const freezeXmlOut = opts?.freeze ? freezeXml(opts.freeze, 0) : '';
   const filterXmlOut = opts?.filter && rows.length > 1 ? filterXml(0, 1, Math.max(1, rows[0].values.length - 1), rows.length) : '';
+  const mergeXmlOut = opts?.merges?.length
+    ? `<mergeCells count="${opts.merges.length}">${opts.merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>`
+    : '';
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
@@ -314,6 +319,7 @@ function sheetXml(
   ${widthXml}
   ${filterXmlOut}
   <sheetData>${body}</sheetData>
+  ${mergeXmlOut}
 </worksheet>`;
 }
 
@@ -418,6 +424,13 @@ export async function buildDossieXlsxBase64(
     { values: ['Privacidade'], styleRow: 'section' },
     { values: ['Não inclui ID interno, empresa_id, created_by nem data de criação do banco.'], styleRow: 'normal' },
     { values: ['Documento gerado por LexisPredict — uso interno operacional.'], styleRow: 'normal' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['RESUMO EXECUTIVO'], styleRow: 'section' },
+    { values: ['Total', n, 'Em andamento', emAndamento, 'Encerrados', encerrados], styleRow: 'kpi' },
+    { values: ['Vencidos', vencidos, 'Novos andamentos', and, 'B.A.', ba], styleRow: 'kpi' },
+    { values: ['Cumprimento', cump, 'Procedentes', proc, 'Improcedentes', impr], styleRow: 'kpi' },
+    { values: ['Casos críticos', criticos, 'Risco estimado', `${risco}%`, 'Atendidos (semana)', atendidosSemana], styleRow: criticos > 0 ? 'alert' : 'kpi' },
+    { values: ['Próximo passo: abra as abas Auditoria e Dashboard para priorizar a fila de ação.'], styleRow: criticos > 0 ? 'warn' : 'normal' },
   ];
 
   // —— Dashboard (executivo)
@@ -568,7 +581,7 @@ export async function buildDossieXlsxBase64(
   const ANALYTICS_WIDTHS = [18, 14, 14, 14, 16, 16];
 
   const sheets = [
-    { name: 'Capa', xml: sheetXml(capaRows, { widths: [60, 30] }) },
+    { name: 'Capa', xml: sheetXml(capaRows, { widths: [34, 14, 30, 16, 26, 14], merges: ['A1:F1', 'A2:F2'] }) },
     { name: 'Dashboard', xml: sheetXml(dashboardRows, { widths: [34, 16, 4, 34, 16] }) },
     { name: 'Analytics', xml: sheetXml(analyticsRows, { widths: ANALYTICS_WIDTHS }) },
     { name: 'Auditoria', xml: sheetXml(auditoriaRows, { widths: PROCESSOS_WIDTHS }) },

@@ -37,15 +37,17 @@ export function persistOpacity(
 export function applyWallpaperUrl(url: string) {
   if (typeof localStorage === 'undefined' || typeof document === 'undefined') return;
   
-  localStorage.setItem("lexisPredict_wallpaper", url);
+localStorage.setItem("lexisPredict_wallpaper", url);
   const root = document.documentElement;
-  
+
+  root.classList.add("lexis-wallpaper-active");
   root.style.backgroundImage = `url(${url})`;
   root.style.backgroundSize = 'cover';
   root.style.backgroundPosition = 'center';
   root.style.backgroundAttachment = 'fixed';
   root.style.backgroundRepeat = 'no-repeat';
-  
+
+  if (document.body) document.body.style.backgroundColor = 'transparent';
   window.dispatchEvent(new Event("lexis-wallpaper-changed"));
 }
 
@@ -58,24 +60,28 @@ export function applyWallpaperStyle(imageValue: string) {
   }
   localStorage.setItem("lexisPredict_wallpaper", imageValue);
   const root = document.documentElement;
+  root.classList.add("lexis-wallpaper-active");
   root.style.backgroundImage = imageValue;
   root.style.backgroundSize = 'cover';
   root.style.backgroundPosition = 'center';
   root.style.backgroundAttachment = 'fixed';
   root.style.backgroundRepeat = 'no-repeat';
+  if (document.body) document.body.style.backgroundColor = 'transparent';
   window.dispatchEvent(new Event("lexis-wallpaper-changed"));
 }
 
 export async function resetWallpaper() {
   if (typeof localStorage === 'undefined' || typeof document === 'undefined') return;
-  
+
   localStorage.removeItem("lexisPredict_wallpaper");
-  document.documentElement.style.backgroundImage = 'none';
-  
+  const root = document.documentElement;
+  root.classList.remove("lexis-wallpaper-active");
+  root.style.backgroundImage = 'none';
+
   try {
     await browserStorage.removeAsset("main_wallpaper_blob");
   } catch (e) {}
-  
+
   window.dispatchEvent(new Event("lexis-wallpaper-changed"));
 }
 

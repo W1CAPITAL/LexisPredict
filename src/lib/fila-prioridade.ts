@@ -44,6 +44,11 @@ export const PRIORITY_WEIGHTS: Record<string, number> = {
   status_hoje: 280,
   status_atencao: 140,
 
+  /** Dados de contato (campo em branco = impossível agir na urgência) */
+  sem_telefone_cap: 120,
+  sem_advogado_cap: 70,
+  sem_cpf_cap: 40,
+
   /** Camada preditiva (0–max) */
   pred_sem_retorno_cap: 100,
   pred_prazo_cap: 40,
@@ -142,6 +147,13 @@ export function scorePreditivo(c: LegalCase): number {
     s += Math.min(10, Math.round((c as any).scan_priority / 10));
   }
 
+  // Faltam dados de ação? Municipa para cima (não agrava sozinho, mas desempata)
+  const semTel =
+    !c.telefone || c.telefone === '-' || String(c.telefone).trim().length < 8;
+  const semAdv = !c.advogado || c.advogado === '-';
+  if (semTel) s += 4;
+  if (semAdv) s += 3;
+
   return Math.max(0, Math.min(100, Math.round(s)));
 }
 
@@ -213,11 +225,23 @@ export function pesoFila(c: LegalCase): number {
   else if (c.status === 'É Hoje') w += W.status_hoje;
   else if (c.status === 'Atenção') w += W.status_atencao;
 
+  const dias = diasSemRetorno(c.ultimoRetorno);
+
+  // 7b. Dados de contato — uma urgência sem como contatar o cliente perde elo de ação
+  const semTel =
+    !c.telefone || c.telefone === '-' || String(c.telefone).trim().length < 8;
+  const semAdv = !c.advogado || c.advogado === '-';
+  const semCpf = !(c as any).cpf || String((c as any).cpf).length < 11;
+  if (w > 0 || temNovidade(c)) {
+    if (semTel) w += Math.min(W.sem_telefone_cap, 40 + Math.floor(dias / 10));
+    if (semAdv) w += W.sem_advogado_cap;
+    if (semCpf) w += W.sem_cpf_cap;
+  }
+
   // 8. Camada preditiva (compõe, não domina BA/sentença)
   const pred = scorePreditivo(c);
   w += Math.round((pred / 100) * W.pred_risco_compound_cap);
 
-  const dias = diasSemRetorno(c.ultimoRetorno);
   w += Math.min(W.pred_sem_retorno_cap, Math.floor(dias / 2));
 
   if (typeof c.diasFaltando === 'number') {

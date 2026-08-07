@@ -17,6 +17,11 @@ export const CSV_FIELD_ALIASES: Record<string, string[]> = {
   assistente: ['ASSISTENTE', 'ATENDENTE', 'OPERADOR', 'RESPONSAVEL INTERNO', 'DONO', 'ASSISTENTE_RESPONSAVEL'],
   produtos: ['PRODUTOS', 'PRODUTO', 'SERVICO'],
   dataMovimentacao: ['DATA_MOVIMENTACAO', 'DATA MOVIMENTACAO', 'DATA MOVIMENTAÇÃO', 'DISTRIB', 'DISTRIB.', 'DATA_DISTRIBUICAO'],
+  cpf: ['CPF', 'CPF CLIENTE', 'DOCUMENTO', 'C.P.F.', 'CPF DO CLIENTE'],
+  email: ['EMAIL', 'E-MAIL', 'EMAIL CLIENTE', 'E-MAIL DO CLIENTE'],
+  parte_passiva: ['PARTE PASSIVA', 'PARTE_PASSIVA', 'REU', 'RÉU', 'REQUERIDO', 'BANCO', 'INSTITUICAO', 'CREDORA'],
+  parte_passiva_cnpj: ['CNPJ', 'CNPJ DA PARTE', 'CNPJ REU', 'CNPJ RÉU', 'CNPJ BANCO', 'CNPJ CREDORA'],
+  classe_acao: ['CLASSE', 'CLASSE ACAO', 'CLASSE DA ACAO', 'TIPO ACAO', 'ACAO'],
 };
 
 export function normalizeHeaderKey(header: string): string {
@@ -68,6 +73,11 @@ export function mapCsvRowToCanonical(row: Record<string, any>): Record<string, s
     assistente: get('assistente'),
     produtos: get('produtos'),
     dataMovimentacao: get('dataMovimentacao'),
+    cpf: get('cpf'),
+    email: get('email'),
+    parte_passiva: get('parte_passiva'),
+    parte_passiva_cnpj: get('parte_passiva_cnpj'),
+    classe_acao: get('classe_acao'),
   };
 }
 
