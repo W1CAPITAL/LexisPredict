@@ -1,26 +1,28 @@
 
-/* —— Recharts: contraste forçado (tooltip + ticks) —— */
+/* —— Recharts: tooltip SEMPRE legível (fundo claro + texto preto) —— */
 .recharts-default-tooltip {
-  background-color: #0f172a !important;
-  border: 1px solid #334155 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
   border-radius: 12px !important;
-  box-shadow: 0 12px 28px rgba(0,0,0,0.35) !important;
-  color: #f8fafc !important;
-  padding: 10px 12px !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18) !important;
+  color: #0f172a !important;
+  padding: 10px 14px !important;
 }
 .recharts-default-tooltip,
-.recharts-default-tooltip * {
-  color: #f8fafc !important;
-  fill: #f8fafc !important;
+.recharts-default-tooltip *,
+.recharts-default-tooltip .recharts-tooltip-label,
+.recharts-default-tooltip .recharts-tooltip-item,
+.recharts-default-tooltip .recharts-tooltip-item-name,
+.recharts-default-tooltip .recharts-tooltip-item-value,
+.recharts-default-tooltip li,
+.recharts-default-tooltip span,
+.recharts-default-tooltip p {
+  color: #0f172a !important;
+  fill: #0f172a !important;
 }
-.recharts-tooltip-label {
-  color: #e2e8f0 !important;
-  font-weight: 800 !important;
-}
-.recharts-tooltip-item,
-.recharts-tooltip-item-name,
-.recharts-tooltip-item-value {
-  color: #f8fafc !important;
+/* remove cor herdada da série */
+.recharts-tooltip-item {
+  color: #0f172a !important;
 }
 .recharts-cartesian-axis-tick text {
   fill: hsl(var(--foreground)) !important;
@@ -28,11 +30,8 @@
 }
 .recharts-legend-item-text {
   color: hsl(var(--foreground)) !important;
-  fill: hsl(var(--foreground)) !important;
 }
-/* LabelList / labels sobre barras */
-.recharts-label,
-.recharts-label-list text {
-  fill: hsl(var(--foreground)) !important;
-  font-weight: 700;
+.lexis-chart-tooltip,
+.lexis-chart-tooltip * {
+  color: #0f172a !important;
 }

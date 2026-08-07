@@ -1,4 +1,4 @@
-import { chartTooltipProps } from '@/lib/chart-tooltip-styles';
+import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 "use client";
 import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashboard-panel";
 
@@ -541,7 +541,7 @@ export default function Dashboard() {
                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                  ))}
                               </Pie>
-                              <RechartsTooltip {...chartTooltipProps} />
+                              <RechartsTooltip content={<LexisChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.2)" }} wrapperStyle={{ outline: "none", zIndex: 50 }} />
                            </PieChart>
                         </ResponsiveContainer>
                       </div>

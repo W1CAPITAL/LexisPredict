@@ -39,6 +39,7 @@ import {
   PieChart,
   Pie
 } from 'recharts';
+import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 // CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT - TODAS AS LETRAS EM PRETO
@@ -230,10 +231,7 @@ export default function AnalyticsPage() {
                       <BarChart data={metrics.officePerformance.slice(0, 8)}>
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={TICK_DARK} />
                         <YAxis hide />
-                        <Tooltip 
-                          cursor={{fill: 'rgba(0,0,0,0.05)'}}
-                          contentStyle={TOOLTIP_LIGHT} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
-                        />
+                        <Tooltip content={<LexisChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.2)" }} />
                         <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
                           {metrics.officePerformance.map((entry, index) => (
                             <Cell key={`cell-office-${index}`} fill={entry.score > 0 ? '#00D1FF' : '#ef4444'} />
@@ -262,11 +260,7 @@ export default function AnalyticsPage() {
                     <BarChart data={metrics.topTribunals}>
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={TICK_DARK} />
                       <YAxis hide />
-                      <Tooltip 
-                        cursor={{fill: '#f1f5f9'}}
-                        contentStyle={TOOLTIP_LIGHT}
-                        itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
-                      />
+                      <Tooltip content={<LexisChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.2)" }} />
                       <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
                         {metrics.topTribunals.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={index === 0 ? '#000' : '#cbd5e1'} />
@@ -302,7 +296,7 @@ export default function AnalyticsPage() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={TOOLTIP_LIGHT} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL} />
+                      <Tooltip content={<LexisChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.2)" }} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -338,11 +332,7 @@ export default function AnalyticsPage() {
                         tick={TICK_DARK} 
                         width={150}
                       />
-                      <Tooltip 
-                        cursor={{fill: '#f1f5f9'}}
-                        contentStyle={TOOLTIP_LIGHT}
-                        itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
-                      />
+                      <Tooltip content={<LexisChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.2)" }} />
                       <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={30}>
                         {metrics.topLawyers.map((entry, index) => (
                           <Cell key={`cell-lawyer-${index}`} fill={index === 0 ? '#00D1FF' : '#000'} />

@@ -1,4 +1,4 @@
-import { chartTooltipProps } from "@/lib/chart-tooltip-styles";
+import { LexisChartTooltip } from "@/components/charts/lexis-chart-tooltip";
 "use client";
 
 /**
@@ -285,7 +285,7 @@ export function Dashboard({
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
                   <XAxis dataKey="day" tick={{ fontSize: 11, fill: "currentColor" }} stroke="hsl(var(--border))" />
                   <YAxis tick={{ fontSize: 11, fill: "currentColor" }} width={36} stroke="hsl(var(--border))" />
-                  <Tooltip {...chartTooltipProps} />
+                  <Tooltip content={<LexisChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.2)" }} wrapperStyle={{ outline: "none", zIndex: 50 }} />
                   <Area
                     type="monotone"
                     dataKey="atendimentos"
@@ -318,7 +318,7 @@ export function Dashboard({
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
                   <XAxis dataKey="name" tick={{ fontSize: 10, fill: "currentColor" }} interval={0} stroke="hsl(var(--border))" />
                   <YAxis tick={{ fontSize: 11, fill: "currentColor" }} width={40} stroke="hsl(var(--border))" />
-                  <Tooltip {...chartTooltipProps} />
+                  <Tooltip content={<LexisChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.2)" }} wrapperStyle={{ outline: "none", zIndex: 50 }} />
                   <Bar dataKey="v" radius={[6, 6, 0, 0]} name="Qtd">
                     {bars.map((_, i) => (
                       <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />

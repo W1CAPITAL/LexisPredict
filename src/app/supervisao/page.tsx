@@ -1,3 +1,4 @@
+import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 "use client";
 
 /**
@@ -234,7 +235,7 @@ export default function SupervisaoPage() {
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" vertical={false} />
                             <XAxis dataKey="label" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                             <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
-                            <Tooltip cursor={{ fill: "hsl(var(--secondary)/0.4)" }} contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155", borderRadius: 12, fontSize: 11, color: "#f8fafc", fontWeight: 700 }} itemStyle={{ color: "#f8fafc" }} labelStyle={{ color: "#e2e8f0" }} />
+                            <Tooltip cursor={{ fill: "hsl(var(--secondary)/0.4)" }} content={<LexisChartTooltip />} />
                             <Bar dataKey="atendidos" name="Atendidos" radius={[6, 6, 0, 0]} maxBarSize={42}>
                               {snap.timelineSemanal.map((_, i) => (
                                 <Cell key={i} fill={COLORS[i % COLORS.length]} />

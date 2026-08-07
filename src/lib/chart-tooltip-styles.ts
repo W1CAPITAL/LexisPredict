@@ -1,27 +1,29 @@
 /**
  * Estilos de contraste para gráficos Recharts.
- * Tooltip escuro + texto branco — legível em light e dark.
+ * Preferir content={<LexisChartTooltip />} — o itemStyle nativo
+ * herda a cor da série e pode ficar preto no preto.
  */
 import type { CSSProperties } from "react";
 
+/** Fallback se não usar o componente custom */
 export const CHART_TOOLTIP_STYLE: CSSProperties = {
-  backgroundColor: "#0f172a",
-  border: "1px solid #334155",
+  backgroundColor: "#ffffff",
+  border: "1px solid #cbd5e1",
   borderRadius: 12,
-  boxShadow: "0 12px 28px rgba(0,0,0,0.35)",
-  fontSize: 11,
+  boxShadow: "0 12px 28px rgba(15,23,42,0.18)",
+  fontSize: 12,
   fontWeight: 800,
-  color: "#f8fafc",
-  padding: "10px 12px",
+  color: "#0f172a",
+  padding: "10px 14px",
 };
 
 export const CHART_TOOLTIP_ITEM_STYLE: CSSProperties = {
-  color: "#f8fafc",
+  color: "#0f172a",
   fontWeight: 700,
 };
 
 export const CHART_TOOLTIP_LABEL_STYLE: CSSProperties = {
-  color: "#e2e8f0",
+  color: "#0f172a",
   fontWeight: 900,
   marginBottom: 4,
   textTransform: "uppercase",
@@ -35,10 +37,12 @@ export const CHART_TICK_STYLE = {
   fontWeight: 700 as const,
 };
 
-/** Props prontas para <Tooltip ... /> do Recharts */
+/** @deprecated Preferir content={<LexisChartTooltip />} */
 export const chartTooltipProps = {
   contentStyle: CHART_TOOLTIP_STYLE,
   itemStyle: CHART_TOOLTIP_ITEM_STYLE,
   labelStyle: CHART_TOOLTIP_LABEL_STYLE,
-  cursor: { fill: "rgba(148,163,184,0.25)" },
+  cursor: { fill: "rgba(148,163,184,0.2)" },
+  // força cor do texto mesmo quando a série é escura
+  wrapperStyle: { outline: "none", zIndex: 40 },
 };
