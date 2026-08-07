@@ -345,31 +345,31 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="lg:hidden fixed top-5 left-5 z-[100]">
+      {/* Único menu: abre só pelo botão (sem sidebar fixa) */}
+      <div className="fixed top-4 left-4 z-[100]">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="h-12 w-12 border-none shadow-md">
-              <Menu size={24} />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 rounded-xl border border-border/60 bg-background/95 shadow-md backdrop-blur-md"
+              aria-label="Abrir menu"
+            >
+              <Menu size={22} />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="p-0 border-r-0 w-[min(20rem,90vw)] overflow-hidden">
+          <SheetContent
+            side="left"
+            className="p-0 border-r border-sidebar-border w-[min(18rem,88vw)] sm:w-[20rem] overflow-hidden bg-sidebar"
+          >
             <SheetHeader className="sr-only">
               <SheetTitle>Menu</SheetTitle>
-              <SheetDescription>Navegação</SheetDescription>
+              <SheetDescription>Navegação do gabinete</SheetDescription>
             </SheetHeader>
             <SidebarNavBody {...bodyProps} collapsed={false} showCollapseBtn={false} />
           </SheetContent>
         </Sheet>
       </div>
-
-      <aside
-        className={cn(
-          "hidden lg:flex h-screen min-h-0 flex-col transition-[width] duration-300 ease-out z-50 shrink-0 overflow-hidden bg-sidebar/95 backdrop-blur-md border-r border-sidebar-border",
-          collapsed ? "w-[72px]" : "w-[280px]"
-        )}
-      >
-        <SidebarNavBody {...bodyProps} showCollapseBtn />
-      </aside>
     </>
   );
 }
