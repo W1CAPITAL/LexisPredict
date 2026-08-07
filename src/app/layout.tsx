@@ -8,6 +8,7 @@ import { DataJudScannerPanel } from '@/components/scanner/datajud-scanner-panel'
 import { AppUpdateBanner } from '@/components/system/app-update-banner';
 import Script from 'next/script';
 import { MotionRoot } from "@/components/providers/motion-root";
+import { LexisErrorBoundary } from "@/components/system/error-boundary";
 import { AUTHORITY_PRESETS, hexToHsl } from '@/lib/theme';
 
 const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
@@ -181,7 +182,9 @@ export default function RootLayout({
 
                 var wallpaper = localStorage.getItem('lexisPredict_wallpaper');
                 if (wallpaper) {
-                  root.style.backgroundImage = 'url(' + wallpaper + ')';
+                  var wp = wallpaper;
+                  if (wp.indexOf('gradient') === -1 && wp.indexOf('url(') !== 0) wp = 'url(' + wp + ')';
+                  root.style.backgroundImage = wp;
                   root.style.backgroundSize = 'cover';
                   root.style.backgroundPosition = 'center';
                   root.style.backgroundAttachment = 'fixed';
@@ -193,7 +196,9 @@ export default function RootLayout({
         <AuthProvider>
           <div className="relative z-10 min-h-screen">
             <GuidedTour />
-            <MotionRoot>{children}</MotionRoot>
+            <LexisErrorBoundary>
+              <MotionRoot>{children}</MotionRoot>
+            </LexisErrorBoundary>
             <DataJudScannerPanel />
             <AppUpdateBanner />
           </div>

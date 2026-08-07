@@ -61,10 +61,13 @@ import { AUTHORITY_PRESETS, applyGlobalTheme, applyPresetById, getPresetColors, 
 import { cn } from '@/lib/utils';
 import { 
   applyWallpaperUrl, 
+  applyWallpaperStyle, 
   resetWallpaper, 
   loadVisualStateFromStorage,
-  saveWallpaperFile
+  saveWallpaperFile,
+  persistOpacity,
 } from '@/lib/visual-hardware';
+import { NeuralEnginePanel } from '@/components/settings/neural-engine-panel';
 import { exportFullSourceCodeAction } from '@/app/actions/system-actions';
 import { listAdvogadosBanca, upsertAdvogadoBanca, desativarAdvogadoBanca } from '@/lib/server-db';
 import { uploadUserAvatarAction, uploadAdvogadoAvatarAction, removeAvatarAction } from '@/app/actions/avatar-actions';
@@ -92,6 +95,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const WALLPAPER_PRESETS = [
+  { id: "nebula", name: "Nebulosa", css: "radial-gradient(circle at 20% 20%, #0f172a 0%, #1e1b4b 45%, #0b0b1a 100%)" },
+  { id: "aurora", name: "Aurora", css: "linear-gradient(135deg, #020617 0%, #164e63 40%, #065f46 80%, #020617 100%)" },
+  { id: "midnight", name: "Meia-noite", css: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" },
+  { id: "solar", name: "Solar", css: "linear-gradient(135deg, #7c2d12 0%, #b45309 45%, #fcd34d 120%)" },
+  { id: "ocean", name: "Oceano", css: "linear-gradient(160deg, #0c4a6e 0%, #0369a1 50%, #0e7490 100%)" },
+  { id: "royal", name: "Royal", css: "linear-gradient(135deg, #312e81 0%, #6d28d9 60%, #a21caf 120%)" },
+];
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
@@ -152,6 +164,8 @@ export default function SettingsPage() {
   const [sidebarOpacity, setSidebarOpacity] = useState(90);
   const [glassBlur, setGlassBlur] = useState(8);
   const [wallpaper, setWallpaper] = useState('');
+  const [wallpaperUrlInput, setWallpaperUrlInput] = useState("");
+  const wallpaperFileRef = useRef<HTMLInputElement>(null);
   
   const [iaModel, setIaModel] = useState('xai');
   const [isMasterUnlocked, setIsMasterUnlocked] = useState(false);
@@ -376,8 +390,59 @@ export default function SettingsPage() {
     const customColors = { background: bgColor, bgSecondary: bgSecondaryColor, foreground: fontColor, fontMuted: fontMutedColor, primary: primaryColor, accent: accentColor, border: fontColor };
     saveCustomTheme(customColors, radius);
     applyGlobalTheme(customColors, radius, bgOpacity / 100, sidebarOpacity / 100, glassBlur);
-    if (wallpaper) applyWallpaperUrl(wallpaper);
+    if (wallpaper) applyWallpaperStyle(wallpaper);
     toast({ title: "Hardware Visual Aplicado" });
+  };
+
+  const handleWallpaperFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await saveWallpaperFile(file);
+      setWallpaper(url);
+      applyWallpaperStyle(url);
+      toast({ title: "Wallpaper aplicado", description: "Imagem salva no dispositivo e persistida." });
+    } catch (err) {
+      toast({ title: "Falha ao aplicar imagem", variant: "destructive" });
+    }
+    if (e.target) e.target.value = "";
+  };
+
+  const handleWallpaperUrlApply = () => {
+    const url = wallpaperUrlInput.trim();
+    if (!url) {
+      toast({ title: "Informe uma URL de imagem", variant: "destructive" });
+      return;
+    }
+    setWallpaper(url);
+    applyWallpaperStyle(`url(${url})`);
+    toast({ title: "Wallpaper por URL aplicado" });
+  };
+
+  const handleWallpaperPreset = (css: string) => {
+    setWallpaper(css);
+    applyWallpaperStyle(css);
+    toast({ title: "Atmosfera aplicada" });
+  };
+
+  const handleRemoveWallpaper = async () => {
+    setWallpaper("");
+    setWallpaperUrlInput("");
+    await resetWallpaper();
+    toast({ title: "Wallpaper removido" });
+  };
+
+  const updateBgOpacity = (v: number) => {
+    setBgOpacity(v);
+    persistOpacity(v / 100, sidebarOpacity / 100, glassBlur);
+  };
+  const updateSidebarOpacity = (v: number) => {
+    setSidebarOpacity(v);
+    persistOpacity(bgOpacity / 100, v / 100, glassBlur);
+  };
+  const updateGlassBlur = (v: number) => {
+    setGlassBlur(v);
+    persistOpacity(bgOpacity / 100, sidebarOpacity / 100, v);
   };
 
   const handleUnlockExport = () => {
@@ -508,16 +573,72 @@ export default function SettingsPage() {
                     <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera & Vidro</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl">
                        <div className="space-y-6">
-                          <SliderControl label="Opacidade do Fundo" value={bgOpacity} onChange={setBgOpacity} icon={<Waves size={12}/>} />
-                          <SliderControl label="Opacidade da Sidebar" value={sidebarOpacity} onChange={setSidebarOpacity} icon={<Layout size={12}/>} />
+                          <SliderControl label="Opacidade do Fundo" value={bgOpacity} onChange={updateBgOpacity} icon={<Waves size={12}/>} />
+                          <SliderControl label="Opacidade da Sidebar" value={sidebarOpacity} onChange={updateSidebarOpacity} icon={<Layout size={12}/>} />
                        </div>
                        <div className="space-y-6">
-                          <SliderControl label="Intensidade Blur" value={glassBlur} max={40} onChange={setGlassBlur} icon={<RefreshCcw size={12}/>} />
+                          <SliderControl label="Intensidade Blur" value={glassBlur} max={40} onChange={updateGlassBlur} icon={<RefreshCcw size={12}/>} />
                           <div className="space-y-4">
                             <Label className="text-[9px] uppercase font-black flex items-center gap-2 text-foreground"><Layout size={12}/> Raio de Borda: {radius}px</Label>
                             <Slider value={[radius]} max={24} min={0} step={1} onValueChange={(v) => setRadius(v[0])} />
                           </div>
                        </div>
+                    </div>
+
+                    <div className="bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Wallpaper & Atmosfera de Fundo</Label>
+                          <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest mt-1">Imagem, URL ou gradiente aplicados atrás de todo o sistema.</p>
+                        </div>
+                        {wallpaper ? (
+                          <Button variant="ghost" size="sm" onClick={handleRemoveWallpaper} className="h-8 text-[9px] font-black uppercase text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                            <X size={12} className="mr-1" /> Remover
+                          </Button>
+                        ) : null}
+                      </div>
+
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                        {WALLPAPER_PRESETS.map((p) => {
+                          const active = wallpaper === p.css;
+                          return (
+                            <button
+                              key={p.id}
+                              onClick={() => handleWallpaperPreset(p.css)}
+                              title={p.name}
+                              className={cn(
+                                "aspect-[3/4] rounded-xl border-2 overflow-hidden transition-all group",
+                                active ? "border-primary shadow-lg shadow-primary/20" : "border-border hover:border-primary/40"
+                              )}
+                            >
+                              <div className="w-full h-full" style={{ background: p.css }} />
+                              <span className="sr-only">{p.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={wallpaperUrlInput}
+                            onChange={(e) => setWallpaperUrlInput(e.target.value)}
+                            placeholder="https://.../wallpaper.jpg"
+                            className="h-10 flex-1"
+                          />
+                          <Button onClick={handleWallpaperUrlApply} className="h-10 shrink-0 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[9px]">
+                            Aplicar
+                          </Button>
+                        </div>
+                        <Button
+                          onClick={() => wallpaperFileRef.current?.click()}
+                          variant="outline"
+                          className="h-10 font-black uppercase text-[9px]"
+                        >
+                          <Camera size={14} className="mr-2" /> Enviar imagem do dispositivo
+                        </Button>
+                        <input type="file" accept="image/*" className="hidden" ref={wallpaperFileRef} onChange={handleWallpaperFile} />
+                      </div>
                     </div>
                   </section>
                 </div>
@@ -630,34 +751,7 @@ export default function SettingsPage() {
 
               {activeTab === 'Engine' && (
                 <div className="space-y-10 animate-in slide-in-from-right-4 duration-500">
-                  <Card className="bg-background/40 backdrop-blur-xl border border-border rounded-lg shadow-2xl overflow-hidden">
-                    <CardHeader className="border-b border-border bg-background/50">
-                      <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Zap size={14} className="text-primary"/> Neural Infrastructure</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-8">
-                      <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-4">
-                         <ShieldCheck className="text-amber-500 mt-1 shrink-0" size={18} />
-                         <div>
-                            <p className="text-[10px] font-black uppercase text-amber-700">Protocolo de Sigilo Ativo</p>
-                            <p className="text-[9px] font-bold text-amber-600/80 uppercase leading-relaxed mt-1">As IAs estão instruídas a nunca citar nomes de empresas. Todo despacho é gerado em tom institucional neutro.</p>
-                         </div>
-                      </div>
-                      <RadioGroup value={iaModel} onValueChange={(val) => { 
-                        if (!isAdmin) {
-                           toast({ title: "Acesso Negado", description: "Apenas administradores alteram o motor neural.", variant: "destructive" });
-                           return;
-                        }
-                        setIaModel(val); 
-                        localStorage.setItem('lexisPredict_preferred_ia', val); 
-                        toast({ title: "Prioridade Alterada" }); 
-                      }}>
-                        <div className="grid gap-4">
-                          <EngineOption id="xai" label="xAI GROK 4.5" desc="Raciocínio jurídico sênior + RAG." status="ONLINE" />
-                          <EngineOption id="groq-llama" label="GROQ LLAMA 3.3" desc="Velocidade ultra-fluida." status="ONLINE" />
-                        </div>
-                      </RadioGroup>
-                    </CardContent>
-                  </Card>
+                  <NeuralEnginePanel isAdmin={isAdmin} />
                 </div>
               )}
 

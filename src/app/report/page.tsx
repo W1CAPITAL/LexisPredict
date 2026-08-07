@@ -45,6 +45,12 @@ import { getSinalCapa } from "@/lib/sinal-capa";
 import { calcularProbabilidadeEncerramento } from "@/lib/probabilidade-encerramento";
 import { calcularScoreAdvogado } from "@/lib/score-engine";
 import { generateRelatorioClaudeAction } from "@/app/actions/report-claude-action";
+import {
+  resumoFinanceiroAction,
+  listHonorariosAction,
+  type HonorarioRow,
+} from "@/app/actions/financas-actions";
+import { FileDown } from "lucide-react";
 
 export default function UnifiedReport() {
   const { setCases } = useAppStore();
@@ -58,6 +64,9 @@ export default function UnifiedReport() {
   const [claudeError, setClaudeError] = useState("");
   const [claudeReady, setClaudeReady] = useState(false);
   const [claudeEngine, setClaudeEngine] = useState("");
+  const [financeResumo, setFinanceResumo] = useState<any>(null);
+  const [financeRows, setFinanceRows] = useState<HonorarioRow[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const { profile, loading: authLoading } = useAuth();
 
@@ -65,13 +74,17 @@ export default function UnifiedReport() {
     setMounted(true);
     async function load() {
       try {
-        const [casesData, notesData] = await Promise.all([
+        const [casesData, notesData, finSum, finRows] = await Promise.all([
           fetchRepoCases(),
-          fetchRepoNotes()
+          fetchRepoNotes(),
+          resumoFinanceiroAction(),
+          listHonorariosAction({ limit: 60 }),
         ]);
         setLocalCases(casesData || []);
         setCases(casesData || []);
         setNotes(notesData || []);
+        if (finSum.success) setFinanceResumo(finSum.resumo);
+        if (finRows.success) setFinanceRows(finRows.rows);
 
         const savedInsights = localStorage.getItem('lexisPredict_notes_analysis');
         if (savedInsights) {
@@ -227,6 +240,7 @@ export default function UnifiedReport() {
       `Risco carteira: ${metrics.riskScore}% (${metrics.riskLevel})`,
       `Procedentes (lista): ${metrics.listProcedente.length}`,
       `Improcedentes (lista): ${metrics.listImprocedente.length}`,
+      `Finanças — A receber: ${financeResumo?.a_receber ?? 0} | Recebido: ${financeResumo?.pago ?? 0} | Vencido: ${financeResumo?.vencido ?? 0} | Lançamentos: ${financeResumo?.total ?? 0}`,
       `Top críticos:\n${topCrit || "(nenhum)"}`,
       `Top chance encerramento:\n${topCh || "(nenhum)"}`,
       `Anotações no gabinete: ${notes.length}`,
@@ -266,6 +280,82 @@ export default function UnifiedReport() {
     window.print();
   };
 
+  const handleDownloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const [{ downloadPdf }, { DossieOperacionalPDF }] = await Promise.all([
+        import("@/lib/pdf-download"),
+        import("@/components/pdf/dossie-operacional-pdf"),
+      ]);
+      const money = (n?: number) =>
+        (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      const stamp = new Date().toISOString().slice(0, 10);
+      const ok = await downloadPdf(
+        <DossieOperacionalPDF
+          data={{
+            geradoEm: new Date().toLocaleString("pt-BR"),
+            auditor: profile?.nome || "—",
+            cargo: profile?.cargo || "—",
+            kpis: [
+              { label: "Ativos", value: String(metrics.activeTotal) },
+              { label: "Vencidos", value: `${metrics.countVencido} / ${metrics.countHoje}` },
+              { label: "Risco", value: `${metrics.riskScore}%` },
+              { label: "B.A.", value: String(metrics.countBA) },
+              { label: "Atend. semana", value: String(metrics.countAtendidosSemana ?? 0) },
+            ],
+            resumoExecutivo: metrics.recomendacoes,
+            semana: {
+              label: metrics.semanaLabel,
+              series: (metrics.serieAtendimentosSemana || []).map((d: any) => ({
+                day: d.day,
+                atendidos: d.atendimentos,
+              })),
+              media: metrics.mediaDia,
+            },
+            finance:
+              financeResumo && financeRows.length > 0
+                ? {
+                    aReceber: money(financeResumo?.a_receber),
+                    pago: money(financeResumo?.pago),
+                    vencido: money(financeResumo?.vencido),
+                    lancamentos: financeResumo?.total ?? 0,
+                    destaques: financeRows.slice(0, 8).map((r) => ({
+                      cliente: r.cliente || "—",
+                      descricao: r.descricao || r.tipo || "sem descrição",
+                      valor: money(Number(r.valor)),
+                      status: r.status || "—",
+                    })),
+                  }
+                : null,
+            claude: claudeReady && claudeText
+                ? { engine: claudeEngine || "Claude AI", texto: claudeText }
+                : null,
+            criticos: metrics.topCriticos.map((i: any) => ({
+              cliente: i.case.cliente,
+              protocolo: i.case.protocolo,
+              sinal: i.sinal.titulo,
+              data: i.sinal.data ? new Date(i.sinal.data).toLocaleDateString("pt-BR") : "",
+            })),
+            topChance: metrics.topChance.map((i: any) => ({
+              cliente: i.case.cliente,
+              protocolo: i.case.protocolo,
+              prob: i.prob,
+            })),
+            notas: notes.length,
+          }}
+        />,
+        `Dossie_Operacional_${stamp}`
+      );
+      if (ok) {
+        setClaudeReady(true);
+      }
+    } catch (e) {
+      console.error("PDF:", e);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   if (!mounted || loading || authLoading) {
     return (
       <div className="min-h-screen lexis-report-root flex flex-col items-center justify-center space-y-6">
@@ -295,6 +385,14 @@ export default function UnifiedReport() {
             >
               {claudeLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Sparkles size={16} className="mr-2" />}
               Gerar parecer Claude AI
+            </Button>
+            <Button
+              onClick={handleDownloadPdf}
+              disabled={pdfLoading}
+              className="bg-success hover:bg-success/90 text-success-foreground font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
+            >
+              {pdfLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
+              Baixar PDF (arquivo)
             </Button>
             <Button
               onClick={handlePrint}
@@ -353,6 +451,72 @@ export default function UnifiedReport() {
            <KpiCard label="Busca e Apreensão" value={metrics.countBA} />
            <KpiCard label="Baixas Tribunal" value={metrics.countEncerradoTribunal} />
            <KpiCard label="Fase Executiva" value={metrics.countCumprimento} />
+        </section>
+
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+           <div className="lexis-report-band bg-emerald-600 text-white p-5 flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><TrendingUpIcon size={14}/> Demonstrativo Financeiro — Honorários</h3>
+              <Badge className="bg-white/20 text-white font-black text-[8px] uppercase">{financeResumo?.total ?? "—"} lançamentos</Badge>
+           </div>
+           <div className="p-8 space-y-6">
+              {financeResumo ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">A receber</p>
+                    <p className="text-xl font-black text-amber-600 tabular-nums">{(financeResumo?.a_receber || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Recebido</p>
+                    <p className="text-xl font-black text-emerald-600 tabular-nums">{(financeResumo?.pago || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Vencido</p>
+                    <p className="text-xl font-black text-red-600 tabular-nums">{(financeResumo?.vencido || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Fluxo líquido</p>
+                    <p className={cn("text-xl font-black tabular-nums", (financeResumo?.pago || 0) - (financeResumo?.a_receber || 0) >= 0 ? "text-emerald-600" : "text-red-600")}>
+                      {((financeResumo?.pago || 0) - (financeResumo?.a_receber || 0)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] font-black uppercase text-muted-foreground/60 text-center py-6">
+                  Sem dados financeiros disponíveis — cadastre lançamentos em Finanças / Honorários.
+                </p>
+              )}
+              {financeRows.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <table className="w-full text-left text-[9px] font-black uppercase">
+                    <thead className="bg-muted/60 border-b border-border">
+                      <tr>
+                        <th className="p-3 text-muted-foreground">Cliente / Protocolo</th>
+                        <th className="p-3 text-muted-foreground">Tipo</th>
+                        <th className="p-3 text-right text-muted-foreground">Valor</th>
+                        <th className="p-3 text-center text-muted-foreground">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {financeRows.slice(0, 8).map((r) => (
+                        <tr key={r.id} className="hover:bg-muted/40">
+                          <td className="p-3">
+                            <p className="text-[9px] font-black text-foreground">{r.cliente || "—"}</p>
+                            <p className="text-[7px] text-muted-foreground font-mono">{r.protocolo || ""}</p>
+                          </td>
+                          <td className="p-3 text-muted-foreground">{r.tipo}</td>
+                          <td className="p-3 text-right text-foreground tabular-nums">{(Number(r.valor) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
+                          <td className="p-3 text-center">
+                            <Badge variant="outline" className={cn("text-[7px] font-black border", r.status === "pago" ? "border-emerald-500/40 text-emerald-600" : r.status === "cancelado" ? "border-border text-muted-foreground" : "border-amber-500/40 text-amber-600")}>
+                              {r.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+           </div>
         </section>
 
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-6 space-y-3 break-inside-avoid">

@@ -10,7 +10,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import { fetchCompanyProcessosAction } from "@/app/actions/case-actions";
+import { fetchCompanyProcessosAction, registrarAuditoriaEventAction } from "@/app/actions/case-actions";
+import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { LegalCase } from "@/lib/case-logic";
@@ -30,11 +31,24 @@ import {
   FilePlus2,
   Users,
   ShieldCheck,
+  FileDown,
+  Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type AuditEntry = {
   id: string;
@@ -94,6 +108,10 @@ export default function ProcessosEmpresaPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [baOnly, setBaOnly] = useState(false);
+  const [editing, setEditing] = useState<LegalCase | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -105,6 +123,54 @@ export default function ProcessosEmpresaPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const baCount = useMemo(() => cases.filter((c) => !!c.indicio_busca_apreensao || c.evento_tipo === "ba").length, [cases]);
+
+  const toDateInput = (v?: string) => {
+    if (!v) return "";
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+    const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+  };
+
+  const fromDateInput = (v: string) => {
+    if (!v) return "";
+    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSaving(true);
+    const updated: LegalCase = { ...editing };
+    const res = await saveOneCaseAction(updated);
+    if (res.success) {
+      await registrarAuditoriaEventAction("edicao", [editing.protocolo], {
+        detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
+      });
+      setEditOpen(false);
+      setEditing(null);
+      await load();
+    }
+    setSaving(false);
+  };
+
+  const exportCsv = () => {
+    const head = ["cliente", "protocolo", "advogado", "escritorio", "tribunal", "status", "ultimoRetorno", "indicio_busca_apreensao", "criado_por"];
+    const lines = filtered.map((c) =>
+      [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, c.status, c.ultimoRetorno, c.indicio_busca_apreensao ? "SIM" : "NAO", nomeByAuth.get(String(c.created_by || "")) || ""]
+        .map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`)
+        .join(";")
+    );
+    const csv = [head.join(";"), ...lines].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Processos_Empresa_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const nomeByAuth = useMemo(() => {
     const m = new Map<string, string>();
@@ -129,12 +195,13 @@ export default function ProcessosEmpresaPage() {
     const query = q.toLowerCase().trim();
     return cases.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
+      if (baOnly && !c.indicio_busca_apreensao && c.evento_tipo !== "ba") return false;
       if (!query) return true;
       return [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, String(c.status)]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(query));
     });
-  }, [cases, q, statusFilter]);
+  }, [cases, q, statusFilter, baOnly]);
 
   const recentFeed = useMemo(() => audit.slice(0, 24), [audit]);
 
@@ -171,6 +238,12 @@ export default function ProcessosEmpresaPage() {
               className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
             >
               <RefreshCcw size={14} className={cn(loading && "animate-spin")} /> Atualizar
+            </button>
+            <button
+              onClick={exportCsv}
+              className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
+            >
+              <FileDown size={14} /> CSV
             </button>
           </div>
         </header>
@@ -210,6 +283,18 @@ export default function ProcessosEmpresaPage() {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => setBaOnly(!baOnly)}
+                    className={cn(
+                      "h-9 rounded-xl border px-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-colors shrink-0",
+                      baOnly
+                        ? "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400"
+                        : "border-border/60 bg-card/60 hover:bg-card text-muted-foreground"
+                    )}
+                    title="Filtrar apenas processos com indício de busca e apreensão"
+                  >
+                    <ShieldAlert size={13} /> B.A. {baCount > 0 ? `(${baCount})` : ""}
+                  </button>
                 </div>
               </div>
 
@@ -232,10 +317,12 @@ export default function ProcessosEmpresaPage() {
                         <th className="px-4 py-3">Advogado</th>
                         <th className="px-4 py-3">Status</th>
                         <th className="px-4 py-3">Tribunal</th>
+                        <th className="px-4 py-3 text-center">B.A.</th>
                         <th className="px-4 py-3 text-right">Último retorno</th>
                         <th className="px-4 py-3 text-center">Semana</th>
                         <th className="px-4 py-3">Criado por</th>
-                        <th className="px-6 py-3">Última atividade</th>
+                        <th className="px-4 py-3">Última atividade</th>
+                        <th className="px-6 py-3 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/10">
@@ -257,6 +344,15 @@ export default function ProcessosEmpresaPage() {
                               </Badge>
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.tribunal}</td>
+                            <td className="px-4 py-3 text-center">
+                              {(c.indicio_busca_apreensao || c.evento_tipo === "ba") ? (
+                                <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
+                                  <ShieldAlert size={10} className="mr-1" /> B.A.{(c as any).ba_tipo ? ` ${(c as any).ba_tipo}` : ""}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground/30 text-[10px] font-black">—</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-right text-[11px] font-bold tabular-nums">{c.ultimoRetorno || "—"}</td>
                             <td className="px-4 py-3 text-center">
                               <CheckCircle2
@@ -281,6 +377,18 @@ export default function ProcessosEmpresaPage() {
                               ) : (
                                 <span className="text-[9px] text-muted-foreground/40 uppercase font-bold">—</span>
                               )}
+                            </td>
+                            <td className="px-6 py-3 text-center">
+                              <button
+                                onClick={() => {
+                                  setEditing(c);
+                                  setEditOpen(true);
+                                }}
+                                className="h-8 w-8 rounded-lg border border-border/60 bg-card/60 hover:bg-card hover:text-primary inline-flex items-center justify-center transition-colors"
+                                title="Editar processo"
+                              >
+                                <Pencil size={13} />
+                              </button>
                             </td>
                           </tr>
                         );
@@ -324,6 +432,95 @@ export default function ProcessosEmpresaPage() {
             </section>
           </div>
         </ScrollArea>
+
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black">
+                <Pencil size={15} className="text-primary" /> Editar processo
+              </DialogTitle>
+            </DialogHeader>
+            {editing ? (
+              <div className="space-y-4 py-2">
+                <div className="rounded-xl border border-border bg-secondary/10 p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase truncate">{editing.cliente}</p>
+                    <p className="text-[9px] font-mono text-muted-foreground/60 truncate">{editing.protocolo}</p>
+                  </div>
+                  <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-2 py-0 border", statusTone(editing.status))}>
+                    {editing.status}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label className="text-[9px] font-black uppercase">Cliente</Label>
+                    <Input value={editing.cliente} onChange={(e) => setEditing({ ...editing, cliente: e.target.value })} className="h-10" />
+                  </div>
+                  <div>
+                    <Label className="text-[9px] font-black uppercase">Advogado</Label>
+                    <Input value={editing.advogado || ""} onChange={(e) => setEditing({ ...editing, advogado: e.target.value })} className="h-10" />
+                  </div>
+                  <div>
+                    <Label className="text-[9px] font-black uppercase">Escritório</Label>
+                    <Input value={editing.escritorio || ""} onChange={(e) => setEditing({ ...editing, escritorio: e.target.value })} className="h-10" />
+                  </div>
+                  <div>
+                    <Label className="text-[9px] font-black uppercase">Tribunal</Label>
+                    <Input value={editing.tribunal || ""} onChange={(e) => setEditing({ ...editing, tribunal: e.target.value })} className="h-10" />
+                  </div>
+                  <div>
+                    <Label className="text-[9px] font-black uppercase">Telefone</Label>
+                    <Input value={editing.telefone || ""} onChange={(e) => setEditing({ ...editing, telefone: e.target.value })} className="h-10" />
+                  </div>
+                  <div>
+                    <Label className="text-[9px] font-black uppercase">Próximo prazo</Label>
+                    <Input type="date" value={toDateInput(editing.proximoPrazo)} onChange={(e) => setEditing({ ...editing, proximoPrazo: fromDateInput(e.target.value) })} className="h-10" />
+                  </div>
+                  <div>
+                    <Label className="text-[9px] font-black uppercase">Último retorno</Label>
+                    <Input type="date" value={toDateInput(editing.ultimoRetorno)} onChange={(e) => setEditing({ ...editing, ultimoRetorno: fromDateInput(e.target.value) })} className="h-10" />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/60 p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label className="text-[9px] font-black uppercase">Indícios de B.A.</Label>
+                      <p className="text-[8px] font-bold uppercase text-muted-foreground/60">Busca e apreensão relacionada ao processo</p>
+                    </div>
+                    <Switch
+                      checked={!!editing.indicio_busca_apreensao}
+                      onCheckedChange={(v) => setEditing({ ...editing, indicio_busca_apreensao: v })}
+                    />
+                  </div>
+                  {editing.indicio_busca_apreensao ? (
+                    <div>
+                      <Label className="text-[9px] font-black uppercase">Motivo / tipo da B.A.</Label>
+                      <Input
+                        value={(editing as any).busca_apreensao_motivo || (editing as any).ba_tipo || ""}
+                        onChange={(e) => setEditing({ ...editing, busca_apreensao_motivo: e.target.value } as any)}
+                        placeholder="Ex: veículo / prisão / penhora / imóvel"
+                        className="h-10"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+
+                <div>
+                  <Label className="text-[9px] font-black uppercase">Observações</Label>
+                  <Textarea value={editing.observacao || ""} onChange={(e) => setEditing({ ...editing, observacao: e.target.value })} rows={3} />
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+              <Button onClick={saveEdit} disabled={saving}>
+                {saving ? <Loader2 className="animate-spin" size={14} /> : "Salvar alterações"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

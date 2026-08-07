@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { FileDown } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
 const COLORS = ["hsl(var(--primary))", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
@@ -68,6 +69,7 @@ export default function SupervisaoPage() {
   const [snap, setSnap] = useState<SupervisaoSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const isSupervisor = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
   const allowed = profile?.cargo === "Supervisor" || profile?.cargo === "Administrador" || checkIfSuperAdmin(profile);
@@ -87,6 +89,29 @@ export default function SupervisaoPage() {
   useEffect(() => {
     if (allowed && !authLoading) load();
   }, [allowed, authLoading]);
+
+  const handleDownloadPdf = async () => {
+    if (!snap) return;
+    setPdfLoading(true);
+    try {
+      const [{ downloadPdf }, { SupervisaoPDF }] = await Promise.all([
+        import("@/lib/pdf-download"),
+        import("@/components/pdf/supervisao-pdf"),
+      ]);
+      await downloadPdf(
+        <SupervisaoPDF
+          data={snap}
+          geradoEm={new Date().toLocaleString("pt-BR")}
+          auditor={profile?.nome}
+        />,
+        `Supervisao_Operacional_${new Date().toISOString().slice(0, 10)}`
+      );
+    } catch (e) {
+      console.error("Supervisão PDF:", e);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   if (!authLoading && !allowed) {
     return (
@@ -129,6 +154,16 @@ export default function SupervisaoPage() {
             )}
             <Button variant="outline" size="sm" onClick={load} className="h-9 rounded-xl" disabled={loading}>
               <RefreshCcw size={14} className={cn("mr-1.5", loading && "animate-spin")} /> Atualizar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPdf}
+              disabled={!snap || pdfLoading}
+              className="h-9 rounded-xl border-primary/40 text-primary hover:bg-primary/10"
+            >
+              {pdfLoading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <FileDown size={14} className="mr-1.5" />}
+              Extrair PDF
             </Button>
           </div>
         </header>

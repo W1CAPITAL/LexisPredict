@@ -48,6 +48,40 @@ const emptyForm = {
   observacao: "",
 };
 
+const CACHE_KEY = "lexis_financas_cache_v1";
+
+function readCache(): HonorarioRow[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as HonorarioRow[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCache(rows: HonorarioRow[]) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(rows));
+  } catch (e) {
+    console.warn("Cache finanças indisponível:", e);
+  }
+}
+
+function isVencido(r: HonorarioRow) {
+  if (r.status === "pago" || r.status === "cancelado") return false;
+  if (!r.vencimento) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return r.vencimento < today;
+}
+
+function filterRows(rows: HonorarioRow[], filter: string) {
+  if (filter === "todos") return rows;
+  if (filter === "vencido") return rows.filter(isVencido);
+  return rows.filter((r) => r.status === filter);
+}
+
 export default function FinancasPage() {
   const { toast } = useToast();
   const [rows, setRows] = useState<HonorarioRow[]>([]);
@@ -57,17 +91,38 @@ export default function FinancasPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [cacheMode, setCacheMode] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     const [list, sum] = await Promise.all([
-      listHonorariosAction({ status: filter }),
+      listHonorariosAction({ limit: 500 }),
       resumoFinanceiroAction(),
     ]);
-    if (list.success) setRows(list.rows);
-    else {
-      setRows([]);
-      toast({ title: "Finanças", description: list.error, variant: "destructive" });
+    if (list.success) {
+      if (list.rows.length > 0) {
+        writeCache(list.rows);
+        setCacheMode(false);
+        setRows(filterRows(list.rows, filter));
+      } else {
+        const cached = readCache();
+        if (cached.length > 0) {
+          setRows(filterRows(cached, filter));
+          setCacheMode(true);
+        } else {
+          setRows([]);
+          setCacheMode(false);
+        }
+      }
+    } else {
+      const cached = readCache();
+      if (cached.length > 0) {
+        setRows(filterRows(cached, filter));
+        setCacheMode(true);
+      } else {
+        setRows([]);
+        toast({ title: "Finanças", description: list.error, variant: "destructive" });
+      }
     }
     if (sum.success) setResumo(sum.resumo);
     setLoading(false);
@@ -91,11 +146,36 @@ export default function FinancasPage() {
       pago_em: form.pago_em || undefined,
       observacao: form.observacao || undefined,
     });
-    setSaving(false);
     if (!res.success) {
-      toast({ title: "Erro", description: res.error, variant: "destructive" });
+      const cached = readCache();
+      const now = new Date().toISOString();
+      const row: HonorarioRow = {
+        id: form.id || `local_${Date.now()}`,
+        empresa_id: "local",
+        created_by: null,
+        protocolo: form.protocolo || null,
+        cliente: form.cliente || null,
+        tipo: form.tipo,
+        descricao: form.descricao || null,
+        valor: parseFloat(form.valor.replace(",", ".")) || 0,
+        status: form.status,
+        vencimento: form.vencimento || null,
+        pago_em: form.pago_em || null,
+        observacao: form.observacao || null,
+        created_at: now,
+      };
+      const next = form.id
+        ? cached.map((r) => (r.id === form.id ? { ...r, ...row, id: r.id } : r))
+        : [row, ...cached];
+      writeCache(next);
+      setSaving(false);
+      toast({ title: "Salvo localmente", description: "Servidor indisponível — lançamento guardado no dispositivo. Tente sincronizar depois.", variant: "destructive" });
+      setOpen(false);
+      setForm(emptyForm);
+      load();
       return;
     }
+    setSaving(false);
     toast({ title: "Salvo" });
     setOpen(false);
     setForm(emptyForm);
@@ -128,7 +208,7 @@ export default function FinancasPage() {
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="pendente">Pendentes</SelectItem>
                 <SelectItem value="pago">Pagos</SelectItem>
-                <SelectItem value="vencido">—</SelectItem>
+                <SelectItem value="vencido">Vencidos</SelectItem>
                 <SelectItem value="cancelado">Cancelados</SelectItem>
               </SelectContent>
             </Select>
@@ -146,6 +226,13 @@ export default function FinancasPage() {
             </Button>
           </div>
         </header>
+
+        {cacheMode ? (
+          <div className="mx-4 mt-2 shrink-0 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-700">
+            <RefreshCcw size={12} className="animate-pulse" />
+            Exibindo lançamentos salvos neste dispositivo — o servidor não respondeu. Ao voltar, eles serão sincronizados.
+          </div>
+        ) : null}
 
         <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
           <div className="rounded-xl border p-3 bg-card">
@@ -226,6 +313,8 @@ export default function FinancasPage() {
                       className="text-destructive"
                       onClick={async () => {
                         await deleteHonorarioAction(r.id);
+                        const next = readCache().filter((x) => x.id !== r.id);
+                        writeCache(next);
                         load();
                       }}
                     >

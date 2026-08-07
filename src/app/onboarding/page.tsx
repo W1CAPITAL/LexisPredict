@@ -21,6 +21,11 @@ import {
   Briefcase,
   FileSignature,
   Zap,
+  LayoutDashboard,
+  Wallet,
+  Users,
+  Settings,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -161,6 +166,56 @@ export default function OnboardingVideoPage() {
               desc="11 passos com rotina, dicas e limites honestos do CNJ."
             />
           </div>
+
+          <section className="mt-6 mb-10 space-y-6">
+            <div>
+              <h2 className="text-lg font-bold tracking-tight">Guia rápido por área</h2>
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider mt-1">
+                Pule direto para a página onde você trabalha.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <QuickLink href="/" icon={<LayoutDashboard size={15} />} title="Painel" desc="Radar, metas e risco do dia." />
+              <QuickLink href="/processos" icon={<Briefcase size={15} />} title="Processos" desc="Filtros, edição e auditoria 3D." />
+              <QuickLink href="/supervisao" icon={<Zap size={15} />} title="Supervisão" desc="Equipe, KPIs e PDF executivo." />
+              <QuickLink href="/financas" icon={<Wallet size={15} />} title="Finanças" desc="Honorários e demonstrativo." />
+              <QuickLink href="/report" icon={<FileSpreadsheet size={15} />} title="Dossiê" desc="Relatório operacional em PDF." />
+              <QuickLink href="/team" icon={<Users size={15} />} title="Equipe" desc="Operadores e permissões." />
+              <QuickLink href="/settings" icon={<Settings size={15} />} title="Configurações" desc="Tema, engine e hardware visual." />
+              <QuickLink href="/settings/ops" icon={<FileSignature size={15} />} title="Ops" desc="Import/export e segurança." />
+            </div>
+          </section>
+
+          <section className="mb-10 space-y-4">
+            <div>
+              <h2 className="text-lg font-bold tracking-tight">Perguntas frequentes</h2>
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider mt-1">
+                Respostas rápidas para o dia a dia do gabinete.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <FaqItem
+                q="Como o scanner retoma depois de recarregar a página?"
+                a="O lote fica persistido no navegador. Ao reabrir a Fila/Scanner, o progresso continua de onde parou, sem reescanear o que já foi processado."
+              />
+              <FaqItem
+                q="Qual a diferença entre Veredito, Painel e Dossiê?"
+                a="O Veredito busca a peça por CNJ/CPF/nome (DataJud + DJEN). O Painel é o radar do dia. O Dossiê Operacional é o relatório consolidado em PDF com KPIs e finanças."
+              />
+              <FaqItem
+                q="O que é a coluna B.A. em Processos?"
+                a="Indica processos com indício de Busca e Apreensão. Use o filtro 'B.A.' para isolar esses casos e o botão Editar para ajustar o motivo quando necessário."
+              />
+              <FaqItem
+                q="Posso editar um processo?"
+                a="Sim. Em Processos, cada linha tem o botão de edição (pincel). Cliente, advogado, escritório, tribunal, prazos e indício de B.A. são editáveis — toda alteração fica registrada na auditoria."
+              />
+              <FaqItem
+                q="O PDF do Dossiê é um arquivo real?"
+                a="Sim. O botão 'Baixar PDF (arquivo)' gera e baixa um .pdf real pelo navegador, com resumo executivo, finanças, parecer da IA e críticos."
+              />
+            </div>
+          </section>
         </div>
 
         <footer className="h-10 border-t border-border/60 flex items-center justify-center gap-4 text-[10px] text-muted-foreground font-medium uppercase tracking-[0.18em] shrink-0">
@@ -204,5 +259,65 @@ function FeatureCard({
         {desc}
       </p>
     </div>
+  );
+}
+
+function QuickLink({
+  href,
+  title,
+  desc,
+  icon,
+}: {
+  href: string;
+  title: string;
+  desc: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "group flex items-start gap-3 bg-card border border-border/80 p-4 rounded-xl",
+        "transition-all duration-200 ease-out",
+        "hover:shadow-md hover:-translate-y-0.5 hover:border-primary/25"
+      )}
+    >
+      <div className="shrink-0 w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <h3 className="font-bold uppercase text-[11px] tracking-tight group-hover:text-primary transition-colors">
+          {title}
+        </h3>
+        <p className="text-[11px] font-medium text-muted-foreground leading-snug mt-0.5">
+          {desc}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="group bg-card border border-border/80 rounded-xl overflow-hidden"
+    >
+      <summary className="flex items-center justify-between gap-3 cursor-pointer select-none list-none p-4 text-[13px] font-bold tracking-tight hover:bg-primary/5 transition-colors">
+        {q}
+        <ChevronDown
+          size={16}
+          className={cn(
+            "shrink-0 text-muted-foreground transition-transform duration-200",
+            open && "rotate-180"
+          )}
+        />
+      </summary>
+      <p className="px-4 pb-4 text-[12px] font-medium text-muted-foreground leading-relaxed">
+        {a}
+      </p>
+    </details>
   );
 }

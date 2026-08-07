@@ -49,6 +49,23 @@ export function applyWallpaperUrl(url: string) {
   window.dispatchEvent(new Event("lexis-wallpaper-changed"));
 }
 
+/** Aplica um wallpaper genérico (URL, data-URL ou gradiente CSS) como fundo fixo. */
+export function applyWallpaperStyle(imageValue: string) {
+  if (typeof localStorage === 'undefined' || typeof document === 'undefined') return;
+  if (!imageValue) {
+    resetWallpaper();
+    return;
+  }
+  localStorage.setItem("lexisPredict_wallpaper", imageValue);
+  const root = document.documentElement;
+  root.style.backgroundImage = imageValue;
+  root.style.backgroundSize = 'cover';
+  root.style.backgroundPosition = 'center';
+  root.style.backgroundAttachment = 'fixed';
+  root.style.backgroundRepeat = 'no-repeat';
+  window.dispatchEvent(new Event("lexis-wallpaper-changed"));
+}
+
 export async function resetWallpaper() {
   if (typeof localStorage === 'undefined' || typeof document === 'undefined') return;
   
