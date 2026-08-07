@@ -1,22 +1,37 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
+ *
+ * Cliente browser com cookies (SSR-compatible) para o middleware ver a sessão.
+ * Evita loop login ↔ home quando a sessão ficava só no localStorage.
  */
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from "@supabase/ssr";
+import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-export const isSupabaseConfigured = 
-  supabaseUrl !== '' && 
-  supabaseAnonKey !== '';
+export const isSupabaseConfigured =
+  supabaseUrl !== "" && supabaseAnonKey !== "";
 
-// Inicialização segura: evita crash se as variáveis estiverem vazias
-export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null as any;
+function createLexisClient() {
+  if (!isSupabaseConfigured) return null as any;
+  // No browser: cookies + localStorage via @supabase/ssr (middleware consegue ler)
+  if (typeof window !== "undefined") {
+    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }
+  // Server/module init: cliente JS simples (sem cookies de request)
+  return createSupabaseJsClient(supabaseUrl, supabaseAnonKey);
+}
 
-export type UserRole = 'Superadmin' | 'Administrador' | 'Operador' | 'Visualizador' | 'Supervisor';
+export const supabase = createLexisClient();
+
+export type UserRole =
+  | "Superadmin"
+  | "Administrador"
+  | "Operador"
+  | "Visualizador"
+  | "Supervisor";
 
 export interface UserProfile {
   id: string;
@@ -35,6 +50,8 @@ export interface Empresa {
   nome: string;
   created_at: string;
 }
+
+
 
 /**
  * Utilitário de Verificação de Autoridade Mestre de Sistema.

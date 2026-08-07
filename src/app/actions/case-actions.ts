@@ -7,6 +7,7 @@
 import { logScanMetric, logAlertEvent } from '@/lib/scan-metrics';
 import {
   getStoredCasesForEmpresa,
+  getStoredCasesPageForEmpresa,
   saveStoredCasesForEmpresa,
   getUserContext,
   updateCaseDataJudSystem,
@@ -80,6 +81,13 @@ function getWeight(t: string | null | undefined): number {
     rotina: 10,
   };
   return weights[t] || 0;
+}
+
+
+export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminView = false) {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return [];
+  return await getStoredCasesPageForEmpresa(empresa_id, limit, offset, adminView);
 }
 
 export async function fetchRepoCases() {
@@ -603,7 +611,7 @@ export async function registrarAtendimentoAction(
 
 /** Registra evento de auditoria genérico (edição / exclusão / criação). */
 export async function registrarAuditoriaEventAction(
-  acao: 'edicao' | 'exclusao' | 'criacao',
+  acao: 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento',
   protocolos: string[],
   detalhes: Record<string, any> = {}
 ) {

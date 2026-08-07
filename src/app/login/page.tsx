@@ -46,12 +46,12 @@ export default function LoginPage() {
     if (!authLoading && user && profile) {
       router.replace('/');
       router.refresh();
+      // Uma única tentativa suave — evita loop assign('/') ↔ /login
       safetyTimeout = setTimeout(() => {
-        if (window.location.pathname.includes('/login')) {
-          console.log("[Auth] Válvula de Segurança: Forçando recarregamento total para Mission Control...");
-          window.location.assign('/');
+        if (window.location.pathname.includes('/login') && user && profile) {
+          router.replace('/');
         }
-      }, 2500);
+      }, 1500);
     }
 
     return () => clearTimeout(safetyTimeout);
