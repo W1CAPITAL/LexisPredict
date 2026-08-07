@@ -91,7 +91,8 @@ export const LiquidMetalButton = React.forwardRef<
         strength={strength}
         theme="dark"
         normalizeHostStyles
-        className="inline-flex"
+        disableGlow
+        className="metal-fx-host inline-flex items-center justify-center min-h-[2.25rem] opacity-100"
       >
         {btn}
       </MetalFx>

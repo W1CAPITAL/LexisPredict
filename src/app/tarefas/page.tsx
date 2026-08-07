@@ -52,7 +52,8 @@ import {
 } from '@/lib/flags-operacionais';
 import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade, scorePreditivo } from '@/lib/fila-prioridade';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
-import { cn, formatWhatsAppLink } from '@/lib/utils';
+import { cn, formatWhatsAppLink } from '@/lib/utils'
+import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -379,7 +380,7 @@ export default function TarefasPage() {
         groups[nome] = {
           cliente: nome, vencidos: 0, hoje: 0, totalAtivos: 0, diasAtrasoMax: 0,
           protocoloReferencia: c.protocolo, telefone: c.telefone || '', advogado: c.advogado || '', escritorio: (c.escritorio || '').trim().toUpperCase(),
-          cases: [], hasBA: false, hasClosedCourt: false, hasUpdate: false, eventoUnificadoResumo: null, eventoTipo: null, statusScore: 0, oldestReturnGap: 0
+          cases: [], hasBA: false, hasClosedCourt: false, hasUpdate: false, hasAttendedWeek: false, eventoUnificadoResumo: null, eventoTipo: null, statusScore: 0, oldestReturnGap: 0
         };
       }
       const g = groups[nome];
@@ -387,6 +388,7 @@ export default function TarefasPage() {
       g.cases.push(c);
       const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
       if (temBaCarteira(c as any, baSet)) g.hasBA = true;
+      if (isAtendidoNestaSemana(c.ultimoRetorno || (c as any).ultimo_retorno)) g.hasAttendedWeek = true;
       if (temNovidadeIdentificada(c as any)) g.hasUpdate = true;
       if (temAudienciaPendente(c as any)) (g as any).hasAudiencia = true;
       if (temCumprimento(c as any)) (g as any).hasCumprimento = true;
@@ -689,6 +691,7 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
           {group.hasBA ? <Badge className="bg-red-600 text-white text-[8px] font-black uppercase">CRÍTICO: B.A.</Badge> : null}
+          {group.hasAttendedWeek ? <Badge className="badge-semana text-[8px] font-black uppercase">Atendido semana</Badge> : null}
           {group.cases?.[0] ? (
             <Badge variant="outline" className="text-[7px] font-black uppercase border-black/20">
               {rotuloPrioridade(group.cases[0] as any)} · {faixaPrioridade(group.cases[0] as any)}

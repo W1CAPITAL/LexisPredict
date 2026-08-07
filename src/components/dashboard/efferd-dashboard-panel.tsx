@@ -27,6 +27,11 @@ import {
   Signal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  buildAtendimentosPorDiaSemana,
+  countAtendidosNestaSemana,
+  labelSemanaAtual,
+} from "@/lib/atendimento-semana";
 
 type Kpi = {
   label: string;
@@ -123,6 +128,8 @@ export type LexisDashboardProps = {
   riskScore?: number;
   className?: string;
   compact?: boolean;
+  /** Casos da carteira — gera série real de último atendimento na semana */
+  cases?: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null }>;
 };
 
 export function Dashboard({
@@ -136,22 +143,28 @@ export function Dashboard({
   riskScore,
   className,
   compact = false,
+  cases = [],
 }: LexisDashboardProps) {
   const series = useMemo(() => {
-    const days = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
-    return days.map((d, i) => {
-      const wave = 0.55 + ((i * 17) % 10) / 20;
-      return {
-        day: d,
-        scans: Math.max(1, Math.round((novidades || 1) * wave + (i % 3))),
-        retornos: Math.max(
-          0,
-          Math.round((pendentes || 1) * (0.25 + (i % 5) * 0.08))
-        ),
-        baixas: Math.max(0, Math.round((baixas || 0) * (0.1 + (i % 4) * 0.05))),
-      };
-    });
-  }, [novidades, pendentes, baixas]);
+    if (cases && cases.length > 0) {
+      return buildAtendimentosPorDiaSemana(cases);
+    }
+    // fallback sem carteira
+    const days = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+    return days.map((d) => ({
+      day: d,
+      scans: 0,
+      retornos: 0,
+      atendimentos: 0,
+      baixas: 0,
+    }));
+  }, [cases]);
+
+  const atendidosSemana = useMemo(
+    () => countAtendidosNestaSemana(cases || []),
+    [cases]
+  );
+  const semanaLabel = useMemo(() => labelSemanaAtual(), []);
 
   const bars = useMemo(
     () => [
@@ -208,6 +221,13 @@ export function Dashboard({
       tone: "ok",
       hint: "Encerrados no CNJ",
     },
+    {
+      label: "Atend. semana",
+      value: atendidosSemana,
+      icon: <Clock size={16} />,
+      tone: atendidosSemana > 0 ? "violet" : "default",
+      hint: "Último retorno nesta semana",
+    },
   ];
 
   const risk = typeof riskScore === "number" ? riskScore : 0;
@@ -246,8 +266,11 @@ export function Dashboard({
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground mb-3">
-              Fluxo semanal (modelo operacional)
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground mb-1">
+              Últimos atendimentos na semana
+            </p>
+            <p className="text-[9px] text-muted-foreground mb-3">
+              {semanaLabel} · {atendidosSemana} caso(s) com retorno nesta semana
             </p>
             <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -264,20 +287,20 @@ export function Dashboard({
                   <Tooltip />
                   <Area
                     type="monotone"
-                    dataKey="scans"
+                    dataKey="atendimentos"
                     stroke="#2563eb"
                     fill="url(#efferdScans)"
                     strokeWidth={2}
-                    name="Sinais"
+                    name="Atendimentos"
                   />
                   <Area
                     type="monotone"
                     dataKey="retornos"
-                    stroke="#94a3b8"
+                    stroke="#34d399"
                     fill="transparent"
                     strokeWidth={1.5}
                     strokeDasharray="4 4"
-                    name="Retornos"
+                    name="Retornos (mesmo)"
                   />
                 </AreaChart>
               </ResponsiveContainer>

@@ -108,3 +108,70 @@
   color: #0f172a !important;
   border-color: #94a3b8 !important;
 }
+
+/* === Anti-desaparecimento MetalFx / animação === */
+.metal-fx-host,
+[data-metal-fx],
+.metal-fx,
+div:has(> .metal-btn-solid) {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  min-width: 2.25rem;
+  max-width: 100%;
+  opacity: 1 !important;
+  visibility: visible !important;
+  overflow: visible !important;
+}
+
+.metal-btn-solid,
+.liquid-metal,
+.glass-liquid-btn,
+.metal-scanner-btn {
+  opacity: 1 !important;
+  visibility: visible !important;
+  min-height: 2.25rem;
+  position: relative;
+  z-index: 2;
+}
+
+/* Texto sempre legível por cima do shader WebGL */
+.metal-btn-solid *,
+.liquid-metal *,
+.glass-liquid-btn *,
+.metal-scanner-btn * {
+  position: relative;
+  z-index: 3;
+  opacity: 1 !important;
+}
+
+/* Liquid metal — contraste forçado */
+.liquid-metal {
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #db2777 100%) !important;
+  color: #ffffff !important;
+  border: 2px solid #0f172a !important;
+  font-weight: 800 !important;
+}
+.liquid-metal--gold {
+  background: linear-gradient(135deg, #fde68a 0%, #f59e0b 50%, #b45309 100%) !important;
+  color: #0f172a !important;
+}
+.liquid-metal--silver {
+  background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 40%, #334155 100%) !important;
+  color: #0f172a !important;
+}
+
+.glass-liquid-btn {
+  background: color-mix(in oklab, var(--primary) 22%, hsl(var(--card))) !important;
+  color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  font-weight: 700 !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Sidebar metal: não colapsar */
+.metal-nav-item {
+  min-height: 2.5rem;
+  opacity: 1 !important;
+}

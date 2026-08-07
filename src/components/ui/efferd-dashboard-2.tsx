@@ -18,6 +18,7 @@ export function EfferdDashboard2(props: {
   riskScore?: number;
   compact?: boolean;
   className?: string;
+  cases?: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null }>;
 }) {
   return (
     <AppShell>
@@ -32,6 +33,7 @@ export function EfferdDashboard2(props: {
         riskScore={props.riskScore}
         compact={props.compact}
         className={props.className}
+        cases={props.cases}
       />
     </AppShell>
   );

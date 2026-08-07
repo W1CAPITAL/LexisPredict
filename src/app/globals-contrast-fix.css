@@ -1,0 +1,66 @@
+/**
+ * Rede de segurança de contraste — evita texto branco em fundo claro
+ * e texto escuro em fundo escuro nos temas.
+ */
+
+/* Cards / painéis claros nunca herdam text-white "solto" */
+.bg-white :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])),
+.bg-card :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])),
+.bg-background :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])) {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Áreas escuras forçam texto claro se alguém botou text-black */
+.bg-black :where(.text-black, .text-slate-900, .text-foreground),
+.bg-slate-950 :where(.text-black, .text-slate-900),
+.bg-zinc-950 :where(.text-black, .text-slate-900),
+[class*="bg-black"] :where(.text-black:not(button)) {
+  color: #f8fafc !important;
+}
+
+/* muted em fundo claro deve ter contraste mínimo */
+:root:not(.dark) .text-muted-foreground {
+  color: hsl(240 4% 36%) !important;
+}
+.dark .text-muted-foreground {
+  color: hsl(240 5% 72%) !important;
+}
+
+/* Labels / uppercase densos legíveis */
+:root:not(.dark) .font-black.uppercase.text-black\/40,
+:root:not(.dark) .text-black\/30,
+:root:not(.dark) .text-black\/40 {
+  color: rgba(15, 23, 42, 0.55) !important;
+}
+.dark .text-black\/30,
+.dark .text-black\/40,
+.dark .text-black\/60 {
+  color: rgba(248, 250, 252, 0.65) !important;
+}
+
+/* Tabelas */
+table td, table th {
+  color: inherit;
+}
+:root:not(.dark) table .text-white:not([class*="bg-"]) {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Dialogs */
+[role="dialog"] {
+  color: hsl(var(--foreground));
+}
+[role="dialog"] .text-white:not(button):not([class*="bg-black"]):not([class*="bg-primary"]):not([class*="bg-red"]):not([class*="bg-emerald"]) {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Badge neutro legível */
+.badge-semana {
+  background: #2563eb !important;
+  color: #fff !important;
+  border: none !important;
+}
+.dark .badge-semana {
+  background: #60a5fa !important;
+  color: #0f172a !important;
+}

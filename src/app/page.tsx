@@ -257,6 +257,7 @@ export default function Dashboard() {
                   baixas={metrics.countEncerradoTribunal}
                   hoje={metrics.countHoje}
                   riskScore={metrics.riskScore}
+                  cases={cases}
                 />
               </section>
             </div>

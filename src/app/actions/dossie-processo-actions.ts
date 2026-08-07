@@ -6,6 +6,7 @@
 import React from 'react';
 import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
 import { isAudienciaReal } from '@/lib/audiencia-detect';
+import { isAtendidoNestaSemana, labelSemanaAtual } from '@/lib/atendimento-semana';
 import type { DossieProcessoData } from '@/components/pdf/dossie-processo-pdf';
 
 function diasSemRetorno(ultimo?: string | null): number | null {
@@ -97,6 +98,8 @@ export async function generateDossieProcessoPDFAction(protocolo: string, opts?: 
       djenResumo: c.djen_ultimo_resumo || undefined,
       djenLink: c.djen_ultimo_link || undefined,
       flags: {
+        atendidoSemana: isAtendidoNestaSemana(c.ultimoRetorno || c.ultimo_retorno),
+        semanaLabel: labelSemanaAtual(),
         novidade: !!(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao),
         baixa: !!c.datajud_encerrado_tribunal,
         ba: !!(c.indicio_busca_apreensao || c.evento_tipo === 'ba'),

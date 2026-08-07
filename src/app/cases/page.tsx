@@ -16,7 +16,8 @@ import {
   Briefcase, RefreshCcw, Plus
 } from 'lucide-react';
 import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic';
-import { cn, formatWhatsAppLink } from '@/lib/utils';
+import { cn, formatWhatsAppLink } from '@/lib/utils'
+import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +70,7 @@ const CaseRow = React.memo(({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground font-black text-[14px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
             {c.indicio_busca_apreensao && <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse"><ShieldAlert size={10} className="mr-1" /> B.A.{(c as any).ba_tipo ? ` ${(c as any).ba_tipo}` : ''}</Badge>}
+            {isAtendidoNestaSemana(c.ultimoRetorno || (c as any).ultimo_retorno) && <Badge className="badge-semana h-5 px-2 rounded-md font-black uppercase text-[8px]">Atendido semana</Badge>}
             {c.datajud_encerrado_tribunal && <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">Encerrado</Badge>}
             {(c.em_cumprimento_sentenca || (c as any).cumprimento_sentenca) && <Badge className="h-5 px-2 rounded-md bg-amber-500 text-black font-black uppercase text-[8px]">Cumprimento</Badge>}
             {((c as any).sentenca_procedente || (c as any).merito_resultado === 'procedente') && <Badge className="h-5 px-2 rounded-md bg-emerald-600 text-white font-black uppercase text-[8px]">Procedente</Badge>}

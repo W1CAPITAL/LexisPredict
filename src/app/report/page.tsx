@@ -38,7 +38,8 @@ import {
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
 import { useAuth } from "@/components/auth/auth-provider";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
+import { countAtendidosNestaSemana, buildAtendimentosPorDiaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/use-app-store";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
@@ -99,6 +100,9 @@ export default function UnifiedReport() {
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
+    const countAtendidosSemana = countAtendidosNestaSemana(ativos as any);
+    const serieAtendimentosSemana = buildAtendimentosPorDiaSemana(ativos as any);
+    const semanaLabel = labelSemanaAtual();
 
     const topCriticos = ativos
       .map(c => ({ case: c, sinal: getSinalCapa(c) }))
@@ -167,6 +171,9 @@ export default function UnifiedReport() {
       countEncerradoTribunal,
       countBA,
       countCumprimento,
+      countAtendidosSemana,
+      serieAtendimentosSemana,
+      semanaLabel,
       riskScore,
       isMaster,
       myVencidos,
@@ -196,6 +203,8 @@ export default function UnifiedReport() {
       `Baixas tribunal: ${metrics.countEncerradoTribunal}`,
       `Busca e apreensão: ${metrics.countBA}`,
       `Cumprimento de sentença: ${metrics.countCumprimento}`,
+      `Atendimentos nesta semana (${metrics.semanaLabel}): ${metrics.countAtendidosSemana}`,
+      `Por dia: ${(metrics.serieAtendimentosSemana || []).map((d: any) => d.day + '=' + d.atendimentos).join(', ')}`,
       `Risco carteira: ${metrics.riskScore}%`,
       `Procedentes (lista): ${metrics.listProcedente.length}`,
       `Improcedentes (lista): ${metrics.listImprocedente.length}`,
@@ -243,6 +252,14 @@ export default function UnifiedReport() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-6">
         <Loader2 className="w-12 h-12 text-black animate-spin" />
         <p className="font-black tracking-[0.4em] text-[10px] text-black uppercase">Consolidando Dossiê Authority...</p>
+          <div className="rounded-2xl border-2 border-black bg-white p-5 mb-6 print:border print:shadow-none">
+            <p className="text-[10px] font-black uppercase tracking-widest text-black/50">Atendimentos nesta semana</p>
+            <p className="text-3xl font-black tabular-nums">{metrics.countAtendidosSemana ?? 0} <span className="text-sm font-bold text-black/40">casos · {metrics.semanaLabel}</span></p>
+            <p className="text-[11px] font-bold text-black/60 mt-2 uppercase tracking-wide">
+              {(metrics.serieAtendimentosSemana || []).map((d: any) => `${d.day}: ${d.atendimentos}`).join(' · ')}
+            </p>
+          </div>
+
       </div>
     );
   }

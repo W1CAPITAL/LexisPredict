@@ -106,11 +106,14 @@ export const MetalButton = React.forwardRef<HTMLButtonElement, MetalButtonProps>
       <MetalFx
         preset={preset}
         variant={metalVariant}
-        strength={Math.min(1, Math.max(0.9, strength))}
+        strength={Math.min(1, Math.max(0.85, strength))}
         paused={effectivePaused}
-        disableGlow={disableGlow}
+        disableGlow={disableGlow ?? true}
         theme={fxTheme}
-        className={cn("inline-flex", metalFxClassName)}
+        className={cn(
+          "metal-fx-host inline-flex items-center justify-center min-h-[2.25rem] min-w-[2.25rem] opacity-100",
+          metalFxClassName
+        )}
         normalizeHostStyles
       >
         {btn}

@@ -74,6 +74,8 @@ export type DossieProcessoData = {
   djenLink?: string;
   flags: {
     novidade?: boolean;
+    atendidoSemana?: boolean;
+    semanaLabel?: string;
     baixa?: boolean;
     ba?: boolean;
     baTipo?: string | null;
@@ -185,6 +187,13 @@ export function DossieProcessoPDF({ data }: { data: DossieProcessoData }) {
             </Text>
           ))}
         </View>
+
+        {data.flags?.atendidoSemana ? (
+          <View style={styles.ok}>
+            <Text style={styles.h2}>Atendimento nesta semana</Text>
+            <Text style={styles.small}>Último retorno registrado dentro da semana operacional ({data.flags.semanaLabel || 'semana atual'}).</Text>
+          </View>
+        ) : null}
 
         {data.analiseClaude ? (
           <>
