@@ -1,0 +1,333 @@
+/**
+ * Rede de segurança de contraste — light / dark / temas custom.
+ * Evita branco-em-branco e preto-em-preto em cards, dossiê, report, dialogs.
+ */
+
+/* ---- Tokens semânticos sempre legíveis ---- */
+:root:not(.dark) {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+/* Fundo claro: força texto escuro quando alguém usou text-white “solto” */
+.bg-white :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white]):not([data-metal])),
+.bg-card :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white]):not([data-metal])),
+.bg-background :where(.text-white:not(button):not([class*="bg-"]):not(.badge):not([data-keep-white])),
+.bg-\[\#f3f2f2\] :where(.text-white:not(button):not([class*="bg-"])),
+.bg-\[\#fafafa\] :where(.text-white:not(button):not([class*="bg-"])),
+[class*="bg-slate-50"] :where(.text-white:not(button):not([class*="bg-"])),
+[class*="bg-gray-50"] :where(.text-white:not(button):not([class*="bg-"])) {
+  color: #0f172a !important;
+}
+
+/* Fundo escuro: força texto claro se botaram text-black */
+.bg-black :where(.text-black, .text-slate-900, .text-slate-800, .text-foreground),
+.bg-slate-950 :where(.text-black, .text-slate-900, .text-slate-800),
+.bg-zinc-950 :where(.text-black, .text-slate-900),
+.bg-slate-900 :where(.text-black, .text-slate-900),
+[class*="bg-black"] :where(.text-black:not(button):not([data-keep-black])),
+.dark .bg-card :where(.text-black:not(button):not([data-keep-black])) {
+  color: #f8fafc !important;
+}
+
+/* Report / dossiê KPI: valor sempre contrastante no card claro */
+.lexis-kpi-card {
+  background: #ffffff !important;
+  border: 2px solid #0f172a !important;
+  color: #0f172a !important;
+}
+.dark .lexis-kpi-card {
+  background: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  color: #f8fafc !important;
+}
+.lexis-kpi-card .lexis-kpi-label {
+  color: #64748b !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-label {
+  color: #94a3b8 !important;
+}
+.lexis-kpi-card .lexis-kpi-value {
+  color: #0f172a !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value {
+  color: #f8fafc !important;
+}
+.lexis-kpi-card .lexis-kpi-value.text-danger,
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-danger {
+  color: #dc2626 !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-danger {
+  color: #f87171 !important;
+}
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-ok {
+  color: #059669 !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-ok {
+  color: #34d399 !important;
+}
+.lexis-kpi-card .lexis-kpi-value.lexis-kpi-info {
+  color: #2563eb !important;
+}
+.dark .lexis-kpi-card .lexis-kpi-value.lexis-kpi-info {
+  color: #60a5fa !important;
+}
+
+/* muted */
+:root:not(.dark) .text-muted-foreground {
+  color: hsl(240 4% 36%) !important;
+}
+.dark .text-muted-foreground {
+  color: hsl(240 5% 72%) !important;
+}
+
+/* opacidades de text-black em dark */
+.dark .text-black\/30,
+.dark .text-black\/40,
+.dark .text-black\/50,
+.dark .text-black\/60,
+.dark .text-black\/70 {
+  color: rgba(248, 250, 252, 0.7) !important;
+}
+:root:not(.dark) .text-white\/30,
+:root:not(.dark) .text-white\/40,
+:root:not(.dark) .text-white\/50 {
+  color: rgba(15, 23, 42, 0.55) !important;
+}
+
+/* Report page root: respeita tema (definição em report-print.css) */
+
+/* Tabelas / dialogs */
+table td, table th { color: inherit; }
+:root:not(.dark) table .text-white:not([class*="bg-"]) {
+  color: hsl(var(--foreground)) !important;
+}
+[role="dialog"] { color: hsl(var(--foreground)); }
+[role="dialog"] .text-white:not(button):not([class*="bg-black"]):not([class*="bg-primary"]):not([class*="bg-red"]):not([class*="bg-emerald"]) {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Badge semana */
+.badge-semana {
+  background: #2563eb !important;
+  color: #fff !important;
+  border: none !important;
+}
+.dark .badge-semana {
+  background: #60a5fa !important;
+  color: #0f172a !important;
+}
+
+/* Inputs / selects legíveis */
+input, textarea, select {
+  color: hsl(var(--foreground));
+}
+input::placeholder, textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.85;
+}
+
+/* Recharts tooltip */
+.recharts-default-tooltip {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* =====================================================================
+   DARK — superfícies "brutalistas" claras fixas (bg-white, #f8f9fb,
+   #f3f2f2, #e2e2e2, slate-50, gray-100, tons 50…) permanecem CLARAS,
+   mas o texto precisa ficar ESCURO para nunca haver "branco-em-branco".
+   Elementos que já são dark-adaptive (classe `dark:bg-*`) ou marcados
+   com `data-keep-light` ficam fora da regra.
+   ===================================================================== */
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+):not([class*="dark:bg-"]):not([data-keep-light]) {
+  color: #0f172a !important;
+}
+
+/* textos theme-aware dentro de superfície clara fixa → forçar escuro */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-foreground"]:not([class*="dark:bg-"]) {
+  color: #0f172a !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-muted-foreground"]:not([class*="dark:bg-"]) {
+  color: #475569 !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-primary"]:not([class*="dark:bg-"]) {
+  color: #1d4ed8 !important;
+}
+
+/* text-black/xx dentro de superfície clara fixa: reverte a regra global
+   (.dark .text-black/xx → claro) para continuar ESCURO e legível */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-black/"]:not([class*="dark:bg-"]) {
+  color: #334155 !important;
+}
+
+/* inputs dentro de superfície clara fixa: texto escuro (senão o texto
+   digitado fica branco-em-branco no dark) */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) :is(input, textarea, select):not([class*="dark:bg-"]) {
+  color: #0f172a !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) :is(input, textarea)::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
