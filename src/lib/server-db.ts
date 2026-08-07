@@ -602,6 +602,87 @@ export async function desativarAdvogadoBanca(id: string) {
   return { success: !error };
 }
 
+/**
+ * AUDITORIA OPERACIONAL — registra quem editou, apagou ou atendeu cada processo.
+ * Tabela: auditoria_logs_app (ver src/lib/migration-auditoria.sql).
+ * Falhas silenciosas: se a tabela ainda não existir, o app continua funcionando.
+ */
+
+export async function getCurrentUserNome(): Promise<string | null> {
+  try {
+    const { auth_id, empresa_id } = await getUserContext();
+    if (!auth_id || !empresa_id || !supabase) return null;
+    const { data } = await supabase
+      .from('usuarios')
+      .select('nome')
+      .eq('auth_user_id', auth_id)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+    return data?.nome || null;
+  } catch { return null; }
+}
+
+export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao';
+
+export async function registrarAuditoriaAction(
+  acao: AuditoriaAcao,
+  protocolos: string[],
+  detalhes: Record<string, any> = {}
+): Promise<{ success: boolean }> {
+  try {
+    const { empresa_id, auth_id } = await getUserContext();
+    if (!empresa_id) return { success: false };
+
+    const nome = await getCurrentUserNome();
+    const alvos = (protocolos || [])
+      .map((p) => String(p).trim())
+      .filter(Boolean);
+
+    if (!alvos.length) return { success: false };
+
+    const admin = await getSupabaseAdmin();
+    const rows = alvos.map((protocolo_ref) => ({
+      empresa_id,
+      auth_user_id: auth_id || null,
+      user_nome: nome || '—',
+      action: acao,
+      protocolo_ref,
+      detalhes: detalhes || {},
+    }));
+
+    const { error } = await admin.from('auditoria_logs_app').insert(rows);
+    if (error) {
+      console.warn('[auditoria] tabela ausente ou erro:', error.message);
+      return { success: false };
+    }
+    return { success: true };
+  } catch (e: any) {
+    console.warn('[auditoria]', e?.message);
+    return { success: false };
+  }
+}
+
+export async function fetchAuditoriaLogsAction(
+  empresaId?: string,
+  limit = 3000
+): Promise<any[]> {
+  try {
+    const ctx = await getUserContext();
+    const empresa = empresaId || ctx.empresa_id;
+    if (!empresa || !supabase) return [];
+
+    const { data, error } = await supabase
+      .from('auditoria_logs_app')
+      .select('*')
+      .eq('empresa_id', empresa)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
+
 export async function clearDataJudAuditAction(protocolo: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return { success: false };

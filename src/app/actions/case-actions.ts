@@ -589,6 +589,49 @@ export async function fetchTeamPerformanceAction() {
   return { users, cases };
 }
 
+/**
+ * Registra quem atendeu/registrou retorno de cada processo (auditoria).
+ * Chamado após salvar atendimento para contabilizar no ranking da semana.
+ */
+export async function registrarAtendimentoAction(
+  protocolos: string[],
+  detalhes: Record<string, any> = {}
+) {
+  const { registrarAuditoriaAction } = await import('@/lib/server-db');
+  return registrarAuditoriaAction('atendimento', protocolos, detalhes);
+}
+
+/** Registra evento de auditoria genérico (edição / exclusão / criação). */
+export async function registrarAuditoriaEventAction(
+  acao: 'edicao' | 'exclusao' | 'criacao',
+  protocolos: string[],
+  detalhes: Record<string, any> = {}
+) {
+  const { registrarAuditoriaAction } = await import('@/lib/server-db');
+  return registrarAuditoriaAction(acao, protocolos, detalhes);
+}
+
+/**
+ * Visão da empresa inteira (todos os perfis): todos os processos da empresa
+ * + trilha de auditoria (quem atendeu/editou/apagou) + usuários.
+ */
+export async function fetchCompanyProcessosAction() {
+  const {
+    getEmpresaUsers,
+    getStoredCasesForEmpresa,
+    getUserContext,
+    fetchAuditoriaLogsAction,
+  } = await import('@/lib/server-db');
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { cases: [], audit: [], users: [] };
+  const [cases, audit, users] = await Promise.all([
+    getStoredCasesForEmpresa(empresa_id, true),
+    fetchAuditoriaLogsAction(empresa_id),
+    getEmpresaUsers(),
+  ]);
+  return { cases, audit, users };
+}
+
 export async function clearDataJudAuditAction(protocolo: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false };
