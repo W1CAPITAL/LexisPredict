@@ -48,7 +48,7 @@ import { getTribunalByCnj } from "@/lib/tribunais-links";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
-export const PORTAL_CUSTAS_TJSP =
+const PORTAL_CUSTAS_TJSP =
   "https://portaldecustas.tjsp.jus.br/portaltjsp/pages/custas/new";
 
 type TabId = "cadastro" | "custas";

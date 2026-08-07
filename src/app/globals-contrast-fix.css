@@ -135,3 +135,199 @@ input::placeholder, textarea::placeholder {
   border: 1px solid #334155 !important;
   color: #f8fafc !important;
 }
+
+/* =====================================================================
+   DARK — superfícies "brutalistas" claras fixas (bg-white, #f8f9fb,
+   #f3f2f2, #e2e2e2, slate-50, gray-100, tons 50…) permanecem CLARAS,
+   mas o texto precisa ficar ESCURO para nunca haver "branco-em-branco".
+   Elementos que já são dark-adaptive (classe `dark:bg-*`) ou marcados
+   com `data-keep-light` ficam fora da regra.
+   ===================================================================== */
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+):not([class*="dark:bg-"]):not([data-keep-light]) {
+  color: #0f172a !important;
+}
+
+/* textos theme-aware dentro de superfície clara fixa → forçar escuro */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-foreground"]:not([class*="dark:bg-"]) {
+  color: #0f172a !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-muted-foreground"]:not([class*="dark:bg-"]) {
+  color: #475569 !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-primary"]:not([class*="dark:bg-"]) {
+  color: #1d4ed8 !important;
+}
+
+/* text-black/xx dentro de superfície clara fixa: reverte a regra global
+   (.dark .text-black/xx → claro) para continuar ESCURO e legível */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) [class*="text-black/"]:not([class*="dark:bg-"]) {
+  color: #334155 !important;
+}
+
+/* inputs dentro de superfície clara fixa: texto escuro (senão o texto
+   digitado fica branco-em-branco no dark) */
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) :is(input, textarea, select):not([class*="dark:bg-"]) {
+  color: #0f172a !important;
+}
+
+.dark :is(
+  .bg-white,
+  .bg-white\/40,
+  .bg-white\/50,
+  .bg-white\/60,
+  .bg-white\/70,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-\[#f3f2f2\],
+  .bg-\[#f8f9fb\],
+  .bg-\[#fafafa\],
+  .bg-\[#e2e2e2\],
+  .bg-\[#dddbda\],
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-violet-50,
+  .bg-red-50,
+  .bg-emerald-50,
+  .bg-blue-50,
+  .bg-amber-50
+) :is(input, textarea)::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}

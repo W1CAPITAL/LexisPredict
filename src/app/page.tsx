@@ -1,14 +1,17 @@
 "use client";
-import { Dashboard as EfferdPanel } from "@/components/dashboard/efferd-dashboard-panel";
+import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashboard-panel";
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { OfficeStats } from '@/components/dashboard/office-stats';
+import { OfficeStats as OfficeStatsRaw } from '@/components/dashboard/office-stats';
+
+const EfferdPanel = memo(EfferdPanelRaw);
+const OfficeStats = memo(OfficeStatsRaw);
 import {
   ShieldAlert,
   RefreshCcw,
@@ -65,14 +68,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 export default function Dashboard() {
-  const { cases, setCases, locale, updateLastSync } = useAppStore();
+  const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false);
-  const t = getTranslation(locale);
+  const lastSync = sync?.lastSync ?? null;
+  const t = useMemo(() => getTranslation(locale), [locale]);
 
   const loadInsights = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -200,6 +204,15 @@ export default function Dashboard() {
       .slice(0, 6);
   }, [cases]);
 
+  const isEmpty = !loading && cases.length === 0;
+
+  const upcomingDeadlines = useMemo(() => {
+    return cases
+      .filter(c => !isCasoEncerrado(c) && typeof c.diasFaltando === 'number' && c.diasFaltando >= 0 && c.diasFaltando <= 7)
+      .sort((a, b) => (a.diasFaltando || 0) - (b.diasFaltando || 0))
+      .slice(0, 5);
+  }, [cases]);
+
   if (!mounted) return null;
 
   return (
@@ -228,6 +241,11 @@ export default function Dashboard() {
             <MetalButton preset="silver" strength={1} variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar">
                <RefreshCcw size={18} className={cn(loading && "animate-spin text-primary")} />
             </MetalButton>
+            {lastSync && (
+              <span className="hidden md:flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 shrink-0" title={new Date(lastSync).toLocaleString('pt-BR')}>
+                <Clock size={10} /> {new Date(lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
         </header>
 
@@ -244,6 +262,28 @@ export default function Dashboard() {
 
           <ScrollArea className="flex-1 overflow-auto">
             <TabsContent value="overview" className="p-4 sm:p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
+            {isEmpty && (
+              <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-border/30 rounded-2xl space-y-6 text-center animate-in fade-in duration-500 bg-card/30">
+                <div className="w-20 h-20 rounded-2xl bg-black text-white flex items-center justify-center shadow-[10px_10px_0px_#00D1FF]">
+                  <Briefcase size={32} />
+                </div>
+                <div className="space-y-1 px-6">
+                  <h3 className="font-black uppercase tracking-tight text-base sm:text-lg">Nenhum caso carregado</h3>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest max-w-sm mx-auto">
+                    Importe a carteira para liberar a vigilância unificada, o risco global e a fila prioritária.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <Button asChild className="h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest bg-foreground text-background hover:bg-primary hover:text-primary-foreground">
+                    <Link href="/import">Importar Carteira</Link>
+                  </Button>
+                  <MetalButton preset="silver" strength={1} variant="outline" size="sm" onClick={loadData} className="h-11 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                    <RefreshCcw size={14} className="mr-2" /> Recarregar
+                  </MetalButton>
+                </div>
+              </div>
+            )}
+            {!isEmpty && (<>
             {/* EFFORD — topo do dashboard */}
             <div className="mb-6">
               <section className="rounded-2xl border border-border/50 bg-card/50 p-3 sm:p-5 shadow-sm backdrop-blur-sm">
@@ -425,6 +465,39 @@ export default function Dashboard() {
                      </section>
                    )}
 
+                   {upcomingDeadlines.length > 0 && (
+                     <section className="premium-card p-6 sm:p-8">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <Clock size={14} className="text-primary" />
+                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Próximos Prazos · 7 dias</h3>
+                          </div>
+                          <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border-primary text-primary">
+                            {upcomingDeadlines.length}
+                          </Badge>
+                        </div>
+                        <div className="space-y-0">
+                          {upcomingDeadlines.map((c) => (
+                            <div key={c.id} className="flex items-center justify-between gap-3 py-3 border-b border-border/20 last:border-0">
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-black uppercase truncate leading-tight">{c.cliente}</p>
+                                <p className="text-[8px] font-mono opacity-40 truncate mt-0.5">{c.protocolo}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className={cn("text-sm font-black tabular-nums leading-none", (c.diasFaltando || 0) <= 1 ? "text-red-600" : "text-amber-600")}>
+                                  {c.diasFaltando}d
+                                </span>
+                                <p className="text-[7px] font-bold text-muted-foreground/70 uppercase tracking-widest mt-1">{c.status}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <Button asChild variant="ghost" className="w-full h-8 mt-4 text-[9px] font-black uppercase tracking-widest hover:text-primary">
+                          <Link href="/tarefas">Ver Fila de Tarefas <ArrowRight size={12} className="ml-2" /></Link>
+                        </Button>
+                     </section>
+                   )}
+
                    <section className="premium-card p-6 sm:p-8 space-y-8">
                       <div className="flex justify-between items-end">
                          <div className="space-y-1">
@@ -483,8 +556,9 @@ export default function Dashboard() {
                         ))}
                       </div>
                    </section>
-                </div>
               </div>
+            </div>
+            </>)}
             </TabsContent>
 
             <TabsContent value="connectivity" className="p-4 sm:p-10 space-y-8 m-0 max-w-[1600px] mx-auto w-full">
