@@ -155,6 +155,9 @@ export const EXPORT_HEADERS = [
   'Cumprimento',
   'DJEN_Resumo',
   'Situacao_Prazo',
+  'Dias_Sem_Retorno',
+  'Procedente',
+  'Improcedente',
 ] as const;
 
 /** Códigos TT do CNJ → Tribunal */

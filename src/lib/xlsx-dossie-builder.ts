@@ -1,7 +1,17 @@
 /**
- * XLSX Dossiê Operacional v2 — estilo ANALYTICS + AUDITORIA + RAW_DATA
+ * XLSX Dossiê Operacional v3 — estilo ANALYTICS + AUDITORIA + RAW_DATA
+ * Relatório executivo completo de todos os casos da carteira.
  * SEM id / created_at / empresa_id / created_by
- * Abas: Capa | Analytics | Auditoria | Processos | Mapa_TJ | Por_Status | Por_Escritorio | Codigos_TJ
+ *
+ * Abas: Capa | Dashboard | Analytics | Auditoria | Processos | Mapa_TJ |
+ *       Por_Status | Por_Escritorio | Por_Advogado | Codigos_TJ
+ *
+ * Melhorias v3:
+ * - Colunas com largura otimizada por aba
+ * - Cabeçalho congelado + AutoFiltro na aba Processos
+ * - Aba Dashboard (painel executivo) e Por_Advogado
+ * - KPIs de atendimento, prazos e risco
+ * - Estilos ampliados (seções, alertas, ok, kpis, zebra)
  */
 
 import JSZip from 'jszip';
@@ -43,6 +53,45 @@ function isEmAndamento(s: string) {
   return !isEncerradoStatus(s);
 }
 
+function parseFlexDate(raw: string): Date | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const dt = new Date(s.slice(0, 10) + 'T12:00:00');
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    const dt = new Date(y, Number(m[2]) - 1, Number(m[1]), 12);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(s + 'T12:00:00');
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+function diasSemRetorno(raw: string | null): number | null {
+  if (!raw) return null;
+  const d = parseFlexDate(String(raw));
+  if (!d) return null;
+  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+  return diff >= 0 ? diff : 0;
+}
+
+function isNestaSemana(raw: string | null, now: Date = new Date()): boolean {
+  if (!raw) return false;
+  const d = parseFlexDate(String(raw));
+  if (!d) return false;
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const dow = (start.getDay() + 6) % 7; // segunda = 0
+  start.setDate(start.getDate() - dow);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return d.getTime() >= start.getTime() && d.getTime() <= end.getTime();
+}
+
 /** Normaliza processo → linha operacional (sem metadados internos) */
 export function normalizeCase(r: DossieCase) {
   const dados = (r.dados && typeof r.dados === 'object' ? r.dados : {}) as any;
@@ -54,6 +103,10 @@ export function normalizeCase(r: DossieCase) {
   const advogado = String(r.advogado || dados.advogado || '').trim();
   const escritorio = String(r.escritorio || dados.escritorio || '').trim();
   const assistente = String(r.assistente || dados.assistente || r.atendente || dados.atendente || '').trim();
+  const retorno = String(r.ultimoRetorno || r.ultimo_retorno || dados.ultimoRetorno || '').trim();
+  const proximo = String(r.proximoRetorno || r.proximo_retorno || r.proximoPrazo || dados.proximoPrazo || '').trim();
+
+  const dsr = diasSemRetorno(retorno || null);
 
   return {
     assistente,
@@ -80,8 +133,8 @@ export function normalizeCase(r: DossieCase) {
     )
       .replace(/\n/g, ' ')
       .trim(),
-    retorno: String(r.ultimoRetorno || r.ultimo_retorno || dados.ultimoRetorno || '').trim(),
-    proximo: String(r.proximoRetorno || r.proximo_retorno || r.proximoPrazo || dados.proximoPrazo || '').trim(),
+    retorno,
+    proximo,
     tribunal: tribunalFromProtocolo(protocolo, r.tribunal || dados.tribunal),
     evento_tipo: evento,
     novo_andamento: sim(
@@ -96,10 +149,12 @@ export function normalizeCase(r: DossieCase) {
     situacao_prazo: status,
     procedente: sim(evento === 'sentenca_procedente'),
     improcedente: sim(evento === 'sentenca_improcedente'),
+    dias_sem_retorno: dsr == null ? '' : dsr,
+    atendido_semana: isNestaSemana(retorno || null),
   };
 }
 
-function rowValues(n: ReturnType<typeof normalizeCase>): string[] {
+function rowValues(n: ReturnType<typeof normalizeCase>): (string | number)[] {
   return [
     n.assistente,
     n.escritorio,
@@ -123,8 +178,70 @@ function rowValues(n: ReturnType<typeof normalizeCase>): string[] {
     n.cumprimento,
     n.djen_resumo,
     n.situacao_prazo,
+    n.dias_sem_retorno,
+    n.procedente,
+    n.improcedente,
   ];
 }
+
+// ————————————————————————————————————————————————
+// Estilos OOXML (ampliados)
+// ————————————————————————————————————————————————
+
+const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="10">
+    <font><sz val="11"/><name val="Calibri"/></font>
+    <font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+    <font><sz val="16"/><b/><color rgb="FF0B1220"/><name val="Calibri"/></font>
+    <font><sz val="12"/><b/><color rgb="FF0B1220"/><name val="Calibri"/></font>
+    <font><sz val="10"/><name val="Calibri"/></font>
+    <font><sz val="11"/><b/><color rgb="FF7F1D1D"/><name val="Calibri"/></font>
+    <font><sz val="11"/><b/><color rgb="FF065F46"/><name val="Calibri"/></font>
+    <font><sz val="11"/><b/><color rgb="FF1E3A8A"/><name val="Calibri"/></font>
+    <font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+    <font><sz val="10"/><b/><color rgb="FF0B1220"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="12">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF111827"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF00D1FF"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFD1FAE5"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFDBEAFE"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF0E7490"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFBEAC3"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF0F766E"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border><left/><right/><top/><bottom style="thin"><color rgb="FFE2E8F0"/></border>
+  </borders>
+  <cellStyleXfs count="1">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+  </cellStyleXfs>
+  <cellXfs count="16">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+    <xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="5" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="6" fillId="6" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="7" fillId="7" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="1" fillId="8" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="5" fillId="9" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="0" fillId="10" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="1" fillId="11" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="9" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="0" fontId="9" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+    <xf numFmtId="0" fontId="3" fillId="10" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+  </cellXfs>
+</styleSheet>`;
 
 function cellXml(r: number, c: number, val: any, styleId?: number): string {
   const ref = `${colRef(c)}${r}`;
@@ -136,61 +253,72 @@ function cellXml(r: number, c: number, val: any, styleId?: number): string {
   return `<c r="${ref}"${sAttr} t="inlineStr"><is><t>${t}</t></is></c>`;
 }
 
+type SheetRow = {
+  values: any[];
+  styleRow?: 'header' | 'kpi' | 'zebra' | 'title' | 'normal' | 'alert' | 'ok' | 'section' | 'warn' | 'info' | 'total' | 'white' | 'bold';
+};
+
+const STYLE_IDS: Record<NonNullable<SheetRow['styleRow']>, number> = {
+  header: 1,
+  title: 2,
+  kpi: 3,
+  zebra: 4,
+  alert: 5,
+  ok: 6,
+  info: 7,
+  section: 8,
+  warn: 9,
+  total: 11,
+  white: 10,
+  bold: 12,
+  normal: 0,
+};
+
+function colsXml(widths: number[]): string {
+  const cols = widths
+    .map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`)
+    .join('');
+  return `<cols>${cols}</cols>`;
+}
+
+function freezeXml(rows: number, cols: number): string {
+  const pane = `<pane ySplit="${rows}" xSplit="${cols}" topLeftCell="${colRef(cols)}${rows + 1}" activePane="bottomRight" state="frozen"/>`;
+  return `<sheetViews><sheetView tabSelected="1" workbookViewId="0">${pane}</sheetView></sheetViews>`;
+}
+
+function filterXml(firstCol: number, firstRow: number, lastCol: number, lastRow: number): string {
+  return `<autoFilter ref="${colRef(firstCol)}${firstRow}:${colRef(lastCol)}${lastRow}"/>`;
+}
+
 function sheetXml(
-  rows: { values: any[]; styleRow?: 'header' | 'kpi' | 'zebra' | 'title' | 'normal' | 'alert' }[]
+  rows: SheetRow[],
+  opts?: { widths?: number[]; freeze?: number; filter?: boolean }
 ): string {
   let body = '';
   rows.forEach((row, i) => {
     const r = i + 1;
     let styleId = 0;
-    if (row.styleRow === 'header') styleId = 1;
-    else if (row.styleRow === 'title') styleId = 2;
-    else if (row.styleRow === 'kpi') styleId = 3;
-    else if (row.styleRow === 'alert') styleId = 5;
-    else if (row.styleRow === 'zebra' && i % 2 === 0) styleId = 4;
+    if (row.styleRow) styleId = STYLE_IDS[row.styleRow];
+    else if (i % 2 === 0 && rows[0]?.styleRow === 'header') styleId = STYLE_IDS.zebra;
     const cells = row.values.map((v, c) => cellXml(r, c, v, styleId)).join('');
     body += `<row r="${r}">${cells}</row>`;
   });
+  const widthXml = opts?.widths?.length ? colsXml(opts.widths) : '';
+  const freezeXmlOut = opts?.freeze ? freezeXml(opts.freeze, 0) : '';
+  const filterXmlOut = opts?.filter && rows.length > 1 ? filterXml(0, 1, Math.max(1, rows[0].values.length - 1), rows.length) : '';
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  ${freezeXmlOut}
+  ${widthXml}
+  ${filterXmlOut}
   <sheetData>${body}</sheetData>
 </worksheet>`;
 }
 
-const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="6">
-    <font><sz val="11"/><name val="Calibri"/></font>
-    <font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
-    <font><sz val="16"/><b/><color rgb="FF111827"/><name val="Calibri"/></font>
-    <font><sz val="12"/><b/><color rgb="FF111827"/><name val="Calibri"/></font>
-    <font><sz val="11"/><name val="Calibri"/></font>
-    <font><sz val="11"/><b/><color rgb="FF7F1D1D"/><name val="Calibri"/></font>
-  </fonts>
-  <fills count="6">
-    <fill><patternFill patternType="none"/></fill>
-    <fill><patternFill patternType="gray125"/></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FF111827"/></patternFill></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FF00D1FF"/></patternFill></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/></patternFill></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>
-  </fills>
-  <borders count="1">
-    <border><left/><right/><top/><bottom/><diagonal/></border>
-  </borders>
-  <cellStyleXfs count="1">
-    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
-  </cellStyleXfs>
-  <cellXfs count="6">
-    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-    <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
-    <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
-    <xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
-    <xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1"/>
-    <xf numFmtId="0" fontId="5" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
-  </cellXfs>
-</styleSheet>`;
+// ————————————————————————————————————————————————
+// Builder principal
+// ————————————————————————————————————————————————
 
 export async function buildDossieXlsxBase64(
   cases: DossieCase[],
@@ -203,7 +331,6 @@ export async function buildDossieXlsxBase64(
 }> {
   const list = (cases || []).map(normalizeCase);
   const n = list.length;
-  const hojeStr = new Date().toLocaleDateString('pt-BR');
   const hora = new Date().toLocaleString('pt-BR');
   const day = new Date().toISOString().slice(0, 10);
 
@@ -219,12 +346,17 @@ export async function buildDossieXlsxBase64(
     cump = 0,
     proc = 0,
     impr = 0,
-    djen = 0;
+    djen = 0,
+    atendidosSemana = 0,
+    comRetorno = 0,
+    semRetorno = 0,
+    criticos = 0;
 
   const statusMap = new Map<string, number>();
   const escMap = new Map<string, number>();
   const tjMap = new Map<string, number>();
   const advMap = new Map<string, number>();
+  const assMap = new Map<string, number>();
 
   for (const r of list) {
     if (isEmAndamento(r.status)) emAndamento++;
@@ -240,62 +372,91 @@ export async function buildDossieXlsxBase64(
     if (r.procedente === 'SIM') proc++;
     if (r.improcedente === 'SIM') impr++;
     if (r.djen_resumo) djen++;
+    if (r.atendido_semana) atendidosSemana++;
+    if (r.retorno) comRetorno++;
+    else semRetorno++;
+    if (isVencido(r.status) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || r.dias_sem_retorno > 30) criticos++;
 
     statusMap.set(r.status || '—', (statusMap.get(r.status || '—') || 0) + 1);
     escMap.set(r.escritorio || 'Sem escritório', (escMap.get(r.escritorio || 'Sem escritório') || 0) + 1);
     tjMap.set(r.tribunal || '—', (tjMap.get(r.tribunal || '—') || 0) + 1);
-    if (r.advogado) advMap.set(r.advogado, (advMap.get(r.advogado) || 0) + 1);
+    advMap.set(r.advogado || 'Sem advogado', (advMap.get(r.advogado || 'Sem advogado') || 0) + 1);
+    assMap.set(r.assistente || 'Sem assistente', (assMap.get(r.assistente || 'Sem assistente') || 0) + 1);
   }
 
+  const risco = emAndamento > 0 ? Math.min(100, Math.round(((vencidos * 1.0) / (emAndamento || 1)) * 100)) : 0;
+  const comRetornoPct = n > 0 ? Math.round((comRetorno / n) * 100) : 0;
+
   // —— Capa
-  const capaRows = [
-    { values: ['LEXISPREDICT'], styleRow: 'title' as const },
-    { values: ['DOSSIÊ OPERACIONAL'], styleRow: 'title' as const },
-    { values: [''], styleRow: 'normal' as const },
-    { values: ['Gerado em', hora], styleRow: 'kpi' as const },
-    { values: ['Usuário', meta?.usuario || '—'], styleRow: 'normal' as const },
-    { values: ['Escopo', 'Carteira visível ao usuário logado'], styleRow: 'normal' as const },
-    { values: ['Total de processos', n], styleRow: 'kpi' as const },
-    { values: [''], styleRow: 'normal' as const },
-    { values: ['Abas'], styleRow: 'header' as const },
-    { values: ['1. Analytics — KPIs executivos (estilo Power BI)'], styleRow: 'normal' as const },
-    { values: ['2. Auditoria — falhas e críticos para ação'], styleRow: 'normal' as const },
-    { values: ['3. Processos — base completa operacional'], styleRow: 'normal' as const },
-    { values: ['4. Mapa_TJ — distribuição por tribunal'], styleRow: 'normal' as const },
-    { values: ['5. Por_Status / Por_Escritorio — agregações'], styleRow: 'normal' as const },
-    { values: ['6. Codigos_TJ — tabela oficial CNJ'], styleRow: 'normal' as const },
-    { values: [''], styleRow: 'normal' as const },
-    { values: ['Privacidade'], styleRow: 'header' as const },
-    {
-      values: ['Não inclui ID interno, empresa_id, created_by nem data de criação do banco.'],
-      styleRow: 'normal' as const,
-    },
+  const capaRows: SheetRow[] = [
+    { values: ['LEXISPREDICT'], styleRow: 'title' },
+    { values: ['DOSSIÊ OPERACIONAL — RELATÓRIO EXECUTIVO DE CARTEIRA'], styleRow: 'title' },
+    { values: ['Planilha completa de todos os casos com painel analítico e auditoria automática.'], styleRow: 'normal' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['Gerado em', hora], styleRow: 'kpi' },
+    { values: ['Usuário', meta?.usuario || '—'], styleRow: 'normal' },
+    { values: ['Escopo', 'Carteira visível ao usuário logado'], styleRow: 'normal' },
+    { values: ['Total de processos', n], styleRow: 'kpi' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['Abas do relatório'], styleRow: 'section' },
+    { values: ['1. Dashboard — painel executivo com KPIs de carteira, sinais e prazos'], styleRow: 'normal' },
+    { values: ['2. Analytics — agregações por escritório, advogado e tribunal'], styleRow: 'normal' },
+    { values: ['3. Auditoria — falhas e críticos para ação imediata'], styleRow: 'normal' },
+    { values: ['4. Processos — base completa (todos os casos, filtros e congelamento)'], styleRow: 'normal' },
+    { values: ['5. Mapa_TJ / Por_Status / Por_Escritorio / Por_Advogado — visões agregadas'], styleRow: 'normal' },
+    { values: ['6. Codigos_TJ — tabela oficial CNJ'], styleRow: 'normal' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['Privacidade'], styleRow: 'section' },
+    { values: ['Não inclui ID interno, empresa_id, created_by nem data de criação do banco.'], styleRow: 'normal' },
+    { values: ['Documento gerado por LexisPredict — uso interno operacional.'], styleRow: 'normal' },
   ];
 
-  // —— Analytics (estilo referência)
-  const analyticsRows = [
-    { values: ['RELATÓRIO ANALÍTICO AUTOMÁTICO'], styleRow: 'title' as const },
-    { values: [''], styleRow: 'normal' as const },
+  // —— Dashboard (executivo)
+  const dashboardRows: SheetRow[] = [
+    { values: ['PAINEL EXECUTIVO — LEXISPREDICT'], styleRow: 'title' },
+    { values: [`Gerado em ${hora} • ${meta?.usuario || 'usuário logado'} • ${n} processos`], styleRow: 'normal' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['CARTEIRA'], styleRow: 'section' },
+    { values: ['Total de processos', n, '', 'Andamento', emAndamento], styleRow: 'kpi' },
+    { values: ['Encerrados', encerrados, '', 'Vencidos / Críticos', vencidos], styleRow: 'zebra' },
+    { values: ['Sem telefone', semTelefone, '', 'Sem advogado', semAdvogado], styleRow: 'zebra' },
+    { values: ['Sem cliente', semCliente, '', 'Risco estimado', `${risco}%`], styleRow: risco > 40 ? 'alert' : 'zebra' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['SINAIS OPERACIONAIS'], styleRow: 'section' },
+    { values: ['Novos andamentos', and, '', 'Baixa no tribunal', encTrib], styleRow: 'kpi' },
+    { values: ['Indícios de B.A.', ba, '', 'Cumprimento de sentença', cump], styleRow: ba > 0 ? 'alert' : 'zebra' },
+    { values: ['Sentenças procedentes', proc, '', 'Sentenças improcedentes', impr], styleRow: 'ok' },
+    { values: ['Casos com DJEN ativo', djen, '', 'Casos críticos (ação)', criticos], styleRow: criticos > 0 ? 'warn' : 'zebra' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['ATENDIMENTO'], styleRow: 'section' },
+    { values: ['Casos com retorno registrado', comRetorno, '', '% com retorno', `${comRetornoPct}%`], styleRow: 'kpi' },
+    { values: ['Atendidos na última semana', atendidosSemana, '', 'Casos sem retorno', semRetorno], styleRow: semRetorno > 0 ? 'warn' : 'zebra' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['LEITURA ESTRATÉGICA'], styleRow: 'section' },
     {
-      values: ['Painel executivo para leitura rápida por responsável, escritório, situação e TJ.'],
-      styleRow: 'normal' as const,
+      values: [
+        `Foco em ${criticos} caso(s) crítico(s): priorizar vencidos, indícios de B.A. e novos andamentos sem retorno.`,
+      ],
+      styleRow: criticos > 0 ? 'warn' : 'ok',
     },
-    {
-      values: ['TOTAL', 'EM ANDAMENTO', 'ENCERRADOS', 'VENCIDOS', 'SEM TELEFONE', 'SEM ADVOGADO'],
-      styleRow: 'header' as const,
-    },
-    {
-      values: [n, emAndamento, encerrados, vencidos, semTelefone, semAdvogado],
-      styleRow: 'kpi' as const,
-    },
-    { values: [''], styleRow: 'normal' as const },
-    {
-      values: ['NOVOS ANDAMENTOS', 'BAIXA TRIBUNAL', 'B.A.', 'CUMPRIMENTO', 'PROCEDENTE', 'IMPROCEDENTE'],
-      styleRow: 'header' as const,
-    },
-    { values: [and, encTrib, ba, cump, proc, impr], styleRow: 'kpi' as const },
-    { values: [''], styleRow: 'normal' as const },
-    { values: ['ESCRITÓRIO', 'QTD', 'ADVOGADO', 'QTD', 'TRIBUNAL', 'QTD'], styleRow: 'header' as const },
+    { values: [`Carteira com ${comRetornoPct}% de retorno registrado — manter rotina de retorno ao cliente.`], styleRow: 'normal' },
+  ];
+
+  // —— Analytics
+  const analyticsRows: SheetRow[] = [
+    { values: ['RELATÓRIO ANALÍTICO AUTOMÁTICO'], styleRow: 'title' },
+    { values: ['Painel executivo para leitura rápida por responsável, escritório, situação e TJ.'], styleRow: 'normal' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['TOTAL', 'EM ANDAMENTO', 'ENCERRADOS', 'VENCIDOS', 'SEM TELEFONE', 'SEM ADVOGADO'], styleRow: 'header' },
+    { values: [n, emAndamento, encerrados, vencidos, semTelefone, semAdvogado], styleRow: 'kpi' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['NOVOS ANDAMENTOS', 'BAIXA TRIBUNAL', 'B.A.', 'CUMPRIMENTO', 'PROCEDENTE', 'IMPROCEDENTE'], styleRow: 'header' },
+    { values: [and, encTrib, ba, cump, proc, impr], styleRow: 'kpi' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['ATENDIDOS (SEMANA)', 'COM RETORNO', 'SEM RETORNO', 'RISCOS', 'DJEN ATIVO', 'SEM CLIENTE'], styleRow: 'header' },
+    { values: [atendidosSemana, comRetorno, semRetorno, criticos, djen, semCliente], styleRow: 'kpi' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['ESCRITÓRIO', 'QTD', 'ADVOGADO', 'QTD', 'TRIBUNAL', 'QTD'], styleRow: 'header' },
     ...Array.from({ length: Math.max(escMap.size, advMap.size, tjMap.size, 1) }).map((_, i) => {
       const escE = [...escMap.entries()].sort((a, b) => b[1] - a[1])[i];
       const advE = [...advMap.entries()].sort((a, b) => b[1] - a[1])[i];
@@ -315,43 +476,35 @@ export async function buildDossieXlsxBase64(
   ];
 
   // —— Auditoria
-  const criticos = list.filter(
+  const criticosList = list.filter(
     (r) =>
       isVencido(r.status) ||
       !r.telefone ||
       !r.advogado ||
       !r.cliente ||
       r.ba === 'SIM' ||
-      r.novo_andamento === 'SIM'
+      r.novo_andamento === 'SIM' ||
+      (r.dias_sem_retorno !== '' && Number(r.dias_sem_retorno) > 30)
   );
 
-  const auditoriaRows = [
-    { values: ['AUDITORIA AUTOMÁTICA'], styleRow: 'title' as const },
-    { values: [''], styleRow: 'normal' as const },
-    {
-      values: ['Falhas operacionais e processos críticos — ação imediata.'],
-      styleRow: 'normal' as const,
-    },
-    {
-      values: ['SEM TELEFONE', 'SEM ADVOGADO', 'SEM CLIENTE', 'VENCIDOS', 'NOVOS ANDAMENTOS', 'B.A.'],
-      styleRow: 'header' as const,
-    },
-    {
-      values: [semTelefone, semAdvogado, semCliente, vencidos, and, ba],
-      styleRow: 'alert' as const,
-    },
-    { values: [''], styleRow: 'normal' as const },
-    { values: ['LISTA CRÍTICA / ALERTAS'], styleRow: 'header' as const },
-    { values: [...EXPORT_HEADERS], styleRow: 'header' as const },
-    ...criticos.slice(0, 2000).map((r, i) => ({
+  const auditoriaRows: SheetRow[] = [
+    { values: ['AUDITORIA AUTOMÁTICA'], styleRow: 'title' },
+    { values: ['Falhas operacionais e processos críticos — ação imediata.'], styleRow: 'normal' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['SEM TELEFONE', 'SEM ADVOGADO', 'SEM CLIENTE', 'VENCIDOS', 'NOVOS ANDAMENTOS', 'B.A.'], styleRow: 'header' },
+    { values: [semTelefone, semAdvogado, semCliente, vencidos, and, ba], styleRow: 'alert' },
+    { values: [''], styleRow: 'normal' },
+    { values: ['LISTA CRÍTICA / ALERTAS'], styleRow: 'section' },
+    { values: [...EXPORT_HEADERS], styleRow: 'header' },
+    ...criticosList.slice(0, 2000).map((r, i) => ({
       values: rowValues(r),
       styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
     })),
   ];
 
-  // —— Processos (carteira completa)
-  const procRows = [
-    { values: [...EXPORT_HEADERS], styleRow: 'header' as const },
+  // —— Processos (carteira completa com filtro e congelamento)
+  const procRows: SheetRow[] = [
+    { values: [...EXPORT_HEADERS], styleRow: 'header' },
     ...list.map((r, i) => ({
       values: rowValues(r),
       styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
@@ -359,8 +512,8 @@ export async function buildDossieXlsxBase64(
   ];
 
   // —— Mapa TJ
-  const mapaRows = [
-    { values: ['Tribunal', 'Quantidade'], styleRow: 'header' as const },
+  const mapaRows: SheetRow[] = [
+    { values: ['Tribunal', 'Quantidade'], styleRow: 'header' },
     ...[...tjMap.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([k, v], i) => ({
@@ -369,39 +522,53 @@ export async function buildDossieXlsxBase64(
       })),
   ];
 
-  const statusRows = [
-    { values: ['Status', 'Quantidade'], styleRow: 'header' as const },
+  const statusRows: SheetRow[] = [
+    { values: ['Status', 'Quantidade'], styleRow: 'header' },
     ...[...statusMap.entries()].map(([k, v], i) => ({
       values: [k, v],
       styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
     })),
   ];
 
-  const escRows = [
-    { values: ['Escritorio', 'Quantidade'], styleRow: 'header' as const },
+  const escRows: SheetRow[] = [
+    { values: ['Escritorio', 'Quantidade'], styleRow: 'header' },
     ...[...escMap.entries()].map(([k, v], i) => ({
       values: [k, v],
       styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
     })),
   ];
 
-  const codRows = [
-    { values: ['Código CNJ (TT)', 'Tribunal'], styleRow: 'header' as const },
+  const advRows: SheetRow[] = [
+    { values: ['Advogado', 'Quantidade'], styleRow: 'header' },
+    ...[...advMap.entries()].map(([k, v], i) => ({
+      values: [k, v],
+      styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
+    })),
+  ];
+
+  const codRows: SheetRow[] = [
+    { values: ['Código CNJ (TT)', 'Tribunal'], styleRow: 'header' },
     ...Object.entries(CNJ_TRIBUNAL_MAP).map(([k, v], i) => ({
       values: [k, v],
       styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
     })),
   ];
 
+  const PROCESSOS_WIDTHS = [16, 18, 20, 24, 15, 22, 14, 14, 30, 16, 14, 42, 14, 14, 16, 18, 8, 8, 8, 8, 40, 14, 10, 8, 8];
+  const MAPA_WIDTHS = [26, 12];
+  const ANALYTICS_WIDTHS = [18, 14, 14, 14, 16, 16];
+
   const sheets = [
-    { name: 'Capa', xml: sheetXml(capaRows) },
-    { name: 'Analytics', xml: sheetXml(analyticsRows) },
-    { name: 'Auditoria', xml: sheetXml(auditoriaRows) },
-    { name: 'Processos', xml: sheetXml(procRows) },
-    { name: 'Mapa_TJ', xml: sheetXml(mapaRows) },
-    { name: 'Por_Status', xml: sheetXml(statusRows) },
-    { name: 'Por_Escritorio', xml: sheetXml(escRows) },
-    { name: 'Codigos_TJ', xml: sheetXml(codRows) },
+    { name: 'Capa', xml: sheetXml(capaRows, { widths: [60, 30] }) },
+    { name: 'Dashboard', xml: sheetXml(dashboardRows, { widths: [34, 16, 4, 34, 16] }) },
+    { name: 'Analytics', xml: sheetXml(analyticsRows, { widths: ANALYTICS_WIDTHS }) },
+    { name: 'Auditoria', xml: sheetXml(auditoriaRows, { widths: PROCESSOS_WIDTHS }) },
+    { name: 'Processos', xml: sheetXml(procRows, { widths: PROCESSOS_WIDTHS, freeze: 1, filter: true }) },
+    { name: 'Mapa_TJ', xml: sheetXml(mapaRows, { widths: MAPA_WIDTHS }) },
+    { name: 'Por_Status', xml: sheetXml(statusRows, { widths: MAPA_WIDTHS }) },
+    { name: 'Por_Escritorio', xml: sheetXml(escRows, { widths: MAPA_WIDTHS }) },
+    { name: 'Por_Advogado', xml: sheetXml(advRows, { widths: MAPA_WIDTHS }) },
+    { name: 'Codigos_TJ', xml: sheetXml(codRows, { widths: MAPA_WIDTHS }) },
   ];
 
   const zip = new JSZip();
@@ -462,7 +629,7 @@ export async function buildDossieXlsxBase64(
 
   return {
     base64,
-    filename: `LexisPredict_Dossie_${day}.xlsx`,
+    filename: `LexisPredict_Relatorio_Carteira_${day}.xlsx`,
     count: n,
     kpis: {
       total: n,
@@ -474,6 +641,12 @@ export async function buildDossieXlsxBase64(
       cumprimento: cump,
       semTelefone,
       semAdvogado,
+      semCliente,
+      atendidosSemana,
+      comRetorno,
+      semRetorno,
+      criticos,
+      risco,
     },
   };
 }

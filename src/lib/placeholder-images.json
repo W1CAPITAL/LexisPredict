@@ -1,3 +1,46 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "app-logo",
+      "description": "Logotipo oficial Lexis Predict com balança e elementos técnicos",
+      "imageUrl": "/logo.png",
+      "imageHint": "law logo"
+    },
+    {
+      "id": "wp-abstract-dark",
+      "description": "Wallpaper abstrato escuro premium",
+      "imageUrl": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop",
+      "imageHint": "abstract dark"
+    },
+    {
+      "id": "wp-office-light",
+      "description": "Escritório executivo minimalista",
+      "imageUrl": "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop",
+      "imageHint": "modern office"
+    },
+    {
+      "id": "wp-legal-columns",
+      "description": "Colunas clássicas de tribunal",
+      "imageUrl": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2670&auto=format&fit=crop",
+      "imageHint": "law columns"
+    },
+    {
+      "id": "wp-minimal-gradient",
+      "description": "Gradiente sutil executivo",
+      "imageUrl": "https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2629&auto=format&fit=crop",
+      "imageHint": "subtle gradient"
+    },
+    {
+      "id": "wp-carbon-fiber",
+      "description": "Textura de fibra de carbono técnica",
+      "imageUrl": "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2670&auto=format&fit=crop",
+      "imageHint": "carbon texture"
+    },
+    {
+      "id": "wp-luxury-marble",
+      "description": "Mármore preto executivo",
+      "imageUrl": "https://images.unsplash.com/photo-1505330622279-bf7d7fc918f4?q=80&w=2670&auto=format&fit=crop",
+      "imageHint": "black marble"
+    }
+  ]
 }
