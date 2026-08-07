@@ -98,7 +98,7 @@ export async function generateDossieProcessoPDFAction(protocolo: string, opts?: 
       djenResumo: c.djen_ultimo_resumo || undefined,
       djenLink: c.djen_ultimo_link || undefined,
       flags: {
-        atendidoSemana: isAtendidoNestaSemana(c.ultimoRetorno || c.ultimo_retorno),
+        atendidoSemana: isAtendidoNestaSemana(c.ultimoRetorno || (c as any).ultimo_retorno),
         semanaLabel: labelSemanaAtual(),
         novidade: !!(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao),
         baixa: !!c.datajud_encerrado_tribunal,

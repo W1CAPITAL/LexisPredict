@@ -8,6 +8,14 @@ import { DataJudScannerPanel } from '@/components/scanner/datajud-scanner-panel'
 import { AppUpdateBanner } from '@/components/system/app-update-banner';
 import Script from 'next/script';
 import { MotionRoot } from "@/components/providers/motion-root";
+import { AUTHORITY_PRESETS, hexToHsl } from '@/lib/theme';
+
+const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
+  id: p.id,
+  radius: p.radius,
+  light: p.colors.light,
+  dark: p.colors.dark,
+}));
 
 export const viewport: Viewport = {
   themeColor: [{ media: '(prefers-color-scheme: light)', color: '#ffffff' }, { media: '(prefers-color-scheme: dark)', color: '#0f0f12' }],
@@ -48,59 +56,130 @@ export default function RootLayout({
           {`
             (function() {
               try {
-                const root = document.documentElement;
-                
-                // Dark Mode Detection (Orbit-style: light | dark | system)
+                var PRESETS = ${JSON.stringify(PRESET_BOOT_SNAPSHOT)};
+                var root = document.documentElement;
+
+                var hexToHsl = ${hexToHsl.toString()};
+                var lum = function(hex) {
+                  if (!hex || hex[0] !== '#') return 0;
+                  var c = hex.replace(/^#/, '');
+                  var rgb = c.length === 3 ? [c[0]+c[0], c[1]+c[1], c[2]+c[2]] : [c.slice(0,2), c.slice(2,4), c.slice(4,6)];
+                  var v = rgb.map(function(x) { var n = parseInt(x, 16) / 255; return n <= 0.03928 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4); });
+                  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+                };
+                var contrast = function(a, b) {
+                  var l1 = lum(a), l2 = lum(b);
+                  var hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+                  return (hi + 0.05) / (lo + 0.05);
+                };
+                var setToken = function(name, hex) {
+                  if (!hex) return;
+                  root.style.setProperty(name, hexToHsl(hex));
+                };
+
+                // Modo: light | dark | system
                 var mode = localStorage.getItem('lexis_theme_mode');
                 var isDark;
                 if (mode === 'light') isDark = false;
                 else if (mode === 'dark') isDark = true;
-                else if (mode === 'system') {
-                  isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                } else {
-                  isDark = localStorage.getItem('lexis_dark_mode') === 'true';
-                }
-                if (isDark) root.classList.add('dark');
-                else root.classList.remove('dark');
+                else if (mode === 'system') isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                else isDark = localStorage.getItem('lexis_dark_mode') === 'true';
+                root.classList.toggle('dark', isDark);
+                root.classList.toggle('light', !isDark);
                 localStorage.setItem('lexis_dark_mode', String(isDark));
 
-                // Custom Color Hardware (Only if not dark)
-                if (!isDark) {
-                  const bg = localStorage.getItem('lexisPredict_bg_color') || '#FFFFFF';
-                  const btn = localStorage.getItem('lexisPredict_btn_bg_color') || '#00D1FF';
-                  const font = localStorage.getItem('lexisPredict_font_color') || '#000000';
-                  
-                  const hexToHsl = (hex) => {
-                    if (!hex || hex[0] !== '#') return null;
-                    const cleanHex = hex.replace(/^#/, '');
-                    let r = parseInt(cleanHex.length === 3 ? cleanHex[0]+cleanHex[0] : cleanHex.slice(0, 2), 16) / 255;
-                    let g = parseInt(cleanHex.length === 3 ? cleanHex[1]+cleanHex[1] : cleanHex.slice(2, 4), 16) / 255;
-                    let b = parseInt(cleanHex.length === 3 ? cleanHex[2]+cleanHex[2] : cleanHex.slice(4, 6), 16) / 255;
-                    let max = Math.max(r, g, b), min = Math.min(r, g, b);
-                    let h = 0, s = 0, l = (max + min) / 2;
-                    if (max !== min) {
-                      let d = max - min;
-                      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-                      switch (max) {
-                        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                        case g: h = (b - r) / d + 2; break;
-                        case b: h = (r - g) / d + 4; break;
-                      }
-                      h /= 6;
+                // Aplica o preset salvo com a paleta do modo atual (evita flash e contraste quebrado)
+                var presetId = localStorage.getItem('lexisPredict_theme_preset');
+                var preset = null;
+                for (var i = 0; i < PRESETS.length; i++) { if (PRESETS[i].id === presetId) { preset = PRESETS[i]; break; } }
+
+                if (!preset && presetId === 'custom-hardware') {
+                  // Tema custom do Hardware Visual — aplicado nos dois modos
+                  try {
+                    var custom = JSON.parse(localStorage.getItem('lexisPredict_custom_theme') || 'null');
+                    if (custom && custom.colors) {
+                      var CC = custom.colors;
+                      var fgC = contrast(CC.background, CC.foreground) >= 4.5 ? CC.foreground : (lum(CC.background) > 0.45 ? '#000000' : '#FFFFFF');
+                      var mutedC = contrast(CC.background, CC.fontMuted) >= 3 ? CC.fontMuted : (lum(CC.background) > 0.45 ? '#4B5563' : '#9CA3AF');
+                      var onPrimaryC = contrast(CC.primary, '#FFFFFF') >= 3 ? '#FFFFFF' : '#0F172A';
+                      setToken('--background', CC.background);
+                      setToken('--card', CC.bgSecondary);
+                      setToken('--popover', CC.bgSecondary);
+                      setToken('--secondary', CC.bgSecondary);
+                      setToken('--foreground', fgC);
+                      setToken('--card-foreground', fgC);
+                      setToken('--popover-foreground', fgC);
+                      setToken('--secondary-foreground', fgC);
+                      setToken('--muted-foreground', mutedC);
+                      setToken('--primary', CC.primary);
+                      setToken('--primary-foreground', onPrimaryC);
+                      setToken('--accent', CC.accent);
+                      setToken('--accent-foreground', fgC);
+                      setToken('--border', CC.border);
+                      setToken('--input', CC.border);
+                      setToken('--ring', CC.primary);
+                      setToken('--destructive', isDark ? '#F87171' : '#DC2626');
+                      setToken('--success', isDark ? '#34D399' : '#059669');
+                      setToken('--warning', isDark ? '#FBBF24' : '#D97706');
+                      setToken('--sidebar-background', CC.bgSecondary);
+                      setToken('--sidebar-foreground', fgC);
+                      setToken('--sidebar-border', CC.border);
+                      setToken('--sidebar-primary', CC.primary);
+                      setToken('--sidebar-primary-foreground', onPrimaryC);
+                      setToken('--sidebar-accent', CC.accent);
+                      setToken('--sidebar-accent-foreground', fgC);
+                      setToken('--sidebar-ring', CC.primary);
+                      if (custom.radius) root.style.setProperty('--radius', custom.radius + 'px');
+                      root.setAttribute('data-lexis-preset', 'custom-hardware');
                     }
-                    return Math.round(h * 360) + ' ' + Math.round(s * 100) + '% ' + Math.round(l * 100) + '%';
-                  };
-
-                  const hslBg = hexToHsl(bg);
-                  const hslBtn = hexToHsl(btn);
-                  const hslFont = hexToHsl(font);
-
-                  if(hslBg) root.style.setProperty('--background', hslBg);
-                  if(hslBtn) root.style.setProperty('--primary', hslBtn);
-                  if(hslFont) root.style.setProperty('--foreground', hslFont);
+                  } catch (e) {}
                 }
-                
-                const wallpaper = localStorage.getItem('lexisPredict_wallpaper');
+
+                if (preset) {
+                  var C = isDark ? preset.dark : preset.light;
+                  var fg = contrast(C.background, C.foreground) >= 4.5 ? C.foreground : (lum(C.background) > 0.45 ? '#000000' : '#FFFFFF');
+                  var muted = contrast(C.background, C.fontMuted) >= 3 ? C.fontMuted : (lum(C.background) > 0.45 ? '#4B5563' : '#9CA3AF');
+                  var onPrimary = contrast(C.primary, '#FFFFFF') >= 3 ? '#FFFFFF' : '#0F172A';
+                  setToken('--background', C.background);
+                  setToken('--card', C.bgSecondary);
+                  setToken('--popover', C.bgSecondary);
+                  setToken('--secondary', C.bgSecondary);
+                  setToken('--foreground', fg);
+                  setToken('--card-foreground', fg);
+                  setToken('--popover-foreground', fg);
+                  setToken('--secondary-foreground', fg);
+                  setToken('--muted-foreground', muted);
+                  setToken('--primary', C.primary);
+                  setToken('--primary-foreground', onPrimary);
+                  setToken('--accent', C.accent);
+                  setToken('--accent-foreground', fg);
+                  setToken('--border', C.border);
+                  setToken('--input', C.border);
+                  setToken('--ring', C.primary);
+                  setToken('--destructive', isDark ? '#F87171' : '#DC2626');
+                  setToken('--success', isDark ? '#34D399' : '#059669');
+                  setToken('--warning', isDark ? '#FBBF24' : '#D97706');
+                  setToken('--sidebar-background', C.bgSecondary);
+                  setToken('--sidebar-foreground', fg);
+                  setToken('--sidebar-border', C.border);
+                  setToken('--sidebar-primary', C.primary);
+                  setToken('--sidebar-primary-foreground', onPrimary);
+                  setToken('--sidebar-accent', C.accent);
+                  setToken('--sidebar-accent-foreground', fg);
+                  setToken('--sidebar-ring', C.primary);
+                  root.style.setProperty('--radius', preset.radius + 'px');
+                  root.setAttribute('data-lexis-preset', preset.id);
+                } else if (!isDark) {
+                  // Compat legado: cores manuais antigas só quando não escuro
+                  var bg = localStorage.getItem('lexisPredict_bg_color');
+                  var btn = localStorage.getItem('lexisPredict_btn_bg_color');
+                  var font = localStorage.getItem('lexisPredict_font_color');
+                  if (bg) setToken('--background', bg);
+                  if (btn) setToken('--primary', btn);
+                  if (font) setToken('--foreground', font);
+                }
+
+                var wallpaper = localStorage.getItem('lexisPredict_wallpaper');
                 if (wallpaper) {
                   root.style.backgroundImage = 'url(' + wallpaper + ')';
                   root.style.backgroundSize = 'cover';

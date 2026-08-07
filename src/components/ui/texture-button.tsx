@@ -14,7 +14,7 @@ export const TextureButton = React.forwardRef<HTMLButtonElement, TextureButtonPr
   ({ className, textureVariant, variant, ...props }, ref) => {
     const tv =
       textureVariant ||
-      (variant === "accent" ? "accent" : variant === "icon" ? "icon" : "default");
+      ((variant as string) === "accent" ? "accent" : (variant as string) === "icon" ? "icon" : "default");
     const mapped: ButtonProps["variant"] =
       tv === "accent" ? "default" : tv === "icon" ? "outline" : (variant as ButtonProps["variant"]) || "outline";
 

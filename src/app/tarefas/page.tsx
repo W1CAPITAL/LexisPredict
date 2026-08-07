@@ -104,6 +104,7 @@ interface TaskGroup {
   hasBA: boolean;
   hasClosedCourt: boolean;
   hasUpdate: boolean;
+  hasAttendedWeek: boolean;
   eventoUnificadoResumo: string | null;
   eventoTipo: EventoTipo | null;
   statusScore: number;

@@ -3,7 +3,8 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v25.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
+ * DOSSIÊ OPERACIONAL v26.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
+ * Theme-aware: funciona em light, dark e todos os presets (sem contraste quebrado).
  */
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -12,28 +13,24 @@ import { Button } from "@/components/ui/button";
 import {
   Printer,
   ArrowLeft,
-  ShieldCheck,
   Activity,
-  Copyright,
-  Calendar,
   AlertTriangle,
   Clock,
   CheckCircle2,
-  Scale,
   Zap,
   Target,
   Layers,
   Loader2,
   Gavel,
   UserCheck,
-  ChevronRight,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
-  FileText,
-  AlertCircle,
   StickyNote,
   User,
-  Sparkles
+  Sparkles,
+  Lightbulb,
+  ListChecks,
+  ShieldAlert,
 } from "lucide-react";
 import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
@@ -61,7 +58,7 @@ export default function UnifiedReport() {
   const [claudeError, setClaudeError] = useState("");
   const [claudeReady, setClaudeReady] = useState(false);
   const [claudeEngine, setClaudeEngine] = useState("");
- 
+
   const { profile, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -75,7 +72,7 @@ export default function UnifiedReport() {
         setLocalCases(casesData || []);
         setCases(casesData || []);
         setNotes(notesData || []);
-       
+
         const savedInsights = localStorage.getItem('lexisPredict_notes_analysis');
         if (savedInsights) {
            try { setIaInsights(JSON.parse(savedInsights)); } catch(e) {}
@@ -92,10 +89,10 @@ export default function UnifiedReport() {
   const metrics = useMemo(() => {
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
-   
+
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
-    
+
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
@@ -103,6 +100,11 @@ export default function UnifiedReport() {
     const countAtendidosSemana = countAtendidosNestaSemana(ativos as any);
     const serieAtendimentosSemana = buildAtendimentosPorDiaSemana(ativos as any);
     const semanaLabel = labelSemanaAtual();
+
+    const mediaDia =
+      serieAtendimentosSemana && serieAtendimentosSemana.length
+        ? Math.round((serieAtendimentosSemana.reduce((acc, d: any) => acc + d.atendimentos, 0) / serieAtendimentosSemana.length) * 10) / 10
+        : 0;
 
     const topCriticos = ativos
       .map(c => ({ case: c, sinal: getSinalCapa(c) }))
@@ -162,6 +164,20 @@ export default function UnifiedReport() {
     const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento).slice(0, 10);
 
     const riskScore = activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countBA * 2 + countNovoAndamento * 0.5) / activeTotal) * 100)) : 0;
+    const riskLevel =
+      riskScore >= 60 ? "CRÍTICO" :
+      riskScore >= 35 ? "ALTO" :
+      riskScore >= 18 ? "MODERADO" : "SAUDÁVEL";
+
+    const recomendacoes: string[] = [];
+    if (countVencido > 0) recomendacoes.push(`Priorizar a revisão de ${countVencido} prazo(s) vencido(s) — iniciar pelos de maior criticidade.`);
+    if (countHoje > 0) recomendacoes.push(`Acompanhar ${countHoje} caso(s) com prazo "hoje" antes do encerramento do expediente.`);
+    if (countNovoAndamento > 0) recomendacoes.push(`Responder/validar ${countNovoAndamento} novidade(s) de andamento para alinhamento do cliente.`);
+    if (countBA > 0) recomendacoes.push(`Validar ${countBA} caso(s) com indício de busca e apreensão — decisão urgente.`);
+    if (countCumprimento > 0) recomendacoes.push(`Impulsionar a fase executiva em ${countCumprimento} caso(s) em cumprimento de sentença.`);
+    if (countEncerradoTribunal > 0) recomendacoes.push(`Confirmar e arquivar ${countEncerradoTribunal} baixa(s) detectadas pelo tribunal.`);
+    if (countAtendidosSemana > 0) recomendacoes.push(`Manter o ritmo de atendimento: ${countAtendidosSemana} caso(s) nesta semana (média ${mediaDia}/dia).`);
+    if (recomendacoes.length === 0) recomendacoes.push("Carteira estável: manter rotina de acompanhamento e atualização cadastral.");
 
     return {
       activeTotal,
@@ -174,7 +190,10 @@ export default function UnifiedReport() {
       countAtendidosSemana,
       serieAtendimentosSemana,
       semanaLabel,
+      mediaDia,
       riskScore,
+      riskLevel,
+      recomendacoes,
       isMaster,
       myVencidos,
       myNovidades,
@@ -205,7 +224,7 @@ export default function UnifiedReport() {
       `Cumprimento de sentença: ${metrics.countCumprimento}`,
       `Atendimentos nesta semana (${metrics.semanaLabel}): ${metrics.countAtendidosSemana}`,
       `Por dia: ${(metrics.serieAtendimentosSemana || []).map((d: any) => d.day + '=' + d.atendimentos).join(', ')}`,
-      `Risco carteira: ${metrics.riskScore}%`,
+      `Risco carteira: ${metrics.riskScore}% (${metrics.riskLevel})`,
       `Procedentes (lista): ${metrics.listProcedente.length}`,
       `Improcedentes (lista): ${metrics.listImprocedente.length}`,
       `Top críticos:\n${topCrit || "(nenhum)"}`,
@@ -249,33 +268,30 @@ export default function UnifiedReport() {
 
   if (!mounted || loading || authLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f2f2] space-y-6">
+      <div className="min-h-screen lexis-report-root flex flex-col items-center justify-center space-y-6">
         <Loader2 className="w-12 h-12 text-foreground animate-spin" />
         <p className="font-black tracking-[0.4em] text-[10px] text-foreground uppercase">Consolidando Dossiê Authority...</p>
         <p className="text-[10px] text-muted-foreground mt-4 uppercase tracking-widest">Carregando carteira e atendimentos da semana…</p>
-            </p>
-          </div>
-
       </div>
     );
   }
 
   return (
     <div className="min-h-screen lexis-report-root font-sans text-foreground">
-      
-      <div className="print:hidden sticky top-0 z-[100] bg-white/80 backdrop-blur-xl border-b-2 border-black p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+
+      <div className="print:hidden sticky top-0 z-[100] bg-card/85 backdrop-blur-xl border-b border-border p-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-6">
-            <Button variant="ghost" asChild className="h-10 px-4 font-black uppercase text-[10px] border-2 border-transparent hover:border-black rounded-none">
+            <Button variant="ghost" asChild className="h-10 px-4 font-black uppercase text-[10px] border-2 border-transparent hover:border-border rounded-lg">
               <Link href="/"><ArrowLeft size={16} className="mr-2" /> Gabinete</Link>
             </Button>
-            <Badge className="bg-black text-primary font-black uppercase text-[10px] px-4 rounded-none h-8">Sincronia Omni 100%</Badge>
+            <Badge className="bg-primary text-primary-foreground font-black uppercase text-[10px] px-4 rounded-lg h-8">Sincronia Omni 100%</Badge>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Button
               onClick={handleGenerateClaude}
               disabled={claudeLoading}
-              className="bg-primary hover:bg-primary/90 text-black font-black uppercase text-[10px] h-10 px-6 rounded-none border-2 border-black shadow-[4px_4px_0px_#000]"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
             >
               {claudeLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Sparkles size={16} className="mr-2" />}
               Gerar parecer Claude AI
@@ -285,10 +301,10 @@ export default function UnifiedReport() {
               disabled={!claudeReady}
               title={!claudeReady ? "Gere o parecer Claude antes de exportar o PDF oficial" : "Exportar PDF operacional"}
               className={cn(
-                "font-black uppercase text-[10px] h-10 px-8 rounded-none shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all",
+                "font-black uppercase text-[10px] h-10 px-8 rounded-lg transition-all",
                 claudeReady
-                  ? "bg-black hover:bg-black/90 text-white"
-                  : "bg-gray-300 text-black/40 cursor-not-allowed shadow-none"
+                  ? "bg-foreground hover:bg-foreground/90 text-background"
+                  : "bg-muted text-muted-foreground/50 cursor-not-allowed"
               )}
             >
               <Printer size={16} className="mr-2" /> Imprimir / Exportar PDF operacional
@@ -298,37 +314,37 @@ export default function UnifiedReport() {
       </div>
 
       <div className="max-w-5xl mx-auto py-10 print:py-0 space-y-12">
-        
-        <section className="bg-white border-8 border-black p-16 relative overflow-hidden break-inside-avoid">
-           <div className="absolute top-0 right-0 p-10 opacity-[0.03] rotate-12 scale-150"><Layers size={300} /></div>
+
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 sm:p-16 relative overflow-hidden break-inside-avoid shadow-[6px_6px_0px_rgba(0,0,0,0.08)]">
+           <div className="absolute top-0 right-0 p-10 opacity-[0.04] rotate-12 scale-150 text-primary"><Layers size={300} /></div>
            <div className="space-y-10 relative z-10">
               <div className="flex items-center gap-6">
-                 <div className="w-12 h-12 bg-black flex items-center justify-center text-primary"><Layers size={28} /></div>
+                 <div className="w-12 h-12 bg-primary flex items-center justify-center text-primary-foreground rounded-lg"><Layers size={28} /></div>
                  <div>
-                    <h2 className="text-xl font-black uppercase tracking-[0.4em]">LexisPredict Elite</h2>
-                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] opacity-40">W1 Capital • Advanced Legal Operations</p>
+                    <h2 className="text-xl font-black uppercase tracking-[0.4em] text-foreground">LexisPredict Elite</h2>
+                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">W1 Capital • Advanced Legal Operations</p>
                  </div>
               </div>
               <div className="pt-10">
-                 <h1 className="text-6xl font-black uppercase tracking-tighter leading-[0.85] text-black">
+                 <h1 className="text-4xl sm:text-6xl font-black uppercase tracking-tighter leading-[0.85] text-foreground">
                     Dossiê<br />Operacional<br /><span className="text-primary">Master</span>
                  </h1>
-                 <p className="text-[10px] font-bold uppercase tracking-[0.5em] opacity-60 mt-4">Relatório Consolidado de Mérito e Responsabilidade</p>
+                 <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-muted-foreground mt-4">Relatório Consolidado de Mérito e Responsabilidade</p>
               </div>
            </div>
-           <div className="flex justify-between items-end border-t-4 border-black mt-20 pt-8">
+           <div className="flex justify-between items-end border-t-2 border-border mt-16 pt-8">
               <div className="space-y-1">
-                 <p className="text-[9px] font-black uppercase tracking-widest opacity-40">Auditado por</p>
-                 <p className="text-lg font-black uppercase tracking-tight">{profile?.nome}</p>
+                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Auditado por</p>
+                 <p className="text-lg font-black uppercase tracking-tight text-foreground">{profile?.nome}</p>
               </div>
               <div className="text-right">
-                 <p className="text-2xl font-black tracking-tighter uppercase">{new Date().getFullYear()}</p>
-                 <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[8px] px-3">v.25.0 ELITE</Badge>
+                 <p className="text-2xl font-black tracking-tighter uppercase text-foreground">{new Date().getFullYear()}</p>
+                 <Badge variant="outline" className="border-border text-foreground font-black uppercase text-[8px] px-3">v.26.0 ELITE</Badge>
               </div>
            </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-4 gap-6 break-inside-avoid">
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} />
            <KpiCard label="Atendidos esta semana" value={metrics.countAtendidosSemana ?? 0} tone="info" />
            <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} tone="danger" />
@@ -339,7 +355,7 @@ export default function UnifiedReport() {
            <KpiCard label="Fase Executiva" value={metrics.countCumprimento} />
         </section>
 
-        <section className="rounded-2xl border-2 border-border bg-card p-6 space-y-3 break-inside-avoid">
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-6 space-y-3 break-inside-avoid">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Atendimentos nesta semana</p>
@@ -352,38 +368,46 @@ export default function UnifiedReport() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(metrics.serieAtendimentosSemana || []).map((d: any) => (
-              <div key={d.day} className="min-w-[64px] rounded-xl border border-border bg-background/80 px-3 py-2 text-center">
-                <p className="text-[9px] font-black uppercase text-muted-foreground">{d.day}</p>
-                <p className="text-lg font-black tabular-nums text-foreground">{d.atendimentos}</p>
-              </div>
-            ))}
+            {(metrics.serieAtendimentosSemana || []).map((d: any) => {
+              const acima = metrics.mediaDia > 0 && d.atendimentos > metrics.mediaDia;
+              return (
+                <div key={d.day} className={cn(
+                  "min-w-[64px] rounded-xl border px-3 py-2 text-center transition-colors",
+                  acima
+                    ? "border-primary/50 bg-primary/10"
+                    : "border-border bg-background/80"
+                )}>
+                  <p className="text-[9px] font-black uppercase text-muted-foreground">{d.day}</p>
+                  <p className={cn("text-lg font-black tabular-nums", acima ? "text-primary" : "text-foreground")}>{d.atendimentos}</p>
+                </div>
+              );
+            })}
           </div>
+          <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Média de atendimentos por dia útil: {metrics.mediaDia}</p>
         </section>
 
-
-        <section className="bg-white border-2 border-black break-inside-avoid">
-           <div className="bg-black text-white p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+           <div className="lexis-report-band bg-primary text-primary-foreground p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3">
-                <Sparkles className="text-primary" size={14}/> Análise Claude AI — Relatório
+                <Sparkles size={14}/> Análise Claude AI — Relatório
               </h3>
               <div className="flex items-center gap-2">
                 {claudeReady ? (
-                  <Badge className="bg-emerald-500 text-white font-black text-[8px] uppercase">Parecer pronto · PDF liberado</Badge>
+                  <Badge className="bg-success text-success-foreground font-black text-[8px] uppercase">Parecer pronto · PDF liberado</Badge>
                 ) : (
-                  <Badge className="bg-amber-500 text-black font-black text-[8px] uppercase">PDF oficial bloqueado até Claude</Badge>
+                  <Badge className="bg-warning text-warning-foreground font-black text-[8px] uppercase">PDF oficial bloqueado até Claude</Badge>
                 )}
                 {claudeEngine ? (
-                  <Badge variant="outline" className="border-white/30 text-white text-[8px] font-black">{claudeEngine}</Badge>
+                  <Badge variant="outline" className="border-primary-foreground/40 text-primary-foreground text-[8px] font-black">{claudeEngine}</Badge>
                 ) : null}
               </div>
            </div>
            <div className="p-8 space-y-4">
-              <p className="text-[9px] font-black uppercase tracking-widest opacity-50">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                 Dossiê Operacional · Claude AI · {new Date().toLocaleString("pt-BR")}
               </p>
               {claudeError ? (
-                <div className="border-2 border-red-600 bg-red-50 p-4 text-[11px] font-bold text-red-800 whitespace-pre-wrap">
+                <div className="border-2 border-destructive bg-destructive/10 p-4 text-[11px] font-bold text-destructive whitespace-pre-wrap">
                   {claudeError}
                   <p className="mt-2 text-[10px] font-black uppercase">
                     Se HTTP 404/402: configure Anthropic em OmniRoute → Providers.
@@ -391,17 +415,17 @@ export default function UnifiedReport() {
                 </div>
               ) : null}
               {claudeLoading ? (
-                <div className="flex items-center gap-3 text-[11px] font-black uppercase opacity-60">
+                <div className="flex items-center gap-3 text-[11px] font-black uppercase text-muted-foreground">
                   <Loader2 className="animate-spin" size={18} /> Gerando parecer Claude…
                 </div>
               ) : null}
               {claudeText ? (
-                <div className="text-[12px] font-medium leading-relaxed whitespace-pre-wrap border-2 border-black/10 p-6 bg-[#fafafa]">
+                <div className="text-[12px] font-medium leading-relaxed whitespace-pre-wrap border border-border bg-muted/40 p-6 text-foreground">
                   {claudeText}
                 </div>
               ) : (
                 !claudeLoading && !claudeError ? (
-                  <p className="text-[11px] font-bold uppercase opacity-40 italic">
+                  <p className="text-[11px] font-bold uppercase text-muted-foreground italic">
                     Clique em &quot;Gerar parecer Claude AI&quot; para liberar o PDF operacional oficial.
                   </p>
                 ) : null
@@ -409,196 +433,239 @@ export default function UnifiedReport() {
            </div>
         </section>
 
-        <section className="bg-white border-2 border-black break-inside-avoid">
-           <div className="bg-black text-white p-5 flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Zap className="text-primary" size={14}/> Top 10: Criticidade por Movimentação</h3>
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+           <div className="lexis-report-band bg-primary text-primary-foreground p-5 flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Lightbulb size={14}/> Resumo Executivo</h3>
+              <Badge
+                className={cn(
+                  "font-black text-[8px] uppercase",
+                  metrics.riskLevel === "CRÍTICO" ? "bg-destructive text-white" :
+                  metrics.riskLevel === "ALTO" ? "bg-warning text-black" :
+                  metrics.riskLevel === "MODERADO" ? "bg-warning text-black" :
+                  "bg-success text-white"
+                )}
+              >
+                Risco {metrics.riskLevel} · {metrics.riskScore}%
+              </Badge>
+           </div>
+           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Leitura da carteira</p>
+                 <div className="space-y-2.5">
+                    <InsightRow icon={<ShieldAlert size={13} />} tone={metrics.countVencido > 0 ? "danger" : "ok"} text={`${metrics.countVencido} prazo(s) vencido(s) e ${metrics.countHoje} prazo(s) para hoje — atenção máxima.`} />
+                    <InsightRow icon={<Activity size={13} />} tone="ok" text={`${metrics.countAtendidosSemana} atendimento(s) registrado(s) nesta semana (média ${metrics.mediaDia}/dia).`} />
+                    <InsightRow icon={<Zap size={13} />} tone="info" text={`${metrics.countNovoAndamento} caso(s) com novidade real de andamento aguardando resposta.`} />
+                    <InsightRow icon={<Target size={13} />} tone="info" text={`${metrics.topChance.length} caso(s) com alta probabilidade de encerramento — revisar para baixa.`} />
+                    <InsightRow icon={<CheckCircle2 size={13} />} tone="ok" text={`${metrics.countEncerradoTribunal} baixa(s) detectada(s) pelo tribunal e ${metrics.listProcedente.length} vitória(s) listada(s).`} />
+                 </div>
+              </div>
+              <div className="space-y-3">
+                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Plano de ação recomendado</p>
+                 <ol className="space-y-2">
+                    {metrics.recomendacoes.slice(0, 6).map((r, i) => (
+                       <li key={i} className="flex items-start gap-2.5 text-[11px] font-bold text-foreground/90">
+                          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-[8px] font-black">{i + 1}</span>
+                          {r}
+                       </li>
+                    ))}
+                 </ol>
+              </div>
+           </div>
+        </section>
+
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+           <div className="lexis-report-band bg-primary text-primary-foreground p-5 flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Zap size={14}/> Top 10: Criticidade por Movimentação</h3>
            </div>
            <div className="p-0 overflow-hidden">
               <table className="w-full text-left text-[9px] font-black uppercase">
-                 <thead className="bg-[#f8f9fb] border-b-2 border-black">
+                 <thead className="bg-muted/60 border-b border-border">
                     <tr>
-                       <th className="p-4">Cliente / Protocolo</th>
-                       <th className="p-4">Natureza do Sinal</th>
-                       <th className="p-4 text-center">Fonte</th>
-                       <th className="p-4 text-right">Data</th>
+                       <th className="p-4 text-muted-foreground">Cliente / Protocolo</th>
+                       <th className="p-4 text-muted-foreground">Natureza do Sinal</th>
+                       <th className="p-4 text-center text-muted-foreground">Fonte</th>
+                       <th className="p-4 text-right text-muted-foreground">Data</th>
                     </tr>
                  </thead>
-                 <tbody className="divide-y divide-black/5">
+                 <tbody className="divide-y divide-border/60">
                     {metrics.topCriticos.length > 0 ? metrics.topCriticos.map((item, i) => (
-                      <tr key={i} className="hover:bg-gray-50 group">
+                      <tr key={i} className="hover:bg-muted/40">
                          <td className="p-4">
-                            <p className="text-[10px] font-black">{item.case.cliente}</p>
-                            <p className="text-[8px] opacity-40 font-mono">{item.case.protocolo}</p>
+                            <p className="text-[10px] font-black text-foreground">{item.case.cliente}</p>
+                            <p className="text-[8px] text-muted-foreground font-mono">{item.case.protocolo}</p>
                          </td>
                          <td className="p-4">
-                            <p className={cn(item.sinal.prioridade >= 80 ? "text-red-600" : "text-black")}>{item.sinal.titulo}</p>
-                            <p className="text-[8px] font-bold opacity-40 lowercase italic line-clamp-1">{item.sinal.detalhe}</p>
+                            <p className={cn(item.sinal.prioridade >= 80 ? "text-destructive" : "text-foreground")}>{item.sinal.titulo}</p>
+                            <p className="text-[8px] font-bold text-muted-foreground lowercase italic line-clamp-1">{item.sinal.detalhe}</p>
                          </td>
                          <td className="p-4 text-center">
-                            <Badge variant="outline" className="text-[7px] font-black border-black/10 uppercase">{item.sinal.fonte}</Badge>
+                            <Badge variant="outline" className="text-[7px] font-black border-border text-muted-foreground uppercase">{item.sinal.fonte}</Badge>
                          </td>
-                         <td className="p-4 text-right opacity-60">
+                         <td className="p-4 text-right text-muted-foreground">
                            {item.sinal.data ? new Date(item.sinal.data).toLocaleDateString('pt-BR') : '---'}
                          </td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={4} className="p-10 text-center opacity-40">Nenhum sinal crítico pós-auditoria</td></tr>
+                      <tr><td colSpan={4} className="p-10 text-center text-muted-foreground">Nenhum sinal crítico pós-auditoria</td></tr>
                     )}
                  </tbody>
               </table>
            </div>
         </section>
 
-        <section className="bg-white border-2 border-black break-inside-avoid">
-           <div className="bg-emerald-600 text-white p-5 flex items-center justify-between">
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+           <div className="lexis-report-band bg-success text-success-foreground p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><Target size={16}/> Top 10: Maior Chance de Encerramento</h3>
            </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-x-2 divide-y-2 divide-black/10">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-x-2 divide-y-2 divide-border/50">
               {metrics.topChance.length > 0 ? metrics.topChance.map((item, i) => (
-                 <div key={i} className="p-5 flex items-center justify-between hover:bg-emerald-50 transition-all group">
+                 <div key={i} className="p-5 flex items-center justify-between hover:bg-success/5 transition-all group">
                     <div className="min-w-0">
-                       <p className="text-[10px] font-black uppercase truncate">{item.case.cliente}</p>
-                       <p className="text-[8px] font-mono opacity-40">{item.case.protocolo}</p>
+                       <p className="text-[10px] font-black uppercase truncate text-foreground">{item.case.cliente}</p>
+                       <p className="text-[8px] font-mono text-muted-foreground">{item.case.protocolo}</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-2xl font-black text-emerald-600">{item.prob}%</p>
-                       <p className="text-[7px] font-black uppercase opacity-40">Probabilidade</p>
+                       <p className="text-2xl font-black text-success">{item.prob}%</p>
+                       <p className="text-[7px] font-black uppercase text-muted-foreground">Probabilidade</p>
                     </div>
                  </div>
               )) : (
-                <div className="p-10 text-center col-span-2 opacity-40">Sem previsões de encerramento ativas</div>
+                <div className="p-10 text-center col-span-2 text-muted-foreground">Sem previsões de encerramento ativas</div>
               )}
            </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 break-inside-avoid">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 break-inside-avoid">
            <MeritList title="Fase Executiva" data={metrics.listCumprimento} icon={<Activity size={14}/>} color="bg-blue-600" />
            <MeritList title="Vitórias (Procedente)" data={metrics.listProcedente} icon={<CheckCircle2 size={14}/>} color="bg-emerald-600" />
            <MeritList title="Revisões (Improcedente)" data={metrics.listImprocedente} icon={<AlertTriangle size={14}/>} color="bg-red-600" />
         </section>
 
-        <section className="bg-white border-2 border-black break-inside-avoid">
-           <div className="bg-black text-white p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+           <div className="lexis-report-band bg-primary text-primary-foreground p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
-                 <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-3"><UserCheck className="text-primary" size={18}/> Auditoria de Responsabilidade</h3>
-                 <p className="text-[9px] font-bold uppercase opacity-60">Status da carteira atribuída ao perfil: {profile?.nome}</p>
+                 <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-3"><UserCheck size={18}/> Auditoria de Responsabilidade</h3>
+                 <p className="text-[9px] font-bold uppercase text-primary-foreground/80">Status da carteira atribuída ao perfil: {profile?.nome}</p>
               </div>
               <div className="flex gap-4">
-                 <Badge className="bg-red-600 text-white font-black text-[9px] px-3 py-1 uppercase">{metrics.myVencidos.length} Vencidos</Badge>
+                 <Badge className="bg-destructive text-white font-black text-[9px] px-3 py-1 uppercase">{metrics.myVencidos.length} Vencidos</Badge>
                  <Badge className="bg-blue-600 text-white font-black text-[9px] px-3 py-1 uppercase">{metrics.myNovidades.length} Novidades</Badge>
               </div>
            </div>
-           
+
            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-red-600 flex items-center gap-2"><Clock size={12}/> Meus Prazos Vencidos</h4>
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-border/50 pb-2 text-destructive flex items-center gap-2"><Clock size={12}/> Meus Prazos Vencidos</h4>
                  <div className="space-y-3">
                     {metrics.myVencidos.map((c, i) => (
-                      <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-red-50 border-l-4 border-red-600 hover:translate-x-1 transition-transform">
-                         <p className="text-[10px] font-black uppercase text-red-900">{c.cliente}</p>
-                         <p className="text-[8px] font-bold text-red-600/60 uppercase">Vencido em: {c.proximoPrazo}</p>
+                      <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-destructive/10 border-l-4 border-destructive hover:translate-x-1 transition-transform rounded-r-lg">
+                         <p className="text-[10px] font-black uppercase text-foreground">{c.cliente}</p>
+                         <p className="text-[8px] font-bold text-muted-foreground uppercase">Vencido em: {c.proximoPrazo}</p>
                       </Link>
                     ))}
-                    {metrics.myVencidos.length === 0 && <p className="text-[9px] font-black uppercase opacity-30 italic">Nenhum prazo vencido no escopo.</p>}
+                    {metrics.myVencidos.length === 0 && <p className="text-[9px] font-black uppercase text-muted-foreground italic">Nenhum prazo vencido no escopo.</p>}
                  </div>
               </div>
-              
+
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase border-b-2 border-black/5 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Novidades Pendentes</h4>
+                 <h4 className="text-[10px] font-black uppercase border-b-2 border-border/50 pb-2 text-blue-600 flex items-center gap-2"><Zap size={12}/> Novidades Pendentes</h4>
                  <div className="space-y-3">
                     {metrics.myNovidades.map((c, i) => {
                       const sinal = getSinalCapa(c);
                       return (
-                        <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-blue-50 border-l-4 border-blue-600 hover:translate-x-1 transition-transform">
-                           <p className="text-[10px] font-black uppercase text-blue-900">{c.cliente}</p>
-                           <p className="text-[8px] font-bold text-blue-600/60 uppercase">{sinal.titulo}</p>
+                        <Link key={i} href={`/cases?search=${c.protocolo}`} className="block p-3 bg-blue-600/10 border-l-4 border-blue-600 hover:translate-x-1 transition-transform rounded-r-lg">
+                           <p className="text-[10px] font-black uppercase text-foreground">{c.cliente}</p>
+                           <p className="text-[8px] font-bold text-muted-foreground uppercase">{sinal.titulo}</p>
                         </Link>
                       );
                     })}
-                    {metrics.myNovidades.length === 0 && <p className="text-[9px] font-black uppercase opacity-30 italic">Nenhuma novidade pendente.</p>}
+                    {metrics.myNovidades.length === 0 && <p className="text-[9px] font-black uppercase text-muted-foreground italic">Nenhuma novidade pendente.</p>}
                  </div>
               </div>
            </div>
         </section>
 
-        <section className="bg-white border-2 border-black break-inside-avoid">
-           <div className="bg-slate-50 border-b-2 border-black p-5 flex items-center justify-between">
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+           <div className="lexis-report-band bg-muted text-foreground border-b border-border p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><StickyNote className="text-primary" size={14}/> Anotações e Evidências do Gabinete</h3>
-              <Badge variant="outline" className="border-black/10 text-[8px] font-black">{notes.length} Registros</Badge>
+              <Badge variant="outline" className="border-border text-muted-foreground text-[8px] font-black">{notes.length} Registros</Badge>
            </div>
            <div className="p-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  {notes.length > 0 ? notes.slice(0, 20).map((note) => (
-                   <div key={note.id} className="p-6 border-2 border-black bg-white space-y-4 flex flex-col h-full shadow-[4px_4px_0px_#000]">
+                   <div key={note.id} className="p-6 border border-border bg-card rounded-xl space-y-4 flex flex-col h-full shadow-md">
                       {note.imageUrl && (
-                        <div className="relative w-full h-40 border-2 border-black mb-2 overflow-hidden">
+                        <div className="relative w-full h-40 border border-border rounded-lg mb-2 overflow-hidden">
                            <img src={note.imageUrl} alt="Evidência" className="w-full h-full object-cover" />
                         </div>
                       )}
                       <div>
-                        <p className="text-[10px] font-black uppercase border-b border-black/5 pb-2 mb-2">{note.title}</p>
-                        <p className="text-[11px] font-bold uppercase leading-relaxed text-black/70 italic line-clamp-4">"{note.content}"</p>
+                        <p className="text-[10px] font-black uppercase border-b border-border/50 pb-2 mb-2 text-foreground">{note.title}</p>
+                        <p className="text-[11px] font-bold uppercase leading-relaxed text-muted-foreground italic line-clamp-4">"{note.content}"</p>
                       </div>
-                      <div className="mt-auto pt-4 flex items-center justify-between opacity-30">
+                      <div className="mt-auto pt-4 flex items-center justify-between text-muted-foreground">
                          <span className="text-[8px] font-black uppercase tracking-widest">{note.updatedAt}</span>
                          <User size={10} />
                       </div>
                    </div>
                  )) : (
-                   <div className="col-span-2 py-10 text-center opacity-30 font-black uppercase text-xs italic">Nenhuma anotação estratégica registrada.</div>
+                   <div className="col-span-2 py-10 text-center text-muted-foreground font-black uppercase text-xs italic">Nenhuma anotação estratégica registrada.</div>
                  )}
               </div>
            </div>
         </section>
 
         {metrics.isMaster && (
-           <section className="p-10 border-4 border-black break-inside-avoid bg-[#fafafa]">
-              <div className="flex items-center gap-3 mb-10 border-b-2 border-black pb-4">
-                 <Gavel size={20} className="text-primary" />
-                 <h3 className="text-sm font-black uppercase tracking-widest">Governança de Banca: Performance de Advogados</h3>
+           <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
+              <div className="lexis-report-band bg-primary text-primary-foreground p-5 flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                    <Gavel size={20} />
+                    <h3 className="text-sm font-black uppercase tracking-widest">Governança de Banca: Performance de Advogados</h3>
+                 </div>
+                 <ListChecks size={18} className="text-primary-foreground/70" />
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+
+              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
                  <div className="space-y-6">
-                    <p className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.2em] flex items-center gap-2"><TrendingUpIcon size={14}/> Top 3 Efficiency (Líderes)</p>
+                    <p className="text-[10px] font-black uppercase text-success tracking-[0.2em] flex items-center gap-2"><TrendingUpIcon size={14}/> Top 3 Efficiency (Líderes)</p>
                     <div className="space-y-3">
                        {metrics.top3Lawyers.length > 0 ? metrics.top3Lawyers.map((l, i) => (
-                         <div key={i} className="p-4 bg-white border-2 border-emerald-600 flex justify-between items-center shadow-[4px_4px_0px_#10b981]">
-                            <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
-                            <span className="text-lg font-black text-emerald-600">+{new Intl.NumberFormat('pt-BR').format(l.score)}</span>
+                         <div key={i} className="p-4 bg-success/10 border border-success rounded-lg flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase text-foreground">#{i+1} {l.name}</span>
+                            <span className="text-lg font-black text-success">+{new Intl.NumberFormat('pt-BR').format(l.score)}</span>
                          </div>
-                       )) : <p className="text-[9px] opacity-40 uppercase">Aguardando dados de score...</p>}
+                       )) : <p className="text-[9px] text-muted-foreground uppercase">Aguardando dados de score...</p>}
                     </div>
                  </div>
 
                  <div className="space-y-6">
-                    <p className="text-[10px] font-black uppercase text-red-600 tracking-[0.2em] flex items-center gap-2"><TrendingDownIcon size={14}/> Bottom 3 Performance (Revisão)</p>
+                    <p className="text-[10px] font-black uppercase text-destructive tracking-[0.2em] flex items-center gap-2"><TrendingDownIcon size={14}/> Bottom 3 Performance (Revisão)</p>
                     <div className="space-y-3">
                        {metrics.bottom3Lawyers.length > 0 ? metrics.bottom3Lawyers.map((l, i) => (
-                         <div key={i} className="p-4 bg-white border-2 border-red-600 flex justify-between items-center shadow-[4px_4px_0px_#ef4444]">
-                            <span className="text-[10px] font-black uppercase">#{i+1} {l.name}</span>
-                            <span className={cn("text-lg font-black", l.score < 0 ? "text-red-600" : "text-orange-600")}>
+                         <div key={i} className="p-4 bg-destructive/10 border border-destructive/40 rounded-lg flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase text-foreground">#{i+1} {l.name}</span>
+                            <span className={cn("text-lg font-black", l.score < 0 ? "text-destructive" : "text-warning")}>
                               {new Intl.NumberFormat('pt-BR').format(l.score)}
                             </span>
                          </div>
-                       )) : <p className="text-[9px] opacity-40 uppercase">Aguardando dados de score...</p>}
+                       )) : <p className="text-[9px] text-muted-foreground uppercase">Aguardando dados de score...</p>}
                     </div>
                  </div>
               </div>
            </section>
         )}
 
-        <footer className="p-10 border-t-8 border-black flex justify-between items-center break-inside-avoid">
+        <footer className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 flex justify-between items-center break-inside-avoid">
            <div className="flex items-center gap-6">
-              <div className="w-10 h-10 border-4 border-black flex items-center justify-center bg-black"><Zap size={20} className="text-primary" /></div>
+              <div className="w-10 h-10 border-2 border-primary rounded-lg flex items-center justify-center bg-primary text-primary-foreground"><Zap size={20} /></div>
               <div>
-                <p className="text-[10px] tracking-[0.4em] uppercase text-black font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
-                <p className="text-[7px] font-bold uppercase opacity-30 tracking-[0.2em]">
+                <p className="text-[10px] tracking-[0.4em] uppercase text-foreground font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
+                <p className="text-[7px] font-bold uppercase text-muted-foreground tracking-[0.2em]">
                   Dossiê Operacional · Claude AI · métricas locais + parecer
                 </p>
               </div>
            </div>
-           <p className="text-[9px] font-black uppercase text-black/60">Copyright © 2026 LexisPredict Elite</p>
+           <p className="text-[9px] font-black uppercase text-muted-foreground">Copyright © 2026 LexisPredict Elite</p>
         </footer>
       </div>
     </div>
@@ -612,16 +679,29 @@ function KpiCard({ label, value, tone = "default" }: { label: string; value: any
     tone === "info" ? "lexis-kpi-value lexis-kpi-info" :
     "lexis-kpi-value";
   return (
-    <div className="lexis-kpi-card p-6 shadow-[6px_6px_0px_rgba(15,23,42,0.12)] transition-all">
-      <p className="lexis-kpi-label text-[9px] font-black uppercase mb-2 tracking-widest">{label}</p>
+    <div className="lexis-kpi-card rounded-xl p-5 border border-border bg-card transition-all">
+      <p className="lexis-kpi-label text-[9px] font-black uppercase mb-2 tracking-widest text-muted-foreground">{label}</p>
       <p className={cn("text-3xl font-black tabular-nums", valueCls)}>{value}</p>
+    </div>
+  );
+}
+
+function InsightRow({ icon, text, tone }: { icon: any; text: string; tone: "danger" | "ok" | "info" }) {
+  const toneCls =
+    tone === "danger" ? "text-destructive" :
+    tone === "ok" ? "text-success" :
+    "text-primary";
+  return (
+    <div className="flex items-start gap-2.5 text-[11px] font-bold text-foreground/90">
+      <span className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted", toneCls)}>{icon}</span>
+      {text}
     </div>
   );
 }
 
 function MeritList({ title, data, icon, color }: { title: string, data: LegalCase[], icon: any, color: string }) {
   return (
-    <div className="lexis-kpi-card flex flex-col h-full overflow-hidden">
+    <div className="lexis-report-sheet rounded-xl border border-border bg-card flex flex-col h-full overflow-hidden">
        <div className={cn("text-white p-3 flex items-center justify-between", color)} data-keep-white>
           <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" data-keep-white>{icon} {title}</span>
           <Badge variant="outline" className="text-white border-white/30 text-[7px]" data-keep-white>{data.length}</Badge>

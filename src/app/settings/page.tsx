@@ -57,7 +57,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { AUTHORITY_PRESETS, applyGlobalTheme } from '@/lib/theme';
+import { AUTHORITY_PRESETS, applyGlobalTheme, applyPresetById, getPresetColors, saveCustomTheme, CUSTOM_PRESET_ID } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { 
   applyWallpaperUrl, 
@@ -374,6 +374,7 @@ export default function SettingsPage() {
 
   const handleApplyHardware = () => {
     const customColors = { background: bgColor, bgSecondary: bgSecondaryColor, foreground: fontColor, fontMuted: fontMutedColor, primary: primaryColor, accent: accentColor, border: fontColor };
+    saveCustomTheme(customColors, radius);
     applyGlobalTheme(customColors, radius, bgOpacity / 100, sidebarOpacity / 100, glassBlur);
     if (wallpaper) applyWallpaperUrl(wallpaper);
     toast({ title: "Hardware Visual Aplicado" });
@@ -477,19 +478,30 @@ export default function SettingsPage() {
                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Authority Presets</Label>
                        <Button variant="ghost" onClick={handleApplyHardware} className="h-8 text-[10px] font-black uppercase hover:bg-primary hover:text-black"><RefreshCcw size={12} className="mr-2"/> Sincronizar Tudo</Button>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                       {AUTHORITY_PRESETS.map((p) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                       {AUTHORITY_PRESETS.map((p) => {
+                         const light = getPresetColors(p, 'light');
+                         const dark = getPresetColors(p, 'dark');
+                         const active = bgColor === light.background || bgColor === dark.background;
+                         return (
                          <button key={p.id} onClick={() => {
-                             setBgColor(p.colors.background); setBgSecondaryColor(p.colors.bgSecondary); setFontColor(p.colors.foreground); setFontMutedColor(p.colors.fontMuted); setPrimaryColor(p.colors.primary); setAccentColor(p.colors.accent); setRadius(p.radius);
-                             applyGlobalTheme(p.colors, p.radius, bgOpacity / 100, sidebarOpacity / 100, glassBlur);
+                             applyPresetById(p.id);
+                             setBgColor(light.background); setBgSecondaryColor(light.bgSecondary); setFontColor(light.foreground); setFontMutedColor(light.fontMuted); setPrimaryColor(light.primary); setAccentColor(light.accent); setRadius(p.radius);
                              toast({ title: `Tema ${p.name} Ativado` });
-                         }} className={cn("p-4 border border-border hover:border-primary/50 transition-all flex flex-col items-center gap-3 bg-background/20 backdrop-blur-md rounded-lg relative overflow-hidden group", bgColor === p.colors.background && "border-primary")}>
-                            <div className="w-10 h-10 rounded-md border border-border group-hover:scale-110 transition-transform shadow-lg" style={{ backgroundColor: p.colors.background }}>
-                               <div className="w-full h-1/2 rounded-t-md" style={{ backgroundColor: p.colors.primary }} />
+                         }} className={cn("p-4 border border-border hover:border-primary/50 transition-all flex flex-col items-center gap-3 bg-background/20 backdrop-blur-md rounded-lg relative overflow-hidden group", active && "border-primary")}>
+                            <div className="flex items-center gap-2">
+                               <div className="w-10 h-10 rounded-md border border-border group-hover:scale-110 transition-transform shadow-lg overflow-hidden" style={{ backgroundColor: light.background }}>
+                                  <div className="w-full h-1/2 rounded-t-md" style={{ backgroundColor: light.primary }} />
+                               </div>
+                               <div className="w-10 h-10 rounded-md border border-border group-hover:scale-110 transition-transform shadow-lg overflow-hidden" style={{ backgroundColor: dark.background }}>
+                                  <div className="w-full h-1/2 rounded-t-md" style={{ backgroundColor: dark.primary }} />
+                               </div>
                             </div>
                             <span className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">{p.name}</span>
+                            <span className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground text-center leading-tight">Light + Dark</span>
                          </button>
-                       ))}
+                         );
+                       })}
                     </div>
                   </section>
                   <section className="space-y-6">

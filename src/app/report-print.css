@@ -1,0 +1,90 @@
+/* ==========================================================================
+   Dossiê Operacional — folhas temáticas + impressão (PDF) de alta qualidade.
+   Na tela respeita o tema ativo (light/dark/preset). Na impressão força
+   preto/branco de alto contraste, como um dossiê formal.
+   ========================================================================== */
+
+.lexis-report-sheet {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border-color: hsl(var(--border));
+}
+
+.lexis-report-root {
+  background:
+    radial-gradient(1000px 400px at 10% -10%, hsl(var(--primary) / 0.06), transparent 50%),
+    hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.lexis-report-band {
+  color-scheme: light;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  .lexis-report-root {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .lexis-report-sheet {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #000000 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .lexis-report-band {
+    background: #000000 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .lexis-report-band .bg-warning,
+  .lexis-report-band [class*="bg-warning"] {
+    background: #000000 !important;
+    color: #ffffff !important;
+  }
+
+  .lexis-kpi-card {
+    background: #ffffff !important;
+    border: 2px solid #000000 !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+  .lexis-kpi-card .lexis-kpi-value {
+    color: #000000 !important;
+  }
+  .lexis-kpi-card .lexis-kpi-label {
+    color: #000000 !important;
+  }
+  .lexis-kpi-card .lexis-kpi-danger {
+    color: #dc2626 !important;
+  }
+  .lexis-kpi-card .lexis-kpi-ok {
+    color: #059669 !important;
+  }
+  .lexis-kpi-card .lexis-kpi-info {
+    color: #2563eb !important;
+  }
+
+  .lexis-report-root a {
+    color: #000000 !important;
+    text-decoration: none;
+  }
+
+  /* Mantém badges coloridas legíveis na impressão */
+  .lexis-report-sheet .bg-emerald-600,
+  .lexis-report-sheet .bg-red-600,
+  .lexis-report-sheet .bg-blue-600 {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

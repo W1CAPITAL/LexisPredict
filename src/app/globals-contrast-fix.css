@@ -97,15 +97,7 @@
   color: rgba(15, 23, 42, 0.55) !important;
 }
 
-/* Report page root: respeita tema */
-.lexis-report-root {
-  background: #f3f2f2;
-  color: #0f172a;
-}
-.dark .lexis-report-root {
-  background: #020617;
-  color: #f8fafc;
-}
+/* Report page root: respeita tema (definição em report-print.css) */
 
 /* Tabelas / dialogs */
 table td, table th { color: inherit; }
