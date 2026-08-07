@@ -1,11 +1,11 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import "../styles/glass-liquid.css";
+@import "../src/styles/glass-liquid.css";
 
-@import "../styles/leather-notes.css";
+@import "../src/styles/leather-notes.css";
 
-@import "../styles/metal-tokens.css";
+@import "../src/styles/metal-tokens.css";
 
 @import "./globals-ai-draft-contrast.css";
 @import "./globals-contrast-fix.css";
