@@ -379,7 +379,7 @@ export default function Dashboard() {
                    </section>
 
                    <section className="premium-card overflow-hidden">
-                      <div className="bg-[#f8f9fb] px-6 sm:px-8 py-5 border-b border-border/30 flex items-center justify-between">
+                      <div className="bg-secondary/50 dark:bg-card/70 px-6 sm:px-8 py-5 border-b border-border/30 flex items-center justify-between">
                          <div className="flex items-center gap-3">
                             <Target size={18} className="text-primary" />
                             <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Fila Prioritária de Gestão</h3>
@@ -389,8 +389,8 @@ export default function Dashboard() {
                          </Button>
                       </div>
                       <div className={ui.tableWrap}>
-                         <table className="w-full text-left min-w-[600px]">
-                            <thead className="bg-white border-b border-border/20">
+                          <table className="w-full text-left min-w-[600px]">
+                            <thead className="bg-secondary/50 dark:bg-card/80 border-b border-border/20">
                                <tr className="text-[9px] font-black uppercase text-muted-foreground/60 tracking-widest">
                                   <th className="px-8 py-3">Cliente / Protocolo</th>
                                   <th className="px-8 py-3">Natureza do Evento</th>
@@ -408,11 +408,13 @@ export default function Dashboard() {
                                      </td>
                                      <td className="px-8 py-4">
                                         <div className="flex flex-col gap-1">
-                                          <Badge variant="outline" className={cn(
-                                             "text-[8px] font-black uppercase px-2 py-0 border-none w-fit",
+                                           <Badge variant="outline" className={cn(
+                                              "text-[8px] font-black uppercase px-2 py-0 border-none w-fit",
                                               
-                                             c.status === 'Vencido' ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
-                                          )}>
+                                              c.status === 'Vencido'
+                                                ? "bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400"
+                                                : "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+                                           )}>
                                              {c.status}
                                           </Badge>
                                           <span className="text-[9px] font-bold text-foreground/70 uppercase truncate max-w-[250px]">
@@ -421,7 +423,7 @@ export default function Dashboard() {
                                         </div>
                                      </td>
                                      <td className="px-8 py-4 text-right">
-                                        <Button asChild variant="ghost" size="icon" className={cn("h-8 w-8 rounded-lg group-hover:bg-black group-hover:text-white transition-all", ui.touch)}>
+                                        <Button asChild variant="ghost" size="icon" className={cn("h-8 w-8 rounded-lg group-hover:bg-foreground group-hover:text-background transition-all", ui.touch)}>
                                            <Link href={`/cases?search=${c.protocolo}`}><ChevronRight size={14}/></Link>
                                         </Button>
                                      </td>
@@ -562,7 +564,7 @@ export default function Dashboard() {
             </TabsContent>
 
             <TabsContent value="connectivity" className="p-4 sm:p-10 space-y-8 m-0 max-w-[1600px] mx-auto w-full">
-              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 bg-white border border-border/50 p-6 sm:p-8 rounded-2xl shadow-sm">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 bg-card border border-border/50 p-6 sm:p-8 rounded-2xl shadow-sm">
                 <div className="space-y-1">
                   <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight flex items-center gap-3">
                     <Signal size={24} className="text-primary" /> Rede Judicial

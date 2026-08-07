@@ -54,7 +54,35 @@ function operationalCells(r: Row): (string | number)[] {
     r.em_cumprimento_sentenca || evento === 'cumprimento_sentenca' ? 'SIM' : 'NAO',
     r.djen_ultimo_resumo || '',
     status,
+    String(diasSemRetorno(r.ultimoRetorno || r.ultimo_retorno) ?? ''),
+    evento === 'sentenca_procedente' ? 'SIM' : 'NAO',
+    evento === 'sentenca_improcedente' ? 'SIM' : 'NAO',
   ].map((v) => (v == null ? '' : v));
+}
+
+function diasSemRetorno(raw?: string | null): number | null {
+  if (!raw) return null;
+  const d = parseFlexDate(String(raw));
+  if (!d) return null;
+  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+  return diff >= 0 ? diff : 0;
+}
+
+function parseFlexDate(raw: string): Date | null {
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const dt = new Date(s.slice(0, 10) + 'T12:00:00');
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    const dt = new Date(y, Number(m[2]) - 1, Number(m[1]), 12);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(s + 'T12:00:00');
+  return isNaN(dt.getTime()) ? null : dt;
 }
 
 /** CSV operacional (sem metadados internos) */
