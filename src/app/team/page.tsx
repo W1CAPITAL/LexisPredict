@@ -33,6 +33,7 @@ import { getTranslation, Locale } from '@/lib/i18n';
 import { fetchTeamPerformanceAction } from '@/app/actions/case-actions';
 import { LegalCase } from '@/lib/case-logic';
 import { calcularScoreAdvogado, calcularScoreAssessor, ScoreResult } from '@/lib/score-engine';
+import { countAtendidosNestaSemana, labelSemanaAtual } from '@/lib/atendimento-semana';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -184,7 +185,8 @@ export default function TeamManagement() {
       });
       return {
         name: user.nome,
-        result: calcularScoreAssessor(userCases)
+        result: calcularScoreAssessor(userCases),
+        atendidosSemana: countAtendidosNestaSemana(userCases)
       };
     }).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
@@ -206,14 +208,14 @@ export default function TeamManagement() {
   };
 
   return (
-    <div className="flex h-screen bg-[#f8f9fb] font-sans text-foreground overflow-hidden">
+    <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <div className="print:hidden">
         <Sidebar />
       </div>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 border-b border-border/30 bg-white/60 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-40 print:hidden">
+        <header className="h-20 border-b border-border/30 bg-card/60 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-40 print:hidden">
           <div className="flex items-center gap-4">
-            <div className="p-2 bg-black text-white rounded-lg shadow-lg">
+            <div className="p-2 bg-primary text-primary-foreground rounded-lg shadow-lg">
               <Users size={20} className="text-primary" />
             </div>
             <div>
@@ -225,14 +227,14 @@ export default function TeamManagement() {
           <div className="flex items-center gap-6">
             <Tabs value={viewMode} onValueChange={(val) => setViewMode(val as any)} className="bg-secondary/20 p-1 rounded-xl">
               <TabsList className="bg-transparent h-9 border-none gap-1">
-                <TabsTrigger value="management" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Gestão</TabsTrigger>
-                <TabsTrigger value="performance" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-black data-[state=active]:text-white">Ranking Operacional</TabsTrigger>
+                <TabsTrigger value="management" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Gestão</TabsTrigger>
+                <TabsTrigger value="performance" className="rounded-lg px-4 font-black uppercase text-[9px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Ranking Operacional</TabsTrigger>
               </TabsList>
             </Tabs>
 
             {isSuperAdmin && (
-              <Button onClick={() => setIsNewUserOpen(true)} className="bg-black text-white font-black h-10 px-6 rounded-xl uppercase text-[10px] tracking-widest shadow-xl">
-                <UserPlus size={16} className="mr-2 text-primary" /> Novo Membro
+              <Button onClick={() => setIsNewUserOpen(true)} className="bg-primary text-primary-foreground font-black h-10 px-6 rounded-xl uppercase text-[10px] tracking-widest shadow-xl">
+                <UserPlus size={16} className="mr-2" /> Novo Membro
               </Button>
             )}
           </div>
@@ -241,12 +243,18 @@ export default function TeamManagement() {
         <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full">
           {viewMode === 'management' && (
             <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20 animate-in fade-in duration-500">
-              {users.map((user) => {
+              {loading ? (
+                <div className="col-span-full flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
+                  <Loader2 size={28} className="animate-spin text-primary" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Sincronizando Equipe...</p>
+                </div>
+              ) : (
+                users.map((user) => {
                 const canManage = canManageUser(user);
                 return (
                   <Card key={user.id} className={cn(
-                    "premium-card bg-white border-border/40 rounded-2xl group hover:border-black transition-all",
-                    user.auth_user_id === profile?.auth_user_id && "border-primary/40 bg-primary/[0.02]"
+                    "premium-card bg-card border-border/50 rounded-2xl group hover:border-primary/50 transition-all",
+                    user.auth_user_id === profile?.auth_user_id && "border-primary/50 bg-primary/[0.03]"
                   )}>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                       <div className="flex items-center gap-4">
@@ -259,8 +267,8 @@ export default function TeamManagement() {
                           </p>
                           <Badge variant="outline" className={cn(
                             "text-[7px] font-black uppercase h-5",
-                            user.cargo === 'Superadmin' ? "bg-black text-white" : 
-                            user.cargo === 'Supervisor' ? "bg-blue-600 text-white" : "text-black"
+                            user.cargo === 'Superadmin' ? "bg-primary text-primary-foreground" : 
+                            user.cargo === 'Supervisor' ? "bg-blue-600 text-white" : "text-foreground border-border"
                           )}>
                             {user.cargo}
                           </Badge>
@@ -272,7 +280,7 @@ export default function TeamManagement() {
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><MoreVertical size={16} /></Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="p-2 min-w-[180px] rounded-none border-2 border-black shadow-[6px_6px_0px_#000]">
+                          <DropdownMenuContent align="end" className="p-2 min-w-[180px] rounded-xl border border-border shadow-xl bg-card">
                              <DropdownMenuLabel className="text-[8px] font-black uppercase opacity-40 px-2 pb-1">Alterar Autoridade</DropdownMenuLabel>
                              
                              {currentUserWeight > ROLE_WEIGHTS['Supervisor'] && (
@@ -309,7 +317,8 @@ export default function TeamManagement() {
                     </CardContent>
                   </Card>
                 );
-              })}
+                })
+              )}
             </section>
           )}
 
@@ -317,18 +326,30 @@ export default function TeamManagement() {
             <section className="space-y-12 pb-20 animate-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 <div className="space-y-6">
-                   <div className="flex items-center gap-3 border-b-2 border-black pb-4">
+                   <div className="flex items-center gap-3 border-b-2 border-primary pb-4">
                       <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center rounded-lg shadow-lg"><ClipboardList size={20}/></div>
                       <h3 className="text-lg font-black uppercase tracking-tighter">Ranking Operacional</h3>
+                      <Badge variant="outline" className="ml-auto text-[8px] font-black uppercase px-2 py-0 border-primary/40 text-primary">{labelSemanaAtual()}</Badge>
                    </div>
                    <div className="space-y-4">
                       {performanceData.assRank.map((s, i) => (
-                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between group hover:translate-x-1 transition-all">
+                        <div key={s.name} className="premium-card bg-card border border-border/50 rounded-2xl p-5 flex items-center justify-between group hover:border-primary/50 hover:translate-x-1 transition-all shadow-sm">
                            <div className="flex items-center gap-4">
-                              <span className="font-black text-black/20 text-xl">{i + 1}º</span>
+                              <span className={cn(
+                                "w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0",
+                                i === 0 ? "bg-amber-400/20 text-amber-500 border border-amber-400/40" :
+                                i === 1 ? "bg-slate-400/20 text-slate-500 border border-slate-400/40" :
+                                i === 2 ? "bg-orange-400/20 text-orange-500 border border-orange-400/40" :
+                                "bg-secondary text-muted-foreground"
+                              )}>{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
-                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Atendimentos</p>
+                                 <div className="flex items-center gap-2 mt-1">
+                                   <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Atendimentos</p>
+                                   <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                                     {s.atendidosSemana} na semana
+                                   </span>
+                                 </div>
                               </div>
                            </div>
                            <button onClick={() => { setSelectedAudit(s.result); setIsAuditModalOpen(true); }} className="text-right">
@@ -346,15 +367,21 @@ export default function TeamManagement() {
                 </div>
 
                 <div className="space-y-6">
-                   <div className="flex items-center gap-3 border-b-2 border-black pb-4">
-                      <div className="w-10 h-10 bg-black text-primary flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
+                   <div className="flex items-center gap-3 border-b-2 border-primary pb-4">
+                      <div className="w-10 h-10 bg-primary text-primary-foreground flex items-center justify-center rounded-lg shadow-lg"><Gavel size={20}/></div>
                       <h3 className="text-lg font-black uppercase tracking-tighter">Ranking de Banca</h3>
                    </div>
                    <div className="space-y-4">
                       {performanceData.advRank.map((s, i) => (
-                        <div key={s.name} className="bg-white border-2 border-black p-5 flex items-center justify-between group hover:translate-x-1 transition-all">
+                        <div key={s.name} className="premium-card bg-card border border-border/50 rounded-2xl p-5 flex items-center justify-between group hover:border-primary/50 hover:translate-x-1 transition-all shadow-sm">
                            <div className="flex items-center gap-4">
-                              <span className="font-black text-black/20 text-xl">{i + 1}º</span>
+                              <span className={cn(
+                                "w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0",
+                                i === 0 ? "bg-amber-400/20 text-amber-500 border border-amber-400/40" :
+                                i === 1 ? "bg-slate-400/20 text-slate-500 border border-slate-400/40" :
+                                i === 2 ? "bg-orange-400/20 text-orange-500 border border-orange-400/40" :
+                                "bg-secondary text-muted-foreground"
+                              )}>{i + 1}º</span>
                               <div>
                                  <p className="text-[11px] font-black uppercase">{s.name}</p>
                                  <p className="text-[8px] font-bold text-muted-foreground uppercase">{s.result.totalCasos} Processos</p>
@@ -379,13 +406,13 @@ export default function TeamManagement() {
         </div>
 
         <Dialog open={isAuditModalOpen} onOpenChange={setIsAuditModalOpen}>
-           <DialogContent className="sm:max-w-[650px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
+           <DialogContent className="sm:max-w-[650px] rounded-2xl border-border shadow-2xl">
               <DialogHeader>
                 <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-3"><Zap size={18} className="text-primary"/> Ficha de Desempenho Real</DialogTitle>
                 <DialogDescription className="sr-only">Detalhamento dos pontos de performance e produtividade do operador ou advogado.</DialogDescription>
               </DialogHeader>
               <div className="py-6 space-y-6">
-                 <div className="flex justify-between items-center bg-secondary/20 p-4 border border-black/5">
+                  <div className="flex justify-between items-center bg-secondary/20 p-4 border border-border/40 rounded-xl">
                     <div>
                        <p className="text-[8px] font-black uppercase opacity-40">Casos no Repositório</p>
                        <p className="text-sm font-black uppercase">{selectedAudit?.totalCasos} Auditados</p>
@@ -401,8 +428,8 @@ export default function TeamManagement() {
                     <div className="space-y-3">
                        {selectedAudit?.pontos.map((p, idx) => (
                           <div key={idx} className={cn(
-                            "p-4 bg-white border flex flex-col gap-2 transition-all",
-                            p.peso > 0 ? "border-emerald-200 bg-emerald-50/20" : "border-red-200 bg-red-50/20"
+                            "p-4 bg-card border flex flex-col gap-2 transition-all rounded-xl",
+                            p.peso > 0 ? "border-emerald-500/30 bg-emerald-500/[0.04]" : "border-red-500/30 bg-red-500/[0.04]"
                           )}>
                              <div className="flex justify-between items-start">
                                 <div>
@@ -419,10 +446,10 @@ export default function TeamManagement() {
                                    {p.peso > 0 ? `+${formatInfiniteScore(p.peso)}` : formatInfiniteScore(p.peso)} pts
                                 </Badge>
                              </div>
-                             <p className={cn(
+                              <p className={cn(
                                "text-[10px] font-bold uppercase leading-tight italic",
-                               p.peso > 0 ? "text-emerald-800" : "text-red-800"
-                             )}>
+                               p.peso > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                              )}>
                                "{p.motivo}"
                              </p>
                              <p className="text-[7px] font-mono opacity-40 uppercase tracking-widest">{p.protocolo}</p>
@@ -467,7 +494,7 @@ export default function TeamManagement() {
                     </div>
                  </div>
                  <DialogFooter className="p-6 pt-0">
-                    <Button type="submit" disabled={isSaving} className="w-full h-12 bg-black text-white rounded-xl font-black uppercase">
+                    <Button type="submit" disabled={isSaving} className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-black uppercase">
                        {isSaving ? <Loader2 className="animate-spin" /> : "Ativar Cadastro"}
                     </Button>
                  </DialogFooter>
@@ -475,7 +502,7 @@ export default function TeamManagement() {
            </DialogContent>
         </Dialog>
 
-        <footer className="h-10 border-t border-border/30 bg-white flex items-center justify-center gap-6 text-[9px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0 print:hidden">
+        <footer className="h-10 border-t border-border/30 bg-card/60 flex items-center justify-center gap-6 text-[9px] text-muted-foreground/60 font-black uppercase tracking-[0.4em] shrink-0 print:hidden">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Ranking Elite • LexisPredict Authority</span>
         </footer>
