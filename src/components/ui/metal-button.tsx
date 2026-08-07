@@ -8,6 +8,7 @@ import * as React from "react";
 import type { MetalFxPreset, MetalFxVariant } from "metal-fx";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useMetalPreferences } from "@/lib/metal-preferences";
 
 export type { MetalFxPreset };
 
@@ -40,8 +41,10 @@ export const MetalButton = React.forwardRef<HTMLButtonElement, MetalButtonProps>
     },
     ref
   ) => {
-    const solidPreset =
-      preset === "gold"
+    const { enabled } = useMetalPreferences();
+    const solidPreset = !enabled
+      ? ""
+      : preset === "gold"
         ? "metal-btn-solid metal-btn-solid--gold"
         : preset === "silver"
           ? "metal-btn-solid metal-btn-solid--silver"

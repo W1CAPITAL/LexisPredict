@@ -345,7 +345,7 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="md:hidden fixed top-5 left-5 z-[100]">
+      <div className="lg:hidden fixed top-5 left-5 z-[100]">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="h-12 w-12 border-none shadow-md">
@@ -364,7 +364,7 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "hidden md:flex h-screen min-h-0 flex-col transition-[width] duration-300 ease-out z-50 shrink-0 overflow-hidden bg-sidebar/95 backdrop-blur-md border-r border-sidebar-border",
+          "hidden lg:flex h-screen min-h-0 flex-col transition-[width] duration-300 ease-out z-50 shrink-0 overflow-hidden bg-sidebar/95 backdrop-blur-md border-r border-sidebar-border",
           collapsed ? "w-[72px]" : "w-[280px]"
         )}
       >

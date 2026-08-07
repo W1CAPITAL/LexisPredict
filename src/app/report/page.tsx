@@ -110,8 +110,8 @@ export default function UnifiedReport() {
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
-    const countAtendidosSemana = countAtendidosNestaSemana(ativos as any);
-    const serieAtendimentosSemana = buildAtendimentosPorDiaSemana(ativos as any);
+    const countAtendidosSemana = countAtendidosNestaSemana(cases as any);
+    const serieAtendimentosSemana = buildAtendimentosPorDiaSemana(cases as any);
     const semanaLabel = labelSemanaAtual();
 
     const mediaDia =

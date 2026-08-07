@@ -46,7 +46,8 @@ import {
   Briefcase,
   Unlock,
   Type,
-  Database
+  Database,
+  Wand2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -67,6 +68,12 @@ import {
   saveWallpaperFile,
   persistOpacity,
 } from '@/lib/visual-hardware';
+import {
+  getMetalPreferences,
+  applyMetalPreferences,
+  type MetalPreferences,
+  type MetalPresetKey,
+} from '@/lib/metal-preferences';
 import { NeuralEnginePanel } from '@/components/settings/neural-engine-panel';
 import { exportFullSourceCodeAction } from '@/app/actions/system-actions';
 import { listAdvogadosBanca, upsertAdvogadoBanca, desativarAdvogadoBanca } from '@/lib/server-db';
@@ -181,6 +188,22 @@ export default function SettingsPage() {
   const isSupervisor = profile?.cargo === 'Supervisor' || profile?.cargo === 'Superadmin';
   const isAdmin = profile?.cargo === 'Administrador' || isSupervisor;
   const isSuperadmin = checkIfSuperAdmin(profile);
+
+  const [metalPrefs, setMetalPrefs] = useState<MetalPreferences>(() => getMetalPreferences());
+
+  const handleMetalEnabledChange = (v: boolean) => {
+    const next = { ...metalPrefs, enabled: v };
+    setMetalPrefs(next);
+    applyMetalPreferences(next);
+    toast({ title: v ? "Botões metálicos ativados" : "Botões metálicos desativados" });
+  };
+
+  const handleMetalColorChange = (key: MetalPresetKey, color: string) => {
+    if (!/^#[0-9a-fA-F]{6}$/.test(color)) return;
+    const next = { ...metalPrefs, colors: { ...metalPrefs.colors, [key]: color } };
+    setMetalPrefs(next);
+    applyMetalPreferences(next);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -639,6 +662,51 @@ export default function SettingsPage() {
                         </Button>
                         <input type="file" accept="image/*" className="hidden" ref={wallpaperFileRef} onChange={handleWallpaperFile} />
                       </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-6 animate-in fade-in duration-500">
+                    <div className="flex items-center gap-2">
+                      <Wand2 size={12} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Botões Metálicos</Label>
+                    </div>
+                    <div className="bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl space-y-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Ativar botões metálicos</Label>
+                          <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest mt-1">Aplica o acabamento metálico (CSS) nos CTAs, scanner e destaques. Desligue para visual padrão e maior desempenho em máquinas básicas.</p>
+                        </div>
+                        <Switch checked={metalPrefs.enabled} onCheckedChange={handleMetalEnabledChange} />
+                      </div>
+
+                      <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-6", !metalPrefs.enabled && "opacity-40 pointer-events-none")}>
+                        {(["chromatic", "silver", "gold"] as MetalPresetKey[]).map((key) => (
+                          <div key={key} className="space-y-3">
+                            <Label className="text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
+                              <span className="w-3 h-3 rounded-full border border-border" style={{ background: metalPrefs.colors[key] }} />
+                              {key === "chromatic" ? "Chromático" : key === "silver" ? "Prata" : "Ouro"}
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={metalPrefs.colors[key]}
+                                onChange={(e) => handleMetalColorChange(key, e.target.value)}
+                                className="w-10 h-10 shrink-0 rounded-lg border border-border bg-transparent cursor-pointer"
+                                aria-label={`Cor base ${key}`}
+                              />
+                              <Input
+                                value={metalPrefs.colors[key]}
+                                onChange={(e) => handleMetalColorChange(key, e.target.value)}
+                                className="h-10 flex-1 font-mono text-[11px] uppercase"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest">
+                        As cores atualizam os gradientes metálicos em todo o app — sem WebGL, sempre visíveis.
+                      </p>
                     </div>
                   </section>
                 </div>

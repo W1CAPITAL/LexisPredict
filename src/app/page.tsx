@@ -6,12 +6,15 @@ import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashb
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { OfficeStats as OfficeStatsRaw } from '@/components/dashboard/office-stats';
 
 const EfferdPanel = memo(EfferdPanelRaw);
-const OfficeStats = memo(OfficeStatsRaw);
+const OfficeStats = dynamic(() => import('@/components/dashboard/office-stats').then((m) => m.OfficeStats), {
+  ssr: false,
+  loading: () => null,
+});
 import {
   ShieldAlert,
   RefreshCcw,

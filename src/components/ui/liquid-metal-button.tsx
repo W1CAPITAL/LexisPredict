@@ -9,6 +9,7 @@ import * as React from "react";
 import type { MetalFxPreset } from "metal-fx";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useMetalPreferences } from "@/lib/metal-preferences";
 
 export type LiquidMetalButtonProps = ButtonProps & {
   preset?: MetalFxPreset;
@@ -34,8 +35,10 @@ export const LiquidMetalButton = React.forwardRef<
     },
     ref
   ) => {
-    const liquidCls =
-      mode === "glass-liquid"
+    const { enabled } = useMetalPreferences();
+    const liquidCls = !enabled
+      ? ""
+      : mode === "glass-liquid"
         ? "glass-liquid-btn"
         : mode === "solid"
           ? preset === "gold"
