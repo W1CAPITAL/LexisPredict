@@ -3,7 +3,7 @@
  * BA removido. Hierarquia: Baixa > Mérito > Audiência > Cumprimento > Gestão > Novidade > Rotina
  * @copyright 2026 W1 Capital / Davi Alves Figueredo
  */
-import { LegalCase } from './case-logic';
+import { LegalCase, sanitizeEventoResumo } from './case-logic';
 import { summarizeDjenKeywords } from './djen';
 
 export interface SinalCapa {
@@ -21,11 +21,29 @@ function snippet(text: string | null | undefined, max = 160): string {
   return clean.substring(0, max).trim() + '…';
 }
 
+function cleanDetalhe(...parts: Array<string | null | undefined>): string {
+  for (const p of parts) {
+    const s = sanitizeEventoResumo(p) || (p ? String(p).trim() : '');
+    const cleaned = sanitizeEventoResumo(s) || s;
+    if (cleaned && cleaned.length > 2 && !/^\|+$/.test(cleaned)) {
+      return snippet(cleaned, 180);
+    }
+  }
+  return '';
+}
+
 /**
  * Retorna o sinal mais relevante para exibição na capa do processo.
  * BA foi desativado — nunca gera alerta de busca e apreensão.
  */
 export function getSinalCapa(c: LegalCase): SinalCapa {
+  const raw = getSinalCapaRaw(c);
+  const titulo = cleanDetalhe(raw.titulo) || raw.titulo;
+  const detalhe = cleanDetalhe(raw.detalhe) || raw.detalhe;
+  return { ...raw, titulo, detalhe };
+}
+
+function getSinalCapaRaw(c: LegalCase): SinalCapa {
   const dataDj = c.datajud_ultimo_movimento;
   const dataDjen = c.djen_ultima_data;
 

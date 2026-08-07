@@ -65,13 +65,9 @@ function baTipo(c: LegalCase): string | null {
   return null;
 }
 
-function temBaOperacional(c: LegalCase): boolean {
-  if ((c as any).ba_alertar_operacional === false) return false;
-  return !!(
-    c.evento_tipo === 'ba' ||
-    (c as any).indicio_busca_apreensao ||
-    baTipo(c)
-  );
+function temBaOperacional(_c: LegalCase): boolean {
+  // Produto: módulo BA desativado (falsos positivos). Nunca priorizar BA.
+  return false;
 }
 
 function temNovidade(c: LegalCase): boolean {
