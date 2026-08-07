@@ -66,6 +66,40 @@ export interface CadastroEnrichResult {
   movimentosResumo?: string | null;
   fonte?: string;
   cpf?: string;
+  email?: string;
+  telefone?: string;
+}
+
+/** Valida dígito verificador de CPF (1a e 2a). */
+export function cpfValido(raw: string): boolean {
+  const d = String(raw || '').replace(/\D/g, '');
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(d[i]) * (10 - i);
+  let r = ((sum * 10) % 11) % 10;
+  if (r !== Number(d[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(d[i]) * (11 - i);
+  r = ((sum * 10) % 11) % 10;
+  return r === Number(d[10]);
+}
+
+/** Valida dígito verificador de CNPJ (13o e 14o). */
+export function cnpjValido(raw: string): boolean {
+  const d = String(raw || '').replace(/\D/g, '');
+  if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += Number(d[i]) * w1[i];
+  let r = sum % 11;
+  const d12 = r < 2 ? 0 : 11 - r;
+  if (d12 !== Number(d[12])) return false;
+  sum = 0;
+  for (let i = 0; i < 13; i++) sum += Number(d[i]) * w2[i];
+  r = sum % 11;
+  const d13 = r < 2 ? 0 : 11 - r;
+  return d13 === Number(d[13]);
 }
 
 function pickAdvogadoFromPartes(partes: any[]): string {
@@ -89,17 +123,31 @@ function pickAdvogadoFromPartes(partes: any[]): string {
 }
 
 function extractCnpjFromText(text: string): string | null {
-  const m = text.match(/\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/);
-  if (!m) return null;
-  const d = m[1].replace(/\D/g, '');
-  return d.length === 14 ? d : null;
+  const matches = text.matchAll(/\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/g);
+  for (const m of matches) {
+    const d = m[1].replace(/\D/g, '');
+    if (d.length === 14 && cnpjValido(d)) return d;
+  }
+  return null;
 }
 
 function extractCpfFromText(text: string): string | null {
-  const m = text.match(/\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b/);
-  if (!m) return null;
-  const d = m[1].replace(/\D/g, '');
-  return d.length === 11 ? d : null;
+  const matches = text.matchAll(/\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b/g);
+  for (const m of matches) {
+    const d = m[1].replace(/\D/g, '');
+    if (d.length === 11 && cpfValido(d)) return d;
+  }
+  return null;
+}
+
+function extractEmailFromText(text: string): string | null {
+  const m = text.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+  return m ? m[0].toLowerCase() : null;
+}
+
+function extractPhoneFromText(text: string): string | null {
+  const m = text.match(/(?:\(\d{2}\)\s?)?\d?[\s.-]?\d{4,5}[\s-]?\d{4}(?!\d)/);
+  return m ? m[0].replace(/[^\d+]/g, '') : null;
 }
 
 
@@ -293,6 +341,8 @@ export async function enrichCadastroByCnjAction(
     let poloAtivo: string[] = [];
     let poloPassivo: string[] = [];
     let cpfHint: string | null = null;
+    let emailHint: string | null = null;
+    let telefoneHint: string | null = null;
     let djenResumo: string | null = null;
     let djenCount = 0;
 
@@ -349,12 +399,19 @@ export async function enrichCadastroByCnjAction(
         n.toUpperCase()
       );
 
-    // 1) Destinatários estruturados de TODAS as comunicações
+// 1) Destinatários estruturados de TODAS as comunicações
     for (const it of djen.items) {
       for (const d of it.destinatarios || []) {
         const nome = cleanParteNome(String(d.nome || ''));
         if (!nome || nome.length < 4) continue;
         const polo = String(d.polo || '').toUpperCase();
+
+        // documentos estruturados do destinatário (CPF/CNPJ)
+        const doc = String(
+          d.numeroDocumentoPrincipal || d.numeroDocumento || d.cpf || d.cnpj || d.documento || ''
+        ).replace(/\D/g, '');
+        if (doc.length === 11 && cpfValido(doc) && !cpfHint) cpfHint = doc;
+        if (doc.length === 14 && cnpjValido(doc) && !parte_passiva_cnpj) parte_passiva_cnpj = doc;
 
         if (/ATIVO|AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE|APELANTE|AGRAVANTE|IMPETRANTE/.test(polo)) {
           pushUnique(poloAtivo, nome);
@@ -430,6 +487,8 @@ export async function enrichCadastroByCnjAction(
 
     // 3) CPF / CNPJ no teor
     if (!cpfHint) cpfHint = extractCpfFromText(corpus);
+    if (!emailHint) emailHint = extractEmailFromText(corpus);
+    if (!telefoneHint) telefoneHint = extractPhoneFromText(corpus);
     if (!parte_passiva_cnpj) {
       const cnpj = extractCnpjFromText(corpus);
       if (cnpj) parte_passiva_cnpj = cnpj;
@@ -483,8 +542,8 @@ export async function enrichCadastroByCnjAction(
           // CPF se DataJud expuser (raro)
           for (const p of partes || []) {
             const doc = String(p?.numeroDocumentoPrincipal || p?.cpf || p?.cnpj || '').replace(/\D/g, '');
-            if (doc.length === 11 && !cpfHint) cpfHint = doc;
-            if (doc.length === 14 && !parte_passiva_cnpj) {
+            if (doc.length === 11 && cpfValido(doc) && !cpfHint) cpfHint = doc;
+            if (doc.length === 14 && cnpjValido(doc) && !parte_passiva_cnpj) {
               parte_passiva_cnpj = doc.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
             }
           }
@@ -528,6 +587,8 @@ export async function enrichCadastroByCnjAction(
       movimentosResumo: null,
       fonte: cliente && parte_passiva ? 'DJEN+DataJud' : 'DJEN',
       cpf: cpfHint || undefined,
+      email: emailHint || undefined,
+      telefone: telefoneHint || undefined,
     } as CadastroEnrichResult;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Falha no enriquecimento DJEN.';

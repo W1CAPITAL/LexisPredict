@@ -129,6 +129,8 @@ export default function CadastroProcessoPage() {
         orgao_julgador: res.orgao_julgador || prev.orgao_julgador,
         nacionalidade: prev.nacionalidade || "BRASILEIRA",
         cpf: (res as any).cpf || prev.cpf,
+        email: (res as any).email || prev.email,
+        telefone: (res as any).telefone || prev.telefone,
       }));
       setMeta({
         fonte: res.fonte,
@@ -145,6 +147,8 @@ export default function CadastroProcessoPage() {
         res.advogado && "adv. ativo",
         (res as any).advogado_passivo && "adv. passivo",
         (res as any).cpf && "CPF",
+        (res as any).email && "email",
+        (res as any).telefone && "telefone",
       ].filter(Boolean);
       toast({
         title: filled.length ? "Dados oficiais carregados" : "Consulta ok — complete manualmente",

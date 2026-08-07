@@ -72,6 +72,7 @@ export default function SupervisaoPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [procLimitByUser, setProcLimitByUser] = useState<Record<string, number>>({});
 
   const isSupervisor = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
   const allowed = profile?.cargo === "Supervisor" || profile?.cargo === "Administrador" || checkIfSuperAdmin(profile);
@@ -213,6 +214,37 @@ export default function SupervisaoPage() {
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
                   <KpiCard icon={<MessageSquare size={16} />} label="Atend. (geral)" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
                   <KpiCard icon={<CalendarClock size={16} />} label="Atend. semana" value={snap.atendidosSemana} tone="primary" hint="última semana" />
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <KpiCard
+                    icon={<TrendingUp size={16} />}
+                    label="Taxa retorno"
+                    value={`${snap.total > 0 ? Math.round((snap.atendimentosTotais / snap.total) * 100) : 0}%`}
+                    tone="ok"
+                    hint="processos com pelo menos um retorno registrado"
+                  />
+                  <KpiCard
+                    icon={<Clock size={16} />}
+                    label="Sem retorno"
+                    value={snap.semRetorno}
+                    tone={snap.semRetorno > 0 ? "danger" : "default"}
+                    hint="nunca registrado contato"
+                  />
+                  <KpiCard
+                    icon={<Gavel size={16} />}
+                    label="Cumprimento"
+                    value={snap.cumprimento}
+                    tone={snap.cumprimento > 0 ? "warn" : "default"}
+                    hint="sentença em cumprimento"
+                  />
+                  <KpiCard
+                    icon={<Users size={16} />}
+                    label="Maior carteira"
+                    value={snap.operadores.length ? snap.operadores[0].nome : "—"}
+                    tone="primary"
+                    hint={snap.operadores.length ? `${snap.operadores[0].total} processos sob responsabilidade` : "sem responsáveis"}
+                  />
                 </div>
 
                 <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -382,7 +414,7 @@ export default function SupervisaoPage() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border/15">
-                                {(ug.processos || []).map((p: any) => (
+                                {(ug.processos || []).slice(0, procLimitByUser[ug.key] || 20).map((p: any) => (
                                   <tr key={p.id || p.protocolo} className="text-[10px] hover:bg-secondary/10">
                                     <td className="px-3 py-2 font-bold uppercase max-w-[180px] truncate">{p.cliente}</td>
                                     <td className="px-3 py-2 font-mono text-[9px]">{p.protocolo}</td>
@@ -394,6 +426,21 @@ export default function SupervisaoPage() {
                                   </tr>
                                 ))}
                               </tbody>
+                              {(ug.processos || []).length > (procLimitByUser[ug.key] || 20) && (
+                                <tfoot>
+                                  <tr>
+                                    <td colSpan={5} className="px-3 py-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setProcLimitByUser((prev) => ({ ...prev, [ug.key]: (prev[ug.key] || 20) + 40 }))}
+                                        className="w-full text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg py-2 border border-dashed border-primary/30"
+                                      >
+                                        Ver mais processos ({ug.processos.length - (procLimitByUser[ug.key] || 20)} restantes)
+                                      </button>
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              )}
                             </table>
                           </div>
                         </details>

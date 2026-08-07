@@ -190,6 +190,13 @@ export default function RootLayout({
                   root.style.backgroundPosition = 'center';
                   root.style.backgroundAttachment = 'fixed';
                   try { if (document.body) document.body.style.backgroundColor = 'transparent'; } catch (e2) {}
+                  try {
+                    var o = parseFloat(localStorage.getItem('lexisPredict_bg_opacity') || '0.92');
+                    root.style.setProperty('--bg-opacity', String(o));
+                  } catch (e3) {}
+                } else {
+                  root.classList.remove('lexis-wallpaper-active');
+                  try { root.style.removeProperty('background-image'); } catch (e4) {}
                 }
               } catch (e) {}
             })()

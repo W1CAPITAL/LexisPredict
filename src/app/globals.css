@@ -38,6 +38,17 @@
     background: hsl(var(--primary) / 0.18);
   }
 
+  /* Wallpaper aplicado em todo o app: fundo translúcido conforme --bg-opacity */
+  html.lexis-wallpaper-active body {
+    background-color: transparent;
+  }
+  html.lexis-wallpaper-active .bg-background {
+    background-color: hsl(var(--background) / var(--bg-opacity, 0.92));
+  }
+  html.lexis-wallpaper-active .bg-card {
+    background-color: hsl(var(--card) / 1);
+  }
+
   /* Scrollbar discreta */
   * {
     scrollbar-width: thin;

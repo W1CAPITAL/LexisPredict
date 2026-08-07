@@ -660,21 +660,28 @@ function CasesContent() {
     return buildUnifiedTimeline(historyResult.movimentos, historyResult.djenComunicacoes);
   }, [historyResult]);
 
+  // KPIs da faixa orbital — calculados 1x por estado, sem refilter a cada render
+  const opsNodes = useMemo(() => {
+    let pendentes = 0,
+      vencidos = 0,
+      novidades = 0,
+      ok = 0;
+    for (const c of cases) {
+      const st = String(c.status || '');
+      if (st === 'É Hoje' || st === 'E Hoje' || c.tem_novo_andamento) pendentes++;
+      if (st === 'Vencido' || st === 'Caso Crítico') vencidos++;
+      if (c.tem_novo_andamento) novidades++;
+      if (st === 'No Prazo') ok++;
+    }
+    return defaultOpsNodes({ total: cases.length, pendentes, vencidos, novidades, ok });
+  }, [cases]);
+
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
           <div className="px-4 sm:px-6 pt-4">
-            <OpsOrbitalStrip
-              nodes={defaultOpsNodes({
-                total: cases.length,
-                pendentes: cases.filter((c: any) => c.status === "É Hoje" || c.tem_novo_andamento).length,
-                vencidos: cases.filter((c: any) => c.status === "Vencido" || c.status === "Caso Crítico").length,
-                novidades: cases.filter((c: any) => c.tem_novo_andamento).length,
-                ok: cases.filter((c: any) => c.status === "No Prazo").length,
-              })}
-              className="mb-4"
-            />
+            <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
           </div>
 
         <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between p-4 sm:px-10 shrink-0 z-40">
