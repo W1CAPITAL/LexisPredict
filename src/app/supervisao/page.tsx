@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileDown } from "lucide-react";
+import { FileDown, Printer } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
 const COLORS = ["hsl(var(--primary))", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
@@ -158,9 +158,20 @@ export default function SupervisaoPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => window.print()}
+              disabled={!snap}
+              className="h-9 rounded-xl print:hidden"
+              title="Gera o relatório completo via impressão/Salvar como PDF do dispositivo"
+            >
+              <Printer size={14} className="mr-1.5" />
+              Imprimir / PDF completo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleDownloadPdf}
               disabled={!snap || pdfLoading}
-              className="h-9 rounded-xl border-primary/40 text-primary hover:bg-primary/10"
+              className="h-9 rounded-xl border-primary/40 text-primary hover:bg-primary/10 print:hidden"
             >
               {pdfLoading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <FileDown size={14} className="mr-1.5" />}
               Extrair PDF
@@ -310,6 +321,83 @@ export default function SupervisaoPage() {
                       </tbody>
                     </table>
                   </ScrollArea>
+                </section>
+
+
+                {/* Processos separados por usuário do sistema */}
+                <section className="premium-card overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Users size={16} className="text-primary" />
+                      <div>
+                        <h3 className="text-[11px] font-black uppercase tracking-[0.18em]">Processos por usuário</h3>
+                        <p className="text-[9px] text-muted-foreground font-medium">
+                          Carteira separada por quem cadastrou / é dono do registro (created_by)
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-[9px] font-black uppercase">
+                      {(snap.porUsuario || []).length} usuários
+                    </Badge>
+                  </div>
+                  <div className="divide-y divide-border/30">
+                    {(snap.porUsuario || []).length === 0 ? (
+                      <p className="p-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">
+                        Nenhum agrupamento disponível
+                      </p>
+                    ) : (
+                      (snap.porUsuario || []).map((ug: any) => (
+                        <details key={ug.key} className="group">
+                          <summary className="cursor-pointer list-none px-5 py-4 flex flex-wrap items-center gap-3 hover:bg-secondary/20 transition-colors">
+                            <div className="w-9 h-9 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[11px] font-black shrink-0">
+                              {String(ug.nome || "?").slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[12px] font-black uppercase tracking-tight truncate">{ug.nome}</p>
+                              <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                                {ug.total} processos · {ug.ativos} ativos · {ug.atendidosSemana} atend. semana
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-[9px] font-black uppercase">
+                              {ug.vencidos > 0 && (
+                                <span className="px-2 py-0.5 rounded-md bg-red-500/15 text-red-600 border border-red-500/25">{ug.vencidos} venc.</span>
+                              )}
+                              {ug.novidades > 0 && (
+                                <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 border border-amber-500/25">{ug.novidades} nov.</span>
+                              )}
+                              <span className="text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+                            </div>
+                          </summary>
+                          <div className="px-3 pb-4 overflow-x-auto">
+                            <table className="w-full text-left min-w-[640px]">
+                              <thead>
+                                <tr className="text-[8px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/30">
+                                  <th className="px-3 py-2">Cliente</th>
+                                  <th className="px-3 py-2">Protocolo</th>
+                                  <th className="px-3 py-2">Status</th>
+                                  <th className="px-3 py-2">Último retorno</th>
+                                  <th className="px-3 py-2">Tribunal</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/15">
+                                {(ug.processos || []).map((p: any) => (
+                                  <tr key={p.id || p.protocolo} className="text-[10px] hover:bg-secondary/10">
+                                    <td className="px-3 py-2 font-bold uppercase max-w-[180px] truncate">{p.cliente}</td>
+                                    <td className="px-3 py-2 font-mono text-[9px]">{p.protocolo}</td>
+                                    <td className="px-3 py-2">
+                                      <span className="text-[8px] font-black uppercase tracking-wide">{p.status}</span>
+                                    </td>
+                                    <td className="px-3 py-2 tabular-nums">{p.ultimoRetorno}</td>
+                                    <td className="px-3 py-2 truncate max-w-[100px]">{p.tribunal}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </details>
+                      ))
+                    )}
+                  </div>
                 </section>
 
                 <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
