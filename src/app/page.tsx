@@ -1,3 +1,4 @@
+import { chartTooltipProps } from '@/lib/chart-tooltip-styles';
 "use client";
 import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashboard-panel";
 
@@ -540,7 +541,7 @@ export default function Dashboard() {
                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                  ))}
                               </Pie>
-                              <RechartsTooltip />
+                              <RechartsTooltip {...chartTooltipProps} />
                            </PieChart>
                         </ResponsiveContainer>
                       </div>

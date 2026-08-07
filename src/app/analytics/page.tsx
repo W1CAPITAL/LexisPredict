@@ -42,17 +42,20 @@ import {
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 // CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT - TODAS AS LETRAS EM PRETO
-const TICK_DARK = { fill: '#0a0a0a', fontSize: 10, fontWeight: 900 };
+const TICK_DARK = { fill: 'currentColor', fontSize: 10, fontWeight: 700 };
 const TOOLTIP_LIGHT = {
-  backgroundColor: '#ffffff',
+  backgroundColor: '#0f172a',
   borderRadius: '12px',
-  border: '1px solid #e2e8f0',
-  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-  fontSize: '10px',
-  fontWeight: 900,
+  border: '1px solid #334155',
+  boxShadow: '0 12px 28px rgba(0,0,0,0.35)',
+  fontSize: '11px',
+  fontWeight: 800,
   textTransform: 'uppercase' as const,
-  color: '#0a0a0a',
+  color: '#f8fafc',
 };
+const TOOLTIP_ITEM = { color: '#f8fafc', fontWeight: 700 };
+const TOOLTIP_LABEL = { color: '#e2e8f0', fontWeight: 900, fontSize: 10 };
+
 
 export default function AnalyticsPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
@@ -229,7 +232,7 @@ export default function AnalyticsPage() {
                         <YAxis hide />
                         <Tooltip 
                           cursor={{fill: 'rgba(0,0,0,0.05)'}}
-                          contentStyle={TOOLTIP_LIGHT}
+                          contentStyle={TOOLTIP_LIGHT} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
                         />
                         <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
                           {metrics.officePerformance.map((entry, index) => (
@@ -262,7 +265,7 @@ export default function AnalyticsPage() {
                       <Tooltip 
                         cursor={{fill: '#f1f5f9'}}
                         contentStyle={TOOLTIP_LIGHT}
-                        itemStyle={{color: '#0a0a0a'}}
+                        itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
                       />
                       <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
                         {metrics.topTribunals.map((entry, index) => (
@@ -299,7 +302,7 @@ export default function AnalyticsPage() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={TOOLTIP_LIGHT} itemStyle={{color: '#0a0a0a'}} />
+                      <Tooltip contentStyle={TOOLTIP_LIGHT} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -338,7 +341,7 @@ export default function AnalyticsPage() {
                       <Tooltip 
                         cursor={{fill: '#f1f5f9'}}
                         contentStyle={TOOLTIP_LIGHT}
-                        itemStyle={{color: '#0a0a0a'}}
+                        itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
                       />
                       <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={30}>
                         {metrics.topLawyers.map((entry, index) => (

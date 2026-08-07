@@ -1,3 +1,4 @@
+import { chartTooltipProps } from "@/lib/chart-tooltip-styles";
 "use client";
 
 /**
@@ -282,9 +283,9 @@ export function Dashboard({
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} width={36} />
-                  <Tooltip />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: "currentColor" }} stroke="hsl(var(--border))" />
+                  <YAxis tick={{ fontSize: 11, fill: "currentColor" }} width={36} stroke="hsl(var(--border))" />
+                  <Tooltip {...chartTooltipProps} />
                   <Area
                     type="monotone"
                     dataKey="atendimentos"
@@ -315,9 +316,9 @@ export function Dashboard({
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={bars}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} />
-                  <YAxis tick={{ fontSize: 11 }} width={40} />
-                  <Tooltip />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: "currentColor" }} interval={0} stroke="hsl(var(--border))" />
+                  <YAxis tick={{ fontSize: 11, fill: "currentColor" }} width={40} stroke="hsl(var(--border))" />
+                  <Tooltip {...chartTooltipProps} />
                   <Bar dataKey="v" radius={[6, 6, 0, 0]} name="Qtd">
                     {bars.map((_, i) => (
                       <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
