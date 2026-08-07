@@ -1,5 +1,6 @@
-import { LexisChartTooltip } from "@/components/charts/lexis-chart-tooltip";
 "use client";
+
+import { LexisChartTooltip } from "@/components/charts/lexis-chart-tooltip";
 
 /**
  * Painel KPI Efferd — topo do dashboard, cards legíveis + gráficos.

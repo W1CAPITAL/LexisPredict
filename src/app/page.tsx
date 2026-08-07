@@ -1,5 +1,6 @@
-import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 "use client";
+
+import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashboard-panel";
 
 /**

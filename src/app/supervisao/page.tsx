@@ -1,5 +1,6 @@
-import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 "use client";
+
+import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
