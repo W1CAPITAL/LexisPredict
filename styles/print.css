@@ -1,0 +1,85 @@
+/**
+ * Impressão / PDF completo — Supervisão e relatórios.
+ * Ao imprimir (window.print / Ctrl+P / "Salvar como PDF"),
+ * remove a navegação e expande as áreas com rolagem para gerar
+ * o relatório inteiro, página a página.
+ */
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  .sidebar,
+  nav,
+  .print-hidden,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Esconde botões de ação (imprimir/atualizar/pdf) e badges de perfil */
+  header button,
+  header .gap-3 {
+    display: none !important;
+  }
+  header .gap-3:empty {
+    display: none !important;
+  }
+
+  /* Camada base: permite quebra de página em vez de 100vh fixo */
+  [class*="h-screen"] {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Expandir scrollareas (radix) e áreas com rolagem interna */
+  [data-radix-scroll-area-viewport],
+  [data-radix-scroll-area-content],
+  .overflow-hidden,
+  .overflow-y-auto,
+  .overflow-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .flex {
+    display: flex !important;
+  }
+  .flex-1 {
+    flex: 1 1 auto !important;
+  }
+
+  /* Blocos não cortam no meio da página */
+  .premium-card,
+  .rounded-2xl,
+  section,
+  table,
+  thead,
+  tbody {
+    break-inside: auto;
+  }
+  .premium-card {
+    box-shadow: none !important;
+  }
+  tr {
+    break-inside: avoid;
+  }
+
+  /* Reduz sombras/vidro p/ leitura em papel */
+  .backdrop-blur-xl,
+  .backdrop-blur-md,
+  .backdrop-blur,
+  .glass-header,
+  .glass {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
