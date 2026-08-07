@@ -3,9 +3,7 @@ import './globals.css';
 import '@/styles/lexis-responsive.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
-import { GuidedTour } from '@/components/onboarding/guided-tour';
-import { DataJudScannerPanel } from '@/components/scanner/datajud-scanner-panel';
-import { AppUpdateBanner } from '@/components/system/app-update-banner';
+import { ClientChrome } from '@/components/system/client-chrome';
 import Script from 'next/script';
 import { MotionRoot } from "@/components/providers/motion-root";
 import { LexisErrorBoundary } from "@/components/system/error-boundary";
@@ -197,13 +195,11 @@ export default function RootLayout({
         </Script>
         <AuthProvider>
           <div className="relative z-10 min-h-screen">
-            <GuidedTour />
+            <ClientChrome />
             <LexisErrorBoundary>
               <MotionRoot>{children}</MotionRoot>
             </LexisErrorBoundary>
-            <DataJudScannerPanel />
-            <AppUpdateBanner />
-          </div>
+            </div>
           <Toaster />
         </AuthProvider>
       </body>
