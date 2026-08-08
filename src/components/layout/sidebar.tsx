@@ -79,6 +79,7 @@ function SidebarNavBody({
   pathname,
   locale,
   isAdmin,
+  isSuperAdmin,
   profile,
   isDarkMode,
   status,
@@ -93,6 +94,7 @@ function SidebarNavBody({
   pathname: string;
   locale: Locale;
   isAdmin: boolean;
+  isSuperAdmin?: boolean;
   profile: any;
   isDarkMode: boolean;
   status: string;
@@ -111,12 +113,15 @@ function SidebarNavBody({
     if (navScrollRef.current) scrollTopRef.current = navScrollRef.current.scrollTop;
   }, []);
 
+  // Só restaura scroll ao mudar de rota — NÃO a cada render (isso “puxava” o menu para cima)
   useEffect(() => {
     const el = navScrollRef.current;
-    if (el && Math.abs(el.scrollTop - scrollTopRef.current) > 2) {
+    if (!el) return;
+    const id = requestAnimationFrame(() => {
       el.scrollTop = scrollTopRef.current;
-    }
-  });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [pathname]);
 
   const navGroups: { title: string; items: NavItem[] }[] = [
     {
@@ -125,22 +130,18 @@ function SidebarNavBody({
         { label: "Painel", href: "/", icon: LayoutDashboard },
         { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
         { label: "Agenda", href: "/agenda", icon: CalendarDays },
-        { label: "Finanças", href: "/financas", icon: DollarSign },
-        { label: "CRM Assessoria", href: "/crm", icon: Kanban },
-        { label: "Serviços CRM", href: "/crm/servicos", icon: Package },
-        { label: "Funil", href: "/crm/funil", icon: Kanban },
-        { label: "Fornecedores", href: "/crm/fornecedores", icon: Building2 },
-        { label: "CRM Financeiro", href: "/crm/financeiro", icon: DollarSign },
-        { label: "CRM Extrato", href: "/crm/extrato", icon: TrendingUp },
         { label: "Processos", href: "/cases", icon: Briefcase },
         { label: "Processos da Empresa", href: "/processos", icon: FolderOpen },
         { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
-        ...(isAdmin ? [{ label: "Revisional", href: "/revisional", icon: Percent }] : []),
-        ...(isAdmin ? [{ label: "Jurídico", href: "/juridico", icon: Scale }] : []),
+        { label: "CRM Assessoria", href: "/crm", icon: Kanban },
+        { label: "Finanças", href: "/financas", icon: DollarSign },
         ...(isAdmin ? [{ label: "Supervisão", href: "/supervisao", icon: ShieldCheck }] : []),
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
         ...(isAdmin ? [{ label: "Auditoria", href: "/auditoria", icon: ShieldCheck }] : []),
-        ...(isAdmin ? [{ label: "Segurança", href: "/security", icon: ShieldAlert }] : []),
+        // Segurança: somente Superadmin
+        ...(isSuperAdmin ? [{ label: "Segurança", href: "/security", icon: ShieldAlert }] : []),
+        ...(isAdmin ? [{ label: "Revisional", href: "/revisional", icon: Percent }] : []),
+        ...(isAdmin ? [{ label: "Jurídico", href: "/juridico", icon: Scale }] : []),
       ],
     },
     {
@@ -346,6 +347,7 @@ export function Sidebar() {
     pathname,
     locale,
     isAdmin,
+    isSuperAdmin,
     profile,
     isDarkMode,
     status: status || "idle",
@@ -364,8 +366,20 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Único menu: abre só pelo botão (sem sidebar fixa) */}
-      <div className="fixed top-4 left-4 z-[100]">
+      {/* Desktop: trilho fixo */}
+      <aside
+        className={cn(
+          "hidden md:flex flex-col shrink-0 h-screen sticky top-0 z-40",
+          "border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
+          "transition-[width] duration-200 ease-out",
+          collapsed ? "w-[4.25rem]" : "w-[16.5rem]"
+        )}
+      >
+        <SidebarNavBody {...bodyProps} showCollapseBtn />
+      </aside>
+
+      {/* Mobile: botão + sheet */}
+      <div className="md:hidden fixed top-3 left-3 z-[100]">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
             <Button
@@ -379,7 +393,7 @@ export function Sidebar() {
           </SheetTrigger>
           <SheetContent
             side="left"
-            className="p-0 border-r border-sidebar-border w-[min(18rem,88vw)] sm:w-[20rem] overflow-hidden bg-sidebar"
+            className="p-0 border-r border-sidebar-border w-[min(18rem,90vw)] overflow-hidden bg-sidebar"
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Menu</SheetTitle>

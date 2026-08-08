@@ -4,7 +4,7 @@
  * Segurança — server actions para a aba /security.
  * Executa os motores de segurança (Code, OWASP, Trail of Bits, Review,
  * Audit Codebase, Ponytail) sobre o próprio repositório e exporta XLSX.
- * Acesso restrito a Administrador/Supervisor/Superadmin.
+ * Acesso restrito a Superadmin.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -14,10 +14,10 @@ import { buildXlsxWithSheetJS } from '@/lib/sheetjs-bridge';
 
 export type SecurityMotorId = 'code' | 'owasp' | 'tob' | 'review' | 'audit' | 'ponytail' | 'all';
 
-async function requireAdmin() {
+async function requireSuperAdmin() {
   const ctx = await getUserContext();
   if (!ctx?.empresa_id) return { error: 'Sessão não identificada.' };
-  if (!isAdminGroup(ctx?.cargo)) return { error: 'Acesso restrito a Administrador/Supervisor/Superadmin.' };
+  if (ctx?.cargo !== 'Superadmin') return { error: 'Acesso restrito a Superadmin.' };
   return { ctx };
 }
 
@@ -26,7 +26,7 @@ const scanner = () => import('../../lib/security-scanner.mjs') as Promise<any>;
 
 export async function runSecurityScanAction(motor: SecurityMotorId) {
   try {
-    const guard = await requireAdmin();
+    const guard = await requireSuperAdmin();
     if (guard.error) return { success: false as const, error: guard.error };
     const mod = await scanner();
     const root = process.cwd();
@@ -62,7 +62,7 @@ export async function runSecurityScanAction(motor: SecurityMotorId) {
 
 export async function exportSecurityXlsxAction() {
   try {
-    const guard = await requireAdmin();
+    const guard = await requireSuperAdmin();
     if (guard.error) return { success: false as const, error: guard.error };
 
     const mod = await scanner();

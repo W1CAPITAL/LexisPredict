@@ -150,6 +150,18 @@ export default function AnalyticsPage() {
     <div className="flex h-screen bg-[#f8f9fb] font-sans text-black">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="mx-auto max-w-6xl px-4 pt-4">
+          <div className="rounded-xl border border-border bg-card p-4 mb-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Como ler estas métricas</p>
+            <ul className="mt-2 text-xs text-muted-foreground space-y-1 list-disc pl-4">
+              <li><span className="font-bold text-foreground">Carteira ativa</span> — processos não encerrados no tribunal/CRM.</li>
+              <li><span className="font-bold text-foreground">Vencidos / É hoje</span> — prazo operacional da assessoria, não necessariamente o prazo judicial do PJe.</li>
+              <li><span className="font-bold text-foreground">Novidades</span> — andamento novo desde o último retorno/atendimento.</li>
+              <li><span className="font-bold text-foreground">BA</span> — só com indício reforçado (classe/mandado); revise antes de alarmar o cliente.</li>
+            </ul>
+          </div>
+        </div>
+
         <header className="h-20 border-b border-border/50 bg-white/60 backdrop-blur-xl flex items-center justify-between px-10 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg">

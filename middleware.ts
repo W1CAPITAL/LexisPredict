@@ -13,7 +13,8 @@ const ROLE_WEIGHT: Record<string, number> = {
   Visualizador: 20,
 }
 
-const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team', '/security']
+const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team']
+const SUPERADMIN_ONLY = ['/security']
 
 function applySecurityHeaders(res: NextResponse) {
   res.headers.set('X-Frame-Options', 'DENY')
@@ -129,6 +130,20 @@ export async function middleware(request: NextRequest) {
     const role = request.cookies.get('lexis_user_role')?.value || ''
     const weight = ROLE_WEIGHT[role] || 0
     if (weight < 60) {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/'
+      redirectUrl.search = ''
+      return applySecurityHeaders(NextResponse.redirect(redirectUrl))
+    }
+  }
+
+  
+  const isSuperPath = SUPERADMIN_ONLY.some(
+    (p) => path === p || path.startsWith(`${p}/`)
+  )
+  if (isSuperPath) {
+    const role = request.cookies.get('lexis_user_role')?.value || ''
+    if (role !== 'Superadmin') {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/'
       redirectUrl.search = ''

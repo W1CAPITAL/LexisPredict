@@ -1,5 +1,7 @@
 /**
  * D3 — Cobertura completa: biblioteca central de modelos reutilizáveis de peças.
+ * Princípio de especificidade: só cita banco/CNPJ/processo se o meta trouxer o dado;
+ * caso contrário a peça permanece limpa e reutilizável.
  * Uma fonte única para procurações, habilitações, substabelecimentos, revogações,
  * petições e cartas a bancos. Todos aceitam qualquer banco da lista BANCOS_COBERTOS.
  *
@@ -62,6 +64,17 @@ const hojeBR = () => new Date().toLocaleDateString('pt-BR');
 function seg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
   const v = m[k];
   return typeof v === 'string' && v.trim() ? v.trim() : fallback;
+}
+
+/** Só inclui o trecho se o campo existir — evita peças genéricas “cheias de colchetes”. */
+function se(m: PecaMeta, k: keyof PecaMeta, template: (v: string) => string): string {
+  const v = m[k];
+  if (typeof v !== 'string' || !v.trim()) return '';
+  return template(v.trim());
+}
+
+function juntar(...parts: (string | false | null | undefined)[]): string {
+  return parts.filter((p) => typeof p === 'string' && p.length > 0).join('\n');
 }
 
 /** Lista ampla de bancos/instituições cobertos pelos modelos. */

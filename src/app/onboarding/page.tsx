@@ -30,6 +30,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/use-app-store";
+import { SetupWizard } from "@/components/onboarding/setup-wizard";
 
 export default function OnboardingVideoPage() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -45,6 +46,7 @@ export default function OnboardingVideoPage() {
       <Sidebar />
       <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain lexis-surface p-4 lg:p-8 flex flex-col">
         <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col min-w-0">
+          <div className="mb-6"><SetupWizard /></div>
           <HoverVideoPlayer
             videoSrc="/Onboarding_LexisPredict.mp4"
             title="Treinamento LexisPredict"
@@ -65,7 +67,7 @@ export default function OnboardingVideoPage() {
                   Treinamento LexisPredict
                 </h1>
                 <p className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider mt-1.5">
-                  Assessoria financeira · Tribunal · Fila · CRM · Agenda · Equipe
+                  Guia atual · DataJud + DJEN · Fila · Processos · Veredito · Excel
                 </p>
               </div>
             </div>
@@ -194,20 +196,7 @@ export default function OnboardingVideoPage() {
               </p>
             </div>
             <div className="space-y-2">
-              
-            <FaqItem
-              q="O que e o CRM Assessoria e em que difere do Astrea?"
-              a="E o modulo comercial da assessoria: servicos (quitacao, limpa nome, PROCON, extrajudicial), funil, receber/pagar e bancas terceiras. Nao e CRM de honorarios de advogado. O Lexis continua mais forte em tribunal/fila; o CRM fecha a lacuna de dinheiro e funil."
-            />
-            <FaqItem
-              q="Por onde comeco no primeiro dia?"
-              a="1) Painel e Fila de contato. 2) Agenda da semana. 3) CRM: Seed servicos + um negocio teste. 4) Equipe: cargos Operador vs Supervisor. 5) Scanner so depois da carteira importada."
-            />
-            <FaqItem
-              q="Anexos de documentos (contrato, comprovante)?"
-              a="Planejado para fase futura. Hoje foque em status do funil, parcelas e pecas geradas no app (Modelos)."
-            />
-<FaqItem
+              <FaqItem
                 q="Como o scanner retoma depois de recarregar a página?"
                 a="O lote fica persistido no navegador. Ao reabrir a Fila/Scanner, o progresso continua de onde parou, sem reescanear o que já foi processado."
               />

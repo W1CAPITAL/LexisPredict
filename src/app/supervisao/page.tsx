@@ -121,6 +121,14 @@ export default function SupervisaoPage() {
       <div className="flex h-screen overflow-hidden bg-background">
         <Sidebar />
         <main className="flex-1 flex items-center justify-center p-8">
+        <div className="border-b border-border bg-card/40 px-4 py-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Torre de supervisão</p>
+          <p className="text-sm text-foreground font-medium mt-0.5 max-w-3xl">
+            Compara operadores: volume, prazos, retornos e sinais críticos. Use para coaching — não como ranking punitivo.
+            Financeiro consolidado da assessoria está em <a href="/crm" className="text-primary font-bold underline">CRM</a>.
+          </p>
+        </div>
+
           <div className="max-w-md text-center space-y-4 border border-border/60 bg-card/60 rounded-2xl p-10">
             <ShieldCheck className="mx-auto text-muted-foreground/40" size={48} />
             <h1 className="font-black uppercase tracking-tight text-lg">Acesso restrito</h1>

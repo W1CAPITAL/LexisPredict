@@ -3,7 +3,7 @@
 /**
  * Segurança — Security Center com os motores:
  * Code Security · OWASP Top 10 · Trail of Bits · Security Review · Audit Codebase · Ponytail.
- * Acesso restrito a Administrador/Supervisor/Superadmin.
+ * Acesso restrito a Superadmin.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -83,7 +83,7 @@ export default function SecurityPage() {
   React.useEffect(() => {
     if (authLoading || !profile) return;
     try {
-      setIsAdmin(!!(checkIfSuperAdmin(profile) || checkIfSupervisor(profile)) || profile.cargo === "Administrador");
+      setIsAdmin(!!checkIfSuperAdmin(profile));
     } catch {
       setIsAdmin(false);
     }
@@ -153,7 +153,7 @@ export default function SecurityPage() {
   if (!isAdmin) {
     return (
       <div className="min-h-screen p-6 flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">Acesso restrito a Administrador/Supervisor/Superadmin.</p>
+        <p className="text-sm text-muted-foreground">Acesso restrito a Superadmin.</p>
       </div>
     );
   }

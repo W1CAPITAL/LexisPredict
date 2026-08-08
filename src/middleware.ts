@@ -1,6 +1,5 @@
 /**
- * Legado: guarda admin. O middleware efetivo do Next.js é /middleware.ts na raiz
- * (sessão + headers de segurança + ADMIN_ONLY).
+ * Guarda admin + superadmin. Middleware efetivo: /middleware.ts (raiz).
  */
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -12,12 +11,31 @@ const ROLE_WEIGHT: Record<string, number> = {
   Visualizador: 20,
 }
 
-const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team', '/security']
+const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team']
+const SUPERADMIN_ONLY = ['/security']
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
-  const isAdminPath = ADMIN_ONLY.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+
+  const isSuperPath = SUPERADMIN_ONLY.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  )
+  if (isSuperPath) {
+    const role = req.cookies.get('lexis_user_role')?.value || ''
+    if (role !== 'Superadmin') {
+      const url = req.nextUrl.clone()
+      url.pathname = '/'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+    return NextResponse.next()
+  }
+
+  const isAdminPath = ADMIN_ONLY.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  )
   if (!isAdminPath) return NextResponse.next()
+
   const role = req.cookies.get('lexis_user_role')?.value || ''
   if ((ROLE_WEIGHT[role] || 0) < 60) {
     const url = req.nextUrl.clone()
@@ -29,5 +47,10 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/supervisao/:path*', '/auditoria/:path*', '/team/:path*', '/security/:path*'],
+  matcher: [
+    '/supervisao/:path*',
+    '/auditoria/:path*',
+    '/team/:path*',
+    '/security/:path*',
+  ],
 }
