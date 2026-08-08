@@ -11,6 +11,9 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DollarSign,
+  Kanban,
+  Package,
+  Building2,
   LayoutDashboard,
   Briefcase,
   Upload,
@@ -122,6 +125,11 @@ function SidebarNavBody({
         { label: "Painel", href: "/", icon: LayoutDashboard },
         { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
         { label: "Finanças", href: "/financas", icon: DollarSign },
+        { label: "CRM Assessoria", href: "/crm", icon: Kanban },
+        { label: "Serviços CRM", href: "/crm/servicos", icon: Package },
+        { label: "Funil", href: "/crm/funil", icon: Kanban },
+        { label: "Fornecedores", href: "/crm/fornecedores", icon: Building2 },
+        { label: "CRM Financeiro", href: "/crm/financeiro", icon: DollarSign },
         { label: "Processos", href: "/cases", icon: Briefcase },
         { label: "Processos da Empresa", href: "/processos", icon: FolderOpen },
         { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
