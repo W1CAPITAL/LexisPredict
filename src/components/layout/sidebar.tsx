@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DollarSign, TrendingUp,
@@ -83,6 +83,7 @@ function SafeIcon({
 type NavItem = {
   label: string;
   href: string;
+  hint?: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number; size?: number }>;
 };
 
@@ -135,57 +136,100 @@ function SidebarNavBody({
     return () => cancelAnimationFrame(id);
   }, [pathname]);
 
-  const navGroups: { title: string; items: NavItem[] }[] = [
-    {
-      title: "Operação",
+  const [navQuery, setNavQuery] = useState("");
+
+  const navGroups: { title: string; items: NavItem[] }[] = useMemo(() => {
+    const groups: { title: string; items: NavItem[] }[] = [
+      {
+        title: "Hoje (rotina)",
+        items: [
+          { label: "Painel", href: "/", icon: LayoutDashboard, hint: "Vencidos, andamentos e o que exige ação" },
+          { label: "Fila de contato", href: "/tarefas", icon: ListTodo, hint: "Quem ligar / responder agora" },
+          { label: "Agenda da semana", href: "/agenda", icon: CalendarDays, hint: "Prazos e atendimentos por dia" },
+        ],
+      },
+      {
+        title: "Carteira",
+        items: [
+          { label: "Meus processos", href: "/cases", icon: Briefcase, hint: "Carteira operacional e scanner" },
+          { label: "Visão da empresa", href: "/processos", icon: FolderOpen, hint: "Todos os processos do escritório" },
+          { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel, hint: "Só casos com indício reforçado de B.A." },
+          { label: "Importar planilha", href: "/import", icon: Upload, hint: "Entrada em lote da carteira" },
+        ],
+      },
+      {
+        title: "Dinheiro (CRM)",
+        items: [
+          { label: "CRM Assessoria", href: "/crm", icon: Kanban, hint: "Funil, serviços, receber e pagar" },
+          { label: "Finanças avulsas", href: "/financas", icon: DollarSign, hint: "Lançamentos pontuais (legado)" },
+        ],
+      },
+      {
+        title: "Peças e modelos",
+        items: [
+          { label: "Modelos & Peças", href: "/modelos", icon: ScrollText, hint: "Biblioteca completa (recomendado)" },
+          { label: "Procuração", href: "/documents", icon: FileText, hint: "Gerador dedicado de procuração" },
+          { label: "Habilitação", href: "/habilitacao-peca", icon: FileSignature, hint: "Petição de habilitação" },
+          { label: "Substabelecimento", href: "/substabelecimento", icon: Files, hint: "Com ou sem reserva" },
+        ],
+      },
+      {
+        title: "Consulta e IA",
+        items: [
+          { label: "Consulta CNJ", href: "/veredito", icon: Scale, hint: "DataJud / DJEN por processo ou CPF" },
+          { label: "Cadastro assistido", href: "/ia-sync", icon: ClipboardList, hint: "Extrair dados de contrato/print" },
+          { label: "Assistente", href: "/chat", icon: Bot, hint: "Dúvidas e rascunhos com IA" },
+          { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, hint: "Atalhos de mensagem" },
+        ],
+      },
+      {
+        title: "Números",
+        items: [
+          { label: "Indicadores", href: "/analytics", icon: BarChart3, hint: "Gráficos da carteira" },
+          { label: "IA Preditiva", href: "/insights", icon: BrainCircuit, hint: "Padrões por tribunal / risco" },
+          { label: "Urgências", href: "/urgency", icon: ShieldAlert, hint: "Fila crítica consolidada" },
+        ],
+      },
+    ];
+
+    if (isAdmin) {
+      groups.push({
+        title: "Gestão",
+        items: [
+          { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, hint: "Desempenho da equipe" },
+          { label: "Equipe", href: "/team", icon: Users, hint: "Cargos e operadores" },
+          { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, hint: "Quem fez o quê" },
+          ...(isSuperAdmin
+            ? [{ label: "Segurança", href: "/security", icon: ShieldAlert, hint: "Varreduras (só Superadmin)" }]
+            : []),
+        ],
+      });
+    }
+
+    groups.push({
+      title: "Ajuda e ajustes",
       items: [
-        { label: "Painel", href: "/", icon: LayoutDashboard },
-        { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
-        { label: "Agenda", href: "/agenda", icon: CalendarDays },
-        { label: "Processos", href: "/cases", icon: Briefcase },
-        { label: "Processos da Empresa", href: "/processos", icon: FolderOpen },
-        { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
-        { label: "CRM Assessoria", href: "/crm", icon: Kanban },
-        { label: "Finanças", href: "/financas", icon: DollarSign },
-        ...(isAdmin ? [{ label: "Supervisão", href: "/supervisao", icon: ShieldCheck }] : []),
-        ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
-        ...(isAdmin ? [{ label: "Auditoria", href: "/auditoria", icon: ShieldCheck }] : []),
-        // Segurança: somente Superadmin
-        ...(isSuperAdmin ? [{ label: "Segurança", href: "/security", icon: ShieldAlert }] : []),
-        ...(isAdmin ? [{ label: "Revisional", href: "/revisional", icon: Percent }] : []),
-        ...(isAdmin ? [{ label: "Jurídico", href: "/juridico", icon: Scale }] : []),
+        { label: "Treinamento", href: "/onboarding", icon: PlayCircle, hint: "Wizard e guia do sistema" },
+        { label: "Notas", href: "/notes", icon: StickyNote, hint: "Anotações por cliente" },
+        { label: "Configurações", href: "/settings", icon: Settings, hint: "Tema, IA, banca" },
       ],
-    },
-    {
-      title: "Ferramentas",
-      items: [
-        { label: "Cadastro", href: "/ia-sync", icon: ClipboardList },
-        { label: "Consulta processo", href: "/veredito", icon: Scale },
-        { label: "Assistente", href: "/chat", icon: Bot },
-        { label: "Procuração", href: "/documents", icon: FileText },
-        { label: "Habilitação", href: "/habilitacao-peca", icon: FileSignature },
-        { label: "Substabelecimento", href: "/substabelecimento", icon: Files },
-        { label: "Revogação poderes", href: "/revogacao-poderes", icon: Scale },
-        { label: "Subst. simples", href: "/substabelecimento-simples", icon: ClipboardList },
-        { label: "Peça de subst.", href: "/substabelecimento-peca", icon: Files },
-        { label: "Modelos & Peças", href: "/modelos", icon: ScrollText },
-        { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
-        { label: "Importar", href: "/import", icon: Upload },
-        { label: "Notas", href: "/notes", icon: StickyNote },
-        { label: "OCR", href: "/tools/ocr", icon: ScanLine },
-        { label: "Treinamento", href: "/onboarding", icon: PlayCircle },
-      ],
-    },
-    {
-      title: "Sistema",
-      items: [
-        { label: "Indicadores", href: "/analytics", icon: BarChart3 },
-        { label: "IA Preditiva", href: "/insights", icon: BrainCircuit },
-        { label: "Urgências", href: "/urgency", icon: ShieldAlert },
-        { label: "Configurações", href: "/settings", icon: Settings },
-      ],
-    },
-  ];
+    });
+
+    const q = navQuery.trim().toLowerCase();
+    if (!q) return groups;
+    return groups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter(
+          (it) =>
+            it.label.toLowerCase().includes(q) ||
+            (it.hint || "").toLowerCase().includes(q) ||
+            it.href.toLowerCase().includes(q)
+        ),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [isAdmin, isSuperAdmin, navQuery]);
+
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
@@ -213,6 +257,22 @@ function SidebarNavBody({
         className="flex-1 min-h-0 py-5 px-3 space-y-6 overflow-y-auto overscroll-y-contain"
         style={{ overflowAnchor: "none", WebkitOverflowScrolling: "touch" }}
       >
+        {!collapsed && (
+          <div className="px-1 mb-1">
+            <input
+              type="search"
+              value={navQuery}
+              onChange={(e) => setNavQuery(e.target.value)}
+              placeholder="Buscar no menu…"
+              className="w-full h-9 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 text-[11px] font-medium text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none focus:ring-1 focus:ring-primary"
+              aria-label="Buscar no menu"
+            />
+            <p className="text-[9px] text-sidebar-foreground/50 mt-1.5 px-0.5 leading-snug">
+              Dica: comece por <span className="font-bold text-sidebar-foreground/70">Hoje</span>, depois carteira e CRM.
+            </p>
+          </div>
+        )}
+
         <div className="px-1">
           <LiquidMetalButton
             onClick={onToggleMinimize}
@@ -229,7 +289,7 @@ function SidebarNavBody({
         {navGroups.map((group) => (
           <div key={group.title} className="space-y-1">
             {!collapsed && (
-              <p className="px-3 mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.14em]">
+              <p className="px-3 mb-2 text-[10px] font-bold text-primary tracking-wide">
                 {group.title}
               </p>
             )}
@@ -242,6 +302,7 @@ function SidebarNavBody({
                 <Link
                   key={item.href + item.label}
                   href={item.href}
+                  title={item.hint ? `${item.label} — ${item.hint}` : item.label}
                   className={cn(
                     "metal-nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
                     active
@@ -252,13 +313,20 @@ function SidebarNavBody({
                   <SafeIcon
                     icon={Icon}
                     className={cn(
-                      "w-4 h-4 shrink-0",
+                      "w-4 h-4 shrink-0 mt-0.5",
                       active ? "opacity-100" : "opacity-55 group-hover:opacity-90"
                     )}
                   />
                   {!collapsed && (
-                    <span className="text-[11px] font-bold tracking-tight uppercase flex-1 truncate">
-                      {item.label}
+                    <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                      <span className="text-[11px] font-bold tracking-tight text-left leading-tight">
+                        {item.label}
+                      </span>
+                      {item.hint ? (
+                        <span className="text-[9px] font-medium text-sidebar-foreground/50 leading-snug line-clamp-2">
+                          {item.hint}
+                        </span>
+                      ) : null}
                     </span>
                   )}
                 </Link>

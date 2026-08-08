@@ -29,6 +29,7 @@ import {
   type ModeloPeca,
   type CategoriaPeca,
 } from "@/lib/pecas-modelos";
+import { validatePecaMeta, validatePecaPreview } from "@/lib/pecas-validacao";
 
 const CAMPOS_LABEL: Record<keyof PecaMeta, string> = {
   protocolo: "Processo / Contrato nº",
@@ -106,8 +107,20 @@ export default function ModelosPage() {
 
   const gerar = () => {
     if (!selected) return;
-    setPreview(renderModelo(selected.id, meta) || "");
-    toast({ title: "Modelo gerado", description: selected.titulo });
+    const issues = validatePecaMeta(selected, meta, { strictRequired: true });
+    if (issues.length) {
+      toast({
+        title: "Complete os dados",
+        description: issues[0].message,
+        variant: "destructive",
+      });
+      // ainda mostra prévia para o usuário ver o que falta
+    }
+    const text = renderModelo(selected.id, meta) || "";
+    setPreview(text);
+    if (!issues.length) {
+      toast({ title: "Prévia gerada", description: selected.titulo });
+    }
   };
 
   const copy = async () => {
@@ -121,34 +134,25 @@ export default function ModelosPage() {
   };
 
   const gerarPDF = async () => {
-    if (!preview || !selected) return;
+    if (!selected) return;
+    const metaIssues = validatePecaMeta(selected, meta, { strictRequired: true });
+    if (metaIssues.length) {
+      toast({ title: "Não foi possível gerar o PDF", description: metaIssues[0].message, variant: "destructive" });
+      return;
+    }
+    let text = preview;
+    if (!text?.trim()) {
+      text = renderModelo(selected.id, meta) || "";
+      setPreview(text);
+    }
+    const prevIssues = validatePecaPreview(text);
+    if (prevIssues.length) {
+      toast({ title: "Prévia incompleta", description: prevIssues[0].message, variant: "destructive" });
+      return;
+    }
     setPdfLoading(true);
     try {
-      // Bloqueia PDF com dados claramente inválidos (ex.: "a", "aa")
-      const required = (selected.campos || []).filter((c) =>
-        ["cliente", "advogado", "oab", "substabDe", "substabPara"].includes(c)
-      );
-      for (const key of required) {
-        const v = String((meta as any)[key] || "").trim();
-        if (v.length > 0 && v.length < 3) {
-          toast({
-            title: "Dados incompletos",
-            description: `O campo "${key}" precisa de pelo menos 3 caracteres (não use placeholders).`,
-            variant: "destructive",
-          });
-          setPdfLoading(false);
-          return;
-        }
-      }
-      if (!preview || preview.trim().length < 40) {
-        toast({
-          title: "Prévia vazia",
-          description: "Preencha os campos e gere a prévia antes do PDF.",
-          variant: "destructive",
-        });
-        setPdfLoading(false);
-        return;
-      }
+      const preview = text;
       const res = await gerarPecaTextoPDFAction({ texto: preview, titulo: selected.titulo });
       if (!res?.success) throw new Error(res?.error || "Falha ao gerar PDF.");
       downloadBase64File(
