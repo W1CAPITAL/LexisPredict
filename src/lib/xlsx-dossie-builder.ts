@@ -293,7 +293,7 @@ function filterXml(firstCol: number, firstRow: number, lastCol: number, lastRow:
 
 function sheetXml(
   rows: SheetRow[],
-  opts?: { widths?: number[]; freeze?: number; filter?: boolean; merges?: string[]; rowHeights?: Record<number, number> }
+  opts?: { widths?: number[]; freeze?: number; filter?: boolean; merges?: string[]; rowHeights?: Record<number, number>; heights?: Record<number, number> }
 ): string {
   let body = '';
   rows.forEach((row, i) => {
@@ -303,7 +303,8 @@ function sheetXml(
     else if (i % 2 === 0 && rows[0]?.styleRow === 'header') styleId = STYLE_IDS.zebra;
     const cells = row.values.map((v, c) => cellXml(r, c, v, styleId)).join('');
     const hAttr =
-      opts?.heights && opts.heights[r] != null ? ` ht="${opts.heights[r]}" customHeight="1"` : '';
+      (opts?.heights && opts.heights[r] != null ? ` ht="${opts.heights[r]}" customHeight="1"` : '') ||
+      (opts?.rowHeights && opts.rowHeights[r] != null ? ` ht="${opts.rowHeights[r]}" customHeight="1"` : '');
     body += `<row r="${r}"${hAttr}>${cells}</row>`;
   });
   const widthXml = opts?.widths?.length ? colsXml(opts.widths) : '';

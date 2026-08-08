@@ -20,7 +20,7 @@ export interface DjenComunicacao {
   tipoDocumento: string | null;
   nomeClasse: string | null;
   /** Destinatários / partes quando o tribunal envia na API */
-  destinatarios?: Array<{ nome?: string; polo?: string; advogados?: string[] }>;
+  destinatarios?: Array<{ nome?: string; polo?: string; advogados?: string[]; numeroDocumentoPrincipal?: string; numeroDocumento?: string; cpf?: string; cnpj?: string; documento?: string }>;
 }
 
 
