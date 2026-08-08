@@ -9,6 +9,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { supabase, UserProfile, isSupabaseConfigured } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
+import { registrarLoginAction } from '@/app/actions/auditoria-actions';
 
 interface AuthContextType {
   user: any | null;
@@ -49,9 +50,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (profileData) {
         setProfile(profileData as UserProfile);
         const email = String(profileData.email || '').toLowerCase().trim();
+        const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; secure' : '';
         if (email) {
-          const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; secure' : '';
           document.cookie = `lexis_user_email=${email}; path=/; max-age=31536000; samesite=lax${secure}`;
+        }
+        const cargo = String(profileData.cargo || '').trim();
+        if (cargo) {
+          document.cookie = `lexis_user_role=${encodeURIComponent(cargo)}; path=/; max-age=31536000; samesite=lax${secure}`;
         }
         return profileData as UserProfile;
       }
@@ -96,8 +101,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setProfile(null);
         lastUserId.current = null;
         document.cookie = "lexis_user_email=; path=/; max-age=0";
+        document.cookie = "lexis_user_role=; path=/; max-age=0";
         setLoading(false);
         return;
+      }
+
+      if (event === 'SIGNED_IN' && sessionUser) {
+        // Auditoria de login (F1)
+        registrarLoginAction(sessionUser.email).catch(() => {});
       }
 
       if (sessionUser) {

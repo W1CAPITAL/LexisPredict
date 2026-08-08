@@ -15,6 +15,7 @@ import { DollarSign,
   Briefcase,
   Upload,
   BarChart3,
+  BrainCircuit,
   ShieldAlert,
   Settings,
   StickyNote,
@@ -128,6 +129,7 @@ function SidebarNavBody({
         ...(isAdmin ? [{ label: "Jurídico", href: "/juridico", icon: Scale }] : []),
         ...(isAdmin ? [{ label: "Supervisão", href: "/supervisao", icon: ShieldCheck }] : []),
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
+        ...(isAdmin ? [{ label: "Auditoria", href: "/auditoria", icon: ShieldCheck }] : []),
       ],
     },
     {
@@ -155,6 +157,7 @@ function SidebarNavBody({
       title: "Sistema",
       items: [
         { label: "Indicadores", href: "/analytics", icon: BarChart3 },
+        { label: "IA Preditiva", href: "/insights", icon: BrainCircuit },
         { label: "Urgências", href: "/urgency", icon: ShieldAlert },
         { label: "Configurações", href: "/settings", icon: Settings },
       ],
