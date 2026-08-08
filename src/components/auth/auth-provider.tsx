@@ -89,6 +89,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loadProfile(sessionUser.id);
       } else {
         setLoading(false);
+        try {
+          const path = typeof window !== 'undefined' ? window.location.pathname : '';
+          if (path && path !== '/login' && path !== '/signup' && !path.startsWith('/termos')) {
+            router.replace('/login?reason=session');
+          }
+        } catch { /* ignore */ }
       }
     });
 
@@ -120,6 +126,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setProfile(null);
         setLoading(false);
+        try {
+          const path = typeof window !== 'undefined' ? window.location.pathname : '';
+          if (path && path !== '/login' && path !== '/signup' && !path.startsWith('/termos')) {
+            router.replace('/login?reason=session');
+          }
+        } catch { /* ignore */ }
       }
     });
 

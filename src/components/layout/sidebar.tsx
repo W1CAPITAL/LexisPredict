@@ -36,6 +36,7 @@ import { DollarSign, TrendingUp,
   Sun,
   Moon,
   ListTodo,
+  CalendarDays,
   HelpCircle,
   PlayCircle,
   Scale,
@@ -67,6 +68,17 @@ import { useAppStore } from "@/store/use-app-store";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InstallAppButton } from "@/components/mobile/InstallAppButton";
+
+function SafeIcon({
+  icon: Icon,
+  className,
+}: {
+  icon?: React.ComponentType<{ className?: string; strokeWidth?: number; size?: number }>;
+  className?: string;
+}) {
+  if (!Icon) return null;
+  return <Icon className={className} strokeWidth={1.75} size={18} />;
+}
 
 type NavItem = {
   label: string;
@@ -225,7 +237,7 @@ function SidebarNavBody({
               const active =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
-              const Icon = item.icon;
+              const Icon = item.icon; // lucide
               return (
                 <Link
                   key={item.href + item.label}
@@ -237,12 +249,12 @@ function SidebarNavBody({
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
                   )}
                 >
-                  <Icon
+                  <SafeIcon
+                    icon={Icon}
                     className={cn(
                       "w-4 h-4 shrink-0",
                       active ? "opacity-100" : "opacity-55 group-hover:opacity-90"
                     )}
-                    strokeWidth={active ? 2.25 : 2}
                   />
                   {!collapsed && (
                     <span className="text-[11px] font-bold tracking-tight uppercase flex-1 truncate">
