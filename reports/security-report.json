@@ -1,0 +1,921 @@
+{
+  "engines": {
+    "codeSecurity": {
+      "total": 13,
+      "counts": {
+        "critical": 0,
+        "high": 2,
+        "medium": 6,
+        "low": 0,
+        "info": 5
+      },
+      "findings": [
+        {
+          "rule": "dangerously_set_inner_html",
+          "severity": "high",
+          "label": "dangerouslySetInnerHTML",
+          "fix": "Evite; se necessário, sanitize o HTML antes de renderizar.",
+          "line": 81,
+          "match": "dangerouslySetInnerHTML",
+          "file": "src/components/ui/chart.tsx"
+        },
+        {
+          "rule": "dom_xss",
+          "severity": "high",
+          "label": "innerHTML / outerHTML / document.write",
+          "fix": "Use textContent/React; sanitize ou evite injetar HTML com entrada.",
+          "line": 388,
+          "match": "document.write(",
+          "file": "src/app/revisional/page.tsx"
+        },
+        {
+          "rule": "ssrf",
+          "severity": "medium",
+          "label": "fetch com URL dinâmica",
+          "fix": "Valide/allowlist os hosts; evite buscar URL controlada pelo usuário.",
+          "line": 13,
+          "match": "fetch(`${DJEN_URL}?${",
+          "file": "src/lib/djen-busca-texto.ts"
+        },
+        {
+          "rule": "ssrf",
+          "severity": "medium",
+          "label": "fetch com URL dinâmica",
+          "fix": "Valide/allowlist os hosts; evite buscar URL controlada pelo usuário.",
+          "line": 263,
+          "match": "fetch(`${DJEN_URL}?${",
+          "file": "src/lib/djen.ts"
+        },
+        {
+          "rule": "ssrf",
+          "severity": "medium",
+          "label": "fetch com URL dinâmica",
+          "fix": "Valide/allowlist os hosts; evite buscar URL controlada pelo usuário.",
+          "line": 326,
+          "match": "fetch(`${",
+          "file": "src/lib/ai/cascade.ts"
+        },
+        {
+          "rule": "ssrf",
+          "severity": "medium",
+          "label": "fetch com URL dinâmica",
+          "fix": "Valide/allowlist os hosts; evite buscar URL controlada pelo usuário.",
+          "line": 53,
+          "match": "fetch(`${",
+          "file": "src/lib/ai/xai-prestige.ts"
+        },
+        {
+          "rule": "ssrf",
+          "severity": "medium",
+          "label": "fetch com URL dinâmica",
+          "fix": "Valide/allowlist os hosts; evite buscar URL controlada pelo usuário.",
+          "line": 20,
+          "match": "fetch(`/api/version?t=${",
+          "file": "src/components/system/app-update-banner.tsx"
+        },
+        {
+          "rule": "ssrf",
+          "severity": "medium",
+          "label": "fetch com URL dinâmica",
+          "fix": "Valide/allowlist os hosts; evite buscar URL controlada pelo usuário.",
+          "line": 20,
+          "match": "fetch(`${",
+          "file": "src/app/actions/document-actions-djen-snippet.ts"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log em produção",
+          "fix": "Remova ou use logger condicionado por ambiente.",
+          "line": 143,
+          "match": "console.log(",
+          "file": "document-flow.ts"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log em produção",
+          "fix": "Remova ou use logger condicionado por ambiente.",
+          "line": 116,
+          "match": "console.log(",
+          "file": "src/lib/performance-motor.ts"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log em produção",
+          "fix": "Remova ou use logger condicionado por ambiente.",
+          "line": 9,
+          "match": "console.log(",
+          "file": "src/lib/ai/context.ts"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log em produção",
+          "fix": "Remova ou use logger condicionado por ambiente.",
+          "line": 11,
+          "match": "console.log(",
+          "file": "src/lib/ai/memory.ts"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log em produção",
+          "fix": "Remova ou use logger condicionado por ambiente.",
+          "line": 41,
+          "match": "console.log(",
+          "file": "src/app/api/datajud-worker/route.ts"
+        }
+      ]
+    },
+    "owasp": {
+      "categories": [
+        {
+          "id": "A01",
+          "name": "Broken Access Control",
+          "status": "FAIL",
+          "summary": "26 página(s) sem referência visível a autenticação/autorização (useAuth/profile).",
+          "evidence": [
+            "src/app/page.tsx",
+            "src/app/whatsapp/page.tsx",
+            "src/app/veredito/page.tsx",
+            "src/app/tools/ocr/page.tsx",
+            "src/app/tools/navegador/page.tsx",
+            "src/app/tools/automacao/page.tsx",
+            "src/app/substabelecimento-simples/page.tsx",
+            "src/app/substabelecimento-peca/page.tsx",
+            "src/app/substabelecimento/page.tsx",
+            "src/app/settings/ops/page.tsx",
+            "src/app/revogacao-poderes/page.tsx",
+            "src/app/onboarding/page.tsx"
+          ],
+          "recommendation": "Adicione guarda de autenticação/autorização em cada rota sensível (página + server action)."
+        },
+        {
+          "id": "A02",
+          "name": "Cryptographic Failures",
+          "status": "PASS",
+          "summary": "0 hash/cifra fraca · 0 requisição HTTP sem TLS.",
+          "evidence": [],
+          "recommendation": "Use TLS 1.2+ e algoritmos modernos (SHA-256+, bcrypt/argon2/scrypt para senhas)."
+        },
+        {
+          "id": "A03",
+          "name": "Injection",
+          "status": "PASS",
+          "summary": "0 SQL · 0 command · 0 eval.",
+          "evidence": [],
+          "recommendation": "Parametrize consultas, evite eval e não interpole entrada em comandos do sistema."
+        },
+        {
+          "id": "A04",
+          "name": "Insecure Design",
+          "status": "REVIEW",
+          "summary": "Revisão de desenho sugerida para fluxos que consomem fontes externas (DataJud/DJEN), uploads e peças geradas.",
+          "evidence": [
+            "src/lib/djen-busca-texto.ts:13 — fetch com URL dinâmica",
+            "src/lib/djen.ts:263 — fetch com URL dinâmica",
+            "src/lib/ai/cascade.ts:326 — fetch com URL dinâmica",
+            "src/lib/ai/xai-prestige.ts:53 — fetch com URL dinâmica",
+            "src/components/system/app-update-banner.tsx:20 — fetch com URL dinâmica"
+          ],
+          "recommendation": "Modele ameaças por fluxo (STRIDE) e adote validação, limites e sanitização por padrão."
+        },
+        {
+          "id": "A05",
+          "name": "Security Misconfiguration",
+          "status": "FAIL",
+          "summary": "Faltam 6 header(s) de segurança no middleware: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy, Strict-Transport-Security, Permissions-Policy.",
+          "evidence": [
+            "Faltando: X-Frame-Options",
+            "Faltando: X-Content-Type-Options",
+            "Faltando: Referrer-Policy",
+            "Faltando: Content-Security-Policy",
+            "Faltando: Strict-Transport-Security",
+            "Faltando: Permissions-Policy"
+          ],
+          "recommendation": "Adicione CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy e Permissions-Policy."
+        },
+        {
+          "id": "A06",
+          "name": "Vulnerable & Outdated Components",
+          "status": "FAIL",
+          "summary": "npm audit: 0 crítica · 10 alta · 52 média · 0 baixa.",
+          "evidence": [
+            "[moderate] @genkit-ai/ai — verificar upstream",
+            "[high] @genkit-ai/core — atualizar para 0.5.17",
+            "[high] @genkit-ai/firebase — atualizar para 0.5.17",
+            "[high] @genkit-ai/google-cloud — atualizar para 0.5.17",
+            "[moderate] @google-cloud/firestore — atualizar para 0.5.17",
+            "[moderate] @google-cloud/opentelemetry-cloud-monitoring-exporter — verificar upstream",
+            "[moderate] @google-cloud/opentelemetry-cloud-trace-exporter — verificar upstream",
+            "[moderate] @google-cloud/opentelemetry-resource-util — verificar upstream",
+            "[moderate] @google-cloud/storage — atualizar para 0.5.17",
+            "[high] @opentelemetry/auto-instrumentations-node — atualizar para 0.5.17"
+          ],
+          "recommendation": "Mantenha dependências atualizadas e remova pacotes vulneráveis (npm audit fix)."
+        },
+        {
+          "id": "A07",
+          "name": "Identification & Authentication Failures",
+          "status": "WARN",
+          "summary": "Sem evidência de rate limit/lockout nos fluxos de autenticação.",
+          "evidence": [],
+          "recommendation": "Adicione rate limiting e bloqueio por tentativas no login; use MFA em contas privilegiadas."
+        },
+        {
+          "id": "A08",
+          "name": "Software & Data Integrity",
+          "status": "PASS",
+          "summary": "Lockfile presente — dependências pinadas por integridade.",
+          "evidence": [],
+          "recommendation": "Mantenha o lockfile versionado e pin versões das dependências críticas."
+        },
+        {
+          "id": "A09",
+          "name": "Security Logging & Monitoring",
+          "status": "PASS",
+          "summary": "Logs de auditoria de ações detectados (auditoria_logs_app).",
+          "evidence": [
+            "Trilha: auditoria_logs_app + auditoria_logins."
+          ],
+          "recommendation": "Registre falhas de autenticação/autorização e monitore anomalias (alertas)."
+        },
+        {
+          "id": "A10",
+          "name": "SSRF",
+          "status": "WARN",
+          "summary": "6 chamada(s) com URL dinâmica encontrada(s).",
+          "evidence": [
+            "src/lib/djen-busca-texto.ts:13 — fetch com URL dinâmica",
+            "src/lib/djen.ts:263 — fetch com URL dinâmica",
+            "src/lib/ai/cascade.ts:326 — fetch com URL dinâmica",
+            "src/lib/ai/xai-prestige.ts:53 — fetch com URL dinâmica",
+            "src/components/system/app-update-banner.tsx:20 — fetch com URL dinâmica",
+            "src/app/actions/document-actions-djen-snippet.ts:20 — fetch com URL dinâmica"
+          ],
+          "recommendation": "Allowlist de hosts, validação de CNJ/tribunal e restrição de destinos nos fetchers externos."
+        }
+      ],
+      "counts": {
+        "PASS": 4,
+        "WARN": 2,
+        "REVIEW": 1,
+        "FAIL": 3
+      }
+    },
+    "trailOfBits": {
+      "checks": [
+        {
+          "title": "Autenticação em ações de servidor",
+          "status": "WARN",
+          "detail": "26/56 arquivos 'use server' chamam getUserContext (46%).",
+          "files": [
+            "document-flow.ts",
+            "README_PATCH.md",
+            "src/lib/ai/claude-ba-confirm.ts",
+            "src/lib/ai/merge-scan-patch.ts",
+            "src/lib/ai/scan-ai-enrich.ts",
+            "src/lib/ai/flows/case-risk-analysis.ts",
+            "src/lib/ai/flows/chat-ai-flow.ts",
+            "src/lib/ai/flows/document-flow.ts"
+          ],
+          "fix": "Todo server action que expõe dados precisa confirmar sessão (getUserContext)."
+        },
+        {
+          "title": "Escopo multi-tenant por empresa",
+          "status": "PASS",
+          "detail": "24 arquivos filtram por empresa_id.",
+          "files": [
+            "src/app/actions/crm-externo-actions.ts",
+            "src/app/actions/ops-admin-actions.ts"
+          ],
+          "fix": "Garanta que toda consulta respeite o escopo empresa_id do contexto."
+        },
+        {
+          "title": "Validação de entrada nas ações",
+          "status": "WARN",
+          "detail": "18/56 arquivos usam zod/parse para validar entrada.",
+          "files": [],
+          "fix": "Valide tipos e tamanhos de todas as entradas de server actions."
+        },
+        {
+          "title": "Rate limiting em rotas públicas",
+          "status": "WARN",
+          "detail": "Sem evidência de rate limiting em login/APIs públicas.",
+          "files": [],
+          "fix": "Aplique limite de requisições por IP/usuário nas rotas sensíveis."
+        },
+        {
+          "title": "Cabeçalhos de segurança (CSP/HSTS)",
+          "status": "FAIL",
+          "detail": "Faltam: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy, Strict-Transport-Security, Permissions-Policy.",
+          "files": [
+            "Faltando: X-Frame-Options",
+            "Faltando: X-Content-Type-Options",
+            "Faltando: Referrer-Policy",
+            "Faltando: Content-Security-Policy",
+            "Faltando: Strict-Transport-Security",
+            "Faltando: Permissions-Policy"
+          ],
+          "fix": "Configure CSP restritivo, HSTS e anti-clickjacking no middleware."
+        },
+        {
+          "title": "Higiene de segredos",
+          "status": "PASS",
+          "detail": "0 credencial hardcoded · 0 chave privada.",
+          "files": [],
+          "fix": "Varredura de segredos no CI (trufflehog/gitleaks) e rotação imediata de qualquer segredo vazado."
+        },
+        {
+          "title": "SSRF — controle de destinos externos",
+          "status": "WARN",
+          "detail": "6 fetch com URL dinâmica.",
+          "files": [
+            "src/lib/djen-busca-texto.ts:13",
+            "src/lib/djen.ts:263",
+            "src/lib/ai/cascade.ts:326",
+            "src/lib/ai/xai-prestige.ts:53",
+            "src/components/system/app-update-banner.tsx:20",
+            "src/app/actions/document-actions-djen-snippet.ts:20"
+          ],
+          "fix": "Allowlist de hosts e validação de CNJ/tribunal antes de consultas externas."
+        },
+        {
+          "title": "Dependências auditadas",
+          "status": "FAIL",
+          "detail": "npm audit: 0 crítica · 10 alta.",
+          "files": [
+            "[moderate] @genkit-ai/ai",
+            "[high] @genkit-ai/core",
+            "[high] @genkit-ai/firebase",
+            "[high] @genkit-ai/google-cloud",
+            "[moderate] @google-cloud/firestore",
+            "[moderate] @google-cloud/opentelemetry-cloud-monitoring-exporter",
+            "[moderate] @google-cloud/opentelemetry-cloud-trace-exporter",
+            "[moderate] @google-cloud/opentelemetry-resource-util"
+          ],
+          "fix": "Aplicar npm audit fix e revisar versões de pacotes transitivos."
+        },
+        {
+          "title": "Cookies de sessão (httpOnly/SameSite)",
+          "status": "WARN",
+          "detail": "httpOnly: não detectado · SameSite: não detectado.",
+          "files": [],
+          "fix": "Garanta httpOnly, SameSite e Secure nos cookies de sessão."
+        },
+        {
+          "title": "Erros não vazam detalhes internos",
+          "status": "REVIEW",
+          "detail": "35 arquivos devolvem e?.message ao cliente — revise para não expor detalhes internos.",
+          "files": [
+            "src/lib/security-scanner.mjs",
+            "src/lib/server-db.ts",
+            "src/lib/ai/claude-ba-confirm.ts",
+            "src/app/chatbot-separado/actions.ts",
+            "src/app/actions/auditoria-actions.ts",
+            "src/app/actions/automacao-register-actions.ts",
+            "src/app/actions/automacao-tarefas-actions.ts",
+            "src/app/actions/avatar-actions.ts"
+          ],
+          "fix": "Retorne mensagens genéricas e registre o detalhe técnico internamente."
+        },
+        {
+          "title": "CSP restritivo ativo",
+          "status": "FAIL",
+          "detail": "Sem Content-Security-Policy no middleware.",
+          "files": [],
+          "fix": "Defina CSP que bloqueie inline scripts e origens não confiáveis."
+        }
+      ],
+      "counts": {
+        "PASS": 2,
+        "WARN": 5,
+        "REVIEW": 1,
+        "FAIL": 3
+      }
+    },
+    "ponytail": {
+      "total": 54,
+      "counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 33,
+        "low": 15,
+        "info": 6
+      },
+      "findings": [
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada documentFlow definida em 3 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "document-flow.ts",
+          "line": 1,
+          "match": "documentFlow"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada extrairDadosProcuracao definida em 3 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "document-flow.ts",
+          "line": 1,
+          "match": "extrairDadosProcuracao"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada middleware definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "middleware.ts",
+          "line": 1,
+          "match": "middleware"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada config definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "middleware.ts",
+          "line": 1,
+          "match": "config"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada digitsOnly definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/busca-apreensao-logic.ts",
+          "line": 1,
+          "match": "digitsOnly"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada normalizeName definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/busca-apreensao-logic.ts",
+          "line": 1,
+          "match": "normalizeName"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada isCasoEncerrado definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/case-logic.ts",
+          "line": 1,
+          "match": "isCasoEncerrado"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada extractCnjFromText definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/cnj-extract.ts",
+          "line": 1,
+          "match": "extractCnjFromText"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada summarizeDjenKeywords definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/djen-keywords-patch.ts",
+          "line": 1,
+          "match": "summarizeDjenKeywords"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada classifyEventFromText definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/djen-keywords-patch.ts",
+          "line": 1,
+          "match": "classifyEventFromText"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada updateStoredNote definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/notes-update-snippet.ts",
+          "line": 1,
+          "match": "updateStoredNote"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada puterChat definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/puter-ai-client.ts",
+          "line": 1,
+          "match": "puterChat"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada clearDataJudAuditAction definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/server-db.ts",
+          "line": 1,
+          "match": "clearDataJudAuditAction"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada createClient definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/supabase/client.ts",
+          "line": 1,
+          "match": "createClient"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada ai definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/genkit.ts",
+          "line": 1,
+          "match": "ai"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada gerarRascunhoEstrategico definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/motor-despacho.ts",
+          "line": 1,
+          "match": "gerarRascunhoEstrategico"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada caseRiskAnalysis definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/case-risk-analysis.ts",
+          "line": 1,
+          "match": "caseRiskAnalysis"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada chatAIFlow definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/chat-ai-flow.ts",
+          "line": 1,
+          "match": "chatAIFlow"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada perguntarIA definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/chat-ai-flow.ts",
+          "line": 1,
+          "match": "perguntarIA"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada analisarEvidenciasLocais definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/note-analysis-flow.ts",
+          "line": 1,
+          "match": "analisarEvidenciasLocais"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada noteAnalysisFlow definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/note-analysis-flow.ts",
+          "line": 1,
+          "match": "noteAnalysisFlow"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada analisarNotasIA definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/note-analysis-flow.ts",
+          "line": 1,
+          "match": "analisarNotasIA"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada generateNeuralTheme definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/theme-architect-flow.ts",
+          "line": 1,
+          "match": "generateNeuralTheme"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada vereditoAIFlow definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/veredito-ai-flow.ts",
+          "line": 1,
+          "match": "vereditoAIFlow"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada executarVereditoAI definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/lib/ai/flows/veredito-ai-flow.ts",
+          "line": 1,
+          "match": "executarVereditoAI"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada HabilitacaoPecaPDF definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/components/pdf/habilitacao-peca-pdf.tsx",
+          "line": 1,
+          "match": "HabilitacaoPecaPDF"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada POST definida em 7 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/app/api/webhook/evolution/route.ts",
+          "line": 1,
+          "match": "POST"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada dynamic definida em 9 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/app/api/version/route.ts",
+          "line": 1,
+          "match": "dynamic"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada GET definida em 4 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/app/api/version/route.ts",
+          "line": 1,
+          "match": "GET"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada preferredRegion definida em 5 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/app/api/queue/enqueue-scan/route.ts",
+          "line": 1,
+          "match": "preferredRegion"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada maxDuration definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/app/api/datajud-worker/route.ts",
+          "line": 1,
+          "match": "maxDuration"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada recalibrateCasesAction definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/app/actions/case-actions.ts",
+          "line": 1,
+          "match": "recalibrateCasesAction"
+        },
+        {
+          "rule": "duplicate_definition",
+          "severity": "medium",
+          "label": "Função exportada generateDjenPublicationPDFAction definida em 2 arquivos",
+          "fix": "Centralize em um único módulo e importe onde precisar.",
+          "file": "src/app/actions/document-actions-djen-snippet.ts",
+          "line": 1,
+          "match": "generateDjenPublicationPDFAction"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (887 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/lib/security-scanner.mjs",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (761 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/lib/server-db.ts",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (945 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/lib/xlsx-dossie-builder.ts",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (6474 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/data/cases.json",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (764 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/components/ui/sidebar.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (859 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/components/pdf/dossie-cliente-pdf.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (769 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/tarefas/page.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (1080 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/settings/page.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (710 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/revogacao-poderes/page.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (799 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/revisional/page.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (885 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/report/page.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (732 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/processos/page.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (1058 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/cases/page.tsx",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (817 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/actions/automacao-register-actions.ts",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "monolith_file",
+          "severity": "low",
+          "label": "Arquivo monolítico (740 linhas)",
+          "fix": "Quebre em módulos menores de responsabilidade única.",
+          "file": "src/app/actions/case-actions.ts",
+          "line": 1,
+          "match": "arquivo longo"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log deixado (1)",
+          "fix": "Remova ou troque por logger condicionado.",
+          "file": "document-flow.ts",
+          "line": 1,
+          "match": "console.log"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log deixado (1)",
+          "fix": "Remova ou troque por logger condicionado.",
+          "file": "src/lib/performance-motor.ts",
+          "line": 1,
+          "match": "console.log"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log deixado (1)",
+          "fix": "Remova ou troque por logger condicionado.",
+          "file": "src/lib/ai/context.ts",
+          "line": 1,
+          "match": "console.log"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log deixado (1)",
+          "fix": "Remova ou troque por logger condicionado.",
+          "file": "src/lib/ai/memory.ts",
+          "line": 1,
+          "match": "console.log"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log deixado (1)",
+          "fix": "Remova ou troque por logger condicionado.",
+          "file": "src/app/api/datajud-worker/route.ts",
+          "line": 1,
+          "match": "console.log"
+        },
+        {
+          "rule": "debug_log",
+          "severity": "info",
+          "label": "console.log deixado (6)",
+          "fix": "Remova ou troque por logger condicionado.",
+          "file": "scripts/security-scan.mjs",
+          "line": 1,
+          "match": "console.log"
+        }
+      ]
+    }
+  },
+  "review": {
+    "score": 0,
+    "grade": "F",
+    "counts": {
+      "critical": 0,
+      "high": 2,
+      "medium": 39,
+      "low": 15,
+      "info": 11
+    },
+    "totalFindings": 67,
+    "owaspFail": 3,
+    "status": "FAIL",
+    "recommendations": [
+      "Evite; se necessário, sanitize o HTML antes de renderizar.",
+      "Use textContent/React; sanitize ou evite injetar HTML com entrada.",
+      "Adicione guarda de autenticação/autorização em cada rota sensível (página + server action).",
+      "Adicione CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy e Permissions-Policy.",
+      "Mantenha dependências atualizadas e remova pacotes vulneráveis (npm audit fix)."
+    ]
+  },
+  "scannedFiles": 417,
+  "generatedAt": "2026-08-08T12:53:10.440Z"
+}

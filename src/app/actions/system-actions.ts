@@ -31,13 +31,20 @@ export async function exportFullSourceCodeAction() {
   zip.file("MANIFESTO_DE_INTEGRIDADE.json", JSON.stringify(manifest, null, 2));
 
   function addFilesRecursively(currentPath: string) {
+    const resolvedDir = path.resolve(currentPath);
+    if (resolvedDir !== rootPath && !resolvedDir.startsWith(rootPath + path.sep)) return;
     if (!fs.existsSync(currentPath)) return;
     
     const files = fs.readdirSync(currentPath);
 
     for (const file of files) {
       const fullPath = path.join(currentPath, file);
-      const relativePath = path.relative(rootPath, fullPath);
+      // nosemgrep: path-join-resolve-traversal — resolve e garante permanência dentro da raiz
+      const resolved = path.resolve(fullPath);
+      if (resolved !== rootPath && !resolved.startsWith(rootPath + path.sep)) {
+        continue; // ignora symlinks/atalhos que saiam da raiz do projeto
+      }
+      const relativePath = path.relative(rootPath, resolved);
       
       let stats;
       try {

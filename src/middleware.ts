@@ -15,7 +15,7 @@ const ROLE_WEIGHT: Record<string, number> = {
   Visualizador: 20,
 };
 
-const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team'];
+const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team', '/security'];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -35,5 +35,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/supervisao/:path*', '/auditoria/:path*', '/team/:path*'],
+  matcher: ['/supervisao/:path*', '/auditoria/:path*', '/team/:path*', '/security/:path*'],
 };

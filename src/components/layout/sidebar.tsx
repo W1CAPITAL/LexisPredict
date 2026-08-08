@@ -130,6 +130,7 @@ function SidebarNavBody({
         ...(isAdmin ? [{ label: "Supervisão", href: "/supervisao", icon: ShieldCheck }] : []),
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
         ...(isAdmin ? [{ label: "Auditoria", href: "/auditoria", icon: ShieldCheck }] : []),
+        ...(isAdmin ? [{ label: "Segurança", href: "/security", icon: ShieldAlert }] : []),
       ],
     },
     {
