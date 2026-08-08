@@ -155,7 +155,12 @@ function extractPossibleBankName(text: string): string | null {
     'BANCO BRADESCO', 'BANCO SANTANDER', 'CAIXA ECONÔMICA', 'CAIXA ECONOMICA',
     'NUBANK', 'BANCO INTER', 'BANCO PAN', 'BANCO BMG', 'BANCO C6', 'BANCO SAFRA',
     'BANCO ORIGINAL', 'BANCO DAYCOVAL', 'BANCO VOTORANTIM', 'BANCO MERCANTIL',
-    'CREFISA', 'LOSANGO', 'FINASA', 'BANCO AGIBANK', 'BANCO MASTER',
+    'CREFISA', 'LOSANGO', 'FINASA', 'BANCO AGIBANK', 'BANCO MASTER', 'BANCO MODAL',
+    'BANCO RENDIMENTO', 'BANRISUL', 'PAGBANK', 'MERCADO PAGO', 'PICPAY', 'WILL BANK',
+    'BANCO CITIBANK', 'BANCO C6 BANK', 'BANCO SICOOB', 'BANCO SICREDI',
+    'BANCO NEXPE', 'BANCO BANESE', 'BANCO BANESTES', 'BANCO BANPARA',
+    'BANCO DO NORDESTE', 'BANCO DA AMAZONIA', 'BANCO DO ESTADO', 'BRB',
+    'BANCO OLE', 'BANCO SOFISA', 'BANCO CNH', 'BANCO VOLKSWAGEN', 'BANCO TOYOTA',
   ];
   for (const b of banks) {
     if (upper.includes(b)) return b;
@@ -365,9 +370,11 @@ export async function enrichCadastroByCnjAction(
     };
 
     const isBanco = (n: string) =>
-      /BANCO|S\.?\s*A\.?|LTDA|FINANCEIRA|CREDITO|CRÉDITO|SEGURADORA|COOPERATIVA|NUBANK|INTER\b|SAFRA|BRADESCO|ITA[UÚ]|SANTANDER|CAIXA/.test(
+      /BANCO|S\.?\s*A\.?|LTDA|FINANCEIRA|CREDITO|CRÉDITO|SEGURADORA|COOPERATIVA|NUBANK|INTER\b|SAFRA|BRADESCO|ITA[UÚ]|SANTANDER|CAIXA|NEXPE|LOSANGO|CONSIGNADO|PAGBANK|MERCADO PAGO|PICPAY|WILL|BANRISUL|MERCANTIL|BMG|PAN|C6|DAYCOVAL|ORIGINAL|VOTORANTIM|AGIBANK|MASTER|MODAL|RENDIMENTO|CITIBANK|HSBC|GOLDMAN/.test(
         n.toUpperCase()
       );
+
+    let cpfAtivoHint: string | null = null;
 
 // 1) Destinatários estruturados de TODAS as comunicações
     for (const it of djen.items) {
@@ -380,8 +387,18 @@ export async function enrichCadastroByCnjAction(
         const doc = String(
           d.numeroDocumentoPrincipal || d.numeroDocumento || d.cpf || d.cnpj || d.documento || ''
         ).replace(/\D/g, '');
-        if (doc.length === 11 && cpfValido(doc) && !cpfHint) cpfHint = doc;
-        if (doc.length === 14 && cnpjValido(doc) && !parte_passiva_cnpj) parte_passiva_cnpj = doc;
+        const poloAtivoHit = /ATIVO|AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE|APELANTE|AGRAVANTE|IMPETRANTE/.test(polo);
+        const poloPassivoHit = /PASSIVO|R[EÉ]U|REQUERID|EXECUTAD|RECLAMAD|APELAD|AGRAVAD|IMPETRAD/.test(polo) || isBanco(nome);
+        // CPF/CNPJ do polo ATIVO (cliente) tem prioridade sobre o genérico
+        if (doc.length === 11 && cpfValido(doc)) {
+          if (poloAtivoHit) { if (!cpfAtivoHint) cpfAtivoHint = doc; }
+          else if (!cpfHint) cpfHint = doc;
+        }
+        // CNPJ do polo PASSIVO (banco/réu) tem prioridade
+        if (doc.length === 14 && cnpjValido(doc)) {
+          if (poloPassivoHit && !parte_passiva_cnpj) parte_passiva_cnpj = doc;
+          else if (!parte_passiva_cnpj) parte_passiva_cnpj = doc;
+        }
 
         if (/ATIVO|AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE|APELANTE|AGRAVANTE|IMPETRANTE/.test(polo)) {
           pushUnique(poloAtivo, nome);
@@ -402,9 +419,6 @@ export async function enrichCadastroByCnjAction(
             if (!parte_passiva) parte_passiva = nome;
           }
         }
-
-        const poloAtivoHit = /ATIVO|AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE|APELANTE|AGRAVANTE|IMPETRANTE/.test(polo);
-        const poloPassivoHit = /PASSIVO|R[EÉ]U|REQUERID|EXECUTAD|RECLAMAD|APELAD|AGRAVAD|IMPETRAD/.test(polo) || isBanco(nome);
 
         for (const a of d.advogados || []) {
           const an = String(a || '').trim().toUpperCase();
@@ -556,7 +570,7 @@ export async function enrichCadastroByCnjAction(
       djenResumo,
       movimentosResumo: null,
       fonte: cliente && parte_passiva ? 'DJEN+DataJud' : 'DJEN',
-      cpf: cpfHint || undefined,
+      cpf: cpfAtivoHint || cpfHint || undefined,
       email: emailHint || undefined,
       telefone: telefoneHint || undefined,
     } as CadastroEnrichResult;

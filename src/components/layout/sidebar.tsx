@@ -41,6 +41,7 @@ import { DollarSign,
   Gavel,
   ShieldCheck,
   FolderOpen,
+  Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,8 @@ function SidebarNavBody({
         { label: "Processos", href: "/cases", icon: Briefcase },
         { label: "Processos da Empresa", href: "/processos", icon: FolderOpen },
         { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },
+        ...(isAdmin ? [{ label: "Revisional", href: "/revisional", icon: Percent }] : []),
+        ...(isAdmin ? [{ label: "Jurídico", href: "/juridico", icon: Scale }] : []),
         ...(isAdmin ? [{ label: "Supervisão", href: "/supervisao", icon: ShieldCheck }] : []),
         ...(isAdmin ? [{ label: "Equipe", href: "/team", icon: Users }] : []),
       ],

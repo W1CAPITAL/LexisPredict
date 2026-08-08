@@ -314,13 +314,36 @@ async function fetchDjenComunicacoesUncached(
         const destList = Array.isArray(destRaw) ? destRaw : [destRaw];
         const destinatarios = destList
           .filter(Boolean)
-          .map((d: any) => ({
-            nome: String(d?.nome || d?.nomeDestinatario || d?.razaoSocial || '').trim() || undefined,
-            polo: String(d?.polo || d?.tipoPolo || d?.tipo || '').trim() || undefined,
-            advogados: Array.isArray(d?.advogados)
-              ? d.advogados.map((a: any) => String(a?.nome || a || '').trim()).filter(Boolean)
-              : undefined,
-          }))
+          .map((d: any) => {
+            const numeroDocumentoPrincipal = String(
+              d?.numeroDocumentoPrincipal || d?.numerodocumentoprincipal || d?.cpf || d?.cnpj || d?.documento || ''
+            )
+              .replace(/\D/g, '')
+              .trim() || undefined;
+            const numeroDocumento = String(
+              d?.numeroDocumento || d?.numerodocumento || d?.cpf || d?.cnpj || ''
+            )
+              .replace(/\D/g, '')
+              .trim() || undefined;
+            const cpfRaw = String(d?.cpf || d?.numeroDocumentoPrincipal || d?.numeroDocumento || '')
+              .replace(/\D/g, '')
+              .trim();
+            const cnpjRaw = String(d?.cnpj || d?.numeroDocumentoPrincipal || d?.numeroDocumento || '')
+              .replace(/\D/g, '')
+              .trim();
+            return {
+              nome: String(d?.nome || d?.nomeDestinatario || d?.razaoSocial || '').trim() || undefined,
+              polo: String(d?.polo || d?.tipoPolo || d?.tipo || '').trim() || undefined,
+              advogados: Array.isArray(d?.advogados)
+                ? d.advogados.map((a: any) => String(a?.nome || a || '').trim()).filter(Boolean)
+                : undefined,
+              numeroDocumentoPrincipal,
+              numeroDocumento,
+              cpf: (cpfRaw.length === 11 ? cpfRaw : '') || undefined,
+              cnpj: (cnpjRaw.length === 14 ? cnpjRaw : '') || undefined,
+              documento: numeroDocumentoPrincipal,
+            };
+          })
           .filter((d: any) => d.nome);
         return {
           id: item.id || item.comunicacao_id,
