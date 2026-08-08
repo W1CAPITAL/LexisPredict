@@ -134,6 +134,7 @@ function SidebarNavBody({
       items: [
         { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList },
         { label: "Consulta processo", href: "/veredito", icon: Scale },
+        { label: "Sincronia IA", href: "/ia-sync", icon: Zap },
         { label: "Assistente", href: "/chat", icon: Bot },
         { label: "Procuração", href: "/documents", icon: FileText },
         { label: "Habilitação", href: "/habilitacao-peca", icon: FileSignature },
