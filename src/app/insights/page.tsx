@@ -57,39 +57,39 @@ function TableTribunal({ titulo, descricao, grupos }: { titulo: string; descrica
         </CardTitle>
         <CardDescription>{descricao}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="max-h-[420px]">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="sticky top-0 bg-background">
-              <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="py-2 pr-4">Tribunal / Vara</th>
-                <th className="py-2 pr-4 text-center">Total</th>
-                <th className="py-2 pr-4 text-center">Ativos</th>
-                <th className="py-2 pr-4 text-center">Vencidos</th>
-                <th className="py-2 pr-4 text-center">Novo Andam.</th>
-                <th className="py-2 pr-4 text-center">Baixas</th>
-                <th className="py-2 pr-4 text-center">Proc.</th>
-                <th className="py-2 pr-4 text-center">Improc.</th>
-                <th className="py-2 pr-4 text-center">Taxa Proc.</th>
-                <th className="py-2 pr-4 text-center">Tempo Baixa</th>
-                <th className="py-2 text-center">Risco</th>
+      <CardContent className="px-0 pb-2">
+        <div className="w-full max-h-[min(60vh,560px)] overflow-auto overscroll-contain px-4 pb-3">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead className="sticky top-0 z-10 bg-card border-b">
+              <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                <th className="py-2.5 pr-3 font-bold">Tribunal / Vara</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Total</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Ativos</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Vencidos</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Novo Andam.</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Baixas</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Proc.</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Improc.</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Taxa Proc.</th>
+                <th className="py-2.5 pr-3 text-center font-bold">Tempo Baixa</th>
+                <th className="py-2.5 text-center font-bold">Risco</th>
               </tr>
             </thead>
             <tbody>
               {grupos.map((g) => (
                 <tr key={g.chave} className="border-b last:border-0 hover:bg-muted/40">
-                  <td className="py-2 pr-4 font-medium">{g.chave}</td>
-                  <td className="py-2 pr-4 text-center tabular-nums">{g.total}</td>
-                  <td className="py-2 pr-4 text-center tabular-nums">{g.ativos}</td>
-                  <td className="py-2 pr-4 text-center tabular-nums">
+                  <td className="py-2 pr-3 font-medium text-foreground">{g.chave}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums">{g.total}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums">{g.ativos}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums">
                     <Badge variant={g.vencidos > 0 ? "destructive" : "outline"}>{g.vencidos}</Badge>
                   </td>
-                  <td className="py-2 pr-4 text-center tabular-nums">{g.novoAndamento}</td>
-                  <td className="py-2 pr-4 text-center tabular-nums">{g.baixas}</td>
-                  <td className="py-2 pr-4 text-center tabular-nums text-emerald-600">{g.procedentes}</td>
-                  <td className="py-2 pr-4 text-center tabular-nums text-red-600">{g.improcedentes}</td>
-                  <td className="py-2 pr-4 text-center tabular-nums">{g.taxaProcedencia}%</td>
-                  <td className="py-2 pr-4 text-center tabular-nums">
+                  <td className="py-2 pr-3 text-center tabular-nums">{g.novoAndamento}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums">{g.baixas}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums text-emerald-600">{g.procedentes}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums text-red-600">{g.improcedentes}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums">{g.taxaProcedencia}%</td>
+                  <td className="py-2 pr-3 text-center tabular-nums">
                     {g.tempoMedioBaixaDias != null ? `${g.tempoMedioBaixaDias}d` : "—"}
                   </td>
                   <td className="py-2 text-center">
@@ -99,8 +99,7 @@ function TableTribunal({ titulo, descricao, grupos }: { titulo: string; descrica
               ))}
             </tbody>
           </table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );
@@ -175,9 +174,9 @@ export default function InsightsPage() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen min-h-0 overflow-hidden bg-background">
       <Sidebar />
-      <main className="flex-1 px-4 py-6 lg:px-8">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-6 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

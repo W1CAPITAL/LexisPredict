@@ -40,7 +40,6 @@ import {
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -315,9 +314,9 @@ export default function ProcessosEmpresaPage() {
   const recentFeed = useMemo(() => audit.slice(0, 24), [audit]);
 
   return (
-    <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
+    <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden min-h-0">
       <Sidebar />
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <header className="shrink-0 border-b border-border/60 glass-header p-4 sm:px-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
@@ -349,7 +348,7 @@ export default function ProcessosEmpresaPage() {
           </div>
         </header>
 
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : cases.length} tone="primary" />
@@ -417,7 +416,7 @@ export default function ProcessosEmpresaPage() {
                   <p className="text-[10px] font-black uppercase tracking-widest">Nenhum processo encontrado.</p>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[560px]">
+                <div className="max-h-[min(70vh,640px)] min-h-[200px] overflow-y-auto overflow-x-auto overscroll-contain border border-border/40 rounded-xl">
                   <>
                     <table className="w-full text-left min-w-[980px]">
                       <thead className="bg-secondary/40 dark:bg-card/60 border-b border-border/20 sticky top-0">
@@ -537,7 +536,7 @@ export default function ProcessosEmpresaPage() {
                     </div>
                   )}
                 </>
-              </ScrollArea>
+              </div>
             )}
             </div>
 
@@ -573,7 +572,7 @@ export default function ProcessosEmpresaPage() {
               )}
             </section>
           </div>
-        </ScrollArea>
+        </div>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">

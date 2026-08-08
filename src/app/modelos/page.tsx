@@ -110,6 +110,31 @@ export default function ModelosPage() {
     if (!preview || !selected) return;
     setPdfLoading(true);
     try {
+      // Bloqueia PDF com dados claramente inválidos (ex.: "a", "aa")
+      const required = (selected.campos || []).filter((c) =>
+        ["cliente", "advogado", "oab", "substabDe", "substabPara"].includes(c)
+      );
+      for (const key of required) {
+        const v = String((meta as any)[key] || "").trim();
+        if (v.length > 0 && v.length < 3) {
+          toast({
+            title: "Dados incompletos",
+            description: `O campo "${key}" precisa de pelo menos 3 caracteres (não use placeholders).`,
+            variant: "destructive",
+          });
+          setPdfLoading(false);
+          return;
+        }
+      }
+      if (!preview || preview.trim().length < 40) {
+        toast({
+          title: "Prévia vazia",
+          description: "Preencha os campos e gere a prévia antes do PDF.",
+          variant: "destructive",
+        });
+        setPdfLoading(false);
+        return;
+      }
       const res = await gerarPecaTextoPDFAction({ texto: preview, titulo: selected.titulo });
       if (!res?.success) throw new Error(res?.error || "Falha ao gerar PDF.");
       downloadBase64File(

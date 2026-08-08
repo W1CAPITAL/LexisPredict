@@ -66,6 +66,13 @@ function seg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
   return typeof v === 'string' && v.trim() ? v.trim() : fallback;
 }
 
+/** Nomes/identificadores: ignora lixo curto ("a", "x", "aa") para não poluir o PDF. */
+function nomeSeg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
+  const v = typeof m[k] === 'string' ? (m[k] as string).trim() : '';
+  if (!v || v.length < 3 || /^[a-zA-Z]{1,2}$/.test(v)) return fallback;
+  return v;
+}
+
 /** Só inclui o trecho se o campo existir — evita peças genéricas “cheias de colchetes”. */
 function se(m: PecaMeta, k: keyof PecaMeta, template: (v: string) => string): string {
   const v = m[k];
@@ -117,12 +124,12 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     categoria: 'Procuração',
     titulo: 'Procuração Geral',
     descricao: 'Outorga ampla de poderes ao advogado para representar o cliente.',
-    campos: ['cliente', 'advogado', 'oab', 'uf'],
+    campos: ['cliente', 'advogado', 'oab', 'uf', 'cidade'],
     render: (m) =>
       [
         'PROCURAÇÃO',
         '',
-        `Pelo presente instrumento particular de mandato, ${seg(m, 'cliente', '[NOME DO OUTORGANTE]')}, por seu livre e espontânea vontade, nomeia e constitui seu bastante procurador o(a) advogado(a) ${seg(m, 'advogado', '[NOME DO ADVOGADO]')}, inscrito(a) na OAB${m.uf ? '/' + m.uf : ''} sob o n.º ${seg(m, 'oab', '________')}, com escritório profissional em [CIDADE/UF], a quem confere amplos poderes para o foro em geral e os especiais, com a cláusula ad judicia, para representá-lo(a) em juízo ou fora dele, em qualquer juízo, instância ou tribunal, praticando todos os atos necessários à defesa de seus interesses.`,
+        `Pelo presente instrumento particular de mandato, ${nomeSeg(m, 'cliente', '[NOME COMPLETO DO OUTORGANTE]')}, por seu livre e espontânea vontade, nomeia e constitui seu bastante procurador o(a) advogado(a) ${nomeSeg(m, 'advogado', '[NOME COMPLETO DO ADVOGADO]')}, inscrito(a) na OAB/${nomeSeg(m, 'uf', '___')} sob o n.º ${nomeSeg(m, 'oab', '________')}, com escritório profissional em ${nomeSeg(m, 'cidade', '[CIDADE/UF]')}, a quem confere amplos poderes para o foro em geral e os especiais, com a cláusula ad judicia, para representá-lo(a) em juízo ou fora dele, em qualquer juízo, instância ou tribunal, praticando todos os atos necessários à defesa de seus interesses.`,
         '',
         'Poderes específicos: requerer, transigir, receber e dar quitação, firmar compromissos e propostas, acompanhar audiências, apresentar defesas, recursos e contrarrazões, e praticar todos os demais atos necessários ao cumprimento deste mandato. Em caso de celebração de acordo, fica o(a) advogado(a) autorizado(a) a transigir e firmar compromisso.'.replace(/^Poderes específicos: /, m.resumo ? `Observações: ${m.resumo}\n\nPoderes específicos: ` : 'Poderes específicos: '),
         '',
