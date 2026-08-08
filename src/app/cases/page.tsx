@@ -586,7 +586,7 @@ function CasesContent() {
     const id =
       (typeof crypto !== 'undefined' && crypto.randomUUID)
         ? crypto.randomUUID()
-        : `new_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        : `new_${Date.now()}_${(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now().toString(36))}`;
     const novo = processarCaso({
       id,
       cliente: cliente.toUpperCase(),

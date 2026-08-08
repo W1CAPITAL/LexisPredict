@@ -247,7 +247,7 @@ export default function RevisionalPage() {
   const salvar = async () => {
     setSaving(true);
     const agora = new Date().toISOString();
-    const id = simulacaoAtivaId || `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = simulacaoAtivaId || `${Date.now()}-${(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 6) : Date.now().toString(36).slice(-6))}`;
     const novaSimulacao: Simulacao = {
       id,
       nome: (nomeSimulacao || `Simulação ${simulacoes.length + 1}`).slice(0, 120),

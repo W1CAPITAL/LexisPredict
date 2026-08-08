@@ -38,13 +38,20 @@ export async function exportFullSourceCodeAction() {
     const files = fs.readdirSync(currentPath);
 
     for (const file of files) {
+      // bloqueia path traversal / escape da raiz
       const fullPath = path.join(currentPath, file);
-      // nosemgrep: path-join-resolve-traversal — resolve e garante permanência dentro da raiz
-      const resolved = path.resolve(fullPath);
-      if (resolved !== rootPath && !resolved.startsWith(rootPath + path.sep)) {
-        continue; // ignora symlinks/atalhos que saiam da raiz do projeto
+      let resolved: string;
+      try {
+        resolved = fs.realpathSync(fullPath);
+      } catch {
+        resolved = path.resolve(fullPath);
       }
-      const relativePath = path.relative(rootPath, resolved);
+      const rootReal = fs.realpathSync(rootPath);
+      if (resolved !== rootReal && !resolved.startsWith(rootReal + path.sep)) {
+        continue;
+      }
+      const relativePath = path.relative(rootReal, resolved);
+      // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
       
       let stats;
       try {

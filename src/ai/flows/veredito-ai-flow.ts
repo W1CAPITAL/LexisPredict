@@ -78,7 +78,7 @@ function analisarDeterministico(dataJudData: any) {
 
   let merito = 'Em andamento / sem sentença clara nos últimos movimentos.';
   let risco = 'Monitorar próximos atos no tribunal oficial (PJe).';
-  let passos = '1) Conferir autos no PJe.\n2) Verificar prazos de recurso ou cumprimento.\n3) Registrar retorno no CRM.';
+  let proximosPassos = '1) Conferir autos no PJe.\n2) Verificar prazos de recurso ou cumprimento.\n3) Registrar retorno no CRM.';
   let cliente = 'Seu processo está sob monitoramento. Em breve retornamos com orientações.';
   let conclusao = 'Sem encerramento confirmado.';
 
@@ -99,7 +99,7 @@ function analisarDeterministico(dataJudData: any) {
       : temProc
         ? 'Baixa/trânsito com histórico de procedência — conferir se houve êxito efetivo.'
         : 'Baixa definitiva ou trânsito em julgado detectado no tribunal.';
-    passos = '1) Confirmar trânsito e baixa no PJe.\n2) Verificar custas finais e honorários.\n3) Orientar o cliente sobre o desfecho.\n4) Arquivar no CRM após validação.';
+    proximosPassos = '1) Confirmar trânsito e baixa no PJe.\n2) Verificar custas finais e honorários.\n3) Orientar o cliente sobre o desfecho.\n4) Arquivar no CRM após validação.';
     cliente = temImproc
       ? 'Informamos que o processo teve desfecho desfavorável e segue para baixa. Estamos conferindo eventuais custas e próximos passos.'
       : 'Informamos que o processo apresenta baixa/trânsito no tribunal. Estamos validando o desfecho e retornamos com a orientação completa.';
@@ -120,7 +120,7 @@ function analisarDeterministico(dataJudData: any) {
   return {
     resumoTecnico: `Classe: ${classe || 'N/D'}\nGrau: ${dataJudData?.grau || 'N/D'}\nPolo ativo: ${(dataJudData?.poloAtivo || []).join('; ') || 'N/D'}\nPolo passivo: ${(dataJudData?.poloPassivo || []).join('; ') || 'N/D'}\n${merito}\n\nÚltimos movimentos:\n${ultimos || 'Sem movimentos.'}`,
     analiseRisco: risco,
-    proximosPassos: passos,
+    proximosPassos: proximosPassos,
     mensagemCliente: cliente,
     conclusaoEncerramento: conclusao,
     success: true,

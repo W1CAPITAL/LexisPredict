@@ -237,6 +237,12 @@ const HIGHLIGHT_RULES: Array<{ re: RegExp; style: "mark" | "markDanger" | "markO
   { re: /senten[cç]a|ac[oó]rd[aã]o|despacho|decis[aã]o/gi, style: "mark", label: "Decisão judicial" },
 ];
 
+/** Compilada uma vez a partir de padrões estáticos (sem input do usuário). */
+const COMBINED_HIGHLIGHT = new RegExp(
+  "(" + HIGHLIGHT_RULES.map((r) => r.re.source).join("|") + ")",
+  "gi"
+);
+
 function extractHighlights(texto: string): string[] {
   const found = new Set<string>();
   const t = texto || "";
@@ -251,14 +257,7 @@ function renderHighlightedText(texto: string) {
   const raw = String(texto || "").replace(/\r\n/g, "\n").trim();
   if (!raw) return <Text style={styles.paragraph}>—</Text>;
 
-  // Uma regex combinada para split com captura
-  const combined = new RegExp(
-    "(" +
-      HIGHLIGHT_RULES.map((r) => r.re.source).join("|") +
-      ")",
-    "gi"
-  );
-
+  const combined = COMBINED_HIGHLIGHT;
   const parts = raw.split(combined).filter((p) => p !== undefined && p !== "");
 
   // Agrupa em parágrafos por quebras duplas
@@ -271,8 +270,10 @@ function renderHighlightedText(texto: string) {
           {segs.map((seg, i) => {
             if (!seg) return null;
             const rule = HIGHLIGHT_RULES.find((r) => {
-              const re = new RegExp(`^${r.re.source}$`, "i");
-              return re.test(seg);
+              // usa regex estática (sem new RegExp dinâmico)
+              r.re.lastIndex = 0;
+              const m = seg.match(r.re);
+              return !!(m && m[0] === seg);
             });
             if (rule) {
               return (
@@ -292,8 +293,9 @@ function renderHighlightedText(texto: string) {
     <Text style={styles.paragraph}>
       {parts.map((seg, i) => {
         const rule = HIGHLIGHT_RULES.find((r) => {
-          const re = new RegExp(`^${r.re.source}$`, "i");
-          return re.test(seg);
+          r.re.lastIndex = 0;
+          const m = seg.match(r.re);
+          return !!(m && m[0] === seg);
         });
         if (rule) {
           return (

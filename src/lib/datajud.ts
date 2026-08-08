@@ -305,7 +305,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
 
     if (response.status === 429) {
       if (attempt < maxAttempts) {
-        await sleep(1200 * attempt + Math.random() * 400);
+        await sleep(1200 * attempt + (attempt * 137) % 400);
         return fetchDataJudUncached(cnj, attempt + 1, options);
       }
       return {

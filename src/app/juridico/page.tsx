@@ -175,7 +175,7 @@ export default function JuridicoPage() {
       return;
     }
     const novo: Andamento = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `${Date.now()}-${(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 6) : Date.now().toString(36).slice(-6))}`,
       tipo: novoTipo,
       titulo: novoTitulo.trim(),
       descricao: novoDescricao.trim(),

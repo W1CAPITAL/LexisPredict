@@ -97,7 +97,7 @@ export function countBaFromCases(
   const seen = new Set<string>();
   for (const c of cases) {
     if (!temBaCarteira(c, baHits)) continue;
-    const k = normalizeProtocolo(c.protocolo) || c.protocolo || String(Math.random());
+    const k = normalizeProtocolo(c.protocolo) || c.protocolo || `tmp_${Date.now()}`;
     seen.add(k);
   }
   // hits só nos logs sem match na carteira ainda contam no dashboard

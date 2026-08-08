@@ -248,7 +248,7 @@ export async function getSupervisaoSnapshotAction(): Promise<{
         ug.semRetorno++;
       }
       ug.processos.push({
-        id: String(c.id || c.protocolo || Math.random()),
+        id: String(c.id || c.protocolo || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()))),
         protocolo: String(c.protocolo || ''),
         cliente: String(c.cliente || '—'),
         status,

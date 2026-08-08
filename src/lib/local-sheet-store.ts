@@ -57,7 +57,7 @@ const HEADERS = [
 ];
 
 function uid() {
-  return `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return `local_${Date.now()}_${(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now().toString(36))}`;
 }
 
 function norm(h: string) {

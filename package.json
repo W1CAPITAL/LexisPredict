@@ -81,7 +81,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "genkit-cli": "^1.29.0",
-    "postcss": "^8.5.18",
+    "postcss": "8.5.26",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
     "vitest": "^2.1.8"
@@ -92,7 +92,7 @@
     "minimatch": "9.0.7",
     "picomatch": "2.3.2",
     "qs": "6.15.2",
-    "lodash": "4.17.23",
+    "lodash": "4.18.1",
     "fast-uri": "3.1.5",
     "sharp": "0.35.0",
     "@modelcontextprotocol/sdk": "1.30.0",
@@ -103,6 +103,13 @@
     },
     "next": {
       "postcss": "8.5.26"
-    }
+    },
+    "postcss": "8.5.26",
+    "@opentelemetry/auto-instrumentations-node": "0.75.0",
+    "@opentelemetry/sdk-node": "0.217.0",
+    "@opentelemetry/propagator-jaeger": "2.9.0",
+    "@opentelemetry/core": "2.8.0",
+    "uuid": "11.1.1",
+    "uuid@^9": "11.1.1"
   }
 }
