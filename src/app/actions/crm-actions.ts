@@ -376,6 +376,9 @@ export async function marcarReceberPagoAction(id: string, forma?: string) {
       .eq('id', id)
       .eq('empresa_id', ctx.empresa_id);
     if (error) return { success: false as const, error: error.message };
+    try {
+      await logCrmEvento('crm_receber_pago', { id, forma: forma || 'pix' });
+    } catch { /* */ }
     return { success: true as const };
   } catch (e: any) {
     return { success: false as const, error: e?.message || 'Falha' };
@@ -771,3 +774,94 @@ export async function crmPrevisaoCaixaAction() {
     return { success: false as const, error: e?.message || 'Falha', aReceber30: 0, aPagar30: 0, liquido30: 0 };
   }
 }
+
+/* ========== FASE A+C GRÁTIS: régua, conciliação CSV, audit CRM ========== */
+
+async function logCrmEvento(acao: string, detalhes: Record<string, unknown>) {
+  try {
+    const ctx = await getUserContext();
+    if (!ctx?.empresa_id) return;
+    const { registrarAuditoriaAction } = await import('@/lib/server-db');
+    await registrarAuditoriaAction(acao as any, [`crm:${acao}`], {
+      modulo: 'crm',
+      ...detalhes,
+      user: (ctx as any).nome || (ctx as any).email,
+    });
+  } catch {
+    /* audit nunca derruba fluxo */
+  }
+}
+
+export async function crmReguaCobrancaAction() {
+  const ctx = await ctxOrFail();
+  if (!ctx) return { success: false as const, error: 'Sessão', items: [] as any[] };
+  try {
+    const { classificarRegua, sugerirProximaAcaoAgente } = await import('@/lib/crm-regua-cobranca');
+    const admin = await getSupabaseAdmin();
+    const { data, error } = await admin
+      .from('crm_receber')
+      .select('id, cliente_nome, descricao, valor, vencimento, status')
+      .eq('empresa_id', ctx.empresa_id)
+      .in('status', ['pendente', 'atrasado']);
+    if (error) return { success: false as const, error: error.message, items: [] as any[] };
+    const items = classificarRegua(data || []).map((it) => ({
+      ...it,
+      scriptAgente: sugerirProximaAcaoAgente(it),
+    }));
+    return { success: true as const, items };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha', items: [] as any[] };
+  }
+}
+
+export async function crmConciliarCsvAction(csvText: string) {
+  const ctx = await ctxOrFail();
+  if (!ctx) return { success: false as const, error: 'Sessão', matches: [] as any[] };
+  try {
+    const { parseExtratoCsv, conciliarExtratoComReceber } = await import('@/lib/crm-conciliacao-csv');
+    const admin = await getSupabaseAdmin();
+    const { data } = await admin
+      .from('crm_receber')
+      .select('id, valor, vencimento, cliente_nome, status')
+      .eq('empresa_id', ctx.empresa_id);
+    const extrato = parseExtratoCsv(csvText || '');
+    const matches = conciliarExtratoComReceber(extrato, data || []);
+    await logCrmEvento('crm_conciliacao_csv', {
+      linhas: extrato.length,
+      matches: matches.filter((m) => m.confianca === 'alta' || m.confianca === 'media').length,
+    });
+    return { success: true as const, matches, totalLinhas: extrato.length };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha', matches: [] as any[] };
+  }
+}
+
+export async function crmAplicarConciliacaoAltaAction(receberIds: string[]) {
+  const ctx = await ctxOrFail();
+  if (!ctx) return { success: false as const, error: 'Sessão', pagos: 0 };
+  if (!Array.isArray(receberIds) || receberIds.length === 0) {
+    return { success: false as const, error: 'Nenhum título', pagos: 0 };
+  }
+  try {
+    const admin = await getSupabaseAdmin();
+    let pagos = 0;
+    for (const id of receberIds.slice(0, 100)) {
+      const { error } = await admin
+        .from('crm_receber')
+        .update({
+          status: 'pago',
+          pago_em: new Date().toISOString(),
+          forma_pagamento: 'conciliacao_csv',
+        })
+        .eq('id', id)
+        .eq('empresa_id', ctx.empresa_id);
+      if (!error) pagos++;
+    }
+    await logCrmEvento('crm_baixa_conciliacao', { pagos, ids: receberIds.slice(0, 100) });
+    return { success: true as const, pagos };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha', pagos: 0 };
+  }
+}
+
+// Patch marcarReceberPago to log

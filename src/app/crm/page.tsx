@@ -26,6 +26,7 @@ import {
   Kanban,
   Wallet,
   Users,
+  Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -193,6 +194,8 @@ export default function CrmDashboardPage() {
               { href: "/crm/financeiro", label: "Financeiro", desc: "Receber e pagar", icon: Wallet },
               { href: "/crm/fornecedores", label: "Fornecedores", desc: "Bancas terceiras", icon: Building2 },
               { href: "/clients", label: "Clientes", desc: "Carteira operacional", icon: Users },
+              { href: "/crm/cobranca", label: "Régua cobrança", desc: "D-3 a crítico (grátis)", icon: AlertTriangle },
+              { href: "/crm/conciliacao", label: "Conciliação CSV", desc: "Extrato banco grátis", icon: Upload },
               { href: "/crm/extrato", label: "Extrato & margem", desc: "Fluxo do mês e por serviço", icon: TrendingUp },
               { href: "/integracoes", label: "Integrações bancárias", desc: "Mapa PIX / Open Finance", icon: Building2 },
               { href: "/financas", label: "Finanças legada", desc: "Lançamentos avulsos", icon: DollarSign },
