@@ -3,6 +3,7 @@
 -- Extra 1: persistir clientes das abas Revisional e Jurídico no Supabase
 -- (múltiplos clientes por empresa, escopados por empresa_id nas server actions)
 -- Extra 2: auditoria de exportações (F1) reaproveita a tabela auditoria_logs_app
+-- Extra 3: logins auditados na página /auditoria (tabela auditoria_logins)
 -- ============================================================================
 
 -- 1) Tabela de Clientes de Operação (Revisional + Jurídico)
@@ -38,9 +39,23 @@ CREATE TABLE IF NOT EXISTS public.auditoria_logs_app (
 CREATE INDEX IF NOT EXISTS idx_auditoria_logs_app_empresa
     ON public.auditoria_logs_app (empresa_id, created_at DESC);
 
--- 3) Permissões (modo MVP: RLS desativado — o app já isola por empresa_id)
+-- 3) Tabela de Logins (F1 — auditoria de sessões na página /auditoria)
+CREATE TABLE IF NOT EXISTS public.auditoria_logins (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL,
+    auth_user_id UUID,
+    email TEXT,
+    user_nome TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auditoria_logins_empresa
+    ON public.auditoria_logins (empresa_id, created_at DESC);
+
+-- 4) Permissões (modo MVP: RLS desativado — o app já isola por empresa_id)
 GRANT ALL ON public.clientes_operacao TO anon, authenticated, service_role;
 GRANT ALL ON public.auditoria_logs_app TO anon, authenticated, service_role;
+GRANT ALL ON public.auditoria_logins TO anon, authenticated, service_role;
 
 -- ============================================================================
 -- OPCIONAL — ativar RLS por empresa (recomendado em produção).

@@ -7,7 +7,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { getUserContext, getProfileByAuthId } from '@/lib/server-db';
+import { getUserContext, getProfileByAuthId, registrarAuditoriaAction } from '@/lib/server-db';
 import { isAdminGroup } from '@/lib/roles';
 
 export type ClienteOperacaoTipo = 'revisional' | 'juridico';
@@ -81,6 +81,7 @@ export async function salvarClienteOperacaoAction(input: ClienteOperacaoInput) {
     if (rowId) {
       const { error } = await supabase.from('clientes_operacao').update(payload).eq('id', rowId).eq('empresa_id', empresa_id);
       if (error) throw error;
+      await registrarAuditoriaAction('edicao', [payload.protocolo || payload.cliente], { tabela: 'clientes_operacao', tipo: input.tipo });
       return { success: true as const, id: rowId, message: 'Análise atualizada no Supabase.' };
     }
 
@@ -90,6 +91,7 @@ export async function salvarClienteOperacaoAction(input: ClienteOperacaoInput) {
       .select('id')
       .single();
     if (error) throw error;
+    await registrarAuditoriaAction('criacao', [payload.protocolo || payload.cliente], { tabela: 'clientes_operacao', tipo: input.tipo });
     return { success: true as const, id: data?.id, message: 'Análise salva no Supabase.' };
   } catch (e: any) {
     console.warn('[salvarClienteOperacao]', e?.message);
@@ -113,6 +115,7 @@ export async function excluirClienteOperacaoAction(id: string) {
       .eq('id', id)
       .eq('empresa_id', empresa_id);
     if (error) throw error;
+    await registrarAuditoriaAction('exclusao', [id], { tabela: 'clientes_operacao' });
     return { success: true as const, message: 'Registro excluído.' };
   } catch (e: any) {
     console.warn('[excluirClienteOperacao]', e?.message);
