@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   crmDashboardAction,
   seedServicosPadraoAction,
+  crmPrevisaoCaixaAction,
 } from "@/app/actions/crm-actions";
 import type { CrmDashboard } from "@/lib/crm-types";
 import {
@@ -40,6 +41,7 @@ export default function CrmDashboardPage() {
   const [canViewFinance, setCanViewFinance] = useState(false);
   const [data, setData] = useState<CrmDashboard | null>(null);
   const [error, setError] = useState("");
+  const [prev, setPrev] = useState<{ aReceber30: number; aPagar30: number; liquido30: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +51,10 @@ export default function CrmDashboardPage() {
       setCanViewFinance(res.canViewFinance);
       setData(res.data);
       if (!res.success && res.error) setError(res.error);
+      if (res.canViewFinance) {
+        const p = await crmPrevisaoCaixaAction();
+        if (p.success) setPrev({ aReceber30: p.aReceber30, aPagar30: p.aPagar30, liquido30: p.liquido30 });
+      }
     } finally {
       setLoading(false);
     }
@@ -176,6 +182,23 @@ export default function CrmDashboardPage() {
               </div>
             ))}
           </section>
+
+          {prev && canViewFinance && (
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-[10px] font-black uppercase text-muted-foreground">A receber (30d)</p>
+                <p className="text-xl font-black tabular-nums">{brl(prev.aReceber30)}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-[10px] font-black uppercase text-muted-foreground">A pagar (30d)</p>
+                <p className="text-xl font-black tabular-nums">{brl(prev.aPagar30)}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-[10px] font-black uppercase text-muted-foreground">Líquido previsto (30d)</p>
+                <p className="text-xl font-black tabular-nums">{brl(prev.liquido30)}</p>
+              </div>
+            </section>
+          )}
 
           {data && (
             <section className="flex flex-wrap gap-2">

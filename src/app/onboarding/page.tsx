@@ -65,7 +65,7 @@ export default function OnboardingVideoPage() {
                   Treinamento LexisPredict
                 </h1>
                 <p className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider mt-1.5">
-                  Guia atual · DataJud + DJEN · Fila · Processos · Veredito · Excel
+                  Assessoria financeira · Tribunal · Fila · CRM · Agenda · Equipe
                 </p>
               </div>
             </div>
@@ -194,7 +194,20 @@ export default function OnboardingVideoPage() {
               </p>
             </div>
             <div className="space-y-2">
-              <FaqItem
+              
+            <FaqItem
+              q="O que e o CRM Assessoria e em que difere do Astrea?"
+              a="E o modulo comercial da assessoria: servicos (quitacao, limpa nome, PROCON, extrajudicial), funil, receber/pagar e bancas terceiras. Nao e CRM de honorarios de advogado. O Lexis continua mais forte em tribunal/fila; o CRM fecha a lacuna de dinheiro e funil."
+            />
+            <FaqItem
+              q="Por onde comeco no primeiro dia?"
+              a="1) Painel e Fila de contato. 2) Agenda da semana. 3) CRM: Seed servicos + um negocio teste. 4) Equipe: cargos Operador vs Supervisor. 5) Scanner so depois da carteira importada."
+            />
+            <FaqItem
+              q="Anexos de documentos (contrato, comprovante)?"
+              a="Planejado para fase futura. Hoje foque em status do funil, parcelas e pecas geradas no app (Modelos)."
+            />
+<FaqItem
                 q="Como o scanner retoma depois de recarregar a página?"
                 a="O lote fica persistido no navegador. Ao reabrir a Fila/Scanner, o progresso continua de onde parou, sem reescanear o que já foi processado."
               />

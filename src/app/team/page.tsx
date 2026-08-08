@@ -69,6 +69,13 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Visualizador': 20
 };
 
+const ROLE_HELP = [
+  { cargo: 'Operador', desc: 'Fila, processos, funil CRM, atendimento. Nao ve consolidado financeiro da empresa.' },
+  { cargo: 'Administrador', desc: 'Equipe, CRM consolidado, configuracoes da empresa, relatorios.' },
+  { cargo: 'Supervisor', desc: 'Visao da carteira inteira, supervisao, financeiro consolidado, auditoria.' },
+  { cargo: 'Visualizador', desc: 'Somente leitura — treinamento ou socio observador.' },
+];
+
 export default function TeamManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [cases, setCases] = useState<LegalCase[]>([]);
@@ -211,8 +218,22 @@ export default function TeamManagement() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <div className="print:hidden">
         <Sidebar />
+      {/* Role help Astrea-parity */}
+      
       </div>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="border-b border-border bg-card/50 px-4 py-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Papeis (paridade operacional com CRM juridico maduro)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 max-w-6xl">
+            {ROLE_HELP.map((r) => (
+              <div key={r.cargo} className="rounded-lg border border-border bg-background px-2.5 py-2">
+                <p className="text-[11px] font-black text-foreground">{r.cargo}</p>
+                <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">{r.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <header className="h-20 border-b border-border/30 bg-card/60 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-40 print:hidden">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-primary text-primary-foreground rounded-lg shadow-lg">

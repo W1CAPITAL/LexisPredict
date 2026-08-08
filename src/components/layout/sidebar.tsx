@@ -124,6 +124,7 @@ function SidebarNavBody({
       items: [
         { label: "Painel", href: "/", icon: LayoutDashboard },
         { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
+        { label: "Agenda", href: "/agenda", icon: CalendarDays },
         { label: "Finanças", href: "/financas", icon: DollarSign },
         { label: "CRM Assessoria", href: "/crm", icon: Kanban },
         { label: "Serviços CRM", href: "/crm/servicos", icon: Package },

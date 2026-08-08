@@ -735,3 +735,39 @@ export async function listAtrasadosAction() {
     return { success: false as const, error: e?.message || 'Falha', rows: [] as CrmReceber[] };
   }
 }
+
+/** Previsão de caixa 30 dias (parcelas a vencer) */
+export async function crmPrevisaoCaixaAction() {
+  const ctx = await ctxOrFail();
+  if (!ctx) return { success: false as const, error: 'Sessão', aReceber30: 0, aPagar30: 0, liquido30: 0 };
+  try {
+    const admin = await getSupabaseAdmin();
+    const hoje = new Date();
+    const limite = new Date(hoje);
+    limite.setDate(limite.getDate() + 30);
+    const h = hoje.toISOString().slice(0, 10);
+    const l = limite.toISOString().slice(0, 10);
+    const [rec, pag] = await Promise.all([
+      admin.from('crm_receber').select('valor,status,vencimento').eq('empresa_id', ctx.empresa_id).in('status', ['pendente', 'atrasado']),
+      admin.from('crm_pagar').select('valor,status,vencimento').eq('empresa_id', ctx.empresa_id).in('status', ['pendente', 'atrasado']),
+    ]);
+    let aReceber30 = 0;
+    for (const r of rec.data || []) {
+      const v = String(r.vencimento || '');
+      if (v && v <= l) aReceber30 += Number(r.valor || 0);
+    }
+    let aPagar30 = 0;
+    for (const p of pag.data || []) {
+      const v = String(p.vencimento || '');
+      if (v && v <= l) aPagar30 += Number(p.valor || 0);
+    }
+    return {
+      success: true as const,
+      aReceber30,
+      aPagar30,
+      liquido30: aReceber30 - aPagar30,
+    };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha', aReceber30: 0, aPagar30: 0, liquido30: 0 };
+  }
+}
