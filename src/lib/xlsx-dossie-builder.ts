@@ -673,3 +673,272 @@ export async function buildDossieXlsxBase64(
     },
   };
 }
+
+// ————————————————————————————————————————————————
+// XLSX Profissional — aba Processos
+// Abas: Processos | Resumo | Top_Atendentes | Por_Status | Por_Tribunal | Filtros
+// Com fórmulas, totais, auto-filtro, frozen panes e formatação executiva.
+// ————————————————————————————————————————————————
+
+function formulaCell(r: number, c: number, f: string, styleId?: number): string {
+  const ref = `${colRef(c)}${r}`;
+  const sAttr = styleId != null ? ` s="${styleId}"` : '';
+  return `<c r="${ref}"${sAttr}><f>${esc(f)}</f><v>0</v></c>`;
+}
+
+function extractValor(r: DossieCase): number {
+  const dados = (r.dados && typeof r.dados === 'object' ? r.dados : {}) as any;
+  const raw = r.valor ?? r.valor_causa ?? dados.valor ?? dados.valor_causa ?? '';
+  const n = Number(
+    String(raw)
+      .replace(/R\$\s?/gi, '')
+      .replace(/\./g, '')
+      .replace(',', '.')
+      .trim()
+  );
+  return Number.isFinite(n) ? n : 0;
+}
+
+export async function buildProcessosProfissionalXlsxBase64(
+  cases: DossieCase[],
+  meta?: {
+    usuario?: string;
+    escopo?: string;
+    cargo?: string;
+    fullCarteira?: boolean;
+    filtros?: { q?: string; statusFilter?: string; baOnly?: boolean };
+  }
+): Promise<{ base64: string; filename: string; count: number }> {
+  const list = (cases || []).map(normalizeCase);
+  const n = list.length;
+  const day = new Date().toISOString().slice(0, 10);
+  const geradoEm = new Date().toLocaleString('pt-BR');
+  const f = meta?.filtros;
+
+  const PROC_COLS = [
+    'Cliente',
+    'Protocolo',
+    'Distribuicao',
+    'Status',
+    'Tribunal',
+    'Advogado',
+    'Escritorio',
+    'Telefone',
+    'Ultimo Andamento',
+    'Ultima Movimentacao',
+    'Ultimo Retorno',
+    'Proximo Retorno',
+    'Dias Sem Retorno',
+    'Valor (R$)',
+    'BA',
+    'Cumprimento',
+    'Encerrado',
+    'Novo Andamento',
+    'Produtos',
+    'Observacoes',
+  ];
+  const VALOR_COL = 13; // 0-based -> coluna N
+
+  const valors = cases.map(extractValor);
+
+  const procRows: SheetRow[] = [
+    { values: PROC_COLS, styleRow: 'header' },
+    ...list.map((x, i) => ({
+      values: [
+        x.cliente,
+        x.protocolo,
+        x.distribuicao,
+        x.status,
+        x.tribunal,
+        x.advogado,
+        x.escritorio,
+        x.telefone,
+        x.andamento,
+        x.data_movimentacao,
+        x.retorno,
+        x.proximo,
+        x.dias_sem_retorno,
+        valors[i],
+        x.ba,
+        x.cumprimento,
+        x.encerrado,
+        x.novo_andamento,
+        x.produtos,
+        x.observacoes,
+      ],
+      styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
+    })),
+  ];
+
+  // Linha de totais com fórmulas reais (aba Processos)
+  const lastDataRow = procRows.length; // 1 header + n dados
+  if (n > 0) {
+    procRows.push({ values: ['TOTAIS', ...Array(PROC_COLS.length - 1).fill('')], styleRow: 'total' });
+  }
+
+  const emAndamento = list.filter((x) => isEmAndamento(x.status)).length;
+  const encerrados = list.filter((x) => isEncerradoStatus(x.status)).length;
+  const vencidos = list.filter((x) => isVencido(x.status)).length;
+  const ba = list.filter((x) => x.ba === 'SIM').length;
+  const cumprimento = list.filter((x) => x.cumprimento === 'SIM').length;
+  const atendidosSemana = list.filter((x) => x.atendido_semana).length;
+  const semRetorno = list.filter((x) => String(x.dias_sem_retorno) !== '' && Number(x.dias_sem_retorno) > 7).length;
+
+  const porStatus = new Map<string, number>();
+  const porTribunal = new Map<string, number>();
+  const porAtendente = new Map<string, number>();
+  list.forEach((x) => {
+    const s = x.status || 'Sem status';
+    porStatus.set(s, (porStatus.get(s) || 0) + 1);
+    const t = x.tribunal || 'Sem tribunal';
+    porTribunal.set(t, (porTribunal.get(t) || 0) + 1);
+    const a = x.assistente || 'Nao informado';
+    porAtendente.set(a, (porAtendente.get(a) || 0) + 1);
+  });
+
+  const resumoRows: SheetRow[] = [
+    { values: ['RESUMO EXECUTIVO — CARTEIRA DE PROCESSOS'], styleRow: 'title' },
+    { values: [`Gerado por: ${meta?.usuario || 'usuario'} — ${meta?.escopo || ''}`], styleRow: 'info' },
+    { values: [`Gerado em: ${geradoEm}`], styleRow: 'info' },
+    { values: [''] },
+    { values: ['Indicador', 'Valor'], styleRow: 'header' },
+    { values: ['Total de processos', `=COUNTA(Processos!B2:B${lastDataRow})`], styleRow: 'kpi' },
+    { values: ['Em andamento', emAndamento], styleRow: 'normal' },
+    { values: ['Encerrados', encerrados], styleRow: 'normal' },
+    { values: ['Vencidos / Criticos', vencidos], styleRow: 'alert' },
+    { values: ['Busca e Apreensao (BA)', ba], styleRow: 'warn' },
+    { values: ['Cumprimento de sentenca', cumprimento], styleRow: 'info' },
+    { values: ['Atendidos esta semana', atendidosSemana], styleRow: 'ok' },
+    { values: ['Sem retorno > 7 dias', semRetorno], styleRow: 'alert' },
+    { values: ['Soma total (R$)', `=SUM(Processos!N2:N${lastDataRow})`], styleRow: 'total' },
+  ];
+
+  const topAtendentesRows: SheetRow[] = [
+    { values: ['TOP ATENDENTES — VOLUME DE PROCESSOS'], styleRow: 'title' },
+    { values: [''] },
+    { values: ['Atendente', 'Quantidade', 'Percentual'], styleRow: 'header' },
+    ...[...porAtendente.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([k, v], i) => ({
+        values: [k, v, n ? `${((v / n) * 100).toFixed(1)}%` : '0%'],
+        styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
+      })),
+  ];
+
+  const statusRows: SheetRow[] = [
+    { values: ['Status', 'Quantidade', 'Percentual'], styleRow: 'header' },
+    ...[...porStatus.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v], i) => ({
+        values: [k, v, n ? `${((v / n) * 100).toFixed(1)}%` : '0%'],
+        styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
+      })),
+  ];
+
+  const tribunalRows: SheetRow[] = [
+    { values: ['Tribunal', 'Quantidade', 'Percentual'], styleRow: 'header' },
+    ...[...porTribunal.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v], i) => ({
+        values: [k, v, n ? `${((v / n) * 100).toFixed(1)}%` : '0%'],
+        styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
+      })),
+  ];
+
+  const filtrosRows: SheetRow[] = [
+    { values: ['FILTROS APLICADOS NA EXPORTACAO'], styleRow: 'title' },
+    { values: [''] },
+    { values: ['Filtro', 'Valor'], styleRow: 'header' },
+    { values: ['Busca', f?.q || 'Todos'], styleRow: 'normal' },
+    { values: ['Status', f?.statusFilter || 'Todos'], styleRow: 'normal' },
+    { values: ['Somente BA', f?.baOnly ? 'SIM' : 'NAO'], styleRow: 'normal' },
+    { values: ['Escopo', meta?.escopo || 'Carteira visivel'], styleRow: 'info' },
+    { values: ['Quantidade exportada', n], styleRow: 'kpi' },
+  ];
+
+  const PROC_WIDTHS = [22, 18, 14, 18, 22, 20, 20, 16, 40, 16, 14, 14, 12, 14, 8, 14, 10, 12, 20, 40];
+  const RES_WIDTHS = [46, 16, 16];
+  const KPI_WIDTHS = [30, 14, 14];
+
+  // Aba Processos com fórmula de total (coluna N) na linha de totais
+  const processosXml = sheetXml(procRows, { widths: PROC_WIDTHS, freeze: 1, filter: true });
+  const xmlWithTotals =
+    n > 0
+      ? processosXml.replace(
+          '</sheetData>',
+          `<row r="${lastDataRow + 1}">${formulaCell(lastDataRow + 1, VALOR_COL, `SUM(N2:N${lastDataRow})`, STYLE_IDS.total)}</row></sheetData>`
+        )
+      : processosXml;
+
+  const sheets = [
+    { name: 'Processos', xml: xmlWithTotals },
+    { name: 'Resumo', xml: sheetXml(resumoRows, { widths: RES_WIDTHS }) },
+    { name: 'Top_Atendentes', xml: sheetXml(topAtendentesRows, { widths: KPI_WIDTHS }) },
+    { name: 'Por_Status', xml: sheetXml(statusRows, { widths: KPI_WIDTHS }) },
+    { name: 'Por_Tribunal', xml: sheetXml(tribunalRows, { widths: KPI_WIDTHS }) },
+    { name: 'Filtros', xml: sheetXml(filtrosRows, { widths: KPI_WIDTHS }) },
+  ];
+
+  const zip = new JSZip();
+
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  ${sheets
+    .map(
+      (_, i) =>
+        `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+    )
+    .join('\n  ')}
+</Types>`;
+
+  zip.file('[Content_Types].xml', contentTypes);
+  zip.folder('_rels')?.file(
+    '.rels',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`
+  );
+
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    ${sheets
+      .map((s, i) => `<sheet name="${esc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
+      .join('\n    ')}
+  </sheets>
+</workbook>`;
+
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${sheets
+    .map(
+      (_, i) =>
+        `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
+    )
+    .join('\n  ')}
+  <Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+  const xl = zip.folder('xl')!;
+  xl.file('workbook.xml', workbook);
+  xl.file('styles.xml', STYLES_XML);
+  xl.folder('_rels')!.file('workbook.xml.rels', wbRels);
+  const ws = xl.folder('worksheets')!;
+  sheets.forEach((s, i) => ws.file(`sheet${i + 1}.xml`, s.xml));
+
+  const buf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  const base64 = Buffer.from(buf).toString('base64');
+
+  return {
+    base64,
+    filename: `LexisPredict_Processos_Profissional_${day}.xlsx`,
+    count: n,
+  };
+}

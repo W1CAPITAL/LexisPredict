@@ -7,7 +7,7 @@
  */
 
 import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
-import { buildDossieXlsxBase64 } from '@/lib/xlsx-dossie-builder';
+import { buildDossieXlsxBase64, buildProcessosProfissionalXlsxBase64 } from '@/lib/xlsx-dossie-builder';
 import { EXPORT_HEADERS, tribunalFromProtocolo } from '@/lib/xlsx-schema';
 
 type Row = Record<string, any>;
@@ -174,4 +174,62 @@ export async function exportCasesToXlsxAction() {
 
 export async function exportCasesXlsxAction() {
   return exportDossieXlsxAction();
+}
+
+/**
+ * XLSX Profissional — Aba Processos
+ * Múltiplas abas: Processos, Resumo, Top Atendentes, Estatísticas, Filtros
+ * Formulas, formatação profissional, auto-filtro, frozen panes
+ */
+export async function exportProcessosProfissionalXlsxAction(filtros?: {
+  q?: string;
+  statusFilter?: string;
+  baOnly?: boolean;
+}) {
+  try {
+    const { cases, email, escopo, cargo, fullCarteira } = await loadCasesForSession();
+    
+    // Aplicar filtros se fornecidos
+    let filtered = cases;
+    if (filtros) {
+      const query = filtros.q?.toLowerCase().trim() || '';
+      if (filtros.statusFilter) {
+        filtered = filtered.filter(r => String(r.status || r.dados?.status || '') === filtros.statusFilter);
+      }
+      if (filtros.baOnly) {
+        filtered = filtered.filter(r => !!r.indicio_busca_apreensao || r.dados?.evento_tipo === 'ba');
+      }
+      if (query) {
+        filtered = filtered.filter(r => {
+          const dados = r.dados || {};
+          return [
+            String(dados.cliente || ''),
+            String(dados.protocolo || ''),
+            String(dados.advogado || ''),
+            String(dados.escritorio || ''),
+            String(dados.tribunal || ''),
+            String(dados.status || ''),
+          ].some(v => v.toLowerCase().includes(query));
+        });
+      }
+    }
+    
+    const result = await buildProcessosProfissionalXlsxBase64(filtered, {
+      usuario: email || undefined,
+      escopo,
+      cargo: cargo || undefined,
+      fullCarteira,
+      filtros,
+    });
+    return {
+      success: true as const,
+      base64: result.base64,
+      filename: result.filename,
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      count: result.count,
+    };
+  } catch (e: any) {
+    console.error('[exportProcessosProfissionalXlsx]', e);
+    return { success: false as const, error: e?.message || 'Falha ao gerar XLSX Profissional' };
+  }
 }
