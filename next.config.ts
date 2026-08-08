@@ -30,6 +30,7 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    optimizePackageImports: ["lucide-react", "date-fns"],
   },
   webpack: (config, { dev }) => {
     config.cache = {

@@ -31,7 +31,14 @@ import {
   RefreshCcw,
   AlertTriangle,
   CheckCircle2,
+  Database,
+  Trash2,
 } from "lucide-react";
+import {
+  listarClientesOperacaoAction,
+  salvarClienteOperacaoAction,
+  excluirClienteOperacaoAction,
+} from "@/app/actions/clientes-operacao-actions";
 
 type Plano = "price" | "sac";
 
@@ -172,6 +179,9 @@ export default function RevisionalPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [input, setInput] = useState<RevisionalInput>(emptyInput());
   const [saved, setSaved] = useState<RevisionalInput | null>(null);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [clientesLoading, setClientesLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -183,15 +193,85 @@ export default function RevisionalPage() {
     }
   }, [authLoading, profile]);
 
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      setClientesLoading(true);
+      const res = await listarClientesOperacaoAction('revisional');
+      if (ativo && res?.success) setClientes(res.items || []);
+      if (ativo) setClientesLoading(false);
+    })();
+    return () => { ativo = false; };
+  }, []);
+
   const resultado = useMemo(() => calcularPlanilha(input), [input]);
   const { linhas, economia, economiaPct } = resultado;
 
   const setField = (k: keyof RevisionalInput, v: string) =>
     setInput((prev) => ({ ...prev, [k]: v }));
 
-  const salvar = () => {
+  const salvar = async () => {
     setSaved(input);
-    toast({ title: "Análise salva", description: "A simulação foi registrada nesta sessão." });
+    setSaving(true);
+    const res = await salvarClienteOperacaoAction({
+      tipo: 'revisional',
+      cliente: input.cliente || input.contrato || 'Cliente sem nome',
+      banco: input.banco,
+      protocolo: input.contrato,
+      dados: {
+        input,
+        resultado: {
+          valorFinanciado: resultado.valorFinanciado,
+          parcelaContratual: resultado.parcelaContratual,
+          parcelaRevisada: resultado.parcelaRevisada,
+          totalContratual: resultado.totalContratual,
+          totalRevisado: resultado.totalRevisado,
+          economia,
+          economiaPct,
+          jurosMensal: resultado.jurosMensal,
+          jurosRevisadoMensal: resultado.jurosRevisadoMensal,
+          primeiraParcela: resultado.primeiraParcela,
+          ultimaParcela: resultado.ultimaParcela,
+        },
+      },
+    });
+    setSaving(false);
+    if (res?.success) {
+      const list = await listarClientesOperacaoAction('revisional');
+      if (list?.success) setClientes(list.items || []);
+      toast({ title: "Análise salva", description: res.message || "Registrada no Supabase." });
+    } else {
+      toast({
+        title: "Salva apenas localmente",
+        description: res?.error || "Não foi possível gravar no Supabase.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const carregarCliente = (c: any) => {
+    const dados = c?.dados;
+    if (dados?.input) {
+      const next = { ...emptyInput(), ...dados.input };
+      setInput(next);
+      setSaved(next);
+      toast({ title: "Análise carregada", description: c.cliente });
+    } else {
+      toast({ title: "Registro sem simulação", description: "Este cliente não possui dados de cálculo salvos.", variant: "destructive" });
+    }
+  };
+
+  const excluirCliente = async (id: string) => {
+    const res = await excluirClienteOperacaoAction(id);
+    toast({
+      title: res?.success ? "Excluído" : "Sem permissão",
+      description: res?.message || res?.error,
+      variant: res?.success ? "default" : "destructive",
+    });
+    if (res?.success) {
+      const list = await listarClientesOperacaoAction('revisional');
+      if (list?.success) setClientes(list.items || []);
+    }
   };
 
   const exportCsv = () => {
@@ -252,19 +332,52 @@ export default function RevisionalPage() {
                 <Button variant="outline" size="sm" onClick={exportCsv} disabled={!linhas.length}>
                   <FileDown className="mr-1.5 h-4 w-4" /> Exportar CSV
                 </Button>
-                <Button size="sm" onClick={salvar}>
-                  <CheckCircle2 className="mr-1.5 h-4 w-4" /> Salvar análise
+                <Button size="sm" onClick={salvar} disabled={saving}>
+                  {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />} Salvar análise
                 </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Formulário */}
-              <Card className="lg:col-span-1">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Calculator className="h-4 w-4 text-primary" /> Dados do contrato
-                  </CardTitle>
+              <div className="lg:col-span-1 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Database className="h-4 w-4 text-primary" /> Análises salvas
+                      {clientesLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Badge variant="outline" className="ml-auto">{clientes.length}</Badge>}
+                    </CardTitle>
+                    <CardDescription>Clique para recarregar uma análise do Supabase.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                    {clientes.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Nenhuma análise salva ainda. Use "Salvar análise" para registrar.</p>
+                    ) : (
+                      clientes.map((c) => (
+                        <div key={c.id} className="rounded-xl border border-border/70 p-2.5">
+                          <button type="button" className="w-full text-left" onClick={() => carregarCliente(c)}>
+                            <p className="text-xs font-bold truncate">{c.cliente}</p>
+                            <p className="text-[9px] text-muted-foreground truncate">
+                              {c.banco || "—"} • {c.protocolo || "sem contrato"} • {c.updated_at ? new Date(c.updated_at).toLocaleDateString("pt-BR") : ""}
+                            </p>
+                          </button>
+                          <div className="mt-1 flex items-center justify-between">
+                            <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => carregarCliente(c)}>Carregar</Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => excluirCliente(c.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Calculator className="h-4 w-4 text-primary" /> Dados do contrato
+                    </CardTitle>
                   <CardDescription>
                     Preencha os dados do financiamento para gerar a planilha de evolução.
                   </CardDescription>
@@ -335,7 +448,8 @@ export default function RevisionalPage() {
                     <RefreshCcw className="mr-1.5 h-4 w-4" /> Limpar
                   </Button>
                 </CardContent>
-              </Card>
+                </Card>
+              </div>
 
               {/* Resultados */}
               <div className="lg:col-span-2 space-y-6">

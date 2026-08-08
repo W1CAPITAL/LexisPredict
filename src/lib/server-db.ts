@@ -679,7 +679,7 @@ export async function getProfileByAuthId(authId: string): Promise<{ nome: string
   } catch { return null; }
 }
 
-export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento';
+export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento' | 'exportacao';
 
 export async function registrarAuditoriaAction(
   acao: AuditoriaAcao,

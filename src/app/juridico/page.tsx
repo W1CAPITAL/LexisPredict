@@ -32,7 +32,14 @@ import {
   Clock,
   Landmark,
   Eye,
+  Users,
+  Database,
 } from "lucide-react";
+import {
+  listarClientesOperacaoAction,
+  salvarClienteOperacaoAction,
+  excluirClienteOperacaoAction,
+} from "@/app/actions/clientes-operacao-actions";
 
 type TipoAndamento = "peticao" | "audiencia" | "prazo" | "movimentacao" | "peca";
 
@@ -86,6 +93,9 @@ export default function JuridicoPage() {
   const [novaData, setNovaData] = useState(hojeISO());
   const [novoTipo, setNovoTipo] = useState<TipoAndamento>("movimentacao");
   const [peticaoAberta, setPeticaoAberta] = useState<string | null>(null);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [clientesLoading, setClientesLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -96,6 +106,17 @@ export default function JuridicoPage() {
       setIsAdmin(false);
     }
   }, [authLoading, profile]);
+
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      setClientesLoading(true);
+      const res = await listarClientesOperacaoAction('juridico');
+      if (ativo && res?.success) setClientes(res.items || []);
+      if (ativo) setClientesLoading(false);
+    })();
+    return () => { ativo = false; };
+  }, []);
 
   useEffect(() => {
     if (!cnj) return;
@@ -159,13 +180,55 @@ export default function JuridicoPage() {
     persistir(next);
   };
 
-  const salvarDados = () => {
+  const salvarDados = async () => {
     if (!cnj.replace(/\D/g, "")) {
       toast({ title: "CNJ obrigatório", description: "Informe o número do processo (CNJ).", variant: "destructive" });
       return;
     }
     persistir(andamentos);
-    toast({ title: "Processo salvo", description: "Dados jurídicos registrados." });
+    setSaving(true);
+    const res = await salvarClienteOperacaoAction({
+      tipo: 'juridico',
+      cliente: cliente || cnj,
+      banco,
+      protocolo: cnj,
+      dados: { banco, advogado, cliente, andamentos },
+    });
+    setSaving(false);
+    if (res?.success) {
+      const list = await listarClientesOperacaoAction('juridico');
+      if (list?.success) setClientes(list.items || []);
+      toast({ title: "Processo salvo", description: res.message || "Registrado no Supabase." });
+    } else {
+      toast({
+        title: "Salvo apenas localmente",
+        description: res?.error || "Não foi possível gravar no Supabase.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const carregarCliente = (c: any) => {
+    const dados = c?.dados || {};
+    setCnj(c.protocolo || "");
+    setCliente(c.cliente || dados.cliente || "");
+    setBanco(c.banco || dados.banco || "");
+    setAdvogado(dados.advogado || "");
+    setAndamentos(dados.andamentos || []);
+    toast({ title: "Processo carregado", description: c.cliente || "Registro do Supabase." });
+  };
+
+  const excluirCliente = async (id: string) => {
+    const res = await excluirClienteOperacaoAction(id);
+    toast({
+      title: res?.success ? "Excluído" : "Sem permissão",
+      description: res?.message || res?.error,
+      variant: res?.success ? "default" : "destructive",
+    });
+    if (res?.success) {
+      const list = await listarClientesOperacaoAction('juridico');
+      if (list?.success) setClientes(list.items || []);
+    }
   };
 
   const ordenados = useMemo(
@@ -236,10 +299,46 @@ export default function JuridicoPage() {
                   Petições, audiências, prazos processuais, andamentos e peças por processo.
                 </p>
               </div>
-              <Button size="sm" onClick={salvarDados}>
-                <CheckCircle2 className="mr-1.5 h-4 w-4" /> Salvar processo
+              <Button size="sm" onClick={salvarDados} disabled={saving}>
+                {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />} Salvar processo
               </Button>
             </div>
+
+            {/* Clientes salvos */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" /> Clientes salvos
+                  {clientesLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Badge variant="outline" className="ml-auto">{clientes.length}</Badge>}
+                </CardTitle>
+                <CardDescription>Processos jurídicos persistidos no Supabase.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clientes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhum processo salvo ainda. Preencha o CNJ e clique em "Salvar processo".</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {clientes.map((c) => (
+                      <div key={c.id} className="rounded-xl border border-border/70 p-3">
+                        <button type="button" className="w-full text-left" onClick={() => carregarCliente(c)}>
+                          <p className="text-sm font-bold truncate">{c.cliente}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{c.protocolo || "sem CNJ"}</p>
+                          <p className="text-[10px] text-muted-foreground/60">
+                            {c.banco || "—"} • {c.updated_at ? new Date(c.updated_at).toLocaleDateString("pt-BR") : ""}
+                          </p>
+                        </button>
+                        <div className="mt-1 flex items-center justify-between">
+                          <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => carregarCliente(c)}>Abrir</Button>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => excluirCliente(c.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Dados do processo */}
             <Card>

@@ -71,6 +71,7 @@ import {
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { RevisionalJuridicoKpis } from "@/components/dashboard/revisional-juridico-kpis";
 
 export default function Dashboard() {
   const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
@@ -339,6 +340,9 @@ export default function Dashboard() {
                   <Activity className="text-blue-600/40" size={28} />
                 </div>
               </section>
+
+              {/* G2 — KPIs Revisional & Jurídico */}
+              <RevisionalJuridicoKpis />
               
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
                 <div className="xl:col-span-8 space-y-8">

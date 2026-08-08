@@ -6,11 +6,26 @@
  * Escopo: apenas carteira visível ao usuário logado (RLS + getStoredCasesForEmpresa)
  */
 
-import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
+import { getUserContext, getStoredCasesForEmpresa, registrarAuditoriaAction } from '@/lib/server-db';
 import { buildDossieXlsxBase64, buildProcessosProfissionalXlsxBase64 } from '@/lib/xlsx-dossie-builder';
 import { EXPORT_HEADERS, tribunalFromProtocolo } from '@/lib/xlsx-schema';
 
 type Row = Record<string, any>;
+
+/**
+ * Registra auditoria de exportação (F1). Nunca derruba o export.
+ */
+async function auditarExportacao(tipo: string, cases: Row[], extra: Record<string, any> = {}) {
+  try {
+    const protocolos = (cases || [])
+      .map((r) => String(r.protocolo_ref || r.protocolo || r.dados?.protocolo || ''))
+      .filter(Boolean)
+      .slice(0, 200);
+    await registrarAuditoriaAction('exportacao', protocolos, { tipo, count: cases?.length || 0, ...extra });
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * Carrega carteira para exportação:
@@ -127,6 +142,7 @@ export async function exportCasesToCSVAction() {
     }
     const csv = '\uFEFF' + lines.join('\n');
     const day = new Date().toISOString().slice(0, 10);
+    await auditarExportacao('csv', cases);
     return {
       success: true as const,
       base64: Buffer.from(csv, 'utf-8').toString('base64'),
@@ -153,6 +169,7 @@ export async function exportDossieXlsxAction() {
       cargo: cargo || undefined,
       fullCarteira,
     });
+    await auditarExportacao('xlsx_dossie', cases);
     return {
       success: true as const,
       base64: result.base64,
@@ -221,6 +238,7 @@ export async function exportProcessosProfissionalXlsxAction(filtros?: {
       fullCarteira,
       filtros,
     });
+    await auditarExportacao('xlsx_profissional', filtered, { filtros: filtros || {} });
     return {
       success: true as const,
       base64: result.base64,
