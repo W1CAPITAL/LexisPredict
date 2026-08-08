@@ -1,98 +1,137 @@
 /**
- * PDF de peça jurídica — layout A4 profissional (margens, parágrafos, assinatura).
+ * PDF de peça — formatação próxima ao modelo profissional:
+ * margens ~3cm sup/esq, ~2cm inf/dir; corpo justificado; seções em destaque;
+ * espaçamento 1,5; assinatura centralizada.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 
+// 1cm ≈ 28.35pt → 3cm≈85, 2cm≈57
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 56,
-    paddingBottom: 72,
-    paddingHorizontal: 64,
+    paddingTop: 85,
+    paddingLeft: 85,
+    paddingBottom: 64,
+    paddingRight: 57,
     backgroundColor: '#ffffff',
-    fontFamily: 'Times-Roman',
+    fontFamily: 'Helvetica',
   },
   brandRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   brand: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
-    letterSpacing: 1.5,
-    color: '#444444',
+    fontSize: 8,
+    letterSpacing: 1.2,
+    color: '#555555',
     textTransform: 'uppercase',
   },
   badge: {
     fontFamily: 'Helvetica',
     fontSize: 7,
-    letterSpacing: 0.5,
     color: '#8a6d1f',
     textTransform: 'uppercase',
   },
   rule: {
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#1a1a1a',
-    marginBottom: 20,
+    borderBottomWidth: 1.25,
+    borderBottomColor: '#111111',
+    marginBottom: 28,
   },
   titulo: {
-    fontFamily: 'Times-Bold',
+    fontFamily: 'Helvetica-Bold',
     fontSize: 13,
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 20,
     color: '#111111',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   sub: {
-    fontFamily: 'Times-Roman',
-    fontSize: 9,
+    fontFamily: 'Helvetica-Oblique',
+    fontSize: 10,
     textAlign: 'center',
     marginBottom: 16,
-    color: '#555555',
+    color: '#333333',
   },
+  /** Primeira linha de parágrafo com recuo (~3cm ≈ 85pt no texto já com margem) */
   para: {
-    fontFamily: 'Times-Roman',
-    fontSize: 11,
-    lineHeight: 1.55,
+    fontFamily: 'Helvetica',
+    fontSize: 12,
+    lineHeight: 1.5,
     textAlign: 'justify',
     color: '#111111',
-    marginBottom: 10,
+    marginBottom: 12,
+    textIndent: 48,
   },
-  paraCenter: {
-    fontFamily: 'Times-Bold',
-    fontSize: 11,
+  paraNoIndent: {
+    fontFamily: 'Helvetica',
+    fontSize: 12,
     lineHeight: 1.5,
-    textAlign: 'center',
+    textAlign: 'justify',
     color: '#111111',
     marginBottom: 12,
-    textTransform: 'uppercase',
   },
-  paraSign: {
-    fontFamily: 'Times-Roman',
-    fontSize: 11,
+  /** Rótulos Outorgante / Poderes etc. — negrito no início */
+  labelLine: {
+    fontFamily: 'Helvetica',
+    fontSize: 12,
+    lineHeight: 1.5,
+    textAlign: 'justify',
+    color: '#111111',
+    marginBottom: 12,
+  },
+  labelBold: {
+    fontFamily: 'Helvetica-Bold',
+  },
+  titleLine: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 12,
     lineHeight: 1.5,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    marginBottom: 14,
     color: '#111111',
-    marginTop: 8,
-    marginBottom: 4,
   },
-  lineSign: {
-    marginTop: 28,
-    marginBottom: 6,
+  localData: {
+    fontFamily: 'Helvetica',
+    fontSize: 12,
+    lineHeight: 1.5,
+    textAlign: 'left',
+    marginTop: 18,
+    marginBottom: 28,
+    color: '#111111',
+  },
+  signBlock: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  signLine: {
     borderBottomWidth: 1,
     borderBottomColor: '#111111',
-    width: 220,
-    alignSelf: 'center',
+    width: 240,
+    marginBottom: 6,
+  },
+  signName: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 11,
+    textAlign: 'center',
+    color: '#111111',
+  },
+  signRole: {
+    fontFamily: 'Helvetica',
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#111111',
+    marginTop: 2,
   },
   footer: {
     position: 'absolute',
     bottom: 28,
-    left: 64,
-    right: 64,
+    left: 85,
+    right: 57,
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderTopWidth: 0.5,
@@ -106,17 +145,27 @@ const styles = StyleSheet.create({
   },
 });
 
-function isTitleLine(line: string): boolean {
+const LABEL_RE =
+  /^(Outorgante|Outorgado\(s\)|Outorgado|Objeto|Poderes|Poderes Excepcionais|Poderes Específicos|Finalidade|Substabelecente|Substabelecido|Notificante|Proponente|Reclamante|Reclamado|DOS FATOS|DO DIREITO|DOS PEDIDOS|PROPOSTA|REF\.)\s*:/i;
+
+function isMainTitle(line: string): boolean {
   const s = line.trim();
-  if (!s) return false;
-  if (s === s.toUpperCase() && s.length < 80 && !s.endsWith('.')) return true;
-  return false;
+  if (!s || s.length > 90) return false;
+  if (s !== s.toUpperCase()) return false;
+  if (s.endsWith('.')) return false;
+  return true;
 }
 
-function isSignBlock(line: string): boolean {
+function isLocalData(line: string): boolean {
+  return /,\s*\d{1,2}\/\d{1,2}\/\d{4}\.?$/.test(line.trim()) || /^\[CIDADE\]/i.test(line.trim());
+}
+
+function isSignName(line: string, index: number, total: number): boolean {
+  if (index < total - 6) return false;
   const s = line.trim();
-  if (!s) return false;
   if (/^_{5,}/.test(s)) return true;
+  if (s === s.toUpperCase() && s.length > 3 && s.length < 80 && !s.includes('OAB')) return true;
+  if (/^(Outorgante|Proponente|Notificante|Requerente|Substabelecente)$/i.test(s)) return true;
   if (/^OAB\//i.test(s)) return true;
   return false;
 }
@@ -126,47 +175,99 @@ export function PecaTextoPDF({
 }: {
   data: { titulo?: string; sub?: string; texto: string };
 }) {
-  const titulo = (data?.titulo || 'PEÇA JURÍDICA').trim();
+  const tituloDoc = (data?.titulo || 'PEÇA JURÍDICA').trim();
   const sub = (data?.sub || '').trim();
   const raw = String(data?.texto || '').replace(/\r\n/g, '\n').trim();
+  const lines = raw ? raw.split('\n').map((l) => l.trimEnd()) : [];
 
-  // Divide em blocos por linha em branco
-  const blocks = raw
-    ? raw.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)
-    : [];
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+  const n = lines.length;
 
-  // Se veio tudo em uma linha só com \n simples, usa linhas
-  const lines =
-    blocks.length <= 1 && raw.includes('\n')
-      ? raw.split('\n').map((l) => l.trim())
-      : null;
+  while (i < n) {
+    const line = lines[i].trim();
+    if (!line) {
+      i++;
+      continue;
+    }
 
-  const renderLines = (arr: string[]) =>
-    arr.map((line, i) => {
-      if (!line) return <View key={i} style={{ height: 8 }} />;
-      if (/^_{5,}/.test(line)) {
-        return <View key={i} style={styles.lineSign} />;
-      }
-      if (isTitleLine(line) && i < 3) {
-        return (
-          <Text key={i} style={styles.paraCenter}>
-            {line}
-          </Text>
-        );
-      }
-      if (isSignBlock(line) || (i > arr.length - 5 && line === line.toUpperCase() && line.length < 60)) {
-        return (
-          <Text key={i} style={styles.paraSign}>
-            {line}
-          </Text>
-        );
-      }
-      return (
-        <Text key={i} style={styles.para}>
+    if (/^_{5,}/.test(line)) {
+      nodes.push(
+        <View key={`s-${i}`} style={styles.signBlock}>
+          <View style={styles.signLine} />
+        </View>
+      );
+      i++;
+      continue;
+    }
+
+    if (isMainTitle(line) && i < 4) {
+      nodes.push(
+        <Text key={`t-${i}`} style={styles.titleLine}>
           {line}
         </Text>
       );
-    });
+      i++;
+      continue;
+    }
+
+    if (isLocalData(line)) {
+      nodes.push(
+        <Text key={`d-${i}`} style={styles.localData}>
+          {line}
+        </Text>
+      );
+      i++;
+      continue;
+    }
+
+    if (isSignName(line, i, n)) {
+      const roleLike = /^(Outorgante|Proponente|Notificante|Requerente|Substabelecente)$/i.test(line);
+      const oabLike = /^OAB\//i.test(line);
+      nodes.push(
+        <Text
+          key={`n-${i}`}
+          style={roleLike || oabLike ? styles.signRole : styles.signName}
+        >
+          {line}
+        </Text>
+      );
+      i++;
+      continue;
+    }
+
+    const labelMatch = line.match(LABEL_RE);
+    if (labelMatch) {
+      const label = labelMatch[1];
+      const rest = line.slice(labelMatch[0].length).trim();
+      nodes.push(
+        <Text key={`l-${i}`} style={styles.labelLine}>
+          <Text style={styles.labelBold}>{label}: </Text>
+          {rest}
+        </Text>
+      );
+      i++;
+      continue;
+    }
+
+    // Lista a) b) c)
+    if (/^[a-c]\)\s/.test(line) || /^Requer:$/i.test(line)) {
+      nodes.push(
+        <Text key={`p-${i}`} style={styles.paraNoIndent}>
+          {line}
+        </Text>
+      );
+      i++;
+      continue;
+    }
+
+    nodes.push(
+      <Text key={`p-${i}`} style={styles.para}>
+        {line}
+      </Text>
+    );
+    i++;
+  }
 
   return (
     <Document>
@@ -177,26 +278,10 @@ export function PecaTextoPDF({
         </View>
         <View style={styles.rule} />
 
-        <Text style={styles.titulo}>{titulo}</Text>
+        <Text style={styles.titulo}>{tituloDoc}</Text>
         {sub ? <Text style={styles.sub}>{sub}</Text> : null}
 
-        {lines
-          ? renderLines(lines)
-          : blocks.map((block, i) => {
-              const first = block.split('\n')[0]?.trim() || '';
-              if (isTitleLine(first) && block.split('\n').length === 1) {
-                return (
-                  <Text key={i} style={styles.paraCenter}>
-                    {first}
-                  </Text>
-                );
-              }
-              return (
-                <Text key={i} style={styles.para}>
-                  {block.replace(/\n/g, ' ')}
-                </Text>
-              );
-            })}
+        {nodes}
 
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>

@@ -1,12 +1,9 @@
 /**
- * D3 — Cobertura completa: biblioteca central de modelos reutilizáveis de peças.
- * Princípio de especificidade: só cita banco/CNPJ/processo se o meta trouxer o dado;
- * caso contrário a peça permanece limpa e reutilizável.
- * Uma fonte única para procurações, habilitações, substabelecimentos, revogações,
- * petições e cartas a bancos. Todos aceitam qualquer banco da lista BANCOS_COBERTOS.
- *
+ * Biblioteca de modelos — padrão de qualificação e estrutura de
+ * Procuração Ad Judicia (outorgante / outorgado / objeto / poderes /
+ * poderes excepcionais / finalidade / local e data / assinatura).
+ * Especificidade: só detalha o que foi informado; placeholders legíveis se faltar.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * @license Proprietary - All rights reserved.
  */
 
 export type CategoriaPeca =
@@ -26,13 +23,25 @@ export interface PecaMeta {
   cliente?: string;
   cpfCliente?: string;
   rgCliente?: string;
+  orgaoRgCliente?: string;
+  nacionalidadeCliente?: string;
+  estadoCivilCliente?: string;
+  profissaoCliente?: string;
   enderecoCliente?: string;
+  telefoneCliente?: string;
+  emailCliente?: string;
   banco?: string;
   cnpjBanco?: string;
   advogado?: string;
-  advogadoPassivo?: string;
   oab?: string;
   uf?: string;
+  cpfAdvogado?: string;
+  rgAdvogado?: string;
+  enderecoAdvogado?: string;
+  advogado2?: string;
+  oab2?: string;
+  uf2?: string;
+  advogadoPassivo?: string;
   tribunal?: string;
   comarca?: string;
   orgao?: string;
@@ -48,6 +57,8 @@ export interface PecaMeta {
   valorProposta?: string;
   protocoloProcon?: string;
   cidade?: string;
+  parteContraria?: string;
+  cpfParteContraria?: string;
 }
 
 export interface ModeloPeca {
@@ -66,384 +77,194 @@ function seg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
   return typeof v === 'string' && v.trim() ? v.trim() : fallback;
 }
 
-/** Nomes/identificadores: ignora lixo curto ("a", "x", "aa") para não poluir o PDF. */
 function nomeSeg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
   const v = typeof m[k] === 'string' ? (m[k] as string).trim() : '';
   if (!v || v.length < 3 || /^[a-zA-Z]{1,2}$/.test(v)) return fallback;
   return v;
 }
 
-/** Só inclui o trecho se o campo existir — evita peças genéricas “cheias de colchetes”. */
-function se(m: PecaMeta, k: keyof PecaMeta, template: (v: string) => string): string {
-  const v = m[k];
-  if (typeof v !== 'string' || !v.trim()) return '';
-  return template(v.trim());
+function qualificaCliente(m: PecaMeta): string {
+  const nome = nomeSeg(m, 'cliente', '[NOME COMPLETO DO OUTORGANTE]');
+  const parts: string[] = [nome];
+  const nac = seg(m, 'nacionalidadeCliente', '');
+  const civil = seg(m, 'estadoCivilCliente', '');
+  const prof = seg(m, 'profissaoCliente', '');
+  if (nac || civil || prof) {
+    parts.push([nac, civil, prof].filter(Boolean).join(', '));
+  }
+  const rg = seg(m, 'rgCliente', '');
+  const orgao = seg(m, 'orgaoRgCliente', '');
+  if (rg) parts.push(`portador(a) da cédula de identidade n.º ${rg}${orgao ? ` expedida por ${orgao}` : ''}`);
+  const cpf = seg(m, 'cpfCliente', '');
+  if (cpf) parts.push(`inscrito(a) no CPF sob o n.º ${cpf}`);
+  const end = seg(m, 'enderecoCliente', '');
+  if (end) parts.push(`residente e domiciliado(a) em ${end}`);
+  const tel = seg(m, 'telefoneCliente', '');
+  if (tel) parts.push(`telefone: ${tel}`);
+  const email = seg(m, 'emailCliente', '');
+  if (email) parts.push(`endereço eletrônico: ${email}`);
+  return parts.join(', ');
 }
 
-function juntar(...parts: (string | false | null | undefined)[]): string {
-  return parts.filter((p) => typeof p === 'string' && p.length > 0).join('\n');
+function qualificaAdvogado(m: PecaMeta, nomeKey: keyof PecaMeta, oabKey: keyof PecaMeta, ufKey: keyof PecaMeta): string {
+  const nome = nomeSeg(m, nomeKey, '[NOME DO ADVOGADO]');
+  const oab = nomeSeg(m, oabKey, '________');
+  const uf = nomeSeg(m, ufKey, '__');
+  const parts = [
+    `${nome}, advogado(a), regularmente inscrito(a) na Ordem dos Advogados do Brasil — Seccional ${uf} (OAB/${uf}) sob o n.º ${oab}`,
+  ];
+  const cpf = seg(m, 'cpfAdvogado', '');
+  if (cpf && nomeKey === 'advogado') parts.push(`CPF n.º ${cpf}`);
+  const end = seg(m, 'enderecoAdvogado', '');
+  if (end && nomeKey === 'advogado') parts.push(`com endereço profissional em ${end}`);
+  return parts.join(', ');
 }
 
-/** Lista ampla de bancos/instituições cobertos pelos modelos. */
+function blocoFinalidade(m: PecaMeta): string {
+  const tipo = seg(m, 'tipoAcao', '') || seg(m, 'classeAcao', '');
+  const banco = seg(m, 'banco', '');
+  const cnpj = seg(m, 'cnpjBanco', '');
+  const prot = seg(m, 'protocolo', '');
+  const parte = seg(m, 'parteContraria', '') || banco;
+  const resumo = seg(m, 'resumo', '');
+  const bits: string[] = [];
+  if (tipo) bits.push(`em demanda da natureza de ${tipo}`);
+  if (parte) bits.push(`em face de ${parte}${cnpj ? `, CNPJ ${cnpj}` : ''}`);
+  if (prot) bits.push(`relacionada ao processo/contrato n.º ${prot}`);
+  if (resumo) bits.push(resumo);
+  if (!bits.length) {
+    return 'Representar o(a) outorgante e promover a defesa de seus interesses e direitos em juízo ou fora dele, em quaisquer medidas judiciais ou administrativas necessárias.';
+  }
+  return `Representar o(a) outorgante e promover a defesa de seus interesses ${bits.join(', ')}.`;
+}
+
+function localData(m: PecaMeta): string {
+  const cidade = nomeSeg(m, 'cidade', '[CIDADE]');
+  const data = seg(m, 'data', hojeBR());
+  return `${cidade}, ${data}.`;
+}
+
+function assinatura(m: PecaMeta, rotulo = 'Outorgante'): string {
+  return [
+    '',
+    '_________________________________',
+    nomeSeg(m, 'cliente', '[NOME DO OUTORGANTE]').toUpperCase(),
+    rotulo,
+  ].join('\n');
+}
+
 export const BANCOS_COBERTOS: string[] = [
   'Banco do Brasil', 'Banco Itaú Unibanco', 'Banco Bradesco', 'Banco Santander',
   'Caixa Econômica Federal', 'Nubank', 'Banco Inter', 'Banco Pan', 'Banco BMG',
   'Banco C6 Bank', 'Banco Safra', 'Banco Original', 'Banco Daycoval',
-  'Banco Votorantim', 'Banco Mercantil do Brasil', 'Crefisa', 'Losango',
-  'Banco Agibank', 'Banco Master', 'Banco Modal', 'Banco Rendimento',
-  'Banrisul', 'PagBank', 'Mercado Pago', 'PicPay', 'Will Bank', 'Banco Citibank',
-  'Sicoob', 'Sicredi', 'Banco Nexpe', 'Banco Baneses', 'Banco Banestes',
-  'Banco do Nordeste', 'Banco da Amazônia', 'BRB', 'Banco Sofisa',
-  'Banco Volkswagen', 'Banco Toyota', 'Banco CNH', 'Outra instituição financeira',
+  'Banco Votorantim', 'Crefisa', 'Losango', 'Banco Agibank', 'Banrisul',
+  'Sicoob', 'Sicredi', 'PagBank', 'Mercado Pago', 'PicPay',
+  'Outra instituição financeira',
 ];
 
-const cartaComum = (m: PecaMeta): string => {
-  const banco = seg(m, 'banco', '[INSTITUIÇÃO FINANCEIRA]');
-  const cliente = seg(m, 'cliente', '[NOME DO CLIENTE]');
-  const doc = seg(m, 'protocolo', '[Nº DO CONTRATO/PROCESSO]');
-  return [
-    banco.toUpperCase(),
-    'Departamento Jurídico / Ouvidoria',
-    '',
-    `Assunto: Solicitação de informações e documentos — Cliente ${cliente} — Contrato/Processo nº ${doc}`,
-    '',
-    `${cliente}, titular do contrato mantido junto a ${banco}, vem, respeitosamente, por intermédio de seu(sua) advogado(a), solicitar que seja disponibilizada cópia integral do contrato, bem como o demonstrativo detalhado de todas as parcelas pagas, eventuais encargos, taxas e cláusulas de reajuste aplicadas.`,
-    '',
-    'A resposta deverá ser encaminhada no prazo legal, sob pena das providências judiciais cabíveis, inclusive revisão contratual.',
-    '',
-    'Termos em que pede deferimento.',
-    hojeBR(),
-    seg(m, 'advogado', '[NOME DO(A) ADVOGADO(A)]').toUpperCase(),
-    `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', 'Nº ________')}`,
-  ].join('\n');
-};
+export const CATEGORIAS: CategoriaPeca[] = [
+  'Procuração', 'Habilitação', 'Substabelecimento', 'Revogação',
+  'Petições', 'Cartas', 'Extrajudicial', 'PROCON', 'Quitação', 'Limpa Nome',
+];
+
+const CAMPOS_OUTORGANTE: (keyof PecaMeta)[] = [
+  'cliente', 'nacionalidadeCliente', 'estadoCivilCliente', 'profissaoCliente',
+  'cpfCliente', 'rgCliente', 'orgaoRgCliente', 'enderecoCliente',
+  'telefoneCliente', 'emailCliente', 'cidade', 'data',
+];
+
+const CAMPOS_ADVOGADO: (keyof PecaMeta)[] = [
+  'advogado', 'oab', 'uf', 'cpfAdvogado', 'enderecoAdvogado', 'advogado2', 'oab2', 'uf2',
+];
 
 export const MODELOS_DE_PECAS: ModeloPeca[] = [
   {
+    id: 'procuracao-ad-judicia',
+    categoria: 'Procuração',
+    titulo: 'Procuração Ad Judicia et Extra',
+    descricao: 'Modelo completo: outorgante qualificado, outorgado(s), objeto, poderes, poderes excepcionais e finalidade.',
+    campos: [
+      ...CAMPOS_OUTORGANTE,
+      ...CAMPOS_ADVOGADO,
+      'banco', 'cnpjBanco', 'protocolo', 'tipoAcao', 'classeAcao', 'parteContraria', 'resumo',
+    ],
+    render: (m) => {
+      const outorgados = [qualificaAdvogado(m, 'advogado', 'oab', 'uf')];
+      if (nomeSeg(m, 'advogado2', '')) {
+        outorgados.push(qualificaAdvogado(m, 'advogado2', 'oab2', 'uf2'));
+      }
+      return [
+        'PROCURAÇÃO AD JUDICIA ET EXTRA',
+        '',
+        'Pelo presente instrumento particular de mandato por mim subscrito:',
+        '',
+        `Outorgante: ${qualificaCliente(m)}; constituo e nomeio como meu(s) bastante(s) procurador(es):`,
+        '',
+        `Outorgado(s): ${outorgados.join('; e ')}.`,
+        '',
+        'Objeto: Representar o(a) outorgante, assim como promover a defesa de seus interesses e direitos.',
+        '',
+        'Poderes: Por intermédio deste instrumento, confiro-lhes amplos poderes para o foro em geral, com a cláusula “ad judicia et extra”. Outorgo-lhes poderes para propor ações e acompanhar os recursos legais competentes, podendo promover quaisquer medidas judiciais ou administrativas, assinar termos, ofertar defesa direta ou indireta, interpor recursos, ajuizar ações e conduzir os processos, solicitar e ter acesso a documentos de qualquer natureza. Concede-se, ainda, poderes para substabelecer este mandato a outrem, com ou sem reserva de poderes.',
+        '',
+        'Poderes Excepcionais: Outorgam-se poderes especiais para receber citação, confessar, reconhecer a procedência do pedido, transigir, desistir, renunciar ao direito sobre o qual se funda a ação, receber e dar quitação, firmar compromisso e assinar declaração de hipossuficiência econômica, nos termos do art. 105 da Lei n.º 13.105/2015 (Código de Processo Civil).',
+        '',
+        `Finalidade: ${blocoFinalidade(m)}`,
+        '',
+        localData(m),
+        assinatura(m, 'Outorgante'),
+      ].join('\n');
+    },
+  },
+  {
     id: 'procuracao-geral',
     categoria: 'Procuração',
-    titulo: 'Procuração Geral',
-    descricao: 'Outorga ampla de poderes ao advogado para representar o cliente.',
-    campos: ['cliente', 'advogado', 'oab', 'uf', 'cidade'],
+    titulo: 'Procuração Geral (qualificada)',
+    descricao: 'Versão completa com qualificação do outorgante e poderes ad judicia.',
+    campos: [...CAMPOS_OUTORGANTE, ...CAMPOS_ADVOGADO, 'banco', 'protocolo', 'resumo'],
     render: (m) =>
       [
         'PROCURAÇÃO',
         '',
-        `Pelo presente instrumento particular de mandato, ${nomeSeg(m, 'cliente', '[NOME COMPLETO DO OUTORGANTE]')}, por seu livre e espontânea vontade, nomeia e constitui seu bastante procurador o(a) advogado(a) ${nomeSeg(m, 'advogado', '[NOME COMPLETO DO ADVOGADO]')}, inscrito(a) na OAB/${nomeSeg(m, 'uf', '___')} sob o n.º ${nomeSeg(m, 'oab', '________')}, com escritório profissional em ${nomeSeg(m, 'cidade', '[CIDADE/UF]')}, a quem confere amplos poderes para o foro em geral e os especiais, com a cláusula ad judicia, para representá-lo(a) em juízo ou fora dele, em qualquer juízo, instância ou tribunal, praticando todos os atos necessários à defesa de seus interesses.`,
+        'Pelo presente instrumento particular de mandato por mim subscrito:',
         '',
-        'Poderes específicos: requerer, transigir, receber e dar quitação, firmar compromissos e propostas, acompanhar audiências, apresentar defesas, recursos e contrarrazões, e praticar todos os demais atos necessários ao cumprimento deste mandato. Em caso de celebração de acordo, fica o(a) advogado(a) autorizado(a) a transigir e firmar compromisso.'.replace(/^Poderes específicos: /, m.resumo ? `Observações: ${m.resumo}\n\nPoderes específicos: ` : 'Poderes específicos: '),
+        `Outorgante: ${qualificaCliente(m)}; nomeio e constituo meu bastante procurador:`,
         '',
-        `${hojeBR()}.`,
+        `Outorgado: ${qualificaAdvogado(m, 'advogado', 'oab', 'uf')}.`,
         '',
-        '____________________________',
-        seg(m, 'cliente', '[NOME DO OUTORGANTE]').toUpperCase(),
-      ].join('\n'),
-  },
-  {
-    id: 'procuracao-ad-judicia',
-    categoria: 'Procuração',
-    titulo: 'Procuração Ad Judicia',
-    descricao: 'Outorga com poderes específicos para ações (revisional, indenizatória etc.).',
-    campos: ['cliente', 'advogado', 'oab', 'uf', 'tipoAcao', 'banco', 'protocolo'],
-    render: (m) =>
-      [
-        'PROCURAÇÃO AD JUDICIA',
+        'Poderes: Conferem-se amplos poderes para o foro em geral, com a cláusula ad judicia et extra, para representar o(a) outorgante em juízo ou fora dele, em qualquer juízo, instância ou tribunal, praticando todos os atos necessários à defesa de seus interesses, podendo substabelecer com ou sem reserva.',
         '',
-        `Pelo presente instrumento, ${seg(m, 'cliente', '[NOME DO OUTORGANTE]')}, nomeia e constitui seu(sua) bastante procurador(a) o(a) advogado(a) ${seg(m, 'advogado', '[NOME DO ADVOGADO]')}, OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}, com poderes da cláusula ad judicia ET EXTRA, para propor e acompanhar ação ${seg(m, 'tipoAcao', '[TIPO DE AÇÃO — ex.: revisional de cláusulas contratuais]')} em face de ${seg(m, 'banco', '[INSTITUIÇÃO FINANCEIRA]')}, referente ao contrato nº ${seg(m, 'protocolo', '________')}, podendo requerer justiça gratuita, tutelas de urgência, impugnar, recorrer, desistir e transigir, receber e dar quitação, e praticar todos os demais atos necessários ao pleno exercício do mandato.`,
-        '',
-        `${hojeBR()}.`,
-        '',
-        '____________________________',
-        seg(m, 'cliente', '[NOME DO OUTORGANTE]').toUpperCase(),
-      ].join('\n'),
-  },
-  {
-    id: 'habilitacao-simples',
-    categoria: 'Habilitação',
-    titulo: 'Habilitação de Advogado',
-    descricao: 'Juntada de procuração e habilitação nos autos.',
-    campos: ['protocolo', 'cliente', 'advogado', 'oab', 'uf', 'orgao', 'banco'],
-    render: (m) =>
-      [
-        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
-        m.orgao ? `Da ${seg(m, 'orgao', '________')}` : '',
-        m.comarca ? `Comarca de ${seg(m, 'comarca', '________')}` : '',
-        '',
-        `Processo nº ${seg(m, 'protocolo', '____________________')}`,
-        '',
-        'HABILITAÇÃO',
-        '',
-        `${seg(m, 'advogado', '[NOME DO ADVOGADO]')}, advogado(a) regularmente inscrito(a) na OAB${m.uf ? '/' + m.uf : ''} sob o n.º ${seg(m, 'oab', '________')}, vem respeitosamente à presença de Vossa Excelência requerer a sua HABILITAÇÃO nos presentes autos, em que contende ${seg(m, 'cliente', '[PARTE]')} contra ${seg(m, 'banco', '[PARTE CONTRÁRIA]')}, juntando para tanto a procuração outorgada pela parte, requerendo, outrossim, que doravante as publicações e intimações sejam feitas em seu nome, sob pena de nulidade.`,
-        '',
-        'Termos em que pede deferimento.',
-        '',
-        hojeBR(),
-        seg(m, 'advogado', '[NOME DO ADVOGADO]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}`,
-      ].join('\n'),
-  },
-  {
-    id: 'substabelecimento-sem-reserva',
-    categoria: 'Substabelecimento',
-    titulo: 'Substabelecimento SEM Reserva',
-    descricao: 'Transfere todos os poderes a outro advogado, sem reserva.',
-    campos: ['protocolo', 'cliente', 'substabDe', 'substabDeOab', 'substabPara', 'substabParaOab', 'uf', 'banco'],
-    render: (m) =>
-      [
-        'SUBSTABELECIMENTO SEM RESERVA DE PODERES',
-        '',
-        `Pelo presente instrumento, ${seg(m, 'substabDe', '[ADVOGADO CEDENTE]')}, OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'substabDeOab', '________')}, advogado(a) habilitado(a) nos autos do processo nº ${seg(m, 'protocolo', '________')}, em que contende ${seg(m, 'cliente', '[PARTE]')} contra ${seg(m, 'banco', '[PARTE CONTRÁRIA]')}, SUBSTABELECE, SEM RESERVA DE PODERES, os poderes que lhe foram conferidos ao(à) Dr(a). ${seg(m, 'substabPara', '[ADVOGADO SUBSTABELECIDO]')}, OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'substabParaOab', '________')}, para que represente a parte em todos os atos do processo.`,
-        '',
-        `${hojeBR()}.`,
-        '',
-        '____________________________',
-        seg(m, 'substabDe', '[ADVOGADO CEDENTE]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'substabDeOab', '________')}`,
-      ].join('\n'),
-  },
-  {
-    id: 'substabelecimento-com-reserva',
-    categoria: 'Substabelecimento',
-    titulo: 'Substabelecimento COM Reserva',
-    descricao: 'Transfere poderes mantendo reserva para o cedente.',
-    campos: ['protocolo', 'cliente', 'substabDe', 'substabDeOab', 'substabPara', 'substabParaOab', 'uf', 'banco'],
-    render: (m) =>
-      [
-        'SUBSTABELECIMENTO COM RESERVA DE PODERES',
-        '',
-        `Pelo presente instrumento, ${seg(m, 'substabDe', '[ADVOGADO CEDENTE]')}, OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'substabDeOab', '________')}, SUBSTABELECE, COM RESERVA DE PODERES, ao(à) Dr(a). ${seg(m, 'substabPara', '[ADVOGADO SUBSTABELECIDO]')}, OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'substabParaOab', '________')}, os poderes recebidos nos autos do processo nº ${seg(m, 'protocolo', '________')}, em que contende ${seg(m, 'cliente', '[PARTE]')} contra ${seg(m, 'banco', '[PARTE CONTRÁRIA]')}, permanecendo o(a) substabelecente com plenos poderes para acompanhar e praticar todos os atos processuais.`,
-        '',
-        `${hojeBR()}.`,
-        '',
-        '____________________________',
-        seg(m, 'substabDe', '[ADVOGADO CEDENTE]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'substabDeOab', '________')}`,
-      ].join('\n'),
-  },
-  {
-    id: 'revogacao-poderes',
-    categoria: 'Revogação',
-    titulo: 'Carta de Revogação de Poderes',
-    descricao: 'Revoga o mandato anterior e, opcionalmente, substabelece.',
-    campos: ['cliente', 'advogado', 'oab', 'uf', 'protocolo', 'banco'],
-    render: (m) =>
-      [
-        'REVOGAÇÃO DE MANDATO / PODERES',
-        '',
-        `${seg(m, 'cliente', '[NOME DO OUTORGANTE]')} vem, por meio desta, REVOGAR, nos termos do art. 686 do Código Civil, os poderes anteriormente conferidos ao(à) advogado(a) ${seg(m, 'advogado', '[NOME DO ADVOGADO REVOGADO]')}, OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}, referentes ao processo/contrato nº ${seg(m, 'protocolo', '________')}${m.banco ? `, mantido junto a ${seg(m, 'banco', '________')}` : ''}, ficando sem efeito qualquer ato praticado por este(a) a partir da presente data.`,
+        'Poderes Específicos: Requerer, transigir, receber e dar quitação, firmar compromissos e propostas, acompanhar audiências, apresentar defesas, recursos e contrarrazões, e praticar demais atos necessários ao cumprimento deste mandato.',
         '',
         m.resumo ? `Observações: ${m.resumo}` : '',
-        `${hojeBR()}.`,
         '',
-        '____________________________',
-        seg(m, 'cliente', '[NOME DO OUTORGANTE]').toUpperCase(),
-      ].filter(Boolean).join('\n'),
-  },
-  {
-    id: 'peticao-informacoes',
-    categoria: 'Petições',
-    titulo: 'Petição de Informações / Certidão',
-    descricao: 'Requer certidão de andamento e cópia dos atos.',
-    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf'],
-    render: (m) =>
-      [
-        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
-        m.orgao ? `Da ${seg(m, 'orgao', '________')}` : '',
-        m.comarca ? `Comarca de ${seg(m, 'comarca', '________')}` : '',
-        '',
-        `Processo nº ${seg(m, 'protocolo', '____________________')}`,
-        '',
-        'PETIÇÃO DE INFORMAÇÕES',
-        '',
-        `${seg(m, 'cliente', '[PARTE AUTORA]')}, nos autos do processo em epígrafe, em que contende contra ${seg(m, 'banco', '[PARTE CONTRÁRIA]')}, vem requerer a Vossa Excelência seja determinada à serventia a expedição de certidão atualizada de andamento processual e cópia dos atos disponíveis, para acompanhamento e providências cabíveis.`,
-        '',
-        'Termos em que pede deferimento.',
-        '',
-        hojeBR(),
-        seg(m, 'advogado', '[NOME DO ADVOGADO]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}`,
-      ].join('\n'),
-  },
-  {
-    id: 'peticao-juntada',
-    categoria: 'Petições',
-    titulo: 'Petição de Juntada',
-    descricao: 'Juntada de procuração e documentos de habilitação.',
-    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf'],
-    render: (m) =>
-      [
-        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
-        m.orgao ? `Da ${seg(m, 'orgao', '________')}` : '',
-        m.comarca ? `Comarca de ${seg(m, 'comarca', '________')}` : '',
-        '',
-        `Processo nº ${seg(m, 'protocolo', '____________________')}`,
-        '',
-        'PETIÇÃO DE JUNTADA',
-        '',
-        `Nos termos do art. 287 do CPC, requer a juntada da procuração e documentos de habilitação do(a) patrono(a) do polo ativo, ${seg(m, 'cliente', '[PARTE]')}, bem como a intimação da parte contrária, ${seg(m, 'banco', '[PARTE CONTRÁRIA]')}, para os atos processuais pertinentes.`,
-        '',
-        'Termos em que pede deferimento.',
-        '',
-        hojeBR(),
-        seg(m, 'advogado', '[NOME DO ADVOGADO]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}`,
-      ].join('\n'),
-  },
-  {
-    id: 'peticao-urgencia',
-    categoria: 'Petições',
-    titulo: 'Petição de Tutela de Urgência',
-    descricao: 'Requere tutela de urgência (art. 300 do CPC).',
-    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf', 'resumo'],
-    render: (m) =>
-      [
-        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
-        m.orgao ? `Da ${seg(m, 'orgao', '________')}` : '',
-        m.comarca ? `Comarca de ${seg(m, 'comarca', '________')}` : '',
-        '',
-        `Processo nº ${seg(m, 'protocolo', '____________________')}`,
-        '',
-        'PEDIDO DE TUTELA DE URGÊNCIA',
-        '',
-        `A parte autora, ${seg(m, 'cliente', '[PARTE]')}, requer, com fundamento no art. 300 do CPC, a concessão de tutela de urgência em face de ${seg(m, 'banco', '[PARTE CONTRÁRIA]')}.`,
-        '',
-        m.resumo ? `Fundamentação: ${m.resumo}` : 'Demonstra-se a probabilidade do direito e o perigo de dano ou risco ao resultado útil do processo, razão pela qual se justifica a medida liminar.',
-        '',
-        'Termos em que pede deferimento.',
-        '',
-        hojeBR(),
-        seg(m, 'advogado', '[NOME DO ADVOGADO]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}`,
-      ].join('\n'),
-  },
-  {
-    id: 'peticao-atualizacao',
-    categoria: 'Petições',
-    titulo: 'Petição de Atualização Cadastral',
-    descricao: 'Atualiza dados de endereço, telefone e e-mail da parte.',
-    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf'],
-    render: (m) =>
-      [
-        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
-        m.orgao ? `Da ${seg(m, 'orgao', '________')}` : '',
-        m.comarca ? `Comarca de ${seg(m, 'comarca', '________')}` : '',
-        '',
-        `Processo nº ${seg(m, 'protocolo', '____________________')}`,
-        '',
-        'PETIÇÃO DE ATUALIZAÇÃO CADASTRAL',
-        '',
-        `A parte ${seg(m, 'cliente', '[PARTE]')} requer o registro de atualização cadastral nos autos (endereço, telefone e e-mail), nos termos do art. 77, V, do CPC, para fins de intimação, devendo constar dos sistemas do juízo os novos dados.`,
-        '',
-        'Termos em que pede deferimento.',
-        '',
-        hojeBR(),
-        seg(m, 'advogado', '[NOME DO ADVOGADO]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}`,
-      ].join('\n'),
-  },
-  {
-    id: 'carta-banco-documentos',
-    categoria: 'Cartas',
-    titulo: 'Carta ao Banco — Cópia do Contrato',
-    descricao: 'Solicita cópia do contrato e demonstrativo ao banco.',
-    campos: ['banco', 'cliente', 'protocolo', 'advogado', 'oab', 'uf'],
-    render: cartaComum,
-  },
-  {
-    id: 'carta-banco-revisao',
-    categoria: 'Cartas',
-    titulo: 'Carta ao Banco — Notificação de Revisão',
-    descricao: 'Notifica o banco sobre cobrança indevida e intenção de revisão.',
-    campos: ['banco', 'cliente', 'protocolo', 'advogado', 'oab', 'uf', 'resumo'],
-    render: (m) => {
-      const banco = seg(m, 'banco', '[INSTITUIÇÃO FINANCEIRA]');
-      return [
-        banco.toUpperCase(),
-        'Departamento Jurídico / Ouvidoria',
-        '',
-        `Assunto: Notificação de cobrança indevida / intenção de revisão contratual — ${seg(m, 'cliente', '[NOME DO CLIENTE]')} — Contrato nº ${seg(m, 'protocolo', '________')}`,
-        '',
-        `${seg(m, 'cliente', '[NOME DO CLIENTE]')} notifica ${banco} sobre a existência de cláusulas e encargos supostamente abusivos (${m.resumo ? m.resumo : 'juros, tarifas e encargos aplicados'}), manifestando a intenção de buscar a revisão contratual, judicialmente ou de forma consensual.`,
-        '',
-        'Solicita-se resposta escrita no prazo legal, sob pena de serem adotadas as providências cabíveis, inclusive ação revisional. Fica desde já reservado o direito de cobrança em dobro de valores indevidos (art. 42, § único, CDC).',
-        '',
-        'Termos em que pede deferimento.',
-        hojeBR(),
-        seg(m, 'advogado', '[NOME DO(A) ADVOGADO(A)]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}`,
-      ].join('\n');
-    },
-  },
-  {
-    id: 'carta-banco-quitacao',
-    categoria: 'Cartas',
-    titulo: 'Carta ao Banco — Quitação / Baixa de Restrição',
-    descricao: 'Requer quitação e baixa de restrição cadastral.',
-    campos: ['banco', 'cliente', 'protocolo', 'advogado', 'oab', 'uf'],
-    render: (m) => {
-      const banco = seg(m, 'banco', '[INSTITUIÇÃO FINANCEIRA]');
-      return [
-        banco.toUpperCase(),
-        'Departamento Jurídico / Ouvidoria',
-        '',
-        `Assunto: Quitação e baixa de restrição — ${seg(m, 'cliente', '[NOME DO CLIENTE]')} — Contrato nº ${seg(m, 'protocolo', '________')}`,
-        '',
-        `${seg(m, 'cliente', '[NOME DO CLIENTE]')}, contrato nº ${seg(m, 'protocolo', '________')} junto a ${banco}, requer a emissão de termo de quitação e a imediata baixa de eventuais restrições cadastrais (SPC/Serasa), no prazo previsto em lei, sob pena de responsabilização e de medida judicial.`,
-        '',
-        'Termos em que pede deferimento.',
-        hojeBR(),
-        seg(m, 'advogado', '[NOME DO(A) ADVOGADO(A)]').toUpperCase(),
-        `OAB${m.uf ? '/' + m.uf : ''} ${seg(m, 'oab', '________')}`,
-      ].join('\n');
-    },
-  },
-
-  {
-    id: 'procuracao-ad-judicia-et-extra',
-    categoria: 'Procuração',
-    titulo: 'Procuração Ad Judicia et Extra (completa)',
-    descricao: 'Poderes judiciais e extrajudiciais amplos, com cláusula de foro e substabelecimento.',
-    campos: ['cliente', 'cpfCliente', 'rgCliente', 'enderecoCliente', 'advogado', 'oab', 'uf', 'banco', 'cnpjBanco', 'protocolo', 'cidade', 'data'],
-    render: (m) =>
-      [
-        'PROCURAÇÃO "AD JUDICIA ET EXTRA"',
-        '',
-        `OUTORGANTE: ${seg(m, 'cliente', '[NOME COMPLETO]')}, portador(a) do CPF nº ${seg(m, 'cpfCliente', '[CPF]')} e RG nº ${seg(m, 'rgCliente', '[RG]')}, residente e domiciliado(a) em ${seg(m, 'enderecoCliente', '[ENDEREÇO COMPLETO]')}.`,
-        '',
-        `OUTORGADO(A): ${seg(m, 'advogado', '[NOME DO ADVOGADO]')}, inscrito(a) na OAB/${seg(m, 'uf', 'SP')} sob o nº ${seg(m, 'oab', '[NÚMERO]')}, com escritório profissional no foro da comarca competente.`,
-        '',
-        'PODERES: Por este instrumento particular de procuração, o(a) OUTORGANTE nomeia e constitui seu bastante procurador o(a) OUTORGADO(A), a quem confere amplos poderes para o foro em geral, com a cláusula "ad judicia et extra", podendo propor contra quem de direito as ações competentes e defendê-lo(a) nas contrárias, seguindo uma, outras e demais instâncias, usando os recursos legais e acompanhando-os, conferindo-lhe, ainda, poderes especiais para confessar, reconhecer a procedência do pedido, desistir, renunciar ao direito sobre o qual se funda a ação, firmar compromissos ou acordos, receber e dar quitação, agindo em conjunto ou isoladamente, podendo substabelecer esta a outrem, com ou sem reservas de poderes.',
-        '',
-        m.banco
-          ? `Abrange, em especial, medidas judiciais e extrajudiciais relativas a contratos e relações mantidas junto a ${seg(m, 'banco', '[INSTITUIÇÃO]')}${m.cnpjBanco ? `, CNPJ ${seg(m, 'cnpjBanco', '')}` : ''}${m.protocolo ? `, inclusive processo/contrato nº ${seg(m, 'protocolo', '')}` : ''}.`
-          : 'Abrange todas as medidas judiciais e extrajudiciais necessárias à defesa dos interesses do(a) OUTORGANTE.',
-        '',
-        `Local e data: ${seg(m, 'cidade', '[CIDADE]')}, ${seg(m, 'data', hojeBR())}.`,
-        '',
-        '_________________________________',
-        seg(m, 'cliente', '[NOME DO OUTORGANTE]').toUpperCase(),
-        'OUTORGANTE',
-      ].filter(Boolean).join('\n'),
+        localData(m),
+        assinatura(m, 'Outorgante'),
+      ]
+        .filter((l) => l !== '')
+        .join('\n'),
   },
   {
     id: 'habilitacao-completa',
     categoria: 'Habilitação',
-    titulo: 'Habilitação nos autos (completa)',
-    descricao: 'Petição de habilitação com qualificação, poderes e pedidos finais.',
-    campos: ['protocolo', 'cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'orgao', 'comarca', 'tribunal', 'classeAcao', 'advogado', 'oab', 'uf', 'resumo'],
+    titulo: 'Habilitação nos autos',
+    descricao: 'Petição de habilitação com qualificação, fundamento no art. 105 do CPC e pedidos.',
+    campos: [
+      'protocolo', 'cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'orgao', 'comarca', 'tribunal',
+      'classeAcao', 'advogado', 'oab', 'uf', 'enderecoAdvogado', 'resumo', 'cidade', 'data',
+    ],
     render: (m) =>
       [
         'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
-        m.orgao ? `Da ${seg(m, 'orgao', '________')}` : '',
-        m.comarca ? `Comarca de ${seg(m, 'comarca', '________')}` : '',
-        m.tribunal ? `${seg(m, 'tribunal', '')}` : '',
+        m.orgao ? `Da ${seg(m, 'orgao', '')}` : '',
+        m.comarca ? `Comarca de ${seg(m, 'comarca', '')}` : '',
+        m.tribunal ? seg(m, 'tribunal', '') : '',
         '',
-        `Processo nº ${seg(m, 'protocolo', '____________________')}`,
+        `Processo n.º ${seg(m, 'protocolo', '____________________')}`,
         m.classeAcao ? `Classe: ${seg(m, 'classeAcao', '')}` : '',
         '',
         'HABILITAÇÃO',
         '',
-        `${seg(m, 'advogado', '[NOME DO ADVOGADO]')}, inscrito(a) na OAB/${seg(m, 'uf', 'SP')} sob o nº ${seg(m, 'oab', '________')}, vem, respeitosamente, à presença de Vossa Excelência, com fulcro no art. 105 do Código de Processo Civil, requerer sua HABILITAÇÃO nos autos em epígrafe, na qualidade de patrono(a) de ${seg(m, 'cliente', '[NOME DA PARTE]')}${m.cpfCliente ? `, CPF ${seg(m, 'cpfCliente', '')}` : ''}, em face de ${seg(m, 'banco', '[PARTE CONTRÁRIA]')}${m.cnpjBanco ? `, CNPJ ${seg(m, 'cnpjBanco', '')}` : ''}.`,
+        `${qualificaAdvogado(m, 'advogado', 'oab', 'uf')}, vem, respeitosamente, à presença de Vossa Excelência, com fulcro no art. 105 do Código de Processo Civil, requerer sua HABILITAÇÃO nos autos em epígrafe, na qualidade de patrono(a) de ${nomeSeg(m, 'cliente', '[NOME DA PARTE]')}${m.cpfCliente ? `, CPF ${seg(m, 'cpfCliente', '')}` : ''}${m.banco ? `, em face de ${seg(m, 'banco', '')}${m.cnpjBanco ? `, CNPJ ${seg(m, 'cnpjBanco', '')}` : ''}` : ''}.`,
         '',
         'Junta, para tanto, instrumento de procuração outorgando os poderes necessários, bem como documentos de identificação quando exigidos.',
         '',
@@ -456,57 +277,276 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
         '',
         'Termos em que pede deferimento.',
         '',
-        hojeBR(),
+        localData(m),
         '',
-        seg(m, 'advogado', '[NOME DO ADVOGADO]').toUpperCase(),
-        `OAB/${seg(m, 'uf', 'SP')} ${seg(m, 'oab', '________')}`,
-      ].filter(Boolean).join('\n'),
+        nomeSeg(m, 'advogado', '[ADVOGADO]').toUpperCase(),
+        `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}`,
+      ]
+        .filter((l) => l !== undefined)
+        .join('\n'),
+  },
+  {
+    id: 'substabelecimento-sem-reserva',
+    categoria: 'Substabelecimento',
+    titulo: 'Substabelecimento sem reserva de poderes',
+    descricao: 'Transfere poderes integralmente ao substabelecido.',
+    campos: [
+      'substabDe', 'substabDeOab', 'uf', 'substabPara', 'substabParaOab',
+      'cliente', 'protocolo', 'banco', 'cidade', 'data', 'resumo',
+    ],
+    render: (m) =>
+      [
+        'SUBSTABELECIMENTO SEM RESERVA DE PODERES',
+        '',
+        `Substabelecente: ${nomeSeg(m, 'substabDe', '[ADVOGADO CEDENTE]')}, OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabDeOab', '________')}.`,
+        '',
+        `Substabelecido: ${nomeSeg(m, 'substabPara', '[ADVOGADO SUBSTABELECIDO]')}, OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabParaOab', '________')}.`,
+        '',
+        `Pelo presente, o substabelecente SUBSTABELECE, sem reserva de poderes, ao substabelecido, os poderes que lhe foram outorgados por ${nomeSeg(m, 'cliente', '[OUTORGANTE]')}${m.protocolo ? `, nos autos/contrato n.º ${seg(m, 'protocolo', '')}` : ''}${m.banco ? `, envolvendo ${seg(m, 'banco', '')}` : ''}, para o foro em geral, com a cláusula ad judicia et extra.`,
+        '',
+        m.resumo ? `Observações: ${m.resumo}` : '',
+        '',
+        localData(m),
+        '',
+        '_________________________________',
+        nomeSeg(m, 'substabDe', '[SUBSTABELECENTE]').toUpperCase(),
+        `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabDeOab', '________')}`,
+      ].join('\n'),
+  },
+  {
+    id: 'substabelecimento-com-reserva',
+    categoria: 'Substabelecimento',
+    titulo: 'Substabelecimento com reserva de poderes',
+    descricao: 'Transfere poderes mantendo reserva ao substabelecente.',
+    campos: [
+      'substabDe', 'substabDeOab', 'uf', 'substabPara', 'substabParaOab',
+      'cliente', 'protocolo', 'banco', 'cidade', 'data', 'resumo',
+    ],
+    render: (m) =>
+      [
+        'SUBSTABELECIMENTO COM RESERVA DE PODERES',
+        '',
+        `Substabelecente: ${nomeSeg(m, 'substabDe', '[ADVOGADO CEDENTE]')}, OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabDeOab', '________')}.`,
+        '',
+        `Substabelecido: ${nomeSeg(m, 'substabPara', '[ADVOGADO SUBSTABELECIDO]')}, OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabParaOab', '________')}.`,
+        '',
+        `Pelo presente, o substabelecente SUBSTABELECE, com reserva de iguais poderes, ao substabelecido, os poderes que lhe foram outorgados por ${nomeSeg(m, 'cliente', '[OUTORGANTE]')}${m.protocolo ? `, nos autos/contrato n.º ${seg(m, 'protocolo', '')}` : ''}${m.banco ? `, envolvendo ${seg(m, 'banco', '')}` : ''}, podendo o substabelecido praticar todos os atos inerentes ao mandato, em conjunto ou isoladamente.`,
+        '',
+        m.resumo ? `Observações: ${m.resumo}` : '',
+        '',
+        localData(m),
+        '',
+        '_________________________________',
+        nomeSeg(m, 'substabDe', '[SUBSTABELECENTE]').toUpperCase(),
+        `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabDeOab', '________')}`,
+      ].join('\n'),
+  },
+  {
+    id: 'revogacao-poderes',
+    categoria: 'Revogação',
+    titulo: 'Revogação de poderes',
+    descricao: 'Revoga mandato anteriormente conferido (art. 686 do Código Civil).',
+    campos: ['cliente', 'cpfCliente', 'advogado', 'oab', 'uf', 'protocolo', 'banco', 'resumo', 'cidade', 'data'],
+    render: (m) =>
+      [
+        'REVOGAÇÃO DE MANDATO / PODERES',
+        '',
+        `Outorgante: ${qualificaCliente(m)}.`,
+        '',
+        `Pelo presente, REVOGO, nos termos do art. 686 do Código Civil, os poderes anteriormente conferidos ao(à) advogado(a) ${nomeSeg(m, 'advogado', '[ADVOGADO]')}, OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}${m.protocolo ? `, referentes ao processo/contrato n.º ${seg(m, 'protocolo', '')}` : ''}${m.banco ? `, mantido junto a ${seg(m, 'banco', '')}` : ''}, ficando sem efeito qualquer ato praticado por este(a) a partir da presente data, salvo os já regularmente praticados na vigência do mandato.`,
+        '',
+        m.resumo ? `Observações: ${m.resumo}` : '',
+        '',
+        localData(m),
+        assinatura(m, 'Outorgante'),
+      ].join('\n'),
+  },
+  {
+    id: 'peticao-informacoes',
+    categoria: 'Petições',
+    titulo: 'Petição de informações / certidão',
+    descricao: 'Requer certidão de andamento e cópia dos atos.',
+    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf', 'cidade', 'data'],
+    render: (m) =>
+      [
+        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
+        m.orgao ? `Da ${seg(m, 'orgao', '')}` : '',
+        m.comarca ? `Comarca de ${seg(m, 'comarca', '')}` : '',
+        '',
+        `Processo n.º ${seg(m, 'protocolo', '____________________')}`,
+        '',
+        'PETIÇÃO DE INFORMAÇÕES',
+        '',
+        `${nomeSeg(m, 'cliente', '[PARTE]')}, nos autos em que contende${m.banco ? ` contra ${seg(m, 'banco', '')}` : ''}, vem requerer a Vossa Excelência seja determinada à serventia a expedição de certidão atualizada de andamento processual e cópia dos atos disponíveis, para acompanhamento e providências cabíveis.`,
+        '',
+        'Termos em que pede deferimento.',
+        '',
+        localData(m),
+        '',
+        nomeSeg(m, 'advogado', '[ADVOGADO]').toUpperCase(),
+        `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}`,
+      ].join('\n'),
+  },
+  {
+    id: 'peticao-juntada',
+    categoria: 'Petições',
+    titulo: 'Petição de juntada',
+    descricao: 'Juntada de procuração e documentos de habilitação.',
+    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf', 'cidade', 'data'],
+    render: (m) =>
+      [
+        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
+        m.orgao ? `Da ${seg(m, 'orgao', '')}` : '',
+        m.comarca ? `Comarca de ${seg(m, 'comarca', '')}` : '',
+        '',
+        `Processo n.º ${seg(m, 'protocolo', '____________________')}`,
+        '',
+        'PETIÇÃO DE JUNTADA',
+        '',
+        `${nomeSeg(m, 'advogado', '[ADVOGADO]')}, OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}, vem juntar aos autos instrumento de procuração e documentos pertinentes à representação de ${nomeSeg(m, 'cliente', '[PARTE]')}${m.banco ? `, em face de ${seg(m, 'banco', '')}` : ''}, requerendo o regular recebimento e a anotação para fins de intimação.`,
+        '',
+        'Termos em que pede deferimento.',
+        '',
+        localData(m),
+        '',
+        nomeSeg(m, 'advogado', '[ADVOGADO]').toUpperCase(),
+        `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}`,
+      ].join('\n'),
+  },
+  {
+    id: 'peticao-cumprimento',
+    categoria: 'Petições',
+    titulo: 'Petição — cumprimento de sentença',
+    descricao: 'Requer início ou andamento de cumprimento de sentença.',
+    campos: [
+      'protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf',
+      'resumo', 'valorContrato', 'cidade', 'data',
+    ],
+    render: (m) =>
+      [
+        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
+        m.orgao ? `Da ${seg(m, 'orgao', '')}` : '',
+        m.comarca ? `Comarca de ${seg(m, 'comarca', '')}` : '',
+        '',
+        `Processo n.º ${seg(m, 'protocolo', '____________________')}`,
+        '',
+        'REQUERIMENTO DE CUMPRIMENTO DE SENTENÇA',
+        '',
+        `${nomeSeg(m, 'cliente', '[EXEQUENTE]')}, já qualificado(a) nos autos em que contende contra ${nomeSeg(m, 'banco', '[EXECUTADO]')}, vem, com fulcro nos arts. 513 e seguintes do CPC, requerer o cumprimento da sentença / acórdão transitado em julgado${m.valorContrato ? `, no valor de ${seg(m, 'valorContrato', '')}` : ''}.`,
+        '',
+        m.resumo ||
+          'Requer a intimação da parte contrária para cumprimento da obrigação no prazo legal, sob pena de penhora e demais atos executivos.',
+        '',
+        'Termos em que pede deferimento.',
+        '',
+        localData(m),
+        '',
+        nomeSeg(m, 'advogado', '[ADVOGADO]').toUpperCase(),
+        `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}`,
+      ].join('\n'),
+  },
+  {
+    id: 'carta-banco-documentos',
+    categoria: 'Cartas',
+    titulo: 'Carta ao banco — documentos',
+    descricao: 'Solicita cópia do contrato e demonstrativos.',
+    campos: ['cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'protocolo', 'advogado', 'oab', 'uf', 'cidade', 'data'],
+    render: (m) =>
+      [
+        nomeSeg(m, 'banco', '[INSTITUIÇÃO FINANCEIRA]').toUpperCase(),
+        m.cnpjBanco ? `CNPJ ${seg(m, 'cnpjBanco', '')}` : '',
+        'Departamento Jurídico / Ouvidoria',
+        '',
+        `Assunto: Solicitação de informações e documentos — ${nomeSeg(m, 'cliente', '[CLIENTE]')} — Contrato/Processo n.º ${seg(m, 'protocolo', '[NÚMERO]')}`,
+        '',
+        `${qualificaCliente(m)}, titular de relação contratual mantida junto a essa instituição, vem solicitar cópia integral do contrato e demonstrativo detalhado de parcelas, encargos, taxas e cláusulas aplicáveis, no prazo legal, sob pena das medidas cabíveis.`,
+        '',
+        'Termos em que pede deferimento.',
+        '',
+        localData(m),
+        '',
+        nomeSeg(m, 'advogado', '[ADVOGADO]').toUpperCase(),
+        `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}`,
+      ].join('\n'),
+  },
+  {
+    id: 'carta-banco-quitacao',
+    categoria: 'Cartas',
+    titulo: 'Carta — proposta de quitação',
+    descricao: 'Proposta formal de quitação com valor.',
+    campos: [
+      'cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'protocolo',
+      'valorContrato', 'valorProposta', 'resumo', 'cidade', 'data',
+    ],
+    render: (m) =>
+      [
+        'PROPOSTA DE QUITAÇÃO / ACORDO EXTRAJUDICIAL',
+        '',
+        `Destinatário: ${nomeSeg(m, 'banco', '[CREDOR]').toUpperCase()}${m.cnpjBanco ? `, CNPJ ${seg(m, 'cnpjBanco', '')}` : ''}`,
+        '',
+        `Proponente: ${qualificaCliente(m)}`,
+        `Contrato n.º ${seg(m, 'protocolo', '[NÚMERO]')}`,
+        m.valorContrato ? `Saldo / valor de referência: ${seg(m, 'valorContrato', '')}` : '',
+        '',
+        `PROPOSTA: O proponente oferece a quantia de ${seg(m, 'valorProposta', '[R$ ___]')} para quitação integral do contrato acima, com baixa definitiva de restrições e emissão de termo de quitação no prazo de 5 (cinco) dias úteis após a compensação do pagamento.`,
+        '',
+        m.resumo ? `Condições adicionais: ${m.resumo}` : 'A proposta é válida por 10 (dez) dias corridos a contar do recebimento.',
+        '',
+        'Solicita-se resposta formal por escrito.',
+        '',
+        localData(m),
+        assinatura(m, 'Proponente'),
+      ].join('\n'),
   },
   {
     id: 'extrajudicial-notificacao',
     categoria: 'Extrajudicial',
     titulo: 'Notificação extrajudicial ao credor',
-    descricao: 'Notificação formal para revisão/negociação de contrato bancário.',
-    campos: ['cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'protocolo', 'valorContrato', 'resumo', 'cidade', 'data'],
+    descricao: 'Notificação formal para revisão/negociação contratual.',
+    campos: [
+      'cliente', 'cpfCliente', 'rgCliente', 'enderecoCliente', 'banco', 'cnpjBanco',
+      'protocolo', 'valorContrato', 'resumo', 'cidade', 'data',
+    ],
     render: (m) =>
       [
         'NOTIFICAÇÃO EXTRAJUDICIAL',
         '',
-        `AO(À): ${seg(m, 'banco', '[INSTITUIÇÃO FINANCEIRA]').toUpperCase()}${m.cnpjBanco ? ` — CNPJ ${seg(m, 'cnpjBanco', '')}` : ''}`,
+        `AO(À): ${nomeSeg(m, 'banco', '[INSTITUIÇÃO]').toUpperCase()}${m.cnpjBanco ? ` — CNPJ ${seg(m, 'cnpjBanco', '')}` : ''}`,
         '',
-        `NOTIFICANTE: ${seg(m, 'cliente', '[NOME]')}, CPF ${seg(m, 'cpfCliente', '[CPF]')}.`,
+        `NOTIFICANTE: ${qualificaCliente(m)}.`,
         '',
-        `REF.: Contrato/operação nº ${seg(m, 'protocolo', '[NÚMERO]')}${m.valorContrato ? `, valor de referência ${seg(m, 'valorContrato', '')}` : ''}.`,
+        `REF.: Contrato/operação n.º ${seg(m, 'protocolo', '[NÚMERO]')}${m.valorContrato ? `, valor de referência ${seg(m, 'valorContrato', '')}` : ''}.`,
         '',
         'Prezados Senhores,',
         '',
-        'Vimos, por meio da presente, NOTIFICAR extrajudicialmente V. Sas. para que, no prazo de 10 (dez) dias úteis, apresentem demonstrativo detalhado do contrato em referência (CET, taxas, seguros, tarifas e evolução do saldo), bem como indiquem canal formal para proposta de composição amigável, sob pena de adoção das medidas judiciais e administrativas cabíveis.',
+        'Vimos NOTIFICAR extrajudicialmente V. Sas. para que, no prazo de 10 (dez) dias úteis, apresentem demonstrativo detalhado do contrato em referência (CET, taxas, seguros, tarifas e evolução do saldo), bem como indiquem canal formal para proposta de composição amigável, sob pena de adoção das medidas judiciais e administrativas cabíveis.',
         '',
         m.resumo ? `Fundamentos e pedidos específicos: ${m.resumo}` : '',
         '',
         'Esta notificação não implica reconhecimento de dívida além do eventualmente devido, nem renúncia a direitos.',
         '',
-        `${seg(m, 'cidade', '[CIDADE]')}, ${seg(m, 'data', hojeBR())}.`,
-        '',
-        '_________________________________',
-        seg(m, 'cliente', '[NOME]').toUpperCase(),
-      ].filter(Boolean).join('\n'),
+        localData(m),
+        assinatura(m, 'Notificante'),
+      ].join('\n'),
   },
   {
     id: 'procon-resposta',
     categoria: 'PROCON',
-    titulo: 'Minuta de resposta / defesa PROCON',
-    descricao: 'Estrutura de resposta a reclamação no PROCON (consumidor ou assessoria).',
-    campos: ['cliente', 'cpfCliente', 'banco', 'protocoloProcon', 'protocolo', 'resumo', 'cidade', 'data'],
+    titulo: 'Minuta PROCON',
+    descricao: 'Estrutura de reclamação/defesa no PROCON.',
+    campos: [
+      'cliente', 'cpfCliente', 'enderecoCliente', 'banco', 'protocoloProcon',
+      'protocolo', 'resumo', 'cidade', 'data',
+    ],
     render: (m) =>
       [
         'ILUSTRÍSSIMO(A) SENHOR(A) DIRETOR(A) / ATENDENTE DO PROCON',
         '',
-        `Protocolo PROCON nº ${seg(m, 'protocoloProcon', '[NÚMERO PROCON]')}`,
+        `Protocolo PROCON n.º ${seg(m, 'protocoloProcon', '[NÚMERO]')}`,
         m.protocolo ? `Contrato/processo relacionado: ${seg(m, 'protocolo', '')}` : '',
         '',
-        `Reclamante: ${seg(m, 'cliente', '[NOME]')}, CPF ${seg(m, 'cpfCliente', '[CPF]')}.`,
-        `Reclamado: ${seg(m, 'banco', '[FORNECEDOR / INSTITUIÇÃO]')}.`,
+        `Reclamante: ${qualificaCliente(m)}.`,
+        `Reclamado: ${nomeSeg(m, 'banco', '[FORNECEDOR / INSTITUIÇÃO]')}.`,
         '',
         'DOS FATOS',
         m.resumo || '[Descrever objetivamente os fatos, datas e documentos anexos.]',
@@ -517,88 +557,32 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
         'DOS PEDIDOS',
         'Requer-se a análise da reclamação, a intimação da parte contrária para esclarecimentos e a busca de solução conciliatória, com a juntada dos documentos que instruem o presente.',
         '',
-        `${seg(m, 'cidade', '[CIDADE]')}, ${seg(m, 'data', hojeBR())}.`,
+        localData(m),
         '',
         '_________________________________',
-        'Representante / Interessado',
-      ].filter(Boolean).join('\n'),
-  },
-  {
-    id: 'quitacao-proposta',
-    categoria: 'Quitação',
-    titulo: 'Proposta de quitação / acordo',
-    descricao: 'Carta formal de proposta de quitação com valor e condições.',
-    campos: ['cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'protocolo', 'valorContrato', 'valorProposta', 'resumo', 'cidade', 'data'],
-    render: (m) =>
-      [
-        'PROPOSTA DE QUITAÇÃO / ACORDO EXTRAJUDICIAL',
-        '',
-        `Destinatário: ${seg(m, 'banco', '[CREDOR]').toUpperCase()}${m.cnpjBanco ? `, CNPJ ${seg(m, 'cnpjBanco', '')}` : ''}`,
-        `Proponente: ${seg(m, 'cliente', '[NOME]')}, CPF ${seg(m, 'cpfCliente', '[CPF]')}`,
-        `Contrato nº ${seg(m, 'protocolo', '[NÚMERO]')}`,
-        m.valorContrato ? `Saldo / valor de referência: ${seg(m, 'valorContrato', '')}` : '',
-        '',
-        `PROPOSTA: O proponente oferece a quantia de ${seg(m, 'valorProposta', '[R$ ___]')} para quitação integral do contrato acima, com baixa definitiva de restrições e emissão de termo de quitação no prazo de 5 (cinco) dias úteis após a compensação do pagamento.`,
-        '',
-        m.resumo ? `Condições adicionais: ${m.resumo}` : 'A proposta é válida por 10 (dez) dias corridos a contar do recebimento.',
-        '',
-        'Solicita-se resposta formal por escrito (e-mail ou protocolo).',
-        '',
-        `${seg(m, 'cidade', '[CIDADE]')}, ${seg(m, 'data', hojeBR())}.`,
-        '',
-        '_________________________________',
-        seg(m, 'cliente', '[NOME]').toUpperCase(),
-      ].filter(Boolean).join('\n'),
+        'Reclamante / Representante',
+      ].join('\n'),
   },
   {
     id: 'limpa-nome-requerimento',
     categoria: 'Limpa Nome',
     titulo: 'Requerimento de baixa em birôs',
-    descricao: 'Solicitação de exclusão/baixa de apontamento após quitação ou indevido.',
-    campos: ['cliente', 'cpfCliente', 'banco', 'protocolo', 'resumo', 'cidade', 'data'],
+    descricao: 'Solicita exclusão de apontamento após quitação ou indevido.',
+    campos: ['cliente', 'cpfCliente', 'enderecoCliente', 'banco', 'protocolo', 'resumo', 'cidade', 'data'],
     render: (m) =>
       [
         'REQUERIMENTO DE BAIXA / EXCLUSÃO DE APONTAMENTO',
         '',
-        `Ao(À) ${seg(m, 'banco', '[CREDOR / GESTOR DE COBRANÇA]')}`,
+        `Ao(À) ${nomeSeg(m, 'banco', '[CREDOR / GESTOR DE COBRANÇA]')}`,
         'e aos órgãos de proteção ao crédito (SPC, Serasa e congêneres),',
         '',
-        `${seg(m, 'cliente', '[NOME]')}, CPF ${seg(m, 'cpfCliente', '[CPF]')}, requer a imediata BAIXA de qualquer apontamento restritivo vinculado ao contrato/operação nº ${seg(m, 'protocolo', '[NÚMERO]')}, ${m.resumo || 'em razão de quitação / ausência de inadimplemento / apontamento indevido, conforme documentos anexos.'}`,
+        `${qualificaCliente(m)}, requer a imediata BAIXA de qualquer apontamento restritivo vinculado ao contrato/operação n.º ${seg(m, 'protocolo', '[NÚMERO]')}, ${m.resumo || 'em razão de quitação / ausência de inadimplemento / apontamento indevido, conforme documentos anexos.'}`,
         '',
         'Fundamenta-se no CDC e na legislação aplicável à proteção de dados e crédito ao consumidor, requerendo comunicação da baixa no prazo legal.',
         '',
-        `${seg(m, 'cidade', '[CIDADE]')}, ${seg(m, 'data', hojeBR())}.`,
-        '',
-        '_________________________________',
-        seg(m, 'cliente', '[NOME]').toUpperCase(),
-      ].filter(Boolean).join('\n'),
-  },
-  {
-    id: 'peticao-cumprimento',
-    categoria: 'Petições',
-    titulo: 'Petição — cumprimento de sentença',
-    descricao: 'Requer início ou andamento de cumprimento de sentença.',
-    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf', 'resumo', 'valorContrato'],
-    render: (m) =>
-      [
-        'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
-        m.orgao ? `Da ${seg(m, 'orgao', '________')}` : '',
-        m.comarca ? `Comarca de ${seg(m, 'comarca', '________')}` : '',
-        '',
-        `Processo nº ${seg(m, 'protocolo', '____________________')}`,
-        '',
-        'REQUERIMENTO DE CUMPRIMENTO DE SENTENÇA',
-        '',
-        `${seg(m, 'cliente', '[EXEQUENTE]')}, já qualificado(a) nos autos em que contende contra ${seg(m, 'banco', '[EXECUTADO]')}, vem, com fulcro nos arts. 513 e seguintes do CPC, requerer o cumprimento da sentença / acórdão transitado em julgado${m.valorContrato ? `, no valor de ${seg(m, 'valorContrato', '')}` : ''}.`,
-        '',
-        m.resumo || 'Requer a intimação da parte contrária para cumprimento da obrigação no prazo legal, sob pena de penhora e demais atos executivos.',
-        '',
-        'Termos em que pede deferimento.',
-        '',
-        hojeBR(),
-        seg(m, 'advogado', '[ADVOGADO]').toUpperCase(),
-        `OAB/${seg(m, 'uf', 'SP')} ${seg(m, 'oab', '________')}`,
-      ].filter(Boolean).join('\n'),
+        localData(m),
+        assinatura(m, 'Requerente'),
+      ].join('\n'),
   },
 ];
 
@@ -607,16 +591,3 @@ export function renderModelo(modeloId: string, meta: PecaMeta): string | null {
   if (!modelo) return null;
   return modelo.render(meta || {});
 }
-
-export const CATEGORIAS: CategoriaPeca[] = [
-  'Procuração',
-  'Habilitação',
-  'Substabelecimento',
-  'Revogação',
-  'Petições',
-  'Cartas',
-  'Extrajudicial',
-  'PROCON',
-  'Quitação',
-  'Limpa Nome',
-];
