@@ -42,6 +42,7 @@ import { DollarSign,
   ShieldCheck,
   FolderOpen,
   Percent,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,7 @@ function SidebarNavBody({
         { label: "Revogação poderes", href: "/revogacao-poderes", icon: Scale },
         { label: "Subst. simples", href: "/substabelecimento-simples", icon: ClipboardList },
         { label: "Peça de subst.", href: "/substabelecimento-peca", icon: Files },
+        { label: "Modelos & Peças", href: "/modelos", icon: ScrollText },
         { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
         { label: "Importar", href: "/import", icon: Upload },
         { label: "Notas", href: "/notes", icon: StickyNote },
