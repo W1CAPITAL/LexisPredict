@@ -193,6 +193,7 @@ export default function CrmDashboardPage() {
               { href: "/crm/financeiro", label: "Financeiro", desc: "Receber e pagar", icon: Wallet },
               { href: "/crm/fornecedores", label: "Fornecedores", desc: "Bancas terceiras", icon: Building2 },
               { href: "/clients", label: "Clientes", desc: "Carteira operacional", icon: Users },
+              { href: "/crm/extrato", label: "Extrato & margem", desc: "Fluxo do mês e por serviço", icon: TrendingUp },
               { href: "/financas", label: "Finanças legada", desc: "Lançamentos avulsos", icon: DollarSign },
             ].map((l) => (
               <Link

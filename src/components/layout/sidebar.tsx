@@ -10,7 +10,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { DollarSign,
+import { DollarSign, TrendingUp,
   Kanban,
   Package,
   Building2,
@@ -130,6 +130,7 @@ function SidebarNavBody({
         { label: "Funil", href: "/crm/funil", icon: Kanban },
         { label: "Fornecedores", href: "/crm/fornecedores", icon: Building2 },
         { label: "CRM Financeiro", href: "/crm/financeiro", icon: DollarSign },
+        { label: "CRM Extrato", href: "/crm/extrato", icon: TrendingUp },
         { label: "Processos", href: "/cases", icon: Briefcase },
         { label: "Processos da Empresa", href: "/processos", icon: FolderOpen },
         { label: "Busca e Apreensão", href: "/busca-apreensao", icon: Gavel },

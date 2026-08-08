@@ -620,3 +620,118 @@ export async function seedServicosPadraoAction() {
   }
   return { success: true as const, count: padrao.length };
 }
+
+/* ===================== EXTRATO / RELATÓRIO MADURO ===================== */
+
+export type CrmExtratoLinha = {
+  data: string;
+  tipo: 'entrada' | 'saida';
+  descricao: string;
+  cliente_ou_fornecedor?: string | null;
+  valor: number;
+  status: string;
+  id: string;
+};
+
+export async function crmExtratoMesAction(mes?: string) {
+  const ctx = await ctxOrFail();
+  if (!ctx) return { success: false as const, error: 'Sessão expirada', linhas: [] as CrmExtratoLinha[], saldo: 0 };
+  const ref = mes || new Date().toISOString().slice(0, 7);
+  try {
+    const admin = await getSupabaseAdmin();
+    const [rec, pag] = await Promise.all([
+      admin.from('crm_receber').select('*').eq('empresa_id', ctx.empresa_id).eq('status', 'pago'),
+      admin.from('crm_pagar').select('*').eq('empresa_id', ctx.empresa_id).eq('status', 'pago'),
+    ]);
+    const linhas: CrmExtratoLinha[] = [];
+    for (const r of rec.data || []) {
+      const d = String(r.pago_em || r.vencimento || '').slice(0, 10);
+      if (!d.startsWith(ref)) continue;
+      linhas.push({
+        data: d,
+        tipo: 'entrada',
+        descricao: r.descricao || 'Recebimento',
+        cliente_ou_fornecedor: r.cliente_nome,
+        valor: Number(r.valor || 0),
+        status: r.status,
+        id: r.id,
+      });
+    }
+    for (const p of pag.data || []) {
+      const d = String(p.pago_em || p.vencimento || '').slice(0, 10);
+      if (!d.startsWith(ref)) continue;
+      linhas.push({
+        data: d,
+        tipo: 'saida',
+        descricao: p.descricao || 'Pagamento',
+        cliente_ou_fornecedor: p.fornecedor_nome,
+        valor: Number(p.valor || 0),
+        status: p.status,
+        id: p.id,
+      });
+    }
+    linhas.sort((a, b) => a.data.localeCompare(b.data));
+    const saldo = linhas.reduce((s, l) => s + (l.tipo === 'entrada' ? l.valor : -l.valor), 0);
+    return { success: true as const, linhas, saldo, mes: ref };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha', linhas: [] as CrmExtratoLinha[], saldo: 0 };
+  }
+}
+
+export async function crmRelatorioPorServicoAction() {
+  const ctx = await ctxOrFail();
+  if (!ctx) return { success: false as const, error: 'Sessão expirada', rows: [] as any[] };
+  try {
+    const admin = await getSupabaseAdmin();
+    const { data, error } = await admin
+      .from('crm_negocios')
+      .select('servico_nome, status, valor_total, custo_terceiro')
+      .eq('empresa_id', ctx.empresa_id);
+    if (error) return { success: false as const, error: error.message, rows: [] as any[] };
+    const map: Record<string, { servico: string; qtd: number; receita: number; custo: number; margem: number }> = {};
+    for (const n of data || []) {
+      const key = n.servico_nome || 'Sem serviço';
+      if (!map[key]) map[key] = { servico: key, qtd: 0, receita: 0, custo: 0, margem: 0 };
+      map[key].qtd += 1;
+      if (['contrato', 'execucao', 'concluido'].includes(String(n.status))) {
+        map[key].receita += Number(n.valor_total || 0);
+        map[key].custo += Number(n.custo_terceiro || 0);
+      }
+    }
+    const rows = Object.values(map).map((r) => ({
+      ...r,
+      margem: r.receita - r.custo,
+    }));
+    rows.sort((a, b) => b.receita - a.receita);
+    return { success: true as const, rows };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha', rows: [] as any[] };
+  }
+}
+
+export async function listAtrasadosAction() {
+  const ctx = await ctxOrFail();
+  if (!ctx) return { success: false as const, error: 'Sessão', rows: [] as CrmReceber[] };
+  try {
+    const admin = await getSupabaseAdmin();
+    const hoje = new Date().toISOString().slice(0, 10);
+    const { data, error } = await admin
+      .from('crm_receber')
+      .select('*')
+      .eq('empresa_id', ctx.empresa_id)
+      .in('status', ['pendente', 'atrasado'])
+      .lt('vencimento', hoje)
+      .order('vencimento', { ascending: true });
+    if (error) return { success: false as const, error: error.message, rows: [] as CrmReceber[] };
+    // marca atrasado
+    for (const r of data || []) {
+      if (r.status === 'pendente') {
+        await admin.from('crm_receber').update({ status: 'atrasado' }).eq('id', r.id).eq('empresa_id', ctx.empresa_id);
+        r.status = 'atrasado';
+      }
+    }
+    return { success: true as const, rows: (data || []) as CrmReceber[] };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || 'Falha', rows: [] as CrmReceber[] };
+  }
+}

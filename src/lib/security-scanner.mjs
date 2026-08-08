@@ -21,6 +21,11 @@ import { exec } from 'node:child_process';
 
 const DEFAULT_ROOT = process.cwd();
 
+function hasLockfile(root = DEFAULT_ROOT) {
+  const names = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
+  return names.some((n) => fs.existsSync(path.join(root, n)));
+}
+
 const SKIP_DIRS = new Set([
   'node_modules',
   '.next',
@@ -339,7 +344,7 @@ export function runNpmAudit(root = DEFAULT_ROOT) {
       fs.existsSync(path.join(root, 'yarn.lock')) ||
       fs.existsSync(path.join(root, 'pnpm-lock.yaml'));
     if (!hasLock) {
-      resolve({ ok: false, error: 'Sem lockfile detectado no repositório.', counts: null, details: [] });
+      resolve({ ok: false, error: 'Sem package-lock.json/yarn.lock/pnpm-lock.yaml detectado na raiz no repositório.', counts: null, details: [] });
       return;
     }
     exec(
@@ -472,7 +477,7 @@ export async function runOwasp(root = DEFAULT_ROOT) {
       id: 'A08',
       name: 'Software & Data Integrity',
       status: hasLockfile ? 'PASS' : 'FAIL',
-      summary: hasLockfile ? 'Lockfile presente — dependências pinadas por integridade.' : 'Sem lockfile detectado.',
+      summary: hasLockfile ? 'Lockfile presente — dependências pinadas por integridade.' : 'Sem package-lock.json/yarn.lock/pnpm-lock.yaml detectado na raiz.',
       evidence: [],
       recommendation: 'Mantenha o lockfile versionado e pin versões das dependências críticas.',
     },

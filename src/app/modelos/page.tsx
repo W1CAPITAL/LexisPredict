@@ -33,7 +33,11 @@ import {
 const CAMPOS_LABEL: Record<keyof PecaMeta, string> = {
   protocolo: "Processo / Contrato nº",
   cliente: "Cliente",
+  cpfCliente: "CPF do cliente",
+  rgCliente: "RG do cliente",
+  enderecoCliente: "Endereço do cliente",
   banco: "Banco / Instituição",
+  cnpjBanco: "CNPJ do banco",
   advogado: "Advogado",
   advogadoPassivo: "Advogado da parte contrária",
   oab: "Nº OAB",
@@ -49,6 +53,10 @@ const CAMPOS_LABEL: Record<keyof PecaMeta, string> = {
   substabParaOab: "OAB do substabelecido",
   tipoAcao: "Tipo de ação",
   data: "Data",
+  valorContrato: "Valor do contrato / saldo",
+  valorProposta: "Valor da proposta",
+  protocoloProcon: "Protocolo PROCON",
+  cidade: "Cidade",
 };
 
 export default function ModelosPage() {
