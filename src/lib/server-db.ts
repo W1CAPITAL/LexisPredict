@@ -665,6 +665,20 @@ export async function getCurrentUserNome(): Promise<string | null> {
   } catch { return null; }
 }
 
+export async function getProfileByAuthId(authId: string): Promise<{ nome: string } | null> {
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id || !supabase || !authId) return null;
+    const { data } = await supabase
+      .from('usuarios')
+      .select('nome')
+      .eq('auth_user_id', authId)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+    return data ? { nome: data.nome } : null;
+  } catch { return null; }
+}
+
 export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento';
 
 export async function registrarAuditoriaAction(

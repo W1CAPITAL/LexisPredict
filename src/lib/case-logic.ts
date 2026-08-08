@@ -128,6 +128,11 @@ export interface LegalCase {
   djen_ultimo_resumo?: string | null;
   djen_ultimo_link?: string | null;
   djen_count?: number;
+
+  // Auditoria de edição
+  edited_by?: string;
+  edited_at?: string;
+  edited_by_name?: string;
 }
 
 export type CaseNote = {

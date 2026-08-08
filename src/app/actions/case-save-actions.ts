@@ -3,16 +3,19 @@
 /**
  * Salvamento atômico de UM processo — evita upsert de 1000+ linhas (travamento na UI).
  */
-import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
+import { getUserContext, getSupabaseAdmin, getProfileByAuthId } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { createClient } from '@/lib/supabase/server';
 
 function toRow(c: LegalCase, empresaId: string, authId: string | null) {
   const isoPrazo = formatDateToISO(c.proximoPrazo);
   const isoRetorno = formatDateToISO(c.ultimoRetorno);
+  const now = new Date().toISOString();
   return {
     empresa_id: empresaId,
     created_by: c.created_by || authId,
+    edited_by: authId,
+    edited_at: now,
     protocolo_ref: c.protocolo,
     advogado: c.advogado || 'NÃO ATRIBUÍDO',
     escritorio: c.escritorio || null,
@@ -56,7 +59,22 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
     const processed = processarCaso(caseData as any);
+    
+    // Obter nome do usuário para auditoria
+    let editorName = 'Sistema';
+    if (auth_id) {
+      const profile = await getProfileByAuthId(auth_id);
+      editorName = profile?.nome || editorName;
+    }
+    
+    const now = new Date().toISOString();
+    processed.edited_by = auth_id || null;
+    processed.edited_at = now;
+    processed.edited_by_name = editorName;
+
     const row = toRow(processed, empresa_id, auth_id || null);
+    row.edited_by = auth_id;
+    row.edited_at = now;
 
     // Prefer user client (RLS); fallback admin se necessário
     let client: any = null;

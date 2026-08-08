@@ -12,7 +12,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
-import { countAtendidosNestaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
+import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes } from "@/lib/atendimento-semana";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { LegalCase } from "@/lib/case-logic";
 import {
@@ -34,6 +34,8 @@ import {
   FileDown,
   Filter,
   UserCheck,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -124,6 +126,8 @@ export default function ProcessosEmpresaPage() {
     observacao: "",
     proximoRetorno: "",
   });
+  const [visibleCount, setVisibleCount] = useState(25);
+  const PAGE_SIZE = 25;
 
   const load = async () => {
     setLoading(true);
@@ -269,6 +273,8 @@ export default function ProcessosEmpresaPage() {
   const ativos = useMemo(() => cases.filter((c) => !isCasoEncerrado(c)), [cases]);
   const vencidos = useMemo(() => ativos.filter((c) => c.status === "Vencido" || c.status === "Caso Crítico"), [ativos]);
 
+  const topAtendentes = useMemo(() => getTopAtendentes(cases, users, 5), [cases, users]);
+
   const lastByProtocolo = useMemo(() => {
     const m = new Map<string, AuditEntry>();
     for (const a of audit) {
@@ -290,7 +296,13 @@ export default function ProcessosEmpresaPage() {
     });
   }, [cases, q, statusFilter, baOnly]);
 
-  const recentFeed = useMemo(() => audit.slice(0, 24), [audit]);
+  const visibleItems = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hasMore = visibleCount < filtered.length;
+  const remaining = filtered.length - visibleCount;
+
+  const loadMore = () => {
+    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, filtered.length));
+  };
 
   const fmtTime = (iso?: string) => {
     if (!iso) return "—";
@@ -299,6 +311,8 @@ export default function ProcessosEmpresaPage() {
     return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) +
       " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
+
+  const recentFeed = useMemo(() => audit.slice(0, 24), [audit]);
 
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
@@ -342,6 +356,13 @@ export default function ProcessosEmpresaPage() {
               <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : ativos.length} />
               <Kpi icon={<CalendarClock size={16} />} label="Atendidos semana" value={loading ? "…" : atendidosSemana} tone="ok" hint={labelSemanaAtual()} />
               <Kpi icon={<ShieldAlert size={16} />} label="Vencidos" value={loading ? "…" : vencidos.length} tone={vencidos.length > 0 ? "danger" : "default"} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint={`${topAtendentes.length} ativos`} />
+              {topAtendentes.slice(0, 4).map((a, i) => (
+                <Kpi key={a.userId} icon={<UserCheck size={16} />} label={a.userNome} value={a.semana} tone="ok" hint={`Dia: ${a.dia} • Mês: ${a.mes}`} />
+              ))}
             </div>
 
             <div className="premium-card overflow-hidden">
@@ -397,23 +418,24 @@ export default function ProcessosEmpresaPage() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[560px]">
-                  <table className="w-full text-left min-w-[980px]">
-                    <thead className="bg-secondary/40 dark:bg-card/60 border-b border-border/20 sticky top-0">
-                      <tr className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest">
-                        <th className="px-6 py-3">Cliente / Protocolo</th>
-                        <th className="px-4 py-3">Advogado</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3">Tribunal</th>
-                        <th className="px-4 py-3 text-center">B.A.</th>
-                        <th className="px-4 py-3 text-right">Último retorno</th>
-                        <th className="px-4 py-3 text-center">Semana</th>
-                        <th className="px-4 py-3">Criado por</th>
-                        <th className="px-4 py-3">Última atividade</th>
-                        <th className="px-6 py-3 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/10">
-                      {filtered.map((c) => {
+                  <>
+                    <table className="w-full text-left min-w-[980px]">
+                      <thead className="bg-secondary/40 dark:bg-card/60 border-b border-border/20 sticky top-0">
+                        <tr className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest">
+                          <th className="px-6 py-3">Cliente / Protocolo</th>
+                          <th className="px-4 py-3">Advogado</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Tribunal</th>
+                          <th className="px-4 py-3 text-center">B.A.</th>
+                          <th className="px-4 py-3 text-right">Último retorno</th>
+                          <th className="px-4 py-3 text-center">Semana</th>
+                          <th className="px-4 py-3">Criado por</th>
+                          <th className="px-4 py-3">Última atividade</th>
+                          <th className="px-6 py-3 text-center">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/10">
+                        {visibleItems.map((c) => {
                         const last = lastByProtocolo.get(c.protocolo);
                         const meta = last ? ACTION_META[last.action || ""] : null;
                         return (
@@ -501,8 +523,22 @@ export default function ProcessosEmpresaPage() {
                       })}
                     </tbody>
                   </table>
-                </ScrollArea>
-              )}
+                  {hasMore && (
+                    <div className="flex justify-center pt-4 pb-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={loadMore}
+                        className="h-10 px-6 rounded-xl font-black uppercase text-[10px] tracking-wider border-primary/40 text-primary hover:bg-primary/5 transition-colors flex items-center gap-2"
+                      >
+                        <ChevronDown size={14} />
+                        Ver mais <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[9px] font-black">{remaining}</span>
+                      </Button>
+                    </div>
+                  )}
+                </>
+              </ScrollArea>
+            )}
             </div>
 
             <section className="premium-card p-5 sm:p-6">
