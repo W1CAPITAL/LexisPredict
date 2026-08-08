@@ -179,13 +179,13 @@ const TOUR_STEPS: TourStep[] = [
     content:
       "Pipeline 01–08: captura, triagem, cadastro na carteira, classificacao, demanda, analise, devolutiva, recomendacoes. Custas TJSP em subaba. eproc SP prioritario; e-SAJ secundario. Captura e OCR de prints do tribunal.",
     icon: <ClipboardList />,
-    route: "/tools/automacao",
+    route: "/ia-sync",
     porQue: "Entrada padronizada de novos casos e custas.",
     rotina: "Capturar → triar → cadastrar → seguir pipeline ate recomendacao.",
     ganho: "Menos erro de cadastro manual.",
     metrica: "Casos novos consistentes na carteira.",
     tempo: "conforme peca",
-    dicas: ["Subaba Custas para guias TJSP.", "Sidebar: item Cadastro."],
+    dicas: ["Sync DataJud/DJEN ou cadastro manual.", "Sidebar: item Cadastro."],
   },
   {
     title: "Documentos: procuracao, habilitacao, substabelecimento",

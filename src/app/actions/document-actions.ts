@@ -131,6 +131,23 @@ export async function generateSubstabelecimentoPDFAction(data: any) {
   }
 }
 
+export async function gerarPecaTextoPDFAction(data: {
+  texto: string;
+  titulo?: string;
+  sub?: string;
+}) {
+  try {
+    const renderToBuffer = await getRenderToBuffer();
+    const { PecaTextoPDF } = await import('@/components/pdf/peca-texto-pdf');
+    const element = React.createElement(PecaTextoPDF as any, { data }) as any;
+    const pdfBuffer = await renderToBuffer(element);
+    return { success: true, base64: Buffer.from(pdfBuffer).toString('base64') };
+  } catch (e: any) {
+    console.error("[PecaTextoPDF] Falha ao gerar PDF:", e?.message || e);
+    return { error: "Falha técnica ao gerar o PDF da peça." };
+  }
+}
+
 export async function extrairTextoDoPDFAction(formData: FormData) {
   try {
     const file = formData.get('pdf') as File;

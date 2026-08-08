@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Sincronia IA + DataJud + DJEN (E1).
- * Consulta um CNJ nas duas fontes oficiais, extrai polos/prazos/eventos,
- * roda a camada de IA com fallback determinístico e gera minuta de peça.
+ * Cadastro (unificado) — antes "Sincronia IA · DataJud · DJEN".
+ * Consulta um CNJ nas fontes oficiais (DataJud + DJEN) com enriquecimento
+ * exclusivo DJEN (rápido), permite edição manual completa do cadastro e
+ * gera peça/minuta em PDF.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -30,11 +31,21 @@ import {
   Gavel,
   CalendarClock,
   RefreshCw,
+  Save,
+  Search,
+  Download,
+  UserRound,
 } from "lucide-react";
 import {
   sincronizarCasoIACompletoAction,
   gerarPecaIAction,
 } from "@/app/actions/ia-sync-actions";
+import {
+  enrichCadastroByCnjAction,
+  registerCaseFromAutomacaoAction,
+} from "@/app/actions/automacao-register-actions";
+import { gerarPecaTextoPDFAction } from "@/app/actions/document-actions";
+import { downloadBase64File } from "@/lib/download-export";
 
 type TipoPeca = "informacoes" | "juntada" | "urgente" | "atualizacao";
 
@@ -43,6 +54,28 @@ const PECA_OPTIONS: { value: TipoPeca; label: string }[] = [
   { value: "juntada", label: "Juntada de procuração" },
   { value: "urgente", label: "Tutela de urgência" },
   { value: "atualizacao", label: "Atualização cadastral" },
+];
+
+const FORM_FIELDS: { key: string; label: string; placeholder?: string; sm?: boolean }[] = [
+  { key: "cliente", label: "Cliente *", placeholder: "Nome do autor", sm: true },
+  { key: "parte_passiva", label: "Parte passiva / réu", placeholder: "Banco ou réu", sm: true },
+  { key: "parte_passiva_cnpj", label: "CNPJ réu", placeholder: "00.000.000/0000-00", sm: true },
+  { key: "advogado", label: "Advogado (ativo)", placeholder: "Dr(a) do cliente", sm: true },
+  { key: "advogado_passivo", label: "Advogado (passivo)", placeholder: "Dr(a) do réu", sm: true },
+  { key: "escritorio", label: "Escritório", placeholder: "Nome do escritório", sm: true },
+  { key: "classe_acao", label: "Classe / ação", placeholder: "Procedimento comum cível", sm: true },
+  { key: "tribunal", label: "Tribunal", placeholder: "TJSP", sm: true },
+  { key: "orgao_julgador", label: "Órgão julgador", placeholder: "1ª Vara Cível", sm: true },
+  { key: "cpf", label: "CPF", placeholder: "000.000.000-00", sm: true },
+  { key: "email", label: "E-mail", placeholder: "cliente@email.com", sm: true },
+  { key: "telefone", label: "Telefone", placeholder: "(11) 99999-9999", sm: true },
+  { key: "estado_civil", label: "Estado civil", placeholder: "Solteiro(a)", sm: true },
+  { key: "emprego", label: "Emprego", placeholder: "Profissão / vínculo", sm: true },
+  { key: "nacionalidade", label: "Nacionalidade", placeholder: "Brasileira", sm: true },
+  { key: "classificacao", label: "Classificação", placeholder: "Crédito consignado", sm: true },
+  { key: "ofensor", label: "Ofensor", placeholder: "Origem do problema", sm: true },
+  { key: "proximoPrazo", label: "Próximo prazo", placeholder: "AAAA-MM-DD", sm: true },
+  { key: "situacao", label: "Situação", placeholder: "EM ANDAMENTO", sm: true },
 ];
 
 export default function IASyncPage() {
@@ -56,9 +89,14 @@ export default function IASyncPage() {
   const [result, setResult] = useState<any>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [formLoading, setFormLoading] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
   const [tipoPeca, setTipoPeca] = useState<TipoPeca>("informacoes");
   const [peca, setPeca] = useState("");
   const [pecaLoading, setPecaLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("ia_sync_last_cnj");
@@ -96,13 +134,84 @@ export default function IASyncPage() {
     }
   };
 
+  const applyMeta = (m: any) => {
+    setForm((f) => ({
+      ...f,
+      cliente: m?.cliente || f.cliente || "",
+      parte_passiva: m?.parte_passiva || f.parte_passiva || "",
+      parte_passiva_cnpj: m?.parte_passiva_cnpj || f.parte_passiva_cnpj || "",
+      advogado: m?.advogado || f.advogado || "",
+      classe_acao: m?.classe_acao || f.classe_acao || "",
+      tribunal: m?.tribunal || f.tribunal || "",
+      orgao_julgador: m?.orgao_julgador || f.orgao_julgador || "",
+      cpf: m?.cpf || f.cpf || "",
+      email: m?.email || f.email || "",
+      telefone: m?.telefone || f.telefone || "",
+    }));
+  };
+
+  useEffect(() => {
+    if (result?.meta) applyMeta(result.meta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  const buscarDjen = async () => {
+    setFormLoading(true);
+    try {
+      const res = await enrichCadastroByCnjAction(cnj);
+      if (!res?.success) {
+        toast({ title: "Sem dados", description: res?.error, variant: "destructive" });
+        return;
+      }
+      setForm((f) => ({
+        ...f,
+        cliente: res.cliente || f.cliente || "",
+        parte_passiva: res.parte_passiva || f.parte_passiva || "",
+        parte_passiva_cnpj: res.parte_passiva_cnpj || f.parte_passiva_cnpj || "",
+        advogado: res.advogado || f.advogado || "",
+        advogado_passivo: res.advogado_passivo || f.advogado_passivo || "",
+        classe_acao: res.classe_acao || f.classe_acao || "",
+        tribunal: res.tribunal || f.tribunal || "",
+        orgao_julgador: res.orgao_julgador || f.orgao_julgador || "",
+        cpf: res.cpf || f.cpf || "",
+        email: res.email || f.email || "",
+        telefone: res.telefone || f.telefone || "",
+      }));
+      toast({ title: "Enriquecido", description: `Fonte: ${res.fonte || "DJEN"}` });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message, variant: "destructive" });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const salvarManual = async () => {
+    if (!form.cliente?.trim()) {
+      toast({ title: "Cliente obrigatório", description: "Informe o nome do cliente para salvar na carteira.", variant: "destructive" });
+      return;
+    }
+    setSalvando(true);
+    try {
+      const res = await registerCaseFromAutomacaoAction({
+        protocolo: cnj,
+        ...form,
+      } as any);
+      if (!res?.success) throw new Error(res?.error || "Falha ao salvar.");
+      toast({ title: "Salvo", description: res.message });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message, variant: "destructive" });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   const genPeca = async () => {
     if (!result?.protocolo) return;
     setPecaLoading(true);
     try {
       const res = await gerarPecaIAction({
         cnj: result.protocolo,
-        cliente: result.meta?.cliente || cliente,
+        cliente: form.cliente || result.meta?.cliente || cliente,
         tipoPeca,
       });
       if (!res?.success) {
@@ -115,6 +224,28 @@ export default function IASyncPage() {
       toast({ title: "Erro", description: e?.message, variant: "destructive" });
     } finally {
       setPecaLoading(false);
+    }
+  };
+
+  const baixarPecaPDF = async () => {
+    if (!peca) return;
+    setPdfLoading(true);
+    try {
+      const res = await gerarPecaTextoPDFAction({
+        texto: peca,
+        titulo: PECA_OPTIONS.find((p) => p.value === tipoPeca)?.label || "Peça",
+      });
+      if (!res?.success) throw new Error(res?.error || "Falha ao gerar PDF.");
+      downloadBase64File(
+        res.base64,
+        `peca-${cnj.replace(/\D/g, "") || "sem-cnj"}-${tipoPeca}.pdf`,
+        "application/pdf"
+      );
+      toast({ title: "PDF gerado", description: "Peça baixada em PDF." });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message, variant: "destructive" });
+    } finally {
+      setPdfLoading(false);
     }
   };
 
@@ -153,9 +284,9 @@ export default function IASyncPage() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-2xl font-black tracking-tight">Sincronia IA · DataJud · DJEN</h1>
+                <h1 className="text-2xl font-black tracking-tight">Cadastro</h1>
                 <p className="text-xs text-muted-foreground">
-                  Consulta oficial no CNJ e no diário, extrai partes, prazos e eventos, e gera peça pronta.
+                  Consulta oficial no CNJ e no diário, cadastro manual completo, carteira e peças em PDF.
                 </p>
               </div>
               {result?.engineUsed && (
@@ -165,10 +296,19 @@ export default function IASyncPage() {
               )}
             </div>
 
-            <Card>
-              <CardContent className="pt-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="space-y-1.5 lg:col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Sincronizar por CNJ */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Gavel className="h-4 w-4 text-primary" /> Sincronizar por CNJ
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Consulta oficial no DataJud + DJEN, extrai partes, prazos e eventos e salva na carteira.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">CNJ (20 dígitos)</Label>
                     <Input
                       value={cnj}
@@ -181,19 +321,61 @@ export default function IASyncPage() {
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cliente (dica opcional)</Label>
                     <Input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nome do autor" />
                   </div>
-                  <div className="flex items-end gap-2">
-                    <Button className="flex-1 h-10" onClick={sync} disabled={loading}>
-                      {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
-                      Sincronizar
+                  <Button className="w-full h-10" onClick={sync} disabled={loading}>
+                    {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
+                    Sincronizar
+                  </Button>
+                  <label className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground cursor-pointer">
+                    <input type="checkbox" checked={salvarCarteira} onChange={(e) => setSalvarCarteira(e.target.checked)} />
+                    Salvar na carteira (Processos) após sincronizar
+                  </label>
+                </CardContent>
+              </Card>
+
+              {/* Cadastro manual */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <UserRound className="h-4 w-4 text-primary" /> Cadastro manual
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Complete os dados do processo manualmente ou clique em &quot;Buscar no DJEN&quot; para um preenchimento rápido.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {FORM_FIELDS.map((f) => (
+                      <div key={f.key} className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{f.label}</Label>
+                        <Input
+                          value={form[f.key] || ""}
+                          onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
+                          placeholder={f.placeholder}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <Textarea
+                    value={form.observacao || ""}
+                    onChange={(e) => setForm((p) => ({ ...p, observacao: e.target.value }))}
+                    rows={3}
+                    placeholder="Observações / histórico (opcional)"
+                    className="text-xs"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={buscarDjen} disabled={formLoading}>
+                      {formLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}
+                      Buscar no DJEN
+                    </Button>
+                    <Button onClick={salvarManual} disabled={salvando}>
+                      {salvando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                      Salvar na carteira
                     </Button>
                   </div>
-                </div>
-                <label className="flex items-center gap-2 mt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground cursor-pointer">
-                  <input type="checkbox" checked={salvarCarteira} onChange={(e) => setSalvarCarteira(e.target.checked)} />
-                  Salvar na carteira (Processos) após sincronizar
-                </label>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
             {apiError && (
               <Alert variant="destructive">
@@ -312,10 +494,15 @@ export default function IASyncPage() {
                       {peca ? (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Minuta (copiar para o Word)</p>
-                            <Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={copy}>
-                              <Copy className="mr-1 h-3 w-3" /> Copiar
-                            </Button>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Minuta</p>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={copy}>
+                                <Copy className="mr-1 h-3 w-3" /> Copiar
+                              </Button>
+                              <Button size="sm" className="h-7 text-[10px]" onClick={baixarPecaPDF} disabled={pdfLoading}>
+                                {pdfLoading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Download className="mr-1 h-3 w-3" />} PDF
+                              </Button>
+                            </div>
                           </div>
                           <Textarea readOnly value={peca} rows={16} className="font-serif text-xs leading-relaxed whitespace-pre-wrap" />
                         </div>

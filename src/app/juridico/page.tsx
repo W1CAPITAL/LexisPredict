@@ -34,12 +34,16 @@ import {
   Eye,
   Users,
   Database,
+  Download,
+  UserRound,
 } from "lucide-react";
 import {
   listarClientesOperacaoAction,
   salvarClienteOperacaoAction,
   excluirClienteOperacaoAction,
 } from "@/app/actions/clientes-operacao-actions";
+import { gerarPecaTextoPDFAction } from "@/app/actions/document-actions";
+import { downloadBase64File } from "@/lib/download-export";
 
 type TipoAndamento = "peticao" | "audiencia" | "prazo" | "movimentacao" | "peca";
 
@@ -87,6 +91,7 @@ export default function JuridicoPage() {
   const [cliente, setCliente] = useState("");
   const [banco, setBanco] = useState("");
   const [advogado, setAdvogado] = useState("");
+  const [atendente, setAtendente] = useState("");
   const [andamentos, setAndamentos] = useState<Andamento[]>([]);
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novoDescricao, setNovoDescricao] = useState("");
@@ -96,6 +101,7 @@ export default function JuridicoPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [clientesLoading, setClientesLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -119,14 +125,17 @@ export default function JuridicoPage() {
   }, []);
 
   useEffect(() => {
-    if (!cnj) return;
-    const saved = localStorage.getItem(`juridico:${cnj.replace(/\D/g, "")}`);
+    if (!cnj && !cliente) return;
+    const dig = cnj.replace(/\D/g, "");
+    const chave = `juridico:${dig || cliente.trim().toUpperCase() || "semncnj"}`;
+    const saved = localStorage.getItem(chave);
     if (saved) {
       try {
         const data = JSON.parse(saved);
         setCliente(data.cliente || "");
         setBanco(data.banco || "");
         setAdvogado(data.advogado || "");
+        setAtendente(data.atendente || "");
         setAndamentos(data.andamentos || []);
       } catch {
         /* ignore */
@@ -135,27 +144,34 @@ export default function JuridicoPage() {
       setCliente("");
       setBanco("");
       setAdvogado("");
+      setAtendente("");
       setAndamentos([]);
     }
-  }, [cnj]);
+  }, [cnj, cliente]);
 
-  const persistir = (a: Andamento[], c?: string, b?: string, adv?: string) => {
+  const persistir = (a: Andamento[], c?: string, b?: string, adv?: string, atend?: string) => {
     const dig = (c ?? cnj).replace(/\D/g, "");
-    if (!dig) return;
+    const chave = `juridico:${dig || (c ?? cliente).trim().toUpperCase() || "semncnj"}`;
+    if (!dig && !(c ?? cliente).trim()) return;
     localStorage.setItem(
-      `juridico:${dig}`,
+      chave,
       JSON.stringify({
         cliente: c ?? cliente,
         banco: b ?? banco,
         advogado: adv ?? advogado,
+        atendente: atend ?? atendente,
         andamentos: a,
       })
     );
   };
 
   const addAndamento = () => {
-    if (!cnj.replace(/\D/g, "") || !novoTitulo.trim()) {
-      toast({ title: "Campos obrigatórios", description: "Informe o CNJ e o título do andamento.", variant: "destructive" });
+    if (!novoTitulo.trim()) {
+      toast({ title: "Campos obrigatórios", description: "Informe o título do andamento.", variant: "destructive" });
+      return;
+    }
+    if (!atendente.trim()) {
+      toast({ title: "Responsável obrigatório", description: "Informe o usuário, atendente, vendedor ou assistente responsável.", variant: "destructive" });
       return;
     }
     const novo: Andamento = {
@@ -181,18 +197,18 @@ export default function JuridicoPage() {
   };
 
   const salvarDados = async () => {
-    if (!cnj.replace(/\D/g, "")) {
-      toast({ title: "CNJ obrigatório", description: "Informe o número do processo (CNJ).", variant: "destructive" });
+    if (!atendente.trim()) {
+      toast({ title: "Responsável obrigatório", description: "Informe o usuário, atendente, vendedor ou assistente responsável.", variant: "destructive" });
       return;
     }
     persistir(andamentos);
     setSaving(true);
     const res = await salvarClienteOperacaoAction({
       tipo: 'juridico',
-      cliente: cliente || cnj,
+      cliente: cliente.trim() || cnj.trim() || atendente.trim(),
       banco,
       protocolo: cnj,
-      dados: { banco, advogado, cliente, andamentos },
+      dados: { banco, advogado, atendente, cliente, andamentos },
     });
     setSaving(false);
     if (res?.success) {
@@ -214,6 +230,7 @@ export default function JuridicoPage() {
     setCliente(c.cliente || dados.cliente || "");
     setBanco(c.banco || dados.banco || "");
     setAdvogado(dados.advogado || "");
+    setAtendente(dados.atendente || "");
     setAndamentos(dados.andamentos || []);
     toast({ title: "Processo carregado", description: c.cliente || "Registro do Supabase." });
   };
@@ -240,13 +257,15 @@ export default function JuridicoPage() {
 
   const gerarPeticao = (and: Andamento) => {
     const hoje = new Date().toLocaleDateString("pt-BR");
+    const assinatura = advogado ? advogado.toUpperCase() : atendente ? atendente.toUpperCase() : "";
     const linhas = [
       "EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO",
       "",
-      `Processo nº: ${cnj}`,
+      cnj ? `Processo nº: ${cnj}` : "",
       `Cliente: ${cliente || "—"}`,
       `Banco / Réu: ${banco || "—"}`,
-      `Advogado(a): ${advogado || "—"}`,
+      advogado ? `Advogado(a): ${advogado}` : "",
+      atendente ? `Responsável: ${atendente}` : "",
       "",
       "PETIÇÃO",
       "",
@@ -254,10 +273,25 @@ export default function JuridicoPage() {
       "",
       "Termos em que pede deferimento.",
       `${new Date().toLocaleDateString("pt-BR")}`,
-      advogado ? advogado.toUpperCase() : "",
-      "OAB/SP",
-    ];
+      assinatura,
+      advogado ? "OAB/SP" : "",
+    ].filter((l) => l !== "");
     setPeticaoAberta(linhas.join("\n"));
+  };
+
+  const baixarPeticaoPDF = async () => {
+    if (!peticaoAberta) return;
+    setPdfLoading(true);
+    try {
+      const res = await gerarPecaTextoPDFAction({ texto: peticaoAberta, titulo: "Petição" });
+      if (!res?.success) throw new Error(res?.error || "Falha ao gerar PDF.");
+      downloadBase64File(res.base64, `peticao-${cnj.replace(/\D/g, "") || cliente || "sem-cnj"}.pdf`, "application/pdf");
+      toast({ title: "PDF gerado", description: "Petição baixada em PDF." });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message || "Falha ao gerar PDF.", variant: "destructive" });
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   if (authLoading) {
@@ -348,9 +382,9 @@ export default function JuridicoPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">CNJ (20 dígitos)</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">CNJ (opcional)</Label>
                     <Input value={cnj} onChange={(e) => setCnj(e.target.value)} placeholder="0000000-00.2026.8.26.0000" />
                   </div>
                   <div className="space-y-1.5">
@@ -362,8 +396,14 @@ export default function JuridicoPage() {
                     <Input value={banco} onChange={(e) => setBanco(e.target.value)} placeholder="Parte passiva" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Advogado</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Advogado (opcional)</Label>
                     <Input value={advogado} onChange={(e) => setAdvogado(e.target.value)} placeholder="Advogado do polo ativo" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Responsável <span className="text-destructive">*</span>
+                    </Label>
+                    <Input value={atendente} onChange={(e) => setAtendente(e.target.value)} placeholder="Usuário, atendente, vendedor ou assistente" />
                   </div>
                 </div>
               </CardContent>
@@ -456,7 +496,7 @@ export default function JuridicoPage() {
                   <CardContent>
                     {ordenados.length === 0 ? (
                       <p className="text-xs text-muted-foreground py-6 text-center">
-                        Nenhum registro ainda. Informe o CNJ e adicione o primeiro andamento.
+                        Nenhum registro ainda. Informe os dados do processo e adicione o primeiro andamento.
                       </p>
                     ) : (
                       <ScrollArea className="h-[420px] pr-2">
@@ -506,9 +546,14 @@ export default function JuridicoPage() {
                   <div className="rounded-xl border border-border/70 bg-muted/30 p-4 whitespace-pre-wrap font-serif text-sm leading-relaxed">
                     {peticaoAberta}
                   </div>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => setPeticaoAberta(null)}>
-                    <Eye className="mr-1.5 h-4 w-4" /> Fechar
-                  </Button>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button size="sm" onClick={baixarPeticaoPDF} disabled={pdfLoading}>
+                      {pdfLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} Baixar PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setPeticaoAberta(null)}>
+                      <Eye className="mr-1.5 h-4 w-4" /> Fechar
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : null}

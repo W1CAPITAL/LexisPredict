@@ -17,7 +17,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { ScrollText, Loader2, Copy, FileText, Library } from "lucide-react";
+import { ScrollText, Loader2, Copy, FileText, Library, Download } from "lucide-react";
+import { gerarPecaTextoPDFAction } from "@/app/actions/document-actions";
+import { downloadBase64File } from "@/lib/download-export";
 import {
   MODELOS_DE_PECAS,
   CATEGORIAS,
@@ -56,6 +58,7 @@ export default function ModelosPage() {
   const [selected, setSelected] = useState<ModeloPeca | null>(null);
   const [meta, setMeta] = useState<PecaMeta>({});
   const [preview, setPreview] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const modelos = useMemo(
     () =>
@@ -92,6 +95,25 @@ export default function ModelosPage() {
       toast({ title: "Copiado", description: "Texto copiado para a área de transferência." });
     } catch {
       toast({ title: "Não foi possível copiar", variant: "destructive" });
+    }
+  };
+
+  const gerarPDF = async () => {
+    if (!preview || !selected) return;
+    setPdfLoading(true);
+    try {
+      const res = await gerarPecaTextoPDFAction({ texto: preview, titulo: selected.titulo });
+      if (!res?.success) throw new Error(res?.error || "Falha ao gerar PDF.");
+      downloadBase64File(
+        res.base64,
+        `peca-${selected.id}.pdf`,
+        "application/pdf"
+      );
+      toast({ title: "PDF gerado", description: "Peça baixada em PDF." });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message || "Falha ao gerar PDF.", variant: "destructive" });
+    } finally {
+      setPdfLoading(false);
     }
   };
 
@@ -208,6 +230,11 @@ export default function ModelosPage() {
                     {preview && (
                       <Button size="sm" variant="outline" onClick={copy}>
                         <Copy className="mr-1.5 h-4 w-4" /> Copiar
+                      </Button>
+                    )}
+                    {preview && (
+                      <Button size="sm" onClick={gerarPDF} disabled={pdfLoading}>
+                        {pdfLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} Baixar PDF
                       </Button>
                     )}
                   </div>
