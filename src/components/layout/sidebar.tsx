@@ -1,57 +1,51 @@
 "use client";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
- * Sidebar — menu enxuto, nomes claros, sem Notificações / Omni Export / Dossiê.
- * Scroll estável (conteúdo fora do pai).
+ * Sidebar LexisPredict — menu com ícones distintos, grupos claros e busca.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { DollarSign, TrendingUp,
-  Kanban,
-  Package,
-  Building2,
+import {
   LayoutDashboard,
+  ListTodo,
+  CalendarDays,
   Briefcase,
+  FolderOpen,
+  Gavel,
   Upload,
+  Kanban,
+  Wallet,
+  ScrollText,
+  FileText,
+  FileSignature,
+  Files,
+  Scale,
+  ClipboardList,
+  Bot,
+  MessageCircle,
   BarChart3,
   BrainCircuit,
   ShieldAlert,
+  ShieldCheck,
+  Users,
   Settings,
   StickyNote,
+  PlayCircle,
   LogOut,
-  MessageCircle,
   Menu,
-  FileText,
   ChevronLeft,
   ChevronRight,
-  Users,
-  Zap,
   Layers,
-  FileSignature,
-  Files,
-  Sun,
-  Moon,
-  ListTodo,
-  CalendarDays,
   HelpCircle,
-  PlayCircle,
-  Scale,
-  ScanLine,
-  ClipboardList,
-  Bot,
-  Gavel,
-  ShieldCheck,
-  FolderOpen,
-  Percent,
-  ScrollText,
+  Search,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MetalButton } from "@/components/ui/metal-button";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
@@ -68,23 +62,31 @@ import { useAppStore } from "@/store/use-app-store";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InstallAppButton } from "@/components/mobile/InstallAppButton";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 function SafeIcon({
   icon: Icon,
   className,
+  size = 18,
 }: {
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number; size?: number }>;
+  icon?: LucideIcon;
   className?: string;
+  size?: number;
 }) {
   if (!Icon) return null;
-  return <Icon className={className} strokeWidth={1.75} size={18} />;
+  return <Icon className={className} strokeWidth={1.85} size={size} aria-hidden />;
 }
 
 type NavItem = {
   label: string;
   href: string;
   hint?: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number; size?: number }>;
+  icon: LucideIcon;
+};
+
+type NavGroup = {
+  title: string;
+  items: NavItem[];
 };
 
 function SidebarNavBody({
@@ -94,12 +96,10 @@ function SidebarNavBody({
   isAdmin,
   isSuperAdmin,
   profile,
-  isDarkMode,
   status,
   onToggleMinimize,
   onStartTour,
   onLogout,
-  onToggleTheme,
   onToggleCollapsed,
   showCollapseBtn,
 }: {
@@ -109,24 +109,22 @@ function SidebarNavBody({
   isAdmin: boolean;
   isSuperAdmin?: boolean;
   profile: any;
-  isDarkMode: boolean;
   status: string;
   onToggleMinimize: () => void;
   onStartTour: () => void;
   onLogout: () => void;
-  onToggleTheme: () => void;
   onToggleCollapsed: () => void;
   showCollapseBtn: boolean;
 }) {
   const t = getTranslation(locale);
   const navScrollRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef(0);
+  const [navQuery, setNavQuery] = useState("");
 
   const onNavScroll = useCallback(() => {
     if (navScrollRef.current) scrollTopRef.current = navScrollRef.current.scrollTop;
   }, []);
 
-  // Só restaura scroll ao mudar de rota — NÃO a cada render (isso “puxava” o menu para cima)
   useEffect(() => {
     const el = navScrollRef.current;
     if (!el) return;
@@ -136,58 +134,156 @@ function SidebarNavBody({
     return () => cancelAnimationFrame(id);
   }, [pathname]);
 
-  const [navQuery, setNavQuery] = useState("");
-
-  const navGroups: { title: string; items: NavItem[] }[] = useMemo(() => {
-    const groups: { title: string; items: NavItem[] }[] = [
+  const navGroups: NavGroup[] = useMemo(() => {
+    const groups: NavGroup[] = [
       {
-        title: "Hoje (rotina)",
+        title: "Hoje",
         items: [
-          { label: "Painel", href: "/", icon: LayoutDashboard, hint: "Vencidos, andamentos e o que exige ação" },
-          { label: "Fila de contato", href: "/tarefas", icon: ListTodo, hint: "Quem ligar / responder agora" },
-          { label: "Agenda da semana", href: "/agenda", icon: CalendarDays, hint: "Prazos e atendimentos por dia" },
+          {
+            label: "Painel",
+            href: "/",
+            icon: LayoutDashboard,
+            hint: "Vencidos e o que exige ação",
+          },
+          {
+            label: "Fila de contato",
+            href: "/tarefas",
+            icon: ListTodo,
+            hint: "Quem ligar ou responder",
+          },
+          {
+            label: "Agenda",
+            href: "/agenda",
+            icon: CalendarDays,
+            hint: "Prazos da semana",
+          },
         ],
       },
       {
         title: "Carteira",
         items: [
-          { label: "Meus processos", href: "/cases", icon: Briefcase, hint: "Carteira operacional e scanner" },
-          { label: "Visão da empresa", href: "/processos", icon: FolderOpen, hint: "Todos os processos do escritório" },
-          { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel, hint: "Só casos com indício reforçado de B.A." },
-          { label: "Importar planilha", href: "/import", icon: Upload, hint: "Entrada em lote da carteira" },
+          {
+            label: "Meus processos",
+            href: "/cases",
+            icon: Briefcase,
+            hint: "Carteira + scanner",
+          },
+          {
+            label: "Visão da empresa",
+            href: "/processos",
+            icon: FolderOpen,
+            hint: "Todos os processos",
+          },
+          {
+            label: "Busca e apreensão",
+            href: "/busca-apreensao",
+            icon: Gavel,
+            hint: "Indícios reforçados de B.A.",
+          },
+          {
+            label: "Importar",
+            href: "/import",
+            icon: Upload,
+            hint: "Planilha em lote",
+          },
         ],
       },
       {
-        title: "Dinheiro (CRM)",
+        title: "Dinheiro",
         items: [
-          { label: "CRM Assessoria", href: "/crm", icon: Kanban, hint: "Funil, serviços, receber e pagar" },
-          { label: "Finanças avulsas", href: "/financas", icon: DollarSign, hint: "Lançamentos pontuais (legado)" },
+          {
+            label: "CRM Assessoria",
+            href: "/crm",
+            icon: Kanban,
+            hint: "Funil, serviços e caixa",
+          },
+          {
+            label: "Finanças",
+            href: "/financas",
+            icon: Wallet,
+            hint: "Lançamentos avulsos",
+          },
         ],
       },
       {
-        title: "Peças e modelos",
+        title: "Peças",
         items: [
-          { label: "Modelos & Peças", href: "/modelos", icon: ScrollText, hint: "Biblioteca completa (recomendado)" },
-          { label: "Procuração", href: "/documents", icon: FileText, hint: "Gerador dedicado de procuração" },
-          { label: "Habilitação", href: "/habilitacao-peca", icon: FileSignature, hint: "Petição de habilitação" },
-          { label: "Substabelecimento", href: "/substabelecimento", icon: Files, hint: "Com ou sem reserva" },
+          {
+            label: "Modelos & Peças",
+            href: "/modelos",
+            icon: ScrollText,
+            hint: "Biblioteca completa",
+          },
+          {
+            label: "Procuração",
+            href: "/documents",
+            icon: FileText,
+            hint: "Gerador de procuração",
+          },
+          {
+            label: "Habilitação",
+            href: "/habilitacao-peca",
+            icon: FileSignature,
+            hint: "Petição de habilitação",
+          },
+          {
+            label: "Substabelecimento",
+            href: "/substabelecimento",
+            icon: Files,
+            hint: "Com ou sem reserva",
+          },
         ],
       },
       {
-        title: "Consulta e IA",
+        title: "Consulta",
         items: [
-          { label: "Consulta CNJ", href: "/veredito", icon: Scale, hint: "DataJud / DJEN por processo ou CPF" },
-          { label: "Cadastro assistido", href: "/ia-sync", icon: ClipboardList, hint: "Extrair dados de contrato/print" },
-          { label: "Assistente", href: "/chat", icon: Bot, hint: "Dúvidas e rascunhos com IA" },
-          { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, hint: "Atalhos de mensagem" },
+          {
+            label: "Consulta CNJ",
+            href: "/veredito",
+            icon: Scale,
+            hint: "DataJud e DJEN",
+          },
+          {
+            label: "Cadastro assistido",
+            href: "/ia-sync",
+            icon: ClipboardList,
+            hint: "Extrair dados de contrato",
+          },
+          {
+            label: "Assistente IA",
+            href: "/chat",
+            icon: Bot,
+            hint: "Dúvidas e rascunhos",
+          },
+          {
+            label: "WhatsApp",
+            href: "/whatsapp",
+            icon: MessageCircle,
+            hint: "Atalhos de mensagem",
+          },
         ],
       },
       {
         title: "Números",
         items: [
-          { label: "Indicadores", href: "/analytics", icon: BarChart3, hint: "Gráficos da carteira" },
-          { label: "IA Preditiva", href: "/insights", icon: BrainCircuit, hint: "Padrões por tribunal / risco" },
-          { label: "Urgências", href: "/urgency", icon: ShieldAlert, hint: "Fila crítica consolidada" },
+          {
+            label: "Indicadores",
+            href: "/analytics",
+            icon: BarChart3,
+            hint: "Gráficos da carteira",
+          },
+          {
+            label: "IA Preditiva",
+            href: "/insights",
+            icon: BrainCircuit,
+            hint: "Risco e tribunais",
+          },
+          {
+            label: "Urgências",
+            href: "/urgency",
+            icon: ShieldAlert,
+            hint: "Fila crítica",
+          },
         ],
       },
     ];
@@ -196,22 +292,59 @@ function SidebarNavBody({
       groups.push({
         title: "Gestão",
         items: [
-          { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, hint: "Desempenho da equipe" },
-          { label: "Equipe", href: "/team", icon: Users, hint: "Cargos e operadores" },
-          { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, hint: "Quem fez o quê" },
+          {
+            label: "Supervisão",
+            href: "/supervisao",
+            icon: ShieldCheck,
+            hint: "Desempenho da equipe",
+          },
+          {
+            label: "Equipe",
+            href: "/team",
+            icon: Users,
+            hint: "Cargos e operadores",
+          },
+          {
+            label: "Auditoria",
+            href: "/auditoria",
+            icon: ShieldCheck,
+            hint: "Quem fez o quê",
+          },
           ...(isSuperAdmin
-            ? [{ label: "Segurança", href: "/security", icon: ShieldAlert, hint: "Varreduras (só Superadmin)" }]
+            ? [
+                {
+                  label: "Segurança",
+                  href: "/security",
+                  icon: ShieldAlert,
+                  hint: "Somente Superadmin",
+                } as NavItem,
+              ]
             : []),
         ],
       });
     }
 
     groups.push({
-      title: "Ajuda e ajustes",
+      title: "Ajuda",
       items: [
-        { label: "Treinamento", href: "/onboarding", icon: PlayCircle, hint: "Wizard e guia do sistema" },
-        { label: "Notas", href: "/notes", icon: StickyNote, hint: "Anotações por cliente" },
-        { label: "Configurações", href: "/settings", icon: Settings, hint: "Tema, IA, banca" },
+        {
+          label: "Treinamento",
+          href: "/onboarding",
+          icon: PlayCircle,
+          hint: "Wizard e guia",
+        },
+        {
+          label: "Notas",
+          href: "/notes",
+          icon: StickyNote,
+          hint: "Anotações por cliente",
+        },
+        {
+          label: "Configurações",
+          href: "/settings",
+          icon: Settings,
+          hint: "Tema, IA e banca",
+        },
       ],
     });
 
@@ -230,66 +363,79 @@ function SidebarNavBody({
       .filter((g) => g.items.length > 0);
   }, [isAdmin, isSuperAdmin, navQuery]);
 
-
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="h-[4.5rem] shrink-0 flex items-center px-5 border-b border-sidebar-border/80">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-md">
-            <Layers size={18} strokeWidth={2.25} />
+      {/* Brand */}
+      <div className="h-[4.25rem] shrink-0 flex items-center px-3 border-b border-sidebar-border/80">
+        <div className="flex items-center gap-2.5 min-w-0 w-full">
+          <div className="w-9 h-9 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
+            <SafeIcon icon={Layers} size={18} />
           </div>
           {!collapsed && (
             <div className="flex flex-col min-w-0">
               <span className="font-bold text-[13px] tracking-tight text-sidebar-foreground leading-none truncate">
                 LexisPredict
               </span>
-              <span className="text-[10px] text-primary font-semibold tracking-wide mt-1">
-                Operações
+              <span className="text-[10px] text-primary font-semibold mt-1">
+                Gabinete operacional
               </span>
             </div>
           )}
         </div>
       </div>
 
+      {/* Scan shortcut */}
+      <div className="px-3 pt-3 shrink-0">
+        <LiquidMetalButton
+          onClick={onToggleMinimize}
+          preset="chromatic"
+          mode="liquid"
+          className={cn("w-full justify-center gap-2", collapsed && "px-0")}
+        >
+          <SafeIcon icon={Zap} size={16} />
+          {!collapsed && (
+            <span className="text-[11px] font-bold uppercase tracking-wide">
+              {status === "running" ? "Scanner ativo" : "Scanner tribunal"}
+            </span>
+          )}
+        </LiquidMetalButton>
+      </div>
+
+      {/* Nav */}
       <div
         ref={navScrollRef}
         onScroll={onNavScroll}
-        className="flex-1 min-h-0 py-5 px-3 space-y-6 overflow-y-auto overscroll-y-contain"
+        className="flex-1 min-h-0 py-3 px-2 space-y-4 overflow-y-auto overscroll-y-contain"
         style={{ overflowAnchor: "none", WebkitOverflowScrolling: "touch" }}
       >
         {!collapsed && (
-          <div className="px-1 mb-1">
-            <input
-              type="search"
-              value={navQuery}
-              onChange={(e) => setNavQuery(e.target.value)}
-              placeholder="Buscar no menu…"
-              className="w-full h-9 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 text-[11px] font-medium text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none focus:ring-1 focus:ring-primary"
-              aria-label="Buscar no menu"
-            />
+          <div className="px-1">
+            <div className="relative">
+              <SafeIcon
+                icon={Search}
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sidebar-foreground/40 pointer-events-none"
+              />
+              <input
+                type="search"
+                value={navQuery}
+                onChange={(e) => setNavQuery(e.target.value)}
+                placeholder="Buscar no menu…"
+                className="w-full h-9 rounded-lg border border-sidebar-border bg-sidebar-accent/40 pl-8 pr-3 text-[11px] font-medium text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none focus:ring-1 focus:ring-primary"
+                aria-label="Buscar no menu"
+              />
+            </div>
             <p className="text-[9px] text-sidebar-foreground/50 mt-1.5 px-0.5 leading-snug">
-              Dica: comece por <span className="font-bold text-sidebar-foreground/70">Hoje</span>, depois carteira e CRM.
+              Comece por <span className="font-bold text-sidebar-foreground/75">Hoje</span>, depois
+              Carteira e Dinheiro.
             </p>
           </div>
         )}
 
-        <div className="px-1">
-          <LiquidMetalButton
-            onClick={onToggleMinimize}
-            preset="chromatic"
-            mode="liquid"
-            strength={1}
-            className="w-full h-11 rounded-xl font-semibold text-[11px] tracking-wide gap-2.5"
-          >
-            <Zap className={cn("w-4 h-4", status === "running" && "animate-pulse text-amber-400")} />
-            {!collapsed && "Scanner tribunal"}
-          </LiquidMetalButton>
-        </div>
-
         {navGroups.map((group) => (
-          <div key={group.title} className="space-y-1">
+          <div key={group.title} className="space-y-0.5">
             {!collapsed && (
-              <p className="px-3 mb-2 text-[10px] font-bold text-primary tracking-wide">
+              <p className="px-2.5 mb-1.5 text-[10px] font-bold text-primary tracking-wide">
                 {group.title}
               </p>
             )}
@@ -297,29 +443,31 @@ function SidebarNavBody({
               const active =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
-              const Icon = item.icon; // lucide
               return (
                 <Link
                   key={item.href + item.label}
                   href={item.href}
                   title={item.hint ? `${item.label} — ${item.hint}` : item.label}
                   className={cn(
-                    "metal-nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
+                    "group flex items-start gap-2.5 rounded-xl px-2 py-2 transition-colors",
                     active
-                      ? "bg-primary/10 text-primary font-semibold shadow-[inset_3px_0_0_0_hsl(var(--primary))] metal-nav-item--active"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
+                      ? "bg-primary/15 text-primary"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                   )}
                 >
-                  <SafeIcon
-                    icon={Icon}
+                  <span
                     className={cn(
-                      "w-4 h-4 shrink-0 mt-0.5",
-                      active ? "opacity-100" : "opacity-55 group-hover:opacity-90"
+                      "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+                      active
+                        ? "border-primary/30 bg-primary/10 text-primary"
+                        : "border-sidebar-border/80 bg-sidebar-accent/30 text-sidebar-foreground/70 group-hover:text-sidebar-foreground"
                     )}
-                  />
+                  >
+                    <SafeIcon icon={item.icon} size={16} />
+                  </span>
                   {!collapsed && (
-                    <span className="flex-1 min-w-0 flex flex-col gap-0.5">
-                      <span className="text-[11px] font-bold tracking-tight text-left leading-tight">
+                    <span className="min-w-0 flex-1 flex flex-col gap-0.5 pt-0.5">
+                      <span className="text-[12px] font-semibold leading-tight tracking-tight">
                         {item.label}
                       </span>
                       {item.hint ? (
@@ -335,37 +483,42 @@ function SidebarNavBody({
           </div>
         ))}
 
-        <div className="px-3 pt-4 border-t border-sidebar-border/10">
+        {!collapsed && navGroups.length === 0 && (
+          <p className="px-3 text-xs text-sidebar-foreground/50">Nenhum item para “{navQuery}”.</p>
+        )}
+
+        <div className="px-1 pt-1">
           <button
             type="button"
             onClick={onStartTour}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:bg-primary/10 hover:text-primary transition-all group"
+            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl text-sidebar-foreground/65 hover:bg-primary/10 hover:text-primary transition-colors"
           >
-            <HelpCircle size={16} className="shrink-0 opacity-60 group-hover:opacity-100" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-sidebar-border/80">
+              <SafeIcon icon={HelpCircle} size={16} />
+            </span>
             {!collapsed && (
-              <span className="text-[11px] font-black tracking-tight uppercase truncate">
-                Guia rápido
-              </span>
+              <span className="text-[12px] font-semibold">Guia rápido</span>
             )}
           </button>
         </div>
       </div>
 
-      <div className="p-4 border-t border-sidebar-border space-y-4 shrink-0 overflow-hidden">
+      {/* Footer */}
+      <div className="p-3 border-t border-sidebar-border space-y-3 shrink-0 overflow-hidden">
         {!collapsed && <InstallAppButton />}
         {!collapsed && (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent/50 border border-sidebar-border min-w-0">
+          <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sidebar-accent/50 border border-sidebar-border min-w-0">
             <Avatar className="w-9 h-9 border border-primary/20 shrink-0">
               <AvatarImage src={profile?.avatar_url || ""} />
-              <AvatarFallback className="bg-primary text-primary-foreground font-black text-xs">
+              <AvatarFallback className="bg-primary text-primary-foreground font-bold text-xs">
                 {profile?.nome?.substring(0, 2).toUpperCase() || "??"}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col min-w-0">
-              <span className="text-[11px] font-black uppercase truncate text-sidebar-foreground">
-                {profile?.nome || "User"}
+              <span className="text-[11px] font-bold truncate text-sidebar-foreground">
+                {profile?.nome || "Usuário"}
               </span>
-              <span className="text-[9px] text-sidebar-foreground/50 uppercase font-bold truncate">
+              <span className="text-[9px] text-sidebar-foreground/50 font-semibold truncate">
                 {profile?.cargo || "Operador"}
               </span>
             </div>
@@ -379,7 +532,7 @@ function SidebarNavBody({
               title={t.logout}
               className="h-9 w-9 text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded-lg flex items-center justify-center"
             >
-              <LogOut size={16} />
+              <SafeIcon icon={LogOut} size={16} />
             </button>
             <ThemeToggle />
           </div>
@@ -388,8 +541,9 @@ function SidebarNavBody({
               type="button"
               onClick={onToggleCollapsed}
               className="hidden md:flex h-9 w-9 text-sidebar-foreground/60 hover:text-primary rounded-lg items-center justify-center"
+              title={collapsed ? "Expandir menu" : "Recolher menu"}
             >
-              {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+              <SafeIcon icon={collapsed ? ChevronRight : ChevronLeft} size={18} />
             </button>
           )}
         </div>
@@ -405,7 +559,7 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>("pt");
   const { profile, signOut } = useAuth();
-  const { isDarkMode, setDarkMode, setTutorialActive } = useAppStore();
+  const { setDarkMode, isDarkMode, setTutorialActive } = useAppStore();
   const { status, toggleMinimize } = useDataJudScanStore();
 
   const isSuperAdmin = checkIfSuperAdmin(profile);
@@ -429,7 +583,6 @@ export function Sidebar() {
     isAdmin,
     isSuperAdmin,
     profile,
-    isDarkMode,
     status: status || "idle",
     onToggleMinimize: () => toggleMinimize(),
     onStartTour: () => {
@@ -440,25 +593,22 @@ export function Sidebar() {
       await signOut();
       router.push("/login");
     },
-    onToggleTheme: () => setDarkMode(!isDarkMode),
     onToggleCollapsed: () => setCollapsed((c) => !c),
   };
 
   return (
     <>
-      {/* Desktop: trilho fixo */}
       <aside
         className={cn(
           "hidden md:flex flex-col shrink-0 h-screen sticky top-0 z-40",
           "border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
           "transition-[width] duration-200 ease-out",
-          collapsed ? "w-[4.25rem]" : "w-[16.5rem]"
+          collapsed ? "w-[4.5rem]" : "w-[17rem]"
         )}
       >
         <SidebarNavBody {...bodyProps} showCollapseBtn />
       </aside>
 
-      {/* Mobile: botão + sheet */}
       <div className="md:hidden fixed top-3 left-3 z-[100]">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
@@ -468,7 +618,7 @@ export function Sidebar() {
               className="h-11 w-11 rounded-xl border border-border/60 bg-background/95 shadow-md backdrop-blur-md"
               aria-label="Abrir menu"
             >
-              <Menu size={22} />
+              <SafeIcon icon={Menu} size={22} />
             </Button>
           </SheetTrigger>
           <SheetContent
