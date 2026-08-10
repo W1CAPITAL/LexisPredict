@@ -235,3 +235,50 @@ export function getTopAtendentes(
 ): AtendimentoPorUsuario[] {
   return countAtendimentosPorUsuario(cases, users, ref).slice(0, limit);
 }
+
+/**
+ * Contagem alinhada perfil ↔ /processos:
+ * - Preferência: atendido_por === userId
+ * - Legado: sem atendido_por e created_by === userId
+ * Evita 16 no perfil e 15 no Top por regras diferentes.
+ */
+export function isAtendidoHoje(ultimoRetorno?: string | null, ref = new Date()): boolean {
+  const d = parseUltimoAtendimento(ultimoRetorno);
+  if (!d) return false;
+  const ymd = hojeBrasilYmd(ref);
+  const [y, m, day] = ymd.split('-').map((n) => parseInt(n, 10));
+  const hoje = new Date(y, m - 1, day);
+  return d.getTime() === hoje.getTime();
+}
+
+export function countAtendidosSemanaDoUsuario(
+  cases: any[],
+  userId: string | null | undefined,
+  ref = new Date()
+): number {
+  if (!userId) return 0;
+  const uid = String(userId);
+  return (cases || []).filter((c) => {
+    if (!casoAtendidoNestaSemana(c, ref)) return false;
+    const por = c.atendido_por ?? c.atendidoPor ?? null;
+    if (por) return String(por) === uid;
+    const created = c.created_by ?? null;
+    return created != null && String(created) === uid;
+  }).length;
+}
+
+export function countAtendidosHojeDoUsuario(
+  cases: any[],
+  userId: string | null | undefined,
+  ref = new Date()
+): number {
+  if (!userId) return 0;
+  const uid = String(userId);
+  return (cases || []).filter((c) => {
+    if (!isAtendidoHoje(pickUltimoRetorno(c), ref)) return false;
+    const por = c.atendido_por ?? c.atendidoPor ?? null;
+    if (por) return String(por) === uid;
+    const created = c.created_by ?? null;
+    return created != null && String(created) === uid;
+  }).length;
+}
