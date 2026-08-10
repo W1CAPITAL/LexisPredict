@@ -78,6 +78,8 @@ function toLegalCase(item: any): LegalCase {
     observacao: item.observacoes ?? dados.observacao ?? dados.observacoes,
     // fonte de verdade do atendimento da semana
     ultimoRetorno: item.ultimo_retorno ?? dados.ultimoRetorno ?? dados.ultimo_retorno ?? dados.ULTIMO_RETORNO ?? null,
+    auditado_em: item.auditado_em ?? dados.auditado_em ?? null,
+    auditado_por: item.auditado_por ?? dados.auditado_por ?? null,
     proximoPrazo: item.proximo_retorno ?? dados.proximoPrazo ?? dados.proximo_retorno ?? dados.PROXIMO_RETORNO ?? null,
     datajud_ultimo_movimento: item.datajud_ultimo_movimento,
     datajud_ultimo_nome: item.datajud_ultimo_nome,

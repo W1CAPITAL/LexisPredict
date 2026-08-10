@@ -13,6 +13,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase } from "@/lib/case-logic";
@@ -38,7 +39,7 @@ import {
   UserCheck,
   ChevronDown,
   ChevronUp,
-} from "lucide-react";
+, FileSearch, Gavel} from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -294,6 +295,9 @@ export default function ProcessosEmpresaPage() {
   }, [users]);
 
   const atendidosSemana = useMemo(() => countAtendidosNestaSemana(cases), [cases]);
+  const auditadosSemana = useMemo(() => countAuditadosNestaSemana(cases), [cases]);
+  const auditadosTribunal = useMemo(() => countAuditadosTribunalSemana(cases), [cases]);
+  const editadosApp = useMemo(() => countEditadosAppSemana(cases), [cases]);
   const ativos = useMemo(() => cases.filter((c) => !isCasoEncerrado(c)), [cases]);
   const vencidos = useMemo(() => ativos.filter((c) => c.status === "Vencido" || c.status === "Caso Crítico"), [ativos]);
 
@@ -388,10 +392,13 @@ export default function ProcessosEmpresaPage() {
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
               <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : cases.length} tone="primary" />
               <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : ativos.length} />
               <Kpi icon={<CalendarClock size={16} />} label="Atendidos semana" value={loading ? "…" : atendidosSemana} tone="ok" hint={labelSemanaAtual()} />
+              <Kpi icon={<FileSearch size={16} />} label="Auditados semana" value={loading ? "…" : auditadosSemana} tone="ok" hint={labelSemanaAuditoria()} />
+              <Kpi icon={<Gavel size={16} />} label="Tribunal (sem.)" value={loading ? "…" : auditadosTribunal} hint="DataJud/DJEN" />
+              <Kpi icon={<CheckCircle2 size={16} />} label="Editados app" value={loading ? "…" : editadosApp} hint="salvar no app" />
               <Kpi icon={<ShieldAlert size={16} />} label="Vencidos" value={loading ? "…" : vencidos.length} tone={vencidos.length > 0 ? "danger" : "default"} />
             </div>
 

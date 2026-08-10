@@ -56,6 +56,7 @@ import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import { countAuditadosNestaSemana } from '@/lib/processos-auditados';
 import {
   applyFilaListaToObs,
   groupFilaLista,
@@ -427,6 +428,8 @@ const handleSaveAttendance = async () => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copiado" });
   };
+
+  const auditadosSemanaKPI = useMemo(() => countAuditadosNestaSemana(cases as any), [cases]);
 
   const taskData = useMemo(() => {
     const groups: Record<string, TaskGroup> = {};

@@ -228,6 +228,9 @@ export default function SupervisaoPage() {
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
                   <KpiCard icon={<MessageSquare size={16} />} label="Atend. (geral)" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
                   <KpiCard icon={<CalendarClock size={16} />} label="Atend. semana" value={snap.atendidosSemana} tone="primary" hint="última semana" />
+                  <KpiCard icon={<Activity size={16} />} label="Auditados semana" value={snap.auditadosSemana ?? 0} tone="primary" hint="edição app + DataJud/DJEN" />
+                  <KpiCard icon={<FileSearch size={16} />} label="Tribunal (sem.)" value={snap.auditadosTribunalSemana ?? 0} hint="só DataJud/DJEN" />
+                  <KpiCard icon={<CheckCircle2 size={16} />} label="Editados app" value={snap.editadosAppSemana ?? 0} hint="salvar processo no app" />
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

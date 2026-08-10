@@ -19,6 +19,7 @@ import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import { countAuditadosNestaSemana, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import {
@@ -629,9 +630,11 @@ function CasesContent() {
         }
       }
       const tribunalData = extrairTribunal(protocolo);
+      const auditPatch = patchAuditoriaEdicao((profile as any)?.auth_user_id || (profile as any)?.id);
       let updatedCase = processarCaso({
         ...editingCase,
         ...formForSave,
+        ...auditPatch,
         cliente,
         protocolo,
         tribunal: tribunalData?.tribunal || editingCase.tribunal,

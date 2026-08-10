@@ -37,6 +37,7 @@ import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils"
 import { countAtendidosNestaSemana, buildAtendimentosPorDiaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
+import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana } from "@/lib/processos-auditados";
 import { Badge } from "@/components/ui/badge";
 import { BiCompliancePanel } from "@/components/dashboard/bi-compliance-panel";
 import { useAppStore } from "@/store/use-app-store";
@@ -112,6 +113,9 @@ export default function UnifiedReport() {
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
     const countAtendidosSemana = countAtendidosNestaSemana(cases as any);
+    const countAuditadosSemana = countAuditadosNestaSemana(cases as any);
+    const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
+    const countEditadosApp = countEditadosAppSemana(cases as any);
     const serieAtendimentosSemana = buildAtendimentosPorDiaSemana(cases as any);
     const semanaLabel = labelSemanaAtual();
 
@@ -202,6 +206,9 @@ export default function UnifiedReport() {
       countBA,
       countCumprimento,
       countAtendidosSemana,
+      countAuditadosSemana,
+      countAuditadosTribunal,
+      countEditadosApp,
       serieAtendimentosSemana,
       semanaLabel,
       mediaDia,
@@ -304,6 +311,9 @@ export default function UnifiedReport() {
               { label: "Risco", value: `${metrics.riskScore}%` },
               { label: "B.A.", value: String(metrics.countBA) },
               { label: "Atend. semana", value: String(metrics.countAtendidosSemana ?? 0) },
+              { label: "Auditados semana", value: String(metrics.countAuditadosSemana ?? 0) },
+              { label: "Tribunal (sem.)", value: String(metrics.countAuditadosTribunal ?? 0) },
+              { label: "Editados app", value: String(metrics.countEditadosApp ?? 0) },
             ],
             resumoExecutivo: metrics.recomendacoes,
             semana: {
@@ -447,6 +457,9 @@ export default function UnifiedReport() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} />
            <KpiCard label="Atendidos esta semana" value={metrics.countAtendidosSemana ?? 0} tone="info" />
+           <KpiCard label="Auditados esta semana" value={metrics.countAuditadosSemana ?? 0} tone="info" />
+           <KpiCard label="Tribunal (DataJud/DJEN)" value={metrics.countAuditadosTribunal ?? 0} />
+           <KpiCard label="Editados no app" value={metrics.countEditadosApp ?? 0} />
            <KpiCard label="Vencidos / Hoje" value={`${metrics.countVencido} / ${metrics.countHoje}`} tone="danger" />
            <KpiCard label="Novidades Reais" value={metrics.countNovoAndamento} tone="info" />
            <KpiCard label="Risco da Carteira" value={`${metrics.riskScore}%`} tone={metrics.riskScore > 50 ? "danger" : "ok"} />

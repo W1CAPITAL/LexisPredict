@@ -7,6 +7,7 @@
 
 import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/lib/server-db';
 import { parseUltimoAtendimento, weekBounds } from '@/lib/atendimento-semana';
+import { countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, countEditadosAppSemana } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
 export type SupervisaoProcessoResumo = {
@@ -46,6 +47,10 @@ export type SupervisaoSnapshot = {
   cumprimento: number;
   atendimentosTotais: number;
   atendidosSemana: number;
+  auditadosSemana: number;
+  auditadosHoje: number;
+  auditadosTribunalSemana: number;
+  editadosAppSemana: number;
   semRetorno: number;
   operadores: {
     nome: string;
@@ -78,6 +83,10 @@ function emptySnapshot(): SupervisaoSnapshot {
     cumprimento: 0,
     atendimentosTotais: 0,
     atendidosSemana: 0,
+    auditadosSemana: 0,
+    auditadosHoje: 0,
+    auditadosTribunalSemana: 0,
+    editadosAppSemana: 0,
     semRetorno: 0,
     operadores: [],
     porUsuario: [],
@@ -289,6 +298,11 @@ export async function getSupervisaoSnapshotAction(): Promise<{
         cumprimento,
         atendimentosTotais,
         atendidosSemana,
+      auditadosSemana: countAuditadosNestaSemana(cases as any),
+      auditadosHoje: countAuditadosHoje(cases as any),
+      auditadosTribunalSemana: countAuditadosTribunalSemana(cases as any),
+      editadosAppSemana: countEditadosAppSemana(cases as any),
+      
         semRetorno,
         operadores: [...opMap.values()].sort((a, b) => b.total - a.total),
         porUsuario: [...userMap.values()].sort((a, b) => b.total - a.total),
