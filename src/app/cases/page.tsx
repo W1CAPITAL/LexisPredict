@@ -12,7 +12,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Search, Trash2, Edit2, CheckCircle2, Zap, Loader2, CalendarDays, Sparkles, 
   History, AlertCircle, FileSearch, ShieldAlert, Copy, MessageSquareQuote, 
-  Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown,
+  Globe, Bot, Download, ChevronRight, ChevronDown, ChevronUp, UserCheck, Building2, ExternalLink, FileDown,
   Briefcase, RefreshCcw, Plus
 } from 'lucide-react';
 import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic'
@@ -21,6 +21,14 @@ import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -201,6 +209,8 @@ function CasesContent() {
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
   const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
   const [ownerAuthId, setOwnerAuthId] = useState<string>('self');
+  const [visibleCount, setVisibleCount] = useState(25);
+  const PAGE_SIZE = 25;
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], djenComunicacoes?: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
@@ -681,6 +691,22 @@ function CasesContent() {
     return sortCasesByPrazo(base, sortPrazo);
   }, [cases, search, quickFilter, lawyerFilter, sortPrazo]);
 
+  // Lista paginada — só a aba /cases; não afeta dashboard
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, quickFilter, lawyerFilter, sortPrazo, cases.length]);
+
+  const visibleItems = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  );
+  const hasMore = visibleCount < filtered.length;
+  const remaining = filtered.length - visibleCount;
+  const showMore = (extra: number) =>
+    setVisibleCount((prev) => Math.min(prev + extra, filtered.length));
+  const showAll = () => setVisibleCount(filtered.length);
+  const showLess = () => setVisibleCount(PAGE_SIZE);
+
   const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
     return buildUnifiedTimeline(historyResult.movimentos, historyResult.djenComunicacoes);
@@ -813,11 +839,73 @@ function CasesContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/20">
-                  {filtered.map((c) => (
+                  {visibleItems.map((c) => (
                     <CaseRow key={c.id} c={c} isOperador={isOperador} onLogReturn={handleLogReturn} onEdit={handleEdit} onDelete={handleDelete} onScan={handleSingleScan} onSuggest={handleSuggestClick} onDossie={handleDossieProcesso} />
                   ))}
                 </tbody>
               </table>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 py-4 px-4 border-t border-border/30 bg-card/40">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Mostrando{' '}
+                  <span className="text-foreground tabular-nums">
+                    {Math.min(visibleCount, filtered.length)}
+                  </span>{' '}
+                  de{' '}
+                  <span className="text-foreground tabular-nums">{filtered.length}</span>
+                </p>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  {hasMore && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-10 px-5 rounded-xl font-black uppercase text-[10px] tracking-wider border-primary/40 text-primary hover:bg-primary/5 flex items-center gap-2"
+                        >
+                          <ChevronDown size={14} />
+                          Ver mais
+                          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[9px] font-black">
+                            {remaining}
+                          </span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="center" className="w-56 rounded-xl border-2 border-border z-[100]">
+                        <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          Quantos a mais?
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-[11px] font-bold uppercase cursor-pointer" onClick={() => showMore(25)}>
+                          +25 processos
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-[11px] font-bold uppercase cursor-pointer" onClick={() => showMore(50)}>
+                          +50 processos
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-[11px] font-bold uppercase cursor-pointer" onClick={() => showMore(100)}>
+                          +100 processos
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-[11px] font-bold uppercase cursor-pointer" onClick={() => showMore(200)}>
+                          +200 processos
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-[11px] font-black uppercase cursor-pointer text-primary" onClick={showAll}>
+                          Ver todos ({filtered.length})
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  {visibleCount > PAGE_SIZE && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={showLess}
+                      className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronUp size={14} className="mr-1" />
+                      Mostrar menos
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
