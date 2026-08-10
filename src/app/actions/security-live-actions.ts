@@ -1,29 +1,43 @@
 "use server";
 
-import { headers } from "next/headers";
-import { runLiveSecurityProbe, type LiveProbeReport } from "@/lib/security-live-probe";
+import { headers, cookies } from "next/headers";
+import {
+  runLiveSecurityProbe,
+  type LiveProbeReport,
+} from "@/lib/security-live-probe";
 
-async function assertSuperadmin(): Promise<{ ok: true } | { ok: false; error: string }> {
+async function assertSuperadmin(): Promise<
+  | { ok: true; empresa_id?: string | null }
+  | { ok: false; error: string }
+> {
   try {
     const { getUserContext } = await import("@/lib/server-db");
     const ctx = await getUserContext();
-    const isSuper = !!(ctx as any)?.isSuperAdmin || String((ctx as any)?.cargo || "") === "Superadmin";
+    const cargo = String((ctx as any)?.cargo || "");
+    const isSuper =
+      !!(ctx as any)?.isSuperAdmin ||
+      cargo === "Superadmin" ||
+      cargo.toLowerCase() === "superadmin";
     if (!isSuper) {
-      return { ok: false, error: "Somente Superadmin pode executar a sonda ao vivo." };
+      return {
+        ok: false,
+        error: "Somente Superadmin pode executar a sonda ao vivo.",
+      };
     }
-    return { ok: true };
+    return { ok: true, empresa_id: (ctx as any)?.empresa_id || null };
   } catch (e: any) {
-    // fallback: cookie role is not enough alone; require context
     return { ok: false, error: e?.message || "Sessão inválida." };
   }
 }
 
 /**
- * Sonda ativa: ataca só o próprio origin do request (ou BASE_URL).
+ * Sonda FORTE: anônimo + IDOR com cookie da sessão Superadmin.
+ * Só ataca o próprio origin.
  */
-export async function runLiveIntrusionProbeAction(targetBaseUrl?: string): Promise<
-  | { success: true; report: LiveProbeReport }
-  | { success: false; error: string }
+export async function runLiveIntrusionProbeAction(
+  targetBaseUrl?: string
+): Promise<
+  { success: true; report: LiveProbeReport } | { success: false; error: string }
 > {
   const gate = await assertSuperadmin();
   if (!gate.ok) return { success: false, error: gate.error };
@@ -32,33 +46,61 @@ export async function runLiveIntrusionProbeAction(targetBaseUrl?: string): Promi
   const host = h.get("x-forwarded-host") || h.get("host");
   const proto = h.get("x-forwarded-proto") || "https";
   const fromRequest = host ? `${proto}://${host}` : "";
-  const base =
+
+  let base =
     (targetBaseUrl || "").trim() ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : fromRequest;
+    "";
+  if (!base && process.env.VERCEL_URL) {
+    base = `https://${process.env.VERCEL_URL}`;
+  }
+  if (!base) base = fromRequest;
 
   if (!base) {
-    return { success: false, error: "Não foi possível determinar a URL base do app." };
+    return {
+      success: false,
+      error: "Não foi possível determinar a URL base do app.",
+    };
   }
 
-  // Só permite o próprio host (anti SSRF / anti abuso)
   try {
     const u = new URL(base.startsWith("http") ? base : `https://${base}`);
+    const reqHost = host ? host.split(":")[0] : "";
     const allowed =
       u.hostname.endsWith(".vercel.app") ||
       u.hostname === "localhost" ||
-      u.hostname.endsWith("assecom.vercel.app") ||
+      u.hostname === "127.0.0.1" ||
       (process.env.NEXT_PUBLIC_APP_URL &&
-        u.hostname === new URL(process.env.NEXT_PUBLIC_APP_URL).hostname);
+        u.hostname === new URL(process.env.NEXT_PUBLIC_APP_URL).hostname) ||
+      (reqHost && u.hostname === reqHost);
+
     if (!allowed && process.env.NODE_ENV === "production") {
-      // still allow same host as request
-      if (host && u.hostname !== host.split(":")[0]) {
-        return { success: false, error: "Alvo fora do origin permitido." };
-      }
+      return { success: false, error: "Alvo fora do origin permitido." };
     }
-    const report = await runLiveSecurityProbe(u.origin);
+
+    // Cookie da sessão atual → testes IDOR autenticados
+    let sessionCookie: string | null = null;
+    try {
+      const jar = await cookies();
+      const parts: string[] = [];
+      for (const c of jar.getAll()) {
+        // só cookies de auth / supabase
+        if (
+          /sb-|supabase|auth|session|token/i.test(c.name) ||
+          c.name.startsWith("sb")
+        ) {
+          parts.push(`${c.name}=${c.value}`);
+        }
+      }
+      if (parts.length) sessionCookie = parts.join("; ");
+    } catch {
+      sessionCookie = null;
+    }
+
+    const report = await runLiveSecurityProbe(u.origin, {
+      sessionCookie,
+      ownEmpresaId: gate.empresa_id,
+    });
     return { success: true, report };
   } catch (e: any) {
     return { success: false, error: String(e?.message || e) };

@@ -252,7 +252,7 @@ export default function SecurityPage() {
                   onClick={runLiveProbe}
                 >
                   {liveRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
-                  {liveRunning ? "Invadindo…" : "Executar sonda ao vivo"}
+                  {liveRunning ? "Sonda forte em curso…" : "Executar sonda forte"}
                 </Button>
               </div>
               {liveLog.length > 0 && (
