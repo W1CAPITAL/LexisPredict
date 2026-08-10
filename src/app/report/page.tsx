@@ -38,6 +38,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils"
 import { countAtendidosNestaSemana, buildAtendimentosPorDiaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
 import { Badge } from "@/components/ui/badge";
+import { BiCompliancePanel } from "@/components/dashboard/bi-compliance-panel";
 import { useAppStore } from "@/store/use-app-store";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
@@ -819,7 +820,11 @@ export default function UnifiedReport() {
            </section>
         )}
 
-        <footer className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 flex justify-between items-center break-inside-avoid">
+        
+          <div className="px-4 sm:px-6 print:hidden">
+            <BiCompliancePanel cases={cases} />
+          </div>
+<footer className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 flex justify-between items-center break-inside-avoid">
            <div className="flex items-center gap-6">
               <div className="w-10 h-10 border-2 border-primary rounded-lg flex items-center justify-center bg-primary text-primary-foreground"><Zap size={20} /></div>
               <div>

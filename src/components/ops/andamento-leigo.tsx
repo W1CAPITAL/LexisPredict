@@ -27,7 +27,9 @@ export function AndamentoLeigoBlock({
             (caseData as any).proximoPrazo ||
               (caseData as any).proximo_prazo ||
               (caseData as any).proximo_retorno ||
-              null
+              null,
+            new Date(),
+            { tribunal: caseData.tribunal }
           )
         : null,
     [caseData, showPrazo]
@@ -40,19 +42,15 @@ export function AndamentoLeigoBlock({
   return (
     <div
       className={cn(
-        "space-y-1.5 rounded-lg border border-border/70 bg-background px-3 py-2.5 shadow-sm",
+        "ops-leigo-block space-y-1.5 rounded-lg border border-border/70 bg-card px-3 py-2.5",
         className
       )}
     >
-      <p className="text-[10px] font-semibold text-muted-foreground">
-        Em linguagem simples
-      </p>
-      <p className="text-[13px] font-semibold text-foreground leading-snug">
+      <p className="text-[10px] font-medium text-muted-foreground">Em linguagem simples</p>
+      <p className="text-sm font-semibold text-foreground leading-snug">
         {leigo.tituloLeigo || "Atualização no processo"}
       </p>
-      <p className="text-[12px] text-muted-foreground leading-relaxed">
-        {leigo.detalheLeigo}
-      </p>
+      <p className="text-xs text-muted-foreground leading-relaxed">{leigo.detalheLeigo}</p>
       {prazo && prazo.tone !== "vazio" && (
         <div className="space-y-1">
           <Badge
@@ -68,9 +66,7 @@ export function AndamentoLeigoBlock({
             {prazo.label}
           </Badge>
           {(prazo as any).recessoAviso && (
-            <p className="text-[10px] text-amber-800 leading-snug">
-              {(prazo as any).recessoAviso}
-            </p>
+            <p className="text-[10px] text-amber-800 leading-snug">{(prazo as any).recessoAviso}</p>
           )}
         </div>
       )}

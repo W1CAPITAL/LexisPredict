@@ -10,7 +10,8 @@ import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashb
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
-import { StatCard } from '@/components/dashboard/stat-card';
+import { StatCard } from '@/components/dashboard/stat-card'
+import { BiCompliancePanel } from '@/components/dashboard/bi-compliance-panel';
 
 const EfferdPanel = memo(EfferdPanelRaw);
 const OfficeStats = dynamic(() => import('@/components/dashboard/office-stats').then((m) => m.OfficeStats), {
@@ -222,7 +223,7 @@ export default function Dashboard() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
+    <div className="ops-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
         <header className="h-auto border-b border-border/50 glass-header flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
@@ -293,7 +294,7 @@ export default function Dashboard() {
             {/* EFFORD — topo do dashboard */}
             <div className="mb-6">
               <section className="rounded-2xl border border-border/50 bg-card/50 p-3 sm:p-5 shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Painel KPI · Efferd</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Indicadores</p>
                 <EfferdPanel
                   totalProcessos={cases.length}
                   ativos={metrics.activeTotal}
@@ -452,7 +453,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between border-b-2 border-black/5 pb-4">
                            <div className="flex items-center gap-3">
                               <BrainCircuit className="text-primary" size={20} />
-                              <h3 className="text-xs font-black uppercase tracking-tighter">Briefing Estratégico</h3>
+                              <h3 className="text-xs font-black uppercase tracking-tighter">Resumo do dia</h3>
                            </div>
                            <Badge className="bg-black text-white text-[8px] font-black uppercase">IA Ativa</Badge>
                         </div>
@@ -642,7 +643,9 @@ export default function Dashboard() {
           </ScrollArea>
         </Tabs>
         
-        <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/70 font-medium uppercase tracking-[0.18em] shrink-0">
+        
+          <div className="px-4 sm:px-6 pb-6"><BiCompliancePanel cases={cases} /></div>
+<footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/70 font-medium uppercase tracking-[0.18em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Monitoramento processual</span>
         </footer>

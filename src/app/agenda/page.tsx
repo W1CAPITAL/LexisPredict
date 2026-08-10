@@ -39,7 +39,7 @@ import {
   Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isRecessoForense } from "@/lib/calendario-tj";
+import { isRecessoForense, isFeriadoUf, ufFromTribunal } from "@/lib/calendario-tj";
 import type { LegalCase } from "@/lib/case-logic";
 import { traduzirCaso } from "@/lib/traduzir-andamento";
 
@@ -523,7 +523,7 @@ export default function AgendaPage() {
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             Prazos usam o próximo prazo da carteira (aceita ISO e dd/MM/yyyy).
             Atendidos usam o último retorno. Novidades usam flags de pós-retorno /
-            DJEN. Clique no card para abrir o processo.
+            DJEN. Clique no card para abrir o processo. Feriados estaduais (TJSP, TJRJ, etc.) entram na conta de dia útil forense por tribunal do processo.
           </p>
         </div>
       </main>
