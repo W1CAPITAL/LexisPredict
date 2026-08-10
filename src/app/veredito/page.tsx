@@ -84,9 +84,18 @@ export default function VereditoPage() {
         message: "Falha ao carregar timeline.",
       }));
 
+      const djenTexts = (timeline?.comunicacoes || [])
+        .map((c: any) => String(c.texto || c.resumo || c.conteudo || "").replace(/<[^>]+>/g, " "))
+        .filter((s: string) => s.trim().length > 20)
+        .slice(0, 10);
+
       let data: any = null;
       try {
-        data = await executarVereditoAI({ cnj: proto, preferredModel: model });
+        data = await executarVereditoAI({
+          cnj: proto,
+          preferredModel: model,
+          djenTexts,
+        });
       } catch {
         data = null;
       }
@@ -114,6 +123,11 @@ export default function VereditoPage() {
         fonteMovimentos: timeline?.fonte || "datajud",
         avisoFontes: timeline?.message,
         resumoTecnico: data?.resumoTecnico || timeline?.message || "Timeline carregada.",
+        analiseRisco: data?.analiseRisco,
+        proximosPassos: data?.proximosPassos,
+        mensagemCliente: data?.mensagemCliente,
+        conclusaoEncerramento: data?.conclusaoEncerramento,
+        sinais: data?.sinais || [],
         engineUsed: data?.engineUsed || "server",
       });
       toast({
@@ -358,7 +372,7 @@ export default function VereditoPage() {
               </Alert>
               <div>
                 <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
-                  Parecer / resumo
+                  Parecer operacional
                 </p>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">
                   {result.resumoTecnico || "—"}
@@ -396,10 +410,27 @@ export default function VereditoPage() {
                   <p className="text-sm">{result.analiseRisco}</p>
                 </div>
               )}
+              {Array.isArray(result?.sinais) && result.sinais.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {result.sinais.map((s: string) => (
+                    <Badge key={s} variant="outline" className="text-[9px] font-black uppercase">
+                      {String(s).replace(/_/g, " ")}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {result.proximosPassos && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                    Próximos passos (operador)
+                  </p>
+                  <p className="text-sm whitespace-pre-wrap">{result.proximosPassos}</p>
+                </div>
+              )}
               {result.mensagemCliente && (
                 <div>
                   <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
-                    Sugestão ao cliente
+                    Mensagem ao cliente (pronta para WhatsApp)
                   </p>
                   <p className="text-sm whitespace-pre-wrap bg-muted/40 p-3 rounded-lg">
                     {result.mensagemCliente}
