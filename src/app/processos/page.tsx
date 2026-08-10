@@ -33,6 +33,7 @@ import {
   Users,
   ShieldCheck,
   FileDown,
+  Plus,
   Filter,
   UserCheck,
   ChevronDown,
