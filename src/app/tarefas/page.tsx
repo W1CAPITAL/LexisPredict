@@ -40,7 +40,8 @@ import {
   UserCheck,
   Building2
 } from 'lucide-react';
-import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic';
+import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic'
+import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters';
 import { gerarTarefasJuridicas } from '@/lib/automacao-tarefas';
 import {
   temBaCarteira,
@@ -126,6 +127,8 @@ export default function TarefasPage() {
   const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
+  const [lawyerFilter, setLawyerFilter] = useState('all');
+  const [sortPrazo, setSortPrazo] = useState<'mais_vencido' | 'menos_vencido' | 'prazo_asc'>('mais_vencido');
   const [dailyMeta, setDailyMeta] = useState(25);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
   const [showBacklog, setShowBacklog] = useState(false);
@@ -435,6 +438,7 @@ export default function TarefasPage() {
       .filter(g => {
         const matchSearch = (g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search));
         const matchOffice = officeFilter === 'all' || g.escritorio === officeFilter;
+        const matchLawyer = lawyerFilter === 'all' || String(g.advogado || '').toUpperCase() === lawyerFilter.toUpperCase();
         if (!matchSearch || !matchOffice) return false;
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
@@ -452,6 +456,27 @@ export default function TarefasPage() {
         return true;
       })
       .sort((a, b) => {
+        // ordenação por vencimento (mais/menos) alinhada ao filtro da UI
+        if (sortPrazo === 'mais_vencido' || sortPrazo === 'menos_vencido' || sortPrazo === 'prazo_asc') {
+          const da = typeof a.diasFaltando === 'number' ? a.diasFaltando : (a.casos?.[0]?.diasFaltando ?? 9999);
+          const db = typeof b.diasFaltando === 'number' ? b.diasFaltando : (b.casos?.[0]?.diasFaltando ?? 9999);
+          // groups may store diasFaltando on first case
+          const ga = a.casos?.[0] || a;
+          const gb = b.casos?.[0] || b;
+          const xa = typeof ga.diasFaltando === 'number' ? ga.diasFaltando : da;
+          const xb = typeof gb.diasFaltando === 'number' ? gb.diasFaltando : db;
+          if (typeof xa === 'number' && typeof xb === 'number') {
+            if (sortPrazo === 'mais_vencido' && xa !== xb) return xa - xb;
+            if (sortPrazo === 'menos_vencido') {
+              const aV = xa < 0; const bV = xb < 0;
+              if (aV && bV && xa !== xb) return xb - xa;
+              if (aV !== bV) return aV ? -1 : 1;
+              if (xa !== xb) return xa - xb;
+            }
+            if (sortPrazo === 'prazo_asc' && xa !== xb) return xa - xb;
+          }
+        }
+
         // Tratamento: depois de quem ainda não foi atendido
         const listaA = groupFilaLista(a.cases as any);
         const listaB = groupFilaLista(b.cases as any);
@@ -562,7 +587,25 @@ export default function TarefasPage() {
                       {distinctOffices.map(off => <SelectItem key={off} value={off} className="font-black uppercase text-[10px]">{off}</SelectItem>)}
                    </SelectContent>
                 </Select>
-                <Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
+                
+              <Select value={lawyerFilter} onValueChange={setLawyerFilter}>
+                <SelectTrigger className="h-11 w-48 bg-secondary/30 border-none rounded-xl text-[10px] font-semibold uppercase"><SelectValue placeholder="Advogado" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos advogados</SelectItem>
+                  {listAdvogados(cases).map((a) => (
+                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortPrazo} onValueChange={(v: any) => setSortPrazo(v)}>
+                <SelectTrigger className="h-11 w-48 bg-secondary/30 border-none rounded-xl text-[10px] font-semibold uppercase"><SelectValue placeholder="Prazo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mais_vencido">Mais vencido</SelectItem>
+                  <SelectItem value="menos_vencido">Menos vencido</SelectItem>
+                  <SelectItem value="prazo_asc">Próximo prazo</SelectItem>
+                </SelectContent>
+              </Select>
+<Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
                    <SelectTrigger className="h-12 w-full md:w-[260px] bg-[#f8f9fb] border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
                    <SelectContent className="bg-white border-2 border-black rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>

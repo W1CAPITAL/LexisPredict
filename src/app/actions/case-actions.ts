@@ -17,6 +17,21 @@ import { normalizeMovimentosList } from '@/lib/timeline-normalize';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { fetchDataJud } from '@/lib/datajud';
+
+/** Uma retentativa em timeout/rede para DataJud/DJEN (não multiplica lote). */
+async function withOneRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  try {
+    return await fn();
+  } catch (e: any) {
+    const msg = String(e?.message || e).toLowerCase();
+    if (msg.includes('timeout') || msg.includes('network') || msg.includes('fetch') || msg.includes('econn') || msg.includes('503') || msg.includes('429')) {
+      await new Promise((r) => setTimeout(r, 800));
+      return await fn();
+    }
+    throw e;
+  }
+}
+
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';

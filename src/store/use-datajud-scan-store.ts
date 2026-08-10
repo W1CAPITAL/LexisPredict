@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { scanSingleCaseAction } from '@/app/actions/case-actions';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { prioritizeScanQueue } from '@/lib/case-filters';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -194,7 +195,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     });
     get().addLog({
       protocolo: 'SISTEMA',
-      message: 'Iniciando varredura local… carregando carteira',
+      message: 'Iniciando varredura local… fila priorizada (vencidos/críticos primeiro)',
       latency: 0,
       success: true,
       type: 'ok',
@@ -202,7 +203,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
     });
 
-    let cases = (useAppStore.getState().cases || []).filter((c) => !isCasoEncerrado(c));
+    let cases = prioritizeScanQueue(
+      (useAppStore.getState().cases || []).filter((c) => !isCasoEncerrado(c))
+    );
 
     // Se a store estiver vazia (ex.: RLS / refresh), tenta buscar no servidor
     if (cases.length === 0) {
@@ -212,7 +215,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         if (Array.isArray(remote) && remote.length > 0) {
           const setCases = useAppStore.getState().setCases;
           if (typeof setCases === 'function') setCases(remote);
-          cases = remote.filter((c: any) => !isCasoEncerrado(c));
+          cases = prioritizeScanQueue(remote.filter((c: any) => !isCasoEncerrado(c)));
         }
       } catch (e: any) {
         get().addLog({

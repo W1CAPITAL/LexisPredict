@@ -15,7 +15,8 @@ import {
   Globe, Bot, Download, ChevronRight, UserCheck, Building2, ExternalLink, FileDown,
   Briefcase, RefreshCcw, Plus
 } from 'lucide-react';
-import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic';
+import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic'
+import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { ui } from '@/lib/responsive-ui';
@@ -189,6 +190,8 @@ function CasesContent() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
+  const [lawyerFilter, setLawyerFilter] = useState('all');
+  const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('mais_vencido');
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -640,27 +643,16 @@ function CasesContent() {
     }
   };
 
-    const filtered = useMemo(() => {
-    const q = (search || '').toLowerCase().trim();
-    return cases.filter(c => {
-      const match =
-        !q ||
-        (c.cliente || '').toLowerCase().includes(q) ||
-        (c.protocolo || '').toLowerCase().includes(q) ||
-        (c.advogado || '').toLowerCase().includes(q) ||
-        (c.observacao || '').toLowerCase().includes(q);
-      if (!match) return false;
-      if (quickFilter === 'updated') return !!c.tem_novo_andamento;
-      if (quickFilter === 'active') return !isCasoEncerrado(c);
-      if (quickFilter === 'closed') return isCasoEncerrado(c);
-      if (quickFilter === 'hoje' || quickFilter === 'today') {
-        const st = String(c.status || '');
-        return st === 'É Hoje' || st === 'E Hoje' || st.toLowerCase() === 'é hoje';
-      }
-      if (quickFilter === 'vencido') return String(c.status || '') === 'Vencido';
-      return true;
+  const advogadosOptions = useMemo(() => listAdvogados(cases), [cases]);
+
+  const filtered = useMemo(() => {
+    const base = filterCases(cases, {
+      search,
+      quick: quickFilter,
+      advogado: lawyerFilter,
     });
-  }, [cases, search, quickFilter]);
+    return sortCasesByPrazo(base, sortPrazo);
+  }, [cases, search, quickFilter, lawyerFilter, sortPrazo]);
 
   const unifiedHistory = useMemo(() => {
     if (!historyResult) return [];
@@ -749,8 +741,36 @@ function CasesContent() {
             <div className="p-4 border-b border-border/30 flex flex-col lg:flex-row items-center justify-between gap-4">
               <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
-                <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-black uppercase text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="hoje">É Hoje</SelectItem><SelectItem value="vencido">Vencido</SelectItem><SelectItem value="active">Ativos</SelectItem><SelectItem value="updated">Com Novidade</SelectItem><SelectItem value="closed">Arquivados</SelectItem></SelectContent>
+                <SelectTrigger className="h-12 w-44 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="hoje">É Hoje</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="atencao">Atenção</SelectItem>
+                  <SelectItem value="sem_prazo">Sem prazo</SelectItem>
+                  <SelectItem value="active">Ativos</SelectItem>
+                  <SelectItem value="updated">Com novidade</SelectItem>
+                  <SelectItem value="closed">Arquivados</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={lawyerFilter} onValueChange={setLawyerFilter}>
+                <SelectTrigger className="h-12 w-48 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Advogado" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos advogados</SelectItem>
+                  {advogadosOptions.map((a) => (
+                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortPrazo} onValueChange={(v) => setSortPrazo(v as SortPrazoMode)}>
+                <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Ordenar prazo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mais_vencido">Mais vencido → menos</SelectItem>
+                  <SelectItem value="menos_vencido">Menos vencido → mais</SelectItem>
+                  <SelectItem value="prazo_asc">Próximo prazo (crescente)</SelectItem>
+                  <SelectItem value="cliente">Cliente A–Z</SelectItem>
+                  <SelectItem value="default">Ordem original</SelectItem>
+                </SelectContent>
               </Select>
             </div>
             <div className={cn("flex-1", ui.tableWrap)}>
