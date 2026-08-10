@@ -577,8 +577,47 @@ export default function TarefasPage() {
              </div>
           </div>
 
+          {/* Sub-abas da fila — fácil achar Blacklist e Em tratamento */}
+          <div className="flex flex-wrap gap-2">
+            {([
+              { id: 'all', label: 'Fila prioritária' },
+              { id: 'tratamento', label: 'Críticos em tratamento' },
+              { id: 'blacklist', label: 'Blacklist' },
+              { id: 'novidade', label: 'Novidades' },
+              { id: 'ba', label: 'B.A.' },
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilaFiltro(tab.id as any)}
+                className={cn(
+                  "h-9 px-4 rounded-full text-[10px] font-black uppercase tracking-wider border transition-colors",
+                  filaFiltro === tab.id
+                    ? tab.id === 'blacklist'
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : tab.id === 'tratamento'
+                        ? "bg-amber-500 text-black border-amber-500"
+                        : "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div className="space-y-4">
-            <div className="flex items-center gap-3"><Target size={18} className="text-primary" /><h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">Sequência Prioritária</h2></div>
+            <div className="flex items-center gap-3">
+              <Target size={18} className="text-primary" />
+              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">
+                {filaFiltro === 'blacklist'
+                  ? 'Blacklist / problemáticos'
+                  : filaFiltro === 'tratamento'
+                    ? 'Críticos em tratamento'
+                    : 'Sequência Prioritária'}
+              </h2>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.map((group) => (
                 <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />

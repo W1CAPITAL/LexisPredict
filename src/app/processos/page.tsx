@@ -14,6 +14,7 @@ import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAt
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes } from "@/lib/atendimento-semana";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase } from "@/lib/case-logic";
 import {
   Briefcase,
@@ -124,6 +125,7 @@ export default function ProcessosEmpresaPage() {
     situacao: "EM ANDAMENTO",
     observacao: "",
     proximoRetorno: "",
+    filaLista: "normal" as FilaLista,
   });
   const [visibleCount, setVisibleCount] = useState(25);
   const PAGE_SIZE = 25;
@@ -178,6 +180,7 @@ export default function ProcessosEmpresaPage() {
       situacao: c.situacao || "EM ANDAMENTO",
       observacao: c.observacao || "",
       proximoRetorno: c.proximoPrazo || "",
+      filaLista: parseFilaListaFromObs(c.observacao),
     });
     setAttendingOpen(true);
   };
@@ -191,7 +194,7 @@ export default function ProcessosEmpresaPage() {
         ...attending,
         situacao,
         ultimoRetorno: todayBR(),
-        observacao: attendanceForm.observacao.trim() || attending.observacao,
+        observacao: applyFilaListaToObs(attendanceForm.observacao.trim() || attending.observacao, attendanceForm.filaLista || "normal"),
         proximoPrazo: situacao === "ENCERRADO" ? "" : attendanceForm.proximoRetorno || attending.proximoPrazo,
         tem_novo_andamento: false,
         djen_nova_comunicacao: false,
@@ -203,7 +206,7 @@ export default function ProcessosEmpresaPage() {
         await registrarAtendimentoAction([attending.protocolo], {
           situacao,
           via: "processos-da-empresa",
-          observacao: attendanceForm.observacao.trim() || null,
+          observacao: applyFilaListaToObs(attendanceForm.observacao.trim() || attending?.observacao || "", attendanceForm.filaLista || "normal") || null,
         });
         setAttendingOpen(false);
         setAttending(null);
@@ -654,6 +657,26 @@ export default function ProcessosEmpresaPage() {
                 </div>
               </div>
             ) : null}
+            
+                <div className="space-y-2 rounded-xl border border-border/60 p-3">
+                  <Label className="text-[9px] font-black uppercase">Lista da fila</Label>
+                  <select
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-[11px] font-bold uppercase"
+                    value={parseFilaListaFromObs(editing?.observacao)}
+                    onChange={(e) => {
+                      if (!editing) return;
+                      setEditing({
+                        ...editing,
+                        observacao: applyFilaListaToObs(editing.observacao, e.target.value as FilaLista),
+                      });
+                    }}
+                  >
+                    <option value="normal">Fila normal</option>
+                    <option value="tratamento">Crítico em tratamento</option>
+                    <option value="blacklist">Blacklist / problemático</option>
+                  </select>
+                </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
               <Button onClick={saveEdit} disabled={saving}>
@@ -716,6 +739,23 @@ export default function ProcessosEmpresaPage() {
                 </div>
               </div>
             ) : null}
+            
+                <div className="space-y-2">
+                  <Label className="text-[9px] font-black uppercase">Lista da fila</Label>
+                  <select
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-[11px] font-bold uppercase"
+                    value={attendanceForm.filaLista || "normal"}
+                    onChange={(e) => setAttendanceForm({ ...attendanceForm, filaLista: e.target.value as FilaLista })}
+                  >
+                    <option value="normal">Fila normal (padrão)</option>
+                    <option value="tratamento">Crítico em tratamento (sai do topo)</option>
+                    <option value="blacklist">Blacklist / problemático</option>
+                  </select>
+                  <p className="text-[9px] text-muted-foreground">
+                    Mesmas listas da aba Tarefas. Em tratamento e blacklist aparecem nas sub-abas da fila.
+                  </p>
+                </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setAttendingOpen(false)} disabled={attendanceSaving}>Cancelar</Button>
               <Button onClick={saveAttendance} disabled={attendanceSaving} className="bg-emerald-600 hover:bg-emerald-700">
