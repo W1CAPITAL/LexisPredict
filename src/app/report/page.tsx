@@ -3,7 +3,7 @@
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
- * DOSSIÊ OPERACIONAL v26.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
+ * Dossiê operacional v26.0 — AUDITORIA ACIONÁVEL E MEMÓRIA ESTRATÉGICA
  * Theme-aware: funciona em light, dark e todos os presets (sem contraste quebrado).
  */
 
@@ -820,9 +820,8 @@ export default function UnifiedReport() {
            </section>
         )}
 
-        
-          <div className="px-4 sm:px-6 print:hidden">
-            <BiCompliancePanel cases={cases} />
+          <div className="print:hidden px-4 sm:px-6 mb-6 max-w-[1600px] mx-auto w-full">
+            <BiCompliancePanel cases={cases} defaultOpen={true} />
           </div>
 <footer className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 flex justify-between items-center break-inside-avoid">
            <div className="flex items-center gap-6">

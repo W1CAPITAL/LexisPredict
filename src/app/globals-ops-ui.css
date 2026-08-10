@@ -1,6 +1,32 @@
 /**
- * UI operacional leve — não quebra temas.
+ * Camada operacional (Cult UI + shadcn tokens do projeto).
+ * Import em globals.css: @import './globals-ops-ui.css';
  */
-.ops-ui .ops-leigo-block {
-  max-width: 36rem;
+
+/* Glass já existe no projeto — reforço de legibilidade */
+.ops-ui .glass-panel,
+.ops-ui .glass-card {
+  border-radius: 0.9rem;
+}
+
+/* Títulos de página menos “marketing” */
+.ops-ui main h1 {
+  letter-spacing: -0.02em;
+}
+
+/* Tabelas e cards densos */
+.ops-ui [data-ops-dense] {
+  font-size: 0.8125rem;
+}
+
+/* Scroll interno suave em painéis */
+.ops-ui .ops-scroll {
+  scrollbar-width: thin;
+}
+
+/* Report print: esconder BI */
+@media print {
+  .print\:hidden {
+    display: none !important;
+  }
 }

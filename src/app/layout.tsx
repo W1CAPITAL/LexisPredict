@@ -53,7 +53,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-sans antialiased bg-background text-foreground transition-colors duration-300 min-h-screen">
+      <body className="ops-ui font-sans antialiased bg-background text-foreground transition-colors duration-300 min-h-screen">
         <Script id="theme-loader" strategy="beforeInteractive">
           {`
             (function() {
