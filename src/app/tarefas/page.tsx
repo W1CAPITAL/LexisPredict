@@ -54,6 +54,12 @@ import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
+import {
+  applyFilaListaToObs,
+  groupFilaLista,
+  isAtendimentoRecente,
+  type FilaLista,
+} from '@/lib/fila-listas';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,7 +86,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format, parseISO, startOfDay, differenceInDays } from 'date-fns';
-import { isCasoEncerrado } from '@/lib/status-encerrado';
+import {  isCasoEncerrado, isBaixaTribunal  } from '@/lib/status-encerrado';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
@@ -116,7 +122,7 @@ export default function TarefasPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba'>('all');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [dailyMeta, setDailyMeta] = useState(25);
@@ -130,7 +136,9 @@ export default function TarefasPage() {
     observacao: '',
     proximoRetorno: '',
     situacao: 'EM ANDAMENTO',
-    applyToAll: true
+    applyToAll: true,
+    /** normal | tratamento | blacklist */
+    filaLista: 'normal' as FilaLista,
   });
 
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -341,7 +349,10 @@ export default function TarefasPage() {
             ...c, 
             situacao: attendanceForm.situacao, 
             ultimoRetorno: todayStr, 
-            observacao: attendanceForm.observacao || c.observacao,
+            observacao: applyFilaListaToObs(
+              attendanceForm.observacao || c.observacao,
+              attendanceForm.filaLista || 'normal'
+            ),
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno,
             tem_atualizacao_pos_retorno: false,
             djen_nova_comunicacao: false,
@@ -393,7 +404,7 @@ export default function TarefasPage() {
       if (temNovidadeIdentificada(c as any)) g.hasUpdate = true;
       if (temAudienciaPendente(c as any)) (g as any).hasAudiencia = true;
       if (temCumprimento(c as any)) (g as any).hasCumprimento = true;
-      if (c.datajud_encerrado_tribunal) g.hasClosedCourt = true;
+      if (isBaixaTribunal(c)) g.hasClosedCourt = true;
       if (c.tem_novo_andamento) g.hasUpdate = true;
       
       const res = c.evento_resumo || c.djen_ultimo_resumo || c.datajud_ultimo_nome;
@@ -431,9 +442,27 @@ export default function TarefasPage() {
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
         if (filaFiltro === 'problematicos') return g.cases.some((c: any) => isCasoProblematico(c, baSet)) || g.hasBA || g.hasClosedCourt || g.hasUpdate;
         if (filaFiltro === 'tranquilos') return g.cases.every((c: any) => isCasoTranquilo(c, baSet)) && !g.hasBA && !g.hasClosedCourt;
+        if (filaFiltro === 'blacklist') return groupFilaLista(g.cases as any) === 'blacklist';
+        if (filaFiltro === 'tratamento') return groupFilaLista(g.cases as any) === 'tratamento';
+        // Fila principal: esconde blacklist (fica na lista própria)
+        if (filaFiltro === 'all' || !filaFiltro) {
+          if (groupFilaLista(g.cases as any) === 'blacklist') return false;
+        }
         return true;
       })
       .sort((a, b) => {
+        // Tratamento: depois de quem ainda não foi atendido
+        const listaA = groupFilaLista(a.cases as any);
+        const listaB = groupFilaLista(b.cases as any);
+        const tratA = listaA === 'tratamento';
+        const tratB = listaB === 'tratamento';
+        if (tratA !== tratB) return tratA ? 1 : -1;
+
+        // Atendimento recente (36h): cai na ordem — você já está tratando
+        const recentA = a.cases.some((c: any) => isAtendimentoRecente(c.ultimoRetorno || c.ultimo_retorno, 36));
+        const recentB = b.cases.some((c: any) => isAtendimentoRecente(c.ultimoRetorno || c.ultimo_retorno, 36));
+        if (recentA !== recentB) return recentA ? 1 : -1;
+
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
         
@@ -537,6 +566,8 @@ export default function TarefasPage() {
                    <SelectContent className="bg-white border-2 border-black rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
                       <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
+                      <SelectItem value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
+                      <SelectItem value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
                       <SelectItem value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
                       <SelectItem value="tranquilos" className="font-black uppercase text-[10px]">Casos tranquilos</SelectItem>
                       <SelectItem value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
@@ -672,6 +703,25 @@ export default function TarefasPage() {
                   <div className="grid gap-2"><Label className={ui.label}>Resultado do Contato</Label><Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}><SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter Ativo</SelectItem><SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Caso</SelectItem></SelectContent></Select></div>
                   <div className="grid gap-2"><Label className={ui.label}>Próximo retorno</Label><Input type="date" value={attendanceForm.proximoRetorno} onChange={(e) => setAttendanceForm({...attendanceForm, proximoRetorno: e.target.value})} disabled={attendanceForm.situacao === 'ENCERRADO'} className="rounded-xl h-12 bg-secondary/30 border-none font-bold uppercase" /></div>
                   <div className="grid gap-2"><Label className={ui.label}>Observações</Label><Textarea placeholder="Histórico de conversa..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold uppercase resize-none" /></div>
+                  <div className="grid gap-2">
+                    <Label className={ui.label}>Lista da fila</Label>
+                    <Select
+                      value={attendanceForm.filaLista || "normal"}
+                      onValueChange={(val) => setAttendanceForm({ ...attendanceForm, filaLista: val as FilaLista })}
+                    >
+                      <SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal" className="text-[10px] font-bold uppercase">Fila normal (padrão)</SelectItem>
+                        <SelectItem value="tratamento" className="text-[10px] font-bold uppercase text-amber-700">Crítico em tratamento (sai do topo)</SelectItem>
+                        <SelectItem value="blacklist" className="text-[10px] font-bold uppercase text-red-600">Blacklist / problemático</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[9px] text-muted-foreground leading-snug">
+                      Atendimento recente (36h) já reduz prioridade automaticamente. Use &quot;em tratamento&quot; para críticos que você está acompanhando, e blacklist para clientes problemáticos à parte.
+                    </p>
+                  </div>
                   <div className="flex items-center space-x-3 pt-2"><Checkbox id="applyToAll" checked={attendanceForm.applyToAll} onCheckedChange={(val) => setAttendanceForm({...attendanceForm, applyToAll: !!val})} /><Label htmlFor="applyToAll" className="text-[10px] font-black uppercase cursor-pointer leading-tight">Aplicar a toda carteira do cliente</Label></div>
               </div>
               <DialogFooter className="p-6 pt-0 shrink-0"><Button type="button" onClick={handleSaveAttendance} disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] shadow-xl">{isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2" />} Sincronizar Registro</Button></DialogFooter>
@@ -693,6 +743,15 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
         <div className="flex flex-col items-end gap-2 text-right">
           {group.hasBA ? <Badge className="bg-red-600 text-white text-[8px] font-black uppercase">CRÍTICO: B.A.</Badge> : null}
           {group.hasAttendedWeek ? <Badge className="badge-semana text-[8px] font-black uppercase">Atendido semana</Badge> : null}
+          {group.cases.some((c: any) => isAtendimentoRecente(c.ultimoRetorno || c.ultimo_retorno, 36)) ? (
+            <Badge variant="outline" className="text-[8px] font-black uppercase border-emerald-600 text-emerald-700">Retorno recente</Badge>
+          ) : null}
+          {groupFilaLista(group.cases as any) === 'tratamento' ? (
+            <Badge className="bg-amber-500 text-black text-[8px] font-black uppercase">Em tratamento</Badge>
+          ) : null}
+          {groupFilaLista(group.cases as any) === 'blacklist' ? (
+            <Badge className="bg-slate-900 text-white text-[8px] font-black uppercase">Blacklist</Badge>
+          ) : null}
           {group.cases?.[0] ? (
             <Badge variant="outline" className="text-[7px] font-black uppercase border-black/20">
               {rotuloPrioridade(group.cases[0] as any)} · {faixaPrioridade(group.cases[0] as any)}

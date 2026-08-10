@@ -32,7 +32,14 @@ export function isCasoEncerrado(c: any): boolean {
  */
 export function isBaixaTribunal(c: any): boolean {
   if (!c) return false;
+  // Cumprimento ativo / petição de execução = não tratar como "baixado"
+  if (c.em_cumprimento_sentenca || c.cumprimento_sentenca) return false;
   if (c.datajud_encerrado_tribunal === true) return true;
-  if (c.evento_tipo === 'transito_ou_baixa' || c.evento_tipo === 'transito_baixa') return true;
+  if (c.evento_tipo === 'transito_ou_baixa' || c.evento_tipo === 'transito_baixa') {
+    // trânsito sozinho não basta se há novidade de cumprimento no resumo
+    const blob = `${c.evento_resumo || ''} ${c.datajud_ultimo_nome || ''} ${c.djen_ultimo_resumo || ''}`.toUpperCase();
+    if (/CUMPRIMENTO|ART\.?\s*524|REGULARIZ/.test(blob)) return false;
+    return true;
+  }
   return false;
 }

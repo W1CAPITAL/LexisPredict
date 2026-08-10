@@ -230,15 +230,7 @@ export default function SecurityPage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {MOTORES.map((m) => {
-                const r = results[m.id];
-                const Icon = m.icon;
-                const counts = r?.counts;
-                const status = r?.status;
-                return (
-                  
-            {/* Sonda ativa — quebra defesas ao vivo (mesmo origin) */}
+                        {/* Sonda ativa — quebra defesas ao vivo (mesmo origin) */}
             <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -296,7 +288,14 @@ export default function SecurityPage() {
               ) : null}
             </div>
 
-<Card key={m.id} className="flex flex-col">
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {MOTORES.map((m) => {
+                const r = results[m.id];
+                const Icon = m.icon;
+                const counts = r?.counts;
+                const status = r?.status;
+                return (
+                  <Card key={m.id} className="flex flex-col">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <Icon className="h-4 w-4 text-primary" /> {m.title}

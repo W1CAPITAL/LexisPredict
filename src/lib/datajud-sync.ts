@@ -67,13 +67,58 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     return `${mov.nome || ''} ${mov.complemento || ''} ${mov.descricao || ''}`.toUpperCase();
   });
 
-  for (const group of patternGroups) {
-    if (constructedWindow.some(text => group.patterns.some(p => text.includes(p)))) {
-      return { encerrado: true, motivo: group.label };
+  // Movimentos mais recentes que REABREM fase operacional (ex.: cumprimento após trânsito)
+  const ACTIVE_AFTER = [
+    'CUMPRIMENTO DE SENTENÇA',
+    'INÍCIO DE CUMPRIMENTO',
+    'PEDIDO DE INÍCIO DE CUMPRIMENTO',
+    'REGULARIZAR SEU PEDIDO',
+    'ART. 524',
+    'ARTIGO 524',
+    'PETIÇÃO',
+    'DESPACHO',
+    'INTIMAÇÃO',
+    'ATO ORDINATÓRIO',
+    'CONCLUSÃO PARA DESPACHO',
+    'EXPEDIÇÃO DE DOCUMENTO',
+  ];
+
+  // Encontra índice do fechamento e de atividade posterior
+  let closeIdx = -1;
+  let closeLabel: string | null = null;
+  let closeStrong = false;
+  for (let i = 0; i < constructedWindow.length; i++) {
+    const text = constructedWindow[i];
+    for (const group of patternGroups) {
+      if (group.patterns.some((p) => text.includes(p))) {
+        closeIdx = i;
+        closeLabel = group.label;
+        closeStrong = group.label === 'BAIXA DEFINITIVA' || group.label === 'ARQUIVAMENTO DEFINITIVO' || group.label === 'CANCELAMENTO DA DISTRIBUIÇÃO';
+        break;
+      }
+    }
+    if (closeIdx >= 0) break;
+  }
+  if (closeIdx < 0) return { encerrado: false, motivo: null };
+
+  // Atividade mais recente que o "fecho"?
+  for (let i = 0; i < closeIdx; i++) {
+    const text = constructedWindow[i];
+    if (ACTIVE_AFTER.some((p) => text.includes(p))) {
+      // Trânsito/baixa antigos + cumprimento/petição depois = processo ATIVO
+      return { encerrado: false, motivo: null };
     }
   }
 
-  return { encerrado: false, motivo: null };
+  // Trânsito isolado sem baixa definitiva: só marca se não houver fase ativa na janela
+  if (!closeStrong && closeLabel === 'TRÂNSITO EM JULGADO') {
+    const anyActive = constructedWindow.some((text) =>
+      ACTIVE_AFTER.some((p) => text.includes(p))
+    );
+    if (anyActive) return { encerrado: false, motivo: null };
+  }
+
+  return { encerrado: true, motivo: closeLabel };
 }
 
 /**
