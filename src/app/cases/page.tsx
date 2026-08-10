@@ -28,6 +28,7 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
+import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
@@ -198,6 +199,8 @@ function CasesContent() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
+  const [ownerAuthId, setOwnerAuthId] = useState<string>('self');
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], djenComunicacoes?: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
@@ -211,7 +214,8 @@ function CasesContent() {
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
-  const { isOperador, profile } = useAdmin();
+  const { isOperador, profile, isSupervisor, isSuperAdmin } = useAdmin();
+  const canAssignOwner = isSupervisor || isSuperAdmin || profile?.cargo === 'Administrador';
   const { toast } = useToast();
   
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });
@@ -506,6 +510,7 @@ function CasesContent() {
 
   const handleEdit = (c: LegalCase) => {
     setEditingCase(c);
+    setOwnerAuthId(String((c as any).created_by || 'self'));
     setFormState({
       cliente: c.cliente || '',
       protocolo: c.protocolo || '',
@@ -562,6 +567,9 @@ function CasesContent() {
         protocolo,
         tribunal: tribunalData?.tribunal || editingCase.tribunal,
       });
+      if (canAssignOwner && ownerAuthId && ownerAuthId !== 'self') {
+        (updatedCase as any).created_by = ownerAuthId;
+      }
       if (cnjChanged) {
         const res = await updateCaseCnjAction(String(editingCase.protocolo || ''), updatedCase);
         if (res?.success) {
@@ -619,6 +627,9 @@ function CasesContent() {
       parte_passiva_cnpj: formState.parte_passiva_cnpj || '',
       classe_acao: formState.classe_acao || '',
     } as any);
+    if (canAssignOwner && ownerAuthId && ownerAuthId !== 'self') {
+      (novo as any).created_by = ownerAuthId;
+    }
     const updatedList = [novo, ...cases];
     const res = await syncRepoCases(updatedList);
     if (res.success) {
@@ -626,6 +637,7 @@ function CasesContent() {
       setIsModalOpen(false);
       setEditingCase(null);
       setFormState(emptyForm());
+      setOwnerAuthId('self');
       toast({ title: 'Processo adicionado', description: protocolo });
     } else {
       toast({ title: 'Falha ao adicionar', description: (res as any).error || 'Tente novamente', variant: 'destructive' });
@@ -642,6 +654,21 @@ function CasesContent() {
       }
     }
   };
+
+
+  useEffect(() => {
+    if (!canAssignOwner) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listAssignableUsersAction();
+        if (!cancelled) setAssignableUsers(list || []);
+      } catch {
+        if (!cancelled) setAssignableUsers([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [canAssignOwner]);
 
   const advogadosOptions = useMemo(() => listAdvogados(cases), [cases]);
 
@@ -1050,6 +1077,29 @@ function CasesContent() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                {canAssignOwner && (
+                  <div className="space-y-2 col-span-2">
+                    <Label className={ui.label}>Responsável pelo contrato (carteira do operador)</Label>
+                    <Select value={ownerAuthId} onValueChange={setOwnerAuthId}>
+                      <SelectTrigger className="h-11 rounded-xl bg-secondary/20 border-none font-semibold text-xs">
+                        <SelectValue placeholder="Quem fica com este processo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="self">Eu (quem está logado)</SelectItem>
+                        {assignableUsers.map((u) => (
+                          <SelectItem key={u.auth_user_id} value={u.auth_user_id}>
+                            {u.nome}{u.cargo ? ` · ${u.cargo}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      O processo entra na carteira do usuário escolhido (campo created_by). Operadores só veem os próprios.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2"><Label className={ui.label}>Observações</Label><Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl bg-secondary/20 border-none font-bold uppercase text-xs min-h-[120px] resize-none" /></div>
               </div>
               <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0">
