@@ -95,8 +95,12 @@ const CaseRow = React.memo(({
                 <span className="text-[9px] font-black text-black/60 uppercase">{sinal.titulo}</span>
                 {sinal.data && <span className="text-[8px] font-bold text-black/30 ml-auto">{format(parseISO(sinal.data), 'dd/MM/yy')}</span>}
              </div>
-             <p className="text-[11px] font-bold text-foreground/80 uppercase italic leading-tight line-clamp-2">{sinal.detalhe}
-            <div className="mt-2 max-w-lg"><AndamentoLeigoBlock caseData={c} /></div></p>
+             <p className="text-[11px] font-medium text-foreground/80 leading-snug line-clamp-2">
+               {sinal.detalhe}
+             </p>
+             <div className="mt-2 w-full max-w-xl">
+               <AndamentoLeigoBlock caseData={c} showPrazo showAtividades />
+             </div>
              {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <button
