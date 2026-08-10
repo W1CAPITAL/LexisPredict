@@ -19,7 +19,8 @@ import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
-import { countAuditadosNestaSemana, patchAuditoriaEdicao } from '@/lib/processos-auditados';
+import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, countAuditadosHoje, patchAuditoriaEdicao } from '@/lib/processos-auditados';
+import { AuditadosStrip } from '@/components/kpi/auditados-strip';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import {
@@ -197,6 +198,11 @@ CaseRow.displayName = 'CaseRow';
 
 function CasesContent() {
   const { cases, setCases, updateCaseByProtocolo, removeCase } = useAppStore();
+  const auditadosSemana = useMemo(() => countAuditadosNestaSemana(cases as any), [cases]);
+  const auditadosTribunal = useMemo(() => countAuditadosTribunalSemana(cases as any), [cases]);
+  const editadosApp = useMemo(() => countEditadosAppSemana(cases as any), [cases]);
+  const auditadosHoje = useMemo(() => countAuditadosHoje(cases as any), [cases]);
+
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
@@ -794,6 +800,16 @@ function CasesContent() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+        <div className="px-4 sm:px-6 pt-3 shrink-0">
+          <AuditadosStrip
+            auditadosSemana={auditadosSemana}
+            auditadosTribunal={auditadosTribunal}
+            editadosApp={editadosApp}
+            auditadosHoje={auditadosHoje}
+            compact
+          />
+        </div>
+
           <div className="px-4 sm:px-6 pt-4">
             <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
           </div>

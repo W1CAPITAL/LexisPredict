@@ -56,7 +56,8 @@ import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
-import { countAuditadosNestaSemana } from '@/lib/processos-auditados';
+import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, countAuditadosHoje } from '@/lib/processos-auditados';
+import { AuditadosStrip } from '@/components/kpi/auditados-strip';
 import {
   applyFilaListaToObs,
   groupFilaLista,
@@ -430,6 +431,9 @@ const handleSaveAttendance = async () => {
   };
 
   const auditadosSemanaKPI = useMemo(() => countAuditadosNestaSemana(cases as any), [cases]);
+  const auditadosTribunalKPI = useMemo(() => countAuditadosTribunalSemana(cases as any), [cases]);
+  const editadosAppKPI = useMemo(() => countEditadosAppSemana(cases as any), [cases]);
+  const auditadosHojeKPI = useMemo(() => countAuditadosHoje(cases as any), [cases]);
 
   const taskData = useMemo(() => {
     const groups: Record<string, TaskGroup> = {};
@@ -590,6 +594,16 @@ const handleSaveAttendance = async () => {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+        <div className="px-4 sm:px-8 pt-3 shrink-0">
+          <AuditadosStrip
+            auditadosSemana={auditadosSemanaKPI}
+            auditadosTribunal={auditadosTribunalKPI}
+            editadosApp={editadosAppKPI}
+            auditadosHoje={auditadosHojeKPI}
+            compact
+          />
+        </div>
+
           <div className="px-4 sm:px-6 pt-4">
             <OpsOrbitalStrip
               nodes={defaultOpsNodes({

@@ -13,7 +13,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
-import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria } from '@/lib/processos-auditados';
+import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, countAuditadosHoje, labelSemanaAuditoria } from '@/lib/processos-auditados';
+import { AuditadosStrip } from '@/components/kpi/auditados-strip';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase } from "@/lib/case-logic";
@@ -300,6 +301,7 @@ export default function ProcessosEmpresaPage() {
   const auditadosSemana = useMemo(() => countAuditadosNestaSemana(cases), [cases]);
   const auditadosTribunal = useMemo(() => countAuditadosTribunalSemana(cases), [cases]);
   const editadosApp = useMemo(() => countEditadosAppSemana(cases), [cases]);
+  const auditadosHoje = useMemo(() => countAuditadosHoje(cases), [cases]);
   const ativos = useMemo(() => cases.filter((c) => !isCasoEncerrado(c)), [cases]);
   const vencidos = useMemo(() => ativos.filter((c) => c.status === "Vencido" || c.status === "Caso Crítico"), [ativos]);
 
@@ -394,6 +396,13 @@ export default function ProcessosEmpresaPage() {
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
+            <AuditadosStrip
+              auditadosSemana={loading ? 0 : auditadosSemana}
+              auditadosTribunal={loading ? 0 : auditadosTribunal}
+              editadosApp={loading ? 0 : editadosApp}
+              auditadosHoje={loading ? 0 : auditadosHoje}
+            />
+
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
               <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : cases.length} tone="primary" />
               <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : ativos.length} />

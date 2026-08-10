@@ -14,6 +14,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSupervisaoSnapshotAction, type SupervisaoSnapshot } from "@/app/actions/supervisao-actions";
+import { AuditadosStrip } from "@/components/kpi/auditados-strip";
 import { Users,
   Briefcase,
   Activity,
@@ -219,6 +220,12 @@ export default function SupervisaoPage() {
               </div>
             ) : snap ? (
               <>
+                <AuditadosStrip
+                  auditadosSemana={snap.auditadosSemana ?? 0}
+                  auditadosTribunal={snap.auditadosTribunalSemana ?? 0}
+                  editadosApp={snap.editadosAppSemana ?? 0}
+                  auditadosHoje={snap.auditadosHoje ?? 0}
+                />
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
                   <KpiCard icon={<Briefcase size={16} />} label="Processos" value={snap.total} tone="primary" />
                   <KpiCard icon={<Activity size={16} />} label="Ativos" value={snap.ativos} />
