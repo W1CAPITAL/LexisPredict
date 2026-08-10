@@ -56,7 +56,7 @@ import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
-import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
+import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import {
   applyFilaListaToObs,
   groupFilaLista,
