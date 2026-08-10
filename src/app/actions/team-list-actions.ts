@@ -10,11 +10,11 @@ export type AssignableUser = {
   cargo?: string;
 };
 
-/** Lista operadores da empresa para o supervisor atribuir o contrato. */
+/** Lista usuários da empresa para Supervisor/Superadmin/Administrador atribuir o contrato. */
 export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  // Supervisor / Superadmin / Admin podem atribuir
+
   const cargo = String(ctx.cargo || '');
   const can =
     ctx.isSuperAdmin ||
@@ -22,6 +22,7 @@ export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
     cargo === 'Administrador' ||
     cargo === 'Supervisor' ||
     cargo === 'Superadmin';
+
   if (!can) return [];
 
   const users = await getEmpresaUsers();
@@ -31,8 +32,8 @@ export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
       id: String(u.id),
       auth_user_id: String(u.auth_user_id),
       nome: String(u.nome || u.email || 'Sem nome').toUpperCase(),
-      email: u.email,
-      cargo: u.cargo,
+      email: u.email ? String(u.email) : undefined,
+      cargo: u.cargo ? String(u.cargo) : undefined,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }

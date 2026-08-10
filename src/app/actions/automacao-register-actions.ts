@@ -43,6 +43,8 @@ export interface AutomacaoCadastroInput {
   escritorio?: string;
   proximoPrazo?: string;
   situacao?: string;
+  /** auth_user_id do operador dono da carteira (só supervisor/admin) */
+  created_by?: string;
 }
 
 export interface CadastroEnrichResult {
@@ -587,11 +589,25 @@ export async function registerCaseFromAutomacaoAction(
   try {
     const ctx = await getUserContext();
     const empresa_id = ctx?.empresa_id;
-    const user_id = (ctx as any)?.user_id ?? (ctx as any)?.userId ?? null;
+    const auth_id = (ctx as any)?.auth_id || null;
 
     if (!empresa_id) {
       return { success: false as const, error: 'Sessão expirada.' };
     }
+
+    const cargo = String(ctx.cargo || '');
+    const canAssign =
+      !!ctx.isSuperAdmin ||
+      !!ctx.isSupervisor ||
+      cargo === 'Administrador' ||
+      cargo === 'Supervisor' ||
+      cargo === 'Superadmin';
+
+    const requestedOwner = (input.created_by || '').trim();
+    const ownerAuthId =
+      canAssign && requestedOwner && requestedOwner !== 'self'
+        ? requestedOwner
+        : auth_id;
 
     const protocolo = formatCnj(input.protocolo);
     const dig = digitsOnly(protocolo);
@@ -654,6 +670,7 @@ export async function registerCaseFromAutomacaoAction(
       const merged = processarCaso({
         ...cases[idx],
         ...base,
+        ...(canAssign && ownerAuthId ? { created_by: ownerAuthId } : {}),
       } as LegalCase);
       next = [...cases];
       next[idx] = merged;
@@ -663,7 +680,7 @@ export async function registerCaseFromAutomacaoAction(
         ...base,
         status: 'Sem Prazo',
         statusManual: 'Automatico',
-        ...(user_id ? { created_by: user_id } : {}),
+        ...(ownerAuthId ? { created_by: ownerAuthId } : {}),
       } as LegalCase);
       next = [created, ...cases];
     }

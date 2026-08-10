@@ -12,6 +12,7 @@ import React, { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { listAssignableUsersAction, type AssignableUser } from "@/app/actions/team-list-actions";
+import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Loader2,
@@ -92,6 +95,31 @@ export default function IASyncPage() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [formLoading, setFormLoading] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
+  const [ownerAuthId, setOwnerAuthId] = useState<string>("self");
+
+  const canAssignOwner =
+    checkIfSuperAdmin(profile) ||
+    checkIfSupervisor(profile) ||
+    profile?.cargo === "Administrador" ||
+    profile?.cargo === "Supervisor" ||
+    profile?.cargo === "Superadmin";
+
+  useEffect(() => {
+    if (!canAssignOwner) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listAssignableUsersAction();
+        if (!cancelled) setAssignableUsers(list || []);
+      } catch {
+        if (!cancelled) setAssignableUsers([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canAssignOwner]);
 
   const [tipoPeca, setTipoPeca] = useState<TipoPeca>("informacoes");
   const [peca, setPeca] = useState("");
@@ -195,6 +223,9 @@ export default function IASyncPage() {
       const res = await registerCaseFromAutomacaoAction({
         protocolo: cnj,
         ...form,
+        ...(canAssignOwner && ownerAuthId && ownerAuthId !== "self"
+          ? { created_by: ownerAuthId }
+          : {}),
       } as any);
       if (!res?.success) throw new Error(res?.error || "Falha ao salvar.");
       toast({ title: "Salvo", description: res.message });
@@ -363,6 +394,30 @@ export default function IASyncPage() {
                     placeholder="Observações / histórico (opcional)"
                     className="text-xs"
                   />
+                  {canAssignOwner && (
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Responsável pelo contrato (carteira do operador)
+                      </Label>
+                      <Select value={ownerAuthId} onValueChange={setOwnerAuthId}>
+                        <SelectTrigger className="h-10 text-xs font-semibold">
+                          <SelectValue placeholder="Quem fica com este processo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="self">Eu (quem está logado)</SelectItem>
+                          {assignableUsers.map((u) => (
+                            <SelectItem key={u.auth_user_id} value={u.auth_user_id}>
+                              {u.nome}{u.cargo ? ` · ${u.cargo}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        O processo entra na carteira do usuário escolhido. Operadores só veem os próprios.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={buscarDjen} disabled={formLoading}>
                       {formLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Search className="mr-1.5 h-4 w-4" />}

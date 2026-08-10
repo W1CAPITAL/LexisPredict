@@ -342,6 +342,12 @@ export default function ProcessosEmpresaPage() {
             >
               <RefreshCcw size={14} className={cn(loading && "animate-spin")} /> Atualizar
             </button>
+            <Link
+              href="/cases?new=1"
+              className="h-9 rounded-xl bg-black text-white hover:bg-primary hover:text-black px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
+            >
+              <Plus size={14} /> Novo Processo
+            </Link>
             <button
               onClick={exportCsv}
               className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"

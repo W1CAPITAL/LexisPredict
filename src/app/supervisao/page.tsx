@@ -1,3 +1,4 @@
+import Link from "next/link";
 "use client";
 
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
@@ -13,8 +14,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSupervisaoSnapshotAction, type SupervisaoSnapshot } from "@/app/actions/supervisao-actions";
-import {
-  Users,
+import { Users,
   Briefcase,
   Activity,
   CheckCircle2,
@@ -29,8 +29,7 @@ import {
   Gavel,
   MessageSquare,
   CalendarClock,
-  ShieldCheck,
-} from "lucide-react";
+  ShieldCheck, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -163,7 +162,14 @@ export default function SupervisaoPage() {
                 <Users size={12} className="mr-1.5" /> {profile?.cargo}
               </Badge>
             )}
-            <Button variant="outline" size="sm" onClick={load} className="h-9 rounded-xl" disabled={loading}>
+            
+            <Button asChild size="sm" className="h-9 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black">
+              <Link href="/cases?new=1">
+                <Plus size={14} className="mr-1.5 inline" />
+                Novo Processo
+              </Link>
+            </Button>
+<Button variant="outline" size="sm" onClick={load} className="h-9 rounded-xl" disabled={loading}>
               <RefreshCcw size={14} className={cn("mr-1.5", loading && "animate-spin")} /> Atualizar
             </Button>
             <Button
