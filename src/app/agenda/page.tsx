@@ -39,6 +39,7 @@ import {
   Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isRecessoForense } from "@/lib/calendario-tj";
 import type { LegalCase } from "@/lib/case-logic";
 import { traduzirCaso } from "@/lib/traduzir-andamento";
 
@@ -385,6 +386,7 @@ export default function AgendaPage() {
                 };
                 const isToday = isSameDay(d, hoje);
                 const isPast = d < hoje && !isToday;
+                const recesso = isRecessoForense(d);
 
                 const showPrazos = filtro === "tudo" || filtro === "prazos";
                 const showAt = filtro === "tudo" || filtro === "atendidos";
@@ -420,6 +422,9 @@ export default function AgendaPage() {
                         >
                           {format(d, "dd")}
                         </p>
+                        {recesso && (
+                          <p className="text-[9px] text-amber-700 font-medium">Recesso</p>
+                        )}
                       </div>
                       {totalVisible > 0 && (
                         <Badge variant="secondary" className="text-[10px]">
