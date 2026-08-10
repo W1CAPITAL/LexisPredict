@@ -609,7 +609,7 @@ function CasesContent() {
     // ENCERRADO sempre atualiza ultimoRetorno para HOJE (conta na semana)
     const formForSave =
       String(formState.situacao || '').toUpperCase() === 'ENCERRADO'
-        ? { ...formForSave, ultimoRetorno: hojeBrasilYmd(), proximoPrazo: '' }
+        ? { ...formState, ultimoRetorno: hojeBrasilYmd(), proximoPrazo: '' }
         : formState;
     if (editingCase) {
       const digits = protocolo.replace(/\D/g, '');

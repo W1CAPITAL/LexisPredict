@@ -42,7 +42,7 @@ export function CaseDetailPanel({
     [caseData]
   );
 
-  const [prazoPreset, setPrazoPreset] = useState(PRAZOS_COMUNS[0].id);
+  const [prazoPreset, setPrazoPreset] = useState<(typeof PRAZOS_COMUNS)[number]["id"]>(PRAZOS_COMUNS[0].id);
   const [dataBase, setDataBase] = useState(() => {
     if (eventDate) {
       const d = eventDate instanceof Date ? eventDate : new Date(eventDate);
@@ -145,7 +145,7 @@ export function CaseDetailPanel({
               <select
                 className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
                 value={prazoPreset}
-                onChange={(e) => setPrazoPreset(e.target.value)}
+                onChange={(e) => setPrazoPreset(e.target.value as (typeof PRAZOS_COMUNS)[number]["id"])}
               >
                 {PRAZOS_COMUNS.map((p) => (
                   <option key={p.id} value={p.id}>

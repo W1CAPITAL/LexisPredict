@@ -503,13 +503,15 @@ const handleSaveAttendance = async () => {
       .sort((a, b) => {
         // ordenação por vencimento (mais/menos) alinhada ao filtro da UI
         if (sortPrazo === 'mais_vencido' || sortPrazo === 'menos_vencido' || sortPrazo === 'prazo_asc') {
-          const da = typeof a.diasFaltando === 'number' ? a.diasFaltando : (a.casos?.[0]?.diasFaltando ?? 9999);
-          const db = typeof b.diasFaltando === 'number' ? b.diasFaltando : (b.casos?.[0]?.diasFaltando ?? 9999);
-          // groups may store diasFaltando on first case
-          const ga = a.casos?.[0] || a;
-          const gb = b.casos?.[0] || b;
-          const xa = typeof ga.diasFaltando === 'number' ? ga.diasFaltando : da;
-          const xb = typeof gb.diasFaltando === 'number' ? gb.diasFaltando : db;
+          // TaskGroup usa cases[] + diasAtrasoMax; diasFaltando vive no LegalCase
+          const xa =
+            typeof (a.cases?.[0] as any)?.diasFaltando === 'number'
+              ? (a.cases[0] as any).diasFaltando
+              : (typeof a.diasAtrasoMax === 'number' ? -Math.abs(a.diasAtrasoMax || 0) : 9999);
+          const xb =
+            typeof (b.cases?.[0] as any)?.diasFaltando === 'number'
+              ? (b.cases[0] as any).diasFaltando
+              : (typeof b.diasAtrasoMax === 'number' ? -Math.abs(b.diasAtrasoMax || 0) : 9999);
           if (typeof xa === 'number' && typeof xb === 'number') {
             if (sortPrazo === 'mais_vencido' && xa !== xb) return xa - xb;
             if (sortPrazo === 'menos_vencido') {
