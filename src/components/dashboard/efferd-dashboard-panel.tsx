@@ -27,6 +27,8 @@ import {
   TrendingUp,
   AlertTriangle,
   Signal,
+  Pencil,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +36,11 @@ import {
   countAtendidosNestaSemana,
   labelSemanaAtual,
 } from "@/lib/atendimento-semana";
+import {
+  countEditadosAppSemana,
+  countEditadosAppHoje,
+  countAuditadosTribunalSemana,
+} from "@/lib/processos-auditados";
 
 type Kpi = {
   label: string;
@@ -131,7 +138,11 @@ export type LexisDashboardProps = {
   className?: string;
   compact?: boolean;
   /** Casos da carteira — gera série real de último atendimento na semana */
-  cases?: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null }>;
+  cases?: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null; auditado_em?: string | null; datajud_consultado_em?: string | null; djen_consultado_em?: string | null; dados?: any }>;
+  /** Opcional: se não passar, calcula a partir de cases */
+  editadosSemana?: number;
+  editadosHoje?: number;
+  tribunalSemana?: number;
 };
 
 export function Dashboard({
@@ -146,6 +157,9 @@ export function Dashboard({
   className,
   compact = false,
   cases = [],
+  editadosSemana,
+  editadosHoje,
+  tribunalSemana,
 }: LexisDashboardProps) {
   const series = useMemo(() => {
     if (cases && cases.length > 0) {
@@ -165,6 +179,18 @@ export function Dashboard({
   const atendidosSemana = useMemo(
     () => countAtendidosNestaSemana(cases || []),
     [cases]
+  );
+  const editadosSemanaN = useMemo(
+    () => (editadosSemana != null ? editadosSemana : countEditadosAppSemana(cases || [])),
+    [cases, editadosSemana]
+  );
+  const editadosHojeN = useMemo(
+    () => (editadosHoje != null ? editadosHoje : countEditadosAppHoje(cases || [])),
+    [cases, editadosHoje]
+  );
+  const tribunalSemanaN = useMemo(
+    () => (tribunalSemana != null ? tribunalSemana : countAuditadosTribunalSemana(cases || [])),
+    [cases, tribunalSemana]
   );
   const semanaLabel = useMemo(() => labelSemanaAtual(), []);
 
@@ -208,7 +234,35 @@ export function Dashboard({
       icon: <TrendingUp size={16} />,
       tone: novidades > 0 ? "warn" : "default",
       hint: "Movimento após retorno",
+    },,
+    {
+      label: "Atend. semana",
+      value: atendidosSemana,
+      icon: <Clock size={16} />,
+      tone: atendidosSemana > 0 ? "ok" : "default",
+      hint: semanaLabel,
     },
+    {
+      label: "Editados app",
+      value: editadosSemanaN,
+      icon: <Pencil size={16} />,
+      tone: "violet",
+      hint: "Qualquer salvamento no app · " + semanaLabel,
+    },
+    {
+      label: "Editados hoje",
+      value: editadosHojeN,
+      icon: <Pencil size={16} />,
+      tone: editadosHojeN > 0 ? "info" : "default",
+      hint: "Edições de hoje (Brasília)",
+    },
+    {
+      label: "Tribunal sem.",
+      value: tribunalSemanaN,
+      icon: <Search size={16} />,
+      tone: "info",
+      hint: "Só DataJud / DJEN (separado)",
+    }
     {
       label: "É hoje",
       value: hoje,

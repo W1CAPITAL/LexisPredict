@@ -19,8 +19,7 @@ import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
-import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, countAuditadosHoje, patchAuditoriaEdicao } from '@/lib/processos-auditados';
-import { AuditadosStrip } from '@/components/kpi/auditados-strip';
+import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import {
@@ -492,7 +491,8 @@ function CasesContent() {
           return processarCaso({ 
             ...c, 
             situacao: attendanceForm.situacao, 
-            ultimoRetorno: todayStr, 
+            ultimoRetorno: todayStr,
+            ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr), 
             observacao: attendanceForm.observacao || c.observacao, 
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno, 
             tem_atualizacao_pos_retorno: false, 
@@ -800,17 +800,7 @@ function CasesContent() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
-        <div className="px-4 sm:px-6 pt-3 shrink-0">
-          <AuditadosStrip
-            auditadosSemana={auditadosSemana}
-            auditadosTribunal={auditadosTribunal}
-            editadosApp={editadosApp}
-            auditadosHoje={auditadosHoje}
-            compact
-          />
-        </div>
-
-          <div className="px-4 sm:px-6 pt-4">
+<div className="px-4 sm:px-6 pt-4">
             <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
           </div>
 

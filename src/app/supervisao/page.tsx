@@ -14,7 +14,6 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSupervisaoSnapshotAction, type SupervisaoSnapshot } from "@/app/actions/supervisao-actions";
-import { AuditadosStrip } from "@/components/kpi/auditados-strip";
 import { Users,
   Briefcase,
   Activity,
@@ -220,13 +219,7 @@ export default function SupervisaoPage() {
               </div>
             ) : snap ? (
               <>
-                <AuditadosStrip
-                  auditadosSemana={snap.auditadosSemana ?? 0}
-                  auditadosTribunal={snap.auditadosTribunalSemana ?? 0}
-                  editadosApp={snap.editadosAppSemana ?? 0}
-                  auditadosHoje={snap.auditadosHoje ?? 0}
-                />
-                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+<div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
                   <KpiCard icon={<Briefcase size={16} />} label="Processos" value={snap.total} tone="primary" />
                   <KpiCard icon={<Activity size={16} />} label="Ativos" value={snap.ativos} />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Encerrados" value={snap.encerrados} tone="ok" />
@@ -235,7 +228,7 @@ export default function SupervisaoPage() {
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
                   <KpiCard icon={<MessageSquare size={16} />} label="Atend. (geral)" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
                   <KpiCard icon={<CalendarClock size={16} />} label="Atend. semana" value={snap.atendidosSemana} tone="primary" hint="última semana" />
-                  <KpiCard icon={<Activity size={16} />} label="Auditados semana" value={snap.auditadosSemana ?? 0} tone="primary" hint="edição app + DataJud/DJEN" />
+                  <KpiCard icon={<Activity size={16} />} label="Editados app" value={snap.auditadosSemana ?? 0} tone="primary" hint="qualquer salvamento no app" />
                   <KpiCard icon={<FileSearch size={16} />} label="Tribunal (sem.)" value={snap.auditadosTribunalSemana ?? 0} hint="só DataJud/DJEN" />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Editados app" value={snap.editadosAppSemana ?? 0} hint="salvar processo no app" />
                 </div>

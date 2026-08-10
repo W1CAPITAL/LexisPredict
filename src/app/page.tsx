@@ -1,11 +1,9 @@
 "use client";
 import {
-  countAuditadosNestaSemana,
-  countAuditadosTribunalSemana,
   countEditadosAppSemana,
-  countAuditadosHoje,
+  countEditadosAppHoje,
+  countAuditadosTribunalSemana,
 } from "@/lib/processos-auditados";
-import { AuditadosStrip } from "@/components/kpi/auditados-strip";
 
 
 import { statusEfetivo } from "@/lib/prazo-status";
@@ -150,10 +148,10 @@ export default function Dashboard() {
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento || !!c.tem_atualizacao_pos_retorno).length;
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
-    const countAuditadosSemana = countAuditadosNestaSemana(cases as any);
-    const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
     const countEditadosApp = countEditadosAppSemana(cases as any);
-    const countAuditadosHojeN = countAuditadosHoje(cases as any);
+    const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
+    const countAuditadosHojeN = countEditadosAppHoje(cases as any);
+    const countAuditadosSemana = countEditadosApp;
     const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
     const countBA = countBaFromCases(ativos as any, baSet);
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca').length;
@@ -329,6 +327,9 @@ export default function Dashboard() {
                   hoje={metrics.countHoje}
                   riskScore={metrics.riskScore}
                   cases={cases}
+                  editadosSemana={metrics.countEditadosApp ?? metrics.countAuditadosSemana ?? 0}
+                  editadosHoje={metrics.countAuditadosHoje ?? 0}
+                  tribunalSemana={metrics.countAuditadosTribunal ?? 0}
                 />
               </section>
             </div>
@@ -365,15 +366,6 @@ export default function Dashboard() {
                   <Activity className="text-blue-600/40" size={28} />
                 </div>
               </section>
-
-              
-              <AuditadosStrip
-                auditadosSemana={metrics.countAuditadosSemana ?? 0}
-                auditadosTribunal={metrics.countAuditadosTribunal ?? 0}
-                editadosApp={metrics.countEditadosApp ?? 0}
-                auditadosHoje={metrics.countAuditadosHoje ?? 0}
-              />
-
 {/* G2 — KPIs Revisional & Jurídico */}
               <RevisionalJuridicoKpis />
               

@@ -1,6 +1,9 @@
 /**
- * KPI "Processos auditados" — SEPARADO de atendimento.
- * Tribunal (DataJud/DJEN) OU edição salva no app nesta semana (Brasília).
+ * KPIs separados:
+ * - Editados no app (auditado_em) = qualquer salvamento/edição no Lexis
+ * - Tribunal (DataJud/DJEN) = só consulta CNJ
+ * Atendimento continua em ultimo_retorno (atendimento-semana.ts).
+ * Se a edição gravar ultimo_retorno, conta nos DOIS: editado + atendido.
  */
 import { isWithinInterval, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,126 +22,86 @@ function ymdLocal(ymd: string) {
   return new Date(y, m - 1, d);
 }
 
-/** Melhor data de auditoria do processo (não é atendimento). */
-export function pickDataAuditoria(c: any): string | null {
+function pickDados(c: any) {
+  return c?.dados && typeof c.dados === 'object' ? c.dados : {};
+}
+
+/** Só edição no app */
+export function pickDataEdicaoApp(c: any): string | null {
   if (!c) return null;
-  const dados = c.dados && typeof c.dados === 'object' ? c.dados : {};
-  const candidates = [
-    c.auditado_em,
-    c.auditadoEm,
-    dados.auditado_em,
-    c.datajud_consultado_em,
-    dados.datajud_consultado_em,
-    c.djen_consultado_em,
-    dados.djen_consultado_em,
-    c.busca_apreensao_consultado_em,
-    dados.busca_apreensao_consultado_em,
-    c.cumprimento_sentenca_consultado_em,
-    // último movimento DataJud só conta se houve consulta registrada OU nome preenchido pelo scanner
-    c.datajud_consultado_em ? c.datajud_ultimo_movimento : null,
-    dados.datajud_consultado_em ? dados.datajud_ultimo_movimento : null,
-  ];
-  for (const v of candidates) {
+  const d = pickDados(c);
+  for (const v of [c.auditado_em, c.auditadoEm, d.auditado_em, d.auditadoEm]) {
     if (v != null && String(v).trim() && String(v) !== 'null') return String(v);
   }
   return null;
 }
 
+/** Só tribunal */
+export function pickDataTribunal(c: any): string | null {
+  if (!c) return null;
+  const d = pickDados(c);
+  for (const v of [
+    c.datajud_consultado_em,
+    d.datajud_consultado_em,
+    c.djen_consultado_em,
+    d.djen_consultado_em,
+  ]) {
+    if (v != null && String(v).trim() && String(v) !== 'null') return String(v);
+  }
+  return null;
+}
+
+/** @deprecated use pickDataEdicaoApp — "auditado" = edição app */
+export function pickDataAuditoria(c: any): string | null {
+  return pickDataEdicaoApp(c);
+}
+
 export function pickAuditadoPor(c: any): string | null {
   if (!c) return null;
-  const dados = c.dados && typeof c.dados === 'object' ? c.dados : {};
-  const v =
-    c.auditado_por ??
-    c.auditadoPor ??
-    dados.auditado_por ??
-    c.edited_by ??
-    c.updated_by ??
-    null;
+  const d = pickDados(c);
+  const v = c.auditado_por ?? c.auditadoPor ?? d.auditado_por ?? c.edited_by ?? c.updated_by ?? null;
   return v != null && String(v).trim() ? String(v) : null;
 }
 
-export function isAuditadoNestaSemana(c: any, ref = new Date()): boolean {
-  const d = toDay(pickDataAuditoria(c));
-  if (!d) return false;
+export function isEditadoAppNestaSemana(c: any, ref = new Date()): boolean {
+  const day = toDay(pickDataEdicaoApp(c));
+  if (!day) return false;
   const { start, end } = weekBounds(ref);
-  return isWithinInterval(d, { start, end });
+  return isWithinInterval(day, { start, end });
 }
 
-export function isAuditadoHoje(c: any, ref = new Date()): boolean {
-  const d = toDay(pickDataAuditoria(c));
-  if (!d) return false;
-  return d.getTime() === ymdLocal(hojeBrasilYmd(ref)).getTime();
+export function isEditadoAppHoje(c: any, ref = new Date()): boolean {
+  const day = toDay(pickDataEdicaoApp(c));
+  if (!day) return false;
+  return day.getTime() === ymdLocal(hojeBrasilYmd(ref)).getTime();
 }
 
+export function isTribunalNestaSemana(c: any, ref = new Date()): boolean {
+  const day = toDay(pickDataTribunal(c));
+  if (!day) return false;
+  const { start, end } = weekBounds(ref);
+  return isWithinInterval(day, { start, end });
+}
+
+/** Alias: auditados semana = editados no app nesta semana */
 export function countAuditadosNestaSemana(cases: any[], ref = new Date()): number {
-  return (cases || []).filter((c) => isAuditadoNestaSemana(c, ref)).length;
+  return countEditadosAppSemana(cases, ref);
 }
 
 export function countAuditadosHoje(cases: any[], ref = new Date()): number {
-  return (cases || []).filter((c) => isAuditadoHoje(c, ref)).length;
-}
-
-export function countAuditadosTribunalSemana(cases: any[], ref = new Date()): number {
-  const { start, end } = weekBounds(ref);
-  return (cases || []).filter((c) => {
-    const dados = c?.dados && typeof c.dados === 'object' ? c.dados : {};
-    const d = toDay(
-      c?.datajud_consultado_em ||
-        dados.datajud_consultado_em ||
-        c?.djen_consultado_em ||
-        dados.djen_consultado_em
-    );
-    if (!d) return false;
-    return isWithinInterval(d, { start, end });
-  }).length;
+  return countEditadosAppHoje(cases, ref);
 }
 
 export function countEditadosAppSemana(cases: any[], ref = new Date()): number {
-  const { start, end } = weekBounds(ref);
-  return (cases || []).filter((c) => {
-    const dados = c?.dados && typeof c.dados === 'object' ? c.dados : {};
-    const d = toDay(c?.auditado_em || c?.auditadoEm || dados.auditado_em);
-    if (!d) return false;
-    return isWithinInterval(d, { start, end });
-  }).length;
+  return (cases || []).filter((c) => isEditadoAppNestaSemana(c, ref)).length;
 }
 
-export type AuditorPorUsuario = {
-  userId: string;
-  userNome: string;
-  dia: number;
-  semana: number;
-};
+export function countEditadosAppHoje(cases: any[], ref = new Date()): number {
+  return (cases || []).filter((c) => isEditadoAppHoje(c, ref)).length;
+}
 
-export function countAuditoriasPorUsuario(
-  cases: any[],
-  users: Array<{ auth_user_id: string; nome: string }>,
-  ref = new Date()
-): AuditorPorUsuario[] {
-  const userMap = new Map(users.map((u) => [String(u.auth_user_id), u.nome]));
-  const { start, end } = weekBounds(ref);
-  const map = new Map<string, { dia: number; semana: number }>();
-
-  for (const c of cases || []) {
-    const uid = pickAuditadoPor(c);
-    if (!uid) continue;
-    const dados = c?.dados && typeof c.dados === 'object' ? c.dados : {};
-    const d = toDay(c?.auditado_em || c?.auditadoEm || dados.auditado_em);
-    if (!d) continue;
-    const entry = map.get(uid) || { dia: 0, semana: 0 };
-    if (isAuditadoHoje(c, ref)) entry.dia += 1;
-    if (isWithinInterval(d, { start, end })) entry.semana += 1;
-    map.set(uid, entry);
-  }
-
-  return Array.from(map.entries())
-    .map(([userId, counts]) => ({
-      userId,
-      userNome: userMap.get(userId) || userId,
-      dia: counts.dia,
-      semana: counts.semana,
-    }))
-    .sort((a, b) => b.semana - a.semana || b.dia - a.dia);
+export function countAuditadosTribunalSemana(cases: any[], ref = new Date()): number {
+  return (cases || []).filter((c) => isTribunalNestaSemana(c, ref)).length;
 }
 
 export function labelSemanaAuditoria(ref = new Date()): string {
@@ -146,10 +109,26 @@ export function labelSemanaAuditoria(ref = new Date()): string {
   return `${format(start, 'dd/MM', { locale: ptBR })} – ${format(end, 'dd/MM/yyyy', { locale: ptBR })}`;
 }
 
+/** Carimbo em qualquer save (edição, atendimento, encerrar, status…) */
 export function patchAuditoriaEdicao(userId?: string | null) {
+  return {
+    auditado_em: hojeBrasilYmd(),
+    auditado_por: userId || null,
+  };
+}
+
+/**
+ * Ao registrar atendimento/encerrar: grava retorno + marca edição.
+ * Assim conta em Atendidos (ultimo_retorno) E Editados app (auditado_em).
+ */
+export function patchAtendimentoComEdicao(
+  userId?: string | null,
+  ultimoRetorno?: string | null
+) {
   const hoje = hojeBrasilYmd();
   return {
-    auditado_em: hoje,
-    auditado_por: userId || null,
+    ultimoRetorno: ultimoRetorno || hoje,
+    atendido_por: userId || null,
+    ...patchAuditoriaEdicao(userId),
   };
 }
