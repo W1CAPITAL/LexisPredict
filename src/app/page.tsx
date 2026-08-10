@@ -1,3 +1,4 @@
+import { statusEfetivo } from '@/lib/prazo-status';
 "use client";
 
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
@@ -132,10 +133,10 @@ export default function Dashboard() {
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
    
-    const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
-    const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
-    const countAtencao = ativos.filter(c => c.status === 'Atenção').length;
-    const countSaudavel = ativos.filter(c => c.status === 'No Prazo').length;
+    const countVencido = ativos.filter(c => statusEfetivo(c) === 'Vencido' || c.status === 'Caso Crítico' || c.statusManual === 'Caso Crítico').length;
+    const countHoje = ativos.filter(c => statusEfetivo(c) === 'É Hoje').length;
+    const countAtencao = ativos.filter(c => statusEfetivo(c) === 'Atenção').length;
+    const countSaudavel = ativos.filter(c => statusEfetivo(c) === 'No Prazo').length;
     const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
     
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)

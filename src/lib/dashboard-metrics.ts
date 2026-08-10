@@ -2,6 +2,7 @@
  * Métricas do Dashboard + Índice de Risco Global explicável.
  */
 import type { LegalCase } from './case-logic';
+import { statusEfetivo, diasAtePrazo } from './prazo-status';
 import { isCasoEncerrado } from './status-encerrado';
 import { resolveTemNovoAndamento } from './novidade';
 import {
@@ -47,13 +48,14 @@ export function buildDashboardMetrics(cases: LegalCase[], labels?: {
   const ativos = cases.filter((c) => !isCasoEncerrado(c));
   const activeTotal = ativos.length;
 
-  const countVencido = ativos.filter(
-    (c) => c.status === 'Vencido' || c.status === 'Caso Crítico'
-  ).length;
-  const countHoje = ativos.filter((c) => c.status === 'É Hoje').length;
-  const countAtencao = ativos.filter((c) => c.status === 'Atenção').length;
-  const countSaudavel = ativos.filter((c) => c.status === 'No Prazo').length;
-  const countSemPrazo = ativos.filter((c) => c.status === 'Sem Prazo').length;
+  const countVencido = ativos.filter((c) => {
+    const s = statusEfetivo(c);
+    return s === 'Vencido' || c.status === 'Caso Crítico' || c.statusManual === 'Caso Crítico';
+  }).length;
+  const countHoje = ativos.filter((c) => statusEfetivo(c) === 'É Hoje').length;
+  const countAtencao = ativos.filter((c) => statusEfetivo(c) === 'Atenção').length;
+  const countSaudavel = ativos.filter((c) => statusEfetivo(c) === 'No Prazo').length;
+  const countSemPrazo = ativos.filter((c) => statusEfetivo(c) === 'Sem Prazo').length;
 
   const countNovoAndamento = ativos.filter((c) => resolveTemNovoAndamento(c)).length;
   const countEncerradoTribunal = ativos.filter((c) => !!c.datajud_encerrado_tribunal).length;

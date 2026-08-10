@@ -4,6 +4,7 @@
  */
 
 import { startOfDay, differenceInCalendarDays, parseISO } from 'date-fns';
+import { diasAtePrazo, statusPorPrazo, normalizarDataPrazo, hojeBrasilISO } from './prazo-status';
 import { sanitizeDateCell } from './csv-import-engine';
 import { isCasoEncerrado as isCasoEncerradoCore } from './status-encerrado';
 
@@ -185,12 +186,8 @@ export function formatDateToISO(dateStr: string | null | undefined): string | nu
 }
 
 export function calcularDiasFaltando(proximoISO: string | null): number | null {
-  if (!proximoISO) return null;
-  try {
-    const dataPrazo = startOfDay(parseISO(proximoISO));
-    const hoje = startOfDay(new Date());
-    return differenceInCalendarDays(dataPrazo, hoje);
-  } catch { return null; }
+  // Sempre via calendário de Brasília (não UTC do servidor Vercel)
+  return diasAtePrazo(proximoISO);
 }
 
 export function isCasoEncerrado(c: any): boolean {
@@ -202,17 +199,7 @@ export function calcularStatus(
   situacao: string | null | undefined,
   alertLimit: number = 3
 ): CaseStatus {
-  if (isCasoEncerrado({ situacao })) return "Arquivado";
-
-  const iso = formatDateToISO(proximoRetorno);
-  if (!iso) return "Sem Prazo";
-
-  const dias = calcularDiasFaltando(iso);
-  if (dias === null) return "Sem Prazo";
-  if (dias < 0) return "Vencido";
-  if (dias === 0) return "É Hoje";
-  if (dias <= alertLimit) return "Atenção";
-  return "No Prazo";
+  return statusPorPrazo(proximoRetorno, { situacao, alertLimit });
 }
 
 export function extrairTribunal(protocolo: string): { tribunal: string; link: string; } {
@@ -296,7 +283,9 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     situacao,
     proximoPrazo: proximoPrazoRaw, 
     ultimoRetorno: ultimoRetornoRaw,
-    status: (statusManual === 'Automatico') ? statusCalculado : statusManual,
+    status: (statusManual === 'Automatico' || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(String(statusManual)))
+      ? statusCalculado
+      : statusManual,
     risco: (statusCalculado === 'Vencido' || statusManual === 'Caso Crítico') ? "Crítico" : "Normal",
     diasFaltando: calcularDiasFaltando(formatDateToISO(proximoPrazoRaw)),
     statusManual,
