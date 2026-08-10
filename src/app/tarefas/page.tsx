@@ -374,8 +374,7 @@ const handleSaveAttendance = async () => {
         return processarCaso({
           ...c,
           situacao: attendanceForm.situacao,
-          ultimoRetorno: todayStr,
-            ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr),
+          ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr),
           observacao: applyFilaListaToObs(
             attendanceForm.observacao || c.observacao,
             attendanceForm.filaLista || 'normal'
@@ -399,13 +398,11 @@ const handleSaveAttendance = async () => {
             await registrarAuditoriaEventAction('encerramento', touched, {
               via: 'tarefas',
               ultimoRetorno: todayStr,
-            ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr),
             });
           } else {
             await registrarAtendimentoAction(touched, {
               via: 'tarefas',
               ultimoRetorno: todayStr,
-            ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr),
             });
           }
         } catch { /* */ }

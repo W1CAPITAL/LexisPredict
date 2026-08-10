@@ -491,7 +491,6 @@ function CasesContent() {
           return processarCaso({ 
             ...c, 
             situacao: attendanceForm.situacao, 
-            ultimoRetorno: todayStr,
             ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr), 
             observacao: attendanceForm.observacao || c.observacao, 
             proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno, 
