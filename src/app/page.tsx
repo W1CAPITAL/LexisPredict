@@ -571,7 +571,11 @@ export default function Dashboard() {
               </div>
             </div>
             </>)}
-            </TabsContent>
+            
+              {/* BI recolhível — dentro do scroll, não fora */}
+              <BiCompliancePanel cases={cases} defaultOpen={false} className="mt-2" />
+
+</TabsContent>
 
             <TabsContent value="connectivity" className="p-4 sm:p-10 space-y-8 m-0 max-w-[1600px] mx-auto w-full">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 bg-card border border-border/50 p-6 sm:p-8 rounded-2xl shadow-sm">
@@ -643,8 +647,7 @@ export default function Dashboard() {
           </ScrollArea>
         </Tabs>
         
-        
-          <div className="px-4 sm:px-6 pb-6"><BiCompliancePanel cases={cases} /></div>
+
 <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/70 font-medium uppercase tracking-[0.18em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Monitoramento processual</span>

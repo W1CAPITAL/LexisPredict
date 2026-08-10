@@ -1,40 +1,6 @@
 /**
- * UI operacional — reduz “cara de IA” sem quebrar temas.
- * Importe em globals.css: @import './globals-ops-ui.css';
+ * UI operacional leve — não quebra temas.
  */
-
-/* Hierarquia mais calma em títulos de seção do app */
-.ops-ui h1,
-.ops-ui .ops-title {
-  letter-spacing: -0.02em;
-  font-weight: 700;
-  text-transform: none;
-}
-
-.ops-ui h2,
-.ops-ui h3,
-.ops-ui .ops-section-title {
-  letter-spacing: -0.01em;
-  font-weight: 600;
-  text-transform: none;
-}
-
-/* Badges densos, sem pulse eterno (exceto .ops-pulse-ok) */
-.ops-ui .animate-pulse:not(.ops-pulse-ok) {
-  animation: none;
-}
-
-/* Tabelas de carteira: tipografia legível */
-.ops-ui table td {
-  vertical-align: top;
-}
-
 .ops-ui .ops-leigo-block {
   max-width: 36rem;
-}
-
-/* Sidebar labels já usam classes próprias — reforço de legibilidade */
-.ops-ui .text-\[8px\].font-black.uppercase {
-  letter-spacing: 0.04em;
-  font-weight: 600;
 }
