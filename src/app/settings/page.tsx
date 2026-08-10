@@ -1,6 +1,7 @@
 "use client";
 
 import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
+import { changePasswordAction } from "@/app/actions/change-password-action";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
@@ -116,6 +117,11 @@ const WALLPAPER_PRESETS = [
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
   const [activeTab, setActiveTab] = useState('Hardware');
   const { profile } = useAuth();
   
@@ -545,6 +551,7 @@ export default function SettingsPage() {
               </section>
 
               <nav className="space-y-1">
+                <NavButton active={activeTab === 'Conta'} onClick={() => setActiveTab('Conta')} icon={<KeyRound size={14}/>} label="Conta e senha" />
                 <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
                 <NavButton active={activeTab === 'Banca'} onClick={() => setActiveTab('Banca')} icon={<Gavel size={14}/>} label="Banca de Advogados" />
                 <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
@@ -563,6 +570,99 @@ export default function SettingsPage() {
             </aside>
 
             <div className="md:col-span-3 space-y-12 pb-20">
+              
+              {activeTab === 'Conta' && (
+                <div className="space-y-6 max-w-xl">
+                  <Card className="border border-border/60 shadow-sm rounded-2xl">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Lock size={18} className="text-primary" />
+                        Trocar senha de acesso
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground font-normal mt-1">
+                        Altera a senha da sua conta no LexisPredict (login). Não altera a senha master de exportação.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Senha atual</Label>
+                        <div className="relative">
+                          <Input
+                            type={showPwd ? 'text' : 'password'}
+                            value={pwdCurrent}
+                            onChange={(e) => setPwdCurrent(e.target.value)}
+                            autoComplete="current-password"
+                            className="h-11 rounded-xl pr-10"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                            onClick={() => setShowPwd((v) => !v)}
+                            aria-label="Mostrar senha"
+                          >
+                            {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Nova senha (mín. 8 caracteres)</Label>
+                        <Input
+                          type={showPwd ? 'text' : 'password'}
+                          value={pwdNew}
+                          onChange={(e) => setPwdNew(e.target.value)}
+                          autoComplete="new-password"
+                          className="h-11 rounded-xl"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Confirmar nova senha</Label>
+                        <Input
+                          type={showPwd ? 'text' : 'password'}
+                          value={pwdConfirm}
+                          onChange={(e) => setPwdConfirm(e.target.value)}
+                          autoComplete="new-password"
+                          className="h-11 rounded-xl"
+                        />
+                      </div>
+                      <Button
+                        disabled={pwdLoading}
+                        className="w-full h-11 rounded-xl font-semibold"
+                        onClick={async () => {
+                          setPwdLoading(true);
+                          try {
+                            const res = await changePasswordAction({
+                              currentPassword: pwdCurrent,
+                              newPassword: pwdNew,
+                              confirmPassword: pwdConfirm,
+                            });
+                            if (res.success) {
+                              toast({ title: res.message });
+                              setPwdCurrent('');
+                              setPwdNew('');
+                              setPwdConfirm('');
+                            } else {
+                              toast({ title: 'Não foi possível alterar', description: res.error, variant: 'destructive' });
+                            }
+                          } catch (e: any) {
+                            toast({ title: 'Erro', description: e?.message || 'Falha', variant: 'destructive' });
+                          } finally {
+                            setPwdLoading(false);
+                          }
+                        }}
+                      >
+                        {pwdLoading ? <Loader2 className="animate-spin mr-2" size={16} /> : <KeyRound className="mr-2" size={16} />}
+                        Salvar nova senha
+                      </Button>
+                      {profile?.email && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Conta: <span className="font-medium text-foreground">{profile.email}</span>
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               {activeTab === 'Hardware' && (
                 <div className="space-y-12 animate-in fade-in duration-500">
                   <section className="space-y-6">

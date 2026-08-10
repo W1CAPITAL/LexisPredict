@@ -237,8 +237,19 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
             {(metrics.countNovoAndamento > 0 || metrics.countBA > 0) && (
-              <Badge variant="destructive" className="animate-pulse h-8 px-3 rounded-xl font-black uppercase text-[8px] sm:text-[10px] flex items-center gap-1.5 sm:gap-2">
-                <AlertCircle size={14} /> Alerta de Mérito Ativo
+              <Badge
+                variant="destructive"
+                className="h-8 px-3 rounded-xl font-semibold text-[9px] sm:text-[10px] flex items-center gap-1.5 sm:gap-2 max-w-[min(100%,280px)]"
+                title="Processos com andamento novo após o último contato e/ou indício de busca e apreensão ainda sem tratamento"
+              >
+                <AlertCircle size={14} className="shrink-0" />
+                <span className="truncate">
+                  {metrics.countBA > 0 && metrics.countNovoAndamento > 0
+                    ? `${metrics.countNovoAndamento} novidade(s) · ${metrics.countBA} B.A.`
+                    : metrics.countBA > 0
+                      ? `${metrics.countBA} indício(s) de busca e apreensão`
+                      : `${metrics.countNovoAndamento} andamento(s) novo(s) sem atendimento`}
+                </span>
               </Badge>
             )}
             <MetalButton preset="chromatic" strength={1} variant="outline" size="sm" asChild className={cn("h-10 px-4 sm:px-6 rounded-full text-[11px] font-black uppercase tracking-wider", ui.touch)}>
