@@ -275,7 +275,8 @@ export default function UnifiedReport() {
   };
 
   const handlePrint = () => {
-    if (!claudeReady) return;
+    /* PDF pode exportar sem parecer IA */
+    // if (!claudeReady) return;
     const d = new Date().toLocaleString("pt-BR");
     document.title = `Dossie_Operacional_Claude_${d}`;
     window.print();
@@ -397,8 +398,8 @@ export default function UnifiedReport() {
             </Button>
             <Button
               onClick={handlePrint}
-              disabled={!claudeReady}
-              title={!claudeReady ? "Gere o parecer Claude antes de exportar o PDF oficial" : "Exportar PDF operacional"}
+              disabled={false}
+              title={claudeReady ? "Exportar PDF com parecer IA" : "Exportar PDF (parecer IA opcional)"}
               className={cn(
                 "font-black uppercase text-[10px] h-10 px-8 rounded-lg transition-all",
                 claudeReady
@@ -554,7 +555,7 @@ export default function UnifiedReport() {
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
            <div className="lexis-report-band bg-primary text-primary-foreground p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3">
-                <Sparkles size={14}/> Análise Claude AI — Relatório
+                <Sparkles size={14}/> Análise IA AI — Relatório
               </h3>
               <div className="flex items-center gap-2">
                 {claudeReady ? (

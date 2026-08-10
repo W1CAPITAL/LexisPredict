@@ -266,22 +266,45 @@ export async function freeComplete(opts: {
     if (ordered.length === 0) ordered = steps.slice(0, 1); // evita lista vazia se typo
   }
 
+  const isTransient = (msg: string) => {
+    const m = (msg || '').toLowerCase();
+    return (
+      m.includes('429') ||
+      m.includes('402') ||
+      m.includes('401') ||
+      m.includes('403') ||
+      m.includes('quota') ||
+      m.includes('rate') ||
+      m.includes('credit') ||
+      m.includes('token') ||
+      m.includes('billing') ||
+      m.includes('insufficient') ||
+      m.includes('overloaded') ||
+      m.includes('capacity') ||
+      m.includes('timeout') ||
+      m.includes('econn') ||
+      m.includes('fetch failed') ||
+      m.includes('vazio') ||
+      m.includes('empty')
+    );
+  };
+
   for (const step of ordered) {
     try {
       return await step.run();
     } catch (e: any) {
-      errors.push(`${step.id}: ${e?.message || e}`);
-      if (exclusive) break; // não tenta o próximo
+      const msg = String(e?.message || e);
+      errors.push(`${step.id}: ${msg}`);
+      // Mesmo em exclusive: se esgotou token/quota/auth, tenta o PRÓXIMO motor
+      if (exclusive && !isTransient(msg)) break;
     }
   }
 
-  // Pollinations só em modo não exclusivo / auto
-  if (!exclusive) {
-    try {
-      return await callPollinations(messages);
-    } catch (e: any) {
-      errors.push(`pollinations: ${e?.message || e}`);
-    }
+  // Pollinations: sempre como último recurso (inclusive se Claude/Groq falharam)
+  try {
+    return await callPollinations(messages);
+  } catch (e: any) {
+    errors.push(`pollinations: ${e?.message || e}`);
   }
 
   throw new Error(

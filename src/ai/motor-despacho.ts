@@ -151,6 +151,10 @@ REGRAS OBRIGATÓRIAS:
 9. Nunca cite marcas de escritório; use "nossa equipe".
 10. Tom: objetivo, 6–12 linhas. Sem juridiquês vazio. Sem "como IA".
 11. Se o histórico for insuficiente, diga que a equipe está analisando — não complete com suposição.
+12. PRIORIDADE TEMPORAL: use SEMPRE o evento mais recente com mérito (decisão, intimação com prazo, extinção, petição de cumprimento). Ignore despachos antigos já superados por intimação/petição posterior.
+13. Justiça gratuita / emenda / Registrato: se houver despacho pedindo documentos E petição posterior da equipe, diga que a pendência foi tratada / protocolo realizado — NÃO reabra a lista completa de documentos do despacho antigo.
+14. Se o prazo final de intimação já passou e há petição recente, foque no status "aguardando juízo", não em "envie documentos agora".
+15. Mensagem curta (WhatsApp): 6–10 linhas, tom de equipe, sem "Prezado", sem inventar que o cliente precisa agir se a equipe já protocolou.
 
 Script de apoio (pode inspirar o tom, não copie se contradizer o histórico):
 ${baseScript ? baseScript.slice(0, 800) : '(nenhum)'}
@@ -164,8 +168,10 @@ CLIENTE (autor/polo ativo típico): ${clienteNome}
 EVENTO: ${eventoTipo || 'N/A'} — ${eventoResumo || 'N/A'}
 FLAGS: ENCERRADO=${!!datajud_encerrado_tribunal} CUMPRIMENTO=${!!em_cumprimento_sentenca} NOVIDADE=${!!tem_novo_andamento}\n(IGNORE qualquer tag B.A. da interface; só use o histórico abaixo.)
 
-CRONOLOGIA / MOVIMENTOS:
+CRONOLOGIA / MOVIMENTOS (já priorize o MAIS RECENTE):
 ${historicoTxt || '(sem movimentos detalhados)'}
+
+Lembrete: o evento no TOPO da lista (data mais nova) manda na mensagem. Não resuma só o despacho de maio se existir intimação/petição em julho/agosto.
 ${djenBlock}
 
 Redija a mensagem final ao cliente, honesta e tranquilizadora quando for o caso, urgente só se a cobrança for dele de verdade.`;
@@ -174,7 +180,7 @@ Redija a mensagem final ao cliente, honesta e tranquilizadora quando for o caso,
     const response = await perguntarIA({
       pergunta: userPrompt,
       historico: [{ role: 'system', content: systemPrompt }],
-      preferredModel: preferredModel || 'claude',
+      preferredModel: preferredModel || 'auto',
     });
 
     const engine =

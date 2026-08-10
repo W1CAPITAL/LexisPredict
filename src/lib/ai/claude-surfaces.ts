@@ -16,9 +16,13 @@ export type ClaudeSurface =
 
 function labelEngine(engineId: string, model: string) {
   const e = `${engineId}:${model}`.toLowerCase();
-  if (e.includes('omni') || e.includes('claude') || e.includes('anthropic')) {
+  if (e.includes('omni') && (e.includes('claude') || e.includes('anthropic'))) {
     return 'Claude AI (OmniRoute)';
   }
+  if (e.includes('claude') || e.includes('anthropic')) return 'Claude AI';
+  if (e.includes('xai') || e.includes('grok')) return `xAI Grok${model ? ` / ${model}` : ''}`;
+  if (e.includes('groq')) return `Groq${model ? ` / ${model}` : ''}`;
+  if (e.includes('openrouter')) return `OpenRouter${model ? ` / ${model}` : ''}`;
   return `${engineId}${model ? ` / ${model}` : ''}`;
 }
 
@@ -80,18 +84,34 @@ export async function runClaudeSurface(opts: {
   if (content.length < 20) return null;
 
   const system = [SYSTEMS[opts.surface], opts.extraSystem].filter(Boolean).join('\n\n');
+  // Preferência Claude, mas SEM forceEngineId — se faltar token, próximo motor (xAI/Groq/…)
   const preferred = opts.preferred || process.env.SCAN_AI_PREFERRED || 'claude';
 
   try {
-    const r = await runCascade({
+    let r = await runCascade({
       preferred,
-      forceEngineId: preferred === 'auto' ? undefined : preferred,
+      forceEngineId: undefined,
       surface: opts.surface === 'scan' ? 'scan' : opts.surface,
       system,
       messages: [{ role: 'user', content: content.slice(0, 14000) }],
       temperature: 0.15,
       max_tokens: opts.maxTokens ?? 700,
     });
+    // Segunda tentativa explícita em auto se resposta for erro de indisponibilidade
+    const bad =
+      !r?.text?.trim() ||
+      /indisponível|http 402|http 429|quota|credit|token/i.test(r.text);
+    if (bad) {
+      r = await runCascade({
+        preferred: 'auto',
+        forceEngineId: undefined,
+        surface: opts.surface === 'scan' ? 'scan' : opts.surface,
+        system,
+        messages: [{ role: 'user', content: content.slice(0, 14000) }],
+        temperature: 0.15,
+        max_tokens: opts.maxTokens ?? 700,
+      });
+    }
 
     const engineLabel = labelEngine(r.engineId, r.model);
     const text = (r.text || '').trim();

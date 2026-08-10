@@ -452,14 +452,23 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   }
 
   const { freeComplete } = await import('@/lib/ai/free-gateway');
-  // freeComplete interno: se preferred exclusivo, passe preferência
+  // Claude/Omni preferidos: SEMPRE cascateiam para o próximo motor se falharem (quota/token)
+  const softExclusive =
+    exclusive &&
+    !(
+      preferred === 'auto' ||
+      preferred.includes('claude') ||
+      preferred.includes('omni') ||
+      preferred.includes('anthropic') ||
+      preferred.includes('relatorio')
+    );
   try {
     const r = await freeComplete({
       system,
       user,
       history,
-      preferred: exclusive ? preferred : undefined,
-      exclusive,
+      preferred: preferred === 'auto' ? undefined : preferred,
+      exclusive: softExclusive,
     } as any);
     const parts = r.engine.split(':');
     return {
