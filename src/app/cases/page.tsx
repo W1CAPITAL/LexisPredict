@@ -18,7 +18,7 @@ import {
 import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic'
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
-import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
+import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import {
@@ -465,7 +465,8 @@ function CasesContent() {
     if (!activeGroup || isSavingAttendance) return;
     setIsSavingAttendance(true);
     try {
-      const todayStr = format(new Date(), 'dd/MM/yyyy');
+      // Sempre calendário de Brasília (YYYY-MM-DD) — evita contagem congelada
+      const todayStr = hojeBrasilYmd();
       const updatedCases = cases.map(c => {
         if (attendanceForm.applyToAll ? c.cliente === activeGroup.cliente : c.protocolo === activeGroup.protocolo) {
           return processarCaso({ 
@@ -482,14 +483,22 @@ function CasesContent() {
         return c;
       });
       const res = await syncRepoCases(updatedCases);
-      if (res.success) { setCases(updatedCases); setIsAttendanceOpen(false); setActiveGroup(null); toast({ title: "Registro Sincronizado" }); }
+      if (res.success) {
+        setCases(updatedCases);
+        setIsAttendanceOpen(false);
+        setActiveGroup(null);
+        toast({ title: 'Atendimento registrado', description: `Retorno ${todayStr}` });
+        // Recarrega do banco para alinhar coluna ultimo_retorno + dados
+        try {
+          const fresh = await fetchRepoCases();
+          if (Array.isArray(fresh) && fresh.length) setCases(fresh);
+        } catch { /* mantém estado local */ }
+      } else {
+        toast({ title: 'Falha ao salvar atendimento', description: (res as any).error || (res as any).message || 'Tente de novo', variant: 'destructive' });
+      }
     } finally { setIsSavingAttendance(false); }
   };
 
-  const copyScript = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "Copiado" });
-  };
 
   const emptyForm = () => ({
     cliente: '',

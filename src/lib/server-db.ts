@@ -62,11 +62,23 @@ export async function getStoredCases(): Promise<LegalCase[]> {
 }
 
 function toLegalCase(item: any): LegalCase {
+  const dados = (item.dados && typeof item.dados === 'object') ? item.dados : {};
+  // Colunas tipadas vencem o JSON dados (evita atendimento "congelado" com data velha no blob)
   return processarCaso({
-    ...(item.dados as any),
+    ...dados,
     id: item.id.toString(),
     db_id: item.id.toString(),
     created_by: item.created_by,
+    protocolo: item.protocolo_ref || dados.protocolo || dados.PROTOCOLO,
+    advogado: item.advogado ?? dados.advogado,
+    escritorio: item.escritorio ?? dados.escritorio,
+    status: item.status ?? dados.status,
+    tribunal: item.tribunal ?? dados.tribunal,
+    telefone: item.telefone ?? dados.telefone,
+    observacao: item.observacoes ?? dados.observacao ?? dados.observacoes,
+    // fonte de verdade do atendimento da semana
+    ultimoRetorno: item.ultimo_retorno ?? dados.ultimoRetorno ?? dados.ultimo_retorno ?? dados.ULTIMO_RETORNO ?? null,
+    proximoPrazo: item.proximo_retorno ?? dados.proximoPrazo ?? dados.proximo_retorno ?? dados.PROXIMO_RETORNO ?? null,
     datajud_ultimo_movimento: item.datajud_ultimo_movimento,
     datajud_ultimo_nome: item.datajud_ultimo_nome,
     datajud_consultado_em: item.datajud_consultado_em,

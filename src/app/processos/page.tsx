@@ -12,7 +12,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
-import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes } from "@/lib/atendimento-semana";
+import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase } from "@/lib/case-logic";
@@ -181,7 +181,7 @@ export default function ProcessosEmpresaPage() {
     setSaving(false);
   };
 
-  const todayBR = () => new Date().toLocaleDateString("pt-BR");
+  const todayBR = () => hojeBrasilYmd(); // YYYY-MM-DD Brasília
 
   const openAttendance = (c: LegalCase) => {
     setAttending(c);

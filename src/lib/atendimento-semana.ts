@@ -15,6 +15,23 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+const TZ_BR = 'America/Sao_Paulo';
+
+/** YYYY-MM-DD em Brasília (evita semana errada no Vercel UTC). */
+export function hojeBrasilYmd(ref = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ_BR,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(ref);
+}
+
+function ymdToLocalDate(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map((n) => parseInt(n, 10));
+  return startOfDay(new Date(y, m - 1, d));
+}
+
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
 /** Ordem operacional seg→dom */
 const ORDER_SEG_DOM = [1, 2, 3, 4, 5, 6, 0] as const;
@@ -56,9 +73,12 @@ export function parseUltimoAtendimento(raw?: string | null): Date | null {
 }
 
 export function weekBounds(ref = new Date()) {
-  const start = startOfWeek(ref, { weekStartsOn: 1 });
-  const end = endOfWeek(ref, { weekStartsOn: 1 });
-  return { start: startOfDay(start), end };
+  // Semana seg–dom no calendário de Brasília (não no UTC do servidor)
+  const hojeYmd = hojeBrasilYmd(ref);
+  const hojeLocal = ymdToLocalDate(hojeYmd);
+  const start = startOfWeek(hojeLocal, { weekStartsOn: 1 });
+  const end = endOfWeek(hojeLocal, { weekStartsOn: 1 });
+  return { start: startOfDay(start), end: startOfDay(end) };
 }
 
 /** Extrai último retorno de várias formas do objeto caso */
@@ -175,8 +195,13 @@ export function countAtendimentosPorUsuario(
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
     
-    // Determine who attended: prefer atendido_por, then edited_by, then updated_by
-    const userId = c.atendido_por ?? c.edited_by ?? c.updated_by ?? null;
+    // Quem atendeu: atendido_por > edited_by > updated_by > created_by (não zerar KPI)
+    const userId =
+      (c as any).atendido_por ??
+      (c as any).edited_by ??
+      (c as any).updated_by ??
+      (c as any).created_by ??
+      null;
     if (!userId) continue;
     
     const userCountsEntry = userCounts.get(userId) || { dia: 0, semana: 0, mes: 0 };
