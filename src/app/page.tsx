@@ -231,7 +231,7 @@ export default function Dashboard() {
               <LayoutDashboard size={20} className="text-foreground" />
               <h1 className="font-black text-base sm:text-xl tracking-tight uppercase text-foreground">{t.dashboard}</h1>
             </div>
-            <p className="hidden sm:block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Gabinete Estratégico • Vigilância Unificada</p>
+            <p className="hidden sm:block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Visão da carteira</p>
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
             {(metrics.countNovoAndamento > 0 || metrics.countBA > 0) && (
@@ -348,10 +348,10 @@ export default function Dashboard() {
                 <div className="xl:col-span-8 space-y-8">
                    <section className="bg-black text-white p-6 sm:p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF]">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-white/10 pb-4 gap-4">
-                        <h3 className="text-xs font-black uppercase tracking-[0.4em] flex items-center gap-3">
-                           <Zap className="text-primary animate-pulse" size={16}/> Telemetria Unificada (Sinal 3D)
+                        <h3 className="text-xs font-black uppercase tracking-wide flex items-center gap-3">
+                           <Zap className="text-primary animate-pulse" size={16}/> Andamentos e publicações
                         </h3>
-                        <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Ambiente Authority v17.5</Badge>
+                        <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px] px-3">Operação</Badge>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
                          <div className="space-y-3">
@@ -391,7 +391,7 @@ export default function Dashboard() {
                       <div className="bg-secondary/50 dark:bg-card/70 px-6 sm:px-8 py-5 border-b border-border/30 flex items-center justify-between">
                          <div className="flex items-center gap-3">
                             <Target size={18} className="text-primary" />
-                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Fila Prioritária de Gestão</h3>
+                            <h3 className="text-[11px] font-black uppercase tracking-wide">Fila de contato</h3>
                          </div>
                          <Button asChild variant="ghost" className="h-8 text-[9px] font-black uppercase tracking-widest hover:text-primary">
                             <Link href="/tarefas">Abrir Fila Completa <ArrowRight size={12} className="ml-2"/></Link>
@@ -481,7 +481,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between mb-6">
                           <div className="flex items-center gap-3">
                             <Clock size={14} className="text-primary" />
-                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Próximos Prazos · 7 dias</h3>
+                            <h3 className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">Próximos Prazos · 7 dias</h3>
                           </div>
                           <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border-primary text-primary">
                             {upcomingDeadlines.length}
@@ -528,7 +528,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-3">
                           <PieChartIcon size={16} className="text-primary" />
-                          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Saúde da Carteira</h3>
+                          <h3 className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">Saúde da Carteira</h3>
                         </div>
                       </div>
                       <div className="h-[200px] w-full mb-6">
@@ -644,7 +644,7 @@ export default function Dashboard() {
         
         <footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/70 font-medium uppercase tracking-[0.18em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
-          <span>Advanced Judicial Monitoring • Authority v17.5</span>
+          <span>Monitoramento processual</span>
         </footer>
       </main>
     </div>

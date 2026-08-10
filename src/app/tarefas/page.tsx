@@ -53,6 +53,7 @@ import {
 import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade, scorePreditivo } from '@/lib/fila-prioridade';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
+import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
 import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import {
   applyFilaListaToObs,
@@ -614,7 +615,7 @@ export default function TarefasPage() {
                   ? 'Blacklist / problemáticos'
                   : filaFiltro === 'tratamento'
                     ? 'Críticos em tratamento'
-                    : 'Sequência Prioritária'}
+                    : 'Fila de contato'}
               </h2>
             </div>
 
@@ -824,6 +825,11 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
           </div>
         )}
       </div>
+      {group.cases[0] && (
+        <div className="mt-4">
+          <AndamentoLeigoBlock caseData={group.cases[0]} />
+        </div>
+      )}
       <div className="mt-6 pt-6 border-t border-border/30 flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
            <Button variant="ghost" size="icon" onClick={onSuggest} className={cn("text-amber-600 hover:bg-amber-50", ui.touch)} title="Sugestão de Resposta"><MessageSquareQuote size={18} /></Button>
