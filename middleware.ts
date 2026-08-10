@@ -58,15 +58,33 @@ export async function middleware(request: NextRequest) {
     path.includes('manifest.json') ||
     path.includes('favicon.ico')
 
-  // Rate-limit leve no login (cookie sliding window)
-  if (path === '/login' && request.method === 'GET') {
+  // Rate-limit no login (GET/POST) — cookie sliding window anti brute-force
+  if (path === '/login' || path === '/signup') {
     const hits = Number(request.cookies.get('lexis_login_hits')?.value || '0')
-    if (hits > 40) {
+    const maxHits = request.method === 'POST' ? 25 : 60
+    if (hits > maxHits) {
       const blocked = NextResponse.json(
         { error: 'Muitas tentativas. Aguarde alguns minutos.' },
         { status: 429 }
       )
+      blocked.cookies.set('lexis_login_hits', String(hits), {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 15 * 60,
+        path: '/',
+      })
       return applySecurityHeaders(blocked)
+    }
+    // incrementa contador em POST de auth
+    if (request.method === 'POST') {
+      response.cookies.set('lexis_login_hits', String(hits + 1), {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 15 * 60,
+        path: '/',
+      })
     }
   }
 

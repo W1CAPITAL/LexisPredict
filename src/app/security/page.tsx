@@ -29,12 +29,12 @@ import {
   FileDown,
   Download,
   RefreshCw,
-  Lock,
-} from "lucide-react";
+  Lock, Crosshair, Swords, Terminal } from "lucide-react";
 import {
   runSecurityScanAction,
   exportSecurityXlsxAction,
-} from "@/app/actions/security-actions";
+} from "@/app/actions/security-actions"
+import { runLiveIntrusionProbeAction } from "@/app/actions/security-live-actions";
 import { gerarPecaTextoPDFAction } from "@/app/actions/document-actions";
 import { downloadBase64File } from "@/lib/download-export";
 
@@ -78,6 +78,9 @@ export default function SecurityPage() {
   const [results, setResults] = useState<Record<string, any>>({});
   const [running, setRunning] = useState<MotorId | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [liveRunning, setLiveRunning] = useState(false);
+  const [liveReport, setLiveReport] = useState<any>(null);
+  const [liveLog, setLiveLog] = useState<string[]>([]);
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -104,7 +107,33 @@ export default function SecurityPage() {
     }
   };
 
+  const runLiveProbe = async () => {
+    setLiveRunning(true);
+    setLiveLog(["[…] Inicializando sonda ativa (somente Superadmin)…"]);
+    setLiveReport(null);
+    try {
+      const res = await runLiveIntrusionProbeAction();
+      if (!res?.success) {
+        toast({ title: "Sonda bloqueada", description: res?.error || "Falha", variant: "destructive" });
+        setLiveLog((l) => [...l, `[ERR] ${res?.error || "Falha"}`]);
+        return;
+      }
+      setLiveReport(res.report);
+      setLiveLog(res.report.narrative || []);
+      const s = res.report.summary;
+      toast({
+        title: "Sonda ao vivo concluída",
+        description: `PASS ${s.PASS} · FAIL ${s.FAIL} · WARN ${s.WARN}`,
+      });
+    } catch (e: any) {
+      toast({ title: "Erro na sonda", description: e?.message || "Falha", variant: "destructive" });
+    } finally {
+      setLiveRunning(false);
+    }
+  };
+
   const exportar = async (tipo: "xlsx" | "pdf") => {
+
     setExporting(true);
     try {
       if (tipo === "xlsx") {
@@ -208,7 +237,66 @@ export default function SecurityPage() {
                 const counts = r?.counts;
                 const status = r?.status;
                 return (
-                  <Card key={m.id} className="flex flex-col">
+                  
+            {/* Sonda ativa — quebra defesas ao vivo (mesmo origin) */}
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-red-600 dark:text-red-400">
+                    <Swords className="h-4 w-4" /> Intrusão controlada (ao vivo)
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground mt-1 max-w-2xl">
+                    Agente de sonda ativa: tenta quebrar headers, guarda de login, arquivos sensíveis e clickjacking
+                    <strong> apenas no próprio domínio</strong>. Não é pentest externo genérico — valida se as correções
+                    estão de pé em produção. Somente Superadmin.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="gap-2"
+                  disabled={liveRunning}
+                  onClick={runLiveProbe}
+                >
+                  {liveRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
+                  {liveRunning ? "Invadindo…" : "Executar sonda ao vivo"}
+                </Button>
+              </div>
+              {liveLog.length > 0 && (
+                <div className="rounded-lg bg-slate-950 text-slate-100 p-3 font-mono text-[11px] max-h-40 overflow-y-auto space-y-0.5">
+                  <div className="flex items-center gap-1 text-slate-400 mb-1"><Terminal className="h-3 w-3" /> Console</div>
+                  {liveLog.map((line, i) => (
+                    <div key={i} className={
+                      line.includes("[FAIL]") ? "text-red-400" :
+                      line.includes("[PASS]") ? "text-emerald-400" :
+                      line.includes("[ERR]") ? "text-orange-400" : "text-slate-300"
+                    }>{line}</div>
+                  ))}
+                </div>
+              )}
+              {liveReport?.steps?.length ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {liveReport.steps.map((st: any) => (
+                    <div key={st.id} className="rounded-lg border border-border/60 bg-background/80 p-2.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Badge className={
+                          st.status === "PASS" ? "bg-emerald-600 text-white" :
+                          st.status === "FAIL" ? "bg-red-600 text-white" :
+                          st.status === "WARN" ? "bg-amber-500 text-black" :
+                          "bg-muted text-muted-foreground"
+                        }>{st.status}</Badge>
+                        <span className="font-bold">{st.title}</span>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">{st.detail}</p>
+                      {st.fix ? <p className="mt-0.5 text-emerald-600 dark:text-emerald-400 text-[11px]">Fix: {st.fix}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+<Card key={m.id} className="flex flex-col">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <Icon className="h-4 w-4 text-primary" /> {m.title}

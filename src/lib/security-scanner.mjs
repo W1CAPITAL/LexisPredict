@@ -385,7 +385,10 @@ export async function runOwasp(root = DEFAULT_ROOT) {
   const byRule = {};
   for (const f of code.findings) (byRule[f.rule] = byRule[f.rule] || []).push(f);
 
-  const mw = findContent(snapshot, 'src/middleware.ts') || findContent(snapshot, 'middleware.ts');
+  const mwRoot = findContent(snapshot, 'middleware.ts');
+  const mwSrc = findContent(snapshot, 'src/middleware.ts');
+  const mwNext = findContent(snapshot, 'next.config.ts') || findContent(snapshot, 'next.config.js') || findContent(snapshot, 'next.config.mjs');
+  const mw = [mwRoot, mwSrc, mwNext].filter(Boolean).join('\n\n');
   const missingHeaders = SECURITY_HEADERS.filter((h) => !mw.includes(h));
 
   const pages = snapshot.filter((f) => f.rel.startsWith('src/app/') && f.rel.endsWith('/page.tsx'));
@@ -402,7 +405,7 @@ export async function runOwasp(root = DEFAULT_ROOT) {
     .filter((f) => /(login|signup|auth)/i.test(f.rel))
     .map((f) => f.content)
     .join('\n');
-  const hasRateLimit = /\b(rateLimit|rate-limiter|limiter|maxAttempts|lockout|tooManyRequests)\b/i.test(authText);
+  const hasRateLimit = /\b(rateLimit|rate-limiter|limiter|maxAttempts|lockout|tooManyRequests|lexis_login_hits|status:\s*429|429)\b/i.test(authText + '\\n' + mw);
   const hasPasswordHashing = /\b(bcrypt|argon2|scrypt)\b/i.test(authText);
   const hasAudit = snapshot.some((f) => /auditoria_logs_app|registrarAuditoriaAction/.test(f.content));
   const hasLockfile = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'].some((f) => fs.existsSync(path.join(root, f)));
@@ -526,7 +529,10 @@ export async function runTrailOfBits(root = DEFAULT_ROOT) {
   const byRule = {};
   for (const f of code.findings) (byRule[f.rule] = byRule[f.rule] || []).push(f);
 
-  const mw = findContent(snapshot, 'src/middleware.ts') || findContent(snapshot, 'middleware.ts');
+  const mwRoot = findContent(snapshot, 'middleware.ts');
+  const mwSrc = findContent(snapshot, 'src/middleware.ts');
+  const mwNext = findContent(snapshot, 'next.config.ts') || findContent(snapshot, 'next.config.js') || findContent(snapshot, 'next.config.mjs');
+  const mw = [mwRoot, mwSrc, mwNext].filter(Boolean).join('\n\n');
   const missingHeaders = SECURITY_HEADERS.filter((h) => !mw.includes(h));
   const cookieText = snapshot.filter((f) => /supabase|ssr|cookie/i.test(f.rel)).map((f) => f.content).join('\n');
   const hasHttpOnly = /httpOnly|HttpOnly/.test(cookieText);
@@ -534,7 +540,7 @@ export async function runTrailOfBits(root = DEFAULT_ROOT) {
 
   const audit = await runNpmAudit(root);
   const authText = snapshot.filter((f) => /(login|signup|auth)/i.test(f.rel)).map((f) => f.content).join('\n');
-  const hasRateLimit = /\b(rateLimit|rate-limiter|limiter|maxAttempts|lockout)\b/i.test(authText);
+  const hasRateLimit = /\b(rateLimit|rate-limiter|limiter|maxAttempts|lockout|lexis_login_hits|status:\s*429|429)\b/i.test(authText + '\\n' + mw);
   const hasCsp = mw.includes('Content-Security-Policy');
 
   const pct = (a, b) => (b === 0 ? 100 : Math.round((a / b) * 100));
