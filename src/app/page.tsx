@@ -223,14 +223,14 @@ export default function Dashboard() {
   if (!mounted) return null;
 
   return (
-    <div className="ops-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
+    <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
-        <header className="h-auto border-b border-border/50 glass-header flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
+        <header className="admin-page-header h-auto flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
               <LayoutDashboard size={20} className="text-foreground" />
-              <h1 className="font-black text-base sm:text-xl tracking-tight uppercase text-foreground">{t.dashboard}</h1>
+              <h1 className="admin-page-title text-base sm:text-xl text-foreground">{t.dashboard}</h1>
             </div>
             <p className="hidden sm:block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Visão da carteira</p>
           </div>

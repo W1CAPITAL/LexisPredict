@@ -1,0 +1,130 @@
+/**
+ * Camada visual AdminCN → Lexis
+ * Não sobrescreve tokens de tema (orbit/metal/glass).
+ * Import em globals.css: @import './globals-admin-ui.css';
+ */
+
+/* ——— Superfície de página ——— */
+.admin-ui main,
+.ops-ui main {
+  background-color: hsl(var(--background));
+}
+
+/* ——— Cards no estilo admin (ring suave, radius xl) ——— */
+.admin-ui .admin-card,
+.ops-ui [data-admin-card] {
+  border-radius: 0.9rem;
+  border: 1px solid hsl(var(--border) / 0.7);
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-ui .admin-card:hover,
+.ops-ui [data-admin-card]:hover {
+  border-color: hsl(var(--border));
+  box-shadow: 0 4px 16px hsl(var(--foreground) / 0.06);
+}
+
+/* ——— KPI tile ——— */
+.ops-ui .admin-kpi {
+  border-radius: 0.85rem;
+  border: 1px solid hsl(var(--border) / 0.65);
+  background: hsl(var(--card));
+  padding: 0.75rem 0.9rem;
+}
+
+.ops-ui .admin-kpi .admin-kpi-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  letter-spacing: 0.01em;
+}
+
+.ops-ui .admin-kpi .admin-kpi-value {
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  margin-top: 0.2rem;
+}
+
+/* ——— Header de página admin ——— */
+.ops-ui .admin-page-header {
+  border-bottom: 1px solid hsl(var(--border) / 0.55);
+  background: hsl(var(--card) / 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.ops-ui .admin-page-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+
+.ops-ui .admin-page-subtitle {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ——— Soften hype typography (não remove utility classes, só suaviza em contextos) ——— */
+.ops-ui h1.font-black.uppercase,
+.ops-ui h2.font-black.uppercase {
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+/* ——— Tabelas densas legíveis ——— */
+.ops-ui table thead th {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+}
+
+.ops-ui table tbody td {
+  font-size: 0.8125rem;
+  vertical-align: top;
+}
+
+/* ——— Sidebar: item ativo mais “admin” ——— */
+.ops-ui aside a[data-active="true"],
+.ops-ui nav a[aria-current="page"] {
+  font-weight: 600;
+}
+
+/* ——— Botões outline mais limpos ——— */
+.ops-ui .admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ——— Scrollbars finos ——— */
+.ops-ui .admin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* ——— Empty state ——— */
+.ops-ui .admin-empty {
+  border: 1px dashed hsl(var(--border));
+  border-radius: 1rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ——— Badge densos ——— */
+.ops-ui .admin-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

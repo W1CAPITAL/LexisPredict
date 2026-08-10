@@ -14,6 +14,7 @@
 @import "./report-print.css";
 @import './globals-chart-contrast.css';
 @import './globals-ops-ui.css';
+@import './globals-admin-ui.css';
 
 @layer base {
   /* tokens: globals-orbit-theme.css */
