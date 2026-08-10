@@ -147,3 +147,52 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{
     return { success: false, message: e?.message || 'Falha ao remover.' };
   }
 }
+
+/** Garante auditado_em/por e log de edição (chamado pelas UIs). */
+export async function stampAndLogEdicaoAction(
+  protocolo: string,
+  extra: Record<string, any> = {}
+): Promise<{ success: boolean }> {
+  try {
+    const { getUserContext, logAuditoriaSistema, getSupabaseAdmin } = await import('@/lib/server-db');
+    const { hojeBrasilYmd } = await import('@/lib/atendimento-semana');
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id || !protocolo) return { success: false };
+    const hoje = hojeBrasilYmd();
+    const admin = await getSupabaseAdmin();
+    const dig = String(protocolo).replace(/\D/g, '');
+    const { data: row } = await admin
+      .from('processos')
+      .select('id, dados, protocolo_ref')
+      .eq('empresa_id', ctx.empresa_id)
+      .eq('protocolo_ref', protocolo)
+      .maybeSingle();
+    if (!row) {
+      // tenta match por dígitos via dados — skip
+      await logAuditoriaSistema({
+        empresaId: ctx.empresa_id,
+        authUserId: ctx.auth_id,
+        acao: 'edicao',
+        protocolo,
+        detalhes: { ...extra, auditado_em: hoje, via: 'stampAndLogEdicaoAction' },
+      });
+      return { success: true };
+    }
+    const dados = { ...(row.dados as any), auditado_em: hoje, auditado_por: ctx.auth_id, ...extra };
+    await admin.from('processos').update({
+      dados,
+      // colunas opcionais se existirem
+      ...( { auditado_em: hoje, auditado_por: ctx.auth_id } as any),
+    }).eq('id', row.id);
+    await logAuditoriaSistema({
+      empresaId: ctx.empresa_id,
+      authUserId: ctx.auth_id,
+      acao: 'edicao',
+      protocolo: row.protocolo_ref || protocolo,
+      detalhes: { auditado_em: hoje, via: 'stampAndLogEdicaoAction', ...extra },
+    });
+    return { success: true };
+  } catch {
+    return { success: false };
+  }
+}

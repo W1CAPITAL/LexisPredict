@@ -39,7 +39,9 @@ import {
   UserCheck,
   ChevronDown,
   ChevronUp,
-, FileSearch, Gavel} from 'lucide-react';
+  FileSearch,
+  Gavel,
+} from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

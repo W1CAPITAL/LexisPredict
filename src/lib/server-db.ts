@@ -373,7 +373,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
 
   const { data: current, error: fetchError } = await admin
     .from('processos')
-    .select('dados')
+    .select('dados, empresa_id, protocolo_ref')
     .eq('id', caseId)
     .single();
 
@@ -435,6 +435,28 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     console.error('[updateCaseDataJudSystem] update', error);
     return { success: false, error: error.message };
   }
+
+  // Trigger automático de log (tribunal) — não bloqueia o fluxo
+  try {
+    const temDj = patch?.datajud_consultado_em != null;
+    const temDjen = patch?.djen_consultado_em != null || patch?.djen_nova_comunicacao === true;
+    if ((temDj || temDjen) && current?.empresa_id && current?.protocolo_ref) {
+      await logAuditoriaSistema({
+        empresaId: current.empresa_id,
+        acao: temDj ? 'scan_datajud' : 'scan_djen',
+        protocolo: String(current.protocolo_ref),
+        userNome: 'Scanner',
+        detalhes: {
+          via: 'updateCaseDataJudSystem',
+          datajud_consultado_em: patch?.datajud_consultado_em || null,
+          djen_consultado_em: patch?.djen_consultado_em || null,
+          tem_novo_andamento: !!patch?.tem_novo_andamento,
+          datajud_encerrado_tribunal: !!patch?.datajud_encerrado_tribunal,
+        },
+      });
+    }
+  } catch { /* ignore */ }
+
   return { success: true };
 }
 
@@ -693,7 +715,33 @@ export async function getProfileByAuthId(authId: string): Promise<{ nome: string
   } catch { return null; }
 }
 
-export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento' | 'exportacao';
+export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento' | 'exportacao' | 'scan_datajud' | 'scan_djen' | 'auditoria';
+
+
+/** Log de auditoria sem depender de cookie (cron/worker) — usa service role. */
+export async function logAuditoriaSistema(params: {
+  empresaId: string;
+  authUserId?: string | null;
+  userNome?: string | null;
+  acao: AuditoriaAcao;
+  protocolo: string;
+  detalhes?: Record<string, any>;
+}): Promise<void> {
+  try {
+    if (!params.empresaId || !params.protocolo) return;
+    const admin = await getSupabaseAdmin();
+    await admin.from('auditoria_logs_app').insert({
+      empresa_id: params.empresaId,
+      auth_user_id: params.authUserId || null,
+      user_nome: params.userNome || 'Sistema',
+      action: params.acao,
+      protocolo_ref: params.protocolo,
+      detalhes: params.detalhes || {},
+    });
+  } catch (e: any) {
+    console.warn('[auditoria-sistema]', e?.message);
+  }
+}
 
 export async function registrarAuditoriaAction(
   acao: AuditoriaAcao,
