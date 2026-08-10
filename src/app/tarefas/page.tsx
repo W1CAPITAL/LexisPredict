@@ -55,7 +55,7 @@ import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
-import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
+import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import {
   applyFilaListaToObs,
   groupFilaLista,
@@ -67,7 +67,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -341,29 +341,48 @@ export default function TarefasPage() {
     }
   };
 
-  const handleSaveAttendance = async () => {
+  
+  // Corrige encerrados de HOJE que ficaram sem ultimo_retorno
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await backfillEncerradosHojeAction();
+        if (cancelled || !r?.success || !r.updated) return;
+        const fresh = await fetchRepoCases();
+        if (!cancelled && Array.isArray(fresh)) setCases(fresh);
+        toast({ title: 'Encerrados de hoje contabilizados', description: `${r.updated} processo(s)` });
+      } catch { /* */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+const handleSaveAttendance = async () => {
     if (!activeGroup || isSavingAttendance) return;
     setIsSavingAttendance(true);
     try {
-      const todayStr = format(new Date(), 'dd/MM/yyyy');
+      const todayStr = hojeBrasilYmd(); // YYYY-MM-DD Brasília — SEMPRE grava retorno (também no ENCERRADO)
+      const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
+      const touched: string[] = [];
       const updatedCases = cases.map(c => {
-        const isInGroup = attendanceForm.applyToAll ? c.cliente === activeGroup.cliente : activeGroup.cases.some(ac => ac.protocolo === c.protocolo);
-        if (isInGroup) {
-          return processarCaso({
-            ...c, 
-            situacao: attendanceForm.situacao, 
-            ultimoRetorno: todayStr, 
-            observacao: applyFilaListaToObs(
-              attendanceForm.observacao || c.observacao,
-              attendanceForm.filaLista || 'normal'
-            ),
-            proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno,
-            tem_atualizacao_pos_retorno: false,
-            djen_nova_comunicacao: false,
-            tem_novo_andamento: false
-          });
-        }
-        return c;
+        const isInGroup = attendanceForm.applyToAll
+          ? c.cliente === activeGroup.cliente
+          : activeGroup.cases.some(ac => ac.protocolo === c.protocolo);
+        if (!isInGroup) return c;
+        touched.push(c.protocolo);
+        return processarCaso({
+          ...c,
+          situacao: attendanceForm.situacao,
+          ultimoRetorno: todayStr,
+          observacao: applyFilaListaToObs(
+            attendanceForm.observacao || c.observacao,
+            attendanceForm.filaLista || 'normal'
+          ),
+          proximoPrazo: isEncerrado ? '' : attendanceForm.proximoRetorno,
+          tem_atualizacao_pos_retorno: false,
+          djen_nova_comunicacao: false,
+          tem_novo_andamento: false,
+        });
       });
       const result = await syncRepoCases(updatedCases);
       if (result.success) {
@@ -373,7 +392,33 @@ export default function TarefasPage() {
         localStorage.setItem(getTodayKey(), JSON.stringify(updatedContatados));
         setIsAttendanceOpen(false);
         setActiveGroup(null);
-        toast({ title: "Sincronizado" });
+        try {
+          if (isEncerrado) {
+            await registrarAuditoriaEventAction('encerramento', touched, {
+              via: 'tarefas',
+              ultimoRetorno: todayStr,
+            });
+          } else {
+            await registrarAtendimentoAction(touched, {
+              via: 'tarefas',
+              ultimoRetorno: todayStr,
+            });
+          }
+        } catch { /* */ }
+        toast({
+          title: isEncerrado ? 'Encerrado e contabilizado' : 'Atendimento registrado',
+          description: `Retorno ${todayStr} · ${touched.length} processo(s)`,
+        });
+        try {
+          const fresh = await fetchRepoCases();
+          if (Array.isArray(fresh) && fresh.length) setCases(fresh);
+        } catch { /* */ }
+      } else {
+        toast({
+          title: 'Falha ao salvar',
+          description: (result as any).error || (result as any).message || 'Tente de novo',
+          variant: 'destructive',
+        });
       }
     } finally { setIsSavingAttendance(false); }
   };

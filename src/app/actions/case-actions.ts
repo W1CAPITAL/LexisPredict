@@ -752,3 +752,111 @@ export async function generateAudit3dClaudeAction(input: {
     return { success: false as const, error: e?.message || 'Falha Claude' };
   }
 }
+
+/**
+ * Corrige processos ENCERRADOS hoje cuja coluna ultimo_retorno NÃO foi atualizada.
+ * Só mexe em quem tem updated_at no dia de Brasília (ou situacao ENCERRADO sem retorno na semana).
+ * Não reescreve a carteira inteira antiga.
+ */
+export async function backfillEncerradosHojeAction(): Promise<{
+  success: boolean;
+  updated: number;
+  message?: string;
+}> {
+  try {
+    const { getUserContext, getSupabaseAdmin, getStoredCasesForEmpresa, saveStoredCasesForEmpresa } = await import('@/lib/server-db');
+    const { processarCaso } = await import('@/lib/case-logic');
+    const { hojeBrasilYmd, isAtendidoNestaSemana, parseUltimoAtendimento } = await import('@/lib/atendimento-semana');
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id) return { success: false, updated: 0, message: 'Sessão expirada' };
+
+    const hoje = hojeBrasilYmd();
+    const admin = await getSupabaseAdmin();
+
+    // Linhas tocadas hoje (updated_at) — candidatos a "encerrado hoje sem retorno"
+    const startIso = `${hoje}T00:00:00-03:00`;
+    const { data: rows, error } = await admin
+      .from('processos')
+      .select('id, protocolo_ref, status, ultimo_retorno, updated_at, dados')
+      .eq('empresa_id', ctx.empresa_id)
+      .gte('updated_at', startIso);
+
+    if (error) {
+      // fallback sem filtro de updated_at: usa carteira em memória
+      const cases = await getStoredCasesForEmpresa(ctx.empresa_id, true);
+      let n = 0;
+      const next = cases.map((c: any) => {
+        const sit = String(c.situacao || c.status || '').toUpperCase();
+        const enc =
+          sit.includes('ENCERR') ||
+          sit.includes('ARQUIV') ||
+          !!c.datajud_encerrado_tribunal;
+        if (!enc) return c;
+        if (isAtendidoNestaSemana(c.ultimoRetorno || c.ultimo_retorno)) return c;
+        n += 1;
+        return processarCaso({
+          ...c,
+          situacao: c.situacao || 'ENCERRADO',
+          ultimoRetorno: hoje,
+          proximoPrazo: '',
+        });
+      });
+      // Só salva se poucos (evita marcar 500 antigos). Limite: 80.
+      if (n === 0) return { success: true, updated: 0, message: 'Nada a corrigir' };
+      if (n > 80) {
+        return {
+          success: false,
+          updated: 0,
+          message: `Há ${n} encerrados sem retorno recente — rode de novo com updated_at ou corrija manualmente.`,
+        };
+      }
+      const res = await saveStoredCasesForEmpresa(next, ctx.empresa_id, true);
+      return { success: !!res.success, updated: n, message: res.message };
+    }
+
+    const touched = rows || [];
+    if (!touched.length) return { success: true, updated: 0, message: 'Nenhuma linha atualizada hoje' };
+
+    const cases = await getStoredCasesForEmpresa(ctx.empresa_id, true);
+    const byProt = new Map(cases.map((c: any) => [String(c.protocolo || '').replace(/\D/g, ''), c]));
+    let n = 0;
+    const next = cases.map((c: any) => {
+      const dig = String(c.protocolo || '').replace(/\D/g, '');
+      const row = touched.find((r: any) => String(r.protocolo_ref || '').replace(/\D/g, '') === dig);
+      if (!row) return c;
+      const sit = String(
+        (row.dados && (row.dados.situacao || row.dados.SITUACAO)) ||
+          c.situacao ||
+          row.status ||
+          c.status ||
+          ''
+      ).toUpperCase();
+      const enc =
+        sit.includes('ENCERR') ||
+        sit.includes('ARQUIV') ||
+        String(row.status || '').toUpperCase().includes('ENCERR') ||
+        !!c.datajud_encerrado_tribunal;
+      if (!enc) return c;
+      if (isAtendidoNestaSemana(row.ultimo_retorno || c.ultimoRetorno)) return c;
+      n += 1;
+      return processarCaso({
+        ...c,
+        situacao: c.situacao || 'ENCERRADO',
+        ultimoRetorno: hoje,
+        proximoPrazo: '',
+        tem_novo_andamento: false,
+        tem_atualizacao_pos_retorno: false,
+      });
+    });
+
+    if (n === 0) return { success: true, updated: 0, message: 'Já contabilizados' };
+    const res = await saveStoredCasesForEmpresa(next, ctx.empresa_id, true);
+    return {
+      success: !!res.success,
+      updated: n,
+      message: res.success ? `${n} encerrado(s) de hoje passaram a contar como atendimento` : res.message,
+    };
+  } catch (e: any) {
+    return { success: false, updated: 0, message: e?.message || 'Falha no backfill' };
+  }
+}

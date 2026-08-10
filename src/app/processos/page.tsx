@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction } from "@/app/actions/case-actions";
+import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
@@ -149,6 +149,19 @@ export default function ProcessosEmpresaPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await backfillEncerradosHojeAction();
+        if (cancelled || !r?.success || !r.updated) return;
+        await load();
+        toast({ title: "Encerrados de hoje contabilizados", description: `${r.updated} processo(s)` });
+      } catch { /* */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const baCount = useMemo(() => cases.filter((c) => !!c.indicio_busca_apreensao || c.evento_tipo === "ba").length, [cases]);
 

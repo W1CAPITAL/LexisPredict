@@ -18,7 +18,7 @@ import {
 import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic'
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
-import { isAtendidoNestaSemana } from '@/lib/atendimento-semana';
+import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,7 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
@@ -419,6 +419,20 @@ function CasesContent() {
     } finally { setIsGeneratingAIDraft(false); }
   };
 
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await backfillEncerradosHojeAction();
+        if (cancelled || !r?.success || !r.updated) return;
+        const fresh = await fetchRepoCases();
+        if (!cancelled && Array.isArray(fresh)) setCases(fresh);
+        toast({ title: 'Encerrados de hoje contabilizados', description: `${r.updated} processo(s)` });
+      } catch { /* */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const handleLogReturn = (c: LegalCase) => {
     setActiveGroup(c);
     setAttendanceForm({ observacao: c.observacao || '', proximoRetorno: c.proximoPrazo || '', situacao: c.situacao || 'EM ANDAMENTO', applyToAll: true });
@@ -465,7 +479,7 @@ function CasesContent() {
     if (!activeGroup || isSavingAttendance) return;
     setIsSavingAttendance(true);
     try {
-      const todayStr = format(new Date(), 'dd/MM/yyyy');
+      const todayStr = hojeBrasilYmd();
       const updatedCases = cases.map(c => {
         if (attendanceForm.applyToAll ? c.cliente === activeGroup.cliente : c.protocolo === activeGroup.protocolo) {
           return processarCaso({ 
@@ -482,7 +496,34 @@ function CasesContent() {
         return c;
       });
       const res = await syncRepoCases(updatedCases);
-      if (res.success) { setCases(updatedCases); setIsAttendanceOpen(false); setActiveGroup(null); toast({ title: "Registro Sincronizado" }); }
+      if (res.success) {
+        setCases(updatedCases);
+        setIsAttendanceOpen(false);
+        setActiveGroup(null);
+        const touched = updatedCases
+          .filter((c) =>
+            attendanceForm.applyToAll
+              ? c.cliente === activeGroup.cliente
+              : c.protocolo === activeGroup.protocolo
+          )
+          .map((c) => c.protocolo);
+        const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
+        try {
+          if (isEncerrado) {
+            await registrarAuditoriaEventAction('encerramento', touched, { via: 'cases', ultimoRetorno: todayStr });
+          } else {
+            await registrarAtendimentoAction(touched, { via: 'cases', ultimoRetorno: todayStr });
+          }
+        } catch { /* */ }
+        toast({
+          title: isEncerrado ? 'Encerrado e contabilizado' : 'Atendimento registrado',
+          description: `Retorno ${todayStr}`,
+        });
+        try {
+          const fresh = await fetchRepoCases();
+          if (Array.isArray(fresh) && fresh.length) setCases(fresh);
+        } catch { /* */ }
+      }
     } finally { setIsSavingAttendance(false); }
   };
 
@@ -544,6 +585,19 @@ function CasesContent() {
     setIsModalOpen(true);
   };
 
+
+  const withEncerradoRetorno = (c: LegalCase): LegalCase => {
+    const sit = String((c as any).situacao || c.status || '').toUpperCase();
+    if (!sit.includes('ENCERR')) return c;
+    const hoje = hojeBrasilYmd();
+    return processarCaso({
+      ...c,
+      situacao: (c as any).situacao || 'ENCERRADO',
+      ultimoRetorno: hoje,
+      proximoPrazo: '',
+    });
+  };
+
   const handleSaveCase = async (e: React.FormEvent) => {
     e.preventDefault();
     const cliente = (formState.cliente || '').trim();
@@ -552,6 +606,11 @@ function CasesContent() {
       toast({ title: 'Campos obrigatórios', description: 'Informe cliente e protocolo (CNJ).', variant: 'destructive' });
       return;
     }
+    // ENCERRADO sempre atualiza ultimoRetorno para HOJE (conta na semana)
+    const formForSave =
+      String(formState.situacao || '').toUpperCase() === 'ENCERRADO'
+        ? { ...formForSave, ultimoRetorno: hojeBrasilYmd(), proximoPrazo: '' }
+        : formState;
     if (editingCase) {
       const digits = protocolo.replace(/\D/g, '');
       if (digits.length !== 20) {
@@ -570,9 +629,9 @@ function CasesContent() {
         }
       }
       const tribunalData = extrairTribunal(protocolo);
-      const updatedCase = processarCaso({
+      let updatedCase = processarCaso({
         ...editingCase,
-        ...formState,
+        ...formForSave,
         cliente,
         protocolo,
         tribunal: tribunalData?.tribunal || editingCase.tribunal,
