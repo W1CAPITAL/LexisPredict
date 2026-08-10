@@ -1,6 +1,6 @@
-import { statusEfetivo } from '@/lib/prazo-status';
 "use client";
 
+import { statusEfetivo } from "@/lib/prazo-status";
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashboard-panel";
 
