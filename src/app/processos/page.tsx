@@ -43,6 +43,14 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -299,13 +307,20 @@ export default function ProcessosEmpresaPage() {
     });
   }, [cases, q, statusFilter, baOnly]);
 
+  // Ao mudar filtro/busca, volta a mostrar só a 1ª página (não afeta dashboard)
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [q, statusFilter, baOnly, cases.length]);
+
   const visibleItems = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
   const remaining = filtered.length - visibleCount;
 
-  const loadMore = () => {
-    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, filtered.length));
+  const showMore = (extra: number) => {
+    setVisibleCount((prev) => Math.min(prev + extra, filtered.length));
   };
+  const showAll = () => setVisibleCount(filtered.length);
+  const showLess = () => setVisibleCount(PAGE_SIZE);
 
   const fmtTime = (iso?: string) => {
     if (!iso) return "—";
@@ -532,19 +547,83 @@ export default function ProcessosEmpresaPage() {
                       })}
                     </tbody>
                   </table>
-                  {hasMore && (
-                    <div className="flex justify-center pt-4 pb-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={loadMore}
-                        className="h-10 px-6 rounded-xl font-black uppercase text-[10px] tracking-wider border-primary/40 text-primary hover:bg-primary/5 transition-colors flex items-center gap-2"
-                      >
-                        <ChevronDown size={14} />
-                        Ver mais <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[9px] font-black">{remaining}</span>
-                      </Button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 pb-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      Mostrando{" "}
+                      <span className="text-foreground tabular-nums">
+                        {Math.min(visibleCount, filtered.length)}
+                      </span>{" "}
+                      de{" "}
+                      <span className="text-foreground tabular-nums">{filtered.length}</span>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {hasMore && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-10 px-5 rounded-xl font-black uppercase text-[10px] tracking-wider border-primary/40 text-primary hover:bg-primary/5 transition-colors flex items-center gap-2"
+                            >
+                              <ChevronDown size={14} />
+                              Ver mais
+                              <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[9px] font-black">
+                                {remaining}
+                              </span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="center" className="w-56 rounded-xl border-2 border-border">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                              Quantos a mais?
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-[11px] font-bold uppercase cursor-pointer"
+                              onClick={() => showMore(25)}
+                            >
+                              +25 processos
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-[11px] font-bold uppercase cursor-pointer"
+                              onClick={() => showMore(50)}
+                            >
+                              +50 processos
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-[11px] font-bold uppercase cursor-pointer"
+                              onClick={() => showMore(100)}
+                            >
+                              +100 processos
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-[11px] font-bold uppercase cursor-pointer"
+                              onClick={() => showMore(200)}
+                            >
+                              +200 processos
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-[11px] font-black uppercase cursor-pointer text-primary"
+                              onClick={showAll}
+                            >
+                              Ver todos ({filtered.length})
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                      {visibleCount > PAGE_SIZE && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={showLess}
+                          className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider text-muted-foreground hover:text-foreground"
+                        >
+                          <ChevronUp size={14} className="mr-1" />
+                          Mostrar menos
+                        </Button>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </>
               </div>
             )}
