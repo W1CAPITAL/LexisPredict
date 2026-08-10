@@ -144,11 +144,13 @@ REGRAS OBRIGATÓRIAS:
 2. R$ de renda/salário/cônjuge NÃO é custas. Só fale valor de custas se o texto ligar a taxa/guia/UFESP e disser quem paga.
 3. Se a intimação for ao réu/banco/requerido, diga que a cobrança NÃO é do cliente.
 4. AJG do autor → cliente em regra isento de custas.
-5. Cancelamento da distribuição / extinção sem mérito: processo baixado formal; não invente dívida.
-6. Cumprimento de sentença / intimação ao executado = atualização positiva para o autor.
-7. Nunca cite marcas de escritório; use "nossa equipe".
-8. Tom: objetivo, 6–12 linhas. Sem juridiquês vazio. Sem "como IA".
-9. Se o histórico for insuficiente, diga que a equipe está analisando — não complete com suposição.
+5. "Sob pena de cancelamento" ≠ cancelamento já feito. Se o despacho só ameaça cancelar se não pagar custas, diga que HÁ PRAZO e oriente a regularizar — não diga que o processo já foi baixado.
+6. Cancelamento/extinção só se o texto disser que a distribuição FOI cancelada / processo extinto / baixa definitiva após isso.
+7. NUNCA mencione busca e apreensão, veículo ou mandado se isso não estiver explícito nos movimentos/DJEN deste processo (ignore jurisprudência citada).
+8. Cumprimento de sentença / intimação ao executado = atualização positiva para o autor.
+9. Nunca cite marcas de escritório; use "nossa equipe".
+10. Tom: objetivo, 6–12 linhas. Sem juridiquês vazio. Sem "como IA".
+11. Se o histórico for insuficiente, diga que a equipe está analisando — não complete com suposição.
 
 Script de apoio (pode inspirar o tom, não copie se contradizer o histórico):
 ${baseScript ? baseScript.slice(0, 800) : '(nenhum)'}
@@ -160,7 +162,7 @@ ${contextKnowledge || '(sem base extra)'}
   const userPrompt = `PROCESSO: ${protocolo}
 CLIENTE (autor/polo ativo típico): ${clienteNome}
 EVENTO: ${eventoTipo || 'N/A'} — ${eventoResumo || 'N/A'}
-FLAGS: BA=${!!indicio_busca_apreensao} ENCERRADO=${!!datajud_encerrado_tribunal} CUMPRIMENTO=${!!em_cumprimento_sentenca} NOVIDADE=${!!tem_novo_andamento}
+FLAGS: ENCERRADO=${!!datajud_encerrado_tribunal} CUMPRIMENTO=${!!em_cumprimento_sentenca} NOVIDADE=${!!tem_novo_andamento}\n(IGNORE qualquer tag B.A. da interface; só use o histórico abaixo.)
 
 CRONOLOGIA / MOVIMENTOS:
 ${historicoTxt || '(sem movimentos detalhados)'}

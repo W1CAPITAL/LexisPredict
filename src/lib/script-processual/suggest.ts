@@ -126,6 +126,8 @@ type Signals = {
   arquivamento: boolean;
   extinçãoSemMerito: boolean;
   cancelamentoDistribuicao: boolean;
+  sobPenaCancelamento: boolean;
+  processoCanceladoArquivado: boolean;
   art290: boolean;
   art485: boolean;
   gratuidadeCliente: boolean;
@@ -170,11 +172,20 @@ function detectSignals(U: string, input: ScriptInput): Signals {
       (/custas\s+em\s+aberto|recolher\s+as\s+custas|pagamento\s+taxa\s+judici|guia\s+gerada|juntada.{0,20}guia|ato\s+ordinat[oó]rio.{0,80}guia/i.test(U) &&
         !/requerida|r[eé]u\b/i.test(U)));
 
+  // "sob pena de cancelamento" ≠ cancelamento efetivo
+  const sobPenaCancelamento =
+    /sob\s+pena\s+(de\s+)?cancelamento|pena\s+de\s+cancelamento\s+da\s+distribui/i.test(U);
+  const corpusSemPena = U.replace(
+    /[^.!\n]*sob\s+pena\s+(de\s+)?cancelamento[^.!\n]*/gi,
+    ' '
+  );
   const cancelamentoDistribuicao =
-    /cancelamento\s+da\s+distribui[çc][aã]o|cancelada\s+a\s+distribui[çc][aã]o|art\.?\s*290/i.test(
-      U
+    !sobPenaCancelamento &&
+    /cancelamento\s+da\s+distribui[çc][aã]o|cancelada\s+a\s+distribui[çc][aã]o|foi\s+cancelad[ao]\s+a\s+distribui|determino\s+o\s+cancelamento\s+da\s+distribui/i.test(
+      corpusSemPena
     );
-  const art290 = /art\.?\s*290|artigo\s+290/i.test(U);
+  const art290 =
+    /art\.?\s*290|artigo\s+290/i.test(corpusSemPena) && !sobPenaCancelamento;
   const extinçãoSemMerito =
     /julgo\s+extinto|extinto\s+o\s+processo|extin[çc][aã]o\s+do\s+processo|sem\s+resolu[çc][aã]o\s+do\s+m[eé]rito|aus[êe]ncia\s+de\s+pressupostos|indeferida\s+a\s+peti[çc][aã]o\s+inicial|art\.?\s*485/i.test(
       U
@@ -195,7 +206,10 @@ function detectSignals(U: string, input: ScriptInput): Signals {
   return {
     ba:
       !!(input.indicio_busca_apreensao || input.busca_apreensao) ||
-      /busca\s+e\s+apreens[aã]o/i.test(U),
+      (/(?:a[cç][aã]o|mandado|liminar|deferid[ao]|conced[oa]|cumprimento\s+do\s+mandado)\s+de\s+busca\s+e\s+apreens/i.test(
+        U
+      ) &&
+        !/jurisprud[eê]ncia|s[uú]mula|neste\s+sentido|conforme\s+entendimento|cita[cç][aã]o\s+doutrin/i.test(U)),
     baixaDefinitiva: /baixa\s+definitiva/i.test(U),
     transito:
       !!input.datajud_encerrado_tribunal ||
@@ -203,6 +217,8 @@ function detectSignals(U: string, input: ScriptInput): Signals {
     arquivamento: /arquiv/i.test(U),
     extinçãoSemMerito,
     cancelamentoDistribuicao,
+    sobPenaCancelamento,
+    processoCanceladoArquivado,
     art290,
     art485: /art\.?\s*485|artigo\s+485/i.test(U),
     gratuidadeCliente,
@@ -306,6 +322,35 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   }
 
   // ——— Cancelamento distribuição / extinção art 290 — Josiane (SEM inventar R$ 24k)
+
+  // ——— Intimação de custas sob pena de cancelamento (ainda NÃO cancelou)
+  if (
+    /sob\s+pena\s+(de\s+)?cancelamento|junte.{0,40}comprovante\s+de\s+pagamento\s+das\s+custas|suspenda-se\s+o\s+feito.{0,80}custas/i.test(U) &&
+    !s.cancelamentoDistribuicao &&
+    !s.processoCanceladoArquivado &&
+    out.length < 3
+  ) {
+    const prazo = s.prazoDias ? `${s.prazoDias} dias` : 'o prazo indicado no despacho';
+    out.push({
+      id: 'custas_sob_pena_cancelamento',
+      categoria: 'custas',
+      titulo: 'URGENTE: custas iniciais sob pena de cancelamento',
+      quandoUsar: 'Despacho intimando autor a recolher custas, sob pena de art. 290',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Atualização importante sobre o processo nº ${cnj}.`,
+        ``,
+        `O juiz determinou o recolhimento das custas iniciais e intimou a parte autora a juntar o comprovante no prazo de ${prazo}, sob pena de cancelamento da distribuição (encerramento formal do processo sem julgamento do mérito).`,
+        ``,
+        `Ainda não se trata de cancelamento definitivo: há prazo em curso. É essencial regularizar a guia oficial do tribunal dentro do prazo para o processo seguir.`,
+        ``,
+        `Nossa equipe pode orientar a emissão/conferência do boleto. Responda esta mensagem para alinharmos.`,
+      ]),
+    });
+  }
+
+
   if (
     (s.cancelamentoDistribuicao || s.art290 || s.extinçãoSemMerito) &&
     (s.transito || s.baixaDefinitiva || s.arquivamento || s.extinçãoSemMerito) &&
@@ -321,7 +366,7 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
         ``,
         `Parecer conclusivo sobre o processo nº ${cnj}.`,
         ``,
-        `Logo no início, o juiz não concedeu a justiça gratuita e abriu prazo para recolhimento de custas. Como a guia inicial não foi paga no prazo, o juiz determinou o cancelamento da distribuição e encerrou o processo sem julgar o mérito (o problema com a outra parte).`,
+        `O processo foi encerrado de forma formal (cancelamento da distribuição / extinção sem julgamento do mérito), em regra após ausência de recolhimento das custas iniciais no prazo. O mérito da disputa com a outra parte não foi decidido neste processo.`,
         ``,
         `O que isso significa na prática? Este processo específico foi baixado em definitivo. Você não possui pendência financeira ativa nem dívida de custas inventada com o tribunal por valores de renda ou outros números que apareçam só como contexto na decisão.`,
         ``,

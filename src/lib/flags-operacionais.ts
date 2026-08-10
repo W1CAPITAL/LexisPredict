@@ -21,10 +21,13 @@ export function normalizeProtocolo(p: string | null | undefined): string {
 
 export function temBaCarteira(c: LegalCase, baHits?: BaHitIndex): boolean {
   const proto = normalizeProtocolo(c.protocolo);
+  // Hit real da aba/varredura B.A. (fonte confiável)
   if (baHits && proto && baHits.has(proto)) return true;
+  // Tipo de evento já classificado como BA operacional
   if (c.evento_tipo === 'ba') return true;
-  if ((c as any).indicio_busca_apreensao) return true;
-  if ((c as any).ba_tipo) return true;
+  // ba_tipo explícito (ex.: mandado/liminar) — não basta indício solto
+  if ((c as any).ba_tipo && String((c as any).ba_tipo).length > 1) return true;
+  // Indício sozinho NÃO marca CRÍTICO: B.A. (evita falso positivo por jurisprudência)
   return false;
 }
 
