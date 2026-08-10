@@ -122,8 +122,9 @@ export default function SecurityPage() {
       setLiveLog(res.report.narrative || []);
       const s = res.report.summary;
       toast({
-        title: "Sonda ao vivo concluída",
-        description: `PASS ${s.PASS} · FAIL ${s.FAIL} · WARN ${s.WARN}`,
+        title: s.FAIL ? "Pentest: falhas encontradas" : "Pentest: defesas resistiram",
+        description: res.report.executiveSummary || `PASS ${s.PASS} · FAIL ${s.FAIL} · WARN ${s.WARN}`,
+        variant: s.FAIL ? "destructive" : "default",
       });
     } catch (e: any) {
       toast({ title: "Erro na sonda", description: e?.message || "Falha", variant: "destructive" });
@@ -252,9 +253,20 @@ export default function SecurityPage() {
                   onClick={runLiveProbe}
                 >
                   {liveRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
-                  {liveRunning ? "Sonda forte em curso…" : "Executar sonda forte"}
+                  {liveRunning ? "Pentest em curso…" : "Executar pentest controlado"}
                 </Button>
               </div>
+              {liveReport?.executiveSummary ? (
+                <div className="rounded-xl border border-border bg-card p-4 text-sm">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Resumo executivo</p>
+                  <p className="leading-relaxed">{liveReport.executiveSummary}</p>
+                  {liveReport.findings?.length ? (
+                    <p className="mt-2 text-[11px] text-red-600 font-bold">
+                      {liveReport.findings.length} achado(s) acionável(is) — veja Ataque / Impacto / Proteger abaixo.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               {liveLog.length > 0 && (
                 <div className="rounded-lg bg-slate-950 text-slate-100 p-3 font-mono text-[11px] max-h-40 overflow-y-auto space-y-0.5">
                   <div className="flex items-center gap-1 text-slate-400 mb-1"><Terminal className="h-3 w-3" /> Console</div>
@@ -281,7 +293,20 @@ export default function SecurityPage() {
                         <span className="font-bold">{st.title}</span>
                       </div>
                       <p className="mt-1 text-muted-foreground">{st.detail}</p>
-                      {st.fix ? <p className="mt-0.5 text-emerald-600 dark:text-emerald-400 text-[11px]">Fix: {st.fix}</p> : null}
+                      {st.severity && st.status !== "PASS" ? (
+                        <Badge variant="outline" className="mt-1 text-[9px] uppercase">{st.severity}</Badge>
+                      ) : null}
+                      {st.attack ? (
+                        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed">
+                          <p><span className="font-black uppercase text-red-600">Ataque: </span>{st.attack}</p>
+                          {st.impact ? <p><span className="font-black uppercase text-amber-600">Impacto: </span>{st.impact}</p> : null}
+                          {st.reproduction ? <p className="font-mono text-[10px] bg-muted/50 p-2 rounded"><span className="font-black uppercase not-italic">Reproduzir: </span>{st.reproduction}</p> : null}
+                          {(st.remediation || st.fix) ? <p><span className="font-black uppercase text-emerald-600">Proteger: </span>{st.remediation || st.fix}</p> : null}
+                          {st.evidence ? <p className="text-muted-foreground">Evidência: {st.evidence}</p> : null}
+                        </div>
+                      ) : st.fix ? (
+                        <p className="mt-0.5 text-emerald-600 dark:text-emerald-400 text-[11px]">Fix: {st.fix}</p>
+                      ) : null}
                     </div>
                   ))}
                 </div>
