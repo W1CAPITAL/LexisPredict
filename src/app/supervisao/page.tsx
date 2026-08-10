@@ -1,5 +1,7 @@
+"use client"
+
 import Link from "next/link";
-"use client";
+
 
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 
