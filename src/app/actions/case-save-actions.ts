@@ -2,20 +2,20 @@
 
 /**
  * Salvamento atômico de UM processo — evita upsert de 1000+ linhas (travamento na UI).
+ * Colunas de auditoria (edited_at / edited_by) ficam dentro de `dados` quando
+ * a tabela `processos` não tem essas colunas no schema.
  */
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { createClient } from '@/lib/supabase/server';
 
+/** Monta a linha para upsert — só campos que existem (ou são JSON em dados). */
 function toRow(c: LegalCase, empresaId: string, authId: string | null) {
   const isoPrazo = formatDateToISO(c.proximoPrazo);
   const isoRetorno = formatDateToISO(c.ultimoRetorno);
-  const now = new Date().toISOString();
   return {
     empresa_id: empresaId,
     created_by: c.created_by || authId,
-    edited_by: authId,
-    edited_at: now,
     protocolo_ref: c.protocolo,
     advogado: c.advogado || 'NÃO ATRIBUÍDO',
     escritorio: c.escritorio || null,
@@ -44,6 +44,7 @@ function toRow(c: LegalCase, empresaId: string, authId: string | null) {
     djen_ultimo_resumo: c.djen_ultimo_resumo,
     djen_ultimo_link: c.djen_ultimo_link,
     djen_ultima_data: c.djen_ultima_data,
+    // Auditoria e espelho completo no JSON — evita erro de schema cache
     dados: { ...c },
   };
 }
@@ -59,24 +60,21 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
     const processed = processarCaso(caseData as any);
-    
-    // Obter nome do usuário para auditoria
+
     let editorName = 'Sistema';
     if (auth_id) {
       const profile = await getProfileByAuthId(auth_id);
       editorName = profile?.nome || editorName;
     }
-    
+
     const now = new Date().toISOString();
+    // Metadados de auditoria só no objeto / dados — NÃO como coluna obrigatória
     processed.edited_by = auth_id || null;
     processed.edited_at = now;
     processed.edited_by_name = editorName;
 
     const row = toRow(processed, empresa_id, auth_id || null);
-    row.edited_by = auth_id;
-    row.edited_at = now;
 
-    // Prefer user client (RLS); fallback admin se necessário
     let client: any = null;
     try {
       client = await createClient();
@@ -90,7 +88,28 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
       .from('processos')
       .upsert(row, { onConflict: 'protocolo_ref,empresa_id' });
 
-    if (error) return { success: false, message: error.message };
+    if (error) {
+      // Fallback: se ainda houver coluna fantasma no payload antigo, tenta update mínimo
+      const msg = String(error.message || '');
+      if (/edited_at|edited_by|schema cache/i.test(msg)) {
+        const { error: err2 } = await client
+          .from('processos')
+          .upsert(
+            {
+              empresa_id,
+              protocolo_ref: processed.protocolo,
+              ultimo_retorno: formatDateToISO(processed.ultimoRetorno),
+              tem_atualizacao_pos_retorno: false,
+              djen_nova_comunicacao: false,
+              dados: { ...processed },
+            },
+            { onConflict: 'protocolo_ref,empresa_id' }
+          );
+        if (err2) return { success: false, message: err2.message };
+        return { success: true, message: 'Salvo.', case: processed };
+      }
+      return { success: false, message: error.message };
+    }
 
     return { success: true, message: 'Salvo.', case: processed };
   } catch (e: any) {
