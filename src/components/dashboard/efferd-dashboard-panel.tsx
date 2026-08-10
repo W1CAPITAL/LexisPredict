@@ -234,13 +234,27 @@ export function Dashboard({
       icon: <TrendingUp size={16} />,
       tone: novidades > 0 ? "warn" : "default",
       hint: "Movimento após retorno",
-    },,
+    },
+    {
+      label: "É hoje",
+      value: hoje,
+      icon: <Clock size={16} />,
+      tone: hoje > 0 ? "warn" : "default",
+      hint: "Retorno / prazo hoje",
+    },
+    {
+      label: "Baixas tribunal",
+      value: baixas,
+      icon: <Gavel size={16} />,
+      tone: "ok",
+      hint: "Encerrados no CNJ",
+    },
     {
       label: "Atend. semana",
       value: atendidosSemana,
       icon: <Clock size={16} />,
-      tone: atendidosSemana > 0 ? "ok" : "default",
-      hint: semanaLabel,
+      tone: atendidosSemana > 0 ? "violet" : "default",
+      hint: "Último retorno · " + semanaLabel,
     },
     {
       label: "Editados app",
@@ -262,27 +276,6 @@ export function Dashboard({
       icon: <Search size={16} />,
       tone: "info",
       hint: "Só DataJud / DJEN (separado)",
-    }
-    {
-      label: "É hoje",
-      value: hoje,
-      icon: <Clock size={16} />,
-      tone: hoje > 0 ? "warn" : "default",
-      hint: "Retorno / prazo hoje",
-    },
-    {
-      label: "Baixas tribunal",
-      value: baixas,
-      icon: <Gavel size={16} />,
-      tone: "ok",
-      hint: "Encerrados no CNJ",
-    },
-    {
-      label: "Atend. semana",
-      value: atendidosSemana,
-      icon: <Clock size={16} />,
-      tone: atendidosSemana > 0 ? "violet" : "default",
-      hint: "Último retorno nesta semana",
     },
   ];
 
