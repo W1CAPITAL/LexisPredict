@@ -120,6 +120,7 @@ function SidebarNavBody({
   const navScrollRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef(0);
   const [navQuery, setNavQuery] = useState("");
+  const [showMoreTools, setShowMoreTools] = useState(false);
 
   const onNavScroll = useCallback(() => {
     if (navScrollRef.current) scrollTopRef.current = navScrollRef.current.scrollTop;
@@ -135,190 +136,79 @@ function SidebarNavBody({
   }, [pathname]);
 
   const navGroups: NavGroup[] = useMemo(() => {
-    const groups: NavGroup[] = [
+    // Núcleo do operador (menos ruído) — sempre visível
+    const core: NavGroup[] = [
       {
         title: "Hoje",
         items: [
-          {
-            label: "Painel",
-            href: "/",
-            icon: LayoutDashboard,
-            hint: "Vencidos e o que exige ação",
-          },
-          {
-            label: "Fila de contato",
-            href: "/tarefas",
-            icon: ListTodo,
-            hint: "Quem ligar ou responder",
-          },
-          {
-            label: "Agenda",
-            href: "/agenda",
-            icon: CalendarDays,
-            hint: "Prazos da semana",
-          },
+          { label: "Painel", href: "/", icon: LayoutDashboard, hint: "Vencidos e ação do dia" },
+          { label: "Fila de contato", href: "/tarefas", icon: ListTodo, hint: "Quem ligar ou responder" },
+          { label: "Meus processos", href: "/cases", icon: Briefcase, hint: "Carteira + scanner" },
         ],
       },
       {
         title: "Carteira",
         items: [
-          {
-            label: "Meus processos",
-            href: "/cases",
-            icon: Briefcase,
-            hint: "Carteira + scanner",
-          },
-          {
-            label: "Visão da empresa",
-            href: "/processos",
-            icon: FolderOpen,
-            hint: "Todos os processos",
-          },
-          {
-            label: "Busca e apreensão",
-            href: "/busca-apreensao",
-            icon: Gavel,
-            hint: "Indícios reforçados de B.A.",
-          },
-          {
-            label: "Importar",
-            href: "/import",
-            icon: Upload,
-            hint: "Planilha em lote",
-          },
-        ],
-      },
-      {
-        title: "Dinheiro",
-        items: [
-          {
-            label: "CRM Assessoria",
-            href: "/crm",
-            icon: Kanban,
-            hint: "Funil, serviços e caixa",
-          },
-          {
-            label: "Finanças",
-            href: "/financas",
-            icon: Wallet,
-            hint: "Lançamentos avulsos",
-          },
-        ],
-      },
-      {
-        title: "Peças",
-        items: [
-          {
-            label: "Modelos & Peças",
-            href: "/modelos",
-            icon: ScrollText,
-            hint: "Biblioteca completa",
-          },
-          {
-            label: "Procuração",
-            href: "/documents",
-            icon: FileText,
-            hint: "Gerador de procuração",
-          },
-          {
-            label: "Habilitação",
-            href: "/habilitacao-peca",
-            icon: FileSignature,
-            hint: "Petição de habilitação",
-          },
-          {
-            label: "Substabelecimento",
-            href: "/substabelecimento",
-            icon: Files,
-            hint: "Com ou sem reserva",
-          },
-        ],
-      },
-      {
-        title: "Consulta",
-        items: [
-          {
-            label: "Consulta CNJ",
-            href: "/veredito",
-            icon: Scale,
-            hint: "DataJud e DJEN",
-          },
-          {
-            label: "Cadastro assistido",
-            href: "/ia-sync",
-            icon: ClipboardList,
-            hint: "Extrair dados de contrato",
-          },
-          {
-            label: "Assistente IA",
-            href: "/chat",
-            icon: Bot,
-            hint: "Dúvidas e rascunhos",
-          },
-          {
-            label: "WhatsApp",
-            href: "/whatsapp",
-            icon: MessageCircle,
-            hint: "Atalhos de mensagem",
-          },
-        ],
-      },
-      {
-        title: "Números",
-        items: [
-          {
-            label: "Indicadores",
-            href: "/analytics",
-            icon: BarChart3,
-            hint: "Gráficos da carteira",
-          },
-          {
-            label: "IA Preditiva",
-            href: "/insights",
-            icon: BrainCircuit,
-            hint: "Risco e tribunais",
-          },
-          {
-            label: "Urgências",
-            href: "/urgency",
-            icon: ShieldAlert,
-            hint: "Fila crítica",
-          },
+          { label: "Visão da empresa", href: "/processos", icon: FolderOpen, hint: "Todos os processos" },
+          { label: "Importar", href: "/import", icon: Upload, hint: "Planilha em lote" },
+          { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList, hint: "CNJ → ficha" },
         ],
       },
     ];
+
+    // Ferramentas secundárias — recolhidas por padrão (modo operador)
+    const more: NavGroup[] = [
+      {
+        title: "Mais · Operação",
+        items: [
+          { label: "Agenda", href: "/agenda", icon: CalendarDays, hint: "Prazos da semana" },
+          { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel, hint: "Indícios de B.A." },
+          { label: "Dossiê", href: "/report", icon: BarChart3, hint: "Relatório operacional" },
+          { label: "OCR", href: "/tools/ocr", icon: FileText, hint: "Transcrição" },
+        ],
+      },
+      {
+        title: "Mais · Dinheiro",
+        items: [
+          { label: "CRM Assessoria", href: "/crm", icon: Kanban, hint: "Funil e caixa" },
+          { label: "Follow-ups CRM", href: "/crm/followups", icon: ListTodo, hint: "Sinais do banco" },
+          { label: "Finanças", href: "/financas", icon: Wallet, hint: "Visão financeira" },
+        ],
+      },
+      {
+        title: "Mais · Peças & IA",
+        items: [
+          { label: "Modelos", href: "/modelos", icon: ScrollText, hint: "Textos prontos" },
+          { label: "Documentos", href: "/documents", icon: FileText, hint: "PDF e arquivos" },
+          { label: "Substabelecimento", href: "/substabelecimento", icon: FileSignature, hint: "Peças" },
+          { label: "Habilitação", href: "/habilitacao-peca", icon: Files, hint: "Peças" },
+          { label: "Veredito", href: "/veredito", icon: Scale, hint: "Parecer CNJ" },
+          { label: "Assistente", href: "/chat", icon: Bot, hint: "IA do gabinete" },
+          { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, hint: "Atalhos" },
+        ],
+      },
+      {
+        title: "Mais · Números",
+        items: [
+          { label: "Indicadores", href: "/analytics", icon: BarChart3, hint: "Gráficos" },
+          { label: "IA Preditiva", href: "/insights", icon: BrainCircuit, hint: "Risco" },
+          { label: "Urgências", href: "/urgency", icon: ShieldAlert, hint: "Fila crítica" },
+        ],
+      },
+    ];
+
+    const groups: NavGroup[] = [...core];
+    if (showMoreTools) groups.push(...more);
 
     if (isAdmin) {
       groups.push({
         title: "Gestão",
         items: [
-          {
-            label: "Supervisão",
-            href: "/supervisao",
-            icon: ShieldCheck,
-            hint: "Desempenho da equipe",
-          },
-          {
-            label: "Equipe",
-            href: "/team",
-            icon: Users,
-            hint: "Cargos e operadores",
-          },
-          {
-            label: "Auditoria",
-            href: "/auditoria",
-            icon: ShieldCheck,
-            hint: "Quem fez o quê",
-          },
+          { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, hint: "Desempenho" },
+          { label: "Equipe", href: "/team", icon: Users, hint: "Cargos" },
+          { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, hint: "Trilha de ações" },
           ...(isSuperAdmin
-            ? [
-                {
-                  label: "Segurança",
-                  href: "/security",
-                  icon: ShieldAlert,
-                  hint: "Somente Superadmin",
-                } as NavItem,
-              ]
+            ? [{ label: "Segurança", href: "/security", icon: ShieldAlert, hint: "Defensiva" } as NavItem]
             : []),
         ],
       });
@@ -327,24 +217,9 @@ function SidebarNavBody({
     groups.push({
       title: "Ajuda",
       items: [
-        {
-          label: "Treinamento",
-          href: "/onboarding",
-          icon: PlayCircle,
-          hint: "Wizard e guia",
-        },
-        {
-          label: "Notas",
-          href: "/notes",
-          icon: StickyNote,
-          hint: "Anotações por cliente",
-        },
-        {
-          label: "Configurações",
-          href: "/settings",
-          icon: Settings,
-          hint: "Tema, IA e banca",
-        },
+        { label: "Treinamento", href: "/onboarding", icon: PlayCircle, hint: "Guia" },
+        { label: "Notas", href: "/notes", icon: StickyNote, hint: "Anotações" },
+        { label: "Configurações", href: "/settings", icon: Settings, hint: "Tema e IA" },
       ],
     });
 
@@ -361,7 +236,7 @@ function SidebarNavBody({
         ),
       }))
       .filter((g) => g.items.length > 0);
-  }, [isAdmin, isSuperAdmin, navQuery]);
+  }, [isAdmin, isSuperAdmin, navQuery, showMoreTools]);
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
@@ -432,7 +307,23 @@ function SidebarNavBody({
           </div>
         )}
 
-        {navGroups.map((group) => (
+        
+      {/* Modo operador: núcleo sempre; demais rotas sob demanda */}
+      {!navQuery.trim() && (
+        <button
+          type="button"
+          onClick={() => setShowMoreTools((v) => !v)}
+          className={cn(
+            "mx-2 mb-2 rounded-lg border border-border/60 px-2 py-1.5 text-[10px] font-black uppercase tracking-wide",
+            "text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors",
+            collapsed && "mx-1 px-1"
+          )}
+        >
+          {collapsed ? (showMoreTools ? "−" : "+") : showMoreTools ? "Recolher ferramentas" : "Mais ferramentas"}
+        </button>
+      )}
+
+{navGroups.map((group) => (
           <div key={group.title} className="space-y-0.5">
             {!collapsed && (
               <p className="px-2.5 mb-1.5 text-[10px] font-bold text-primary tracking-wide">
