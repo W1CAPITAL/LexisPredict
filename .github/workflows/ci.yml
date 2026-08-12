@@ -1,24 +1,49 @@
+# CI sem secrets reais. Placeholders só para o build Next não quebrar.
+# Segredos de produção ficam no Vercel (Environment Variables), nunca neste arquivo.
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
         env:
-          # placeholders só para o build não morrer sem env
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
+          NODE_ENV: production
+          # Placeholders públicos fictícios — NÃO são chaves reais
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-not-real
+          # Service role NÃO deve aparecer no CI. Se algum módulo exigir no build,
+          # use só um valor dummy (nunca a chave de produção).
+          SUPABASE_SERVICE_ROLE_KEY: ""
+          DATAJUD_WORKER_SECRET: ""
+          CRON_SECRET: ""
