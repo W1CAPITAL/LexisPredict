@@ -126,6 +126,13 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
       kind: 'openai',
     },
     {
+      id: 'nvidia',
+      url: (process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '') + '/chat/completions',
+      key: process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY,
+      model: process.env.NVIDIA_MODEL || process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.3-70b-instruct',
+      kind: 'openai',
+    },
+    {
       id: 'openrouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: process.env.OPENROUTER_API_KEY,
@@ -167,6 +174,44 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   const errors: string[] = [];
 
 
+
+
+  // --- NVIDIA NIM (OpenAI-compatible Integrate API) ---
+  const wantNvidia =
+    preferred === 'nvidia' ||
+    preferred.includes('nvidia') ||
+    preferred.includes('nim') ||
+    preferred.includes('inkling');
+  if (wantNvidia || preferred === 'auto') {
+    try {
+      const { isNvidiaConfigured, callNvidiaNim } = await import('@/lib/ai/nvidia-nim');
+      if (isNvidiaConfigured()) {
+        const msgs: Array<{ role: string; content: string }> = [];
+        if (system) msgs.push({ role: 'system', content: system });
+        for (const h of history) msgs.push(h);
+        msgs.push({ role: 'user', content: String(user) });
+        const r = await callNvidiaNim(msgs, {
+          max_tokens: opts.max_tokens ?? 4096,
+          temperature: opts.temperature ?? 0.7,
+        });
+        if (r.text.trim()) {
+          return {
+            text: r.text,
+            engineId: 'nvidia',
+            model: r.model,
+            latencyMs: r.latencyMs,
+            latency: r.latencyMs,
+            tokens: r.tokens,
+          };
+        }
+      }
+    } catch (e: any) {
+      errors.push(`nvidia-nim: ${e?.message || e}`);
+      if (exclusive && wantNvidia) {
+        return { text: '', engineId: 'nvidia', model: '', latencyMs: 0, error: String(e?.message || e) } as any;
+      }
+    }
+  }
 
   // --- xAI Prestige direto (quando preferred = xai/grok) ---
   const wantXai =

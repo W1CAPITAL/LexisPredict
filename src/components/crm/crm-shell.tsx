@@ -26,6 +26,7 @@ const NAV = [
   { href: "/crm/fornecedores", label: "Bancas", icon: Users },
   { href: "/crm/cobranca", label: "Cobrança", icon: AlertTriangle },
   { href: "/crm/atividades", label: "Tarefas", icon: ListTodo },
+  { href: "/crm/contatos", label: "Contatos", icon: Users },
   { href: "/crm/conciliacao", label: "Conciliação", icon: Scale },
 ];
 

@@ -12,7 +12,8 @@ export type MotorId =
   | 'airforce'
   | 'gemini'
   | 'gpt4free'
-  | 'puter';
+  | 'puter'
+  | 'nvidia';
 
 export type MotorDef = {
   id: MotorId;
@@ -86,6 +87,15 @@ export const MOTORS: MotorDef[] = [
     desc: 'Fallback OpenAI-compativel (gptgod / self-host gpt4free-ts).',
     scope: 'server',
     envKey: 'GPT4FREE_BASE_URL',
+  },
+
+  {
+    id: 'nvidia',
+    label: 'NVIDIA NIM',
+    short: 'NVIDIA',
+    desc: 'Integrate API (OpenAI-compatible) — NVIDIA_API_KEY + NVIDIA_MODEL.',
+    scope: 'server',
+    envKey: 'NVIDIA_API_KEY',
   },
   {
     id: 'puter',
