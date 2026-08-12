@@ -1,8 +1,12 @@
 "use client";
 
+/**
+ * Pipeline comercial — Kanban (inspirado Twenty Opportunity board)
+ */
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { Sidebar } from "@/components/layout/sidebar";
+import { CrmShell } from "@/components/crm/crm-shell";
+import { CrmKanban } from "@/components/crm/crm-kanban";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -21,33 +26,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   listNegociosAction,
-  upsertNegocioAction,
-  updateNegocioStatusAction,
   listServicosAction,
   listFornecedoresAction,
+  upsertNegocioAction,
 } from "@/app/actions/crm-actions";
 import {
-  CRM_FUNIL_STATUS,
-  CRM_FUNIL_LABELS,
-  type CrmNegocio,
-  type CrmServico,
-  type CrmFornecedor,
-  type CrmFunilStatus,
-} from "@/lib/crm-types";
-import { ArrowLeft, Loader2, Plus, RefreshCcw } from "lucide-react";
+  moveNegocioStageAction,
+  listAtividadesAction,
+  addAtividadeAction,
+} from "@/app/actions/crm-pipeline-actions";
+import type { CrmNegocio, CrmServico, CrmFornecedor, CrmActivity } from "@/lib/crm-types";
+import { CRM_FUNIL_STATUS, CRM_FUNIL_LABELS } from "@/lib/crm-types";
+import { groupByStage } from "@/lib/crm-pipeline";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
-
-function brl(n: number) {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { Loader2, Plus, RefreshCcw, MessageSquare } from "lucide-react";
 
 const empty = {
   cliente_nome: "",
   cliente_doc: "",
   cliente_telefone: "",
+  cliente_email: "",
   servico_id: "",
   servico_nome: "",
   status: "lead",
@@ -71,233 +72,208 @@ export default function CrmFunilPage() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(empty);
-  const [filtro, setFiltro] = useState("todos");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<CrmNegocio | null>(null);
+  const [acts, setActs] = useState<CrmActivity[]>([]);
+  const [note, setNote] = useState("");
+  const [q, setQ] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [n, s, f] = await Promise.all([
-      listNegociosAction(),
-      listServicosAction({ ativosOnly: true }),
-      listFornecedoresAction({ ativosOnly: true }),
-    ]);
-    setRows(n.rows || []);
-    setServicos(s.rows || []);
-    setFornecedores(f.rows || []);
-    if (!n.success && n.error) toast({ title: "Aviso", description: n.error, variant: "destructive" });
-    setLoading(false);
-  }, [toast]);
+    try {
+      const [n, s, f] = await Promise.all([
+        listNegociosAction(),
+        listServicosAction({ ativosOnly: true }),
+        listFornecedoresAction({ ativosOnly: true }),
+      ]);
+      if (n.success) setRows((n as any).rows || (n as any).data || []);
+      // support both shapes
+      const nRows = (n as any).rows ?? (n as any).data ?? [];
+      if (Array.isArray(nRows)) setRows(nRows);
+      const sRows = (s as any).rows ?? [];
+      const fRows = (f as any).rows ?? [];
+      setServicos(Array.isArray(sRows) ? sRows : []);
+      setFornecedores(Array.isArray(fRows) ? fRows : []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const byStatus = useMemo(() => {
-    const map: Record<string, CrmNegocio[]> = {};
-    for (const st of CRM_FUNIL_STATUS) map[st] = [];
-    for (const r of rows) {
-      const k = String(r.status || "lead");
-      if (!map[k]) map[k] = [];
-      map[k].push(r);
-    }
-    return map;
-  }, [rows]);
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return rows;
+    return rows.filter(
+      (r) =>
+        r.cliente_nome?.toLowerCase().includes(t) ||
+        r.protocolo_cnj?.toLowerCase().includes(t) ||
+        r.servico_nome?.toLowerCase().includes(t)
+    );
+  }, [rows, q]);
 
-  const filtered = filtro === "todos" ? rows : rows.filter((r) => r.status === filtro);
+  const byStatus = useMemo(() => groupByStage(filtered), [filtered]);
 
-  const save = async () => {
-    if (!form.cliente_nome.trim()) return;
-    setSaving(true);
-    const res = await upsertNegocioAction({
-      cliente_nome: form.cliente_nome,
-      cliente_doc: form.cliente_doc,
-      cliente_telefone: form.cliente_telefone,
-      servico_id: form.servico_id || undefined,
-      servico_nome: form.servico_nome || undefined,
-      status: form.status,
-      valor_total: Number(form.valor_total) || 0,
-      valor_entrada: Number(form.valor_entrada) || 0,
-      protocolo_cnj: form.protocolo_cnj || undefined,
-      fornecedor_id: form.fornecedor_id || undefined,
-      custo_terceiro: Number(form.custo_terceiro) || 0,
-      origem: form.origem || undefined,
-      observacao: form.observacao || undefined,
-      gerar_parcela: form.gerar_parcela && ["contrato", "execucao", "concluido"].includes(form.status),
-      num_parcelas: Number(form.num_parcelas) || 1,
-    });
-    setSaving(false);
+  const onMove = async (id: string, status: string) => {
+    setBusyId(id);
+    const res = await moveNegocioStageAction(id, status);
+    setBusyId(null);
     if (!res.success) {
-      toast({ title: "Erro", description: res.error, variant: "destructive" });
-      return;
+      // fallback status update legado
+      const { updateNegocioStatusAction } = await import("@/app/actions/crm-actions");
+      const r2 = await updateNegocioStatusAction(id, status);
+      if (!r2.success) {
+        toast({ title: "Erro ao mover", description: res.error || r2.error, variant: "destructive" });
+        return;
+      }
     }
-    toast({ title: "Negócio salvo" });
-    setOpen(false);
-    setForm(empty);
-    load();
+    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
+    toast({ title: "Estágio atualizado", description: CRM_FUNIL_LABELS[status as keyof typeof CRM_FUNIL_LABELS] || status });
   };
 
-  const move = async (id: string, status: string) => {
-    const res = await updateNegocioStatusAction(id, status);
-    if (!res.success) toast({ title: "Erro", description: res.error, variant: "destructive" });
+  const openDetail = async (n: CrmNegocio) => {
+    setSelected(n);
+    setNote("");
+    const res = await listAtividadesAction(n.id);
+    setActs(res.rows || []);
+  };
+
+  const saveNote = async () => {
+    if (!selected || !note.trim()) return;
+    const res = await addAtividadeAction({
+      negocio_id: selected.id,
+      tipo: "nota",
+      titulo: "Nota",
+      corpo: note.trim(),
+    });
+    if (!res.success) {
+      toast({
+        title: "Não gravou atividade",
+        description: res.error || "Rode o SQL crm_atividades no Supabase",
+        variant: "destructive",
+      });
+      return;
+    }
+    setNote("");
+    const list = await listAtividadesAction(selected.id);
+    setActs(list.rows || []);
+    toast({ title: "Atividade registrada" });
+  };
+
+  const saveNegocio = async () => {
+    if (!form.cliente_nome.trim()) {
+      toast({ title: "Informe o cliente", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    const serv = servicos.find((s) => s.id === form.servico_id);
+    const res = await upsertNegocioAction({
+      cliente_nome: form.cliente_nome.trim(),
+      cliente_doc: form.cliente_doc || null,
+      cliente_telefone: form.cliente_telefone || null,
+      cliente_email: form.cliente_email || null,
+      servico_id: form.servico_id || null,
+      servico_nome: serv?.nome || form.servico_nome || null,
+      status: form.status,
+      valor_total: Number(form.valor_total) || 0,
+      valor_entrada: form.valor_entrada ? Number(form.valor_entrada) : null,
+      protocolo_cnj: form.protocolo_cnj || null,
+      fornecedor_id: form.fornecedor_id || null,
+      custo_terceiro: form.custo_terceiro ? Number(form.custo_terceiro) : null,
+      origem: form.origem || null,
+      observacao: form.observacao || null,
+      gerar_parcela: form.gerar_parcela,
+      num_parcelas: Number(form.num_parcelas) || 1,
+    } as any);
+    setSaving(false);
+    if (!res.success) {
+      toast({ title: "Erro", description: (res as any).error, variant: "destructive" });
+      return;
+    }
+    setOpen(false);
+    setForm(empty);
+    toast({ title: "Negócio criado" });
     load();
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" asChild>
-                <Link href="/crm">
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              <div>
-                <h1 className="text-lg font-black">Funil comercial</h1>
-                <p className="text-xs text-muted-foreground">Lead → Proposta → Contrato → Execução → Concluído</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Select value={filtro} onValueChange={setFiltro}>
-                <SelectTrigger className="w-[140px] h-9">
-                  <SelectValue placeholder="Filtro" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {CRM_FUNIL_STATUS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {CRM_FUNIL_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" onClick={load}>
-                <RefreshCcw className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setForm(empty);
-                  setOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Negócio
-              </Button>
-            </div>
-          </div>
-
-          {/* Resumo colunas */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-            {CRM_FUNIL_STATUS.map((s) => (
-              <div key={s} className="rounded-lg border border-border bg-card p-2 text-center">
-                <p className="text-[9px] font-black uppercase text-muted-foreground">{CRM_FUNIL_LABELS[s]}</p>
-                <p className="text-lg font-black tabular-nums">{byStatus[s]?.length || 0}</p>
-              </div>
-            ))}
-          </div>
-
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {filtered.map((n) => (
-                <li
-                  key={n.id}
-                  className="rounded-xl border border-border bg-card p-4 space-y-2"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-foreground">{n.cliente_nome}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {n.servico_nome || "Serviço"} · {n.cliente_telefone || "sem tel."}
-                        {n.protocolo_cnj ? ` · CNJ ${n.protocolo_cnj}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-black tabular-nums">{brl(Number(n.valor_total))}</p>
-                      <Badge className="mt-1">{CRM_FUNIL_LABELS[n.status as CrmFunilStatus] || n.status}</Badge>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {CRM_FUNIL_STATUS.filter((s) => s !== n.status).map((s) => (
-                      <Button
-                        key={s}
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-[10px]"
-                        onClick={() => move(n.id, s)}
-                      >
-                        → {CRM_FUNIL_LABELS[s]}
-                      </Button>
-                    ))}
-                  </div>
-                </li>
-              ))}
-              {filtered.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-12">Nenhum negócio neste filtro.</p>
-              )}
-            </ul>
-          )}
+    <CrmShell
+      title="Pipeline"
+      subtitle="Kanban comercial · stages Lead → Concluído (estilo Twenty)"
+      actions={
+        <>
+          <Input
+            className="h-9 w-[160px] sm:w-[200px]"
+            placeholder="Buscar cliente / CNJ"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <Button variant="outline" size="sm" className="h-9" onClick={load}>
+            <RefreshCcw className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            className="h-9"
+            onClick={() => {
+              setForm(empty);
+              setOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4 mr-1" /> Negócio
+          </Button>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando pipeline…
         </div>
-      </main>
+      ) : (
+        <CrmKanban byStatus={byStatus} onMove={onMove} onSelect={openDetail} busyId={busyId} />
+      )}
 
+      {/* Novo negócio */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-background text-foreground max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo negócio</DialogTitle>
+            <DialogDescription>Preencha só o que você sabe — nada inventado.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="grid gap-3 py-2">
             <div>
               <Label>Cliente *</Label>
-              <Input
-                className="mt-1"
-                value={form.cliente_nome}
-                onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })}
-              />
+              <Input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label>CPF/CNPJ</Label>
-                <Input
-                  className="mt-1"
-                  value={form.cliente_doc}
-                  onChange={(e) => setForm({ ...form, cliente_doc: e.target.value })}
-                />
+                <Label>Telefone</Label>
+                <Input value={form.cliente_telefone} onChange={(e) => setForm({ ...form, cliente_telefone: e.target.value })} />
               </div>
               <div>
-                <Label>Telefone</Label>
-                <Input
-                  className="mt-1"
-                  value={form.cliente_telefone}
-                  onChange={(e) => setForm({ ...form, cliente_telefone: e.target.value })}
-                />
+                <Label>Doc</Label>
+                <Input value={form.cliente_doc} onChange={(e) => setForm({ ...form, cliente_doc: e.target.value })} />
               </div>
+            </div>
+            <div>
+              <Label>E-mail</Label>
+              <Input value={form.cliente_email} onChange={(e) => setForm({ ...form, cliente_email: e.target.value })} />
             </div>
             <div>
               <Label>Serviço</Label>
               <Select
                 value={form.servico_id || "none"}
-                onValueChange={(v) => {
-                  const s = servicos.find((x) => x.id === v);
-                  setForm({
-                    ...form,
-                    servico_id: v === "none" ? "" : v,
-                    servico_nome: s?.nome || "",
-                    valor_total: s ? String(s.preco_base) : form.valor_total,
-                  });
-                }}
+                onValueChange={(v) => setForm({ ...form, servico_id: v === "none" ? "" : v })}
               >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione" />
+                <SelectTrigger>
+                  <SelectValue placeholder="Serviço" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">—</SelectItem>
                   {servicos.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.nome} ({brl(Number(s.preco_base))})
+                      {s.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -306,28 +282,12 @@ export default function CrmFunilPage() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Valor total</Label>
-                <Input
-                  type="number"
-                  className="mt-1"
-                  value={form.valor_total}
-                  onChange={(e) => setForm({ ...form, valor_total: e.target.value })}
-                />
+                <Input type="number" value={form.valor_total} onChange={(e) => setForm({ ...form, valor_total: e.target.value })} />
               </div>
-              <div>
-                <Label>Entrada</Label>
-                <Input
-                  type="number"
-                  className="mt-1"
-                  value={form.valor_entrada}
-                  onChange={(e) => setForm({ ...form, valor_entrada: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -339,76 +299,74 @@ export default function CrmFunilPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Parcelas</Label>
-                <Input
-                  type="number"
-                  className="mt-1"
-                  value={form.num_parcelas}
-                  onChange={(e) => setForm({ ...form, num_parcelas: e.target.value })}
-                />
-              </div>
             </div>
             <div>
-              <Label>Protocolo CNJ (opcional)</Label>
-              <Input
-                className="mt-1"
-                value={form.protocolo_cnj}
-                onChange={(e) => setForm({ ...form, protocolo_cnj: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Banca terceira (custo)</Label>
-              <Select
-                value={form.fornecedor_id || "none"}
-                onValueChange={(v) => setForm({ ...form, fornecedor_id: v === "none" ? "" : v })}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Opcional" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
-                  {fornecedores.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Custo do escritório (R$)</Label>
-              <Input
-                type="number"
-                className="mt-1"
-                value={form.custo_terceiro}
-                onChange={(e) => setForm({ ...form, custo_terceiro: e.target.value })}
-              />
+              <Label>CNJ (opcional)</Label>
+              <Input value={form.protocolo_cnj} onChange={(e) => setForm({ ...form, protocolo_cnj: e.target.value })} />
             </div>
             <div>
               <Label>Observação</Label>
-              <Input
-                className="mt-1"
-                value={form.observacao}
-                onChange={(e) => setForm({ ...form, observacao: e.target.value })}
-              />
+              <Textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={2} />
             </div>
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <input
-                type="checkbox"
-                checked={form.gerar_parcela}
-                onChange={(e) => setForm({ ...form, gerar_parcela: e.target.checked })}
-              />
-              Gerar parcelas a receber ao salvar em Contrato/Execução/Concluído
-            </label>
           </div>
           <DialogFooter>
-            <Button onClick={save} disabled={saving}>
-              {saving ? <Loader2 className="animate-spin h-4 w-4" /> : "Salvar"}
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveNegocio} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* Detalhe + timeline */}
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selected?.cliente_nome}</DialogTitle>
+            <DialogDescription>
+              {selected?.servico_nome || "Negócio"} ·{" "}
+              <Badge variant="secondary">{selected ? CRM_FUNIL_LABELS[selected.status as keyof typeof CRM_FUNIL_LABELS] || selected.status : ""}</Badge>
+            </DialogDescription>
+          </DialogHeader>
+          {selected ? (
+            <div className="space-y-3">
+              <p className="text-sm font-black tabular-nums">
+                {Number(selected.valor_total || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              </p>
+              {selected.protocolo_cnj ? (
+                <p className="text-xs text-muted-foreground font-mono">{selected.protocolo_cnj}</p>
+              ) : null}
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1">
+                  <MessageSquare className="h-3 w-3" /> Nova nota (fato observado)
+                </Label>
+                <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Ex: Cliente pediu retorno sexta" />
+                <Button size="sm" onClick={saveNote} disabled={!note.trim()}>
+                  Registrar
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase text-muted-foreground">Timeline</p>
+                {acts.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sem atividades (ou tabela crm_atividades ausente).</p>
+                ) : (
+                  acts.map((a) => (
+                    <div key={a.id} className="rounded-md border border-border p-2 text-xs">
+                      <p className="font-bold">{a.titulo}</p>
+                      {a.corpo ? <p className="text-muted-foreground mt-0.5">{a.corpo}</p> : null}
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {a.tipo} · {a.created_at ? new Date(a.created_at).toLocaleString("pt-BR") : ""}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </CrmShell>
   );
 }

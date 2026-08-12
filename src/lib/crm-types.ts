@@ -1,6 +1,5 @@
 /**
- * CRM Assessoria Financeira — tipos de domínio.
- * Não é CRM de honorários de OAB; é serviço + recebível + fornecedor jurídico.
+ * CRM Assessoria — tipos de domínio (v2 — pipeline Twenty-like + atividades).
  */
 
 export const CRM_FUNIL_STATUS = [
@@ -71,6 +70,8 @@ export type CrmNegocio = {
   servico_id?: string | null;
   servico_nome?: string | null;
   status: CrmFunilStatus | string;
+  /** ordem na coluna do kanban (Twenty: position) */
+  position?: number | null;
   valor_total: number;
   valor_entrada?: number | null;
   protocolo_cnj?: string | null;
@@ -78,8 +79,13 @@ export type CrmNegocio = {
   custo_terceiro?: number | null;
   origem?: string | null;
   responsavel?: string | null;
+  /** owner auth id — Twenty owner */
+  owner_id?: string | null;
   observacao?: string | null;
   data_fechamento?: string | null;
+  /** próximo follow-up ISO date */
+  next_follow_up?: string | null;
+  last_activity_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -110,7 +116,6 @@ export type CrmPagar = {
   vencimento?: string | null;
   status: CrmPagamentoStatus | string;
   pago_em?: string | null;
-  categoria?: string | null;
   observacao?: string | null;
   created_at?: string;
 };
@@ -119,11 +124,56 @@ export type CrmDashboard = {
   receitaMes: number;
   aReceber: number;
   atrasados: number;
-  custoTerceirosMes: number;
-  ticketMedio: number;
-  conversaoPct: number;
-  totalNegocios: number;
-  leads: number;
-  emExecucao: number;
-  concluidos: number;
+  custoBancasMes: number;
+  negociosAbertos: number;
+  porStatus: Record<string, number>;
+};
+
+/** Timeline de atividade (Twenty timeline + Comp AI ledger de fatos observados) */
+export type CrmActivityType =
+  | 'nota'
+  | 'ligacao'
+  | 'whatsapp'
+  | 'email'
+  | 'status_change'
+  | 'tarefa'
+  | 'sistema';
+
+export type CrmActivity = {
+  id: string;
+  empresa_id: string;
+  negocio_id?: string | null;
+  tipo: CrmActivityType | string;
+  titulo: string;
+  corpo?: string | null;
+  created_by?: string | null;
+  created_by_nome?: string | null;
+  meta?: Record<string, unknown> | null;
+  created_at?: string;
+};
+
+export type CrmTask = {
+  id: string;
+  empresa_id: string;
+  negocio_id?: string | null;
+  titulo: string;
+  feito: boolean;
+  due_at?: string | null;
+  assignee_id?: string | null;
+  created_by?: string | null;
+  created_at?: string;
+};
+
+/** Contato observado (não inventar campos) */
+export type CrmContato = {
+  id: string;
+  empresa_id: string;
+  nome: string;
+  doc?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  origem?: string | null;
+  negocio_ids?: string[];
+  processo_count?: number;
+  created_at?: string;
 };
