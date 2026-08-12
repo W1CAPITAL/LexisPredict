@@ -116,6 +116,8 @@ export type CrmPagar = {
   vencimento?: string | null;
   status: CrmPagamentoStatus | string;
   pago_em?: string | null;
+  /** banca_terceira | operacional | outro */
+  categoria?: string | null;
   observacao?: string | null;
   created_at?: string;
 };
@@ -124,9 +126,18 @@ export type CrmDashboard = {
   receitaMes: number;
   aReceber: number;
   atrasados: number;
-  custoBancasMes: number;
-  negociosAbertos: number;
-  porStatus: Record<string, number>;
+  /** alias usado no dashboard legado */
+  custoBancasMes?: number;
+  /** custo de bancas/terceiros no mês (crm-actions) */
+  custoTerceirosMes?: number;
+  negociosAbertos?: number;
+  porStatus?: Record<string, number>;
+  ticketMedio?: number;
+  conversaoPct?: number;
+  totalNegocios?: number;
+  leads?: number;
+  emExecucao?: number;
+  concluidos?: number;
 };
 
 /** Timeline de atividade (Twenty timeline + Comp AI ledger de fatos observados) */

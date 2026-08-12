@@ -72,7 +72,7 @@ interface DataJudScanState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
-const CLOUD_POLL_MS = 7000; // mais ciclos/hora sem Cron Vercel
+const CLOUD_POLL_MS = 15000; // espera worker terminar DataJud antes do próximo tiro
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',

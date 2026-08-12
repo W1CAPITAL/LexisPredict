@@ -41,7 +41,9 @@ import {
   Building2
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic'
-import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters';
+import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
+import { scoreGroupPriority } from '@/lib/case-priority';
+import { CaseBadges } from '@/components/cases/case-badges';
 import { gerarTarefasJuridicas } from '@/lib/automacao-tarefas';
 import {
   temBaCarteira,
@@ -543,6 +545,10 @@ const handleSaveAttendance = async () => {
         if (recentA !== recentB) return recentA ? 1 : -1;
 
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
+        const prioA = scoreGroupPriority(a.cases as any).score;
+        const prioB = scoreGroupPriority(b.cases as any).score;
+        if (prioB !== prioA) return prioB - prioA;
+        // legacy continues:
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
         
         const getEventWeight = (type: string | null) => {

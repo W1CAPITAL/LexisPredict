@@ -250,18 +250,18 @@ export function Dashboard({
       hint: "Encerrados no CNJ",
     },
     {
-      label: "Atend. semana",
+      label: "Atendidos sem.",
       value: atendidosSemana,
       icon: <Clock size={16} />,
       tone: atendidosSemana > 0 ? "violet" : "default",
-      hint: "Último retorno · " + semanaLabel,
+      hint: "Atendimento humano (ultimo retorno) · " + semanaLabel,
     },
     {
-      label: "Editados app",
+      label: "Edicoes app",
       value: editadosSemanaN,
       icon: <Pencil size={16} />,
       tone: "violet",
-      hint: "Qualquer salvamento no app · " + semanaLabel,
+      hint: "Edicao no app (nao e atendimento) · " + semanaLabel,
     },
     {
       label: "Editados hoje",
@@ -271,11 +271,11 @@ export function Dashboard({
       hint: "Edições de hoje (Brasília)",
     },
     {
-      label: "Tribunal sem.",
+      label: "Scanner sem.",
       value: tribunalSemanaN,
       icon: <Search size={16} />,
       tone: "info",
-      hint: "Só DataJud / DJEN (separado)",
+      hint: "Scanner tribunal/diario — separado de atendimento",
     },
   ];
 

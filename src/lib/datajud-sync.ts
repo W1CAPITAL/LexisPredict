@@ -145,6 +145,12 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
   const patterns = [
     'CUMPRIMENTO DE SENTENÇA',
     'CUMPRIMENTO DE SENTENCA',
+    'EXECUÇÃO/CUMPRIMENTO DE SENTENÇA',
+    'EXECUCAO/CUMPRIMENTO DE SENTENCA',
+    'EXECUÇÃO/CUMPRIMENTO DE SENTENÇA INICIADA',
+    'EXECUCAO/CUMPRIMENTO DE SENTENCA INICIADA',
+    'CUMPRIMENTO DE SENTENÇA INICIADA',
+    'CUMPRIMENTO DE SENTENCA INICIADA',
     'CUMPRIMENTO PROVISÓRIO DE SENTENÇA',
     'CUMPRIMENTO PROVISORIO DE SENTENCA',
     'CUMPRIMENTO PROVISÓRIO',
@@ -164,6 +170,8 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
     'REQUERIMENTO DE CUMPRIMENTO',
     'PETIÇÃO DE CUMPRIMENTO',
     'PETICAO DE CUMPRIMENTO',
+    'INÍCIO DE CUMPRIMENTO',
+    'INICIO DE CUMPRIMENTO',
   ];
 
   for (const p of patterns) {
@@ -181,6 +189,70 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
   }
 
   return { ativo: false, motivo: null };
+}
+
+
+
+/** Usa só o último nome salvo (coluna) quando não há lista de movimentos — backfill / UI. */
+export function detectarCumprimentoFromNome(ultimoNome: string | null | undefined): {
+  ativo: boolean;
+  motivo: string | null;
+} {
+  if (!ultimoNome) return { ativo: false, motivo: null };
+  const U = String(ultimoNome).toUpperCase();
+  const patterns = [
+    'CUMPRIMENTO DE SENTEN',
+    'EXECUÇÃO/CUMPRIMENTO',
+    'EXECUCAO/CUMPRIMENTO',
+    'FASE DE CUMPRIMENTO',
+    'INÍCIO DO CUMPRIMENTO',
+    'INICIO DO CUMPRIMENTO',
+    'EXECUÇÃO DE SENTEN',
+    'EXECUCAO DE SENTEN',
+    'CUMPRIMENTO PROVIS',
+  ];
+  for (const p of patterns) {
+    if (U.includes(p)) return { ativo: true, motivo: p };
+  }
+  if (U.includes('CUMPRIMENTO') && (U.includes('SENTEN') || U.includes('EXECU'))) {
+    return { ativo: true, motivo: 'CUMPRIMENTO (nome)' };
+  }
+  return { ativo: false, motivo: null };
+}
+
+/** Sentença de mérito a partir de movimentos (janela 25). */
+export function detectarSentencaMerito(movimentos: any[]): {
+  tipo: 'procedente' | 'improcedente' | 'parcial' | null;
+  motivo: string | null;
+} {
+  if (!movimentos?.length) return { tipo: null, motivo: null };
+  const sorted = [...movimentos].sort(
+    (a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
+  );
+  const window = sorted.slice(0, 25);
+  const texts = window.map(
+    (m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase()
+  );
+  for (const t of texts) {
+    if (t.includes('PARCIALMENTE PROCEDENTE') || t.includes('PROCEDENTE EM PARTE')) {
+      return { tipo: 'parcial', motivo: 'PARCIALMENTE PROCEDENTE' };
+    }
+  }
+  for (const t of texts) {
+    if (
+      t.includes('JULGADO PROCEDENTE') ||
+      t.includes('JULGADA PROCEDENTE') ||
+      (t.includes('PROCEDENTE') && !t.includes('IMPROCEDENTE') && !t.includes('PARCIAL'))
+    ) {
+      return { tipo: 'procedente', motivo: 'PROCEDENTE' };
+    }
+  }
+  for (const t of texts) {
+    if (t.includes('IMPROCEDENTE') || t.includes('JULGO IMPROCEDENTE')) {
+      return { tipo: 'improcedente', motivo: 'IMPROCEDENTE' };
+    }
+  }
+  return { tipo: null, motivo: null };
 }
 
 export function detectarAtualizacaoPosRetorno(

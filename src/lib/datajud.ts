@@ -279,8 +279,8 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const isFast = options.fast === true;
   // ANTES: fast=15s/1 tentativa → DJEN ganhava e DataJud “sumia”
   // AGORA: fast ainda dá tempo real ao tribunal + 1 retry
-  const timeoutMs = isFast ? 28000 : 40000;
-  const maxAttempts = isFast ? 2 : 3;
+  const timeoutMs = isFast ? 32000 : 42000;
+  const maxAttempts = isFast ? 3 : 3;
 
   try {
     const controller = new AbortController();

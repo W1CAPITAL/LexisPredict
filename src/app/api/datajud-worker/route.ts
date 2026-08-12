@@ -1,5 +1,5 @@
 /**
- * @fileOverview Worker DataJud/DJEN — SYSTEM + Bearer (sem Cron; micro-lotes sob demanda)
+ * Worker DataJud/DJEN — lote sequencial (1 a 1) para reduzir "Tempo esgotado"
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 import { NextResponse } from 'next/server';
@@ -10,9 +10,16 @@ export const dynamic = 'force-dynamic';
 export const preferredRegion = 'gru1';
 export const maxDuration = 60;
 
-const BATCH_SIZE = 8;
-const CONCURRENCY = 2;
+/** Lote pequeno + 1 a 1: tribunal responde melhor que paralelismo */
+const BATCH_SIZE = 6;
+const CONCURRENCY = 1;
 const MAX_RUNTIME_MS = 52000;
+/** Pausa entre CNJs (ms) — dá fôlego à API pública */
+const DELAY_BETWEEN_MS = 400;
+
+async function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -38,7 +45,7 @@ export async function POST(request: Request) {
   }
 
   const start = Date.now();
-  console.log(`[Omni Worker] Empresa ${empresa_id} mode=${mode}`);
+  console.log(`[Omni Worker] Empresa ${empresa_id} mode=${mode} sequential`);
 
   try {
     const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE, empresa_id);
@@ -49,21 +56,18 @@ export async function POST(request: Request) {
     let successCount = 0;
     let failedCount = 0;
 
-    for (let i = 0; i < casesToAudit.length; i += CONCURRENCY) {
+    for (let i = 0; i < casesToAudit.length; i++) {
       if (Date.now() - start > MAX_RUNTIME_MS) break;
-      const chunk = casesToAudit.slice(i, i + CONCURRENCY);
-      await Promise.all(
-        chunk.map(async (c) => {
-          try {
-            const res = await auditCaseCoreSystem(c.protocolo, empresa_id, mode, { fast: true });
-            if (res.success) successCount++;
-            else failedCount++;
-          } catch (err) {
-            console.error(`[Worker Fail] ${c.protocolo}:`, err);
-            failedCount++;
-          }
-        })
-      );
+      const c = casesToAudit[i];
+      try {
+        const res = await auditCaseCoreSystem(c.protocolo, empresa_id, mode, { fast: true });
+        if (res.success) successCount++;
+        else failedCount++;
+      } catch (err) {
+        console.error(`[Worker Fail] ${c.protocolo}:`, err);
+        failedCount++;
+      }
+      if (i < casesToAudit.length - 1) await sleep(DELAY_BETWEEN_MS);
     }
 
     return NextResponse.json({
@@ -72,6 +76,7 @@ export async function POST(request: Request) {
       successCount,
       failedCount,
       mode,
+      sequential: true,
       duration: `${Date.now() - start}ms`,
     });
   } catch (error: any) {

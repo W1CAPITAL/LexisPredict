@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic'
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
+import { CaseBadges } from '@/components/cases/case-badges';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
@@ -82,10 +83,7 @@ const CaseRow = React.memo(({
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground font-black text-[14px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
-            {c.indicio_busca_apreensao && <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse"><ShieldAlert size={10} className="mr-1" /> B.A.{(c as any).ba_tipo ? ` ${(c as any).ba_tipo}` : ''}</Badge>}
-            {isAtendidoNestaSemana(c.ultimoRetorno || (c as any).ultimo_retorno) && <Badge className="badge-semana h-5 px-2 rounded-md font-black uppercase text-[8px]">Atendido semana</Badge>}
-            {c.datajud_encerrado_tribunal && <Badge className="h-5 px-2 rounded-md bg-black text-red-500 font-black uppercase text-[8px] border-2 border-red-500 animate-pulse">Encerrado</Badge>}
-            {(c.em_cumprimento_sentenca || (c as any).cumprimento_sentenca) && <Badge className="h-5 px-2 rounded-md bg-amber-500 text-black font-black uppercase text-[8px]">Cumprimento</Badge>}
+            <CaseBadges c={c} showPriority />
             {((c as any).sentenca_procedente || (c as any).merito_resultado === 'procedente') && <Badge className="h-5 px-2 rounded-md bg-emerald-600 text-white font-black uppercase text-[8px]">Procedente</Badge>}
             {((c as any).sentenca_improcedente || (c as any).merito_resultado === 'improcedente') && <Badge className="h-5 px-2 rounded-md bg-slate-700 text-white font-black uppercase text-[8px]">Improcedente</Badge>}
             {((c as any).sentenca_parcial || (c as any).merito_resultado === 'parcial') && <Badge className="h-5 px-2 rounded-md bg-blue-600 text-white font-black uppercase text-[8px]">Parcial</Badge>}
@@ -93,8 +91,6 @@ const CaseRow = React.memo(({
             {(c as any).tem_audiencia && <Badge className="h-5 px-2 rounded-md bg-cyan-600 text-white font-black uppercase text-[8px]">Audiência</Badge>}
             {(c as any).tem_custas && <Badge className="h-5 px-2 rounded-md bg-orange-500 text-black font-black uppercase text-[8px]">Custas</Badge>}
             {(c as any).alerta_ia && <Badge className="h-5 px-2 rounded-md bg-red-700 text-white font-black uppercase text-[8px] animate-pulse">Alerta IA</Badge>}
-            {c.tem_novo_andamento && <Badge variant="destructive" className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse">Novidade</Badge>}
-            {(c as any).ai_engine && <Badge variant="outline" className="h-5 px-2 rounded-md font-black uppercase text-[7px] border-primary/40 text-primary">IA {(String((c as any).ai_engine).split(':')[0])}</Badge>}
           </div>
           <span className={cn("text-[10px] font-mono text-muted-foreground uppercase tracking-widest", ui.cnj)}>{c.protocolo}</span>
           
@@ -206,7 +202,7 @@ function CasesContent() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
-  const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('mais_vencido');
+  const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -885,7 +881,8 @@ function CasesContent() {
               <Select value={sortPrazo} onValueChange={(v) => setSortPrazo(v as SortPrazoMode)}>
                 <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Ordenar prazo" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mais_vencido">Mais vencido → menos</SelectItem>
+                  <SelectItem value="prioridade" className="font-black uppercase text-[10px]">Prioridade operacional</SelectItem>
+                      <SelectItem value="mais_vencido">Mais vencido → menos</SelectItem>
                   <SelectItem value="menos_vencido">Menos vencido → mais</SelectItem>
                   <SelectItem value="prazo_asc">Próximo prazo (crescente)</SelectItem>
                   <SelectItem value="cliente">Cliente A–Z</SelectItem>

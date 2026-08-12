@@ -5,8 +5,10 @@
 import type { LegalCase } from './case-logic';
 import { isCasoEncerrado } from './status-encerrado';
 import { diasAtePrazo, statusEfetivo } from './prazo-status';
+import { sortCasesByPriority } from './case-priority';
 
 export type SortPrazoMode =
+  | 'prioridade' // BA > baixa tribunal > novidade > cumprimento > prazo
   | 'mais_vencido' // mais dias em atraso primeiro
   | 'menos_vencido' // menos atraso / mais próximo
   | 'prazo_asc' // quem vence primeiro (hoje/atenção antes)
@@ -103,6 +105,7 @@ export function filterCases(
  * - prazo_asc: quem vence primeiro (0, 1, 2… depois vencidos)
  */
 export function sortCasesByPrazo(cases: LegalCase[], mode: SortPrazoMode): LegalCase[] {
+  if (mode === 'prioridade') return sortCasesByPriority(cases);
   const arr = [...cases];
   if (mode === 'cliente') {
     return arr.sort((a, b) => String(a.cliente || '').localeCompare(String(b.cliente || ''), 'pt-BR'));
