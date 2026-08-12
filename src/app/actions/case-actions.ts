@@ -552,14 +552,49 @@ export async function scanSingleCaseAction(
   options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
 ) {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false, error: '401' };
+  if (!empresa_id) return { success: false, error: '401', movimentos: [], comunicacoes: [] };
   const safeEmpresaId = String(empresa_id);
-  return await auditCaseCoreSystem(
+  // UI pontual: NUNCA fast por padrão — evita "Auditoria indisponível" falso
+  const useFast = options.fast === true;
+  let res = await auditCaseCoreSystem(
     protocolo,
     safeEmpresaId,
     options.mode || 'both',
-    { fast: options.fast, useClaudeAi: options.useClaudeAi === true }
+    { fast: useFast, useClaudeAi: options.useClaudeAi === true }
   );
+  const mov = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
+  const com = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
+  // 2ª tentativa sem fast se veio vazio (timeout/rate)
+  if ((!mov.length && !com.length) && useFast) {
+    res = await auditCaseCoreSystem(
+      protocolo,
+      safeEmpresaId,
+      options.mode || 'both',
+      { fast: false, useClaudeAi: options.useClaudeAi === true }
+    );
+  }
+  const mov2 = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
+  const com2 = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
+  if (!mov2.length && !com2.length) {
+    return {
+      ...res,
+      success: true,
+      offline: true,
+      movimentos: [],
+      comunicacoes: [],
+      error:
+        (res as any)?.error ||
+        'Sem movimentos DataJud/DJEN. Possíveis causas: timeout, 403 geográfico, CNJ fora do índice ou rede. Tente novamente em alguns segundos.',
+      message:
+        (res as any)?.message ||
+        'Cronologia vazia — não significa ausência de andamento no tribunal.',
+    };
+  }
+  return {
+    ...res,
+    movimentos: mov2,
+    comunicacoes: com2,
+  };
 }
 
 export async function scanOneDataJudAction(protocolo: string) {

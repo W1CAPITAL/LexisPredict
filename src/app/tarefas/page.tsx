@@ -58,6 +58,7 @@ import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import { computeKpiCarteira } from '@/lib/kpi-carteira';
 import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import {
   applyFilaListaToObs,
@@ -157,6 +158,11 @@ export default function TarefasPage() {
   const [selectedMotor, setSelectedMotor] = useState<string>('local_only');
 
   const { profile } = useAuth();
+  const kpiCarteira = useMemo(
+    () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
+    [cases, profile]
+  );
+
   const { toast } = useToast();
 
   const getTodayKey = () => {
@@ -616,6 +622,9 @@ const handleSaveAttendance = async () => {
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg"><CheckCircle size={20} className="text-primary" /></div>
             <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila Crítica de Atendimento</h1>
+            <span className="ml-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground tabular-nums" title={kpiCarteira.semanaLabel}>
+              Atendidos sem.: {kpiCarteira.atendidosSemana}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">Audit Híbrida Ativa</Badge>

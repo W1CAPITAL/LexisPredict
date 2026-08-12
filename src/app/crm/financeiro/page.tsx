@@ -144,10 +144,10 @@ export default function CrmFinanceiroPage() {
           {dash && canView && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                ["Receita mês", brl(dash.receitaMes)],
-                ["A receber", brl(dash.aReceber)],
-                ["Atrasados", brl(dash.atrasados)],
-                ["Bancas (mês)", brl(dash.custoTerceirosMes)],
+                ["Receita mês", brl(Number(dash.receitaMes ?? 0))],
+                ["A receber", brl(Number(dash.aReceber ?? 0))],
+                ["Atrasados", brl(Number(dash.atrasados ?? 0))],
+                ["Bancas (mês)", brl(Number(dash.custoTerceirosMes ?? 0))],
               ].map(([l, v]) => (
                 <div key={l} className="rounded-xl border border-border bg-card p-3">
                   <p className="text-[9px] font-black uppercase text-muted-foreground">{l}</p>

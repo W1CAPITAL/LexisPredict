@@ -20,6 +20,7 @@ import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from
 import { CaseBadges } from '@/components/cases/case-badges';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import { computeKpiCarteira } from '@/lib/kpi-carteira';
 import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
@@ -197,6 +198,7 @@ function CasesContent() {
   const auditadosTribunal = useMemo(() => countAuditadosTribunalSemana(cases as any), [cases]);
   const editadosApp = useMemo(() => countEditadosAppSemana(cases as any), [cases]);
   const auditadosHoje = useMemo(() => countAuditadosHoje(cases as any), [cases]);
+  // Fonte única: kpiCarteira.atendidosSemana (mesmo número no Dashboard/Supervisão)
 
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
@@ -227,6 +229,10 @@ function CasesContent() {
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
   const { isOperador, profile, isSupervisor, isSuperAdmin } = useAdmin();
+  const kpiCarteira = useMemo(
+    () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
+    [cases, profile]
+  );
   const canAssignOwner = isSupervisor || isSuperAdmin || profile?.cargo === 'Administrador';
   const { toast } = useToast();
   
@@ -396,7 +402,9 @@ function CasesContent() {
         title: suggestions.length
           ? `${suggestions.length} resposta(s) pronta(s)`
           : 'Auditoria unificada',
-        description: `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`,
+        description: movimentos.length || comunicacoes.length
+          ? `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`
+          : ((res as any).error || (res as any).message || 'Sem movimentos — timeout, 403 geo ou CNJ ausente no índice. Tente de novo (não use fast).'),
         variant: movimentos.length || comunicacoes.length ? 'default' : 'destructive',
       });
     } catch (e: any) {
@@ -591,11 +599,11 @@ function CasesContent() {
   const withEncerradoRetorno = (c: LegalCase): LegalCase => {
     const sit = String((c as any).situacao || c.status || '').toUpperCase();
     if (!sit.includes('ENCERR')) return c;
-    const hoje = hojeBrasilYmd();
+    const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
     return processarCaso({
       ...c,
       situacao: (c as any).situacao || 'ENCERRADO',
-      ultimoRetorno: hoje,
+      ...patchAtendimentoComEdicao(uid, hojeBrasilYmd()),
       proximoPrazo: '',
     });
   };
@@ -611,7 +619,14 @@ function CasesContent() {
     // ENCERRADO sempre atualiza ultimoRetorno para HOJE (conta na semana)
     const formForSave =
       String(formState.situacao || '').toUpperCase() === 'ENCERRADO'
-        ? { ...formState, ultimoRetorno: hojeBrasilYmd(), proximoPrazo: '' }
+        ? {
+            ...formState,
+            ...patchAtendimentoComEdicao(
+              (profile as any)?.auth_user_id || (profile as any)?.id,
+              hojeBrasilYmd()
+            ),
+            proximoPrazo: '',
+          }
         : formState;
     if (editingCase) {
       const digits = protocolo.replace(/\D/g, '');

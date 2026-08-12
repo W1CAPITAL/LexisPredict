@@ -37,7 +37,8 @@ import {
   DollarSign,
   Globe,
   CheckCircle2,
-} from "lucide-react";
+} from "lucide-react,
+  Target";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/use-app-store";
 import { cn } from "@/lib/utils";
@@ -56,7 +57,24 @@ interface TourStep {
   dicas?: string[];
 }
 
-const TOUR_STEPS: TourStep[] = [
+const TOUR_STEPS: TourStep[
+  {
+    title: "Rotina do dia (operador)",
+    content:
+      "Ordem recomendada: 1) Abrir Fila (/tarefas) — tratar B.A., novidades e vencidos. 2) Registrar atendimento (sempre grava ultimo retorno de hoje). 3) Se precisar de andamento, clique no processo e rode Auditoria 3D (pontual, nao o lote). 4) Sugerir resposta so com a cronologia na tela. Encerrar tambem conta como atendimento do dia.",
+    icon: <Target />,
+    route: "/tarefas",
+    porQue: "Saber o que fazer primeiro no turno.",
+    rotina: "Fila prioritaria → atendimento → scan pontual se necessario → script.",
+    ganho: "Menos atraso e KPI de atendidos confiavel.",
+    metrica: "Atendidos na semana (mesmo numero em todas as abas).",
+    tempo: "turno inteiro",
+    dicas: [
+      "Timeout no lote nao significa ausencia de movimento — use consulta pontual.",
+      "Encerrar processo atualiza ultimo retorno automaticamente.",
+    ],
+  },
+] = [
   {
     title: "Bem-vindo ao LexisPredict",
     content:
