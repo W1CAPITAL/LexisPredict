@@ -32,6 +32,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { fetchRepoCases } from "@/app/actions/case-actions";
@@ -111,6 +120,13 @@ function WhatsAppTerminalInner() {
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
   const [attSaving, setAttSaving] = useState(false);
+  const [attOpen, setAttOpen] = useState(false);
+  const [attForm, setAttForm] = useState({
+    situacao: "EM ANDAMENTO",
+    observacao: "",
+    proximoRetorno: "",
+    filaLista: "normal" as FilaLista,
+  });
   const [tribunalMovimentos, setTribunalMovimentos] = useState<any[]>([]);
   const [djenComunicacoes, setDjenComunicacoes] = useState<any[]>([]);
   const [loadingTribunal, setLoadingTribunal] = useState(false);
@@ -298,31 +314,65 @@ function WhatsAppTerminalInner() {
 
   const todayBR = () => new Date().toLocaleDateString("pt-BR");
 
-  /** Marca último atendimento (mesmo fluxo operacional de Tarefas/Processos). */
+  const openAttendanceDialog = () => {
+    if (!selected) {
+      toast({ title: "Selecione um contato", variant: "destructive" });
+      return;
+    }
+    setAttForm({
+      situacao: selected.situacao === "ENCERRADO" ? "ENCERRADO" : "EM ANDAMENTO",
+      observacao: selected.observacao || (draft.trim() ? draft.trim().slice(0, 400) : ""),
+      proximoRetorno: "",
+      filaLista: parseFilaListaFromObs(selected.observacao),
+    });
+    setAttOpen(true);
+  };
+
+  /** Mesmo fluxo de Tarefas/Processos: retorno, observação, encerrar, lista da fila. */
   const registerAttendance = async () => {
     if (!selected || attSaving) return;
     setAttSaving(true);
     try {
       const hoje = todayBR();
+      const situacao = attForm.situacao === "ENCERRADO" ? "ENCERRADO" : "EM ANDAMENTO";
+      const obs = applyFilaListaToObs(attForm.observacao || "", attForm.filaLista || "normal");
+
+      // proximoRetorno: input date YYYY-MM-DD → BR se necessário
+      let proximo = attForm.proximoRetorno || "";
+      if (proximo && /^\d{4}-\d{2}-\d{2}/.test(proximo)) {
+        const [y, m, d] = proximo.slice(0, 10).split("-");
+        proximo = `${d}/${m}/${y}`;
+      }
+
       const updated: LegalCase = {
         ...selected,
+        situacao,
         ultimoRetorno: hoje,
+        observacao: obs,
+        proximoPrazo: situacao === "ENCERRADO" ? "" : proximo || selected.proximoPrazo,
         tem_novo_andamento: false,
         djen_nova_comunicacao: false,
         tem_atualizacao_pos_retorno: false,
+        datajud_encerrado_tribunal:
+          situacao === "ENCERRADO" ? true : selected.datajud_encerrado_tribunal,
       };
+
       const res = await saveOneCaseAction(updated);
       if (res.success) {
         await registrarAtendimentoAction([selected.protocolo], {
-          situacao: selected.situacao || "EM ANDAMENTO",
+          situacao,
           via: "whatsapp-terminal",
-          observacao: draft.trim() ? `WA: ${draft.trim().slice(0, 200)}` : "Contato via terminal WhatsApp",
+          observacao: obs || "Contato via terminal WhatsApp",
         });
         setSelected(updated);
         setCases((prev) =>
-          prev.map((c) => (c.protocolo === selected.protocolo ? { ...c, ultimoRetorno: hoje } : c))
+          prev.map((c) => (c.protocolo === selected.protocolo ? { ...c, ...updated } : c))
         );
-        toast({ title: "Atendimento registrado", description: `${selected.cliente} · ${hoje}` });
+        setAttOpen(false);
+        toast({
+          title: situacao === "ENCERRADO" ? "Caso encerrado" : "Atendimento registrado",
+          description: `${selected.cliente} · ${hoje}${proximo && situacao !== "ENCERRADO" ? ` · retorno ${proximo}` : ""}`,
+        });
       } else {
         toast({ title: "Falha ao registrar", description: res.message, variant: "destructive" });
       }
@@ -805,7 +855,7 @@ function WhatsAppTerminalInner() {
                     size="sm"
                     variant="outline"
                     className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
-                    onClick={registerAttendance}
+                    onClick={openAttendanceDialog}
                     disabled={!selected || attSaving}
                   >
                     {attSaving ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
@@ -986,6 +1036,110 @@ function WhatsAppTerminalInner() {
       </main>
     </div>
   );
+
+        {/* Modal atendimento completo */}
+        <Dialog open={attOpen} onOpenChange={setAttOpen}>
+          <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                <UserCheck size={18} className="text-emerald-600" />
+                Registrar atendimento
+              </DialogTitle>
+            </DialogHeader>
+            {selected ? (
+              <div className="space-y-3 text-sm">
+                <p className="text-[11px] font-bold text-muted-foreground">
+                  {selected.cliente}
+                  <span className="block tabular-nums text-[10px]">{selected.protocolo}</span>
+                </p>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase">Resultado</Label>
+                  <Select
+                    value={attForm.situacao}
+                    onValueChange={(v) => setAttForm({ ...attForm, situacao: v })}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl text-[11px] font-bold uppercase">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">
+                        Manter ativo
+                      </SelectItem>
+                      <SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">
+                        Encerrar caso
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {attForm.situacao !== "ENCERRADO" ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black uppercase">Próximo retorno</Label>
+                    <Input
+                      type="date"
+                      value={attForm.proximoRetorno}
+                      onChange={(e) => setAttForm({ ...attForm, proximoRetorno: e.target.value })}
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                    Ao encerrar, o prazo de retorno é limpo e o caso sai da fila ativa.
+                  </p>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase">Observações</Label>
+                  <Textarea
+                    value={attForm.observacao}
+                    onChange={(e) => setAttForm({ ...attForm, observacao: e.target.value })}
+                    placeholder="Resumo do contato, combinados, pendências…"
+                    className="min-h-[100px] rounded-xl text-[12px]"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase">Lista da fila</Label>
+                  <Select
+                    value={attForm.filaLista || "normal"}
+                    onValueChange={(v) => setAttForm({ ...attForm, filaLista: v as FilaLista })}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl text-[11px] font-bold uppercase">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal" className="text-[10px] font-bold uppercase">
+                        Fila normal
+                      </SelectItem>
+                      <SelectItem value="tratamento" className="text-[10px] font-bold uppercase">
+                        Crítico em tratamento
+                      </SelectItem>
+                      <SelectItem value="blacklist" className="text-[10px] font-bold uppercase">
+                        Blacklist / problemático
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button type="button" variant="outline" onClick={() => setAttOpen(false)} disabled={attSaving}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={registerAttendance}
+                disabled={attSaving || !selected}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {attSaving ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
+                Salvar atendimento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
 }
 
 export default function WhatsAppTerminalPage() {
