@@ -298,7 +298,7 @@ export default function SubstabelecimentoSimplesPage() {
               </div>
 
               <div className="pt-10 flex flex-col items-center gap-6">
-                <Button onClick={handleSeal} disabled={loading} className="w-full h-16 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-sm rounded-none border-2 border-black shadow-[8px_8px_0px_#00D1FF] hover:shadow-none transition-all">
+                <Button metal={false} onClick={handleSeal} disabled={loading} className="w-full h-16 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-sm rounded-none border-2 border-black shadow-[8px_8px_0px_#00D1FF] hover:shadow-none transition-all">
                   {loading ? <Loader2 className="animate-spin mr-3" size={24} /> : <Printer className="mr-3" size={24} />}
                   Selar Substabelecimento {template === 'cpc272' ? 'Art. 272 CPC' : 'Padrão'}
                 </Button>

@@ -218,7 +218,7 @@ export default function HabilitacaoPecaGenerator() {
                <AlertTitle className="font-black uppercase text-xs">Configuração Requerida</AlertTitle>
                <AlertDescription className="text-[10px] font-bold uppercase space-y-4">
                   <p>Cadastre os advogados da sua banca em Configurações para habilitar a geração de peças.</p>
-                  <Button asChild className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">
+                  <Button metal={false} asChild className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">
                     <Link href="/settings">Configurar Banca Agora</Link>
                   </Button>
                </AlertDescription>
@@ -284,7 +284,7 @@ export default function HabilitacaoPecaGenerator() {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                       />
-                      <Button onClick={handleExtract} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black shadow-[6px_6px_0px_#22c55e]">
+                      <Button metal={false} onClick={handleExtract} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black shadow-[6px_6px_0px_#22c55e]">
                         {loading ? <Loader2 className="animate-spin mr-2" /> : <Zap size={16} className="mr-2" />} Gerar Habilitação Neural
                       </Button>
                     </CardContent>
@@ -316,7 +316,7 @@ export default function HabilitacaoPecaGenerator() {
                   <Edit3 size={20} />
                   <h2 className="text-xl font-black uppercase tracking-tight text-black">Revisão Forense Combinada</h2>
                 </div>
-                <Button variant="ghost" onClick={() => setStep(1)} className="font-black uppercase text-[10px] border-2 border-black rounded-none h-10 px-4">Voltar ao Step 1</Button>
+                <Button metal={false} variant="ghost" onClick={() => setStep(1)} className="font-black uppercase text-[10px] border-2 border-black rounded-none h-10 px-4">Voltar ao Step 1</Button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -416,7 +416,7 @@ export default function HabilitacaoPecaGenerator() {
                 </CardContent>
               </Card>
 
-              <Button onClick={handleSeal} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black hover:bg-white hover:text-black transition-all shadow-[6px_6px_0px_#22c55e]">
+              <Button metal={false} onClick={handleSeal} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black hover:bg-white hover:text-black transition-all shadow-[6px_6px_0px_#22c55e]">
                 {loading ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 size={16} className="mr-2" />} Selar & Exportar Habilitação Combinada
               </Button>
             </div>

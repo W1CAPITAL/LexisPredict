@@ -275,16 +275,16 @@ export default function ModelosPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={gerar}>
+                    <Button metal={false} size="sm" onClick={gerar}>
                       <ScrollText className="mr-1.5 h-4 w-4" /> Gerar texto
                     </Button>
                     {preview && (
-                      <Button size="sm" variant="outline" onClick={copy}>
+                      <Button metal={false} size="sm" variant="outline" onClick={copy}>
                         <Copy className="mr-1.5 h-4 w-4" /> Copiar
                       </Button>
                     )}
                     {preview && (
-                      <Button size="sm" onClick={gerarPDF} disabled={pdfLoading}>
+                      <Button metal={false} size="sm" onClick={gerarPDF} disabled={pdfLoading}>
                         {pdfLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} Baixar PDF
                       </Button>
                     )}

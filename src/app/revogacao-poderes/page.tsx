@@ -459,7 +459,7 @@ export default function RevogacaoPoderesPage() {
             </Select>
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <Button
+            <Button metal={false}
               onClick={runScan}
               disabled={loadingScan}
               className="h-11 rounded-xl font-black uppercase text-[10px]"
@@ -472,7 +472,7 @@ export default function RevogacaoPoderesPage() {
               Montar fila
             </Button>
             {qStatus === "idle" || qStatus === "done" ? (
-              <Button
+              <Button metal={false}
                 onClick={startQueue}
                 disabled={!items.length}
                 className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600"
@@ -481,16 +481,16 @@ export default function RevogacaoPoderesPage() {
               </Button>
             ) : null}
             {qStatus === "running" ? (
-              <Button onClick={pauseQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
+              <Button metal={false} onClick={pauseQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
                 <Pause className="mr-2" size={14} /> Pausar
               </Button>
             ) : null}
             {qStatus === "paused" ? (
               <>
-                <Button onClick={resumeQueue} className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600">
+                <Button metal={false} onClick={resumeQueue} className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600">
                   <Play className="mr-2" size={14} /> Continuar
                 </Button>
-                <Button onClick={stopQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
+                <Button metal={false} onClick={stopQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
                   <Square className="mr-2" size={14} /> Parar
                 </Button>
               </>
@@ -544,7 +544,7 @@ export default function RevogacaoPoderesPage() {
             <input type="checkbox" checked={incluirAcaoNoPdf} onChange={(e) => setIncluirAcaoNoPdf(e.target.checked)} />
             <span className="font-bold uppercase text-[9px]">Incluir acao no PDF</span>
           </label>
-          <Button size="sm" variant="ghost" className="rounded-xl" onClick={runScan}>
+          <Button metal={false} size="sm" variant="ghost" className="rounded-xl" onClick={runScan}>
             <RefreshCcw size={12} />
           </Button>
         </div>
@@ -594,7 +594,7 @@ export default function RevogacaoPoderesPage() {
                       {(it as any).viabilidade ? ` · ${(it as any).viabilidade}` : ""}
                     </p>
                   </div>
-                  <Button
+                  <Button metal={false}
                     className="h-10 rounded-xl font-black uppercase text-[10px] bg-emerald-600 hover:bg-emerald-700"
                     disabled={!it.elegivel || downloading === it.protocolo}
                     onClick={() => downloadOne(it)}

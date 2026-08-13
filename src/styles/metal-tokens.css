@@ -109,11 +109,15 @@
   border-color: #94a3b8 !important;
 }
 
-/* === Anti-desaparecimento MetalFx / animação === */
+/* === Anti-desaparecimento MetalFx / animação ===
+   AVISO: não incluir `div:has(> .metal-btn-solid)` aqui. Ele força
+   display:inline-flex !important em qualquer container que tenha um
+   botão metálico, quebrando o layout vertical de páginas como Documentos
+   (CardContent, etapas de revisão, .hidden/opacity). Os botões metal já
+   garantem visibilidade no bloco .metal-btn-solid abaixo. */
 .metal-fx-host,
 [data-metal-fx],
-.metal-fx,
-div:has(> .metal-btn-solid) {
+.metal-fx {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;

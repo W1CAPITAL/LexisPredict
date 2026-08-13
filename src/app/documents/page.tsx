@@ -29,7 +29,13 @@ import {
   Hash,
   Settings,
   Briefcase,
-  Globe
+  Globe,
+  FileSignature,
+  Files,
+  Scale,
+  Library,
+  ArrowRight,
+  Repeat
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -53,6 +59,7 @@ import { listAdvogadosBanca } from '@/lib/server-db';
 import Link from 'next/link';
 
 export default function DocumentGenerator() {
+  const [hub, setHub] = useState(true);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -212,6 +219,99 @@ export default function DocumentGenerator() {
           <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Cloud Repository</Badge>
         </header>
 
+        {hub ? (
+          <div className="flex-1 overflow-auto p-4 lg:p-8 max-w-7xl mx-auto w-full">
+            <div className="mb-6">
+              <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Central de Documentos</h2>
+              <p className="text-[10px] font-bold uppercase text-black/50 mt-1">
+                Gere procurações, substabelecimentos, habilitações, revogações e modelos de peças
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <button
+                type="button"
+                onClick={() => setHub(false)}
+                className="text-left bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] p-6 hover:shadow-[8px_8px_0px_#22c55e] hover:-translate-y-0.5 transition-all group"
+              >
+                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-4 group-hover:bg-[#22c55e] transition-colors">
+                  <FileText size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1">Procuração</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Ad Judicia · triagem neural · selar PDF</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
+                  Abrir gerador <ArrowRight size={12} />
+                </span>
+              </button>
+
+              <Link href="/substabelecimento" className="text-left bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] p-6 hover:shadow-[8px_8px_0px_#22c55e] hover:-translate-y-0.5 transition-all group">
+                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-4 group-hover:bg-[#22c55e] transition-colors">
+                  <Repeat size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1">Substabelecimento</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Cedente/entra · triagem neural</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
+                  Abrir gerador <ArrowRight size={12} />
+                </span>
+              </Link>
+
+              <Link href="/substabelecimento-simples" className="text-left bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] p-6 hover:shadow-[8px_8px_0px_#22c55e] hover:-translate-y-0.5 transition-all group">
+                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-4 group-hover:bg-[#22c55e] transition-colors">
+                  <FileSignature size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1">Substabelecimento Simples</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Sem reserva · padrão / CPC Art. 272</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
+                  Abrir gerador <ArrowRight size={12} />
+                </span>
+              </Link>
+
+              <Link href="/habilitacao-peca" className="text-left bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] p-6 hover:shadow-[8px_8px_0px_#22c55e] hover:-translate-y-0.5 transition-all group">
+                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-4 group-hover:bg-[#22c55e] transition-colors">
+                  <Files size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1">Habilitação</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Petição de habilitação de advogado</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
+                  Abrir gerador <ArrowRight size={12} />
+                </span>
+              </Link>
+
+              <Link href="/substabelecimento-peca" className="text-left bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] p-6 hover:shadow-[8px_8px_0px_#22c55e] hover:-translate-y-0.5 transition-all group">
+                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-4 group-hover:bg-[#22c55e] transition-colors">
+                  <Briefcase size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1">Peça de Substabelecimento</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Peça técnica detalhada com histórico</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
+                  Abrir gerador <ArrowRight size={12} />
+                </span>
+              </Link>
+
+              <Link href="/revogacao-poderes" className="text-left bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] p-6 hover:shadow-[8px_8px_0px_#22c55e] hover:-translate-y-0.5 transition-all group">
+                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-4 group-hover:bg-[#22c55e] transition-colors">
+                  <Scale size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1">Revogar Poderes</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Fila 1 a 1 · revogação + substabelecimento</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
+                  Abrir gerador <ArrowRight size={12} />
+                </span>
+              </Link>
+
+              <Link href="/modelos" className="text-left bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000] p-6 hover:shadow-[8px_8px_0px_#22c55e] hover:-translate-y-0.5 transition-all group">
+                <div className="w-12 h-12 bg-black text-white flex items-center justify-center mb-4 group-hover:bg-[#22c55e] transition-colors">
+                  <Library size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1">Modelos & Peças</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Biblioteca reutilizável de peças e petições</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
+                  Abrir gerador <ArrowRight size={12} />
+                </span>
+              </Link>
+            </div>
+          </div>
+        ) : (
         <div className="flex-1 overflow-auto p-4 lg:p-8 max-w-7xl mx-auto w-full">
           {banca.length === 0 ? (
             <Alert className="border-2 border-black rounded-none shadow-[8px_8px_0px_#000]">
@@ -219,7 +319,7 @@ export default function DocumentGenerator() {
                <AlertTitle className="font-black uppercase text-xs">Atenção Gabinete</AlertTitle>
                <AlertDescription className="text-[10px] font-bold uppercase space-y-4">
                   <p>Nenhum advogado cadastrado para geração de peças.</p>
-                  <Button asChild className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">
+                  <Button metal={false} asChild className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">
                      <Link href="/settings">Configurar Banca Agora</Link>
                   </Button>
                </AlertDescription>
@@ -285,7 +385,7 @@ export default function DocumentGenerator() {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                       />
-                      <Button onClick={handleExtract} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black shadow-[6px_6px_0px_#22c55e]">
+                      <Button metal={false} onClick={handleExtract} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black shadow-[6px_6px_0px_#22c55e]">
                         {loading ? <Loader2 className="animate-spin mr-2" /> : <Zap size={16} className="mr-2" />} Iniciar Triagem Neural
                       </Button>
                     </CardContent>
@@ -316,7 +416,7 @@ export default function DocumentGenerator() {
                   <Edit3 size={20} />
                   <h2 className="text-xl font-black uppercase tracking-tight text-black">Revisão de Dados Auditados</h2>
                 </div>
-                <Button variant="ghost" onClick={() => setStep(1)} className="font-black uppercase text-[10px] border-2 border-black rounded-none">Voltar ao Upload</Button>
+                <Button metal={false} variant="ghost" onClick={() => setStep(1)} className="font-black uppercase text-[10px] border-2 border-black rounded-none">Voltar ao Upload</Button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -393,12 +493,13 @@ export default function DocumentGenerator() {
                 </CardContent>
               </Card>
 
-              <Button onClick={handleSeal} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black hover:bg-white hover:text-black transition-all shadow-[6px_6px_0px_#22c55e]">
+              <Button metal={false} onClick={handleSeal} disabled={loading} className="w-full h-14 bg-black text-white font-black uppercase text-xs rounded-none border-2 border-black hover:bg-white hover:text-black transition-all shadow-[6px_6px_0px_#22c55e]">
                 {loading ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 size={16} className="mr-2" />} Selar & Exportar PDF
               </Button>
             </div>
           )}
         </div>
+        )}
       </main>
     </div>
   );
