@@ -14,6 +14,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSupervisaoSnapshotAction, type SupervisaoSnapshot } from "@/app/actions/supervisao-actions";
+import { PERIODO_OPCOES, type PeriodoRelatorio, labelPeriodo } from "@/lib/atendimento-semana";
+import { cn } from "@/lib/utils";
 import { Users,
   Briefcase,
   Activity,
@@ -30,7 +32,6 @@ import { Users,
   MessageSquare,
   CalendarClock,
   ShieldCheck, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +70,7 @@ function KpiCard({ icon, label, value, hint, tone = "default" }: {
 export default function SupervisaoPage() {
   const { profile, loading: authLoading } = useAuth();
   const [snap, setSnap] = useState<SupervisaoSnapshot | null>(null);
+  const [periodo, setPeriodo] = useState<PeriodoRelatorio>("esta_semana");
   const [avatarByName, setAvatarByName] = useState<Map<string, string | null>>(() => new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -80,7 +82,7 @@ export default function SupervisaoPage() {
 
   const load = async () => {
     setLoading(true);
-    const res = await getSupervisaoSnapshotAction();
+    const res = await getSupervisaoSnapshotAction(periodo);
     if (res.success) {
       setSnap(res.snapshot || null);
       setError("");
@@ -92,7 +94,7 @@ export default function SupervisaoPage() {
 
   useEffect(() => {
     if (allowed && !authLoading) load();
-  }, [allowed, authLoading]);
+  }, [allowed, authLoading, periodo]);
 
   const handleDownloadPdf = async () => {
     if (!snap) return;
@@ -222,14 +224,37 @@ export default function SupervisaoPage() {
             ) : snap ? (
               <>
 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-                  <KpiCard icon={<Briefcase size={16} />} label="Processos" value={snap.total} tone="primary" />
+                  
+          <div className="flex flex-wrap items-center gap-2 px-1 mb-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Período</span>
+            {PERIODO_OPCOES.map((op) => (
+              <button
+                key={op.id}
+                type="button"
+                onClick={() => setPeriodo(op.id)}
+                title={op.hint}
+                className={cn(
+                  "h-8 px-3 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-colors",
+                  periodo === op.id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card border-border/60 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {op.label}
+              </button>
+            ))}
+            <span className="text-[10px] font-bold text-muted-foreground">
+              {snap?.periodoLabel || labelPeriodo(periodo)}
+            </span>
+          </div>
+<KpiCard icon={<Briefcase size={16} />} label="Processos" value={snap.total} tone="primary" />
                   <KpiCard icon={<Activity size={16} />} label="Ativos" value={snap.ativos} />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Encerrados" value={snap.encerrados} tone="ok" />
                   <KpiCard icon={<ShieldAlert size={16} />} label="Vencidos" value={snap.vencidos} tone={snap.vencidos > 0 ? "danger" : "default"} />
                   <KpiCard icon={<Sparkles size={16} />} label="Novidades" value={snap.novidades} tone={snap.novidades > 0 ? "warn" : "default"} />
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
                   <KpiCard icon={<MessageSquare size={16} />} label="Atend. (geral)" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
-                  <KpiCard icon={<CalendarClock size={16} />} label="Atend. semana" value={snap.atendidosSemana} tone="primary" hint="última semana" />
+                  <KpiCard icon={<CalendarClock size={16} />} label={periodo === "mes" ? "Atend. mês" : periodo === "semana_passada" ? "Atend. sem. ant." : "Atend. semana"} value={snap.atendidosSemana} tone="primary" hint={snap?.periodoLabel || labelPeriodo(periodo)} />
                   <KpiCard icon={<Activity size={16} />} label="Editados app" value={snap.auditadosSemana ?? 0} tone="primary" hint="qualquer salvamento no app" />
                   <KpiCard icon={<FileSearch size={16} />} label="Tribunal (sem.)" value={snap.auditadosTribunalSemana ?? 0} hint="só DataJud/DJEN" />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Editados app" value={snap.editadosAppSemana ?? 0} hint="salvar processo no app" />

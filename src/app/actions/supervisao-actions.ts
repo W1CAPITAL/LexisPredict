@@ -6,7 +6,7 @@
  */
 
 import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/lib/server-db';
-import { parseUltimoAtendimento, weekBounds } from '@/lib/atendimento-semana';
+import { parseUltimoAtendimento, weekBounds, periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
 import { countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, countEditadosAppSemana } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 
@@ -38,6 +38,8 @@ export type SupervisaoUsuarioGrupo = {
 };
 
 export type SupervisaoSnapshot = {
+  periodo?: string;
+  periodoLabel?: string;
   total: number;
   ativos: number;
   encerrados: number;
@@ -72,7 +74,7 @@ export type SupervisaoSnapshot = {
   porEscritorio: { label: string; value: number }[];
 };
 
-function emptySnapshot(): SupervisaoSnapshot {
+function emptySnapshot(periodoLabel = "Esta semana"): SupervisaoSnapshot {
   return {
     total: 0,
     ativos: 0,
@@ -97,7 +99,9 @@ function emptySnapshot(): SupervisaoSnapshot {
   };
 }
 
-export async function getSupervisaoSnapshotAction(): Promise<{
+export async function getSupervisaoSnapshotAction(
+  periodo: 'esta_semana' | 'semana_passada' | 'mes' = 'esta_semana'
+): Promise<{
   success: boolean;
   snapshot?: SupervisaoSnapshot;
   error?: string;
@@ -108,7 +112,7 @@ export async function getSupervisaoSnapshotAction(): Promise<{
 
     const cases = await getStoredCasesForEmpresa(ctx.empresa_id, false);
     if (!cases || !cases.length) {
-      return { success: true, snapshot: emptySnapshot() };
+      return { success: true, snapshot: { ...emptySnapshot(), periodo: periodo || "esta_semana", periodoLabel: labelPeriodo((periodo || "esta_semana") as any) } };
     }
 
     // Nomes dos usuários da empresa (created_by = auth_user_id)
@@ -130,7 +134,9 @@ export async function getSupervisaoSnapshotAction(): Promise<{
     }
 
     const now = new Date();
-    const semana = weekBounds(now);
+    const periodoKey = (periodo || 'esta_semana') as PeriodoRelatorio;
+    const semana = periodBounds(periodoKey, now);
+    const periodoLabel = labelPeriodo(periodoKey, now);
 
     let ativos = 0,
       encerrados = 0,
@@ -289,6 +295,8 @@ export async function getSupervisaoSnapshotAction(): Promise<{
     return {
       success: true,
       snapshot: {
+        periodo: periodoKey,
+        periodoLabel,
         total: cases.length,
         ativos,
         encerrados,

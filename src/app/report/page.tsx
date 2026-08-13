@@ -36,7 +36,16 @@ import Link from "next/link";
 import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils"
-import { countAtendidosNestaSemana, buildAtendimentosPorDiaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
+import {
+  countAtendidosNestaSemana,
+  buildAtendimentosPorDiaSemana,
+  labelSemanaAtual,
+  countAtendidosNoPeriodo,
+  buildAtendimentosPorDiaPeriodo,
+  labelPeriodo,
+  PERIODO_OPCOES,
+  type PeriodoRelatorio,
+} from "@/lib/atendimento-semana";
 import { countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana } from "@/lib/processos-auditados";
 import { Badge } from "@/components/ui/badge";
 import { BiCompliancePanel } from "@/components/dashboard/bi-compliance-panel";
@@ -60,6 +69,7 @@ export default function UnifiedReport() {
   const [notes, setNotes] = useState<CaseNote[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [periodo, setPeriodo] = useState<PeriodoRelatorio>("esta_semana");
   const [mounted, setMounted] = useState(false);
   const [claudeText, setClaudeText] = useState("");
   const [claudeLoading, setClaudeLoading] = useState(false);
@@ -112,12 +122,12 @@ export default function UnifiedReport() {
     const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
-    const countAtendidosSemana = countAtendidosNestaSemana(cases as any);
+    const countAtendidosSemana = countAtendidosNoPeriodo(cases as any, periodo);
     const countAuditadosSemana = countAuditadosNestaSemana(cases as any);
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
     const countEditadosApp = countEditadosAppSemana(cases as any);
-    const serieAtendimentosSemana = buildAtendimentosPorDiaSemana(cases as any);
-    const semanaLabel = labelSemanaAtual();
+    const serieAtendimentosSemana = buildAtendimentosPorDiaPeriodo(cases as any, periodo);
+    const semanaLabel = labelPeriodo(periodo);
 
     const mediaDia =
       serieAtendimentosSemana && serieAtendimentosSemana.length
@@ -226,7 +236,7 @@ export default function UnifiedReport() {
       top3Lawyers: lawyerRank.slice(0, 3),
       bottom3Lawyers: lawyerRank.length > 3 ? lawyerRank.slice(-3).reverse() : []
     };
-  }, [cases, profile]);
+  }, [cases, profile, periodo]);
 
   const buildResumoCarteira = () => {
     const topCrit = metrics.topCriticos.slice(0, 8).map((i) =>
@@ -310,7 +320,7 @@ export default function UnifiedReport() {
               { label: "Vencidos", value: `${metrics.countVencido} / ${metrics.countHoje}` },
               { label: "Risco", value: `${metrics.riskScore}%` },
               { label: "B.A.", value: String(metrics.countBA) },
-              { label: "Atend. semana", value: String(metrics.countAtendidosSemana ?? 0) },
+              { label: periodo === "mes" ? "Atend. mês" : periodo === "semana_passada" ? "Atend. sem. ant." : "Atend. semana", value: String(metrics.countAtendidosSemana ?? 0) },
               { label: "Auditados semana", value: String(metrics.countAuditadosSemana ?? 0) },
               { label: "Tribunal (sem.)", value: String(metrics.countAuditadosTribunal ?? 0) },
               { label: "Editados app", value: String(metrics.countEditadosApp ?? 0) },
@@ -388,6 +398,25 @@ export default function UnifiedReport() {
               <Link href="/"><ArrowLeft size={16} className="mr-2" /> Gabinete</Link>
             </Button>
             <Badge className="bg-primary text-primary-foreground font-black uppercase text-[10px] px-4 rounded-lg h-8">Sincronia Omni 100%</Badge>
+
+            <div className="flex items-center gap-1.5 flex-wrap ml-2">
+              {PERIODO_OPCOES.map((op) => (
+                <button
+                  key={op.id}
+                  type="button"
+                  onClick={() => setPeriodo(op.id)}
+                  title={op.hint}
+                  className={cn(
+                    "h-8 px-3 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-colors",
+                    periodo === op.id
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {op.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <Button

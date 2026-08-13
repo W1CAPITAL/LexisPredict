@@ -283,3 +283,104 @@ export function countAtendidosHojeDoUsuario(
     return created != null && String(created) === uid;
   }).length;
 }
+
+// ─── Períodos do dossiê / supervisão ─────────────────────────────────────────
+
+export type PeriodoRelatorio = 'esta_semana' | 'semana_passada' | 'mes';
+
+export const PERIODO_OPCOES: { id: PeriodoRelatorio; label: string; hint: string }[] = [
+  { id: 'esta_semana', label: 'Esta semana', hint: 'Seg–dom corrente' },
+  { id: 'semana_passada', label: 'Semana passada', hint: 'Seg–dom anterior' },
+  { id: 'mes', label: 'Mês atual', hint: 'Do dia 1 até hoje' },
+];
+
+export function periodBounds(periodo: PeriodoRelatorio, ref = new Date()) {
+  const hojeYmd = hojeBrasilYmd(ref);
+  const hojeLocal = ymdToLocalDate(hojeYmd);
+
+  if (periodo === 'esta_semana') {
+    const start = startOfWeek(hojeLocal, { weekStartsOn: 1 });
+    const end = endOfWeek(hojeLocal, { weekStartsOn: 1 });
+    return { start: startOfDay(start), end: startOfDay(end) };
+  }
+
+  if (periodo === 'semana_passada') {
+    const esta = weekBounds(ref);
+    const start = new Date(esta.start);
+    start.setDate(start.getDate() - 7);
+    const end = new Date(esta.end);
+    end.setDate(end.getDate() - 7);
+    return { start: startOfDay(start), end: startOfDay(end) };
+  }
+
+  // mês atual (calendário BR)
+  const start = startOfDay(new Date(hojeLocal.getFullYear(), hojeLocal.getMonth(), 1));
+  return { start, end: startOfDay(hojeLocal) };
+}
+
+export function labelPeriodo(periodo: PeriodoRelatorio, ref = new Date()): string {
+  const { start, end } = periodBounds(periodo, ref);
+  const a = format(start, 'dd/MM', { locale: ptBR });
+  const b = format(end, 'dd/MM', { locale: ptBR });
+  if (periodo === 'esta_semana') return `Esta semana (${a}–${b})`;
+  if (periodo === 'semana_passada') return `Semana passada (${a}–${b})`;
+  return `Mês ${format(start, 'MMM/yyyy', { locale: ptBR })} (${a}–${b})`;
+}
+
+export function isAtendidoNoPeriodo(
+  ultimoRetorno: string | null | undefined,
+  periodo: PeriodoRelatorio,
+  ref = new Date()
+): boolean {
+  const d = parseUltimoAtendimento(ultimoRetorno);
+  if (!d) return false;
+  const { start, end } = periodBounds(periodo, ref);
+  return isWithinInterval(d, { start, end });
+}
+
+export function casoAtendidoNoPeriodo(c: any, periodo: PeriodoRelatorio, ref = new Date()): boolean {
+  if (c == null) return false;
+  if (typeof c === 'string') return isAtendidoNoPeriodo(c, periodo, ref);
+  return isAtendidoNoPeriodo(pickUltimoRetorno(c), periodo, ref);
+}
+
+export function countAtendidosNoPeriodo(cases: any[], periodo: PeriodoRelatorio, ref = new Date()): number {
+  if (!Array.isArray(cases)) return 0;
+  return cases.filter((c) => casoAtendidoNoPeriodo(c, periodo, ref)).length;
+}
+
+/** Série diária dentro do período (para gráficos do dossiê). */
+export function buildAtendimentosPorDiaPeriodo(
+  cases: any[],
+  periodo: PeriodoRelatorio,
+  ref = new Date()
+): (AtendimentoDia & { ymd?: string; label?: string })[] {
+  const { start, end } = periodBounds(periodo, ref);
+  const days: (AtendimentoDia & { ymd?: string; label?: string })[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const dayIndex = getDay(cursor);
+    days.push({
+      day: DAY_LABELS[dayIndex],
+      dayIndex,
+      atendimentos: 0,
+      retornos: 0,
+      scans: 0,
+      ymd: format(cursor, 'yyyy-MM-dd'),
+      label: format(cursor, 'dd/MM', { locale: ptBR }),
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  for (const c of cases || []) {
+    const d = parseUltimoAtendimento(pickUltimoRetorno(c));
+    if (!d || !isWithinInterval(d, { start, end })) continue;
+    const ymd = format(d, 'yyyy-MM-dd');
+    const bucket = days.find((x) => x.ymd === ymd);
+    if (bucket) {
+      bucket.atendimentos += 1;
+      bucket.retornos += 1;
+    }
+  }
+  return days;
+}
