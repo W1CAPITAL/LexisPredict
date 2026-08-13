@@ -612,40 +612,123 @@ function WhatsAppTerminalInner() {
       return null;
     }
     setLoadingTribunal(true);
+    // Scripts imediatos do cadastro (não espera tribunal)
     try {
-      let movimentos: any[] = tribunalMovimentos;
-      let comunicacoes: any[] = djenComunicacoes;
+      const quick = buildScriptsFromCase(target, [], []);
+      if (quick.length) setWaScripts(quick);
+    } catch { /* ignore */ }
+
+    const SCAN_MS = 48_000; // hard limit UI — evita spinner infinito (Vercel/DataJud)
+
+    try {
+      let movimentos: any[] = [];
+      let comunicacoes: any[] = [];
       let caseData: LegalCase = target;
 
-      // Mesma lógica da aba Processos → "Sugerir resposta"
-      // DataJud + DJEN, fast: false (não aborta cedo)
       if (opts?.scan) {
-        const res: any = await scanSingleCaseAction(target.protocolo, {
-          mode: "both",
-          fast: false,
-        } as any);
-        movimentos = normalizeMovList(res?.movimentos);
-        comunicacoes = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
-        caseData = { ...target, ...(res?.case || {}) };
-        try {
-          caseData = processarCaso({ ...caseData }) as LegalCase;
-        } catch {
-          /* mantém caseData */
+        const scanPromise = (async () => {
+          // 1) fast primeiro (responde antes do timeout do serverless)
+          let res: any = await scanSingleCaseAction(target.protocolo, {
+            mode: "both",
+            fast: true,
+          } as any);
+          let mov = normalizeMovList(res?.movimentos);
+          let com = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
+          // 2) se vazio e ainda há tempo, tenta full uma vez
+          if (!mov.length && !com.length) {
+            try {
+              res = await scanSingleCaseAction(target.protocolo, {
+                mode: "both",
+                fast: false,
+              } as any);
+              mov = normalizeMovList(res?.movimentos);
+              com = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
+            } catch {
+              /* mantém vazio */
+            }
+          }
+          return { res, mov, com };
+        })();
+
+        const timed = await Promise.race([
+          scanPromise,
+          new Promise<{ timedOut: true }>((resolve) =>
+            setTimeout(() => resolve({ timedOut: true }), SCAN_MS)
+          ),
+        ]);
+
+        if ((timed as any).timedOut) {
+          // Fallback: monta 1 movimento a partir do que já está no caso
+          const nome =
+            (target as any).datajud_ultimo_nome ||
+            (target as any).evento_resumo ||
+            (target as any).djen_ultimo_resumo ||
+            "";
+          if (nome) {
+            movimentos = [
+              {
+                nome: String(nome).slice(0, 200),
+                dataHora:
+                  (target as any).datajud_ultimo_movimento ||
+                  (target as any).djen_ultima_data ||
+                  null,
+                complemento: "Cadastro local (scan excedeu tempo)",
+              },
+            ];
+          }
+          comunicacoes = (target as any).djen_ultimo_resumo
+            ? [{ texto: String((target as any).djen_ultimo_resumo) }]
+            : [];
+          toast({
+            title: "Andamentos: tempo esgotado",
+            description:
+              "DataJud/DJEN demorou demais. Usamos o último sinal do cadastro. Tente de novo em instantes.",
+            variant: "destructive",
+          });
+        } else {
+          const { res, mov, com } = timed as any;
+          movimentos = mov || [];
+          comunicacoes = com || [];
+          caseData = { ...target, ...(res?.case || res?.casePatch || {}) };
+          try {
+            caseData = processarCaso({ ...caseData }) as LegalCase;
+          } catch {
+            /* mantém */
+          }
+          // Progressive: mostra movimentos um a um
+          setTribunalMovimentos([]);
+          for (let i = 0; i < movimentos.length; i++) {
+            const slice = movimentos.slice(0, i + 1);
+            setTribunalMovimentos(slice);
+            if (i < movimentos.length - 1) {
+              await new Promise((r) => setTimeout(r, 120));
+            }
+          }
+          setDjenComunicacoes(comunicacoes);
+          if (caseData?.protocolo) {
+            setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
+            setCases((prev) =>
+              prev.map((x) =>
+                x.protocolo === caseData.protocolo ? { ...x, ...caseData } : x
+              )
+            );
+          }
+          if (!movimentos.length && !comunicacoes.length) {
+            const nome =
+              (caseData as any).datajud_ultimo_nome ||
+              (caseData as any).evento_resumo ||
+              "";
+            if (nome) {
+              movimentos = [
+                {
+                  nome: String(nome).slice(0, 200),
+                  dataHora: (caseData as any).datajud_ultimo_movimento || null,
+                },
+              ];
+              setTribunalMovimentos(movimentos);
+            }
+          }
         }
-        setTribunalMovimentos(movimentos);
-        setDjenComunicacoes(comunicacoes);
-        if (caseData?.protocolo) {
-          setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
-          setCases((prev) =>
-            prev.map((x) =>
-              x.protocolo === caseData.protocolo ? { ...x, ...caseData } : x
-            )
-          );
-        }
-      } else if (!movimentos.length && !comunicacoes.length) {
-        // Sem scan: monta scripts com o que já está no cadastro
-        movimentos = [];
-        comunicacoes = [];
       }
 
       const scripts = buildScriptsFromCase(caseData, movimentos, comunicacoes);
@@ -658,20 +741,19 @@ function WhatsAppTerminalInner() {
             : "Auditoria unificada",
           description:
             movimentos.length || comunicacoes.length
-              ? `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`
-              : "Sem movimentos — timeout, 403 ou CNJ ausente no índice. Tente de novo.",
+              ? `${movimentos.length} mov. · ${comunicacoes.length} DJEN`
+              : "Sem movimentos no índice — confira o CNJ no tribunal.",
           variant:
             movimentos.length || comunicacoes.length ? "default" : "destructive",
         });
       }
       return { caseData, movimentos, comunicacoes, scripts };
     } catch (e: any) {
-      // Fallback igual Processos: scripts com dados do caso
       const scripts = buildScriptsFromCase(target, [], []);
       setWaScripts(scripts);
       toast({
-        title: "Falha na auditoria unificada",
-        description: e?.message || "Erro ao consultar DataJud/DJEN — scripts com cadastro",
+        title: "Falha na auditoria",
+        description: e?.message || "Erro DataJud/DJEN — scripts do cadastro",
         variant: "destructive",
       });
       return { caseData: target, movimentos: [], comunicacoes: [], scripts };
