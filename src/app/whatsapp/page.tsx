@@ -896,7 +896,7 @@ function WhatsAppTerminalInner() {
                                 if (r.success) {
                                   toast({
                                     title: "Histórico importado",
-                                    description: `${r.imported || 0} msg deste número` + (r.skippedWrong ? ` · ${r.skippedWrong} de outro número ignoradas` : ""),
+                                    description: `Tel ${r.phone || selected.telefone}: ${r.imported || 0} msg` + (r.skippedWrong || r.skippedNoJid ? ` · ${((r.skippedWrong||0)+(r.skippedNoJid||0))} de outros chats ignoradas` : ""),
                                   });
                                   try {
                                     // recarrega thread

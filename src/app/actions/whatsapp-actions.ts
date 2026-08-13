@@ -300,28 +300,29 @@ export async function importEvolutionHistoryAction(phone: string) {
       };
     }
 
-    const { messageBelongsToPhone } = await import('@/app/actions/whatsapp-history-actions');
+    const { jidMatchesPhone } = await import('@/lib/evolution-api');
     let imported = 0;
     let skippedWrong = 0;
+    let skippedNoJid = 0;
     const errors: string[] = [];
+
     for (const m of ev.messages) {
-      // Só grava se o JID/número bater com o telefone do cliente selecionado
-      const belongs = messageBelongsToPhone(n, {
-        remoteJid: m.remoteJid,
-        contactNumber: n,
-      });
-      // Se a Evolution já filtrou pelo chat do número, remoteJid deve conter os dígitos
-      if (m.remoteJid && !belongs) {
+      // OBRIGATÓRIO: remoteJid deve ser deste cliente — senão era outro chat colado neste número
+      if (!m.remoteJid) {
+        skippedNoJid += 1;
+        continue;
+      }
+      if (!jidMatchesPhone(m.remoteJid, n)) {
         skippedWrong += 1;
         continue;
       }
       const saved = await persistWhatsAppMessage({
-        contactNumber: n, // sempre o número do cliente selecionado
+        contactNumber: n, // dono = cliente selecionado (só após validar JID)
         messageText: m.text,
         fromMe: m.fromMe,
-        messageId: m.id ? `evo-${m.id}` : undefined,
+        messageId: m.id ? `evo-${n}-${m.id}` : undefined, // id com prefixo do número evita colisão entre chats
         contactName: m.pushName,
-        remoteJid: m.remoteJid || `${n}@s.whatsapp.net`,
+        remoteJid: m.remoteJid,
         source: 'evolution-import',
         timestamp: m.timestamp,
         raw: m.raw,
@@ -331,13 +332,23 @@ export async function importEvolutionHistoryAction(phone: string) {
     }
 
     const { messages } = await fetchMessagesByPhone(n);
+    const dropped = skippedWrong + skippedNoJid;
     return {
       success: imported > 0,
       found: ev.messages.length,
       imported,
+      skippedWrong,
+      skippedNoJid,
       totalInDb: messages.length,
-      error: imported === 0 ? errors[0] || 'Nada gravado' : null,
+      error:
+        imported === 0
+          ? errors[0] ||
+            (dropped > 0
+              ? `Nenhuma msg deste número (ignoradas ${dropped} de outros chats/sem JID). Limpe o histórico e tente de novo.`
+              : 'Nada gravado')
+          : null,
       tried: ev.tried,
+      phone: n,
     };
   } catch (e: any) {
     return {

@@ -74,6 +74,30 @@ export function phoneMatchVariants(to: string): string[] {
   return [...set];
 }
 
+/** Extrai só dígitos de um remoteJid (ignora @s.whatsapp.net / @g.us). */
+export function digitsFromJid(jid: string | null | undefined): string {
+  const s = String(jid || '');
+  // grupos: não usar como chat 1:1
+  if (s.includes('@g.us')) return '';
+  return s.split('@')[0].replace(/\D/g, '');
+}
+
+/** True se o JID é o mesmo telefone (com/sem 55, com/sem 9). */
+export function jidMatchesPhone(jid: string | null | undefined, phone: string): boolean {
+  const jd = digitsFromJid(jid);
+  if (!jd || jd.length < 10) return false;
+  const variants = phoneMatchVariants(phone);
+  if (variants.some((v) => v === jd || v.endsWith(jd) || jd.endsWith(v.slice(-10)) || jd.endsWith(v.slice(-11)))) {
+    return true;
+  }
+  // last 10/11
+  const n = normalizeBrPhone(phone);
+  if (!n) return false;
+  return jd.endsWith(n.slice(-10)) || jd.endsWith(n.slice(-11)) || n.endsWith(jd.slice(-10));
+}
+
+
+
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -440,9 +464,28 @@ export async function fetchChatMessagesFromEvolution(
       try {
         const r = await fn();
         if (!r.ok) continue;
-        const msgs = normalizeList(r.json);
+        const msgsRaw = normalizeList(r.json);
+        // CRÍTICO: a Evolution às vezes devolve o histórico da instância inteira.
+        // Só aceita mensagens cujo remoteJid é ESTE telefone.
+        const msgs = msgsRaw.filter((m) => jidMatchesPhone(m.remoteJid, number));
+        // Se a API não trouxe remoteJid em nenhuma, não inventa dono — descarta o lote
+        const withJid = msgsRaw.filter((m) => !!m.remoteJid).length;
         if (msgs.length > 0) {
-          return { ok: true, messages: msgs, tried };
+          return {
+            ok: true,
+            messages: msgs,
+            tried,
+            meta: {
+              rawCount: msgsRaw.length,
+              kept: msgs.length,
+              droppedOtherChats: Math.max(0, msgsRaw.length - msgs.length),
+            },
+          } as any;
+        }
+        // Lote veio mas nenhum JID bateu com o número → não usar (evita colar tudo num cliente)
+        if (msgsRaw.length > 0 && withJid > 0) {
+          tried.push(`filtered-out:${msgsRaw.length}->0 (jid≠${number})`);
+          continue;
         }
       } catch {
         /* next */
