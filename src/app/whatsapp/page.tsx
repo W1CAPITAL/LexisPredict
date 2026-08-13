@@ -71,6 +71,7 @@ import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actio
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
 import { plainTextFromDjen } from "@/lib/djen";
+import { buildUnifiedTimeline } from "@/lib/timeline-normalize";
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { gerarRascunhoEstrategico } from "@/ai/motor-despacho";
@@ -188,6 +189,12 @@ function WhatsAppTerminalInner() {
   const [waScripts, setWaScripts] = useState<
     { id: string; titulo: string; texto: string; quandoUsar?: string }[]
   >([]);
+
+  /** Histórico do tribunal adaptado ao terminal: DataJud + DJEN unificados, cronológico */
+  const historicoTribunal = useMemo(
+    () => buildUnifiedTimeline(tribunalMovimentos, djenComunicacoes).slice(0, 20),
+    [tribunalMovimentos, djenComunicacoes]
+  );
 
   const loadCases = useCallback(async () => {
     setLoading(true);
@@ -366,6 +373,10 @@ function WhatsAppTerminalInner() {
     setDjenComunicacoes([]);
     setWaScripts([]);
     loadHistory(c);
+    // Histórico do tribunal (DataJud + DJEN) já abre no terminal, adaptado à aba
+    if (c?.protocolo && !loadingTribunal) {
+      void loadTribunalContext(c, { scan: true, fast: true, silent: true });
+    }
   };
 
   const sortedByOverdue = useMemo(() => {
@@ -599,7 +610,7 @@ function WhatsAppTerminalInner() {
 
   const loadTribunalContext = async (
     c?: LegalCase | null,
-    opts?: { scan?: boolean }
+    opts?: { scan?: boolean; fast?: boolean; silent?: boolean }
   ): Promise<{
     caseData: LegalCase;
     movimentos: any[];
@@ -608,127 +619,46 @@ function WhatsAppTerminalInner() {
   } | null> => {
     const target = c || selected;
     if (!target?.protocolo) {
-      toast({ title: "Selecione um processo", variant: "destructive" });
+      if (!opts?.silent) {
+        toast({ title: "Selecione um processo", variant: "destructive" });
+      }
       return null;
     }
     setLoadingTribunal(true);
-    // Scripts imediatos do cadastro (não espera tribunal)
     try {
-      const quick = buildScriptsFromCase(target, [], []);
-      if (quick.length) setWaScripts(quick);
-    } catch { /* ignore */ }
-
-    const SCAN_MS = 48_000; // hard limit UI — evita spinner infinito (Vercel/DataJud)
-
-    try {
-      let movimentos: any[] = [];
-      let comunicacoes: any[] = [];
+      let movimentos: any[] = tribunalMovimentos;
+      let comunicacoes: any[] = djenComunicacoes;
       let caseData: LegalCase = target;
 
+      // Mesma lógica da aba Processos → "Sugerir resposta"
+      // DataJud + DJEN, fast: false (não aborta cedo)
       if (opts?.scan) {
-        const scanPromise = (async () => {
-          // 1) fast primeiro (responde antes do timeout do serverless)
-          let res: any = await scanSingleCaseAction(target.protocolo, {
-            mode: "both",
-            fast: true,
-          } as any);
-          let mov = normalizeMovList(res?.movimentos);
-          let com = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
-          // 2) se vazio e ainda há tempo, tenta full uma vez
-          if (!mov.length && !com.length) {
-            try {
-              res = await scanSingleCaseAction(target.protocolo, {
-                mode: "both",
-                fast: false,
-              } as any);
-              mov = normalizeMovList(res?.movimentos);
-              com = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
-            } catch {
-              /* mantém vazio */
-            }
-          }
-          return { res, mov, com };
-        })();
-
-        const timed = await Promise.race([
-          scanPromise,
-          new Promise<{ timedOut: true }>((resolve) =>
-            setTimeout(() => resolve({ timedOut: true }), SCAN_MS)
-          ),
-        ]);
-
-        if ((timed as any).timedOut) {
-          // Fallback: monta 1 movimento a partir do que já está no caso
-          const nome =
-            (target as any).datajud_ultimo_nome ||
-            (target as any).evento_resumo ||
-            (target as any).djen_ultimo_resumo ||
-            "";
-          if (nome) {
-            movimentos = [
-              {
-                nome: String(nome).slice(0, 200),
-                dataHora:
-                  (target as any).datajud_ultimo_movimento ||
-                  (target as any).djen_ultima_data ||
-                  null,
-                complemento: "Cadastro local (scan excedeu tempo)",
-              },
-            ];
-          }
-          comunicacoes = (target as any).djen_ultimo_resumo
-            ? [{ texto: String((target as any).djen_ultimo_resumo) }]
-            : [];
-          toast({
-            title: "Andamentos: tempo esgotado",
-            description:
-              "DataJud/DJEN demorou demais. Usamos o último sinal do cadastro. Tente de novo em instantes.",
-            variant: "destructive",
-          });
-        } else {
-          const { res, mov, com } = timed as any;
-          movimentos = mov || [];
-          comunicacoes = com || [];
-          caseData = { ...target, ...(res?.case || res?.casePatch || {}) };
-          try {
-            caseData = processarCaso({ ...caseData }) as LegalCase;
-          } catch {
-            /* mantém */
-          }
-          // Progressive: mostra movimentos um a um
-          setTribunalMovimentos([]);
-          for (let i = 0; i < movimentos.length; i++) {
-            const slice = movimentos.slice(0, i + 1);
-            setTribunalMovimentos(slice);
-            if (i < movimentos.length - 1) {
-              await new Promise((r) => setTimeout(r, 120));
-            }
-          }
-          setDjenComunicacoes(comunicacoes);
-          if (caseData?.protocolo) {
-            setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
-            setCases((prev) =>
-              prev.map((x) =>
-                x.protocolo === caseData.protocolo ? { ...x, ...caseData } : x
-              )
-            );
-          }
-          if (!movimentos.length && !comunicacoes.length) {
-            const nome =
-              (caseData as any).datajud_ultimo_nome ||
-              (caseData as any).evento_resumo ||
-              "";
-            if (nome) {
-              movimentos = [
-                {
-                  nome: String(nome).slice(0, 200),
-                  dataHora: (caseData as any).datajud_ultimo_movimento || null,
-                },
-              ];
-              setTribunalMovimentos(movimentos);
-            }
-          }
+        const res: any = await scanSingleCaseAction(target.protocolo, {
+          mode: "both",
+          fast: opts.fast === true,
+        } as any);
+        movimentos = normalizeMovList(res?.movimentos);
+        comunicacoes = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
+        caseData = { ...target, ...(res?.case || {}) };
+        try {
+          caseData = processarCaso({ ...caseData }) as LegalCase;
+        } catch {
+          /* mantém caseData */
         }
+        setTribunalMovimentos(movimentos);
+        setDjenComunicacoes(comunicacoes);
+        if (caseData?.protocolo) {
+          setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
+          setCases((prev) =>
+            prev.map((x) =>
+              x.protocolo === caseData.protocolo ? { ...x, ...caseData } : x
+            )
+          );
+        }
+      } else if (!movimentos.length && !comunicacoes.length) {
+        // Sem scan: monta scripts com o que já está no cadastro
+        movimentos = [];
+        comunicacoes = [];
       }
 
       const scripts = buildScriptsFromCase(caseData, movimentos, comunicacoes);
@@ -741,21 +671,24 @@ function WhatsAppTerminalInner() {
             : "Auditoria unificada",
           description:
             movimentos.length || comunicacoes.length
-              ? `${movimentos.length} mov. · ${comunicacoes.length} DJEN`
-              : "Sem movimentos no índice — confira o CNJ no tribunal.",
+              ? `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`
+              : "Sem movimentos — timeout, 403 ou CNJ ausente no índice. Tente de novo.",
           variant:
             movimentos.length || comunicacoes.length ? "default" : "destructive",
         });
       }
       return { caseData, movimentos, comunicacoes, scripts };
     } catch (e: any) {
+      // Fallback igual Processos: scripts com dados do caso
       const scripts = buildScriptsFromCase(target, [], []);
       setWaScripts(scripts);
-      toast({
-        title: "Falha na auditoria",
-        description: e?.message || "Erro DataJud/DJEN — scripts do cadastro",
-        variant: "destructive",
-      });
+      if (!opts?.silent) {
+        toast({
+          title: "Falha na auditoria unificada",
+          description: e?.message || "Erro ao consultar DataJud/DJEN — scripts com cadastro",
+          variant: "destructive",
+        });
+      }
       return { caseData: target, movimentos: [], comunicacoes: [], scripts };
     } finally {
       setLoadingTribunal(false);
@@ -1415,52 +1348,54 @@ function WhatsAppTerminalInner() {
                       ) : null}
                     </div>
 
-                    {(tribunalMovimentos.length > 0 ||
-                      djenComunicacoes.length > 0 ||
-                      loadingTribunal) && (
-                      <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2 max-h-44 overflow-y-auto">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                          O que aconteceu no processo
-                          {loadingTribunal ? " · carregando…" : ""}
+                    {(historicoTribunal.length > 0 || loadingTribunal) && (
+                      <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2 max-h-56 overflow-y-auto">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                          Histórico do tribunal · DataJud + DJEN
+                          {loadingTribunal ? (
+                            <Loader2 size={11} className="animate-spin" />
+                          ) : null}
                         </p>
-                        {tribunalMovimentos.slice(0, 12).map((m: any, i: number) => (
+                        {historicoTribunal.map((it, i) => (
                           <div
-                            key={`mv-${i}`}
-                            className="text-[11px] leading-snug border-l-2 border-primary/40 pl-2 py-0.5"
+                            key={`t-${i}`}
+                            className={cn(
+                              "text-[11px] leading-snug border-l-2 pl-2 py-0.5",
+                              it.type === "djen"
+                                ? "border-blue-500/50"
+                                : "border-primary/40"
+                            )}
                           >
-                            <span className="text-[9px] font-bold text-muted-foreground tabular-nums">
-                              {m.dataHora || m.data || m.data_hora || "—"}
+                            <span className="text-[9px] font-bold text-muted-foreground tabular-nums uppercase flex items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  "px-1 rounded text-[8px] font-black",
+                                  it.type === "djen"
+                                    ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                                    : "bg-primary/10 text-primary"
+                                )}
+                              >
+                                {it.type === "djen" ? "DJEN" : "DataJud"}
+                              </span>
+                              {it.date.getTime() > 0
+                                ? it.date.toLocaleDateString("pt-BR")
+                                : "—"}
                             </span>
                             <p className="font-semibold text-foreground/90">
-                              {m.nome || m.descricao || m.complemento || "Movimento"}
+                              {it.title}
                             </p>
-                            {m.complemento || m.descricao ? (
-                              <p className="text-muted-foreground line-clamp-2">
-                                {plainTextFromDjen(
-                                  String(m.complemento || m.descricao || "")
-                                )}
+                            {it.subtitle ? (
+                              <p className="text-muted-foreground line-clamp-2 whitespace-pre-wrap">
+                                {plainTextFromDjen(String(it.subtitle)).slice(0, 400)}
                               </p>
                             ) : null}
                           </div>
                         ))}
-                        {djenComunicacoes.slice(0, 5).map((d: any, i: number) => (
-                          <div
-                            key={`dj-${i}`}
-                            className="text-[11px] leading-snug border-l-2 border-blue-500/50 pl-2 py-0.5"
-                          >
-                            <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase">
-                              DJEN · {d.data_disponibilizacao || d.data || "—"}
-                            </span>
-                            <p className="font-semibold">
-                              {d.tipoComunicacao || d.tipoDocumento || "Comunicação"}
-                            </p>
-                            <p className="text-muted-foreground line-clamp-4 whitespace-pre-wrap">
-                              {plainTextFromDjen(
-                                String(d.texto || d.conteudo || "")
-                              ).slice(0, 500)}
-                            </p>
-                          </div>
-                        ))}
+                        {!historicoTribunal.length && loadingTribunal && (
+                          <p className="text-[10px] text-muted-foreground">
+                            Consultando DataJud + DJEN…
+                          </p>
+                        )}
                       </div>
                     )}
 

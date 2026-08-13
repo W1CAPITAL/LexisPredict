@@ -255,9 +255,13 @@ export async function freeComplete(opts: {
 
 
 
-  // NVIDIA NIM
+  // NVIDIA NIM — SÓ quando o usuário pede explicitamente (preferred=nvidia/nim/inkling).
+  // Política: NVIDIA não entra na cascata automática (scan, auditoria 3D,
+  // monitoramento, veredito, sugerir resposta, drafts omni).
   const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY;
-  if (nvidiaKey) {
+  const pediuNvidia =
+    pref.includes('nvidia') || pref.includes('nim') || pref.includes('inkling');
+  if (nvidiaKey && pediuNvidia) {
     steps.push({
       id: 'nvidia',
       run: async () => {

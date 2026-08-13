@@ -226,12 +226,15 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   }
 
   // --- NVIDIA NIM (OpenAI-compatible Integrate API) ---
+  // Política: NVIDIA SÓ age quando pedida explicitamente (nvidia/nim/inkling).
+  // Não participa de 'auto' nem de fallback de claude/omni — senão "flag IA
+  // NVIDIA" aparece em auditoria 3D, monitoramento, veredito e sugerir resposta.
   const wantNvidia =
     preferred === 'nvidia' ||
     preferred.includes('nvidia') ||
     preferred.includes('nim') ||
     preferred.includes('inkling');
-  if (wantNvidia || preferred === 'auto') {
+  if (wantNvidia) {
     try {
       const { isNvidiaConfigured, callNvidiaNim } = await import('@/lib/ai/nvidia-nim');
       if (isNvidiaConfigured()) {
