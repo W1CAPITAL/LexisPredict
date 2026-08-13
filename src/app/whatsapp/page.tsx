@@ -75,7 +75,7 @@ import { processarCaso, type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { gerarRascunhoEstrategico } from "@/ai/motor-despacho";
 import { AiDraftPreview } from "@/components/ai/ai-draft-preview";
-import { MOTORS } from "@/lib/ai/motors";
+import { MOTORS, loadPreferredMotor, resolveMotorId } from "@/lib/ai/motors";
 import {
   applyFilaListaToObs,
   parseFilaListaFromObs,
@@ -176,7 +176,13 @@ function WhatsAppTerminalInner() {
   const [tribunalMovimentos, setTribunalMovimentos] = useState<any[]>([]);
   const [djenComunicacoes, setDjenComunicacoes] = useState<any[]>([]);
   const [loadingTribunal, setLoadingTribunal] = useState(false);
-  const [selectedMotor, setSelectedMotor] = useState<string>("local_only");
+  const [selectedMotor, setSelectedMotor] = useState<string>("omni");
+  useEffect(() => {
+    try {
+      const m = resolveMotorId(loadPreferredMotor());
+      setSelectedMotor(m === "local_only" ? "omni" : m === "minimax" ? "minimax" : "omni");
+    } catch { /* ignore */ }
+  }, []);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
   const [waScripts, setWaScripts] = useState<

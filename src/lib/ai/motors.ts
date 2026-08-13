@@ -8,6 +8,7 @@ import { extractCnjFromText as extractCnjFromTextImpl } from '@/lib/cnj-extract'
 
 export type MotorId =
   | 'omni'
+  | 'minimax'
   | 'local_only'
   | 'claude'
   | 'xai'
@@ -37,8 +38,16 @@ export const MOTORS: MotorDef[] = [
     id: 'omni',
     label: 'Omni (cascata automática)',
     short: 'Omni',
-    desc: 'Claude → Grok → Groq → NVIDIA → OpenRouter → Gemini → fallbacks. Token esgotado = próximo motor, sem erro na tela.',
+    desc: 'MiniMax → Claude → Grok → Groq → NVIDIA → OpenRouter → Gemini. Token esgotado = próximo sem erro na tela.',
     scope: 'server',
+  },
+  {
+    id: 'minimax',
+    label: 'MiniMax M3',
+    short: 'MiniMax',
+    desc: 'MiniMax (Anthropic/OpenAI compatible). Principal na cascata Omni quando MINIMAX_API_KEY está no Vercel.',
+    scope: 'server',
+    envKey: 'MINIMAX_API_KEY',
   },
   {
     id: 'local_only',
@@ -131,6 +140,7 @@ export function resolveMotorId(id?: string | null): MotorId {
   const s = String(id || 'omni').toLowerCase().trim();
   if (s === 'local_only' || s === 'local' || s === 'lexis') return 'local_only';
   if (s === 'omni' || s === 'auto') return 'omni';
+  if (s.includes('minimax')) return 'minimax';
   const known = MOTORS.find((m) => m.id === s);
   if (known) return known.id;
   if (s.includes('claude') || s.includes('anthropic')) return 'claude';

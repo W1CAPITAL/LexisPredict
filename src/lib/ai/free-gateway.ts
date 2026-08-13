@@ -141,11 +141,27 @@ export async function freeComplete(opts: {
   messages.push({ role: 'user', content: compact(opts.user, 6000) });
 
   const errors: string[] = [];
-  const pref = (opts.preferred || '').toLowerCase();
+  let pref = (opts.preferred || '').toLowerCase();
+  // omni = tentar todos
+  if (pref === 'omni' || pref === 'omniroute' || pref === 'cascade' || pref === 'auto') {
+    pref = '';
+  }
   const exclusive = !!opts.exclusive && !!pref && pref !== 'auto' && pref !== 'omni' && !pref.includes('omni');
 
   type Step = { id: string; run: () => Promise<FreeResult> };
   const steps: Step[] = [];
+
+  // MiniMax — prioridade alta na cascata Omni
+  if (process.env.MINIMAX_API_KEY || process.env.MINIMAX_KEY) {
+    steps.push({
+      id: 'minimax',
+      run: async () => {
+        const { callMinimax } = await import('@/lib/ai/minimax');
+        const r = await callMinimax(messages as any, { max_tokens: 4096, temperature: 0.4 });
+        return { text: r.text, engine: `minimax:${r.model}`, latencyMs: r.latencyMs };
+      },
+    });
+  }
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
   if (anthropicKey) {

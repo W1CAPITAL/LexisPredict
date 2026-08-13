@@ -188,7 +188,12 @@ ${canal === 'whatsapp' ? 'MODO WHATSAPP: fale com VOCÊ (2ª pessoa), 4-8 linhas
     const response = await perguntarIA({
       pergunta: userPrompt,
       historico: [{ role: 'system', content: systemPrompt }],
-      preferredModel: !preferredModel || preferredModel === 'local_only' ? preferredModel || 'local_only' : (preferredModel === 'omni' || preferredModel === 'auto' ? 'omni' : preferredModel || 'omni'),
+      preferredModel:
+        !preferredModel || preferredModel === 'auto' || preferredModel === 'omni'
+          ? 'omni'
+          : preferredModel === 'local_only' || preferredModel === 'lexis'
+            ? 'local_only'
+            : preferredModel,
     });
 
     const engine =

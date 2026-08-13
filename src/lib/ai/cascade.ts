@@ -184,11 +184,46 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   }
 
   const exclusive = !!(opts.forceEngineId || (opts.preferred && opts.preferred !== 'auto'));
-  const preferred = (opts.forceEngineId || opts.preferred || 'auto').toLowerCase();
+  // omni = cascata completa (não é motor exclusivo)
+  let preferred = (opts.forceEngineId || opts.preferred || 'auto').toLowerCase();
+  if (preferred === 'omni' || preferred === 'omniroute' || preferred === 'cascade') {
+    preferred = 'auto';
+  }
   const errors: string[] = [];
 
-
-
+  // --- MiniMax (principal na cascata Omni) ---
+  const wantMinimax =
+    preferred === 'minimax' ||
+    preferred.includes('minimax') ||
+    preferred === 'auto';
+  if (wantMinimax) {
+    try {
+      const { isMinimaxConfigured, callMinimax } = await import('@/lib/ai/minimax');
+      if (isMinimaxConfigured()) {
+        const msgs: Array<{ role: string; content: string }> = [];
+        if (system) msgs.push({ role: 'system', content: system });
+        for (const h of history) msgs.push(h);
+        msgs.push({ role: 'user', content: String(user) });
+        const r = await callMinimax(msgs, {
+          max_tokens: opts.max_tokens ?? 4096,
+          temperature: opts.temperature ?? 0.4,
+        });
+        if (r.text.trim()) {
+          return {
+            text: r.text,
+            engineId: 'minimax',
+            model: r.model,
+            latencyMs: r.latencyMs,
+            latency: r.latencyMs,
+            tokens: 0,
+          };
+        }
+      }
+    } catch (e: any) {
+      errors.push(`minimax: ${e?.message || e}`);
+      // continua cascata
+    }
+  }
 
   // --- NVIDIA NIM (OpenAI-compatible Integrate API) ---
   const wantNvidia =
