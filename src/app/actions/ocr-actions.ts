@@ -4,13 +4,13 @@ import { runOcr } from '@/lib/ocr';
 
 /**
  * OCR a partir de base64 (print do tribunal, PDF rasterizado, etc.)
- * Sem IA generativa.
+ * Apenas motor interno — sem OCR.space / endpoints externos.
  */
 export async function ocrFromBase64Action(input: {
   base64: string;
   mimeType?: string;
   language?: string;
-  prefer?: 'internal' | 'external' | 'auto';
+  prefer?: 'internal' | 'auto';
 }) {
   try {
     const raw = String(input.base64 || '');
@@ -23,7 +23,7 @@ export async function ocrFromBase64Action(input: {
       buffer,
       mimeType: input.mimeType || 'image/png',
       language: input.language || 'por',
-      prefer: input.prefer || 'auto',
+      prefer: input.prefer || 'internal',
     });
   } catch (e: any) {
     return {
@@ -37,7 +37,7 @@ export async function ocrFromBase64Action(input: {
 
 /** Extrai CNJ do texto OCR (atalho operacional) */
 export async function ocrExtractCnjAction(base64: string, mimeType?: string) {
-  const res = await ocrFromBase64Action({ base64, mimeType, prefer: 'auto' });
+  const res = await ocrFromBase64Action({ base64, mimeType, prefer: 'internal' });
   const text = res.text || '';
   const m = text.match(/\d{7}[-.]?\d{2}[.]?\d{4}[.]?\d[.]?\d{2}[.]?\d{4}/);
   return {
