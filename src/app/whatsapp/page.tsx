@@ -70,7 +70,7 @@ import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actio
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
 import { plainTextFromDjen } from "@/lib/djen";
-import type { LegalCase } from "@/lib/case-logic";
+import { processarCaso, type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { gerarRascunhoEstrategico } from "@/ai/motor-despacho";
 import { AiDraftPreview } from "@/components/ai/ai-draft-preview";
@@ -92,6 +92,17 @@ type ChatMsg = {
 function digitsPhone(t?: string | null) {
   return String(t || "").replace(/\D/g, "");
 }
+
+function normalizeMovList(movs: any): any[] {
+  if (!Array.isArray(movs)) return [];
+  return movs.slice(0, 80).map((m: any) => ({
+    ...m,
+    dataHora: m?.dataHora || m?.data || m?.dataMovimento || null,
+    nome: m?.nome || m?.nomeMovimento || m?.descricao || "Movimentação",
+    complemento: m?.complemento || m?.observacao || "",
+  }));
+}
+
 
 /** Telefone do caso com aliases comuns do banco/CSV */
 function casePhone(c?: { telefone?: string | null; phone?: string | null; celular?: string | null; whatsapp?: string | null } | null) {
@@ -172,7 +183,17 @@ function WhatsAppTerminalInner() {
     setLoading(true);
     try {
       const data = await fetchRepoCases();
-      setCases(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      // Mesma base da aba Processos: processarCaso para status/prazo/flags
+      setCases(
+        list.map((c: any) => {
+          try {
+            return processarCaso({ ...c }) as LegalCase;
+          } catch {
+            return c as LegalCase;
+          }
+        })
+      );
     } catch {
       toast({ title: "Falha ao carregar carteira", variant: "destructive" });
     } finally {
@@ -225,7 +246,7 @@ function WhatsAppTerminalInner() {
       });
       base = listSortMode === "mais_vencido" ? sorted : [...sorted].reverse();
     }
-    return base.slice(0, 120);
+    return base.slice(0, 500);
   }, [cases, q, listSortMode]);
 
   const loadHistory = useCallback(async (c: LegalCase) => {
@@ -502,21 +523,18 @@ function WhatsAppTerminalInner() {
       clienteNome: caseData.cliente,
       protocolo: caseData.protocolo,
       ultimoRetorno: caseData.ultimoRetorno,
-      evento_tipo: (caseData as any).evento_tipo,
-      evento_resumo: (caseData as any).evento_resumo,
-      djen_ultimo_resumo: (caseData as any).djen_ultimo_resumo,
+      eventoTipo: (caseData as any).evento_tipo,
+      eventoResumo: (caseData as any).evento_resumo,
       datajud_ultimo_nome: (caseData as any).datajud_ultimo_nome,
       djenTexts: djenTexts.length
         ? djenTexts
         : [(caseData as any).djen_ultimo_resumo, (caseData as any).evento_resumo].filter(Boolean).map(String),
       movimentos,
       tem_novo_andamento: !!(caseData as any).tem_novo_andamento,
-      tem_atualizacao_pos_retorno: !!(caseData as any).tem_atualizacao_pos_retorno,
-      djen_nova_comunicacao: !!(caseData as any).djen_nova_comunicacao,
       datajud_encerrado_tribunal: !!(caseData as any).datajud_encerrado_tribunal,
       indicio_busca_apreensao: !!(caseData as any).indicio_busca_apreensao,
       em_cumprimento_sentenca: !!(caseData as any).em_cumprimento_sentenca,
-    });
+    } as any);
     return scripts.map((s, idx) => ({
       id: String((s as any).id || `script-${idx}`),
       titulo: String(s.titulo || "Sugestão"),
@@ -544,66 +562,62 @@ function WhatsAppTerminalInner() {
       let movimentos: any[] = tribunalMovimentos;
       let comunicacoes: any[] = djenComunicacoes;
       let caseData: LegalCase = target;
-      let res: any = null;
 
-      // Scan só se pedido (botão Andamentos). Rascunho usa dados já no caso.
+      // Mesma lógica da aba Processos → "Sugerir resposta"
+      // DataJud + DJEN, fast: false (não aborta cedo)
       if (opts?.scan) {
+        const res: any = await scanSingleCaseAction(target.protocolo, {
+          mode: "both",
+          fast: false,
+        } as any);
+        movimentos = normalizeMovList(res?.movimentos);
+        comunicacoes = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
+        caseData = { ...target, ...(res?.case || {}) };
         try {
-          res = await Promise.race([
-            scanSingleCaseAction(target.protocolo, { mode: "both", fast: true } as any),
-            new Promise((_, rej) =>
-              setTimeout(() => rej(new Error("TIMEOUT_TRIBUNAL")), 45000)
-            ),
-          ]);
-        } catch (e: any) {
-          // Continua com dados já no caso (não trava a UI)
-          const partial = {
-            movimentos: tribunalMovimentos,
-            comunicacoes: djenComunicacoes,
-            case: target,
-            success: false,
-            message: e?.message === "TIMEOUT_TRIBUNAL"
-              ? "Tribunal demorou (45s). Usando andamentos já salvos no caso."
-              : (e?.message || "Falha no scan"),
-          };
-          toast({
-            title: "Andamentos (offline/parcial)",
-            description: partial.message,
-          });
-          res = partial;
+          caseData = processarCaso({ ...caseData }) as LegalCase;
+        } catch {
+          /* mantém caseData */
         }
-        if (!res) res = { case: target };
-        movimentos = Array.isArray((res as any).movimentos)
-          ? (res as any).movimentos.slice(0, 40)
-          : [];
-        comunicacoes = Array.isArray((res as any).comunicacoes)
-          ? (res as any).comunicacoes
-          : [];
-        caseData = { ...target, ...((res as any).case || {}) };
         setTribunalMovimentos(movimentos);
         setDjenComunicacoes(comunicacoes);
         if (caseData?.protocolo) {
           setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
+          setCases((prev) =>
+            prev.map((x) =>
+              x.protocolo === caseData.protocolo ? { ...x, ...caseData } : x
+            )
+          );
         }
+      } else if (!movimentos.length && !comunicacoes.length) {
+        // Sem scan: monta scripts com o que já está no cadastro
+        movimentos = [];
+        comunicacoes = [];
       }
 
       const scripts = buildScriptsFromCase(caseData, movimentos, comunicacoes);
       setWaScripts(scripts);
 
-      if (opts?.scan && !(res as any)?.message) {
+      if (opts?.scan) {
         toast({
-          title: "Contexto do tribunal",
-          description: `${movimentos.length} andamento(s) · ${comunicacoes.length} DJEN · ${scripts.length} script(s)`,
+          title: scripts.length
+            ? `${scripts.length} script(s) prontos`
+            : "Auditoria unificada",
+          description:
+            movimentos.length || comunicacoes.length
+              ? `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`
+              : "Sem movimentos — timeout, 403 ou CNJ ausente no índice. Tente de novo.",
+          variant:
+            movimentos.length || comunicacoes.length ? "default" : "destructive",
         });
       }
       return { caseData, movimentos, comunicacoes, scripts };
     } catch (e: any) {
-      // Fallback: scripts só com o que já está no caso
+      // Fallback igual Processos: scripts com dados do caso
       const scripts = buildScriptsFromCase(target, [], []);
       setWaScripts(scripts);
       toast({
-        title: "Contexto parcial",
-        description: e?.message || "Usando dados do cadastro (sem scan completo)",
+        title: "Falha na auditoria unificada",
+        description: e?.message || "Erro ao consultar DataJud/DJEN — scripts com cadastro",
         variant: "destructive",
       });
       return { caseData: target, movimentos: [], comunicacoes: [], scripts };
@@ -1035,14 +1049,15 @@ function WhatsAppTerminalInner() {
                         size="sm"
                         className="h-9 rounded-xl font-semibold text-[11px] gap-1.5 bg-amber-500 hover:bg-amber-600 text-black"
                         onClick={() => loadTribunalContext(selected, { scan: true })}
-                        disabled={loadingTribunal}
+                        disabled={loadingTribunal || !selected?.protocolo}
+                        title="Mesma auditoria DataJud+DJEN da aba Processos (Sugerir resposta)"
                       >
                         {loadingTribunal ? (
                           <Loader2 size={14} className="animate-spin" />
                         ) : (
                           <FileSearch size={14} />
                         )}
-                        Andamentos
+                        Andamentos + scripts
                       </Button>
 
                     {selected && casePhoneDigits(selected).length < 8 ? (
