@@ -1,7 +1,6 @@
 /**
- * NER jurídico determinístico (TypeScript) — sem GPU / sem LLM.
- * Só extrai o que o texto contém. Telefone exige formato BR real;
- * IDs de autos (Id. 230794615) NÃO são telefone.
+ * NER jurídico determinístico — procurações, decisões, petições.
+ * Não inventa: só regex/heurística sobre o texto já limpo pelo OCR.
  */
 
 export type LegalEntityKind =
@@ -16,7 +15,11 @@ export type LegalEntityKind =
   | 'valor_brl'
   | 'tribunal'
   | 'id_pje'
-  | 'contrato';
+  | 'contrato'
+  | 'rg'
+  | 'cep'
+  | 'nome'
+  | 'endereco';
 
 export type LegalEntity = {
   kind: LegalEntityKind;
@@ -35,61 +38,64 @@ export type LegalNerResult = {
 
 const CNJ_RE =
   /\b(\d{7})-?(\d{2})\.?(\d{4})\.?(\d)\.?(\d{2})\.?(\d{4})\b/g;
-
 const CPF_RE = /\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b/g;
 const CNPJ_RE = /\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/g;
-const OAB_RE = /\bOAB\s*[/:-]?\s*([A-Z]{2})?\s*(\d{2,7})\b/gi;
+const OAB_RE =
+  /\bOAB\s*[/:]?\s*(?:([A-Z]{2})\s*[/:]?\s*)?(\d{2,7})(?:\s*\/\s*([A-Z]{2}))?\b/gi;
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const DATE_RE = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/g;
+const DATE_RE =
+  /\b(\d{1,2})\s*(?:de\s+)?([a-zç]+|\d{1,2})(?:\s+de\s+|\s*[\/\-]\s*)(\d{2,4})\b/gi;
+const DATE_NUM_RE = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/g;
 const BRL_RE = /R\$\s*([\d.]+,\d{2})/g;
 const TRIBUNAL_RE = /\b(TJ[A-Z]{2}|TRF\d|STJ|STF|TST|TSE)\b/g;
-
-/** IDs de peças/autos: Id. 230794615 | Id 231082951 | lds. 233158327 */
 const ID_PJE_RE = /\b(?:I\s*d\.?s?\.?|ld\.?s?\.?)\s*(\d{6,12})\b/gi;
-
-/** Telefone BR estrito: (DDD) + 8/9 dígitos, com ou sem máscara */
+const RG_RE =
+  /\bRG\s*(?:sob\s*)?(?:N[ºo°\.]?\s*)?(\d{5,12}(?:-?\d)?)\b/gi;
+const CEP_RE = /\bCEP\s*[:\s]*(\d{5}-?\d{3})\b/gi;
 const PHONE_STRICT_RE =
-  /(?:\+55\s*)?(?:\(?([1-9]{1}\d{1})\)?\s*)?(?:9\s*)?(\d{4,5})[-\s]?(\d{4})\b/g;
+  /(?:\+55\s*)?(?:\(?([1-9]\d)\)?\s*)?(?:9\s*)?(\d{4,5})[-\s]?(\d{4})\b/g;
 
 const BANK_KEYWORDS = [
+  'BANCO VOTORANTIM',
   'BANCO DO BRASIL',
   'BANCO BRADESCO',
-  'BRADESCO',
-  'ITAÚ UNIBANCO',
   'BANCO ITAÚ',
   'BANCO ITAU',
-  'ITAÚ',
-  'ITAU',
-  'SANTANDER',
   'BANCO SANTANDER',
+  'BANCO PAN S.A',
+  'BANCO PAN',
+  'BANCO INTER',
+  'BANCO HONDA',
+  'BANCO BV',
+  'BANCO DAYCOVAL',
   'CAIXA ECONÔMICA',
   'CAIXA ECONOMICA',
+  'ITAÚ UNIBANCO',
+  'VOTORANTIM',
+  'BRADESCO',
+  'SANTANDER',
   'NUBANK',
-  'BANCO INTER',
+  'ITAÚ',
+  'ITAU',
   'BTG',
   'SAFRA',
-  'BANCO PAN',
-  'BANCO PAN S.A',
-  'C6 BANK',
-  'ORIGINAL',
-  'VOTORANTIM',
   'BMG',
   'DAYCOVAL',
-  'BANCO DAYCOVAL',
   'SICOOB',
   'SICREDI',
   'BANRISUL',
-  'NEON',
-  'PICPAY',
   'LOSANGO',
   'OMNI',
   'AYMORÉ',
   'AYMORE',
-  'BANCO HONDA',
   'BV FINANCEIRA',
-  'BANCO BV',
-  'BANCO PAN S.A.',
+  'C6 BANK',
+  'PAN',
 ];
+
+/** Nomes após rótulos de procuração / declaração */
+const NOME_LABEL_RE =
+  /(?:(?:Eu,|nomeia\s+como\s+seu\s+procurador:|outorgante|PROCURAÇÃO[^\n]{0,40})\s*)([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç]+){1,6})(?=\s*,|\s+brasileiro|\s+brasileira|\s+portador|\s+advogado)/gi;
 
 function uniq(arr: string[]): string[] {
   const s = new Set<string>();
@@ -111,35 +117,24 @@ function onlyDigits(s: string): string {
   return s.replace(/\D/g, '');
 }
 
-/** DDD válido (aproximado) */
 function isValidDdd(ddd: number): boolean {
-  return ddd >= 11 && ddd <= 99 && ddd !== 20 && ddd !== 23 && ddd !== 25 && ddd !== 26 && ddd !== 29;
+  return ddd >= 11 && ddd <= 99;
 }
 
-/**
- * Telefone BR real:
- * - 10 dígitos (fix) ou 11 (móvel com 9)
- * - DDD válido
- * - móvel: 3º dígito = 9
- * Rejeita: 6–9 dígitos soltos (IDs de autos), números de contrato sem DDD.
- */
 function isLikelyBrPhone(digits: string): boolean {
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
     digits = digits.slice(2);
   }
   if (digits.length === 10) {
-    const ddd = parseInt(digits.slice(0, 2), 10);
-    return isValidDdd(ddd);
+    return isValidDdd(parseInt(digits.slice(0, 2), 10));
   }
   if (digits.length === 11) {
     const ddd = parseInt(digits.slice(0, 2), 10);
-    if (!isValidDdd(ddd)) return false;
-    return digits[2] === '9';
+    return isValidDdd(ddd) && digits[2] === '9';
   }
   return false;
 }
 
-/** Contexto imediatamente antes do match indica ID de peça, não telefone */
 function isPjeIdContext(src: string, index: number): boolean {
   const before = src.slice(Math.max(0, index - 12), index).toLowerCase();
   return /(?:\bids?\.?\s*|\blds?\.?\s*)$/i.test(before) || /id\.?\s*$/i.test(before);
@@ -160,50 +155,55 @@ export function extractLegalEntities(text: string): LegalNerResult {
 
   let m: RegExpExecArray | null;
 
-  // CNJ
   const cnjRe = new RegExp(CNJ_RE.source, 'g');
   while ((m = cnjRe.exec(src))) {
     push('cnj', formatCnj(m), m.index, formatCnj(m));
   }
 
-  // IDs de autos PJe (ANTES de telefone, para não competir)
   const idRe = new RegExp(ID_PJE_RE.source, 'gi');
   const pjeIdSet = new Set<string>();
   while ((m = idRe.exec(src))) {
-    const id = m[1];
-    pjeIdSet.add(id);
-    push('id_pje', m[0].replace(/\s+/g, ' ').trim(), m.index, id);
+    pjeIdSet.add(m[1]);
+    push('id_pje', m[0].replace(/\s+/g, ' ').trim(), m.index, m[1]);
   }
 
-  // CPF
   const cpfRe = new RegExp(CPF_RE.source, 'g');
   while ((m = cpfRe.exec(src))) {
     const d = onlyDigits(m[1]);
     if (d.length === 11 && !pjeIdSet.has(d)) push('cpf', m[1], m.index, d);
   }
 
-  // CNPJ
   const cnpjRe = new RegExp(CNPJ_RE.source, 'g');
   while ((m = cnpjRe.exec(src))) {
     const d = onlyDigits(m[1]);
     if (d.length === 14) push('cnpj', m[1], m.index, d);
   }
 
-  // OAB
   const oabRe = new RegExp(OAB_RE.source, 'gi');
   while ((m = oabRe.exec(src))) {
-    const uf = (m[1] || '').toUpperCase();
+    const uf = (m[1] || m[3] || '').toUpperCase();
     const num = m[2];
-    push('oab', m[0], m.index, uf ? `${uf}${num}` : num);
+    const label = uf ? `OAB ${num}/${uf}` : `OAB ${num}`;
+    push('oab', label, m.index, uf ? `${uf}${num}` : num);
   }
 
-  // E-mail
   const emailRe = new RegExp(EMAIL_RE.source, 'gi');
   while ((m = emailRe.exec(src))) {
     push('email', m[0], m.index, m[0].toLowerCase());
   }
 
-  // Telefone — estrito
+  const rgRe = new RegExp(RG_RE.source, 'gi');
+  while ((m = rgRe.exec(src))) {
+    push('rg', m[0].replace(/\s+/g, ' ').trim(), m.index, onlyDigits(m[1]));
+  }
+
+  const cepRe = new RegExp(CEP_RE.source, 'gi');
+  while ((m = cepRe.exec(src))) {
+    const dig = onlyDigits(m[1]);
+    const norm = dig.length === 8 ? `${dig.slice(0, 5)}-${dig.slice(5)}` : m[1];
+    push('cep', norm, m.index, dig);
+  }
+
   const phoneRe = new RegExp(PHONE_STRICT_RE.source, 'g');
   while ((m = phoneRe.exec(src))) {
     const raw = m[0];
@@ -211,37 +211,77 @@ export function extractLegalEntities(text: string): LegalNerResult {
     if (pjeIdSet.has(digits)) continue;
     if (isPjeIdContext(src, m.index)) continue;
     if (!isLikelyBrPhone(digits)) continue;
-    // evita capturar pedaços de CNJ
     if (digits.length >= 14) continue;
     push('telefone', raw.trim(), m.index, digits);
   }
 
-  // Datas
-  const dateRe = new RegExp(DATE_RE.source, 'g');
-  while ((m = dateRe.exec(src))) {
+  const dateNum = new RegExp(DATE_NUM_RE.source, 'g');
+  while ((m = dateNum.exec(src))) {
     push('data', m[0], m.index);
   }
 
-  // Valores R$
+  // "3 de agosto de 2026"
+  const datePt = new RegExp(DATE_RE.source, 'gi');
+  while ((m = datePt.exec(src))) {
+    if (/^\d{1,2}[\/\-]\d/.test(m[0])) continue; // já coberto
+    push('data', m[0].replace(/\s+/g, ' ').trim(), m.index);
+  }
+
   const brlRe = new RegExp(BRL_RE.source, 'g');
   while ((m = brlRe.exec(src))) {
     push('valor_brl', m[0], m.index, m[1]);
   }
 
-  // Tribunal sigla
   const tribRe = new RegExp(TRIBUNAL_RE.source, 'g');
   while ((m = tribRe.exec(src))) {
     push('tribunal', m[0], m.index, m[0].toUpperCase());
   }
 
-  // Contrato / CCB (heurística)
   const contratoRe =
     /\b(?:C[ée]dula\s+de\s+Cr[eé]dito\s+Banc[aá]rio|contrato)\s*n\.?\s*º?\s*(\d{6,15})\b/gi;
   while ((m = contratoRe.exec(src))) {
     push('contrato', m[0].replace(/\s+/g, ' ').trim(), m.index, m[1]);
   }
 
-  // Bancos (keywords longas primeiro)
+  // Nomes (outorgante / procurador)
+  const nomeRe = new RegExp(NOME_LABEL_RE.source, 'gi');
+  while ((m = nomeRe.exec(src))) {
+    const nome = m[1].replace(/\s+/g, ' ').trim();
+    if (nome.length >= 8 && nome.split(' ').length >= 2) {
+      push('nome', nome, m.index, nome.toUpperCase());
+    }
+  }
+  // Fallback: linhas em CAPS típicas de assinatura
+  const capsNome =
+    /\b([A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}){2,5})\b/g;
+  const stop = new Set([
+    'PROCURAÇÃO',
+    'PODERES',
+    'DECLARAÇÃO',
+    'ESTADO',
+    'PODER',
+    'JUDICIARIO',
+    'ATENÇÃO',
+    'NOVA SERRANA',
+  ]);
+  while ((m = capsNome.exec(src))) {
+    const n = m[1].trim();
+    if (stop.has(n)) continue;
+    if (n.split(' ').length < 3) continue;
+    if (/BANCO|RUA|SALA|CENTRO|CEP/.test(n)) continue;
+    // só se ainda não temos esse nome
+    if (!entities.some((e) => e.kind === 'nome' && e.normalized === n)) {
+      push('nome', n, m.index, n);
+    }
+  }
+
+  // Endereço simples
+  const endRe =
+    /\b(?:Rua|Av\.?|Avenida|Travessa|Alameda)\s+[^\n,]{5,60}(?:,\s*n[ºo°]?\s*\d+[^\n,]{0,40})?/gi;
+  while ((m = endRe.exec(src))) {
+    push('endereco', m[0].replace(/\s+/g, ' ').trim(), m.index);
+  }
+
   const upper = src.toUpperCase();
   const bancos: string[] = [];
   const sortedBanks = [...BANK_KEYWORDS].sort((a, b) => b.length - a.length);
@@ -251,7 +291,6 @@ export function extractLegalEntities(text: string): LegalNerResult {
     while (true) {
       const idx = upper.indexOf(b, from);
       if (idx < 0) break;
-      // evita marcar "PAN" isolado dentro de outra palavra já marcada
       let overlap = false;
       for (let i = idx; i < idx + b.length; i++) {
         if (claimed.has(i)) {
@@ -260,8 +299,14 @@ export function extractLegalEntities(text: string): LegalNerResult {
         }
       }
       if (!overlap) {
-        bancos.push(b.startsWith('BANCO') ? b : b === 'PAN' ? 'BANCO PAN' : b);
-        push('banco', b, idx, b.startsWith('BANCO') ? b : b === 'PAN' ? 'BANCO PAN' : b);
+        const label =
+          b === 'PAN' || b === 'VOTORANTIM'
+            ? b === 'PAN'
+              ? 'BANCO PAN'
+              : 'BANCO VOTORANTIM'
+            : b;
+        bancos.push(label);
+        push('banco', label, idx, label);
         for (let i = idx; i < idx + b.length; i++) claimed.add(i);
       }
       from = idx + b.length;
@@ -276,26 +321,21 @@ export function extractLegalEntities(text: string): LegalNerResult {
   }
 
   const cnjPrincipal = byKind.cnj?.[0];
-  const summaryParts: string[] = [];
-  if (cnjPrincipal) summaryParts.push(`CNJ ${cnjPrincipal}`);
-  if (byKind.banco?.length)
-    summaryParts.push(`Banco: ${byKind.banco.slice(0, 3).join(', ')}`);
-  if (byKind.contrato?.length)
-    summaryParts.push(`Contrato×${byKind.contrato.length}`);
-  if (byKind.id_pje?.length)
-    summaryParts.push(`Id.autos×${byKind.id_pje.length}`);
-  if (byKind.cpf?.length) summaryParts.push(`CPF×${byKind.cpf.length}`);
-  if (byKind.telefone?.length)
-    summaryParts.push(`Tel×${byKind.telefone.length}`);
-  if (byKind.valor_brl?.length)
-    summaryParts.push(`Valores×${byKind.valor_brl.length}`);
+  const parts: string[] = [];
+  if (cnjPrincipal) parts.push(`CNJ ${cnjPrincipal}`);
+  if (byKind.nome?.length) parts.push(`Nome: ${byKind.nome.slice(0, 2).join(' · ')}`);
+  if (byKind.banco?.length) parts.push(`Banco: ${byKind.banco.slice(0, 2).join(', ')}`);
+  if (byKind.oab?.length) parts.push(`OAB: ${byKind.oab[0]}`);
+  if (byKind.cpf?.length) parts.push(`CPF×${byKind.cpf.length}`);
+  if (byKind.email?.length) parts.push(`E-mail×${byKind.email.length}`);
+  if (byKind.rg?.length) parts.push(`RG×${byKind.rg.length}`);
 
   return {
     entities,
     byKind,
     cnjPrincipal,
     bancos: uniq(bancos),
-    summary: summaryParts.join(' · ') || 'Nenhuma entidade jurídica óbvia no texto',
+    summary: parts.join(' · ') || 'Nenhuma entidade jurídica óbvia no texto',
   };
 }
 

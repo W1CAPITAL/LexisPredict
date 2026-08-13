@@ -1,15 +1,8 @@
 /**
- * Pipeline OCR interno inspirado no Unlimited-OCR (Baidu):
- * - multi-página (estilo infer_multi)
- * - raster alta resolução
- * - pós-processo anti-repetição (no_repeat_ngram)
- * - pré-processamento de documento
- *
- * Reconhecimento local: Tesseract (sem API externa / sem OCR.space / sem LLM).
- * Opcional: endpoint self-host Unlimited-OCR via OCR_UNLIMITED_URL (só se você hospedar).
+ * Pipeline OCR interno — pós-processo de leitura (documentos jurídicos BR).
  */
 
-/** Remove laços de repetição longos (inspirado em no_repeat_ngram_size ≈ 35). */
+/** Remove laços de repetição longos. */
 export function dedupeNgramRepeats(text: string, ngramSize = 12, maxRepeats = 2): string {
   if (!text || text.length < 80) return text;
   const tokens = text.split(/(\s+)/);
@@ -41,19 +34,57 @@ export function dedupeNgramRepeats(text: string, ngramSize = 12, maxRepeats = 2)
   return out.join(' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/** Limpa ruído típico de OCR de diário/tribunal. */
-export function cleanDocumentText(text: string): string {
+/** Corrige artefatos típicos de OCR em e-mail e pontuação jurídica. */
+export function fixOcrArtifacts(text: string): string {
   let t = String(text || '');
-  t = t.replace(/\u0000/g, '');
+
+  // E-mail: OCR costuma trocar @ por ( &  (D  (&  etc.
+  t = t.replace(/([A-Za-z0-9._%+-]+)\s*\(\s*&\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '$1@$2');
+  t = t.replace(/([A-Za-z0-9._%+-]+)\s*\(\s*[&D@]\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '$1@$2');
+  t = t.replace(/([A-Za-z0-9._%+-]+)\s*\(\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '$1@$2');
+  t = t.replace(/([A-Za-z0-9._%+-]+)\s+[QO0D]\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '$1@$2');
+  // pablobastos(Dadv.oab → pablobastos@adv.oab
+  t = t.replace(/([A-Za-z0-9._%+-]+)\(D(adv\.[A-Za-z0-9.-]+)/gi, '$1@$2');
+  t = t.replace(/([A-Za-z0-9._%+-]+)\(([QD0])([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '$1@$3');
+  // domínio partido: oab- sp.org.br / oab sp.org.br
+  t = t.replace(/@(adv\.oab)\s*-\s*(sp\.org\.br)/gi, '@$1sp.org.br');
+  t = t.replace(/@(adv\.oab)\s+(sp\.org\.br)/gi, '@$1sp.org.br');
+  t = t.replace(/@([A-Za-z0-9.-]+)\s*-\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '@$1$2');
+  t = t.replace(/@\s*gmail\s*\.\s*com/gi, '@gmail.com');
+  t = t.replace(/@\s*hotmail\s*\.\s*com/gi, '@hotmail.com');
+  t = t.replace(/@\s*outlook\s*\.\s*com/gi, '@outlook.com');
+  // "endereço eletrônico: x" colado
+  t = t.replace(/eletr[oô]nico:\s*/gi, 'eletrônico: ');
+
+  // OAB 249550/MG OCR: OAB 249550/MG or OAB 249550 / MG
+  t = t.replace(/\bOAB\s*[/:]?\s*(\d{2,7})\s*\/\s*([A-Z]{2})\b/gi, 'OAB $1/$2');
+  t = t.replace(/\bOAB\s+(\d{2,7})\s+([A-Z]{2})\b/gi, 'OAB $1/$2');
+
+  // S/A com OCR estranho
+  t = t.replace(/\$\/A\b/g, 'S/A');
+  t = t.replace(/S\s*\/\s*A\b/g, 'S/A');
+
+  // CPF/CNPJ com espaços
+  t = t.replace(/(\d{3})\s*\.\s*(\d{3})\s*\.\s*(\d{3})\s*-\s*(\d{2})/g, '$1.$2.$3-$4');
+  t = t.replace(/(\d{2})\s*\.\s*(\d{3})\s*\.\s*(\d{3})\s*\/\s*(\d{4})\s*-\s*(\d{2})/g, '$1.$2.$3/$4-$5');
+
+  // barras verticais de layout
+  t = t.replace(/\s*\|\s*/g, ' ');
   t = t.replace(/[ \t]{2,}/g, ' ');
   t = t.replace(/\n{3,}/g, '\n\n');
+
+  return t.trim();
+}
+
+export function cleanDocumentText(text: string): string {
+  let t = fixOcrArtifacts(String(text || ''));
+  t = t.replace(/\u0000/g, '');
   t = t.replace(/([|Il1]){6,}/g, '');
-  return dedupeNgramRepeats(t.trim());
+  return dedupeNgramRepeats(t);
 }
 
 /**
- * Pré-processa canvas estilo documento (contraste / escala cinza)
- * antes do reconhecimento — melhora taxa em prints de PJe/e-SAJ.
+ * Pré-processa canvas (contraste / cinza) antes do Tesseract.
  */
 export function enhanceCanvasForOcr(source: HTMLCanvasElement): HTMLCanvasElement {
   const w = source.width;
@@ -69,15 +100,15 @@ export function enhanceCanvasForOcr(source: HTMLCanvasElement): HTMLCanvasElemen
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
       const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      // contraste leve
-      const v = Math.max(0, Math.min(255, (g - 128) * 1.25 + 128));
+      const v = Math.max(0, Math.min(255, (g - 128) * 1.35 + 128));
       d[i] = d[i + 1] = d[i + 2] = v;
     }
     ctx.putImageData(img, 0, 0);
   } catch {
-    /* ignore security / tainted */
+    /* ignore */
   }
   return out;
 }
 
-export const INTERNAL_OCR_ENGINE_LABEL = 'Lexis Internal · pipeline Unlimited-OCR + Tesseract';
+export const INTERNAL_OCR_ENGINE_LABEL =
+  'Lexis Internal · Tesseract local + pós-processo jurídico';
