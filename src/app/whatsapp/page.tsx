@@ -93,6 +93,24 @@ function digitsPhone(t?: string | null) {
   return String(t || "").replace(/\D/g, "");
 }
 
+/** Telefone do caso com aliases comuns do banco/CSV */
+function casePhone(c?: { telefone?: string | null; phone?: string | null; celular?: string | null; whatsapp?: string | null } | null) {
+  if (!c) return "";
+  const raw =
+    c.telefone ||
+    (c as any).phone ||
+    (c as any).celular ||
+    (c as any).whatsapp ||
+    (c as any).TEL ||
+    (c as any).telefone_cliente ||
+    "";
+  return String(raw || "").trim();
+}
+
+function casePhoneDigits(c?: any) {
+  return digitsPhone(casePhone(c));
+}
+
 function caseLabel(c: LegalCase) {
   return c.cliente || c.protocolo || "Cliente";
 }
@@ -169,9 +187,33 @@ function WhatsAppTerminalInner() {
   const contacts = useMemo(() => {
     const term = q.trim().toLowerCase();
     const termDigits = term.replace(/\D/g, "");
-    const withPhone = cases.filter((c) => digitsPhone(c.telefone).length >= 8);
-    let base = withPhone.length ? withPhone : cases;
-    // Ordenação da lateral (não altera o contato selecionado)
+    // Sempre considera a carteira inteira (com e sem telefone) — senão a busca some nomes
+    let base = [...cases];
+    // Com busca: prioriza match de nome/protocolo/tel em TODOS
+    if (term) {
+      base = base.filter((c) => {
+        const nome = String(c.cliente || "").toLowerCase();
+        const proto = String(c.protocolo || "").toLowerCase();
+        const tel = casePhoneDigits(c);
+        const nomeNorm = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const termNorm = term.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return (
+          nome.includes(term) ||
+          nomeNorm.includes(termNorm) ||
+          proto.includes(term) ||
+          proto.replace(/\D/g, "").includes(termDigits) ||
+          (termDigits.length >= 3 && tel.includes(termDigits))
+        );
+      });
+    } else {
+      // Sem busca: mostra com telefone primeiro, depois sem (até 120)
+      base.sort((a, b) => {
+        const pa = casePhoneDigits(a).length >= 8 ? 0 : 1;
+        const pb = casePhoneDigits(b).length >= 8 ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return String(a.cliente || "").localeCompare(String(b.cliente || ""), "pt-BR");
+      });
+    }
     if (listSortMode !== "default") {
       const sorted = [...base].sort((a, b) => {
         const da = typeof a.diasFaltando === "number" ? a.diasFaltando! : 9999;
@@ -183,29 +225,22 @@ function WhatsAppTerminalInner() {
       });
       base = listSortMode === "mais_vencido" ? sorted : [...sorted].reverse();
     }
-    if (!term) return base.slice(0, 80);
-    return base
-      .filter((c) => {
-        const nome = String(c.cliente || "").toLowerCase();
-        const proto = String(c.protocolo || "").toLowerCase();
-        const tel = digitsPhone(c.telefone);
-        return (
-          nome.includes(term) ||
-          proto.includes(term) ||
-          (termDigits.length >= 4 && tel.includes(termDigits))
-        );
-      })
-      .slice(0, 80);
+    return base.slice(0, 120);
   }, [cases, q, listSortMode]);
 
   const loadHistory = useCallback(async (c: LegalCase) => {
     setHistLoading(true);
     setHistDiag("");
     try {
-      const diag = await diagnoseWhatsAppStorageAction(c.telefone || "");
+      const diag = await diagnoseWhatsAppStorageAction(casePhone(c) || "");
       if (diag?.hint) setHistDiag(String(diag.hint));
 
-      const res = await fetchWhatsAppHistoryAction(c.telefone || "");
+      const res = await fetchWhatsAppHistoryAction(casePhone(c) || "");
+      const junkSys = (body: string) =>
+        /deve aparecer no hist[oó]rico/i.test(body) ||
+        /^OK\s*[—\-–]/.test(body.trim()) ||
+        body.trim() === "OK";
+
       const fromDb: ChatMsg[] = (
         res?.success && Array.isArray(res.messages) ? res.messages : []
       )
@@ -223,12 +258,12 @@ function WhatsAppTerminalInner() {
             source: m.source || "db",
           };
         })
-        .filter((m) => m.body);
+        .filter((m) => m.body && !junkSys(m.body));
 
       // Histórico local (navegador) — não descarta ao recarregar
       let fromLocal: ChatMsg[] = [];
       try {
-        const key = `lexis_wa_local_${digitsPhone(c.telefone)}`;
+        const key = `lexis_wa_local_${casePhoneDigits(c) || String(c.protocolo || "").replace(/\D/g, "")}`;
         const raw =
           typeof window !== "undefined" ? localStorage.getItem(key) : null;
         if (raw) {
@@ -509,15 +544,35 @@ function WhatsAppTerminalInner() {
       let movimentos: any[] = tribunalMovimentos;
       let comunicacoes: any[] = djenComunicacoes;
       let caseData: LegalCase = target;
+      let res: any = null;
 
       // Scan só se pedido (botão Andamentos). Rascunho usa dados já no caso.
       if (opts?.scan) {
-        const res = await Promise.race([
-          scanSingleCaseAction(target.protocolo, { mode: "both", fast: true } as any),
-          new Promise((_, rej) =>
-            setTimeout(() => rej(new Error("Tempo esgotado no tribunal (25s)")), 25000)
-          ),
-        ]);
+        try {
+          res = await Promise.race([
+            scanSingleCaseAction(target.protocolo, { mode: "both", fast: true } as any),
+            new Promise((_, rej) =>
+              setTimeout(() => rej(new Error("TIMEOUT_TRIBUNAL")), 45000)
+            ),
+          ]);
+        } catch (e: any) {
+          // Continua com dados já no caso (não trava a UI)
+          const partial = {
+            movimentos: tribunalMovimentos,
+            comunicacoes: djenComunicacoes,
+            case: target,
+            success: false,
+            message: e?.message === "TIMEOUT_TRIBUNAL"
+              ? "Tribunal demorou (45s). Usando andamentos já salvos no caso."
+              : (e?.message || "Falha no scan"),
+          };
+          toast({
+            title: "Andamentos (offline/parcial)",
+            description: partial.message,
+          });
+          res = partial;
+        }
+        if (!res) res = { case: target };
         movimentos = Array.isArray((res as any).movimentos)
           ? (res as any).movimentos.slice(0, 40)
           : [];
@@ -535,7 +590,7 @@ function WhatsAppTerminalInner() {
       const scripts = buildScriptsFromCase(caseData, movimentos, comunicacoes);
       setWaScripts(scripts);
 
-      if (opts?.scan) {
+      if (opts?.scan && !(res as any)?.message) {
         toast({
           title: "Contexto do tribunal",
           description: `${movimentos.length} andamento(s) · ${comunicacoes.length} DJEN · ${scripts.length} script(s)`,
@@ -691,16 +746,16 @@ function WhatsAppTerminalInner() {
   };
 
   const openWaMe = () => {
-    if (!selected?.telefone || !draft.trim()) {
-      toast({ title: "Selecione contato e texto", variant: "destructive" });
+    if (!selected || casePhoneDigits(selected).length < 8 || !draft.trim()) {
+      toast({ title: "Selecione contato com telefone e texto", description: "Cadastre o telefone em Processos se estiver faltando.", variant: "destructive" });
       return;
     }
     if (!confirmIfDuplicate()) {
       toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
       return;
     }
-    openWhatsAppClient({ phone: selected.telefone, text: draft.trim() });
-    void logOutboundWhatsAppAction(selected.telefone, draft.trim());
+    openWhatsAppClient({ phone: casePhone(selected), text: draft.trim() });
+    void logOutboundWhatsAppAction(casePhone(selected), draft.trim());
     const msg: ChatMsg = {
       id: `local-${Date.now()}`,
       direction: "out",
@@ -710,7 +765,7 @@ function WhatsAppTerminalInner() {
     };
     const next = [...history.filter((h) => h.direction !== "system"), msg];
     setHistory(next);
-    persistLocal(selected.telefone, next);
+    persistLocal(casePhone(selected) || selected.protocolo, next);
     toast({
       title: "WhatsApp aberto",
       description: "Revise e envie no app do celular/desktop.",
@@ -718,7 +773,7 @@ function WhatsAppTerminalInner() {
   };
 
   const sendViaEvolution = async () => {
-    if (!selected?.telefone || !draft.trim()) return;
+    if (!selected || casePhoneDigits(selected).length < 8 || !draft.trim()) return;
     if (sending) return;
     if (!confirmIfDuplicate()) {
       toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
@@ -727,7 +782,7 @@ function WhatsAppTerminalInner() {
     setSending(true);
     try {
       const res = await Promise.race([
-        sendWhatsAppAction(selected.telefone, draft.trim()),
+        sendWhatsAppAction(casePhone(selected), draft.trim()),
         new Promise<{ success: false; message: string }>((resolve) =>
           setTimeout(
             () => resolve({ success: false, message: "Tempo esgotado (25s). Tente wa.me ou verifique a Evolution." }),
@@ -746,7 +801,7 @@ function WhatsAppTerminalInner() {
         };
         const next = [...history.filter((h) => h.direction !== "system"), msg];
         setHistory(next);
-        persistLocal(selected.telefone, next);
+        persistLocal(casePhone(selected) || selected.protocolo, next);
         setDraft("");
         if ((res as any).persisted === false) {
           toast({
@@ -939,7 +994,7 @@ function WhatsAppTerminalInner() {
                         {selected.cliente}
                       </p>
                       <p className="text-[10px] text-muted-foreground tabular-nums truncate">
-                        {selected.protocolo} · {selected.telefone || "sem tel."}
+                        {selected.protocolo} · {casePhone(selected) || "sem telefone — cadastre em Processos"}
                         {selected.ultimoRetorno
                           ? ` · retorno ${selected.ultimoRetorno}`
                           : ""}
@@ -989,6 +1044,17 @@ function WhatsAppTerminalInner() {
                         )}
                         Andamentos
                       </Button>
+
+                    {selected && casePhoneDigits(selected).length < 8 ? (
+                      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-950 dark:text-amber-100">
+                        <p className="font-black uppercase text-[10px] tracking-wide mb-0.5">Telefone ausente</p>
+                        <p>
+                          Este cliente está sem número válido. Importar Evolution, limpar histórico e enviar pela API ficam bloqueados.
+                          Edite o telefone na aba <strong>Processos</strong> e volte aqui.
+                        </p>
+                      </div>
+                    ) : null}
+
                       <Button
                         type="button"
                         size="sm"
@@ -1009,7 +1075,7 @@ function WhatsAppTerminalInner() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-60">
                           <DropdownMenuItem
-                            disabled={!selected?.telefone || histLoading}
+                            disabled={!selected || casePhoneDigits(selected).length < 8 || histLoading}
                             onClick={async () => {
                               if (!selected?.telefone) {
                                 toast({ title: "Cliente sem telefone", variant: "destructive" });
@@ -1017,7 +1083,7 @@ function WhatsAppTerminalInner() {
                               }
                               setHistLoading(true);
                               try {
-                                const r: any = await importEvolutionHistoryAction(selected.telefone);
+                                const r: any = await importEvolutionHistoryAction(casePhone(selected));
                                 if (r.success) {
                                   toast({
                                     title: "Histórico importado",
@@ -1053,12 +1119,12 @@ function WhatsAppTerminalInner() {
                             Importar Evolution (este número)
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            disabled={!selected?.telefone}
+                            disabled={!selected || casePhoneDigits(selected).length < 8}
                             className="text-destructive focus:text-destructive"
                             onClick={async () => {
                               if (!selected?.telefone) return;
                               if (!confirm("Apagar do Supabase o histórico deste telefone?")) return;
-                              const r: any = await clearWhatsAppHistoryAction(selected.telefone);
+                              const r: any = await clearWhatsAppHistoryAction(casePhone(selected));
                               if (r.success) {
                                 toast({ title: "Histórico limpo", description: `${r.deleted ?? 0} removida(s)` });
                                 setHistory([]);
@@ -1071,10 +1137,10 @@ function WhatsAppTerminalInner() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            disabled={!selected?.telefone}
+                            disabled={!selected || casePhoneDigits(selected).length < 8}
                             onClick={async () => {
                               if (!selected?.telefone) return;
-                              const r: any = await testSaveWhatsAppMessageAction(selected.telefone);
+                              const r: any = await testSaveWhatsAppMessageAction(casePhone(selected));
                               toast({
                                 title: r.success ? "Teste OK" : "Teste falhou",
                                 description: r.success ? `${r.count} msg` : r.error,
@@ -1285,7 +1351,7 @@ function WhatsAppTerminalInner() {
                         size="sm"
                         className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
                         onClick={sendViaEvolution}
-                        disabled={sending || !draft.trim() || !selected?.telefone}
+                        disabled={sending || !draft.trim() || !selected || casePhoneDigits(selected).length < 8}
                       >
                         {sending ? (
                           <Loader2 size={14} className="animate-spin" />
