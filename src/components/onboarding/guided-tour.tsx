@@ -37,8 +37,8 @@ import {
   DollarSign,
   Globe,
   CheckCircle2,
-} from "lucide-react,
-  Target";
+  Target,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/use-app-store";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,7 @@ interface TourStep {
   dicas?: string[];
 }
 
-const TOUR_STEPS: TourStep[
+const TOUR_STEPS: TourStep[] = [
   {
     title: "Rotina do dia (operador)",
     content:
@@ -74,7 +74,6 @@ const TOUR_STEPS: TourStep[
       "Encerrar processo atualiza ultimo retorno automaticamente.",
     ],
   },
-] = [
   {
     title: "Bem-vindo ao LexisPredict",
     content:
