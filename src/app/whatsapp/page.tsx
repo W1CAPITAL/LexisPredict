@@ -52,6 +52,7 @@ import {
 import {
   sendWhatsAppAction,
   fetchWhatsAppHistoryAction,
+  logOutboundWhatsAppAction,
 } from "@/app/actions/whatsapp-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
@@ -527,6 +528,7 @@ function WhatsAppTerminalInner() {
       return;
     }
     openWhatsAppClient({ phone: selected.telefone, text: draft.trim() });
+    void logOutboundWhatsAppAction(selected.telefone, draft.trim());
     const msg: ChatMsg = {
       id: `local-${Date.now()}`,
       direction: "out",

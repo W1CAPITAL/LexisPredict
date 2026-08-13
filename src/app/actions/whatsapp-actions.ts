@@ -14,11 +14,34 @@ export async function sendWhatsAppAction(to: string, message: string) {
   if (!result.ok) {
     return { success: false, message: result.error || 'Falha no envio' };
   }
+  const phone = normalizeBrPhone(to);
+  const ts = new Date().toISOString();
+  // Grava OUTBOUND no Supabase (independente do webhook Evolution)
+  try {
+    const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
+    const { getUserContext } = await import('@/lib/server-db');
+    let empresaId: string | null = null;
+    try {
+      const ctx = await getUserContext();
+      empresaId = ctx.empresa_id || null;
+    } catch { /* */ }
+    await persistWhatsAppMessage({
+      contactNumber: phone,
+      messageText: message,
+      fromMe: true,
+      source: 'lexis-send',
+      timestamp: ts,
+      empresaId,
+      raw: result.raw,
+    });
+  } catch (e) {
+    console.error('[whatsapp] falha ao persistir outbound', e);
+  }
   return {
     success: true,
     data: result.raw,
-    timestamp: new Date().toISOString(),
-    phone: normalizeBrPhone(to),
+    timestamp: ts,
+    phone,
   };
 }
 
@@ -123,5 +146,29 @@ export async function generateWhatsAppClaudeDraftAction(input: {
     };
   } catch (e: any) {
     return { success: false as const, error: e?.message || 'Falha Claude' };
+  }
+}
+
+
+/** Grava mensagem enviada via wa.me (sem Evolution) no Supabase. */
+export async function logOutboundWhatsAppAction(to: string, message: string) {
+  try {
+    const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
+    const { getUserContext } = await import('@/lib/server-db');
+    let empresaId: string | null = null;
+    try {
+      const ctx = await getUserContext();
+      empresaId = ctx.empresa_id || null;
+    } catch { /* */ }
+    const res = await persistWhatsAppMessage({
+      contactNumber: normalizeBrPhone(to),
+      messageText: message,
+      fromMe: true,
+      source: 'wa.me',
+      empresaId,
+    });
+    return { success: res.ok, message: res.error };
+  } catch (e: any) {
+    return { success: false, message: e?.message };
   }
 }

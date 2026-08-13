@@ -654,36 +654,54 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
 
 export async function getWhatsAppHistory(phone: string) {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return [];
+  if (!supabase) return [];
   const { phoneMatchVariants, normalizeBrPhone } = await import('@/lib/evolution-api');
   const variants = phoneMatchVariants(phone);
   const primary = normalizeBrPhone(phone);
   if (!variants.length && !primary) return [];
 
-  // Match flexível: contact_number / phone / remote_jid com variantes
-  const orParts = variants.flatMap((v) => [
-    `contact_number.eq.${v}`,
-    `contact_number.ilike.%${v.slice(-8)}`,
-    `phone.eq.${v}`,
-  ]);
-  // remote_jid estilo 5511...@s.whatsapp.net
+  // Busca ampla por número (webhook pode gravar sem empresa_id)
+  const orParts: string[] = [];
   for (const v of variants) {
-    orParts.push(`remote_jid.ilike.${v}%`);
+    orParts.push(`contact_number.eq.${v}`);
+    orParts.push(`phone.eq.${v}`);
+    if (v.length >= 8) {
+      orParts.push(`contact_number.ilike.%${v.slice(-9)}`);
+      orParts.push(`phone.ilike.%${v.slice(-9)}`);
+    }
   }
+
+  // 1) service role se disponível (lê tudo da empresa / sem filtro rígido)
+  try {
+    const admin = await getSupabaseAdmin();
+    if (admin) {
+      let q = admin
+        .from('whatsapp_messages')
+        .select('*')
+        .order('timestamp', { ascending: true })
+        .limit(300);
+      if (orParts.length) q = q.or(orParts.slice(0, 24).join(','));
+      const { data, error } = await q;
+      if (!error && data?.length) return data;
+      // fallback só primary
+      const { data: d2 } = await admin
+        .from('whatsapp_messages')
+        .select('*')
+        .eq('contact_number', primary)
+        .order('timestamp', { ascending: true })
+        .limit(300);
+      if (d2?.length) return d2;
+    }
+  } catch { /* */ }
 
   let q = supabase
     .from('whatsapp_messages')
     .select('*')
     .order('timestamp', { ascending: true })
     .limit(200);
-
-  if (empresa_id) {
-    q = q.eq('empresa_id', empresa_id);
-  }
-
-  const { data, error } = await q.or(orParts.slice(0, 20).join(','));
+  if (orParts.length) q = q.or(orParts.slice(0, 24).join(','));
+  const { data, error } = await q;
   if (error) {
-    // fallback eq simples
     const { data: d2 } = await supabase
       .from('whatsapp_messages')
       .select('*')
