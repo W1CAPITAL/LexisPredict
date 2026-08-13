@@ -23,6 +23,7 @@ import {
   AlertCircle,
   ChevronRight,
   User,
+  UserCheck,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,8 @@ import {
   sendWhatsAppAction,
   fetchWhatsAppHistoryAction,
 } from "@/app/actions/whatsapp-actions";
+import { registrarAtendimentoAction } from "@/app/actions/case-actions";
+import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
 import { plainTextFromDjen } from "@/lib/djen";
 import type { LegalCase } from "@/lib/case-logic";
@@ -95,6 +98,7 @@ function WhatsAppTerminalInner() {
   const [histLoading, setHistLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
+  const [attSaving, setAttSaving] = useState(false);
 
   const loadCases = useCallback(async () => {
     setLoading(true);
@@ -183,7 +187,19 @@ function WhatsAppTerminalInner() {
         indicio_busca_apreensao: selected.indicio_busca_apreensao,
         datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
         em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
-        movimentos: [],
+        movimentos: [
+          {
+            nome: selected.datajud_ultimo_nome || selected.evento_tipo || '',
+            complemento: selected.evento_resumo || selected.djen_ultimo_resumo || '',
+            descricao: plainTextFromDjen(String((selected as any).djen_ultimo_texto || selected.djen_ultimo_resumo || '')),
+            dataHora:
+              (selected as any).datajud_ultima_data ||
+              (selected as any).datajud_ultimo_data ||
+              (selected as any).djen_ultima_data ||
+              selected.ultimoRetorno ||
+              '',
+          },
+        ],
       });
 
       // Tom WhatsApp: remove linhas vazias excessivas e limita tamanho
@@ -260,6 +276,56 @@ function WhatsAppTerminalInner() {
     setDraft("");
     loadHistory(c);
   };
+
+  const todayBR = () => new Date().toLocaleDateString("pt-BR");
+
+  /** Marca último atendimento (mesmo fluxo operacional de Tarefas/Processos). */
+  const registerAttendance = async () => {
+    if (!selected || attSaving) return;
+    setAttSaving(true);
+    try {
+      const hoje = todayBR();
+      const updated: LegalCase = {
+        ...selected,
+        ultimoRetorno: hoje,
+        tem_novo_andamento: false,
+        djen_nova_comunicacao: false,
+        tem_atualizacao_pos_retorno: false,
+      };
+      const res = await saveOneCaseAction(updated);
+      if (res.success) {
+        await registrarAtendimentoAction([selected.protocolo], {
+          situacao: selected.situacao || "EM ANDAMENTO",
+          via: "whatsapp-terminal",
+          observacao: draft.trim() ? `WA: ${draft.trim().slice(0, 200)}` : "Contato via terminal WhatsApp",
+        });
+        setSelected(updated);
+        setCases((prev) =>
+          prev.map((c) => (c.protocolo === selected.protocolo ? { ...c, ultimoRetorno: hoje } : c))
+        );
+        toast({ title: "Atendimento registrado", description: `${selected.cliente} · ${hoje}` });
+      } else {
+        toast({ title: "Falha ao registrar", description: res.message, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message || "Não foi possível salvar", variant: "destructive" });
+    } finally {
+      setAttSaving(false);
+    }
+  };
+
+  const applyBestSuggestion = () => {
+    if (!suggestions.length) {
+      toast({
+        title: "Sem script automático",
+        description: "Nenhuma sugestão forte para este andamento. Use o rascunho livre.",
+      });
+      return;
+    }
+    setDraft(suggestions[0].texto);
+    toast({ title: "Sugestão aplicada", description: suggestions[0].titulo });
+  };
+
 
   // Deep link: /whatsapp?protocolo=&cliente=&tel= (vindo de Tarefas/Processos)
   useEffect(() => {
@@ -564,7 +630,38 @@ function WhatsAppTerminalInner() {
                   )}
                 </ScrollArea>
 
+                
+                {/* Ações operacionais — iguais Tarefas/Processos */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 bg-amber-500 hover:bg-amber-600 text-black"
+                    onClick={applyBestSuggestion}
+                    disabled={!selected}
+                  >
+                    <Sparkles size={14} /> Sugerir resposta
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                    onClick={registerAttendance}
+                    disabled={!selected || attSaving}
+                  >
+                    {attSaving ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
+                    Registrar atendimento
+                  </Button>
+                  {selected?.ultimoRetorno ? (
+                    <span className="self-center text-[9px] font-bold uppercase text-muted-foreground">
+                      Último retorno: {selected.ultimoRetorno}
+                    </span>
+                  ) : null}
+                </div>
+
                 {/* Sugestões por tribunal */}
+{/* Sugestões por tribunal */}
                 {suggestions.length > 0 && (
                   <div className="shrink-0 border-t border-border/40 bg-muted/20 px-4 py-3">
                     <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">

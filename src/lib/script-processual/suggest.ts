@@ -116,6 +116,41 @@ function extractValorCustas(U: string): string | null {
   return null;
 }
 
+
+function parseAnyDate(raw?: string | null): Date | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+  const t = Date.parse(s);
+  if (!Number.isNaN(t)) return new Date(t);
+  return null;
+}
+
+/** Dias desde a intimação de AJG mais antiga nos movimentos/textos datados. */
+function findAjgIntimacaoAgeDays(input: ScriptInput): number | null {
+  const dates: Date[] = [];
+  for (const m of input.movimentos || []) {
+    const blob = `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase();
+    if (!/(JUSTI[CÇ]A\s+GRATUITA|GRATUIDADE|HIPOSSUFICI|CONTRACHEQUE|DECLARA[CÇ][AÃ]O\s+DE\s+RENDA)/i.test(blob)) {
+      continue;
+    }
+    const d = parseAnyDate(m.dataHora || (m as any).data || (m as any).data_hora);
+    if (d) dates.push(d);
+  }
+  // dataDisponibilizacao em djenTexts não costuma vir; tenta data no próprio input
+  const extra = (input as any).djen_data || (input as any).dataDisponibilizacao;
+  if (extra) {
+    const d = parseAnyDate(extra);
+    if (d) dates.push(d);
+  }
+  if (!dates.length) return null;
+  const oldest = dates.reduce((a, b) => (a < b ? a : b));
+  return Math.floor((Date.now() - oldest.getTime()) / 86400000);
+}
+
 function extractPrazoDias(U: string): string | null {
   const m = U.match(/prazo\s+de\s+(\d+)\s*\(?\s*dias?/i);
   return m ? m[1] : null;
@@ -481,27 +516,61 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
       (input.movimentos && input.movimentos.length > 0);
     
   // Intimação de justiça gratuita com prazo para documentos
+  // Se o prazo (ex.: 15 dias) já se esgotou e não há novidade recente → NÃO pedir docs de novo:
+  // o cenário usual é "documentação enviada / prazo expirou → aguardando decisão do juiz".
   if (
     /(JUSTI[CÇ]A\s+GRATUITA|GRATUIDADE\s+DA\s+JUSTI[CÇ]A)/i.test(U) &&
-    /(PRAZO\s+DE\s+\d+|APRESENTE|DECLARA[CÇ]|EXTRATOS\s+BANC)/i.test(U)
+    /(PRAZO\s+DE\s+\d+|APRESENTE|DECLARA[CÇ]|EXTRATOS\s+BANC|CONTRACHEQUE|HIPOSSUFICI)/i.test(U)
   ) {
-    const prazoJg = extractPrazoDias(U) || '15';
-    out.push({
-      id: 'intimacao_jg_docs',
-      categoria: 'intimacao_justica_gratuita',
-      titulo: 'Intimação — Justiça Gratuita (documentos)',
-      quandoUsar: 'Despacho intimando a juntar provas de hipossuficiência',
-      texto: [
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        `No processo nº ${cnj}, o tribunal intimou sobre o pedido de Justiça Gratuita.`,
-        `Foi aberto prazo de ${prazoJg} dias para juntar documentos que comprovem a necessidade do benefício (declarações de renda/bens, extratos etc.), ou, alternativamente, recolher o preparo.`,
-        ``,
-        `Nossa equipe já está orientando a providência. Assim que tivermos o checklist objetivo do que precisa ser enviado, te avisamos.`,
-        ``,
-        `Setor Processual — Get Assessoria`,
-      ].join('\n'),
-    });
+    const prazoJgNum = Number(extractPrazoDias(U) || '15') || 15;
+    const ageDays = findAjgIntimacaoAgeDays(input);
+    const temNovidadeRecente = !!(
+      input.tem_novo_andamento ||
+      input.tem_atualizacao_pos_retorno ||
+      input.djen_nova_comunicacao
+    );
+    // Prazo esgotado: idade conhecida > prazo+3 OU (sem data mas sem flag de novidade = não alarme o cliente)
+    const prazoEsgotado =
+      (ageDays != null && ageDays > prazoJgNum + 3) ||
+      (ageDays == null && !temNovidadeRecente);
+
+    if (prazoEsgotado) {
+      out.push({
+        id: 'intimacao_jg_aguardando_juizo',
+        categoria: 'intimacao_justica_gratuita',
+        titulo: 'AJG — prazo findado · aguardando juízo',
+        quandoUsar: 'Intimação antiga de documentos AJG; sem ato novo → não cobrar cliente',
+        texto: [
+          `Olá, ${nome}! Tudo bem?`,
+          ``,
+          `Sobre o processo nº ${cnj}: houve intimação para documentos da Justiça Gratuita, com prazo que já se encerrou.`,
+          ``,
+          `Neste momento não há nova cobrança de documentos para você. O processo segue com o juiz para deliberar sobre o benefício (deferir, indeferir ou pedir algo a mais).`,
+          ``,
+          `Nossa equipe continua monitorando. Qualquer decisão ou intimação nova, te avisamos de imediato.`,
+          ``,
+          `Setor Processual — Get Assessoria`,
+        ].join('\n'),
+      });
+    } else {
+      const prazoJg = String(prazoJgNum);
+      out.push({
+        id: 'intimacao_jg_docs',
+        categoria: 'intimacao_justica_gratuita',
+        titulo: 'Intimação — Justiça Gratuita (documentos)',
+        quandoUsar: 'Despacho recente intimando a juntar provas de hipossuficiência',
+        texto: [
+          `Olá, ${nome}! Tudo bem?`,
+          ``,
+          `No processo nº ${cnj}, o tribunal intimou sobre o pedido de Justiça Gratuita.`,
+          `Há prazo de ${prazoJg} dias para juntar documentos que comprovem a necessidade do benefício (declaração, contracheques/rendimentos, IR etc.), se ainda não tiverem sido enviados.`,
+          ``,
+          `Se você já encaminhou essa documentação conosco, pode desconsiderar o pedido — estamos aguardando a análise do juiz. Caso ainda falte algo, nossa equipe te orienta no checklist.`,
+          ``,
+          `Setor Processual — Get Assessoria`,
+        ].join('\n'),
+      });
+    }
   }
 
   // Monitoramento regular / sem ato relevante

@@ -128,6 +128,7 @@ export default function TarefasPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // filtros persistidos entre abas
   const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
@@ -182,6 +183,30 @@ export default function TarefasPage() {
       try { setContatadosHoje(JSON.parse(savedContatados)); } catch (e) { setContatadosHoje([]); }
     }
   }, []);
+
+  // Persistir filtros (não perdem ao trocar de aba)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('lexis_tarefas_filters_v1');
+      if (!raw) return;
+      const f = JSON.parse(raw);
+      if (f.search != null) setSearch(String(f.search));
+      if (f.officeFilter) setOfficeFilter(String(f.officeFilter));
+      if (f.lawyerFilter) setLawyerFilter(String(f.lawyerFilter));
+      if (f.filaFiltro) setFilaFiltro(f.filaFiltro);
+      if (f.sortPrazo) setSortPrazo(f.sortPrazo);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'lexis_tarefas_filters_v1',
+        JSON.stringify({ search, officeFilter, lawyerFilter, filaFiltro, sortPrazo })
+      );
+    } catch { /* ignore */ }
+  }, [search, officeFilter, lawyerFilter, filaFiltro, sortPrazo]);
+
 
   const adjustMeta = (amount: number) => {
     const newVal = Math.max(10, Math.min(100, dailyMeta + amount));

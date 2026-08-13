@@ -155,6 +155,27 @@ export default function ProcessosEmpresaPage() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem('lexis_processos_filters_v1');
+      if (!raw) return;
+      const f = JSON.parse(raw);
+      if (f.q != null) setQ(String(f.q));
+      if (f.statusFilter != null) setStatusFilter(String(f.statusFilter));
+      if (typeof f.baOnly === 'boolean') setBaOnly(f.baOnly);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'lexis_processos_filters_v1',
+        JSON.stringify({ q, statusFilter, baOnly })
+      );
+    } catch { /* ignore */ }
+  }, [q, statusFilter, baOnly]);
+
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
