@@ -31,6 +31,7 @@ import { Users,
   CalendarClock,
   ShieldCheck, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -354,9 +355,7 @@ export default function SupervisaoPage() {
                           <tr key={op.nome} className="hover:bg-secondary/10 transition-colors group">
                             <td className="px-6 py-3">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-black text-[10px] uppercase shrink-0">
-                                  {op.nome.slice(0, 2)}
-                                </div>
+                                <UserAvatar name={op.nome} src={avatarByName.get(String(op.nome||"").toUpperCase()) || (op as any).avatar_url} size="sm" />
                                 <span className="text-[11px] font-black uppercase group-hover:text-primary transition-colors">{op.nome}</span>
                               </div>
                             </td>
@@ -400,9 +399,7 @@ export default function SupervisaoPage() {
                       (snap.porUsuario || []).map((ug: any) => (
                         <details key={ug.key} className="group">
                           <summary className="cursor-pointer list-none px-5 py-4 flex flex-wrap items-center gap-3 hover:bg-secondary/20 transition-colors">
-                            <div className="w-9 h-9 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[11px] font-black shrink-0">
-                              {String(ug.nome || "?").slice(0, 2).toUpperCase()}
-                            </div>
+                            <UserAvatar name={ug.nome} src={avatarByName.get(String(ug.nome||"").toUpperCase()) || (ug as any).avatar_url} size="md" />
                             <div className="min-w-0 flex-1">
                               <p className="text-[12px] font-black uppercase tracking-tight truncate">{ug.nome}</p>
                               <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">

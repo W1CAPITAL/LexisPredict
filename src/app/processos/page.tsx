@@ -46,6 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -123,7 +124,7 @@ export default function ProcessosEmpresaPage() {
   const { toast } = useToast();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
-  const [users, setUsers] = useState<{ auth_user_id: string; nome: string }[]>([]);
+  const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -309,6 +310,14 @@ export default function ProcessosEmpresaPage() {
   const nomeByAuth = useMemo(() => {
     const m = new Map<string, string>();
     for (const u of users) m.set(u.auth_user_id, u.nome);
+    return m;
+  }, [users]);
+
+  const avatarByAuth = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const u of users) {
+      if (u.auth_user_id) m.set(u.auth_user_id, u.avatar_url || null);
+    }
     return m;
   }, [users]);
 
@@ -535,7 +544,17 @@ export default function ProcessosEmpresaPage() {
                                 )}
                               />
                             </td>
-                            <td className="px-4 py-3 text-[10px] font-bold uppercase">{nomeByAuth.get(String(c.created_by || "")) || "—"}</td>
+                            <td className="px-4 py-3 text-[10px] font-bold uppercase">{(() => {
+                              const nm = nomeByAuth.get(String(c.created_by || "")) || "";
+                              const av = avatarByAuth.get(String(c.created_by || ""));
+                              if (!nm) return "—";
+                              return (
+                                <span className="inline-flex items-center gap-2 justify-start">
+                                  <UserAvatar name={nm} src={av} size="sm" />
+                                  <span className="truncate max-w-[120px]">{nm}</span>
+                                </span>
+                              );
+                            })()}</td>
                             <td className="px-6 py-3">
                               {meta && last ? (
                                 <div className="flex items-center gap-2">

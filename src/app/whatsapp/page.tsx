@@ -426,79 +426,374 @@ function WhatsAppTerminalInner() {
     }
   };
 
-  const loadTribunalContext = async (c?: LegalCase | null) => {
+  /** Scripts locais a partir do caso (sem scan) — rápido como em Tarefas */
+  const buildScriptsFromCase = useCallback((caseData: LegalCase, movimentos: any[] = [], comunicacoes: any[] = []) => {
+    const djenTexts = comunicacoes
+      .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ""))
+      .filter(Boolean);
+    const scripts = suggestScripts({
+      clienteNome: caseData.cliente,
+      protocolo: caseData.protocolo,
+      ultimoRetorno: caseData.ultimoRetorno,
+      evento_tipo: (caseData as any).evento_tipo,
+      evento_resumo: (caseData as any).evento_resumo,
+      djen_ultimo_resumo: (caseData as any).djen_ultimo_resumo,
+      datajud_ultimo_nome: (caseData as any).datajud_ultimo_nome,
+      djenTexts: djenTexts.length
+        ? djenTexts
+        : [(caseData as any).djen_ultimo_resumo, (caseData as any).evento_resumo].filter(Boolean).map(String),
+      movimentos,
+      tem_novo_andamento: !!(caseData as any).tem_novo_andamento,
+      tem_atualizacao_pos_retorno: !!(caseData as any).tem_atualizacao_pos_retorno,
+      djen_nova_comunicacao: !!(caseData as any).djen_nova_comunicacao,
+      datajud_encerrado_tribunal: !!(caseData as any).datajud_encerrado_tribunal,
+      indicio_busca_apreensao: !!(caseData as any).indicio_busca_apreensao,
+      em_cumprimento_sentenca: !!(caseData as any).em_cumprimento_sentenca,
+    });
+    return scripts.map((s, idx) => ({
+      id: String((s as any).id || `script-${idx}`),
+      titulo: String(s.titulo || "Sugestão"),
+      texto: String(s.texto || "").replace(/\n{3,}/g, "\n\n").trim().slice(0, 1200),
+      quandoUsar: s.quandoUsar ? String(s.quandoUsar) : undefined,
+    }));
+  }, []);
+
+  const loadTribunalContext = async (
+    c?: LegalCase | null,
+    opts?: { scan?: boolean }
+  ): Promise<{
+    caseData: LegalCase;
+    movimentos: any[];
+    comunicacoes: any[];
+    scripts: { id: string; titulo: string; texto: string; quandoUsar?: string }[];
+  } | null> => {
     const target = c || selected;
     if (!target?.protocolo) {
       toast({ title: "Selecione um processo", variant: "destructive" });
-      return;
+      return null;
     }
     setLoadingTribunal(true);
-    setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(target.protocolo, {
-        mode: "both",
-        fast: false,
-      });
-      const movimentos = Array.isArray((res as any).movimentos)
-        ? (res as any).movimentos.slice(0, 40)
-        : [];
-      const comunicacoes = Array.isArray((res as any).comunicacoes)
-        ? (res as any).comunicacoes
-        : [];
-      const caseData = (res as any).case || target;
+      let movimentos: any[] = tribunalMovimentos;
+      let comunicacoes: any[] = djenComunicacoes;
+      let caseData: LegalCase = target;
 
-      setTribunalMovimentos(movimentos);
-      setDjenComunicacoes(comunicacoes);
-      if (caseData?.protocolo) {
-        setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
+      // Scan só se pedido (botão Andamentos). Rascunho usa dados já no caso.
+      if (opts?.scan) {
+        const res = await Promise.race([
+          scanSingleCaseAction(target.protocolo, { mode: "both", fast: true } as any),
+          new Promise((_, rej) =>
+            setTimeout(() => rej(new Error("Tempo esgotado no tribunal (25s)")), 25000)
+          ),
+        ]);
+        movimentos = Array.isArray((res as any).movimentos)
+          ? (res as any).movimentos.slice(0, 40)
+          : [];
+        comunicacoes = Array.isArray((res as any).comunicacoes)
+          ? (res as any).comunicacoes
+          : [];
+        caseData = { ...target, ...((res as any).case || {}) };
+        setTribunalMovimentos(movimentos);
+        setDjenComunicacoes(comunicacoes);
+        if (caseData?.protocolo) {
+          setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
+        }
       }
 
-      const djenTexts = comunicacoes
-        .map((d: any) =>
-          plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || "")
-        )
-        .filter(Boolean);
+      const scripts = buildScriptsFromCase(caseData, movimentos, comunicacoes);
+      setWaScripts(scripts);
 
-      const scripts = suggestScripts({
-        clienteNome: caseData.cliente || target.cliente,
-        protocolo: target.protocolo,
-        ultimoRetorno: target.ultimoRetorno || caseData.ultimoRetorno,
-        evento_tipo: caseData.evento_tipo,
-        evento_resumo: caseData.evento_resumo,
-        djen_ultimo_resumo: caseData.djen_ultimo_resumo,
-        datajud_ultimo_nome: caseData.datajud_ultimo_nome,
-        djenTexts,
-        movimentos,
-        tem_novo_andamento: !!caseData.tem_novo_andamento,
-        tem_atualizacao_pos_retorno: !!caseData.tem_atualizacao_pos_retorno,
-        djen_nova_comunicacao: !!caseData.djen_nova_comunicacao,
-        datajud_encerrado_tribunal: !!caseData.datajud_encerrado_tribunal,
-        indicio_busca_apreensao: !!caseData.indicio_busca_apreensao,
-        em_cumprimento_sentenca: !!caseData.em_cumprimento_sentenca,
-      });
-
-      setWaScripts(
-        scripts.map((s, idx) => ({
-          id: String(s.id || `script-${idx}`),
-          titulo: String(s.titulo || "Sugestão"),
-          texto: String(s.texto || "")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim()
-            .slice(0, 1200),
-          quandoUsar: s.quandoUsar ? String(s.quandoUsar) : undefined,
-        }))
-      );
-
-      toast({
-        title: "Contexto do tribunal",
-        description: `${movimentos.length} andamento(s) · ${comunicacoes.length} DJEN · ${scripts.length} script(s)`,
-      });
+      if (opts?.scan) {
+        toast({
+          title: "Contexto do tribunal",
+          description: `${movimentos.length} andamento(s) · ${comunicacoes.length} DJEN · ${scripts.length} script(s)`,
+        });
+      }
+      return { caseData, movimentos, comunicacoes, scripts };
     } catch (e: any) {
+      // Fallback: scripts só com o que já está no caso
+      const scripts = buildScriptsFromCase(target, [], []);
+      setWaScripts(scripts);
       toast({
-        title: "Falha ao carregar andamentos",
-        description: e?.message || "Tente de novo",
+        title: "Contexto parcial",
+        description: e?.message || "Usando dados do cadastro (sem scan completo)",
         variant: "destructive",
       });
+      return { caseData: target, movimentos: [], comunicacoes: [], scripts };
+    } finally {
+      setLoadingTribunal(false);
+    }
+  };
+
+  const handleGenerateAIDraft = async () => {
+    if (!selected || isGeneratingAIDraft) return;
+    setIsGeneratingAIDraft(true);
+    setAiDraft(null);
+    try {
+      // 1) Scripts locais IMEDIATOS (igual Tarefas) — não espera scan
+      const localScripts =
+        waScripts.length > 0
+          ? waScripts
+          : buildScriptsFromCase(selected, tribunalMovimentos, djenComunicacoes);
+      if (localScripts.length && !waScripts.length) setWaScripts(localScripts);
+
+      if (selectedMotor === "local_only") {
+        const text = localScripts[0]?.texto || "";
+        if (text) {
+          setAiDraft(text);
+          setDraft(text);
+          toast({ title: "Script Lexis", description: "Pronto (sem API)" });
+        } else {
+          toast({ title: "Sem script", description: "Cadastro sem contexto suficiente", variant: "destructive" });
+        }
+        return;
+      }
+
+      // 2) Motor externo com timeout — não trava a UI
+      const res = await Promise.race([
+        gerarRascunhoEstrategico({
+          clienteNome: selected.cliente,
+          protocolo: selected.protocolo,
+          ultimoRetorno: selected.ultimoRetorno,
+          movimentos: tribunalMovimentos,
+          djenTexts: [
+            ...djenComunicacoes.map((d: any) => plainTextFromDjen(d.texto || d.conteudo || "")).filter(Boolean),
+            selected.djen_ultimo_resumo,
+            selected.evento_resumo,
+          ]
+            .filter(Boolean)
+            .map(String),
+          eventoTipo: selected.evento_tipo,
+          eventoResumo: selected.evento_resumo,
+          preferredModel: selectedMotor,
+          tem_novo_andamento: selected.tem_novo_andamento,
+          datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
+          indicio_busca_apreensao: selected.indicio_busca_apreensao,
+          em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
+        } as any),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("IA demorou demais (20s). Use um script pronto ou Motor Lexis.")), 20000)
+        ),
+      ]);
+
+      const text =
+        (res as any)?.rascunho ||
+        (res as any)?.texto ||
+        (res as any)?.draft ||
+        "";
+      if (text) {
+        setAiDraft(String(text));
+        setDraft(String(text));
+        toast({
+          title: "Rascunho IA",
+          description: (res as any)?.engine || selectedMotor,
+        });
+      } else {
+        // Fallback para script local se IA vazia
+        if (localScripts[0]?.texto) {
+          setAiDraft(localScripts[0].texto);
+          setDraft(localScripts[0].texto);
+          toast({ title: "Fallback Lexis", description: "IA sem texto — script local" });
+        } else {
+          toast({
+            title: "Sem rascunho",
+            description: (res as any)?.message || "Motor não retornou texto",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (e: any) {
+      // Em erro, ainda oferece script local
+      const fallback =
+        waScripts[0]?.texto ||
+        (selected ? buildScriptsFromCase(selected)[0]?.texto : "");
+      if (fallback) {
+        setAiDraft(fallback);
+        setDraft(fallback);
+        toast({
+          title: "IA indisponível — script local",
+          description: e?.message || "Timeout/erro",
+        });
+      } else {
+        toast({
+          title: "Erro IA",
+          description: e?.message || "Falha",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsGeneratingAIDraft(false);
+    }
+  };
+
+  const openAttendanceDialog = () => {
+    if (!selected) {
+      toast({ title: "Selecione um contato", variant: "destructive" });
+      return;
+    }
+    setAttForm({
+      situacao: selected.situacao === "ENCERRADO" ? "ENCERRADO" : "EM ANDAMENTO",
+      observacao:
+        selected.observacao ||
+        (draft.trim() ? draft.trim().slice(0, 400) : ""),
+      proximoRetorno: "",
+      filaLista: parseFilaListaFromObs(selected.observacao),
+    });
+    setAttOpen(true);
+  };
+
+  const registerAttendance = async () => {
+    if (!selected || attSaving) return;
+    setAttSaving(true);
+    try {
+      const situacao =
+        attForm.situacao === "ENCERRADO" ? "ENCERRADO" : "EM ANDAMENTO";
+      let proximo = attForm.proximoRetorno || "";
+      if (proximo && /^\d{4}-\d{2}-\d{2}/.test(proximo)) {
+        const [y, m, d] = proximo.slice(0, 10).split("-");
+        proximo = `${d}/${m}/${y}`;
+      }
+      const res = await registrarAtendimentoCompletoAction({
+        protocolo: selected.protocolo,
+        situacao,
+        observacao: attForm.observacao || selected.observacao || "",
+        proximoPrazo: situacao === "ENCERRADO" ? "" : proximo || selected.proximoPrazo,
+        via: "whatsapp-terminal",
+        filaLista: attForm.filaLista || "normal",
+      });
+      if (res.success) {
+        const updated = (res as any).case || {
+          ...selected,
+          situacao,
+          ultimoRetorno: (res as any).ultimoRetorno,
+          observacao: attForm.observacao,
+        };
+        setSelected(updated);
+        setCases((prev) =>
+          prev.map((c) =>
+            c.protocolo === selected.protocolo ? { ...c, ...updated } : c
+          )
+        );
+        setAttOpen(false);
+        toast({
+          title:
+            situacao === "ENCERRADO"
+              ? "Caso encerrado"
+              : "Atendimento registrado",
+          description: `${selected.cliente} · ${(res as any).ultimoRetorno || "hoje"} · sincronizado com Tarefas/Processos`,
+        });
+      } else {
+        toast({
+          title: "Falha ao registrar",
+          description: (res as any).message || "Tente de novo",
+          variant: "destructive",
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: e?.message || "Não foi possível salvar",
+        variant: "destructive",
+      });
+    } finally {
+      setAttSaving(false);
+    }
+  };
+
+  /** Scripts locais a partir do caso (sem scan) — rápido como em Tarefas */
+  const buildScriptsFromCase = useCallback((caseData: LegalCase, movimentos: any[] = [], comunicacoes: any[] = []) => {
+    const djenTexts = comunicacoes
+      .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ""))
+      .filter(Boolean);
+    const scripts = suggestScripts({
+      clienteNome: caseData.cliente,
+      protocolo: caseData.protocolo,
+      ultimoRetorno: caseData.ultimoRetorno,
+      evento_tipo: (caseData as any).evento_tipo,
+      evento_resumo: (caseData as any).evento_resumo,
+      djen_ultimo_resumo: (caseData as any).djen_ultimo_resumo,
+      datajud_ultimo_nome: (caseData as any).datajud_ultimo_nome,
+      djenTexts: djenTexts.length
+        ? djenTexts
+        : [(caseData as any).djen_ultimo_resumo, (caseData as any).evento_resumo].filter(Boolean).map(String),
+      movimentos,
+      tem_novo_andamento: !!(caseData as any).tem_novo_andamento,
+      tem_atualizacao_pos_retorno: !!(caseData as any).tem_atualizacao_pos_retorno,
+      djen_nova_comunicacao: !!(caseData as any).djen_nova_comunicacao,
+      datajud_encerrado_tribunal: !!(caseData as any).datajud_encerrado_tribunal,
+      indicio_busca_apreensao: !!(caseData as any).indicio_busca_apreensao,
+      em_cumprimento_sentenca: !!(caseData as any).em_cumprimento_sentenca,
+    });
+    return scripts.map((s, idx) => ({
+      id: String((s as any).id || `script-${idx}`),
+      titulo: String(s.titulo || "Sugestão"),
+      texto: String(s.texto || "").replace(/\n{3,}/g, "\n\n").trim().slice(0, 1200),
+      quandoUsar: s.quandoUsar ? String(s.quandoUsar) : undefined,
+    }));
+  }, []);
+
+  const loadTribunalContext = async (
+    c?: LegalCase | null,
+    opts?: { scan?: boolean }
+  ): Promise<{
+    caseData: LegalCase;
+    movimentos: any[];
+    comunicacoes: any[];
+    scripts: { id: string; titulo: string; texto: string; quandoUsar?: string }[];
+  } | null> => {
+    const target = c || selected;
+    if (!target?.protocolo) {
+      toast({ title: "Selecione um processo", variant: "destructive" });
+      return null;
+    }
+    setLoadingTribunal(true);
+    try {
+      let movimentos: any[] = tribunalMovimentos;
+      let comunicacoes: any[] = djenComunicacoes;
+      let caseData: LegalCase = target;
+
+      // Scan só se pedido (botão Andamentos). Rascunho usa dados já no caso.
+      if (opts?.scan) {
+        const res = await Promise.race([
+          scanSingleCaseAction(target.protocolo, { mode: "both", fast: true } as any),
+          new Promise((_, rej) =>
+            setTimeout(() => rej(new Error("Tempo esgotado no tribunal (25s)")), 25000)
+          ),
+        ]);
+        movimentos = Array.isArray((res as any).movimentos)
+          ? (res as any).movimentos.slice(0, 40)
+          : [];
+        comunicacoes = Array.isArray((res as any).comunicacoes)
+          ? (res as any).comunicacoes
+          : [];
+        caseData = { ...target, ...((res as any).case || {}) };
+        setTribunalMovimentos(movimentos);
+        setDjenComunicacoes(comunicacoes);
+        if (caseData?.protocolo) {
+          setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
+        }
+      }
+
+      const scripts = buildScriptsFromCase(caseData, movimentos, comunicacoes);
+      setWaScripts(scripts);
+
+      if (opts?.scan) {
+        toast({
+          title: "Contexto do tribunal",
+          description: `${movimentos.length} andamento(s) · ${comunicacoes.length} DJEN · ${scripts.length} script(s)`,
+        });
+      }
+      return { caseData, movimentos, comunicacoes, scripts };
+    } catch (e: any) {
+      // Fallback: scripts só com o que já está no caso
+      const scripts = buildScriptsFromCase(target, [], []);
+      setWaScripts(scripts);
+      toast({
+        title: "Contexto parcial",
+        description: e?.message || "Usando dados do cadastro (sem scan completo)",
+        variant: "destructive",
+      });
+      return { caseData: target, movimentos: [], comunicacoes: [], scripts };
     } finally {
       setLoadingTribunal(false);
     }
@@ -608,9 +903,18 @@ function WhatsAppTerminalInner() {
 
   const sendViaEvolution = async () => {
     if (!selected?.telefone || !draft.trim()) return;
+    if (sending) return;
     setSending(true);
     try {
-      const res = await sendWhatsAppAction(selected.telefone, draft.trim());
+      const res = await Promise.race([
+        sendWhatsAppAction(selected.telefone, draft.trim()),
+        new Promise<{ success: false; message: string }>((resolve) =>
+          setTimeout(
+            () => resolve({ success: false, message: "Tempo esgotado (25s). Tente wa.me ou verifique a Evolution." }),
+            25000
+          )
+        ),
+      ]);
       if (res?.success) {
         setEvolutionOk(true);
         const msg: ChatMsg = {
@@ -854,7 +1158,7 @@ function WhatsAppTerminalInner() {
                         type="button"
                         size="sm"
                         className="h-9 rounded-xl font-semibold text-[11px] gap-1.5 bg-amber-500 hover:bg-amber-600 text-black"
-                        onClick={() => loadTribunalContext(selected)}
+                        onClick={() => loadTribunalContext(selected, { scan: true })}
                         disabled={loadingTribunal}
                       >
                         {loadingTribunal ? (
@@ -992,7 +1296,7 @@ function WhatsAppTerminalInner() {
                           size="sm"
                           className="h-9 rounded-xl font-black uppercase text-[10px] gap-1.5"
                           onClick={handleGenerateAIDraft}
-                          disabled={isGeneratingAIDraft || loadingTribunal}
+                          disabled={isGeneratingAIDraft || !selected}
                         >
                           {isGeneratingAIDraft ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -1135,7 +1439,7 @@ function WhatsAppTerminalInner() {
                         size="sm"
                         className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
                         onClick={sendViaEvolution}
-                        disabled={sending || !draft.trim()}
+                        disabled={sending || !draft.trim() || !selected?.telefone}
                       >
                         {sending ? (
                           <Loader2 size={14} className="animate-spin" />

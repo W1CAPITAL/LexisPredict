@@ -23,6 +23,7 @@ import {
 import { removeEmpresaUser, updateUserRole, createEmpresaUserAction } from '@/lib/server-db';
 import { UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
 import { useAuth } from '@/components/auth/auth-provider';
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -279,9 +280,7 @@ export default function TeamManagement() {
                   )}>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center font-black text-xs">
-                          {user.nome.substring(0, 2)}
-                        </div>
+                        <UserAvatar name={user.nome} src={(user as any).avatar_url} size="md" />
                         <div className="flex flex-col">
                           <p className="text-[12px] font-black uppercase truncate max-w-[150px]">
                             {user.nome} {user.auth_user_id === profile?.auth_user_id && <span className="text-[8px] text-primary ml-1">(VOCÊ)</span>}
