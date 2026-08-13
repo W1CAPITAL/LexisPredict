@@ -1073,6 +1073,26 @@ function CasesContent() {
                           </div>
                           <h4 className="text-sm font-black uppercase text-foreground mb-1 leading-tight">{item.title}</h4>
                           <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.subtitle}</p>
+                          {item.type === 'djen' && (
+                            <div className="mt-4 p-4 bg-white border border-blue-100 rounded-lg max-h-64 overflow-y-auto">
+                              <p className="text-[11px] text-black leading-relaxed whitespace-pre-wrap">
+                                {plainTextFromDjen(
+                                  String(
+                                    item.raw?.texto ||
+                                      item.raw?.conteudo ||
+                                      item.raw?.textoPublicacao ||
+                                      item.subtitle ||
+                                      ''
+                                  )
+                                ) || 'Teor não disponível nesta comunicação. Use Abrir no D.O. ou PDF.'}
+                              </p>
+                            </div>
+                          )}
+                          {item.type !== 'djen' && (item.subtitle || item.raw?.complemento) && (
+                            <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
+                              {String(item.raw?.complemento || item.subtitle || '')}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>

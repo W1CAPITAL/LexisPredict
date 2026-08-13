@@ -477,7 +477,57 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
       input.tem_atualizacao_pos_retorno ||
       input.djen_nova_comunicacao ||
       (input.movimentos && input.movimentos.length > 0);
+    
+  // Intimação de justiça gratuita com prazo para documentos
+  if (
+    /(JUSTI[CÇ]A\s+GRATUITA|GRATUIDADE\s+DA\s+JUSTI[CÇ]A)/i.test(U) &&
+    /(PRAZO\s+DE\s+\d+|APRESENTE|DECLARA[CÇ]|EXTRATOS\s+BANC)/i.test(U)
+  ) {
+    const prazoJg = extractPrazoDias(U) || '15';
     out.push({
+      id: 'intimacao_jg_docs',
+      categoria: 'intimacao_justica_gratuita',
+      titulo: 'Intimação — Justiça Gratuita (documentos)',
+      quandoUsar: 'Despacho intimando a juntar provas de hipossuficiência',
+      texto: [
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `No processo nº ${cnj}, o tribunal intimou sobre o pedido de Justiça Gratuita.`,
+        `Foi aberto prazo de ${prazoJg} dias para juntar documentos que comprovem a necessidade do benefício (declarações de renda/bens, extratos etc.), ou, alternativamente, recolher o preparo.`,
+        ``,
+        `Nossa equipe já está orientando a providência. Assim que tivermos o checklist objetivo do que precisa ser enviado, te avisamos.`,
+        ``,
+        `Setor Processual — Get Assessoria`,
+      ].join('\n'),
+    });
+  }
+
+  // Monitoramento regular / sem ato relevante
+  {
+    const soRotinaCartorio =
+      !/(INTIMA|DESPACHO|DECIS|SENTEN|LIMINAR|AUDI[EÊ]NCIA|CUSTAS|PREPARO|BAIXA|TR[AÂ]NSITO|CUMPRIMENTO|PROCEDENTE|IMPROCEDENTE)/i.test(U) &&
+      /(REMESSA|RECEBIMENTO|PUBLICA|DISPONIBILIZA|EXPEDI[CÇ]|ATO\s+ORDINAT|MERO\s+EXPEDIENTE)/i.test(U);
+    const temNovidadeFlag =
+      !!(input.tem_novo_andamento || input.tem_atualizacao_pos_retorno || input.djen_nova_comunicacao);
+    if (soRotinaCartorio || (!temNovidadeFlag && !U.trim())) {
+      out.push({
+        id: 'monitoramento_regular',
+        categoria: 'monitoramento',
+        titulo: 'Monitoramento regular',
+        quandoUsar: 'Sem ato relevante novo — só rotina de cartório ou sem movimento',
+        texto: [
+          `Olá, ${nome}! Tudo bem?`,
+          ``,
+          `Verificamos o processo nº ${cnj}: neste momento não há decisão nova nem intimação com prazo para você cumprir.`,
+          `O que consta é movimentação de rotina do tribunal (acompanhamento interno). Continuamos monitorando e te avisamos assim que sair algo objetivo.`,
+          ``,
+          `Setor Processual — Get Assessoria`,
+        ].join('\n'),
+      });
+    }
+  }
+
+out.push({
       id: 'fallback',
       categoria: 'andamento',
       titulo: temNovidade ? 'Atualização' : 'Acompanhamento',

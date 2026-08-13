@@ -84,6 +84,15 @@ export function plainTextFromDjen(html: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
+  // Quebras legíveis em decisões longas (PDF / tela)
+  s = s
+    .replace(/\s+(?=\d+\.\s)/g, '\n\n')
+    .replace(/\s+(?=Art\.\s)/gi, '\n')
+    .replace(/\s+(?=DESPACHO\/DECIS)/gi, '\n\n')
+    .replace(/\s+(?=Vistos,?)/gi, '\n\n')
+    .replace(/\s+(?=Intimem-se\.?)/gi, '\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return s;
 }
 
@@ -188,6 +197,38 @@ export function classifyEventFromText(
   }
   if (/(CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
     return { tipo: 'cancelamento_distribuicao', label: 'Cancelamento da Distribuição' };
+  }
+
+  // Intimação / despacho com prazo (ex.: documentos de justiça gratuita)
+  const temIntima = /(INTIMA[CÇ][AÃ]O|INTIMADO|INTIMEM-SE|CI[EÊ]NCIA)/.test(upper);
+  const temJG = /(JUSTI[CÇ]A\s+GRATUITA|GRATUIDADE\s+DA\s+JUSTI[CÇ]A|ASSIST[EÊ]NCIA\s+JUDICI[AÁ]RIA)/.test(upper);
+  const temPrazoDocs = /(PRAZO\s+DE\s+\d+|ASSINO\s+[AÀ]\s+PARTE|APRESENTE\(M\)|DECLARA[CÇ][OÕ]ES\s+DE\s+BENS|EXTRATOS\s+BANC[AÁ]RIOS)/.test(upper);
+  const temCustas = /(CUSTAS|PREPARO|RECOLHIMENTO|DESER[CÇ][AÃ]O|GUIA\s+OFICIAL)/.test(upper);
+  const temDespacho = /(DESPACHO\/DECIS|DESPACHO|DETERMINO)/.test(upper);
+
+  if (temIntima && temJG && temPrazoDocs) {
+    return { tipo: 'intimacao_justica_gratuita', label: 'Intimação — Justiça Gratuita (prazo docs)' };
+  }
+  if (temIntima && temCustas) {
+    return { tipo: 'intimacao_custas', label: 'Intimação — Custas / Preparo' };
+  }
+  if (temIntima && temPrazoDocs) {
+    return { tipo: 'intimacao_prazo', label: 'Intimação com prazo' };
+  }
+  if (temIntima || (temDespacho && temPrazoDocs)) {
+    return { tipo: 'intimacao', label: 'Intimação / Despacho' };
+  }
+  if (temCustas) {
+    return { tipo: 'custas', label: 'Custas / Preparo' };
+  }
+  if (temDespacho) {
+    return { tipo: 'despacho', label: 'Despacho / Decisão' };
+  }
+
+  // Remessa / publicação sem conteúdo de mérito = rotina de cartório
+  if (/^(REMESSA|PUBLICA[CÇ][AÃ]O|DISPONIBILIZA|RECEBIMENTO|EXPEDI[CÇ][AÃ]O|ATO\s+ORDINAT|MERO\s+EXPEDIENTE)/.test(upper.slice(0, 80))
+    && !temIntima && !temJG && !temCustas) {
+    return { tipo: 'rotina', label: 'Monitoramento regular' };
   }
 
   return { tipo: 'novo_andamento_relevante', label: 'Publicação DJEN' };

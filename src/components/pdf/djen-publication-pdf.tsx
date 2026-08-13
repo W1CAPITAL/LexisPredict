@@ -325,6 +325,24 @@ export type DjenPdfData = {
   claudeEngine?: string | null;
 };
 
+
+function formatTeorForPdf(raw: string): string {
+  let s = String(raw || "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s*\n\s*/g, "\n")
+    .trim();
+  // força quebras em padrões de decisão
+  s = s
+    .replace(/\s+(?=\d+\.\s)/g, "\n\n")
+    .replace(/\s+(?=Art\.\s)/gi, "\n")
+    .replace(/\s+(?=DESPACHO)/gi, "\n\n")
+    .replace(/\s+(?=Vistos)/gi, "\n\n")
+    .replace(/\s+(?=Intimem-se)/gi, "\n\n")
+    .replace(/\n{3,}/g, "\n\n");
+  return s;
+}
+
 export function DjenPublicationPDF({ data }: { data: DjenPdfData }) {
   const texto = data.texto || "";
   const highlights = extractHighlights(texto);
