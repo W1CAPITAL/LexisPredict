@@ -653,64 +653,18 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
 }
 
 export async function getWhatsAppHistory(phone: string) {
-  const { empresa_id } = await getUserContext();
-  if (!supabase) return [];
-  const { phoneMatchVariants, normalizeBrPhone } = await import('@/lib/evolution-api');
-  const variants = phoneMatchVariants(phone);
-  const primary = normalizeBrPhone(phone);
-  if (!variants.length && !primary) return [];
-
-  // Busca ampla por número (webhook pode gravar sem empresa_id)
-  const orParts: string[] = [];
-  for (const v of variants) {
-    orParts.push(`contact_number.eq.${v}`);
-    orParts.push(`phone.eq.${v}`);
-    if (v.length >= 8) {
-      orParts.push(`contact_number.ilike.%${v.slice(-9)}`);
-      orParts.push(`phone.ilike.%${v.slice(-9)}`);
-    }
-  }
-
-  // 1) service role se disponível (lê tudo da empresa / sem filtro rígido)
   try {
-    const admin = await getSupabaseAdmin();
-    if (admin) {
-      let q = admin
-        .from('whatsapp_messages')
-        .select('*')
-        .order('timestamp', { ascending: true })
-        .limit(300);
-      if (orParts.length) q = q.or(orParts.slice(0, 24).join(','));
-      const { data, error } = await q;
-      if (!error && data?.length) return data;
-      // fallback só primary
-      const { data: d2 } = await admin
-        .from('whatsapp_messages')
-        .select('*')
-        .eq('contact_number', primary)
-        .order('timestamp', { ascending: true })
-        .limit(300);
-      if (d2?.length) return d2;
+    const { fetchMessagesByPhone } = await import('@/lib/whatsapp-persist');
+    const { messages, error } = await fetchMessagesByPhone(phone);
+    if (error) {
+      console.error('[getWhatsAppHistory]', error);
+      return [];
     }
-  } catch { /* */ }
-
-  let q = supabase
-    .from('whatsapp_messages')
-    .select('*')
-    .order('timestamp', { ascending: true })
-    .limit(200);
-  if (orParts.length) q = q.or(orParts.slice(0, 24).join(','));
-  const { data, error } = await q;
-  if (error) {
-    const { data: d2 } = await supabase
-      .from('whatsapp_messages')
-      .select('*')
-      .eq('contact_number', primary)
-      .order('timestamp', { ascending: true })
-      .limit(200);
-    return d2 || [];
+    return messages || [];
+  } catch (e) {
+    console.error('[getWhatsAppHistory]', e);
+    return [];
   }
-  return data || [];
 }
 
 export async function listAdvogadosBanca() {

@@ -1,9 +1,8 @@
 /**
- * Persistência de mensagens WhatsApp no SUPABASE (tabela whatsapp_messages).
- * Não usa o Postgres da Evolution — só o banco do Lexis.
+ * Persistência WhatsApp → Supabase (tabela whatsapp_messages).
  */
 import { createClient } from '@supabase/supabase-js';
-import { normalizeBrPhone, phoneMatchVariants } from '@/lib/evolution-api';
+import { normalizeBrPhone } from '@/lib/evolution-api';
 
 export type WaPersistInput = {
   contactNumber: string;
@@ -32,48 +31,95 @@ function adminClient() {
 export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
   ok: boolean;
   error?: string;
+  id?: string;
 }> {
   const sb = adminClient();
-  if (!sb) return { ok: false, error: 'Supabase service role ausente' };
+  if (!sb) {
+    return {
+      ok: false,
+      error:
+        'Falta SUPABASE_SERVICE_ROLE_KEY na Vercel (Settings → API → service_role, não anon).',
+    };
+  }
 
-  let num = normalizeBrPhone(input.contactNumber);
+  const num = normalizeBrPhone(input.contactNumber);
   if (!num || num.length < 10) {
-    return { ok: false, error: 'Telefone inválido' };
+    return { ok: false, error: 'Telefone inválido para gravar (confira DDD no cadastro).' };
   }
   const text = String(input.messageText || '').trim();
   if (!text) return { ok: false, error: 'Mensagem vazia' };
 
-  const row: Record<string, any> = {
+  const ts = input.timestamp || new Date().toISOString();
+  const mid = input.messageId || `lexis-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Tentativa 1: schema completo
+  const full: Record<string, any> = {
     contact_number: num,
     phone: num,
     contact_name: input.contactName || null,
     remote_jid: input.remoteJid || `${num}@s.whatsapp.net`,
-    message_id: input.messageId || `lexis-${Date.now()}`,
+    message_id: mid,
     message_text: text,
     body: text,
     from_me: !!input.fromMe,
     direction: input.fromMe ? 'out' : 'in',
     source: input.source || (input.fromMe ? 'lexis-send' : 'evolution-webhook'),
     instance_name: input.instanceName || process.env.EVOLUTION_INSTANCE || 'Lexis',
-    timestamp: input.timestamp || new Date().toISOString(),
-    raw_payload: input.raw || null,
+    timestamp: ts,
   };
-  if (input.empresaId) row.empresa_id = input.empresaId;
+  if (input.empresaId) full.empresa_id = input.empresaId;
+  if (input.raw) full.raw_payload = input.raw;
 
-  const { error } = await sb.from('whatsapp_messages').insert(row);
+  let { data, error } = await sb.from('whatsapp_messages').insert(full).select('id').maybeSingle();
+
   if (error) {
-    // tenta sem colunas opcionais (schema mínimo)
-    const minimal = {
+    // Tentativa 2: mínimo
+    const minimal: Record<string, any> = {
       contact_number: num,
       message_text: text,
       from_me: !!input.fromMe,
-      timestamp: row.timestamp,
-      message_id: row.message_id,
+      timestamp: ts,
+      message_id: mid,
     };
-    const { error: e2 } = await sb.from('whatsapp_messages').insert(minimal);
-    if (e2) return { ok: false, error: e2.message || error.message };
+    const r2 = await sb.from('whatsapp_messages').insert(minimal).select('id').maybeSingle();
+    if (r2.error) {
+      return {
+        ok: false,
+        error: r2.error.message || error.message,
+      };
+    }
+    return { ok: true, id: r2.data?.id };
   }
-  return { ok: true };
+  return { ok: true, id: data?.id };
 }
 
-export { phoneMatchVariants, normalizeBrPhone };
+export async function fetchMessagesByPhone(phone: string): Promise<{
+  messages: any[];
+  error?: string;
+}> {
+  const sb = adminClient();
+  if (!sb) return { messages: [], error: 'Sem service role' };
+  const num = normalizeBrPhone(phone);
+  if (!num) return { messages: [], error: 'Telefone vazio' };
+  const last8 = num.slice(-8);
+  const last9 = num.slice(-9);
+
+  // Várias tentativas de match
+  const { data, error } = await sb
+    .from('whatsapp_messages')
+    .select('*')
+    .or(
+      [
+        `contact_number.eq.${num}`,
+        `phone.eq.${num}`,
+        `contact_number.ilike.%${last8}`,
+        `phone.ilike.%${last8}`,
+        `contact_number.ilike.%${last9}`,
+      ].join(',')
+    )
+    .order('timestamp', { ascending: true })
+    .limit(300);
+
+  if (error) return { messages: [], error: error.message };
+  return { messages: data || [] };
+}

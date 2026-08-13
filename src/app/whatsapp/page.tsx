@@ -54,7 +54,7 @@ import {
   fetchWhatsAppHistoryAction,
   diagnoseWhatsAppStorageAction,
   logOutboundWhatsAppAction,
-  diagnoseWhatsAppStorageAction,
+  testSaveWhatsAppMessageAction,
 } from "@/app/actions/whatsapp-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
@@ -574,7 +574,15 @@ function WhatsAppTerminalInner() {
         setHistory(next);
         persistLocal(selected.telefone, next);
         setDraft("");
-        toast({ title: "Enviado via Evolution" });
+        if ((res as any).persisted === false) {
+          toast({
+            title: "Enviado no WhatsApp, mas NÃO gravou no Supabase",
+            description: (res as any).persistError || "Confira SUPABASE_SERVICE_ROLE_KEY e a tabela",
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "Enviado e gravado no histórico" });
+        }
         void loadHistory(selected);
       } else {
         setEvolutionOk(false);
@@ -794,6 +802,41 @@ function WhatsAppTerminalInner() {
                       >
                         <UserCheck size={14} />
                         Registrar atendimento
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5"
+                        disabled={!selected?.telefone || histLoading}
+                        onClick={async () => {
+                          if (!selected?.telefone) {
+                            toast({ title: "Cliente sem telefone", variant: "destructive" });
+                            return;
+                          }
+                          setHistLoading(true);
+                          try {
+                            const r = await testSaveWhatsAppMessageAction(selected.telefone);
+                            if (!r.success) {
+                              toast({
+                                title: "Não gravou no Supabase",
+                                description: r.error || "Erro desconhecido",
+                                variant: "destructive",
+                              });
+                              setHistDiag(r.error || "Falha ao gravar");
+                            } else {
+                              toast({
+                                title: "Gravou no Supabase",
+                                description: `${r.count} msg(s) para ${r.phone}`,
+                              });
+                              await loadHistory(selected);
+                            }
+                          } finally {
+                            setHistLoading(false);
+                          }
+                        }}
+                      >
+                        Testar gravação Supabase
                       </Button>
                     </div>
 

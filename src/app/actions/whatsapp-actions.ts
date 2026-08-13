@@ -25,7 +25,7 @@ export async function sendWhatsAppAction(to: string, message: string) {
       const ctx = await getUserContext();
       empresaId = ctx.empresa_id || null;
     } catch { /* */ }
-    await persistWhatsAppMessage({
+    const saved = await persistWhatsAppMessage({
       contactNumber: phone,
       messageText: message,
       fromMe: true,
@@ -34,15 +34,25 @@ export async function sendWhatsAppAction(to: string, message: string) {
       empresaId,
       raw: result.raw,
     });
-  } catch (e) {
+    return {
+      success: true,
+      data: result.raw,
+      timestamp: ts,
+      phone,
+      persisted: saved.ok,
+      persistError: saved.error || null,
+    };
+  } catch (e: any) {
     console.error('[whatsapp] falha ao persistir outbound', e);
+    return {
+      success: true,
+      data: result.raw,
+      timestamp: ts,
+      phone,
+      persisted: false,
+      persistError: e?.message || 'Falha ao gravar no Supabase',
+    };
   }
-  return {
-    success: true,
-    data: result.raw,
-    timestamp: ts,
-    phone,
-  };
 }
 
 /**
@@ -237,4 +247,30 @@ export async function logOutboundWhatsAppAction(to: string, message: string) {
   } catch (e: any) {
     return { success: false, message: e?.message };
   }
+}
+
+
+/** Insere mensagem de teste no Supabase e devolve o resultado (para depurar na UI). */
+export async function testSaveWhatsAppMessageAction(phone: string) {
+  const { persistWhatsAppMessage, fetchMessagesByPhone } = await import('@/lib/whatsapp-persist');
+  const n = normalizeBrPhone(phone);
+  if (!n) return { success: false, error: 'Telefone vazio no cadastro do cliente' };
+  const saved = await persistWhatsAppMessage({
+    contactNumber: n,
+    messageText: `TESTE LEXIS ${new Date().toLocaleString('pt-BR')} — se você vê isto, o Supabase está gravando.`,
+    fromMe: true,
+    source: 'lexis-test-button',
+  });
+  if (!saved.ok) {
+    return { success: false, error: saved.error, phone: n };
+  }
+  const { messages, error } = await fetchMessagesByPhone(n);
+  return {
+    success: true,
+    phone: n,
+    id: saved.id,
+    count: messages.length,
+    error: error || null,
+    last: messages.slice(-3).map((m: any) => m.message_text || m.body),
+  };
 }
