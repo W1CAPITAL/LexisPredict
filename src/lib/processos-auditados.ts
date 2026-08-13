@@ -30,7 +30,15 @@ function pickDados(c: any) {
 export function pickDataEdicaoApp(c: any): string | null {
   if (!c) return null;
   const d = pickDados(c);
-  for (const v of [c.auditado_em, c.auditadoEm, d.auditado_em, d.auditadoEm]) {
+  for (const v of [
+    c.auditado_em,
+    c.auditadoEm,
+    d.auditado_em,
+    d.auditadoEm,
+    // legado: alguns fluxos só gravam updated_at ISO
+    c.updated_at,
+    d.updated_at,
+  ]) {
     if (v != null && String(v).trim() && String(v) !== 'null') return String(v);
   }
   return null;

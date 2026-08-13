@@ -79,6 +79,11 @@ export interface LegalCase {
   situacao: string;
   proximoPrazo: string;
   ultimoRetorno: string;
+  /** YYYY-MM-DD — última edição no app (KPI Editados) */
+  auditado_em?: string | null;
+  auditado_por?: string | null;
+  /** quem registrou atendimento/encerramento */
+  atendido_por?: string | null;
   observacao?: string;
   status: CaseStatus;
   risco: RiskLevel;
@@ -333,6 +338,11 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     djen_ultima_data: data.djen_ultima_data,
     djen_ultimo_resumo: sanitizeEventoResumo(data.djen_ultimo_resumo),
     djen_ultimo_link: data.djen_ultimo_link,
-    djen_count: data.djen_count ? Number(data.djen_count) : 0
+    djen_count: data.djen_count ? Number(data.djen_count) : 0,
+
+    // KPI edição / atendimento (NÃO descartar no processarCaso)
+    auditado_em: data.auditado_em ?? data.auditadoEm ?? null,
+    auditado_por: data.auditado_por ?? data.auditadoPor ?? null,
+    atendido_por: data.atendido_por ?? data.atendidoPor ?? null,
   };
 }
