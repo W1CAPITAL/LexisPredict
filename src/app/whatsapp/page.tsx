@@ -432,10 +432,7 @@ function WhatsAppTerminalInner() {
           id: s.id,
           titulo: s.titulo,
           texto: String(s.texto || "")
-            .replace(/
-{3,}/g, "
-
-")
+            .replace(/\n{3,}/g, "\n\n")
             .trim()
             .slice(0, 1200),
           quandoUsar: s.quandoUsar,
@@ -644,6 +641,7 @@ function WhatsAppTerminalInner() {
   };
 
   return (
+    <>
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
@@ -1035,7 +1033,6 @@ function WhatsAppTerminalInner() {
         </div>
       </main>
     </div>
-  );
 
         {/* Modal atendimento completo */}
         <Dialog open={attOpen} onOpenChange={setAttOpen}>
@@ -1139,7 +1136,8 @@ function WhatsAppTerminalInner() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
+    </>
+  );
 }
 
 export default function WhatsAppTerminalPage() {
