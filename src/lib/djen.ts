@@ -463,7 +463,16 @@ async function fetchDjenComunicacoesUncached(
       const rawItems = Array.isArray(data.items) ? data.items : [];
 
       const mappedItems: DjenComunicacao[] = rawItems.map((item: any) => {
-        const plainText = plainTextFromDjen(item.texto || '');
+        const rawText = String(
+          item?.texto ||
+          item?.conteudo ||
+          item?.textoPublicacao ||
+          item?.descricao ||
+          item?.inteiroTeor ||
+          item?.resumo ||
+          ''
+        );
+        const plainText = plainTextFromDjen(rawText);
         const destRaw = item.destinatarios || item.destinatario || item.partes || [];
         const destList = Array.isArray(destRaw) ? destRaw : [destRaw];
         const destinatarios = destList

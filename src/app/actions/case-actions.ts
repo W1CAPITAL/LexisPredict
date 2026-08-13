@@ -180,11 +180,11 @@ export async function auditCaseCoreSystem(
         /* */
       }
     }
-    // Retry DataJud se erro
+    // Retry DataJud se erro — attempt=2 fura o cache (attempt=1 só lê memória)
     if (!preDataJud || preDataJud.error) {
       try {
         await new Promise((r) => setTimeout(r, 600));
-        preDataJud = await fetchDataJud(protoSafe, 1, { ...options, fast: false });
+        preDataJud = await fetchDataJud(protoSafe, 2, { ...options, fast: false });
       } catch {
         /* */
       }
@@ -346,10 +346,10 @@ export async function auditCaseCoreSystem(
   }
 
 
-  // Ultima chance sequencial se ainda vazio (Sugerir resposta)
+  // Ultima chance sequencial se ainda vazio (Sugerir resposta) — attempt=2 fura o cache
   if (mode === 'both' && movimentos.length === 0 && comunicacoes.length === 0) {
     try {
-      const dj = await fetchDataJud(protoSafe || protocolo, 1, { fast: false });
+      const dj = await fetchDataJud(protoSafe || protocolo, 2, { fast: false });
       if (dj && !dj.error && Array.isArray(dj.movimentos) && dj.movimentos.length) {
         datajudOk = true;
         movimentos = normalizeMovimentosList(dj.movimentos);

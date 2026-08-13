@@ -3,6 +3,7 @@
  * Scanner antigo continua intacto; novos callers podem usar isto.
  */
 import { fetchResilient } from './http-resilient';
+import { resolveDataJudAlias } from './datajud';
 
 const COURT_ALIASES: Record<string, string> = {
   '8.26': 'tjsp',
@@ -28,7 +29,7 @@ export async function probeDataJudHost(cnjDigits: string): Promise<{
     return { ok: false, latencyMs: 0, error: 'CNJ inválido' };
   }
   const aliasPart = `${digits[13]}.${digits.substring(14, 16)}`;
-  const alias = COURT_ALIASES[aliasPart] || 'tjsp';
+  const alias = COURT_ALIASES[aliasPart] || resolveDataJudAlias(digits);
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
   const key =
     process.env.DATAJUD_API_KEY ||

@@ -12,8 +12,31 @@ export const COURT_ALIASES: Record<string, string> = {
   "8.16": "tjpr", "8.17": "tjpe", "8.18": "tjpi", "8.19": "tjrj", "8.20": "tjrn",
   "8.21": "tjrs", "8.22": "tjro", "8.23": "tjrr", "8.24": "tjsc", "8.25": "tjse",
   "8.26": "tjsp", "8.27": "tjto", "4.01": "trf1", "4.02": "trf2", "4.03": "trf3",
-  "4.04": "trf4", "4.05": "trf5", "4.06": "trf6"
+  "4.04": "trf4", "4.05": "trf5", "4.06": "trf6",
+  "5.01": "trt1", "5.02": "trt2", "5.03": "trt3", "5.04": "trt4", "5.05": "trt5",
+  "5.06": "trt6", "5.07": "trt7", "5.08": "trt8", "5.09": "trt9", "5.10": "trt10",
+  "5.11": "trt11", "5.12": "trt12", "5.13": "trt13", "5.14": "trt14", "5.15": "trt15",
+  "5.16": "trt16", "5.17": "trt17", "5.18": "trt18", "5.19": "trt19", "5.20": "trt20",
+  "5.21": "trt21", "5.22": "trt22", "5.23": "trt23", "5.24": "trt24",
+  "2.00": "stj", "2.01": "stj", "3.00": "tst", "3.01": "tst",
+  "6.00": "tse", "7.00": "stm"
 };
+
+/** Resolve o alias DataJud a partir do CNJ, cobrindo TJ/TRF/TRT/superiores. */
+export function resolveDataJudAlias(cnj: string): string {
+  const digits = cnj.replace(/\D/g, "");
+  if (digits.length !== 20) return "tjsp";
+  const aliasPart = `${digits[13]}.${digits.substring(14, 16)}`;
+  const direct = COURT_ALIASES[aliasPart];
+  if (direct) return direct;
+  const justice = digits[13];
+  if (justice === "5") return `trt${Number(digits.substring(14, 16))}`;
+  if (justice === "2") return "stj";
+  if (justice === "3") return "tst";
+  if (justice === "6") return "tse";
+  if (justice === "7") return "stm";
+  return "tjsp";
+}
 
 /** Chave DataJud: prefira env. Fallback = chave PÚBLICA oficial do CNJ (API pública). */
 const DATAJUD_PUBLIC_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
@@ -273,8 +296,12 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   }
 
   const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
-  const alias = COURT_ALIASES[aliasPart] || "tjsp";
+  const alias = COURT_ALIASES[aliasPart] || resolveDataJudAlias(cnjLimpo);
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
+
+  // O índice público armazena o número sem máscara (dígitos puros); alguns
+  // tribunais aceitam também a forma mascarada. Tenta ambos (sem custo real).
+  const cnjMasked = `${cnjLimpo.substring(0, 7)}-${cnjLimpo.substring(7, 9)}.${cnjLimpo.substring(9, 13)}.${cnjLimpo.substring(13, 14)}.${cnjLimpo.substring(14, 16)}.${cnjLimpo.substring(16, 20)}`;
 
   const isFast = options.fast === true;
   // ANTES: fast=15s/1 tentativa → DJEN ganhava e DataJud “sumia”
@@ -294,7 +321,15 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       },
       body: JSON.stringify({
         size: 1,
-        query: { match: { numeroProcesso: cnjLimpo } }
+        query: {
+          bool: {
+            should: [
+              { match: { numeroProcesso: cnjLimpo } },
+              { match: { numeroProcesso: cnjMasked } },
+            ],
+            minimum_should_match: 1,
+          },
+        },
       }),
       signal: controller.signal,
       cache: 'no-store'
