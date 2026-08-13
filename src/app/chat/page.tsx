@@ -98,7 +98,7 @@ export default function AssistentePage() {
   const [input, setInput] = useState("");
   const [activeInstructions, setActiveInstructions] = useState<string[]>(["conciso", "cliente"]);
   const [loading, setLoading] = useState(false);
-  const [model, setModel] = useState<MotorId>("claude");
+  const [model, setModel] = useState<MotorId>("omni");
   const [baClaude, setBaClaude] = useState(false);
   const [pendingImage, setPendingImage] = useState<{
     mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";

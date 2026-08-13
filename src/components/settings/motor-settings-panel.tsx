@@ -10,7 +10,7 @@ import { MOTORS, MotorId, loadPreferredMotor, savePreferredMotor } from "@/lib/a
 import { cn } from "@/lib/utils";
 
 export function MotorSettingsPanel() {
-  const [iaModel, setIaModel] = useState<MotorId>("xai");
+  const [iaModel, setIaModel] = useState<MotorId>("omni");
 
   useEffect(() => {
     setIaModel(loadPreferredMotor());

@@ -32,7 +32,7 @@ export function MotorSelector({
   compact?: boolean;
   allowPuter?: boolean;
 }) {
-  const [internal, setInternal] = useState<MotorId>("claude");
+  const [internal, setInternal] = useState<MotorId>("omni");
 
   useEffect(() => {
     const v = (value as MotorId) || loadPreferredMotor();

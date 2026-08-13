@@ -33,7 +33,7 @@ import { Bot, KeyRound, Cloud, ShieldAlert, Sparkles } from "lucide-react";
 export function NeuralNucleusPanel() {
   const [engines, setEngines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [preferred, setPreferred] = useState<MotorId>("claude");
+  const [preferred, setPreferred] = useState<MotorId>("omni");
   const [baClaude, setBaClaude] = useState(false);
 
   useEffect(() => {

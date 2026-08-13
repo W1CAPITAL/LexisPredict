@@ -209,7 +209,7 @@ export default function BuscaApreensaoPage() {
   const [savedLogs, setSavedLogs] = useState<any[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [current, setCurrent] = useState<BaQueueItem | null>(null);
-  const [preferredMotor, setPreferredMotor] = useState<MotorId>("claude");
+  const [preferredMotor, setPreferredMotor] = useState<MotorId>("omni");
   const [filtroTipo, setFiltroTipo] = useState<string>("ALL");
   const [filtroGeo, setFiltroGeo] = useState<"ALL" | "ALERTAR" | "DISTANTE">("ALL");
   const [filtroOrdem, setFiltroOrdem] = useState<"recentes" | "antigos" | "nome">("recentes");
