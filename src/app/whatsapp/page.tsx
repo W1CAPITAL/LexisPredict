@@ -108,16 +108,28 @@ export default function WhatsAppTerminalPage() {
   }, [loadCases]);
 
   const contacts = useMemo(() => {
-    const list = cases.filter((c) => !isCasoEncerrado(c) && digitsPhone(c.telefone).length >= 10);
     const term = q.trim().toLowerCase();
+    const termDigits = term.replace(/\D/g, "");
+    // Com busca: inclui sem telefone / encerrados. Sem busca: só ativos com telefone.
+    const base = term
+      ? cases
+      : cases.filter((c) => !isCasoEncerrado(c) && digitsPhone(c.telefone).length >= 10);
+
     const filtered = !term
-      ? list
-      : list.filter(
-          (c) =>
-            caseLabel(c).toLowerCase().includes(term) ||
-            (c.protocolo || "").includes(term) ||
-            digitsPhone(c.telefone).includes(term.replace(/\D/g, ""))
-        );
+      ? base
+      : base.filter((c) => {
+          const nome = String(c.cliente || "").toLowerCase();
+          const proto = String(c.protocolo || "").toLowerCase();
+          const protoDigits = proto.replace(/\D/g, "");
+          const tel = digitsPhone(c.telefone);
+          const adv = String(c.advogado || "").toLowerCase();
+          if (nome.includes(term)) return true;
+          if (proto.includes(term)) return true;
+          if (termDigits.length >= 5 && (protoDigits.includes(termDigits) || tel.includes(termDigits))) return true;
+          if (adv.includes(term)) return true;
+          return false;
+        });
+
     return filtered
       .sort((a, b) => {
         const score = (c: LegalCase) => {
@@ -127,23 +139,36 @@ export default function WhatsAppTerminalPage() {
           if (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno) s += 50;
           if (c.status === "Vencido" || c.status === "Caso Crítico") s += 40;
           if (c.status === "É Hoje") s += 30;
+          if (digitsPhone(c.telefone).length >= 10) s += 5;
           return s;
         };
         return score(b) - score(a);
       })
-      .slice(0, 200);
+      .slice(0, 300);
   }, [cases, q]);
 
   const suggestions = useMemo(() => {
     if (!selected) return [];
     try {
+      const djenBits = [
+        selected.djen_ultimo_resumo,
+        (selected as any).djen_ultimo_texto,
+        selected.evento_resumo,
+        selected.datajud_ultimo_nome,
+        selected.evento_tipo,
+      ]
+        .filter(Boolean)
+        .map(String);
+
       return suggestScripts({
         clienteNome: selected.cliente,
         protocolo: selected.protocolo,
-        ultimoRetorno: selected.ultimoRetorno,
+        ultimoRetorno: selected.ultimoRetorno || (selected as any).ultimo_retorno,
         evento_tipo: selected.evento_tipo,
         evento_resumo: selected.evento_resumo,
         djen_ultimo_resumo: selected.djen_ultimo_resumo,
+        datajud_ultimo_nome: selected.datajud_ultimo_nome,
+        djenTexts: djenBits,
         tem_novo_andamento: selected.tem_novo_andamento,
         tem_atualizacao_pos_retorno: selected.tem_atualizacao_pos_retorno,
         djen_nova_comunicacao: selected.djen_nova_comunicacao,
