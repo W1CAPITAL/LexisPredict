@@ -155,7 +155,6 @@ const CaseRow = React.memo(({
                   </button>
                 </div>
              )}
-          </div>
         </div>
       </td>
       <td className="px-8 py-5">
