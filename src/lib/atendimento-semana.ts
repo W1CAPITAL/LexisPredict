@@ -41,11 +41,12 @@ export function parseUltimoAtendimento(raw?: string | null): Date | null {
   const s = String(raw).trim();
   if (!s || s === '-' || s === '0' || s.toLowerCase() === 'null') return null;
 
-  // ISO
+  // ISO date-only: interpretar como calendário local (NÃO UTC).
+  // parseISO('2026-08-13') vira 12/08 à noite em Brasília e quebra "atendido hoje".
   try {
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-      const d = parseISO(s.slice(0, 10));
-      if (isValid(d)) return startOfDay(d);
+      const [y, m, d] = s.slice(0, 10).split('-').map((n) => parseInt(n, 10));
+      if (y && m && d) return startOfDay(new Date(y, m - 1, d));
     }
   } catch { /* */ }
 

@@ -167,8 +167,8 @@ export default function TarefasPage() {
   const { toast } = useToast();
 
   const getTodayKey = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return `lexis_tarefas_contatados_${today}`;
+    // Sempre calendário de Brasília (não UTC do toISOString)
+    return `lexis_tarefas_contatados_${hojeBrasilYmd()}`;
   };
 
   useEffect(() => {
@@ -485,9 +485,34 @@ const handleSaveAttendance = async () => {
   const editadosAppKPI = useMemo(() => countEditadosAppSemana(cases as any), [cases]);
   const auditadosHojeKPI = useMemo(() => countAuditadosHoje(cases as any), [cases]);
 
+  
+  /** Fonte de verdade: banco (ultimoRetorno = hoje) + localStorage legado */
+  const finalizadosHoje = useMemo(() => {
+    const clientes = new Set<string>();
+    let processos = 0;
+    for (const c of cases) {
+      if (isAtendidoHoje(c.ultimoRetorno || (c as any).ultimo_retorno)) {
+        processos += 1;
+        if (c.cliente) clientes.add(String(c.cliente).trim().toUpperCase());
+      }
+    }
+    // une nomes só do localStorage (legado) que ainda não estão no DB
+    for (const nome of contatadosHoje) {
+      if (nome) clientes.add(String(nome).trim().toUpperCase());
+    }
+    return { clientes: clientes.size, processos: Math.max(processos, clientes.size) };
+  }, [cases, contatadosHoje]);
+
   const taskData = useMemo(() => {
     const groups: Record<string, TaskGroup> = {};
-    const contactedSet = new Set(contatadosHoje);
+    const contactedSet = new Set(
+      contatadosHoje.map((n) => String(n).trim().toUpperCase())
+    );
+    for (const c of cases) {
+      if (isAtendidoHoje(c.ultimoRetorno || (c as any).ultimo_retorno) && c.cliente) {
+        contactedSet.add(String(c.cliente).trim().toUpperCase());
+      }
+    }
     const today = startOfDay(new Date());
 
     const activeCases = cases.filter(c => !isCasoEncerrado(c));
@@ -636,8 +661,8 @@ const handleSaveAttendance = async () => {
         return b.totalAtivos - a.totalAtivos;
       });
 
-    const pending = sortedAll.filter(g => !contactedSet.has(g.cliente));
-    return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(g.cliente)), totalPendingCount: pending.length };
+    const pending = sortedAll.filter(g => !contactedSet.has(String(g.cliente || '').trim().toUpperCase()));
+    return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
   }, [cases, search, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits]);
 
   const autoTarefas = useMemo(() => {
@@ -703,7 +728,11 @@ const handleSaveAttendance = async () => {
           <section className={ui.metrics}>
             <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes · auto {autoTarefas.length}</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
             <div className="premium-card p-6 border-l-4 border-l-primary relative group"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Dia</p><div className="flex items-center gap-4"><span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span><div className="flex items-center gap-1.5 ml-auto"><Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button><Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button></div></div></div>
-            <div className="premium-card p-6 border-l-4 border-l-emerald-500"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Finalizados</p><h3 className="text-3xl font-black text-emerald-600 tabular-nums">{contatadosHoje.length}</h3></div>
+            <div className="premium-card p-6 border-l-4 border-l-emerald-500" title="Clientes únicos com ultimo retorno = hoje (todas as abas) · processos no tooltip">
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Finalizados</p>
+              <h3 className="text-3xl font-black text-emerald-600 tabular-nums">{finalizadosHoje.clientes}</h3>
+              <p className="text-[9px] text-muted-foreground font-bold mt-1">{finalizadosHoje.processos} processo(s) hoje</p>
+            </div>
           </section>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
