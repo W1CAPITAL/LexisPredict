@@ -658,9 +658,45 @@ function WhatsAppTerminalInner() {
     }
   };
 
+
+  /** Normaliza texto para detectar reenvio idêntico */
+  const normMsg = (s: string) =>
+    String(s || "")
+      .trim()
+      .replace(/\r\n/g, "\n")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n");
+
+  const duplicateOutbound = useMemo(() => {
+    const body = normMsg(draft);
+    if (!body || body.length < 8) return null;
+    const outs = history.filter((h) => h.direction === "out" && normMsg(h.body) === body);
+    if (!outs.length) return null;
+    const last = outs[outs.length - 1];
+    return {
+      count: outs.length,
+      at: last.at,
+      source: last.source || "histórico",
+    };
+  }, [draft, history]);
+
+  const confirmIfDuplicate = () => {
+    if (!duplicateOutbound) return true;
+    const when = duplicateOutbound.at
+      ? new Date(duplicateOutbound.at).toLocaleString("pt-BR")
+      : "antes";
+    return window.confirm(
+      `Esta mensagem já foi enviada ${duplicateOutbound.count} vez(es) para este contato (última: ${when}, via ${duplicateOutbound.source}).\n\nO texto está idêntico — deseja enviar de novo mesmo assim?`
+    );
+  };
+
   const openWaMe = () => {
     if (!selected?.telefone || !draft.trim()) {
       toast({ title: "Selecione contato e texto", variant: "destructive" });
+      return;
+    }
+    if (!confirmIfDuplicate()) {
+      toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
       return;
     }
     openWhatsAppClient({ phone: selected.telefone, text: draft.trim() });
@@ -684,6 +720,10 @@ function WhatsAppTerminalInner() {
   const sendViaEvolution = async () => {
     if (!selected?.telefone || !draft.trim()) return;
     if (sending) return;
+    if (!confirmIfDuplicate()) {
+      toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
+      return;
+    }
     setSending(true);
     try {
       const res = await Promise.race([
@@ -1188,11 +1228,36 @@ function WhatsAppTerminalInner() {
                       </div>
                     )}
 
+
+                    {duplicateOutbound ? (
+                      <div
+                        role="alert"
+                        className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-900 dark:text-amber-100"
+                      >
+                        <p className="font-black uppercase tracking-wide text-[10px] mb-0.5">
+                          Mensagem duplicada
+                        </p>
+                        <p>
+                          Este texto já foi enviado{" "}
+                          <strong>{duplicateOutbound.count}</strong> vez
+                          {duplicateOutbound.count > 1 ? "es" : ""} para este contato
+                          {duplicateOutbound.at
+                            ? ` (última em ${new Date(duplicateOutbound.at).toLocaleString("pt-BR")})`
+                            : ""}
+                          . Altere a mensagem ou confirme no envio se for intencional.
+                        </p>
+                      </div>
+                    ) : null}
+
                     <Textarea
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       placeholder="Mensagem para o cliente…"
-                      className="min-h-[90px] rounded-xl text-[13px]"
+                      className={
+                        duplicateOutbound
+                          ? "min-h-[90px] rounded-xl text-[13px] border-amber-500/50 ring-1 ring-amber-500/30"
+                          : "min-h-[90px] rounded-xl text-[13px]"
+                      }
                     />
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
@@ -1227,7 +1292,7 @@ function WhatsAppTerminalInner() {
                         ) : (
                           <Send size={14} />
                         )}
-                        Enviar (Evolution)
+                        {duplicateOutbound ? "Enviar mesmo assim" : "Enviar (Evolution)"}
                       </Button>
                     </div>
                   </div>
