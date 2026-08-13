@@ -310,18 +310,18 @@ export async function fetchChatMessagesFromEvolution(
   const number = normalizeBrPhone(phone);
   if (!number) return { ok: false, messages: [], error: 'Telefone inválido' };
 
-  const jids = [
-    `${number}@s.whatsapp.net`,
-    number,
-  ];
-  // variantes sem 9
-  if (number.startsWith('55') && number.length === 13) {
-    const local = number.slice(2);
-    if (local.length === 11 && local[2] === '9') {
-      const alt = '55' + local.slice(0, 2) + local.slice(3);
-      jids.push(`${alt}@s.whatsapp.net`, alt);
-    }
+  // Todas as variantes de telefone → JID (com/sem 55, com/sem 9)
+  const jids: string[] = [];
+  for (const v of phoneMatchVariants(number)) {
+    jids.push(`${v}@s.whatsapp.net`, v);
   }
+  // dedupe
+  const seenJid = new Set<string>();
+  const uniqueJids = jids.filter((j) => {
+    if (seenJid.has(j)) return false;
+    seenJid.add(j);
+    return true;
+  });
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -429,7 +429,7 @@ export async function fetchChatMessagesFromEvolution(
   }
 
   // Tentativas comuns Evolution API v1/v2
-  for (const jid of jids) {
+  for (const jid of uniqueJids) {
     const attempts: Array<() => Promise<{ ok: boolean; status: number; json: any }>> = [
       () =>
         tryPost(`/chat/findMessages/${inst}`, {
@@ -463,20 +463,99 @@ export async function fetchChatMessagesFromEvolution(
         const r = await fn();
         if (!r.ok) continue;
         const msgsRaw = normalizeList(r.json);
-        // Evolution pode devolver vários chats — só mantém JID deste telefone
-        const msgs = msgsRaw.filter((m) => jidMatchesPhone(m.remoteJid, number));
-        const withJid = msgsRaw.filter((m) => !!m.remoteJid).length;
+        // Carimba JID consultado quando a API omite remoteJid (comum em findMessages)
+        const stamped = msgsRaw.map((m) => {
+          if (m.remoteJid) return m;
+          const forced =
+            jid.includes('@') ? jid : `${String(jid).replace(/\D/g, '')}@s.whatsapp.net`;
+          return { ...m, remoteJid: forced };
+        });
+        // Só mantém mensagens deste telefone (nunca mistura outros chats)
+        const msgs = stamped.filter((m) => jidMatchesPhone(m.remoteJid, number));
+        const withJid = stamped.filter((m) => !!m.remoteJid).length;
         if (msgs.length > 0) {
           return { ok: true, messages: msgs, tried };
         }
-        if (msgsRaw.length > 0 && withJid > 0) {
-          tried.push(`filtered-out:${msgsRaw.length}->0 (jid≠${number})`);
+        if (stamped.length > 0 && withJid > 0) {
+          tried.push(`filtered-out:${stamped.length}->0 (jid≠${number})`);
           continue;
+        }
+        // Resposta sem JID e sem match — não assume que é deste número
+        if (msgsRaw.length > 0 && withJid === 0) {
+          tried.push(`no-jid-in-payload:${msgsRaw.length}`);
         }
       } catch {
         /* next */
       }
     }
+  }
+
+  // Última tentativa: listar chats e achar o JID deste telefone
+  try {
+    const chatAttempts = [
+      () => tryPost(`/chat/findChats/${inst}`, {}),
+      () => tryGet(`/chat/findChats/${inst}`),
+      () => tryPost(`/chat/findChats/${inst}`, { where: {} }),
+    ];
+    let chatList: any[] = [];
+    for (const fn of chatAttempts) {
+      const r = await fn();
+      if (!r.ok) continue;
+      const raw = r.json;
+      const arr = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.chats)
+          ? raw.chats
+          : Array.isArray(raw?.data)
+            ? raw.data
+            : Array.isArray(raw?.records)
+              ? raw.records
+              : [];
+      if (arr.length) {
+        chatList = arr;
+        break;
+      }
+    }
+    const matchChat = chatList.find((ch) => {
+      const j =
+        ch?.id ||
+        ch?.remoteJid ||
+        ch?.key?.remoteJid ||
+        ch?.jid ||
+        '';
+      return jidMatchesPhone(String(j), number);
+    });
+    if (matchChat) {
+      const jidFound = String(
+        matchChat.id ||
+          matchChat.remoteJid ||
+          matchChat.key?.remoteJid ||
+          matchChat.jid ||
+          ''
+      );
+      tried.push(`findChats→${jidFound}`);
+      if (jidFound && !uniqueJids.includes(jidFound)) {
+        const r = await tryPost(`/chat/findMessages/${inst}`, {
+          where: { key: { remoteJid: jidFound } },
+          page: 1,
+          offset: limit,
+        });
+        if (r.ok) {
+          const msgsRaw = normalizeList(r.json).map((m) => ({
+            ...m,
+            remoteJid: m.remoteJid || jidFound,
+          }));
+          const msgs = msgsRaw.filter((m) => jidMatchesPhone(m.remoteJid, number));
+          if (msgs.length > 0) {
+            return { ok: true, messages: msgs, tried };
+          }
+        }
+      }
+    } else {
+      tried.push(`findChats:0-match-of-${chatList.length}`);
+    }
+  } catch {
+    tried.push('findChats:error');
   }
 
   return {
