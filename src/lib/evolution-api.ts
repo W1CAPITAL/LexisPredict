@@ -294,7 +294,8 @@ export type EvolutionChatMessage = {
  */
 export async function fetchChatMessagesFromEvolution(
   phone: string,
-  limit = 80
+  limit = 500,
+  opts?: { timeoutMs?: number }
 ): Promise<{ ok: boolean; messages: EvolutionChatMessage[]; error?: string; tried?: string[] }> {
   const { baseUrl, apiKey, instance } = getEvolutionConfig();
   if (!baseUrl || !apiKey) {
@@ -309,6 +310,7 @@ export async function fetchChatMessagesFromEvolution(
 
   const number = normalizeBrPhone(phone);
   if (!number) return { ok: false, messages: [], error: 'Telefone inválido' };
+  const timeoutMs = Math.min(Math.max(opts?.timeoutMs ?? 45000, 5000), 90000);
 
   // Todas as variantes de telefone → JID (com/sem 55, com/sem 9)
   const jids: string[] = [];
@@ -339,7 +341,7 @@ export async function fetchChatMessagesFromEvolution(
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text().catch(() => '');
     let json: any = null;
@@ -357,7 +359,7 @@ export async function fetchChatMessagesFromEvolution(
     const res = await fetch(url, {
       method: 'GET',
       headers,
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text().catch(() => '');
     let json: any = null;

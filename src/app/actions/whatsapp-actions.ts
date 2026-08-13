@@ -289,7 +289,7 @@ export async function importEvolutionHistoryAction(phone: string) {
     const n = normalizeBrPhone(phone);
     if (!n) return { success: false, error: 'Telefone vazio', imported: 0, found: 0 };
 
-    const ev = await fetchChatMessagesFromEvolution(n, 100);
+    const ev = await fetchChatMessagesFromEvolution(n, 500, { timeoutMs: 45000 });
     if (!ev.ok || !ev.messages.length) {
       return {
         success: false,
@@ -360,3 +360,107 @@ export async function importEvolutionHistoryAction(phone: string) {
   }
 }
 
+
+
+/**
+ * Importa histórico Evolution de TODOS os telefones da carteira.
+ * Pula rápido quem não tem chat / sem mensagens (timeout curto) para não travar.
+ */
+export async function importEvolutionHistoryBulkAction(opts?: {
+  maxContacts?: number;
+  perContactTimeoutMs?: number;
+}) {
+  try {
+    const { getUserContext, getStoredCasesForEmpresa } = await import('@/lib/server-db');
+    const { normalizeBrPhone, fetchChatMessagesFromEvolution, jidMatchesPhone } = await import(
+      '@/lib/evolution-api'
+    );
+    const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
+
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id) {
+      return { success: false, error: 'Sessão expirada', scanned: 0, imported: 0, skipped: 0 };
+    }
+
+    const cases = await getStoredCasesForEmpresa(ctx.empresa_id, false);
+    const maxContacts = Math.min(opts?.maxContacts ?? 80, 150);
+    const perTimeout = Math.min(Math.max(opts?.perContactTimeoutMs ?? 10000, 4000), 25000);
+
+    // Telefones únicos da carteira
+    const phones: string[] = [];
+    const seen = new Set<string>();
+    for (const c of cases || []) {
+      const raw =
+        (c as any).telefone ||
+        (c as any).phone ||
+        (c as any).celular ||
+        (c as any).whatsapp ||
+        '';
+      const n = normalizeBrPhone(String(raw));
+      if (!n || n.length < 12) continue;
+      if (seen.has(n)) continue;
+      seen.add(n);
+      phones.push(n);
+      if (phones.length >= maxContacts) break;
+    }
+
+    let scanned = 0;
+    let imported = 0;
+    let skipped = 0;
+    let withMsgs = 0;
+    const errors: string[] = [];
+
+    for (const phone of phones) {
+      scanned += 1;
+      try {
+        const ev = await fetchChatMessagesFromEvolution(phone, 300, {
+          timeoutMs: perTimeout,
+        });
+        if (!ev.ok || !ev.messages?.length) {
+          skipped += 1;
+          continue;
+        }
+        withMsgs += 1;
+        for (const m of ev.messages) {
+          const jid = m.remoteJid || `${phone}@s.whatsapp.net`;
+          if (!jidMatchesPhone(jid, phone) && m.remoteJid) {
+            continue;
+          }
+          const saved = await persistWhatsAppMessage({
+            contactNumber: phone,
+            messageText: m.text,
+            fromMe: m.fromMe,
+            messageId: m.id ? `evo-bulk-${phone}-${m.id}` : undefined,
+            contactName: m.pushName,
+            remoteJid: jid,
+            source: 'evolution-bulk',
+            timestamp: m.timestamp,
+            raw: m.raw,
+          });
+          if (saved.ok) imported += 1;
+        }
+      } catch (e: any) {
+        skipped += 1;
+        if (errors.length < 5) errors.push(`${phone}: ${e?.message || e}`);
+      }
+    }
+
+    return {
+      success: true,
+      scanned,
+      withMsgs,
+      imported,
+      skipped,
+      message: `Varridos ${scanned} números · ${withMsgs} com chat · ${imported} msgs gravadas · ${skipped} ignorados (sem histórico/timeout)`,
+      errors: errors.length ? errors : undefined,
+    };
+  } catch (e: any) {
+    return {
+      success: false,
+      error: e?.message || String(e),
+      scanned: 0,
+      imported: 0,
+      skipped: 0,
+    };
+  }
+}

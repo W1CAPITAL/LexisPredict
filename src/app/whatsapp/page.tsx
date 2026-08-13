@@ -65,6 +65,7 @@ import {
   logOutboundWhatsAppAction,
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
+  importEvolutionHistoryBulkAction,
 } from "@/app/actions/whatsapp-actions";
 import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
@@ -156,6 +157,7 @@ function WhatsAppTerminalInner() {
   const [draft, setDraft] = useState("");
   const [history, setHistory] = useState<ChatMsg[]>([]);
   const [histLoading, setHistLoading] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
@@ -170,12 +172,9 @@ function WhatsAppTerminalInner() {
   });
 
   const [tribunalMovimentos, setTribunalMovimentos] = useState<any[]>([]);
-  /** Andamentos aparecendo um a um (UX) */
-  const [streamedMovimentos, setStreamedMovimentos] = useState<any[]>([]);
-  const [streamingMov, setStreamingMov] = useState(false);
   const [djenComunicacoes, setDjenComunicacoes] = useState<any[]>([]);
   const [loadingTribunal, setLoadingTribunal] = useState(false);
-  const [selectedMotor, setSelectedMotor] = useState<string>("omni");
+  const [selectedMotor, setSelectedMotor] = useState<string>("local_only");
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
   const [waScripts, setWaScripts] = useState<
@@ -546,21 +545,6 @@ function WhatsAppTerminalInner() {
     }));
   }, []);
 
-  const revealMovimentosProgressivo = async (movs: any[]) => {
-    setStreamedMovimentos([]);
-    if (!movs?.length) {
-      setStreamingMov(false);
-      return;
-    }
-    setStreamingMov(true);
-    for (let i = 0; i < movs.length; i++) {
-      setStreamedMovimentos((prev) => [...prev, movs[i]]);
-      // ~280ms por item — sensação de “chegando” do tribunal
-      await new Promise((r) => setTimeout(r, 280));
-    }
-    setStreamingMov(false);
-  };
-
   const loadTribunalContext = async (
     c?: LegalCase | null,
     opts?: { scan?: boolean }
@@ -598,8 +582,6 @@ function WhatsAppTerminalInner() {
         }
         setTribunalMovimentos(movimentos);
         setDjenComunicacoes(comunicacoes);
-        // Mostra movimentações uma a uma assim que o scan devolver
-        void revealMovimentosProgressivo(movimentos);
         if (caseData?.protocolo) {
           setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
           setCases((prev) =>
@@ -671,8 +653,8 @@ function WhatsAppTerminalInner() {
       }
 
       // 2) Motor externo com timeout — não trava a UI
-      const res = await gerarRascunhoEstrategico({
-
+      const res = await Promise.race([
+        gerarRascunhoEstrategico({
           clienteNome: selected.cliente,
           protocolo: selected.protocolo,
           ultimoRetorno: selected.ultimoRetorno,
@@ -686,12 +668,16 @@ function WhatsAppTerminalInner() {
             .map(String),
           eventoTipo: selected.evento_tipo,
           eventoResumo: selected.evento_resumo,
-          preferredModel: selectedMotor === "local_only" ? "local_only" : "omni",
+          preferredModel: selectedMotor,
           tem_novo_andamento: selected.tem_novo_andamento,
           datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
           indicio_busca_apreensao: selected.indicio_busca_apreensao,
           em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
-        } as any);
+        } as any),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("IA demorou demais (20s). Use um script pronto ou Motor Lexis.")), 20000)
+        ),
+      ]);
 
       const text =
         (res as any)?.rascunho ||
@@ -728,7 +714,7 @@ function WhatsAppTerminalInner() {
         setAiDraft(fallback);
         setDraft(fallback);
         toast({
-          title: "Usando script Lexis",
+          title: "IA indisponível — script local",
           description: e?.message || "Timeout/erro",
         });
       } else {
@@ -1150,6 +1136,33 @@ function WhatsAppTerminalInner() {
                             Importar Evolution (este número)
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            disabled={bulkImporting}
+                            onClick={async () => {
+                              if (bulkImporting) return;
+                              if (!confirm("Importar histórico Evolution de até 80 números da carteira?\n\nNúmeros sem chat ou sem mensagens recentes serão ignorados rápido para poupar tempo.")) return;
+                              setBulkImporting(true);
+                              try {
+                                const r: any = await importEvolutionHistoryBulkAction({
+                                  maxContacts: 80,
+                                  perContactTimeoutMs: 10000,
+                                });
+                                toast({
+                                  title: r.success ? "Importação em lote" : "Lote falhou",
+                                  description: r.message || r.error || `${r.imported || 0} msgs`,
+                                  variant: r.success ? undefined : "destructive",
+                                });
+                                if (selected) void loadHistory(selected);
+                              } catch (e: any) {
+                                toast({ title: "Erro no lote", description: e?.message, variant: "destructive" });
+                              } finally {
+                                setBulkImporting(false);
+                              }
+                            }}
+                          >
+                            {bulkImporting ? "Carregando carteira…" : "Carregar tudo (Evolution)"}
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
                             disabled={!selected || casePhoneDigits(selected).length < 8}
                             className="text-destructive focus:text-destructive"
                             onClick={async () => {
@@ -1292,37 +1305,7 @@ function WhatsAppTerminalInner() {
                     {waScripts.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          
-                    {(streamingMov || streamedMovimentos.length > 0) && (
-                      <div className="rounded-xl border border-border/60 bg-card/80 p-3 space-y-2 max-h-48 overflow-y-auto">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                          {streamingMov ? (
-                            <><Loader2 size={12} className="animate-spin" /> Recebendo andamentos…</>
-                          ) : (
-                            <>Andamentos ({streamedMovimentos.length})</>
-                          )}
-                        </p>
-                        {streamedMovimentos.map((m, i) => (
-                          <div
-                            key={i}
-                            className="text-[11px] border-b border-border/40 pb-1.5 last:border-0 animate-in fade-in slide-in-from-bottom-1 duration-300"
-                          >
-                            <span className="font-mono text-[9px] text-muted-foreground mr-2">
-                              {String(m.dataHora || m.data || "").slice(0, 10)}
-                            </span>
-                            <span className="font-semibold text-foreground">
-                              {m.nome || m.descricao || "Movimentação"}
-                            </span>
-                            {m.complemento ? (
-                              <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
-                                {String(m.complemento).slice(0, 160)}
-                              </p>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-Scripts prontos (tom WhatsApp)
+                          Scripts prontos (tom WhatsApp)
                         </p>
                         <div className="space-y-2 max-h-36 overflow-y-auto">
                           {waScripts.map((s) => (
