@@ -287,7 +287,7 @@ function SidebarNavBody({
         </button>
       )}
 
-{/* flat */ {navItems.map((item) => {
+{navItems.map((item) => {
               const active =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
