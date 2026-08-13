@@ -69,11 +69,14 @@ const nextConfig: NextConfig = {
           // App Next + Supabase + Vercel; ajuste se usar CDNs extras
           value: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live",
+            "worker-src 'self' blob:",
+            "child-src 'self' blob:",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: blob: https:",
-            "font-src 'self' https://fonts.gstatic.com data: data:",
-            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live",
+            "font-src 'self' https://fonts.gstatic.com data:",
+            // blob: workers Tesseract; tessdata só para baixar idioma por.traineddata (não é motor OCR)
+            "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://cdn.jsdelivr.net https://tessdata.projectnaptha.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

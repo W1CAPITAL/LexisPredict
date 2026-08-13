@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * OCR 100% interno — pipeline inspirado no Unlimited-OCR (Baidu):
- * multi-página, raster HD, realce de documento, anti-repetição n-gram.
- * Reconhecimento: Tesseract local no browser (sem OCR.space / sem LLM).
+ * OCR 100% INTERNO — sem OCR.space, DeepSeek cloud, Unlimited cloud, LEXIS_OCR_*.
+ * Reconhecimento: Tesseract.js no browser (worker local via blob — exige CSP worker-src).
+ * Pipeline: multi-página + realce + anti-repetição (técnicas DeepSeek/Unlimited).
  */
 
 import React, { useState, useRef, useEffect } from "react";
@@ -45,8 +45,16 @@ export default function OCRToolPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const version = pdfjsLib.version;
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+    // Worker PDF same-origin (sem unpkg / CDN externo)
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url
+      ).toString();
+    } catch {
+      // fallback: worker empacotado pelo bundler em alguns setups Next
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
+    }
   }, []);
 
   const runNer = async (text: string) => {
@@ -54,7 +62,6 @@ export default function OCRToolPage() {
     if (r.success) setNer(r.ner);
   };
 
-  /** Rasteriza página PDF em canvas HD (estilo multi-page Unlimited-OCR). */
   async function pdfPageToCanvas(
     pdf: pdfjsLib.PDFDocumentProxy,
     pageNum: number,
@@ -81,7 +88,6 @@ export default function OCRToolPage() {
         el.src = url;
       });
       const canvas = document.createElement("canvas");
-      // escala mínima para textos miúdos (gundam-like densify)
       const maxSide = Math.max(img.width, img.height);
       const scale = maxSide < 1200 ? 2 : 1;
       canvas.width = img.width * scale;
@@ -96,9 +102,10 @@ export default function OCRToolPage() {
   }
 
   const runInternalOcr = async (file: File) => {
-    setStatus("Motor interno · inicializando…");
+    setStatus("Motor interno · Tesseract local…");
     setProgress(3);
-    // worker local — requer CSP worker-src blob: (middleware)
+
+    // Sem endpoint externo. Worker blob exige CSP: worker-src 'self' blob:
     const worker = await createWorker("por", 1, {
       logger: (m: any) => {
         if (m?.status === "recognizing text" && typeof m.progress === "number") {
@@ -107,24 +114,22 @@ export default function OCRToolPage() {
       },
     } as any);
 
-    let pagesText: string[] = [];
+    const pagesText: string[] = [];
     try {
       if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
         const data = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data }).promise;
         const totalPages = pdf.numPages;
         for (let i = 1; i <= totalPages; i++) {
-          setStatus(`Página ${i}/${totalPages} (pipeline multi-page)`);
+          setStatus(`Página ${i}/${totalPages}`);
           setProgress(Math.round((i / totalPages) * 90));
           const canvas = await pdfPageToCanvas(pdf, i, 2);
           const result = await worker.recognize(canvas);
           const pageText = String(result?.data?.text || "").trim();
-          if (pageText) {
-            pagesText.push(`--- Página ${i} ---\n${pageText}`);
-          }
+          if (pageText) pagesText.push(`--- Página ${i} ---\n${pageText}`);
         }
       } else {
-        setStatus("Imagem · realce + reconhecimento…");
+        setStatus("Imagem · reconhecimento local…");
         setProgress(20);
         const canvas = await imageFileToCanvas(file);
         setProgress(50);
@@ -139,11 +144,10 @@ export default function OCRToolPage() {
       }
     }
 
-    const raw = pagesText.filter(Boolean).join("\n\n");
-    const text = cleanDocumentText(raw);
+    const text = cleanDocumentText(pagesText.filter(Boolean).join("\n\n"));
     if (!text) {
       throw new Error(
-        "Nenhum texto reconhecido. Use PDF/imagem legível (scan nítido). CSP deve permitir worker-src blob:."
+        "Nenhum texto reconhecido. Confirme o deploy do next.config.ts com worker-src 'self' blob: e faça hard refresh (Ctrl+Shift+R)."
       );
     }
     return text;
@@ -164,17 +168,23 @@ export default function OCRToolPage() {
       setExtractedText(text);
       setEngineUsed(INTERNAL_OCR_ENGINE_LABEL);
       setProgress(100);
-      setStatus("Concluído");
       await runNer(text);
       toast({
         title: "OCR interno ok",
-        description: `${text.length} caracteres · ${INTERNAL_OCR_ENGINE_LABEL}`,
+        description: `${text.length} caracteres · somente Tesseract local`,
       });
     } catch (err: any) {
       console.error(err);
+      const msg = String(err?.message || err || "");
+      const csp =
+        msg.includes("Content Security Policy") ||
+        msg.includes("worker-src") ||
+        msg.includes("blob:");
       toast({
         title: "Falha no OCR interno",
-        description: err?.message || "Não foi possível transcrever.",
+        description: csp
+          ? "CSP ainda bloqueia worker. Faça deploy do next.config.ts deste ZIP e Ctrl+Shift+R."
+          : msg || "Não foi possível transcrever.",
         variant: "destructive",
       });
     } finally {
@@ -194,10 +204,10 @@ export default function OCRToolPage() {
     if (!extractedText) return;
     const blob = new Blob([extractedText], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Transcricao_LP_${Date.now()}.txt`;
-    link.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Transcricao_LP_${Date.now()}.txt`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -210,16 +220,9 @@ export default function OCRToolPage() {
             <ScanText className="h-5 w-5" />
             <h1 className="font-black text-lg uppercase tracking-tight">OCR</h1>
           </div>
-          <div className="flex items-center gap-2">
-            {engineUsed ? (
-              <Badge variant="outline" className="text-[10px] font-bold uppercase max-w-[240px] truncate">
-                {engineUsed}
-              </Badge>
-            ) : null}
-            <Badge variant="secondary" className="text-[10px] font-bold uppercase">
-              Somente interno
-            </Badge>
-          </div>
+          <Badge variant="secondary" className="text-[10px] font-bold uppercase">
+            100% interno · sem API externa
+          </Badge>
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 max-w-5xl mx-auto w-full space-y-4 pb-16">
@@ -241,8 +244,7 @@ export default function OCRToolPage() {
                 <Upload className="h-10 w-10 text-muted-foreground mb-3" />
                 <p className="font-black uppercase text-sm tracking-wide">PDF / Imagem</p>
                 <p className="text-[10px] text-muted-foreground font-bold uppercase mt-2 text-center max-w-md">
-                  Motor interno · multi-página · realce de documento · anti-repetição
-                  (técnicas Unlimited-OCR + Tesseract local)
+                  Tesseract local no seu navegador · sem OCR.space · sem nuvem de IA
                 </p>
               </>
             )}
@@ -254,6 +256,10 @@ export default function OCRToolPage() {
               onChange={handleFile}
             />
           </div>
+
+          {engineUsed ? (
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">{engineUsed}</p>
+          ) : null}
 
           {extractedText ? (
             <Card className="border-border">
@@ -287,7 +293,7 @@ export default function OCRToolPage() {
                   <Scale className="h-4 w-4" /> NER jurídico (local)
                 </CardTitle>
               </CardHeader>
-              <CardContent className="text-xs space-y-2">
+              <CardContent className="text-xs">
                 <pre className="whitespace-pre-wrap font-mono bg-muted/40 p-3 rounded-md overflow-auto max-h-48">
                   {JSON.stringify(ner, null, 2)}
                 </pre>
