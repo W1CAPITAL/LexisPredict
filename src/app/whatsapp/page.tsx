@@ -12,7 +12,7 @@ import {
   Search,
   Send,
   ExternalLink,
-  Loader2,
+  Loader2, MoreHorizontal, Trash2,
   Sparkles,
   RefreshCcw,
   Copy,
@@ -24,6 +24,13 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -58,6 +65,7 @@ import {
   logOutboundWhatsAppAction,
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
+  clearWhatsAppHistoryAction,
 } from "@/app/actions/whatsapp-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
@@ -845,7 +853,7 @@ function WhatsAppTerminalInner() {
                       <Button
                         type="button"
                         size="sm"
-                        className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 bg-amber-500 hover:bg-amber-600 text-black"
+                        className="h-9 rounded-xl font-semibold text-[11px] gap-1.5 bg-amber-500 hover:bg-amber-600 text-black"
                         onClick={() => loadTribunalContext(selected)}
                         disabled={loadingTribunal}
                       >
@@ -854,89 +862,105 @@ function WhatsAppTerminalInner() {
                         ) : (
                           <FileSearch size={14} />
                         )}
-                        Ver andamentos + scripts
+                        Andamentos
                       </Button>
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                        className="h-9 rounded-xl font-semibold text-[11px] gap-1.5"
                         onClick={openAttendanceDialog}
                         disabled={attSaving}
                       >
                         <UserCheck size={14} />
-                        Registrar atendimento
+                        Atendimento
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5"
-                        disabled={!selected?.telefone || histLoading}
-                        onClick={async () => {
-                          if (!selected?.telefone) {
-                            toast({ title: "Cliente sem telefone", variant: "destructive" });
-                            return;
-                          }
-                          setHistLoading(true);
-                          try {
-                            const r = await testSaveWhatsAppMessageAction(selected.telefone);
-                            if (!r.success) {
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button type="button" size="sm" variant="ghost" className="h-9 rounded-xl text-[11px] gap-1.5">
+                            <MoreHorizontal size={16} />
+                            Mais
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-60">
+                          <DropdownMenuItem
+                            disabled={!selected?.telefone || histLoading}
+                            onClick={async () => {
+                              if (!selected?.telefone) {
+                                toast({ title: "Cliente sem telefone", variant: "destructive" });
+                                return;
+                              }
+                              setHistLoading(true);
+                              try {
+                                const r: any = await importEvolutionHistoryAction(selected.telefone);
+                                if (r.success) {
+                                  toast({
+                                    title: "Histórico importado",
+                                    description: `${r.imported || 0} msg deste número` + (r.skippedWrong ? ` · ${r.skippedWrong} de outro número ignoradas` : ""),
+                                  });
+                                  try {
+                                    // recarrega thread
+                                    const { fetchWhatsAppHistoryAction } = await import("@/app/actions/whatsapp-actions");
+                                    const h = await fetchWhatsAppHistoryAction(selected.telefone);
+                                    if (h?.messages) {
+                                      const mapped = (h.messages || []).map((m: any, i: number) => {
+                                        const body = String(m.message_text || m.body || m.message || m.text || "").trim();
+                                        const fromMe = m.from_me === true || m.fromMe === true || m.direction === "out";
+                                        return {
+                                          id: String(m.id || m.message_id || i),
+                                          direction: (fromMe ? "out" : "in") as "out" | "in",
+                                          body,
+                                          at: m.timestamp || m.created_at || new Date().toISOString(),
+                                          source: m.source || "db",
+                                        };
+                                      }).filter((m: any) => m.body);
+                                      setHistory(mapped);
+                                    };
+                                  } catch { /* ignore */ }
+                                } else {
+                                  toast({ title: "Importação falhou", description: r.error || "Sem mensagens", variant: "destructive" });
+                                }
+                              } finally {
+                                setHistLoading(false);
+                              }
+                            }}
+                          >
+                            Importar Evolution (este número)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!selected?.telefone}
+                            className="text-destructive focus:text-destructive"
+                            onClick={async () => {
+                              if (!selected?.telefone) return;
+                              if (!confirm("Apagar do Supabase o histórico deste telefone?")) return;
+                              const r: any = await clearWhatsAppHistoryAction(selected.telefone);
+                              if (r.success) {
+                                toast({ title: "Histórico limpo", description: `${r.deleted ?? 0} removida(s)` });
+                                setHistory([]);
+                              } else {
+                                toast({ title: "Falha ao limpar", description: r.error, variant: "destructive" });
+                              }
+                            }}
+                          >
+                            Limpar histórico deste número
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            disabled={!selected?.telefone}
+                            onClick={async () => {
+                              if (!selected?.telefone) return;
+                              const r: any = await testSaveWhatsAppMessageAction(selected.telefone);
                               toast({
-                                title: "Não gravou no Supabase",
-                                description: r.error || "Erro desconhecido",
-                                variant: "destructive",
+                                title: r.success ? "Teste OK" : "Teste falhou",
+                                description: r.success ? `${r.count} msg` : r.error,
+                                variant: r.success ? undefined : "destructive",
                               });
-                              setHistDiag(r.error || "Falha ao gravar");
-                            } else {
-                              toast({
-                                title: "Gravou no Supabase",
-                                description: `${r.count} msg(s) para ${r.phone}`,
-                              });
-                              await loadHistory(selected);
-                            }
-                          } finally {
-                            setHistLoading(false);
-                          }
-                        }}
-                      >
-                        Testar gravação Supabase
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 border-sky-500/40 text-sky-700 dark:text-sky-400"
-                        disabled={!selected?.telefone || histLoading}
-                        onClick={async () => {
-                          if (!selected?.telefone) {
-                            toast({ title: "Cliente sem telefone", variant: "destructive" });
-                            return;
-                          }
-                          setHistLoading(true);
-                          try {
-                            const r = await importEvolutionHistoryAction(selected.telefone);
-                            if (!r.success) {
-                              toast({
-                                title: "Não importou histórico",
-                                description: r.error || "Evolution sem mensagens deste chat",
-                                variant: "destructive",
-                              });
-                              setHistDiag(r.error || "Import falhou");
-                            } else {
-                              toast({
-                                title: "Histórico importado",
-                                description: `${r.imported}/${r.found} msgs · total no banco: ${r.totalInDb}`,
-                              });
-                              await loadHistory(selected);
-                            }
-                          } finally {
-                            setHistLoading(false);
-                          }
-                        }}
-                      >
-                        Importar histórico Evolution
-                      </Button>
+                            }}
+                          >
+                            Testar gravação Supabase
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
 
                     <div className="rounded-xl border border-border/60 bg-card/50 p-3 space-y-2">

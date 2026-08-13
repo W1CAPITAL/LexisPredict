@@ -101,25 +101,42 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   if (!sb) return { messages: [], error: 'Sem service role' };
   const num = normalizeBrPhone(phone);
   if (!num) return { messages: [], error: 'Telefone vazio' };
-  const last8 = num.slice(-8);
-  const last9 = num.slice(-9);
+  const variants = [num];
+  if (num.startsWith('55') && num.length >= 12) variants.push(num.slice(2));
+  else if (num.length >= 10 && num.length <= 11) variants.push(`55${num}`);
 
-  // Várias tentativas de match
-  const { data, error } = await sb
+  // 1) Match EXATO no número do cliente (evita misturar conversas)
+  let { data, error } = await sb
     .from('whatsapp_messages')
     .select('*')
     .or(
       [
-        `contact_number.eq.${num}`,
-        `phone.eq.${num}`,
-        `contact_number.ilike.%${last8}`,
-        `phone.ilike.%${last8}`,
-        `contact_number.ilike.%${last9}`,
+        ...variants.map((v) => `contact_number.eq.${v}`),
+        ...variants.map((v) => `phone.eq.${v}`),
       ].join(',')
     )
     .order('timestamp', { ascending: true })
     .limit(300);
 
   if (error) return { messages: [], error: error.message };
+
+  // 2) Se vazio, fallback controlado só por últimos 11 dígitos (não 8 — evita cruzar números)
+  if (!data?.length) {
+    const last11 = num.slice(-11);
+    const r2 = await sb
+      .from('whatsapp_messages')
+      .select('*')
+      .or(`contact_number.ilike.%${last11},phone.ilike.%${last11}`)
+      .order('timestamp', { ascending: true })
+      .limit(300);
+    if (!r2.error && r2.data?.length) {
+      // filtra de novo no app: deve terminar com os mesmos 10–11 dígitos
+      data = r2.data.filter((row: any) => {
+        const d = String(row.contact_number || row.phone || '').replace(/\D/g, '');
+        return d.endsWith(num.slice(-10)) || d.endsWith(num.slice(-11));
+      });
+    }
+  }
+
   return { messages: data || [] };
 }

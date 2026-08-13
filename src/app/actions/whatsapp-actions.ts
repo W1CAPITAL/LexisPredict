@@ -300,16 +300,28 @@ export async function importEvolutionHistoryAction(phone: string) {
       };
     }
 
+    const { messageBelongsToPhone } = await import('@/app/actions/whatsapp-history-actions');
     let imported = 0;
+    let skippedWrong = 0;
     const errors: string[] = [];
     for (const m of ev.messages) {
-      const saved = await persistWhatsAppMessage({
+      // Só grava se o JID/número bater com o telefone do cliente selecionado
+      const belongs = messageBelongsToPhone(n, {
+        remoteJid: m.remoteJid,
         contactNumber: n,
+      });
+      // Se a Evolution já filtrou pelo chat do número, remoteJid deve conter os dígitos
+      if (m.remoteJid && !belongs) {
+        skippedWrong += 1;
+        continue;
+      }
+      const saved = await persistWhatsAppMessage({
+        contactNumber: n, // sempre o número do cliente selecionado
         messageText: m.text,
         fromMe: m.fromMe,
         messageId: m.id ? `evo-${m.id}` : undefined,
         contactName: m.pushName,
-        remoteJid: m.remoteJid,
+        remoteJid: m.remoteJid || `${n}@s.whatsapp.net`,
         source: 'evolution-import',
         timestamp: m.timestamp,
         raw: m.raw,
@@ -336,3 +348,6 @@ export async function importEvolutionHistoryAction(phone: string) {
     };
   }
 }
+
+
+export { clearWhatsAppHistoryAction } from '@/app/actions/whatsapp-history-actions';

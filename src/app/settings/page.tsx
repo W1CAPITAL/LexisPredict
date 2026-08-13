@@ -78,6 +78,7 @@ import {
   type MetalPresetKey,
 } from '@/lib/metal-preferences';
 import { NeuralEnginePanel } from '@/components/settings/neural-engine-panel';
+import { NavLayoutPanel } from '@/components/settings/nav-layout-panel';
 import { exportFullSourceCodeAction } from '@/app/actions/system-actions';
 import { listAdvogadosBanca, upsertAdvogadoBanca, desativarAdvogadoBanca } from '@/lib/server-db';
 import { uploadUserAvatarAction, uploadAdvogadoAvatarAction, removeAvatarAction } from '@/app/actions/avatar-actions';
@@ -552,6 +553,7 @@ export default function SettingsPage() {
 
               <nav className="space-y-1">
                 <NavButton active={activeTab === 'Conta'} onClick={() => setActiveTab('Conta')} icon={<KeyRound size={14}/>} label="Conta e senha" />
+                <NavButton active={activeTab === 'Menu'} onClick={() => setActiveTab('Menu')} icon={<Layout size={14}/>} label="Menu lateral" />
                 <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
                 <NavButton active={activeTab === 'Banca'} onClick={() => setActiveTab('Banca')} icon={<Gavel size={14}/>} label="Banca de Advogados" />
                 <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
@@ -660,6 +662,12 @@ export default function SettingsPage() {
                       )}
                     </CardContent>
                   </Card>
+                </div>
+              )}
+
+              {activeTab === 'Menu' && (
+                <div className="max-w-2xl">
+                  <NavLayoutPanel />
                 </div>
               )}
 

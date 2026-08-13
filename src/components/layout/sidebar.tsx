@@ -44,7 +44,8 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
+import { applyNavPreferences, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
 import { Button } from "@/components/ui/button";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -119,7 +120,16 @@ function SidebarNavBody({
   const t = getTranslation(locale);
   const navScrollRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef(0);
-  const [navQuery, setNavQuery] = useState("");
+  const [navQuery, setNavQuery] = useState("")
+  const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences());
+  useEffect(() => {
+    const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
+    setNavPrefs(loadNavPreferences(uid));
+    const onPrefs = () => setNavPrefs(loadNavPreferences(uid));
+    window.addEventListener('lexis-nav-prefs', onPrefs);
+    return () => window.removeEventListener('lexis-nav-prefs', onPrefs);
+  }, [profile]);
+
   const [showMoreTools, setShowMoreTools] = useState(false);
 
   const onNavScroll = useCallback(() => {
@@ -223,9 +233,10 @@ function SidebarNavBody({
       ],
     });
 
+    const ranked = applyNavPreferences(groups, navPrefs);
     const q = navQuery.trim().toLowerCase();
-    if (!q) return groups;
-    return groups
+    if (!q) return ranked;
+    return ranked
       .map((g) => ({
         ...g,
         items: g.items.filter(
@@ -236,7 +247,7 @@ function SidebarNavBody({
         ),
       }))
       .filter((g) => g.items.length > 0);
-  }, [isAdmin, isSuperAdmin, navQuery, showMoreTools]);
+  }, [isAdmin, isSuperAdmin, navQuery, showMoreTools, navPrefs]);
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
