@@ -93,6 +93,31 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
   return { ok: true, id: data?.id };
 }
 
+/** Mesma linha BR? (55, 9º dígito, formatação). */
+export function sameWhatsAppLine(stored: string, targetNormalized: string): boolean {
+  const a = String(stored || '').replace(/\D/g, '');
+  const b = String(targetNormalized || '').replace(/\D/g, '');
+  if (!a || a.length < 8 || !b || b.length < 10) return false;
+  if (a === b) return true;
+  if (a.endsWith(b) || b.endsWith(a)) return true;
+  const b10 = b.slice(-10);
+  const b11 = b.slice(-11);
+  if (a.endsWith(b10) || a.endsWith(b11)) return true;
+  // com/sem 9 após DDD (ex.: 2799630… vs 279630…)
+  if (b.startsWith('55') && b.length >= 12) {
+    const local = b.slice(2);
+    if (local.length === 11 && local[2] === '9') {
+      const sem9 = local.slice(0, 2) + local.slice(3);
+      if (a.endsWith(sem9) || a.endsWith('55' + sem9)) return true;
+    }
+    if (local.length === 10) {
+      const com9 = local.slice(0, 2) + '9' + local.slice(2);
+      if (a.endsWith(com9) || a.endsWith('55' + com9)) return true;
+    }
+  }
+  return false;
+}
+
 export async function fetchMessagesByPhone(phone: string): Promise<{
   messages: any[];
   error?: string;
@@ -101,42 +126,74 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   if (!sb) return { messages: [], error: 'Sem service role' };
   const num = normalizeBrPhone(phone);
   if (!num) return { messages: [], error: 'Telefone vazio' };
-  const variants = [num];
-  if (num.startsWith('55') && num.length >= 12) variants.push(num.slice(2));
-  else if (num.length >= 10 && num.length <= 11) variants.push(`55${num}`);
 
-  // 1) Match EXATO no número do cliente (evita misturar conversas)
+  let variants: string[] = [num];
+  try {
+    const { phoneMatchVariants } = await import('@/lib/evolution-api');
+    variants = phoneMatchVariants(phone);
+    if (!variants.includes(num)) variants.unshift(num);
+  } catch {
+    if (num.startsWith('55') && num.length >= 12) variants.push(num.slice(2));
+    else if (num.length >= 10 && num.length <= 11) variants.push(`55${num}`);
+  }
+
+  const last10 = num.slice(-10);
+  const last11 = num.slice(-11);
+  const orParts: string[] = [];
+  for (const v of variants) {
+    orParts.push(`contact_number.eq.${v}`);
+    orParts.push(`phone.eq.${v}`);
+    orParts.push(`remote_jid.eq.${v}@s.whatsapp.net`);
+    orParts.push(`remote_jid.ilike.${v}@%`);
+  }
+  // legado: gravado com máscara / parcial
+  orParts.push(`contact_number.ilike.%${last10}%`);
+  orParts.push(`phone.ilike.%${last10}%`);
+  orParts.push(`remote_jid.ilike.%${last10}%`);
+  if (last11 !== last10) {
+    orParts.push(`contact_number.ilike.%${last11}%`);
+    orParts.push(`phone.ilike.%${last11}%`);
+    orParts.push(`remote_jid.ilike.%${last11}%`);
+  }
+
+  // Busca ampla + filtro local (não perde histórico antigo com formato diferente)
   let { data, error } = await sb
     .from('whatsapp_messages')
     .select('*')
-    .or(
-      [
-        ...variants.map((v) => `contact_number.eq.${v}`),
-        ...variants.map((v) => `phone.eq.${v}`),
-      ].join(',')
-    )
+    .or(orParts.join(','))
     .order('timestamp', { ascending: true })
-    .limit(300);
+    .limit(800);
+
+  // Se timestamp null em msgs antigas, tenta created_at
+  if (error) {
+    const r = await sb
+      .from('whatsapp_messages')
+      .select('*')
+      .or(orParts.join(','))
+      .order('created_at', { ascending: true })
+      .limit(800);
+    data = r.data;
+    error = r.error;
+  }
 
   if (error) return { messages: [], error: error.message };
 
-  // 2) Se vazio, fallback controlado só por últimos 11 dígitos (não 8 — evita cruzar números)
-  if (!data?.length) {
-    const last11 = num.slice(-11);
-    const r2 = await sb
-      .from('whatsapp_messages')
-      .select('*')
-      .or(`contact_number.ilike.%${last11},phone.ilike.%${last11}`)
-      .order('timestamp', { ascending: true })
-      .limit(300);
-    if (!r2.error && r2.data?.length) {
-      // filtra de novo no app: deve terminar com os mesmos 10–11 dígitos
-      data = r2.data.filter((row: any) => {
-        const d = String(row.contact_number || row.phone || '').replace(/\D/g, '');
-        return d.endsWith(num.slice(-10)) || d.endsWith(num.slice(-11));
-      });
-    }
-  }
+  const filtered = (data || []).filter((row: any) => {
+    const candidates = [
+      row.contact_number,
+      row.phone,
+      row.remote_jid,
+      row.remoteJid,
+    ];
+    return candidates.some((c) => sameWhatsAppLine(String(c || ''), num));
+  });
 
-  return { messages: data || [] };
+  // Ordena por data (timestamp ou created_at)
+  filtered.sort((a: any, b: any) => {
+    const ta = new Date(a.timestamp || a.created_at || 0).getTime();
+    const tb = new Date(b.timestamp || b.created_at || 0).getTime();
+    return ta - tb;
+  });
+
+  return { messages: filtered };
 }

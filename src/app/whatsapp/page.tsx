@@ -186,51 +186,82 @@ function WhatsAppTerminalInner() {
 
   const loadHistory = useCallback(async (c: LegalCase) => {
     setHistLoading(true);
-    setHistory([]);
     setHistDiag("");
     try {
       const diag = await diagnoseWhatsAppStorageAction(c.telefone || "");
       if (diag?.hint) setHistDiag(String(diag.hint));
 
       const res = await fetchWhatsAppHistoryAction(c.telefone || "");
-      if (res?.success && Array.isArray(res.messages) && res.messages.length > 0) {
-        const mapped: ChatMsg[] = res.messages
-          .map((m: any, i: number) => {
-            const body = String(
-              m.message_text || m.body || m.message || m.text || ""
-            ).trim();
-            const fromMe =
-              m.from_me === true || m.fromMe === true || m.direction === "out";
-            return {
-              id: String(m.id || m.message_id || i),
-              direction: (fromMe ? "out" : "in") as "out" | "in",
-              body,
-              at: m.timestamp || m.created_at || new Date().toISOString(),
-              source: m.source || "db",
-            };
-          })
-          .filter((m) => m.body);
-        setHistory(mapped);
-        setHistDiag(`Histórico: ${mapped.length} mensagem(ns) no Supabase`);
-      } else {
+      const fromDb: ChatMsg[] = (
+        res?.success && Array.isArray(res.messages) ? res.messages : []
+      )
+        .map((m: any, i: number) => {
+          const body = String(
+            m.message_text || m.body || m.message || m.text || ""
+          ).trim();
+          const fromMe =
+            m.from_me === true || m.fromMe === true || m.direction === "out";
+          return {
+            id: String(m.id || m.message_id || `db-${i}`),
+            direction: (fromMe ? "out" : "in") as "out" | "in",
+            body,
+            at: m.timestamp || m.created_at || new Date().toISOString(),
+            source: m.source || "db",
+          };
+        })
+        .filter((m) => m.body);
+
+      // Histórico local (navegador) — não descarta ao recarregar
+      let fromLocal: ChatMsg[] = [];
+      try {
         const key = `lexis_wa_local_${digitsPhone(c.telefone)}`;
         const raw =
           typeof window !== "undefined" ? localStorage.getItem(key) : null;
         if (raw) {
-          setHistory(JSON.parse(raw));
-        } else {
-          const tip =
-            diag?.hint ||
-            "Sem mensagens no Supabase para este número. Envie 1 mensagem pelo botão Enviar (Evolution) e reabra o contato.";
-          setHistory([
-            {
-              id: "sys-1",
-              direction: "system",
-              body: tip,
-              at: new Date().toISOString(),
-            },
-          ]);
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            fromLocal = parsed.filter(
+              (m: any) => m && m.body && m.direction !== "system"
+            );
+          }
         }
+      } catch {
+        /* ignore */
+      }
+
+      // Merge por id + (body+at) para não perder antigas nem duplicar
+      const seen = new Set<string>();
+      const merged: ChatMsg[] = [];
+      for (const m of [...fromDb, ...fromLocal]) {
+        const k = `${m.id}|${m.body}|${String(m.at).slice(0, 16)}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        merged.push(m);
+      }
+      merged.sort(
+        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+      );
+
+      if (merged.length > 0) {
+        setHistory(merged);
+        setHistDiag(
+          `Histórico: ${fromDb.length} no Supabase` +
+            (fromLocal.length ? ` · ${fromLocal.length} local` : "") +
+            ` · ${merged.length} total`
+        );
+      } else {
+        const tip =
+          diag?.hint ||
+          "Sem mensagens neste número. Importe da Evolution ou envie uma mensagem.";
+        setHistory([
+          {
+            id: "sys-1",
+            direction: "system",
+            body: tip,
+            at: new Date().toISOString(),
+          },
+        ]);
+        setHistDiag(tip);
       }
     } catch (e: any) {
       setHistory([
