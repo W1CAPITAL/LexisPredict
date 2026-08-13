@@ -70,7 +70,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   }
 
   const simple = isSimplePrompt(pergunta, hasImg || hasPdf);
-  const preferred = (input.preferred || input.preferredModel || 'claude').toLowerCase();
+  const preferred = (input.preferred || input.preferredModel || 'omni').toLowerCase();
 
   const history: ChatTurn[] = (input.historico || []).slice(simple ? -4 : -12).map((h) => ({
     role: h.role,
@@ -171,7 +171,7 @@ export async function perguntarIA(input: any) {
   return chatAIFlow({
     pergunta: input?.pergunta || input?.message || input?.prompt || '',
     historico: input?.historico || input?.history,
-    preferred: input?.preferred || input?.preferredModel || input?.motor || 'claude',
+    preferred: input?.preferred || input?.preferredModel || input?.motor || 'omni',
     preferredModel: input?.preferredModel,
     tribunalContext: input?.tribunalContext,
     baClaudeDjen: !!input?.baClaudeDjen,

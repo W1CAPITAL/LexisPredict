@@ -156,7 +156,7 @@ export default function TarefasPage() {
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
-  const [selectedMotor, setSelectedMotor] = useState<string>('local_only');
+  const [selectedMotor, setSelectedMotor] = useState<string>('omni');
 
   const { profile } = useAuth();
   const kpiCarteira = useMemo(
@@ -342,7 +342,7 @@ export default function TarefasPage() {
         djenTexts,
         eventoTipo: historyResult.case.evento_tipo,
         eventoResumo: historyResult.case.evento_resumo,
-        preferredModel: selectedMotor,
+        preferredModel: selectedMotor === "local_only" || selectedMotor === "local" ? "local_only" : "omni",
         empresaId: profile?.empresa_id,
         tem_novo_andamento: historyResult.case.tem_novo_andamento,
         datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal,

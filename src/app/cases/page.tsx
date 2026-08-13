@@ -221,7 +221,7 @@ function CasesContent() {
   const [showScripts, setShowScripts] = useState(false);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
-  const [selectedMotor, setSelectedMotor] = useState<string>('local_only');
+  const [selectedMotor, setSelectedMotor] = useState<string>('omni');
 
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
@@ -424,7 +424,7 @@ function CasesContent() {
     setAiDraft(null);
     try {
       const djenTexts = (historyResult.djenComunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
-      const res = await gerarRascunhoEstrategico({ clienteNome: historyResult.case.cliente, protocolo: historyResult.case.protocolo, ultimoRetorno: historyResult.case.ultimoRetorno, movimentos: historyResult.movimentos, djenTexts, eventoTipo: historyResult.case.evento_tipo, eventoResumo: historyResult.case.evento_resumo, preferredModel: selectedMotor, empresaId: profile?.empresa_id, tem_novo_andamento: historyResult.case.tem_novo_andamento, datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal, indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao, em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca });
+      const res = await gerarRascunhoEstrategico({ clienteNome: historyResult.case.cliente, protocolo: historyResult.case.protocolo, ultimoRetorno: historyResult.case.ultimoRetorno, movimentos: historyResult.movimentos, djenTexts, eventoTipo: historyResult.case.evento_tipo, eventoResumo: historyResult.case.evento_resumo, preferredModel: selectedMotor === "local_only" || selectedMotor === "local" ? "local_only" : "omni", empresaId: profile?.empresa_id, tem_novo_andamento: historyResult.case.tem_novo_andamento, datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal, indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao, em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca });
       if (res.rascunho) { setAiDraft(res.rascunho); toast({ title: "Draft Gerado" }); }
     } finally { setIsGeneratingAIDraft(false); }
   };

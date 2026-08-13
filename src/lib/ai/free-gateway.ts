@@ -142,7 +142,7 @@ export async function freeComplete(opts: {
 
   const errors: string[] = [];
   const pref = (opts.preferred || '').toLowerCase();
-  const exclusive = !!opts.exclusive && !!pref && pref !== 'auto';
+  const exclusive = !!opts.exclusive && !!pref && pref !== 'auto' && pref !== 'omni' && !pref.includes('omni');
 
   type Step = { id: string; run: () => Promise<FreeResult> };
   const steps: Step[] = [];
@@ -237,6 +237,20 @@ export async function freeComplete(opts: {
     });
   }
 
+
+
+  // NVIDIA NIM
+  const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY;
+  if (nvidiaKey) {
+    steps.push({
+      id: 'nvidia',
+      run: async () => {
+        const { callNvidiaNim } = await import('@/lib/ai/nvidia-nim');
+        const r = await callNvidiaNim(messages as any, { max_tokens: 4096, temperature: 0.3 });
+        return { text: r.text, engine: `nvidia:${r.model}`, latencyMs: r.latencyMs };
+      },
+    });
+  }
 
   // GPT4Free / gptgod — fallback (https://github.com/xiangsx/gpt4free-ts)
   if (process.env.GPT4FREE_BASE_URL || process.env.GPTGOD_BASE_URL || process.env.G4F_BASE_URL) {

@@ -170,9 +170,12 @@ function WhatsAppTerminalInner() {
   });
 
   const [tribunalMovimentos, setTribunalMovimentos] = useState<any[]>([]);
+  /** Andamentos aparecendo um a um (UX) */
+  const [streamedMovimentos, setStreamedMovimentos] = useState<any[]>([]);
+  const [streamingMov, setStreamingMov] = useState(false);
   const [djenComunicacoes, setDjenComunicacoes] = useState<any[]>([]);
   const [loadingTribunal, setLoadingTribunal] = useState(false);
-  const [selectedMotor, setSelectedMotor] = useState<string>("local_only");
+  const [selectedMotor, setSelectedMotor] = useState<string>("omni");
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
   const [waScripts, setWaScripts] = useState<
@@ -543,6 +546,21 @@ function WhatsAppTerminalInner() {
     }));
   }, []);
 
+  const revealMovimentosProgressivo = async (movs: any[]) => {
+    setStreamedMovimentos([]);
+    if (!movs?.length) {
+      setStreamingMov(false);
+      return;
+    }
+    setStreamingMov(true);
+    for (let i = 0; i < movs.length; i++) {
+      setStreamedMovimentos((prev) => [...prev, movs[i]]);
+      // ~280ms por item — sensação de “chegando” do tribunal
+      await new Promise((r) => setTimeout(r, 280));
+    }
+    setStreamingMov(false);
+  };
+
   const loadTribunalContext = async (
     c?: LegalCase | null,
     opts?: { scan?: boolean }
@@ -580,6 +598,8 @@ function WhatsAppTerminalInner() {
         }
         setTribunalMovimentos(movimentos);
         setDjenComunicacoes(comunicacoes);
+        // Mostra movimentações uma a uma assim que o scan devolver
+        void revealMovimentosProgressivo(movimentos);
         if (caseData?.protocolo) {
           setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
           setCases((prev) =>
@@ -651,8 +671,8 @@ function WhatsAppTerminalInner() {
       }
 
       // 2) Motor externo com timeout — não trava a UI
-      const res = await Promise.race([
-        gerarRascunhoEstrategico({
+      const res = await gerarRascunhoEstrategico({
+
           clienteNome: selected.cliente,
           protocolo: selected.protocolo,
           ultimoRetorno: selected.ultimoRetorno,
@@ -666,16 +686,12 @@ function WhatsAppTerminalInner() {
             .map(String),
           eventoTipo: selected.evento_tipo,
           eventoResumo: selected.evento_resumo,
-          preferredModel: selectedMotor,
+          preferredModel: selectedMotor === "local_only" ? "local_only" : "omni",
           tem_novo_andamento: selected.tem_novo_andamento,
           datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
           indicio_busca_apreensao: selected.indicio_busca_apreensao,
           em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
-        } as any),
-        new Promise((_, rej) =>
-          setTimeout(() => rej(new Error("IA demorou demais (20s). Use um script pronto ou Motor Lexis.")), 20000)
-        ),
-      ]);
+        } as any);
 
       const text =
         (res as any)?.rascunho ||
@@ -712,7 +728,7 @@ function WhatsAppTerminalInner() {
         setAiDraft(fallback);
         setDraft(fallback);
         toast({
-          title: "IA indisponível — script local",
+          title: "Usando script Lexis",
           description: e?.message || "Timeout/erro",
         });
       } else {
@@ -1276,7 +1292,37 @@ function WhatsAppTerminalInner() {
                     {waScripts.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          Scripts prontos (tom WhatsApp)
+                          
+                    {(streamingMov || streamedMovimentos.length > 0) && (
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-3 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                          {streamingMov ? (
+                            <><Loader2 size={12} className="animate-spin" /> Recebendo andamentos…</>
+                          ) : (
+                            <>Andamentos ({streamedMovimentos.length})</>
+                          )}
+                        </p>
+                        {streamedMovimentos.map((m, i) => (
+                          <div
+                            key={i}
+                            className="text-[11px] border-b border-border/40 pb-1.5 last:border-0 animate-in fade-in slide-in-from-bottom-1 duration-300"
+                          >
+                            <span className="font-mono text-[9px] text-muted-foreground mr-2">
+                              {String(m.dataHora || m.data || "").slice(0, 10)}
+                            </span>
+                            <span className="font-semibold text-foreground">
+                              {m.nome || m.descricao || "Movimentação"}
+                            </span>
+                            {m.complemento ? (
+                              <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
+                                {String(m.complemento).slice(0, 160)}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+Scripts prontos (tom WhatsApp)
                         </p>
                         <div className="space-y-2 max-h-36 overflow-y-auto">
                           {waScripts.map((s) => (

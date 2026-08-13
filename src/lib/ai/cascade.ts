@@ -127,7 +127,12 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
     },
     {
       id: 'nvidia',
-      url: (process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '') + '/chat/completions',
+      url: (() => {
+        let b = (process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').trim().replace(/\/+$/, '');
+        while (b.startsWith('=')) b = b.slice(1).trim();
+        if (!b.endsWith('/v1')) b = b + '/v1';
+        return b + '/chat/completions';
+      })(),
       key: process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY,
       model: process.env.NVIDIA_MODEL || process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.3-70b-instruct',
       kind: 'openai',
@@ -140,7 +145,16 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
       kind: 'openai',
     },
   ];
-  let list = engines.filter((e) => !!e.key);
+  let list = engines.filter((e) => {
+    if (e.id === 'omniroute') {
+      return !!(
+        process.env.OMNIROUTE_API_KEY ||
+        process.env.OMNIROUTE_BASE_URL ||
+        process.env.AI_GATEWAY_BASE_URL
+      );
+    }
+    return !!e.key;
+  });
   const pref = (preferred || 'claude').toLowerCase();
   const idx = list.findIndex((e) => e.id === pref || pref.includes(e.id) || e.id.includes(pref));
   if (idx > 0) {
