@@ -152,6 +152,8 @@ function WhatsAppTerminalInner() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<LegalCase | null>(null);
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [phoneSaving, setPhoneSaving] = useState(false);
   /** Ordenação só da lista lateral — não troca o contato aberto */
   const [listSortMode, setListSortMode] = useState<"default" | "mais_vencido" | "menos_vencido">("default");
   const [draft, setDraft] = useState("");
@@ -351,6 +353,7 @@ function WhatsAppTerminalInner() {
 
   const selectCase = (c: LegalCase) => {
     setSelected(c);
+    setPhoneDraft(casePhone(c) || "");
     setDraft("");
     setAiDraft(null);
     setTribunalMovimentos([]);
@@ -439,6 +442,49 @@ function WhatsAppTerminalInner() {
       );
     } catch {
       /* ignore */
+    }
+  };
+
+  const savePhoneForSelected = async () => {
+    if (!selected?.protocolo) return;
+    const digits = digitsPhone(phoneDraft);
+    if (digits.length < 10) {
+      toast({
+        title: "Telefone inválido",
+        description: "Informe DDD + número (10 ou 11 dígitos).",
+        variant: "destructive",
+      });
+      return;
+    }
+    setPhoneSaving(true);
+    try {
+      const updated = {
+        ...selected,
+        telefone: phoneDraft.trim(),
+      } as LegalCase;
+      const res = await saveOneCaseAction(updated);
+      if (!(res as any)?.success) {
+        toast({
+          title: "Não salvou",
+          description: (res as any)?.message || "Erro ao gravar telefone",
+          variant: "destructive",
+        });
+        return;
+      }
+      const saved = ((res as any).case || updated) as LegalCase;
+      setSelected(saved);
+      setPhoneDraft(casePhone(saved) || phoneDraft.trim());
+      setCases((prev) =>
+        prev.map((x) =>
+          x.protocolo === saved.protocolo ? { ...x, telefone: saved.telefone } : x
+        )
+      );
+      toast({ title: "Telefone atualizado", description: casePhone(saved) });
+      void loadHistory(saved);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message || "Falha", variant: "destructive" });
+    } finally {
+      setPhoneSaving(false);
     }
   };
 
@@ -1062,15 +1108,43 @@ function WhatsAppTerminalInner() {
                         Andamentos + scripts
                       </Button>
 
-                    {selected && casePhoneDigits(selected).length < 8 ? (
-                      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-950 dark:text-amber-100">
-                        <p className="font-black uppercase text-[10px] tracking-wide mb-0.5">Telefone ausente</p>
-                        <p>
-                          Este cliente está sem número válido. Importar Evolution, limpar histórico e enviar pela API ficam bloqueados.
-                          Edite o telefone na aba <strong>Processos</strong> e volte aqui.
+                    {selected && (
+                      <div
+                        className={cn(
+                          "rounded-xl border px-3 py-2.5 space-y-2",
+                          casePhoneDigits(selected).length < 8
+                            ? "border-amber-500/40 bg-amber-500/10"
+                            : "border-border/50 bg-muted/20"
+                        )}
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {casePhoneDigits(selected).length < 8
+                            ? "Telefone ausente ou inválido — cadastre para Evolution / envio"
+                            : "Telefone do contato"}
                         </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Input
+                            value={phoneDraft}
+                            onChange={(e) => setPhoneDraft(e.target.value)}
+                            placeholder="(11) 9XXXX-XXXX"
+                            className="h-9 max-w-[200px] rounded-lg text-sm font-mono"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-9 rounded-lg text-[11px] font-semibold"
+                            disabled={phoneSaving}
+                            onClick={() => void savePhoneForSelected()}
+                          >
+                            {phoneSaving ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              "Salvar telefone"
+                            )}
+                          </Button>
+                        </div>
                       </div>
-                    ) : null}
+                    )}
 
                       <Button
                         type="button"

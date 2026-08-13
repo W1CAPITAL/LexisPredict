@@ -95,20 +95,34 @@ const CaseRow = React.memo(({
           </div>
           <span className={cn("text-[10px] font-mono text-muted-foreground uppercase tracking-widest", ui.cnj)}>{c.protocolo}</span>
           
-          <div className="mt-3 space-y-1.5 max-w-[450px]">
-             <div className="flex items-center gap-2">
-                <Badge variant="outline" className={cn("text-[8px] font-black uppercase h-5 px-2 rounded-none border-2", sinal.prioridade >= 80 ? "border-red-600 text-red-600 bg-red-50" : "border-black/10 text-black/40")}>
-                  {sinal.fonte === 'datajud' ? 'Tribunal' : sinal.fonte === 'djen' ? 'Diário Oficial' : 'Híbrido'}
-                </Badge>
-                <span className="text-[9px] font-black text-black/60 uppercase">{sinal.titulo}</span>
-                {sinal.data && <span className="text-[8px] font-bold text-black/30 ml-auto">{format(parseISO(sinal.data), 'dd/MM/yy')}</span>}
+          <div className="mt-2.5 max-w-[420px] space-y-2">
+             {/* Capa unificada — uma faixa só, sem repetir título 3x */}
+             <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5 space-y-1.5">
+               <div className="flex items-center gap-2 flex-wrap">
+                 <span className={cn(
+                   "inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                   sinal.fonte === 'djen' ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200" :
+                   sinal.prioridade >= 80 ? "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200" :
+                   "bg-secondary text-muted-foreground"
+                 )}>
+                   {sinal.fonte === 'datajud' ? 'Tribunal' : sinal.fonte === 'djen' ? 'D.O.' : 'Sinal'}
+                 </span>
+                 <span className="text-[11px] font-semibold text-foreground leading-tight line-clamp-1 flex-1 min-w-0">
+                   {sinal.titulo}
+                 </span>
+                 {sinal.data && (
+                   <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">
+                     {(() => { try { return format(parseISO(sinal.data), 'dd/MM/yy'); } catch { return ''; } })()}
+                   </span>
+                 )}
+               </div>
+               {sinal.detalhe && sinal.detalhe !== sinal.titulo && (
+                 <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
+                   {sinal.detalhe}
+                 </p>
+               )}
              </div>
-             <p className="text-[11px] font-medium text-foreground/80 leading-snug line-clamp-2">
-               {sinal.detalhe}
-             </p>
-             <div className="mt-2 w-full max-w-xl">
-               <AndamentoLeigoBlock caseData={c} showPrazo showAtividades />
-             </div>
+             <AndamentoLeigoBlock caseData={c} showPrazo={false} showAtividades className="!py-2 !px-2.5 border-border/50 shadow-none" />
              {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <button

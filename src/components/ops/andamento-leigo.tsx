@@ -42,15 +42,17 @@ export function AndamentoLeigoBlock({
   return (
     <div
       className={cn(
-        "ops-leigo-block space-y-1.5 rounded-lg border border-border/70 bg-card px-3 py-2.5",
+        "ops-leigo-block space-y-1 rounded-lg border border-border/50 bg-background/80 px-2.5 py-2",
         className
       )}
     >
-      <p className="text-[10px] font-medium text-muted-foreground">Em linguagem simples</p>
-      <p className="text-sm font-semibold text-foreground leading-snug">
+      <p className="text-[9px] font-medium text-muted-foreground/80 tracking-wide">Em linguagem simples</p>
+      <p className="text-[12px] font-medium text-foreground leading-snug">
         {leigo.tituloLeigo || "Atualização no processo"}
       </p>
-      <p className="text-xs text-muted-foreground leading-relaxed">{leigo.detalheLeigo}</p>
+      {leigo.detalheLeigo && leigo.detalheLeigo !== leigo.tituloLeigo ? (
+        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{leigo.detalheLeigo}</p>
+      ) : null}
       {prazo && prazo.tone !== "vazio" && (
         <div className="space-y-1">
           <Badge
