@@ -59,11 +59,13 @@ export function NavLayoutPanel() {
   };
 
   const move = (href: string, dir: -1 | 1) => {
-    const idx = order.indexOf(href);
+    // Usa a lista completa (order + itens ainda não ordenados) — todas as abas sobem/descem
+    const full = orderedCatalog.map((c) => c.href);
+    const idx = full.indexOf(href);
     if (idx < 0) return;
     const j = idx + dir;
-    if (j < 0 || j >= order.length) return;
-    const next = [...order];
+    if (j < 0 || j >= full.length) return;
+    const next = [...full];
     [next[idx], next[j]] = [next[j], next[idx]];
     setOrder(next);
     persist({ ...prefs, order: next });
@@ -76,6 +78,20 @@ export function NavLayoutPanel() {
   };
 
   // Lista na ordem global (plana) — não por seção
+  // Garante que order tenha todos os hrefs (senão move() falhava em abas "fixas")
+  React.useEffect(() => {
+    const all = NAV_CATALOG.map((c) => c.href);
+    const missing = all.filter((h) => !order.includes(h));
+    if (missing.length || order.length === 0) {
+      const merged = [...order.filter((h) => all.includes(h)), ...missing];
+      if (merged.join() !== order.join()) {
+        setOrder(merged);
+        persist({ ...prefs, order: merged });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const orderedCatalog = useMemo(() => {
     const byHref = new Map(NAV_CATALOG.map((c) => [c.href, c]));
     const list: typeof NAV_CATALOG = [];

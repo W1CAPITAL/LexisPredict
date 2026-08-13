@@ -80,49 +80,48 @@ const CaseRow = React.memo(({
 
   return (
     <tr className="hover:bg-secondary/30 transition-all border-b border-border/50 group">
-      <td className="px-8 py-6">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-foreground font-black text-[14px] uppercase leading-none tracking-tight group-hover:text-primary transition-colors">{c.cliente}</span>
-            <CaseBadges c={c} showPriority />
-            {((c as any).sentenca_procedente || (c as any).merito_resultado === 'procedente') && <Badge className="h-5 px-2 rounded-md bg-emerald-600 text-white font-black uppercase text-[8px]">Procedente</Badge>}
-            {((c as any).sentenca_improcedente || (c as any).merito_resultado === 'improcedente') && <Badge className="h-5 px-2 rounded-md bg-slate-700 text-white font-black uppercase text-[8px]">Improcedente</Badge>}
-            {((c as any).sentenca_parcial || (c as any).merito_resultado === 'parcial') && <Badge className="h-5 px-2 rounded-md bg-blue-600 text-white font-black uppercase text-[8px]">Parcial</Badge>}
-            {(c as any).tem_liminar && <Badge className="h-5 px-2 rounded-md bg-violet-600 text-white font-black uppercase text-[8px]">Liminar</Badge>}
-            {(c as any).tem_audiencia && <Badge className="h-5 px-2 rounded-md bg-cyan-600 text-white font-black uppercase text-[8px]">Audiência</Badge>}
-            {(c as any).tem_custas && <Badge className="h-5 px-2 rounded-md bg-orange-500 text-black font-black uppercase text-[8px]">Custas</Badge>}
-            {(c as any).alerta_ia && <Badge className="h-5 px-2 rounded-md bg-red-700 text-white font-black uppercase text-[8px] animate-pulse">Alerta IA</Badge>}
+      <td className="px-6 py-4 align-top">
+        <div className="flex flex-col gap-1.5 min-w-0 max-w-[380px]">
+          <div className="flex items-start gap-2 min-w-0">
+            <span className="text-foreground font-semibold text-[13px] leading-snug tracking-tight group-hover:text-primary transition-colors line-clamp-2">
+              {c.cliente}
+            </span>
           </div>
-          <span className={cn("text-[10px] font-mono text-muted-foreground uppercase tracking-widest", ui.cnj)}>{c.protocolo}</span>
-          
-          <div className="mt-2.5 max-w-[420px] space-y-2">
-             {/* Capa unificada — uma faixa só, sem repetir título 3x */}
-             <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5 space-y-1.5">
-               <div className="flex items-center gap-2 flex-wrap">
-                 <span className={cn(
-                   "inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
-                   sinal.fonte === 'djen' ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200" :
-                   sinal.prioridade >= 80 ? "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200" :
-                   "bg-secondary text-muted-foreground"
-                 )}>
-                   {sinal.fonte === 'datajud' ? 'Tribunal' : sinal.fonte === 'djen' ? 'D.O.' : 'Sinal'}
-                 </span>
-                 <span className="text-[11px] font-semibold text-foreground leading-tight line-clamp-1 flex-1 min-w-0">
-                   {sinal.titulo}
-                 </span>
-                 {sinal.data && (
-                   <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">
-                     {(() => { try { return format(parseISO(sinal.data), 'dd/MM/yy'); } catch { return ''; } })()}
-                   </span>
-                 )}
-               </div>
-               {sinal.detalhe && sinal.detalhe !== sinal.titulo && (
-                 <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
-                   {sinal.detalhe}
-                 </p>
-               )}
-             </div>
-             <AndamentoLeigoBlock caseData={c} showPrazo={false} showAtividades className="!py-2 !px-2.5 border-border/50 shadow-none" />
+          <div className="flex flex-wrap items-center gap-1">
+            <CaseBadges c={c} showPriority className="gap-1" />
+            {((c as any).sentenca_procedente || (c as any).merito_resultado === 'procedente') && (
+              <Badge className="h-5 px-1.5 rounded-md bg-emerald-600/90 text-white font-medium text-[8px]">Procedente</Badge>
+            )}
+            {((c as any).sentenca_improcedente || (c as any).merito_resultado === 'improcedente') && (
+              <Badge className="h-5 px-1.5 rounded-md bg-slate-600 text-white font-medium text-[8px]">Improcedente</Badge>
+            )}
+            {(c as any).tem_audiencia && (
+              <Badge className="h-5 px-1.5 rounded-md bg-cyan-600/90 text-white font-medium text-[8px]">Audiência</Badge>
+            )}
+            {(c as any).tem_custas && (
+              <Badge className="h-5 px-1.5 rounded-md bg-orange-500/90 text-white font-medium text-[8px]">Custas</Badge>
+            )}
+          </div>
+          <span className={cn("text-[11px] font-mono text-muted-foreground", ui.cnj)}>{c.protocolo}</span>
+          {(sinal.titulo || sinal.detalhe) && (
+            <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
+              <span className="text-foreground/80 font-medium">
+                {sinal.titulo}
+              </span>
+              {sinal.data ? (
+                <span className="text-muted-foreground/80"> · {(() => { try { return format(parseISO(sinal.data), 'dd/MM/yy'); } catch { return ''; } })()}</span>
+              ) : null}
+              {sinal.detalhe && sinal.detalhe !== sinal.titulo ? (
+                <span className="block text-muted-foreground mt-0.5 line-clamp-1">{sinal.detalhe}</span>
+              ) : null}
+            </p>
+          )}
+          <AndamentoLeigoBlock
+            caseData={c}
+            showPrazo={false}
+            showAtividades={false}
+            className="!p-0 !border-0 !bg-transparent !shadow-none mt-0.5"
+          />
              {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <button

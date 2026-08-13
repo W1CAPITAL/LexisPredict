@@ -45,19 +45,14 @@ export function CaseBadges({ c, showPriority = false, className }: Props) {
       )}
 
       {(c as any).indicio_busca_apreensao && (
-        <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
-          <ShieldAlert size={10} className="mr-1 inline" />
+        <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-semibold uppercase text-[8px]">
           B.A.
-          {(c as any).ba_tipo ? ` ${String((c as any).ba_tipo)}` : ""}
         </Badge>
       )}
 
       {(c as any).datajud_encerrado_tribunal && (
-        <Badge className="h-5 px-2 rounded-md bg-slate-800 text-white font-black uppercase text-[8px]">
-          Encerrado tribunal
-          {(c as any).datajud_encerrado_motivo
-            ? ` · ${String((c as any).datajud_encerrado_motivo).slice(0, 24)}`
-            : ""}
+        <Badge className="h-5 px-2 rounded-md bg-slate-800 text-white font-semibold uppercase text-[8px] max-w-[140px] truncate">
+          Encerrado
         </Badge>
       )}
 
