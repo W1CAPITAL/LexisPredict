@@ -6,7 +6,7 @@
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { ScrollText, Loader2, Copy, FileText, Library, Download } from "lucide-react";
+import { ScrollText, Loader2, Copy, FileText, Library, Download, Upload } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+import {
+  extrairTextoDePdf,
+  extrairCamposDoTexto,
+} from "@/lib/pecas-pdf-extract";
 import { gerarPecaTextoPDFAction } from "@/app/actions/document-actions";
 import { downloadBase64File } from "@/lib/download-export";
 import {
@@ -82,6 +87,15 @@ export default function ModelosPage() {
   const [meta, setMeta] = useState<PecaMeta>({});
   const [preview, setPreview] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [importingPdf, setImportingPdf] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Worker do PDF.js via CDN (mesmo padrão da página OCR).
+    const v = pdfjsLib.version || "4.10.38";
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `https://cdn.jsdelivr.net/npm/pdfjs-dist@${v}/build/pdf.worker.min.mjs`;
+  }, []);
 
   const modelos = useMemo(
     () =>
@@ -103,6 +117,52 @@ export default function ModelosPage() {
       if (selected) setPreview(renderModelo(selected.id, next) || "");
       return next;
     });
+  };
+
+  const importarPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.type && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast({ title: "Arquivo inválido", description: "Envie um PDF.", variant: "destructive" });
+      return;
+    }
+    setImportingPdf(true);
+    try {
+      const texto = await extrairTextoDePdf(await file.arrayBuffer());
+      const limpo = texto.replace(/\s+/g, " ").trim();
+      if (limpo.length < 20) {
+        toast({
+          title: "PDF sem camada de texto",
+          description: "Parece escaneado/imagem. Use a ferramenta OCR e gere o texto antes de importar.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const campos = extrairCamposDoTexto(limpo);
+      const qtd = Object.keys(campos).length;
+      if (!qtd) {
+        toast({ title: "Nada reconhecido", description: "Nenhum campo identificado neste PDF.", variant: "destructive" });
+        return;
+      }
+      setMeta((prev) => {
+        const next = { ...prev, ...campos };
+        if (selected) setPreview(renderModelo(selected.id, next) || "");
+        return next;
+      });
+      toast({
+        title: "Campos preenchidos",
+        description: `${qtd} campo(s) extraídos do PDF. Revise antes de gerar.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Falha ao ler o PDF",
+        description: err?.message || "Arquivo inválido ou corrompido.",
+        variant: "destructive",
+      });
+    } finally {
+      setImportingPdf(false);
+    }
   };
 
   const gerar = () => {
@@ -248,6 +308,41 @@ export default function ModelosPage() {
                   <CardDescription className="text-xs">{selected.descricao}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
+                          Importar dados de PDF
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Envie uma procuração, contrato ou certidão já preenchida para preencher os campos automaticamente.
+                        </p>
+                      </div>
+                      <Button
+                        metal={false}
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => pdfInputRef.current?.click()}
+                        disabled={importingPdf || pdfLoading}
+                      >
+                        {importingPdf ? (
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="mr-1.5 h-4 w-4" />
+                        )}
+                        {importingPdf ? "Lendo PDF…" : "Escolher PDF"}
+                      </Button>
+                    </div>
+                    <input
+                      ref={pdfInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={importarPdf}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {selected.campos.map((k) => (
                       <div key={k} className="space-y-1.5">
