@@ -121,6 +121,25 @@ function SidebarNavBody({
   const navScrollRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef(0);
   const [navQuery, setNavQuery] = useState("")
+  const [showMoreTools, setShowMoreTools] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("lexis_sidebar_more_tools") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleMoreTools = useCallback(() => {
+    setShowMoreTools((v) => {
+      const next = !v;
+      try {
+        if (next) window.localStorage.setItem("lexis_sidebar_more_tools", "1");
+        else window.localStorage.removeItem("lexis_sidebar_more_tools");
+      } catch { /* */ }
+      return next;
+    });
+  }, []);
   const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences());
   useEffect(() => {
     const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
@@ -129,8 +148,6 @@ function SidebarNavBody({
     window.addEventListener('lexis-nav-prefs', onPrefs);
     return () => window.removeEventListener('lexis-nav-prefs', onPrefs);
   }, [profile]);
-
-  const [showMoreTools, setShowMoreTools] = useState(false);
 
   const onNavScroll = useCallback(() => {
     if (navScrollRef.current) scrollTopRef.current = navScrollRef.current.scrollTop;
@@ -276,7 +293,7 @@ function SidebarNavBody({
       {!navQuery.trim() && (
         <button
           type="button"
-          onClick={() => setShowMoreTools((v) => !v)}
+          onClick={toggleMoreTools}
           className={cn(
             "mx-2 mb-2 rounded-lg border border-border/60 px-2 py-1.5 text-[10px] font-black uppercase tracking-wide",
             "text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors",
@@ -394,7 +411,14 @@ function SidebarNavBody({
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("lexis_sidebar_collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>("pt");
   const { profile, signOut } = useAuth();
@@ -432,7 +456,16 @@ export function Sidebar() {
       await signOut();
       router.push("/login");
     },
-    onToggleCollapsed: () => setCollapsed((c) => !c),
+    onToggleCollapsed: () => {
+      setCollapsed((c) => {
+        const next = !c;
+        try {
+          if (next) window.localStorage.setItem("lexis_sidebar_collapsed", "1");
+          else window.localStorage.removeItem("lexis_sidebar_collapsed");
+        } catch { /* */ }
+        return next;
+      });
+    },
   };
 
   return (
