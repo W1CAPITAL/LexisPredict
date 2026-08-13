@@ -69,6 +69,7 @@ function KpiCard({ icon, label, value, hint, tone = "default" }: {
 export default function SupervisaoPage() {
   const { profile, loading: authLoading } = useAuth();
   const [snap, setSnap] = useState<SupervisaoSnapshot | null>(null);
+  const [avatarByName, setAvatarByName] = useState<Map<string, string | null>>(() => new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
