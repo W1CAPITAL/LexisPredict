@@ -125,9 +125,10 @@ export async function wakeEvolutionInstance(): Promise<{ ok: boolean; detail?: s
   }
 }
 
-async function postSendText(number: string, text: string): Promise<Response> {
+async function postSendText(number: string, text: string, presenceDelayMs = 1200): Promise<Response> {
   const { baseUrl, apiKey, instance } = getEvolutionConfig();
   const url = `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`;
+  const delay = Math.min(15000, Math.max(800, Math.floor(presenceDelayMs)));
   return fetch(url, {
     method: 'POST',
     headers: {
@@ -138,9 +139,10 @@ async function postSendText(number: string, text: string): Promise<Response> {
     body: JSON.stringify({
       number,
       text,
-      options: { delay: 1200, presence: 'composing' },
+      // presence composing + delay variável = padrão mais humano (anti-ban)
+      options: { delay, presence: 'composing' },
     }),
-    signal: AbortSignal.timeout(35000),
+    signal: AbortSignal.timeout(45000),
   });
 }
 
@@ -162,6 +164,15 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
   if (!number || number.length < 12) throw new Error('Telefone inválido (use DDD + número).');
   if (!text) throw new Error('Mensagem vazia.');
 
+  // Anti-ban: teto diário, gap, typing humano, bloqueio de spam idêntico
+  const { antibanPrecheck, antibanWait, antibanRecordSuccess, evolutionPresenceDelayMs } = await import(
+    '@/lib/whatsapp-antiban'
+  );
+  const gate = antibanPrecheck(text);
+  if (!gate.ok) throw new Error(gate.error);
+  if (gate.waitMs > 0) await antibanWait(gate.waitMs);
+  const presenceDelay = evolutionPresenceDelayMs(text);
+
   let lastErr = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     if (attempt > 1) {
@@ -173,8 +184,9 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
     }
 
     try {
-      const res = await postSendText(number, text);
+      const res = await postSendText(number, text, presenceDelay);
       if (res.ok) {
+        antibanRecordSuccess(text);
         return res.json().catch(() => ({ ok: true }));
       }
       const body = await res.text().catch(() => '');

@@ -19,6 +19,8 @@ import {
   User,
   UserCheck,
   FileSearch,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
@@ -244,6 +246,45 @@ function WhatsAppTerminalInner() {
     setDjenComunicacoes([]);
     setWaScripts([]);
     loadHistory(c);
+  };
+
+  const sortedByOverdue = useMemo(() => {
+    const withPhone = cases.filter((c) => digitsPhone(c.telefone).length >= 8);
+    const base = withPhone.length ? withPhone : cases;
+    return [...base].sort((a, b) => {
+      const da = typeof a.diasFaltando === "number" ? a.diasFaltando! : 9999;
+      const db = typeof b.diasFaltando === "number" ? b.diasFaltando! : 9999;
+      if (da !== db) return da - db;
+      const score = (s: string) =>
+        s === "Vencido" ? 0 : s === "É Hoje" ? 1 : s === "Atenção" ? 2 : 3;
+      return score(String(a.status || "")) - score(String(b.status || ""));
+    });
+  }, [cases]);
+
+  const goAdjacentOverdue = (mode: "mais_vencido" | "menos_vencido") => {
+    const list =
+      mode === "mais_vencido" ? sortedByOverdue : [...sortedByOverdue].reverse();
+    if (!list.length) {
+      toast({ title: "Sem casos na carteira", variant: "destructive" });
+      return;
+    }
+    const start = !selected
+      ? 0
+      : (() => {
+          const idx = list.findIndex((c) => c.protocolo === selected.protocolo);
+          return idx >= 0 ? (idx + 1) % list.length : 0;
+        })();
+    const next = list[start];
+    selectCase(next);
+    toast({
+      title:
+        mode === "mais_vencido"
+          ? "Próximo (mais tempo vencido)"
+          : "Próximo (menos tempo vencido)",
+      description: `${next.cliente} · ${next.status || "—"}${
+        typeof next.diasFaltando === "number" ? ` · ${next.diasFaltando}d` : ""
+      }`,
+    });
   };
 
   useEffect(() => {
@@ -630,7 +671,29 @@ function WhatsAppTerminalInner() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-xl gap-1.5 text-[10px] font-bold uppercase"
+                title="Próximo caso com mais tempo vencido (prazo mais atrasado)"
+                onClick={() => goAdjacentOverdue("mais_vencido")}
+              >
+                <ArrowDownWideNarrow size={14} />
+                <span className="hidden sm:inline">Mais vencido</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-xl gap-1.5 text-[10px] font-bold uppercase"
+                title="Próximo caso com menos tempo vencido (ou ainda no prazo)"
+                onClick={() => goAdjacentOverdue("menos_vencido")}
+              >
+                <ArrowUpNarrowWide size={14} />
+                <span className="hidden sm:inline">Menos vencido</span>
+              </Button>
               {evolutionOk === true && (
                 <Badge className="bg-emerald-600 text-[9px] uppercase">
                   Evolution OK
