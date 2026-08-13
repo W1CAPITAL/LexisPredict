@@ -194,9 +194,13 @@ export default function TeamManagement() {
       return {
         name: user.nome,
         result: calcularScoreAssessor(userCases),
-        atendidosSemana: countAtendidosNestaSemana(userCases)
+        atendidosSemana: countAtendidosNestaSemana(userCases),
+        caseCount: userCases.length,
       };
-    }).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
+    })
+      // Gestão de Autoridade: zero processos não entra no ranking
+      .filter((row) => (row.caseCount ?? 0) > 0 || (row.result?.totalCasos ?? 0) > 0)
+      .sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
     const uniqueLawyers = Array.from(new Set(cases.map(c => (c.advogado || '').trim()))).filter(n => n && n !== 'NÃO ATRIBUÍDO');
     
@@ -204,9 +208,12 @@ export default function TeamManagement() {
       const lawyerCases = cases.filter(c => c.advogado === lawyerName);
       return {
         name: lawyerName.toUpperCase(),
-        result: calcularScoreAdvogado(lawyerCases)
+        result: calcularScoreAdvogado(lawyerCases),
+        caseCount: lawyerCases.length,
       };
-    }).sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
+    })
+      .filter((row) => (row.caseCount ?? 0) > 0 || (row.result?.totalCasos ?? 0) > 0)
+      .sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
 
     return { advRank, assRank };
   }, [cases, users]);
