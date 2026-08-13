@@ -24,6 +24,7 @@ import {
   ChevronRight,
   User,
   UserCheck,
+  FileSearch,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,17 @@ import { plainTextFromDjen } from "@/lib/djen";
 import type { LegalCase } from "@/lib/case-logic";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
+import { scanSingleCaseAction } from "@/app/actions/case-actions";
+import { gerarRascunhoEstrategico } from "@/ai/motor-despacho";
+import { AiDraftPreview } from "@/components/ai/ai-draft-preview";
+import { MOTORS } from "@/lib/ai/motors";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ChatMsg = {
   id: string;
@@ -99,6 +111,13 @@ function WhatsAppTerminalInner() {
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
   const [attSaving, setAttSaving] = useState(false);
+  const [tribunalMovimentos, setTribunalMovimentos] = useState<any[]>([]);
+  const [djenComunicacoes, setDjenComunicacoes] = useState<any[]>([]);
+  const [loadingTribunal, setLoadingTribunal] = useState(false);
+  const [selectedMotor, setSelectedMotor] = useState<string>("local_only");
+  const [aiDraft, setAiDraft] = useState<string | null>(null);
+  const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
+  const [waScripts, setWaScripts] = useState<{ id: string; titulo: string; texto: string; quandoUsar?: string }[]>([]);
 
   const loadCases = useCallback(async () => {
     setLoading(true);
@@ -314,17 +333,154 @@ function WhatsAppTerminalInner() {
     }
   };
 
-  const applyBestSuggestion = () => {
-    if (!suggestions.length) {
-      toast({
-        title: "Sem script automático",
-        description: "Nenhuma sugestão forte para este andamento. Use o rascunho livre.",
-      });
+
+  /** Carrega andamentos DataJud + DJEN (igual Tarefas) e scripts locais. */
+  const loadTribunalContext = async (c?: LegalCase | null) => {
+    const target = c || selected;
+    if (!target?.protocolo) {
+      toast({ title: "Selecione um processo", variant: "destructive" });
       return;
     }
-    setDraft(suggestions[0].texto);
-    toast({ title: "Sugestão aplicada", description: suggestions[0].titulo });
+    setLoadingTribunal(true);
+    setAiDraft(null);
+    try {
+      const res = await scanSingleCaseAction(target.protocolo, { mode: "both", fast: false });
+      const movimentos = Array.isArray((res as any).movimentos) ? (res as any).movimentos.slice(0, 40) : [];
+      const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
+      const caseData = (res as any).case || target;
+
+      setTribunalMovimentos(movimentos);
+      setDjenComunicacoes(comunicacoes);
+      if (caseData?.protocolo) {
+        setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
+      }
+
+      const djenTexts = comunicacoes
+        .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ""))
+        .filter(Boolean);
+
+      const scripts = suggestScripts({
+        clienteNome: caseData.cliente || target.cliente,
+        protocolo: target.protocolo,
+        ultimoRetorno: target.ultimoRetorno || caseData.ultimoRetorno,
+        evento_tipo: caseData.evento_tipo,
+        evento_resumo: caseData.evento_resumo,
+        djen_ultimo_resumo: caseData.djen_ultimo_resumo,
+        datajud_ultimo_nome: caseData.datajud_ultimo_nome,
+        djenTexts,
+        movimentos,
+        tem_novo_andamento: !!caseData.tem_novo_andamento,
+        tem_atualizacao_pos_retorno: !!caseData.tem_atualizacao_pos_retorno,
+        djen_nova_comunicacao: !!caseData.djen_nova_comunicacao,
+        datajud_encerrado_tribunal: !!caseData.datajud_encerrado_tribunal,
+        indicio_busca_apreensao: !!caseData.indicio_busca_apreensao,
+        em_cumprimento_sentenca: !!caseData.em_cumprimento_sentenca,
+      });
+
+      setWaScripts(
+        scripts.map((s) => ({
+          id: s.id,
+          titulo: s.titulo,
+          texto: String(s.texto || "")
+            .replace(/
+{3,}/g, "
+
+")
+            .trim()
+            .slice(0, 1200),
+          quandoUsar: s.quandoUsar,
+        }))
+      );
+
+      toast({
+        title: "Contexto do tribunal",
+        description: `${movimentos.length} andamento(s) · ${comunicacoes.length} DJEN · ${scripts.length} script(s)`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Falha ao carregar andamentos",
+        description: e?.message || "Tente de novo",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingTribunal(false);
+    }
   };
+
+  const handleGenerateAIDraft = async () => {
+    if (!selected || isGeneratingAIDraft) return;
+    setIsGeneratingAIDraft(true);
+    setAiDraft(null);
+    try {
+      if (selectedMotor === "local_only") {
+        if (waScripts[0]) {
+          setAiDraft(waScripts[0].texto);
+          setDraft(waScripts[0].texto);
+        } else {
+          await loadTribunalContext(selected);
+        }
+        toast({ title: "Motor local", description: "Script Lexis (sem API)" });
+        return;
+      }
+
+      const djenTexts = djenComunicacoes
+        .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || ""))
+        .filter(Boolean);
+
+      // Garante contexto se ainda não carregou
+      let movs = tribunalMovimentos;
+      if (!movs.length && !djenTexts.length) {
+        await loadTribunalContext(selected);
+        movs = tribunalMovimentos;
+      }
+
+      const res = await gerarRascunhoEstrategico({
+        clienteNome: selected.cliente,
+        protocolo: selected.protocolo,
+        ultimoRetorno: selected.ultimoRetorno,
+        movimentos: movs.length ? movs : tribunalMovimentos,
+        djenTexts:
+          djenTexts.length > 0
+            ? djenTexts
+            : [selected.djen_ultimo_resumo, selected.evento_resumo].filter(Boolean).map(String),
+        eventoTipo: selected.evento_tipo,
+        eventoResumo: selected.evento_resumo,
+        preferredModel: selectedMotor,
+        tem_novo_andamento: selected.tem_novo_andamento,
+        datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
+        indicio_busca_apreensao: selected.indicio_busca_apreensao,
+        em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
+        // tom WhatsApp
+        canal: "whatsapp",
+      } as any);
+
+      const text = (res as any)?.rascunho || (res as any)?.texto || (res as any)?.draft || "";
+      if (text) {
+        setAiDraft(text);
+        setDraft(text);
+        toast({
+          title: "Rascunho IA",
+          description: (res as any)?.engine || selectedMotor,
+        });
+      } else {
+        toast({
+          title: "Sem rascunho",
+          description: (res as any)?.message || "Motor não retornou texto",
+          variant: "destructive",
+        });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro IA", description: e?.message || "Falha", variant: "destructive" });
+    } finally {
+      setIsGeneratingAIDraft(false);
+    }
+  };
+
+  const applyBestSuggestion = () => {
+    // agora abre fluxo completo: andamentos + scripts
+    void loadTribunalContext(selected);
+  };
+
 
 
   // Deep link: /whatsapp?protocolo=&cliente=&tel= (vindo de Tarefas/Processos)
@@ -631,16 +787,18 @@ function WhatsAppTerminalInner() {
                 </ScrollArea>
 
                 
-                {/* Ações operacionais — iguais Tarefas/Processos */}
-                <div className="flex flex-wrap gap-2">
+
+                {/* Ações: andamentos + motores IA (como Tarefas) */}
+                <div className="flex flex-wrap gap-2 items-center">
                   <Button
                     type="button"
                     size="sm"
                     className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 bg-amber-500 hover:bg-amber-600 text-black"
-                    onClick={applyBestSuggestion}
-                    disabled={!selected}
+                    onClick={() => loadTribunalContext(selected)}
+                    disabled={!selected || loadingTribunal}
                   >
-                    <Sparkles size={14} /> Sugerir resposta
+                    {loadingTribunal ? <Loader2 size={14} className="animate-spin" /> : <FileSearch size={14} />}
+                    Ver andamentos + scripts
                   </Button>
                   <Button
                     type="button"
@@ -654,41 +812,124 @@ function WhatsAppTerminalInner() {
                     Registrar atendimento
                   </Button>
                   {selected?.ultimoRetorno ? (
-                    <span className="self-center text-[9px] font-bold uppercase text-muted-foreground">
+                    <span className="text-[9px] font-bold uppercase text-muted-foreground">
                       Último retorno: {selected.ultimoRetorno}
                     </span>
                   ) : null}
                 </div>
 
-                {/* Sugestões por tribunal */}
-{/* Sugestões por tribunal */}
-                {suggestions.length > 0 && (
-                  <div className="shrink-0 border-t border-border/40 bg-muted/20 px-4 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                      <Sparkles size={12} /> Sugestões com base no andamento
+                {/* Motor IA */}
+                <div className="rounded-xl border border-border/60 bg-card/50 p-3 space-y-2">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                    <Sparkles size={12} /> Sugerir resposta · escolha o motor
+                  </p>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <Select value={selectedMotor} onValueChange={setSelectedMotor}>
+                      <SelectTrigger className="h-9 min-w-[200px] rounded-xl text-[10px] font-bold uppercase">
+                        <SelectValue placeholder="Motor" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {MOTORS.map((m) => (
+                          <SelectItem key={m.id} value={m.id} className="text-[10px] font-bold uppercase">
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 rounded-xl font-black uppercase text-[10px] gap-1.5"
+                      onClick={handleGenerateAIDraft}
+                      disabled={!selected || isGeneratingAIDraft || loadingTribunal}
+                    >
+                      {isGeneratingAIDraft ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      Gerar rascunho
+                    </Button>
+                  </div>
+                  {aiDraft ? (
+                    <div className="space-y-2">
+                      <AiDraftPreview text={aiDraft} minHeight="100px" />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 w-full rounded-lg text-[9px] font-black uppercase"
+                        onClick={() => setDraft(aiDraft)}
+                      >
+                        Usar no campo de envio
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Andamentos do tribunal — para você validar se o texto está certo */}
+                {(tribunalMovimentos.length > 0 || djenComunicacoes.length > 0 || loadingTribunal) && (
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2 max-h-48 overflow-y-auto">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground sticky top-0 bg-muted/20">
+                      O que aconteceu no processo
+                      {loadingTribunal ? " · carregando…" : ""}
                     </p>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {suggestions.map((s, i) => (
+                    {tribunalMovimentos.slice(0, 12).map((m: any, i: number) => (
+                      <div key={`mv-${i}`} className="text-[11px] leading-snug border-l-2 border-primary/40 pl-2 py-0.5">
+                        <span className="text-[9px] font-bold text-muted-foreground tabular-nums">
+                          {m.dataHora || m.data || m.data_hora || "—"}
+                        </span>
+                        <p className="font-semibold text-foreground/90">
+                          {m.nome || m.descricao || m.complemento || "Movimento"}
+                        </p>
+                        {(m.complemento || m.descricao) && (m.nome) ? (
+                          <p className="text-muted-foreground line-clamp-2">
+                            {plainTextFromDjen(String(m.complemento || m.descricao || ""))}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                    {djenComunicacoes.slice(0, 5).map((d: any, i: number) => (
+                      <div key={`dj-${i}`} className="text-[11px] leading-snug border-l-2 border-blue-500/50 pl-2 py-0.5">
+                        <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase">
+                          DJEN · {d.data_disponibilizacao || d.data || "—"}
+                        </span>
+                        <p className="font-semibold">{d.tipoComunicacao || d.tipoDocumento || "Comunicação"}</p>
+                        <p className="text-muted-foreground line-clamp-4 whitespace-pre-wrap">
+                          {plainTextFromDjen(String(d.texto || d.conteudo || "")).slice(0, 500)}
+                        </p>
+                      </div>
+                    ))}
+                    {!loadingTribunal && !tribunalMovimentos.length && !djenComunicacoes.length ? (
+                      <p className="text-[10px] text-muted-foreground">Nenhum andamento retornado. Rode o scanner no processo.</p>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Scripts locais (WhatsApp) */}
+                {waScripts.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                      <Sparkles size={12} /> Scripts prontos (tom WhatsApp)
+                    </p>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {waScripts.map((s) => (
                         <button
-                          key={i}
+                          key={s.id}
                           type="button"
-                          onClick={() => applySuggestion(s.texto)}
-                          className="shrink-0 max-w-[280px] text-left rounded-xl border border-border bg-card p-3 hover:border-emerald-500/50 transition-colors"
+                          onClick={() => {
+                            setDraft(s.texto);
+                            toast({ title: "Script aplicado", description: s.titulo });
+                          }}
+                          className="w-full text-left rounded-xl border border-border/50 bg-background/80 p-2.5 hover:border-primary/40 transition-colors"
                         >
-                          <p className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">
-                            {s.titulo}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground line-clamp-3 mt-1 leading-snug">
-                            {s.texto}
-                          </p>
+                          <p className="text-[10px] font-black uppercase text-primary">{s.titulo}</p>
+                          {s.quandoUsar ? (
+                            <p className="text-[9px] text-muted-foreground mb-1">{s.quandoUsar}</p>
+                          ) : null}
+                          <p className="text-[11px] line-clamp-3 text-foreground/80 whitespace-pre-wrap">{s.texto}</p>
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Composer */}
-                <div className="shrink-0 border-t border-border/60 p-3 sm:p-4 bg-card/80 space-y-2">
                   <Textarea
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
