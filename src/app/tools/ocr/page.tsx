@@ -45,16 +45,11 @@ export default function OCRToolPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Worker PDF same-origin (sem unpkg / CDN externo)
-    try {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url
-      ).toString();
-    } catch {
-      // fallback: worker empacotado pelo bundler em alguns setups Next
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
-    }
+    // Worker do PDF.js via CDN versionado (infra de render, não motor OCR).
+    // Evita import.meta.url + pdfjs-dist ESM que quebra o build Next 15.
+    const v = pdfjsLib.version || "4.10.38";
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `https://cdn.jsdelivr.net/npm/pdfjs-dist@${v}/build/pdf.worker.min.mjs`;
   }, []);
 
   const runNer = async (text: string) => {

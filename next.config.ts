@@ -69,8 +69,8 @@ const nextConfig: NextConfig = {
           // App Next + Supabase + Vercel; ajuste se usar CDNs extras
           value: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live",
-            "worker-src 'self' blob:",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net",
+            "worker-src 'self' blob: https://cdn.jsdelivr.net",
             "child-src 'self' blob:",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: blob: https:",
