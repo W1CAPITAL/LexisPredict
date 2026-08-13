@@ -496,9 +496,21 @@ const handleSaveAttendance = async () => {
     const sortedAll = Object.values(groups)
       .filter(g => {
         const matchSearch = (g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search));
-        const matchOffice = officeFilter === 'all' || g.escritorio === officeFilter;
-        const matchLawyer = lawyerFilter === 'all' || String(g.advogado || '').toUpperCase() === lawyerFilter.toUpperCase();
-        if (!matchSearch || !matchOffice) return false;
+        const officeKey = officeFilter === 'all' ? '' : String(officeFilter).trim().toUpperCase();
+        const lawyerKey = lawyerFilter === 'all' ? '' : String(lawyerFilter).trim().toUpperCase();
+        const matchOffice =
+          officeFilter === 'all' ||
+          String(g.escritorio || '').trim().toUpperCase() === officeKey ||
+          (g.cases || []).some(
+            (c: any) => String(c.escritorio || '').trim().toUpperCase() === officeKey
+          );
+        const matchLawyer =
+          lawyerFilter === 'all' ||
+          String(g.advogado || '').trim().toUpperCase() === lawyerKey ||
+          (g.cases || []).some(
+            (c: any) => String(c.advogado || '').trim().toUpperCase() === lawyerKey
+          );
+        if (!matchSearch || !matchOffice || !matchLawyer) return false;
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
@@ -517,15 +529,21 @@ const handleSaveAttendance = async () => {
       .sort((a, b) => {
         // ordenação por vencimento (mais/menos) alinhada ao filtro da UI
         if (sortPrazo === 'mais_vencido' || sortPrazo === 'menos_vencido' || sortPrazo === 'prazo_asc') {
-          // TaskGroup usa cases[] + diasAtrasoMax; diasFaltando vive no LegalCase
-          const xa =
-            typeof (a.cases?.[0] as any)?.diasFaltando === 'number'
-              ? (a.cases[0] as any).diasFaltando
-              : (typeof a.diasAtrasoMax === 'number' ? -Math.abs(a.diasAtrasoMax || 0) : 9999);
-          const xb =
-            typeof (b.cases?.[0] as any)?.diasFaltando === 'number'
-              ? (b.cases[0] as any).diasFaltando
-              : (typeof b.diasAtrasoMax === 'number' ? -Math.abs(b.diasAtrasoMax || 0) : 9999);
+          const diasGroup = (g: typeof a) => {
+            const nums = (g.cases || [])
+              .map((c: any) => (typeof c?.diasFaltando === 'number' ? c.diasFaltando : null))
+              .filter((n: number | null): n is number => n !== null);
+            if (nums.length) {
+              // mais negativo = mais vencido
+              return Math.min(...nums);
+            }
+            if (typeof g.diasAtrasoMax === 'number' && g.diasAtrasoMax > 0) {
+              return -Math.abs(g.diasAtrasoMax);
+            }
+            return 9999;
+          };
+          const xa = diasGroup(a);
+          const xb = diasGroup(b);
           if (typeof xa === 'number' && typeof xb === 'number') {
             if (sortPrazo === 'mais_vencido' && xa !== xb) return xa - xb;
             if (sortPrazo === 'menos_vencido') {
@@ -577,7 +595,7 @@ const handleSaveAttendance = async () => {
 
     const pending = sortedAll.filter(g => !contactedSet.has(g.cliente));
     return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(g.cliente)), totalPendingCount: pending.length };
-  }, [cases, search, officeFilter, contatadosHoje, dailyMeta, filaFiltro, baHitDigits]);
+  }, [cases, search, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits]);
 
   const autoTarefas = useMemo(() => {
     try {
