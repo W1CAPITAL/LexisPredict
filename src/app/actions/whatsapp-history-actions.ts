@@ -60,20 +60,3 @@ export async function clearWhatsAppHistoryAction(phone: string): Promise<{
     return { success: false, error: e?.message || 'Falha ao limpar histórico' };
   }
 }
-
-/** Confere se remoteJid / número da mensagem pertence ao telefone alvo. */
-export function messageBelongsToPhone(
-  phone: string,
-  msg: { remoteJid?: string; contactNumber?: string; phone?: string }
-): boolean {
-  const target = digitsOnly(normalizeBrPhone(phone) || phone);
-  if (!target || target.length < 10) return false;
-  const last8 = target.slice(-8);
-  const last10 = target.slice(-10);
-  const candidates = [msg.remoteJid, msg.contactNumber, msg.phone]
-    .map((x) => digitsOnly(String(x || '')))
-    .filter(Boolean);
-  return candidates.some(
-    (c) => c === target || c.endsWith(last10) || (c.endsWith(last8) && c.length >= 10)
-  );
-}

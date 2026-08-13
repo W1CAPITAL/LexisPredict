@@ -77,7 +77,6 @@ export function phoneMatchVariants(to: string): string[] {
 /** Extrai só dígitos de um remoteJid (ignora @s.whatsapp.net / @g.us). */
 export function digitsFromJid(jid: string | null | undefined): string {
   const s = String(jid || '');
-  // grupos: não usar como chat 1:1
   if (s.includes('@g.us')) return '';
   return s.split('@')[0].replace(/\D/g, '');
 }
@@ -87,10 +86,9 @@ export function jidMatchesPhone(jid: string | null | undefined, phone: string): 
   const jd = digitsFromJid(jid);
   if (!jd || jd.length < 10) return false;
   const variants = phoneMatchVariants(phone);
-  if (variants.some((v) => v === jd || v.endsWith(jd) || jd.endsWith(v.slice(-10)) || jd.endsWith(v.slice(-11)))) {
+  if (variants.some((v) => v === jd || jd.endsWith(v.slice(-10)) || jd.endsWith(v.slice(-11)) || v.endsWith(jd.slice(-10)))) {
     return true;
   }
-  // last 10/11
   const n = normalizeBrPhone(phone);
   if (!n) return false;
   return jd.endsWith(n.slice(-10)) || jd.endsWith(n.slice(-11)) || n.endsWith(jd.slice(-10));
@@ -465,24 +463,12 @@ export async function fetchChatMessagesFromEvolution(
         const r = await fn();
         if (!r.ok) continue;
         const msgsRaw = normalizeList(r.json);
-        // CRÍTICO: a Evolution às vezes devolve o histórico da instância inteira.
-        // Só aceita mensagens cujo remoteJid é ESTE telefone.
+        // Evolution pode devolver vários chats — só mantém JID deste telefone
         const msgs = msgsRaw.filter((m) => jidMatchesPhone(m.remoteJid, number));
-        // Se a API não trouxe remoteJid em nenhuma, não inventa dono — descarta o lote
         const withJid = msgsRaw.filter((m) => !!m.remoteJid).length;
         if (msgs.length > 0) {
-          return {
-            ok: true,
-            messages: msgs,
-            tried,
-            meta: {
-              rawCount: msgsRaw.length,
-              kept: msgs.length,
-              droppedOtherChats: Math.max(0, msgsRaw.length - msgs.length),
-            },
-          } as any;
+          return { ok: true, messages: msgs, tried };
         }
-        // Lote veio mas nenhum JID bateu com o número → não usar (evita colar tudo num cliente)
         if (msgsRaw.length > 0 && withJid > 0) {
           tried.push(`filtered-out:${msgsRaw.length}->0 (jid≠${number})`);
           continue;

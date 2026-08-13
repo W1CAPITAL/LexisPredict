@@ -65,8 +65,8 @@ import {
   logOutboundWhatsAppAction,
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
-  clearWhatsAppHistoryAction,
 } from "@/app/actions/whatsapp-actions";
+import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
 import { plainTextFromDjen } from "@/lib/djen";
@@ -896,7 +896,7 @@ function WhatsAppTerminalInner() {
                                 if (r.success) {
                                   toast({
                                     title: "Histórico importado",
-                                    description: `Tel ${r.phone || selected.telefone}: ${r.imported || 0} msg` + (r.skippedWrong || r.skippedNoJid ? ` · ${((r.skippedWrong||0)+(r.skippedNoJid||0))} de outros chats ignoradas` : ""),
+                                    description: `${r.imported || 0} msg deste número` + (r.skippedWrong ? ` · ${r.skippedWrong} de outro número ignoradas` : ""),
                                   });
                                   try {
                                     // recarrega thread

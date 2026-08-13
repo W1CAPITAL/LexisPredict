@@ -307,7 +307,7 @@ export async function importEvolutionHistoryAction(phone: string) {
     const errors: string[] = [];
 
     for (const m of ev.messages) {
-      // OBRIGATÓRIO: remoteJid deve ser deste cliente — senão era outro chat colado neste número
+      // OBRIGATÓRIO: remoteJid deste cliente — senão era outro chat colado neste número
       if (!m.remoteJid) {
         skippedNoJid += 1;
         continue;
@@ -317,10 +317,10 @@ export async function importEvolutionHistoryAction(phone: string) {
         continue;
       }
       const saved = await persistWhatsAppMessage({
-        contactNumber: n, // dono = cliente selecionado (só após validar JID)
+        contactNumber: n,
         messageText: m.text,
         fromMe: m.fromMe,
-        messageId: m.id ? `evo-${n}-${m.id}` : undefined, // id com prefixo do número evita colisão entre chats
+        messageId: m.id ? `evo-${n}-${m.id}` : undefined,
         contactName: m.pushName,
         remoteJid: m.remoteJid,
         source: 'evolution-import',
@@ -340,15 +340,15 @@ export async function importEvolutionHistoryAction(phone: string) {
       skippedWrong,
       skippedNoJid,
       totalInDb: messages.length,
+      phone: n,
       error:
         imported === 0
           ? errors[0] ||
             (dropped > 0
-              ? `Nenhuma msg deste número (ignoradas ${dropped} de outros chats/sem JID). Limpe o histórico e tente de novo.`
+              ? `Nenhuma msg deste número (ignoradas ${dropped} de outros chats/sem JID).`
               : 'Nada gravado')
           : null,
       tried: ev.tried,
-      phone: n,
     };
   } catch (e: any) {
     return {
@@ -360,5 +360,3 @@ export async function importEvolutionHistoryAction(phone: string) {
   }
 }
 
-
-export { clearWhatsAppHistoryAction } from '@/app/actions/whatsapp-history-actions';
