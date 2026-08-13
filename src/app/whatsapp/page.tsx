@@ -426,14 +426,14 @@ function WhatsAppTerminalInner() {
       });
 
       setWaScripts(
-        scripts.map((s) => ({
-          id: s.id,
-          titulo: s.titulo,
+        scripts.map((s, idx) => ({
+          id: String(s.id || `script-${idx}`),
+          titulo: String(s.titulo || "Sugestão"),
           texto: String(s.texto || "")
             .replace(/\n{3,}/g, "\n\n")
             .trim()
             .slice(0, 1200),
-          quandoUsar: s.quandoUsar,
+          quandoUsar: s.quandoUsar ? String(s.quandoUsar) : undefined,
         }))
       );
 
