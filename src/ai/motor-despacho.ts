@@ -7,7 +7,7 @@
  */
 
 import { perguntarIA } from '@/ai/flows/chat-ai-flow';
-import { suggestScripts } from '@/lib/script-processual/suggest';
+import { suggestScripts, sortDjenTextsRecentFirst } from '@/lib/script-processual/suggest';
 import { retrieveKnowledge } from '@/lib/knowledge/retrieve';
 import { searchKnowledgeChunksAction } from '@/app/actions/knowledge-actions';
 import { EventoTipo } from '@/lib/case-logic';
@@ -20,7 +20,9 @@ export interface MotorDespachoInput {
   djenTexts?: string[];
   eventoTipo?: EventoTipo | null;
   eventoResumo?: string | null;
-  preferredModel?: string; // 'claude' | 'groq-llama' | 'local_only' | ...
+  preferredModel?: string;
+  /** whatsapp = 2ª pessoa, curta, só ato recente */
+  canal?: 'whatsapp' | 'email' | 'interno'; // 'claude' | 'groq-llama' | 'local_only' | ...
   empresaId?: string;
   tem_novo_andamento?: boolean;
   datajud_encerrado_tribunal?: boolean;
@@ -65,16 +67,19 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     clienteNome,
     protocolo,
     movimentos,
-    djenTexts = [],
+    djenTexts: djenTextsRaw = [],
     eventoTipo,
     eventoResumo,
     preferredModel,
+    canal,
     empresaId,
     tem_novo_andamento,
     datajud_encerrado_tribunal,
     indicio_busca_apreensao,
     em_cumprimento_sentenca,
   } = input;
+
+  const djenTexts = sortDjenTextsRecentFirst(djenTextsRaw || []);
 
   const suggestions = suggestScripts({
     clienteNome,
@@ -154,7 +159,10 @@ REGRAS OBRIGATÓRIAS:
 12. PRIORIDADE TEMPORAL: use SEMPRE o evento mais recente com mérito (decisão, intimação com prazo, extinção, petição de cumprimento). Ignore despachos antigos já superados por intimação/petição posterior.
 13. Justiça gratuita / emenda / Registrato: se houver despacho pedindo documentos E petição posterior da equipe, diga que a pendência foi tratada / protocolo realizado — NÃO reabra a lista completa de documentos do despacho antigo.
 14. Se o prazo final de intimação já passou e há petição recente, foque no status "aguardando juízo", não em "envie documentos agora".
-15. Mensagem curta (WhatsApp): 6–10 linhas, tom de equipe, sem "Prezado", sem inventar que o cliente precisa agir se a equipe já protocolou.
+15. Mensagem curta (WhatsApp): 4–8 linhas, tom de equipe, sem "Prezado", sem inventar que o cliente precisa agir se a equipe já protocolou.
+16. SEMPRE 2ª pessoa: "você", "seu processo", "te aviso". PROIBIDO: "o autor", "o apelante", "a parte autora", "nossa equipe identificou que o autor".
+17. Cite APENAS o ato mais recente com efeito prático (ex.: AJG indeferida + preparo 5 dias). Não diga que o "último evento" é remessa antiga se houver DJEN mais novo.
+18. Se houver indeferimento de justiça gratuita + preparo/deserção: foque nisso e no prazo — não fale de contrarrazões antigas.
 
 Script de apoio (pode inspirar o tom, não copie se contradizer o histórico):
 ${baseScript ? baseScript.slice(0, 800) : '(nenhum)'}
@@ -174,7 +182,7 @@ ${historicoTxt || '(sem movimentos detalhados)'}
 Lembrete: o evento no TOPO da lista (data mais nova) manda na mensagem. Não resuma só o despacho de maio se existir intimação/petição em julho/agosto.
 ${djenBlock}
 
-Redija a mensagem final ao cliente, honesta e tranquilizadora quando for o caso, urgente só se a cobrança for dele de verdade.`;
+${canal === 'whatsapp' ? 'MODO WHATSAPP: fale com VOCÊ (2ª pessoa), 4-8 linhas, só o ato mais recente, proibido "o autor/apelante".' : ''}\nRedija a mensagem final ao cliente, honesta e tranquilizadora quando for o caso, urgente só se a cobrança for dele de verdade.`;
 
   try {
     const response = await perguntarIA({

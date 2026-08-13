@@ -128,6 +128,7 @@ function WhatsAppTerminalInner() {
   const [selectedMotor, setSelectedMotor] = useState<string>("local_only");
   const [aiDraft, setAiDraft] = useState<string | null>(null);
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
+  const [criticalAct, setCriticalAct] = useState<{ label: string; date: string } | null>(null);
   const [waScripts, setWaScripts] = useState<
     { id: string; titulo: string; texto: string; quandoUsar?: string }[]
   >([]);
@@ -202,7 +203,7 @@ function WhatsAppTerminalInner() {
             {
               id: "sys-1",
               direction: "system",
-              body: "Sem histórico no banco ainda. Mensagens desta sessão ficam locais. Webhook Evolution grava em whatsapp_messages.",
+              body: "Sem mensagens salvas para este número ainda. Envios desta sessão ficam registrados aqui; o histórico completo depende do webhook Evolution (whatsapp_messages).",
               at: new Date().toISOString(),
             },
           ]);
@@ -229,6 +230,7 @@ function WhatsAppTerminalInner() {
     setTribunalMovimentos([]);
     setDjenComunicacoes([]);
     setWaScripts([]);
+    setCriticalAct(null);
     loadHistory(c);
   };
 
@@ -396,15 +398,22 @@ function WhatsAppTerminalInner() {
       const caseData = (res as any).case || target;
 
       setTribunalMovimentos(movimentos);
-      setDjenComunicacoes(comunicacoes);
+      const sortedCom = [...comunicacoes].sort((a: any, b: any) => {
+        const da = Date.parse(a.data_disponibilizacao || a.dataDisponibilizacao || a.data || 0) || 0;
+        const db = Date.parse(b.data_disponibilizacao || b.dataDisponibilizacao || b.data || 0) || 0;
+        return db - da;
+      });
+      setDjenComunicacoes(sortedCom);
       if (caseData?.protocolo) {
         setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
       }
 
-      const djenTexts = comunicacoes
-        .map((d: any) =>
-          plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || "")
-        )
+      const djenTexts = sortedCom
+        .map((d: any) => {
+          const dt = d.data_disponibilizacao || d.dataDisponibilizacao || d.data || '';
+          const body = plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || "");
+          return dt ? `[${dt}] ${body}` : body;
+        })
         .filter(Boolean);
 
       const scripts = suggestScripts({
@@ -425,6 +434,25 @@ function WhatsAppTerminalInner() {
         em_cumprimento_sentenca: !!caseData.em_cumprimento_sentenca,
       });
 
+
+      // Badge ato crítico = DJEN mais recente
+      const top = sortedCom[0] || comunicacoes[0];
+      if (top) {
+        const rawDate = String(top.data_disponibilizacao || top.dataDisponibilizacao || top.data || '');
+        let dateLabel = rawDate.slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}/.test(dateLabel)) {
+          const [y, m, d] = dateLabel.split('-');
+          dateLabel = `${d}/${m}/${y}`;
+        }
+        const tipo = top.tipoComunicacao || top.tipoDocumento || 'Comunicação';
+        const preview = plainTextFromDjen(String(top.texto || top.conteudo || '')).slice(0, 80);
+        setCriticalAct({
+          label: `${tipo}${preview ? ': ' + preview : ''}`,
+          date: dateLabel || '—',
+        });
+      } else {
+        setCriticalAct(null);
+      }
       setWaScripts(
         scripts.map((s, idx) => ({
           id: String(s.id || `script-${idx}`),
@@ -495,6 +523,7 @@ function WhatsAppTerminalInner() {
         eventoTipo: selected.evento_tipo,
         eventoResumo: selected.evento_resumo,
         preferredModel: selectedMotor,
+        canal: 'whatsapp',
         tem_novo_andamento: selected.tem_novo_andamento,
         datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
         indicio_busca_apreensao: selected.indicio_busca_apreensao,
@@ -895,6 +924,16 @@ function WhatsAppTerminalInner() {
                         ))}
                       </div>
                     )}
+
+                    
+                    {criticalAct ? (
+                      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
+                          Ato crítico (DJEN {criticalAct.date})
+                        </p>
+                        <p className="font-semibold text-foreground/90 line-clamp-2">{criticalAct.label}</p>
+                      </div>
+                    ) : null}
 
                     {waScripts.length > 0 && (
                       <div className="space-y-2">

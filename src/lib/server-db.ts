@@ -655,11 +655,44 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
 export async function getWhatsAppHistory(phone: string) {
   const { empresa_id } = await getUserContext();
   if (!empresa_id || !supabase) return [];
-  const cleanPhone = phone.replace(/\D/g, '');
-  const searchPhone = (cleanPhone.length === 10 || cleanPhone.length === 11) ? `55${cleanPhone}` : cleanPhone;
-  const { data, error } = await supabase.from('whatsapp_messages').select('*').eq('contact_number', searchPhone).order('timestamp', { ascending: true });
-  if (error) return [];
-  return data;
+  const { phoneMatchVariants, normalizeBrPhone } = await import('@/lib/evolution-api');
+  const variants = phoneMatchVariants(phone);
+  const primary = normalizeBrPhone(phone);
+  if (!variants.length && !primary) return [];
+
+  // Match flexível: contact_number / phone / remote_jid com variantes
+  const orParts = variants.flatMap((v) => [
+    `contact_number.eq.${v}`,
+    `contact_number.ilike.%${v.slice(-8)}`,
+    `phone.eq.${v}`,
+  ]);
+  // remote_jid estilo 5511...@s.whatsapp.net
+  for (const v of variants) {
+    orParts.push(`remote_jid.ilike.${v}%`);
+  }
+
+  let q = supabase
+    .from('whatsapp_messages')
+    .select('*')
+    .order('timestamp', { ascending: true })
+    .limit(200);
+
+  if (empresa_id) {
+    q = q.eq('empresa_id', empresa_id);
+  }
+
+  const { data, error } = await q.or(orParts.slice(0, 20).join(','));
+  if (error) {
+    // fallback eq simples
+    const { data: d2 } = await supabase
+      .from('whatsapp_messages')
+      .select('*')
+      .eq('contact_number', primary)
+      .order('timestamp', { ascending: true })
+      .limit(200);
+    return d2 || [];
+  }
+  return data || [];
 }
 
 export async function listAdvogadosBanca() {

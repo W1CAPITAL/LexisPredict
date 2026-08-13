@@ -130,6 +130,38 @@ function parseAnyDate(raw?: string | null): Date | null {
 }
 
 /** Dias desde a intimação de AJG mais antiga nos movimentos/textos datados. */
+
+/** Extrai data YYYY-MM-DD ou dd/mm de um texto DJEN/cabeçalho. */
+function extractDateFromBlob(blob: string): Date | null {
+  const iso = blob.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  const br = blob.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+  return null;
+}
+
+/** Ordena textos DJEN do mais recente para o mais antigo. */
+export function sortDjenTextsRecentFirst(texts: string[]): string[] {
+  return [...(texts || [])].sort((a, b) => {
+    const da = extractDateFromBlob(a) || new Date(0);
+    const db = extractDateFromBlob(b) || new Date(0);
+    return db.getTime() - da.getTime();
+  });
+}
+
+/** Sinal de preparo urgente pós AJG indeferida (deserção). */
+function isPreparoUrgente(U: string): boolean {
+  const ajgOut =
+    /indefiro\s+(?:o\s+)?(?:pedido\s+de\s+)?(?:a\s+)?justi[cç]a\s+gratuita|justi[cç]a\s+gratuita.{0,40}indefir|gratuidade.{0,30}indefir|indefir.{0,40}gratuidade/i.test(
+      U
+    );
+  const preparo =
+    /recolher\s+o\s+preparo|preparo\s+recursal|pena\s+de\s+deser[cç][aã]o|sob\s+pena\s+de\s+deser/i.test(
+      U
+    );
+  return ajgOut && preparo;
+}
+
 function findAjgIntimacaoAgeDays(input: ScriptInput): number | null {
   const dates: Date[] = [];
   for (const m of input.movimentos || []) {
@@ -287,9 +319,39 @@ function detectSignals(U: string, input: ScriptInput): Signals {
 export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   const nome = firstName(input.clienteNome);
   const cnj = input.protocolo || 'seu processo';
-  const U = buildCorpus(input);
-  const s = detectSignals(U, input);
+  // Âncora: DJEN mais recente primeiro no corpus
+  const sortedInput: ScriptInput = {
+    ...input,
+    djenTexts: sortDjenTextsRecentFirst(input.djenTexts || []),
+  };
+  const U = buildCorpus(sortedInput);
+  // Corpus só do DJEN mais recente (evita script de contrarrazões antigas)
+  const recentOnly = (sortedInput.djenTexts || []).slice(0, 2).join('\n');
+  const URecent = plainTextFromDjen(recentOnly).toUpperCase();
+  const s = detectSignals(U, sortedInput);
   const out: ScriptSuggestion[] = [];
+
+  // PRIORIDADE MÁXIMA: AJG indeferida + preparo / deserção (não misturar com contrarrazões)
+  if (isPreparoUrgente(URecent) || isPreparoUrgente(U)) {
+    const prazo = extractPrazoDias(URecent) || extractPrazoDias(U) || '5';
+    out.push({
+      id: 'preparo_urgente_ajg',
+      categoria: 'recurso',
+      titulo: 'Urgente: preparo recursal (AJG indeferida)',
+      quandoUsar: 'DJEN recente: gratuidade indeferida + preparo sob pena de deserção',
+      texto: msg([
+        `Olá, ${nome}! Tudo bem?`,
+        ``,
+        `Atualização urgente sobre o seu recurso no processo nº ${cnj}.`,
+        ``,
+        `O Tribunal indeferiu o pedido de Justiça Gratuita nesta fase. Foi determinado o pagamento do preparo do recurso em ${prazo} dias, sob pena de o recurso não ser julgado (deserção).`,
+        ``,
+        `Nossa equipe está providenciando a guia. Assim que eu te enviar, peço prioridade no pagamento para não perdermos o prazo.`,
+        ``,
+        `Qualquer dúvida, responde aqui.`,
+      ]),
+    });
+  }
 
   if (s.ba) {
     out.push({
@@ -615,6 +677,16 @@ out.push({
     });
   }
 
+  // Preparo urgente no topo; remove scripts de contrarrazões conflitantes
+  if (out.some((x) => x.id === 'preparo_urgente_ajg')) {
+    const prep = out.filter((x) => x.id === 'preparo_urgente_ajg');
+    const rest = out.filter(
+      (x) =>
+        x.id !== 'preparo_urgente_ajg' &&
+        !/contrarraz|contrarrazo/i.test(String(x.titulo) + ' ' + String(x.quandoUsar || ''))
+    );
+    return [...prep, ...rest].slice(0, 4);
+  }
   return out.slice(0, 3);
 }
 
