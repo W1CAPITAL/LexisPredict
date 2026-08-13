@@ -242,3 +242,207 @@ export async function evolutionHealthCheck(): Promise<{
     error: wake.ok ? undefined : wake.detail,
   };
 }
+
+
+export type EvolutionChatMessage = {
+  id: string;
+  fromMe: boolean;
+  text: string;
+  timestamp: string;
+  remoteJid?: string;
+  pushName?: string;
+  raw?: any;
+};
+
+/**
+ * Busca mensagens antigas na Evolution (várias rotas — builds diferem).
+ * Não garante 100% se a instância não persistiu histórico no Postgres da Evolution.
+ */
+export async function fetchChatMessagesFromEvolution(
+  phone: string,
+  limit = 80
+): Promise<{ ok: boolean; messages: EvolutionChatMessage[]; error?: string; tried?: string[] }> {
+  const { baseUrl, apiKey, instance } = getEvolutionConfig();
+  if (!baseUrl || !apiKey) {
+    return {
+      ok: false,
+      messages: [],
+      error: 'Evolution não configurada (EVOLUTION_API_URL / EVOLUTION_API_KEY)',
+    };
+  }
+
+  await wakeEvolutionInstance().catch(() => null);
+
+  const number = normalizeBrPhone(phone);
+  if (!number) return { ok: false, messages: [], error: 'Telefone inválido' };
+
+  const jids = [
+    `${number}@s.whatsapp.net`,
+    number,
+  ];
+  // variantes sem 9
+  if (number.startsWith('55') && number.length === 13) {
+    const local = number.slice(2);
+    if (local.length === 11 && local[2] === '9') {
+      const alt = '55' + local.slice(0, 2) + local.slice(3);
+      jids.push(`${alt}@s.whatsapp.net`, alt);
+    }
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    apikey: apiKey,
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  const tried: string[] = [];
+  const inst = encodeURIComponent(instance);
+
+  async function tryPost(path: string, body: any) {
+    const url = `${baseUrl}${path}`;
+    tried.push(`POST ${path}`);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(45000),
+    });
+    const text = await res.text().catch(() => '');
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = { raw: text };
+    }
+    return { ok: res.ok, status: res.status, json };
+  }
+
+  async function tryGet(path: string) {
+    const url = `${baseUrl}${path}`;
+    tried.push(`GET ${path}`);
+    const res = await fetch(url, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(45000),
+    });
+    const text = await res.text().catch(() => '');
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = { raw: text };
+    }
+    return { ok: res.ok, status: res.status, json };
+  }
+
+  function extractText(msg: any): string {
+    if (!msg) return '';
+    if (typeof msg === 'string') return msg;
+    const m = msg.message || msg;
+    return (
+      m.conversation ||
+      m.extendedTextMessage?.text ||
+      m.imageMessage?.caption ||
+      m.videoMessage?.caption ||
+      m.documentMessage?.caption ||
+      m.buttonsResponseMessage?.selectedDisplayText ||
+      m.listResponseMessage?.title ||
+      msg.conversation ||
+      msg.text ||
+      msg.body ||
+      ''
+    );
+  }
+
+  function normalizeList(json: any): EvolutionChatMessage[] {
+    if (!json) return [];
+    let arr: any[] = [];
+    if (Array.isArray(json)) arr = json;
+    else if (Array.isArray(json.messages)) arr = json.messages;
+    else if (Array.isArray(json.data)) arr = json.data;
+    else if (Array.isArray(json.records)) arr = json.records;
+    else if (json.messages?.records && Array.isArray(json.messages.records))
+      arr = json.messages.records;
+    else if (json.message && Array.isArray(json.message)) arr = json.message;
+
+    const out: EvolutionChatMessage[] = [];
+    for (const item of arr) {
+      const key = item.key || item.Key || {};
+      const text = extractText(item).trim();
+      if (!text) continue;
+      const tsRaw = item.messageTimestamp || item.message_timestamp || item.timestamp;
+      let ts: string;
+      if (typeof tsRaw === 'number') {
+        ts = new Date(tsRaw > 1e12 ? tsRaw : tsRaw * 1000).toISOString();
+      } else if (tsRaw) {
+        ts = new Date(tsRaw).toISOString();
+      } else {
+        ts = new Date().toISOString();
+      }
+      out.push({
+        id: String(key.id || item.id || `${ts}-${text.slice(0, 12)}`),
+        fromMe: !!(key.fromMe ?? item.fromMe),
+        text,
+        timestamp: ts,
+        remoteJid: key.remoteJid || item.remoteJid,
+        pushName: item.pushName || item.pushname,
+        raw: { id: key.id },
+      });
+    }
+    // ordena por data
+    out.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    return out.slice(-limit);
+  }
+
+  // Tentativas comuns Evolution API v1/v2
+  for (const jid of jids) {
+    const attempts: Array<() => Promise<{ ok: boolean; status: number; json: any }>> = [
+      () =>
+        tryPost(`/chat/findMessages/${inst}`, {
+          where: { key: { remoteJid: jid } },
+          page: 1,
+          offset: limit,
+        }),
+      () =>
+        tryPost(`/chat/findMessages/${inst}`, {
+          where: { key: { remoteJid: jid.includes('@') ? jid : `${jid}@s.whatsapp.net` } },
+        }),
+      () =>
+        tryPost(`/chat/findMessages/${inst}`, {
+          remoteJid: jid.includes('@') ? jid : `${jid}@s.whatsapp.net`,
+          limit,
+        }),
+      () =>
+        tryPost(`/message/findMessages/${inst}`, {
+          where: { key: { remoteJid: jid.includes('@') ? jid : `${jid}@s.whatsapp.net` } },
+        }),
+      () =>
+        tryGet(
+          `/chat/findMessages/${inst}?remoteJid=${encodeURIComponent(
+            jid.includes('@') ? jid : `${jid}@s.whatsapp.net`
+          )}&limit=${limit}`
+        ),
+    ];
+
+    for (const fn of attempts) {
+      try {
+        const r = await fn();
+        if (!r.ok) continue;
+        const msgs = normalizeList(r.json);
+        if (msgs.length > 0) {
+          return { ok: true, messages: msgs, tried };
+        }
+      } catch {
+        /* next */
+      }
+    }
+  }
+
+  return {
+    ok: false,
+    messages: [],
+    error:
+      'Evolution não devolveu histórico para este número. A instância pode não guardar mensagens antigas, ou o chat nunca existiu nesta sessão WhatsApp.',
+    tried,
+  };
+}

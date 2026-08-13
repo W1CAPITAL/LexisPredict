@@ -274,3 +274,65 @@ export async function testSaveWhatsAppMessageAction(phone: string) {
     last: messages.slice(-3).map((m: any) => m.message_text || m.body),
   };
 }
+
+
+/**
+ * Puxa mensagens antigas da Evolution e grava no Supabase (whatsapp_messages).
+ * Só funciona se a Evolution ainda tiver o chat armazenado no banco dela.
+ */
+export async function importEvolutionHistoryAction(phone: string) {
+  try {
+    const { fetchChatMessagesFromEvolution } = await import('@/lib/evolution-api');
+    const { persistWhatsAppMessage, fetchMessagesByPhone } = await import(
+      '@/lib/whatsapp-persist'
+    );
+    const n = normalizeBrPhone(phone);
+    if (!n) return { success: false, error: 'Telefone vazio', imported: 0, found: 0 };
+
+    const ev = await fetchChatMessagesFromEvolution(n, 100);
+    if (!ev.ok || !ev.messages.length) {
+      return {
+        success: false,
+        error: ev.error || 'Nenhuma mensagem na Evolution',
+        imported: 0,
+        found: 0,
+        tried: ev.tried,
+      };
+    }
+
+    let imported = 0;
+    const errors: string[] = [];
+    for (const m of ev.messages) {
+      const saved = await persistWhatsAppMessage({
+        contactNumber: n,
+        messageText: m.text,
+        fromMe: m.fromMe,
+        messageId: m.id ? `evo-${m.id}` : undefined,
+        contactName: m.pushName,
+        remoteJid: m.remoteJid,
+        source: 'evolution-import',
+        timestamp: m.timestamp,
+        raw: m.raw,
+      });
+      if (saved.ok) imported += 1;
+      else if (saved.error) errors.push(saved.error);
+    }
+
+    const { messages } = await fetchMessagesByPhone(n);
+    return {
+      success: imported > 0,
+      found: ev.messages.length,
+      imported,
+      totalInDb: messages.length,
+      error: imported === 0 ? errors[0] || 'Nada gravado' : null,
+      tried: ev.tried,
+    };
+  } catch (e: any) {
+    return {
+      success: false,
+      error: e?.message || String(e),
+      imported: 0,
+      found: 0,
+    };
+  }
+}

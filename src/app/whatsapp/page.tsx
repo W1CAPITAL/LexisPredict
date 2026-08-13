@@ -55,6 +55,7 @@ import {
   diagnoseWhatsAppStorageAction,
   logOutboundWhatsAppAction,
   testSaveWhatsAppMessageAction,
+  importEvolutionHistoryAction,
 } from "@/app/actions/whatsapp-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
@@ -837,6 +838,41 @@ function WhatsAppTerminalInner() {
                         }}
                       >
                         Testar gravação Supabase
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 rounded-xl font-black uppercase text-[10px] tracking-wider gap-1.5 border-sky-500/40 text-sky-700 dark:text-sky-400"
+                        disabled={!selected?.telefone || histLoading}
+                        onClick={async () => {
+                          if (!selected?.telefone) {
+                            toast({ title: "Cliente sem telefone", variant: "destructive" });
+                            return;
+                          }
+                          setHistLoading(true);
+                          try {
+                            const r = await importEvolutionHistoryAction(selected.telefone);
+                            if (!r.success) {
+                              toast({
+                                title: "Não importou histórico",
+                                description: r.error || "Evolution sem mensagens deste chat",
+                                variant: "destructive",
+                              });
+                              setHistDiag(r.error || "Import falhou");
+                            } else {
+                              toast({
+                                title: "Histórico importado",
+                                description: `${r.imported}/${r.found} msgs · total no banco: ${r.totalInDb}`,
+                              });
+                              await loadHistory(selected);
+                            }
+                          } finally {
+                            setHistLoading(false);
+                          }
+                        }}
+                      >
+                        Importar histórico Evolution
                       </Button>
                     </div>
 
