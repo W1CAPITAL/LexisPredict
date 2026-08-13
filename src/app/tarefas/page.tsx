@@ -963,7 +963,13 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
            <Button variant="ghost" size="icon" onClick={onSuggest} className={cn("text-amber-600 hover:bg-amber-50", ui.touch)} title="Sugestão de Resposta"><MessageSquareQuote size={18} /></Button>
            <Button variant="ghost" size="icon" onClick={() => onScan(group.protocoloReferencia)} className={cn("text-primary hover:bg-primary/10", ui.touch)} title="Auditoria 3D"><FileSearch size={18} /></Button>
-           <Button variant="ghost" size="icon" asChild className={cn("text-emerald-600 hover:bg-emerald-50", ui.touch)} title="WhatsApp"><a href={formatWhatsAppLink(group.telefone)} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /></a></Button>
+           <Button variant="ghost" size="icon" asChild className={cn("text-emerald-600 hover:bg-emerald-50", ui.touch)} title="Abrir terminal WhatsApp">
+             <Link
+               href={`/whatsapp?protocolo=${encodeURIComponent(group.protocoloReferencia || "")}&cliente=${encodeURIComponent(group.cliente || "")}&tel=${encodeURIComponent(group.telefone || "")}`}
+             >
+               <MessageCircle size={18} />
+             </Link>
+           </Button>
            <Button variant="ghost" size="icon" onClick={onMarkContacted} className={cn("text-slate-400 hover:text-emerald-600", ui.touch)} title="Marcar Contatado"><UserCheck size={18} /></Button>
         </div>
                 {(() => {

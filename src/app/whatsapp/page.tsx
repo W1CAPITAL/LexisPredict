@@ -6,8 +6,9 @@
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   MessageCircle,
   Search,
@@ -79,8 +80,11 @@ function signalBadge(c: LegalCase): { label: string; className: string } | null 
   return null;
 }
 
-export default function WhatsAppTerminalPage() {
+function WhatsAppTerminalInner() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const [deepLinkDone, setDeepLinkDone] = useState(false);
+
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -106,6 +110,9 @@ export default function WhatsAppTerminalPage() {
   useEffect(() => {
     loadCases();
   }, [loadCases]);
+
+
+
 
   const contacts = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -160,7 +167,7 @@ export default function WhatsAppTerminalPage() {
         .filter(Boolean)
         .map(String);
 
-      return suggestScripts({
+      const raw = suggestScripts({
         clienteNome: selected.cliente,
         protocolo: selected.protocolo,
         ultimoRetorno: selected.ultimoRetorno || (selected as any).ultimo_retorno,
@@ -172,9 +179,27 @@ export default function WhatsAppTerminalPage() {
         tem_novo_andamento: selected.tem_novo_andamento,
         tem_atualizacao_pos_retorno: selected.tem_atualizacao_pos_retorno,
         djen_nova_comunicacao: selected.djen_nova_comunicacao,
+        indicio_busca_apreensao: selected.indicio_busca_apreensao,
         datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
         em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
         movimentos: [],
+      });
+
+      // Tom WhatsApp: remove linhas vazias excessivas e limita tamanho
+      return raw.map((s) => {
+        let texto = String(s.texto || "")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+        // Evita formalismo longo no terminal
+        if (texto.length > 900) {
+          texto = texto.slice(0, 880).trim() + "…";
+        }
+        return {
+          ...s,
+          titulo: s.titulo || "Sugestão",
+          texto,
+          quandoUsar: s.quandoUsar || "Resposta rápida no WhatsApp",
+        };
       });
     } catch {
       return [];
@@ -234,6 +259,40 @@ export default function WhatsAppTerminalPage() {
     setDraft("");
     loadHistory(c);
   };
+
+  // Deep link: /whatsapp?protocolo=&cliente=&tel= (vindo de Tarefas/Processos)
+  useEffect(() => {
+    if (deepLinkDone || loading || !cases.length) return;
+    const proto = (searchParams.get("protocolo") || searchParams.get("cnj") || "").replace(/\D/g, "");
+    const cliente = (searchParams.get("cliente") || "").trim().toLowerCase();
+    const tel = digitsPhone(searchParams.get("tel") || searchParams.get("telefone") || "");
+    if (!proto && !cliente && !tel) {
+      setDeepLinkDone(true);
+      return;
+    }
+    const found =
+      cases.find((c) => proto && String(c.protocolo || "").replace(/\D/g, "") === proto) ||
+      cases.find((c) => tel && digitsPhone(c.telefone) && digitsPhone(c.telefone).endsWith(tel.slice(-8))) ||
+      cases.find((c) => cliente && String(c.cliente || "").toLowerCase() === cliente) ||
+      cases.find((c) => cliente && String(c.cliente || "").toLowerCase().includes(cliente));
+    if (found) {
+      selectCase(found);
+      setQ(found.cliente || found.protocolo || "");
+      toast({
+        title: "Contato aberto",
+        description: `${found.cliente || "Cliente"} · terminal WhatsApp`,
+      });
+    } else if (cliente || tel) {
+      setQ(cliente || tel);
+      toast({
+        title: "Contato não encontrado na carteira",
+        description: "Use a busca à esquerda ou confira o telefone no cadastro.",
+        variant: "destructive",
+      });
+    }
+    setDeepLinkDone(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cases, loading, searchParams, deepLinkDone]);
 
   const persistLocal = (phone: string, msgs: ChatMsg[]) => {
     try {
@@ -587,5 +646,19 @@ export default function WhatsAppTerminalPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function WhatsAppTerminalPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+          Carregando terminal WhatsApp…
+        </div>
+      }
+    >
+      <WhatsAppTerminalInner />
+    </Suspense>
   );
 }

@@ -30,6 +30,7 @@ import {
   Pencil,
   Trash2,
   PhoneCall,
+  MessageCircle,
   FilePlus2,
   Users,
   ShieldCheck,
@@ -536,6 +537,13 @@ export default function ProcessosEmpresaPage() {
                             </td>
                             <td className="px-6 py-3 text-center">
                               <div className="flex items-center justify-center gap-1.5">
+                                <Link
+                                  href={`/whatsapp?protocolo=${encodeURIComponent(c.protocolo || "")}&cliente=${encodeURIComponent(c.cliente || "")}&tel=${encodeURIComponent(c.telefone || "")}`}
+                                  className="h-8 w-8 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center justify-center transition-colors"
+                                  title="Terminal WhatsApp"
+                                >
+                                  <MessageCircle size={13} />
+                                </Link>
                                 <button
                                   onClick={() => openAttendance(c)}
                                   className="h-8 w-8 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center justify-center transition-colors"
