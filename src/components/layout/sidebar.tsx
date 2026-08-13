@@ -45,7 +45,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils"
-import { applyNavPreferences, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
+import { flattenNavItems, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
 import { Button } from "@/components/ui/button";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -145,109 +145,66 @@ function SidebarNavBody({
     return () => cancelAnimationFrame(id);
   }, [pathname]);
 
-  const navGroups: NavGroup[] = useMemo(() => {
-    // Núcleo do operador (menos ruído) — sempre visível
-    const core: NavGroup[] = [
-      {
-        title: "Hoje",
-        items: [
-          { label: "Painel", href: "/", icon: LayoutDashboard, hint: "Vencidos e ação do dia" },
-          { label: "Fila de contato", href: "/tarefas", icon: ListTodo, hint: "Quem ligar ou responder" },
-          { label: "Meus processos", href: "/cases", icon: Briefcase, hint: "Carteira + scanner" },
-        ],
-      },
-      {
-        title: "Carteira",
-        items: [
-          { label: "Visão da empresa", href: "/processos", icon: FolderOpen, hint: "Todos os processos" },
-          { label: "Importar", href: "/import", icon: Upload, hint: "Planilha em lote" },
-          { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList, hint: "CNJ → ficha" },
-        ],
-      },
+  const navItems: NavItem[] = useMemo(() => {
+    const primary: NavItem[] = [
+      { label: "Painel", href: "/", icon: LayoutDashboard },
+      { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
+      { label: "Meus processos", href: "/cases", icon: Briefcase },
+      { label: "Visão da empresa", href: "/processos", icon: FolderOpen },
+      { label: "Importar", href: "/import", icon: Upload },
+      { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList },
     ];
 
-    // Ferramentas secundárias — recolhidas por padrão (modo operador)
-    const more: NavGroup[] = [
-      {
-        title: "Mais · Operação",
-        items: [
-          { label: "Agenda", href: "/agenda", icon: CalendarDays, hint: "Prazos da semana" },
-          { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel, hint: "Indícios de B.A." },
-          { label: "Dossiê", href: "/report", icon: BarChart3, hint: "Relatório operacional" },
-          { label: "OCR", href: "/tools/ocr", icon: FileText, hint: "Transcrição" },
-        ],
-      },
-      {
-        title: "Mais · Dinheiro",
-        items: [
-          { label: "CRM Assessoria", href: "/crm", icon: Kanban, hint: "Funil e caixa" },
-          { label: "Follow-ups CRM", href: "/crm/followups", icon: ListTodo, hint: "Sinais do banco" },
-          { label: "Finanças", href: "/financas", icon: Wallet, hint: "Visão financeira" },
-        ],
-      },
-      {
-        title: "Mais · Peças & IA",
-        items: [
-          { label: "Modelos", href: "/modelos", icon: ScrollText, hint: "Textos prontos" },
-          { label: "Documentos", href: "/documents", icon: FileText, hint: "PDF e arquivos" },
-          { label: "Substabelecimento", href: "/substabelecimento", icon: FileSignature, hint: "Peças" },
-          { label: "Habilitação", href: "/habilitacao-peca", icon: Files, hint: "Peças" },
-          { label: "Veredito", href: "/veredito", icon: Scale, hint: "Parecer CNJ" },
-          { label: "Assistente", href: "/chat", icon: Bot, hint: "IA do gabinete" },
-          { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, hint: "Atalhos" },
-        ],
-      },
-      {
-        title: "Mais · Números",
-        items: [
-          { label: "Indicadores", href: "/analytics", icon: BarChart3, hint: "Gráficos" },
-          { label: "IA Preditiva", href: "/insights", icon: BrainCircuit, hint: "Risco" },
-          { label: "Urgências", href: "/urgency", icon: ShieldAlert, hint: "Fila crítica" },
-        ],
-      },
+    const secondary: NavItem[] = [
+      { label: "Agenda", href: "/agenda", icon: CalendarDays },
+      { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
+      { label: "Dossiê", href: "/report", icon: BarChart3 },
+      { label: "OCR", href: "/tools/ocr", icon: FileText },
+      { label: "CRM Assessoria", href: "/crm", icon: Kanban },
+      { label: "Follow-ups CRM", href: "/crm/followups", icon: ListTodo },
+      { label: "Finanças", href: "/financas", icon: Wallet },
+      { label: "Modelos", href: "/modelos", icon: ScrollText },
+      { label: "Documentos", href: "/documents", icon: FileText },
+      { label: "Substabelecimento", href: "/substabelecimento", icon: FileSignature },
+      { label: "Habilitação", href: "/habilitacao-peca", icon: Files },
+      { label: "Veredito", href: "/veredito", icon: Scale },
+      { label: "Assistente", href: "/chat", icon: Bot },
+      { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
+      { label: "Indicadores", href: "/analytics", icon: BarChart3 },
+      { label: "IA Preditiva", href: "/insights", icon: BrainCircuit },
+      { label: "Urgências", href: "/urgency", icon: ShieldAlert },
     ];
 
-    const groups: NavGroup[] = [...core];
-    if (showMoreTools) groups.push(...more);
-
+    const rest: NavItem[] = [];
     if (isAdmin) {
-      groups.push({
-        title: "Gestão",
-        items: [
-          { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, hint: "Desempenho" },
-          { label: "Equipe", href: "/team", icon: Users, hint: "Cargos" },
-          { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, hint: "Trilha de ações" },
-          ...(isSuperAdmin
-            ? [{ label: "Segurança", href: "/security", icon: ShieldAlert, hint: "Defensiva" } as NavItem]
-            : []),
-        ],
-      });
+      rest.push(
+        { label: "Supervisão", href: "/supervisao", icon: ShieldCheck },
+        { label: "Equipe", href: "/team", icon: Users },
+        { label: "Auditoria", href: "/auditoria", icon: ShieldCheck },
+      );
+      if (isSuperAdmin) {
+        rest.push({ label: "Segurança", href: "/security", icon: ShieldAlert });
+      }
     }
+    rest.push(
+      { label: "Treinamento", href: "/onboarding", icon: PlayCircle },
+      { label: "Notas", href: "/notes", icon: StickyNote },
+      { label: "Configurações", href: "/settings", icon: Settings },
+    );
 
-    groups.push({
-      title: "Ajuda",
-      items: [
-        { label: "Treinamento", href: "/onboarding", icon: PlayCircle, hint: "Guia" },
-        { label: "Notas", href: "/notes", icon: StickyNote, hint: "Anotações" },
-        { label: "Configurações", href: "/settings", icon: Settings, hint: "Tema e IA" },
-      ],
-    });
+    let items = flattenNavItems(primary, secondary, rest, navPrefs, showMoreTools);
 
-    const ranked = applyNavPreferences(groups, navPrefs);
     const q = navQuery.trim().toLowerCase();
-    if (!q) return ranked;
-    return ranked
-      .map((g) => ({
-        ...g,
-        items: g.items.filter(
-          (it) =>
-            it.label.toLowerCase().includes(q) ||
-            (it.hint || "").toLowerCase().includes(q) ||
-            it.href.toLowerCase().includes(q)
-        ),
-      }))
-      .filter((g) => g.items.length > 0);
+    if (q) {
+      items = items.filter(
+        (it) =>
+          it.label.toLowerCase().includes(q) ||
+          it.href.toLowerCase().includes(q)
+      );
+    }
+    return items;
   }, [isAdmin, isSuperAdmin, navQuery, showMoreTools, navPrefs]);
+
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
@@ -311,10 +268,6 @@ function SidebarNavBody({
                 aria-label="Buscar no menu"
               />
             </div>
-            <p className="text-[9px] text-sidebar-foreground/50 mt-1.5 px-0.5 leading-snug">
-              Comece por <span className="font-bold text-sidebar-foreground/75">Hoje</span>, depois
-              Carteira e Dinheiro.
-            </p>
           </div>
         )}
 
@@ -334,14 +287,7 @@ function SidebarNavBody({
         </button>
       )}
 
-{navGroups.map((group) => (
-          <div key={group.title} className="space-y-0.5">
-            {!collapsed && (
-              <p className="px-2.5 mb-1.5 text-[10px] font-bold text-primary tracking-wide">
-                {group.title}
-              </p>
-            )}
-            {group.items.map((item) => {
+{/* flat */ {navItems.map((item) => {
               const active =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
@@ -349,9 +295,9 @@ function SidebarNavBody({
                 <Link
                   key={item.href + item.label}
                   href={item.href}
-                  title={item.hint ? `${item.label} — ${item.hint}` : item.label}
+                  title={item.label}
                   className={cn(
-                    "group flex items-start gap-2.5 rounded-xl px-2 py-2 transition-colors",
+                    "group flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors",
                     active
                       ? "bg-primary/15 text-primary"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -359,7 +305,7 @@ function SidebarNavBody({
                 >
                   <span
                     className={cn(
-                      "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
                       active
                         ? "border-primary/30 bg-primary/10 text-primary"
                         : "border-sidebar-border/80 bg-sidebar-accent/30 text-sidebar-foreground/70 group-hover:text-sidebar-foreground"
@@ -368,24 +314,15 @@ function SidebarNavBody({
                     <SafeIcon icon={item.icon} size={16} />
                   </span>
                   {!collapsed && (
-                    <span className="min-w-0 flex-1 flex flex-col gap-0.5 pt-0.5">
-                      <span className="text-[12px] font-semibold leading-tight tracking-tight">
-                        {item.label}
-                      </span>
-                      {item.hint ? (
-                        <span className="text-[9px] font-medium text-sidebar-foreground/50 leading-snug line-clamp-2">
-                          {item.hint}
-                        </span>
-                      ) : null}
+                    <span className="min-w-0 flex-1 text-[12px] font-semibold leading-tight tracking-tight">
+                      {item.label}
                     </span>
                   )}
                 </Link>
               );
             })}
-          </div>
-        ))}
 
-        {!collapsed && navGroups.length === 0 && (
+        {!collapsed && navItems.length === 0 && (
           <p className="px-3 text-xs text-sidebar-foreground/50">Nenhum item para “{navQuery}”.</p>
         )}
 
