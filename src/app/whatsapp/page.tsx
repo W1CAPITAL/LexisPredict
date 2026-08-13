@@ -38,6 +38,7 @@ import {
   fetchWhatsAppHistoryAction,
 } from "@/app/actions/whatsapp-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
+import { plainTextFromDjen } from "@/lib/djen";
 import type { LegalCase } from "@/lib/case-logic";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
@@ -165,7 +166,7 @@ function WhatsAppTerminalInner() {
         selected.evento_tipo,
       ]
         .filter(Boolean)
-        .map(String);
+        .map((x) => plainTextFromDjen(String(x)));
 
       const raw = suggestScripts({
         clienteNome: selected.cliente,

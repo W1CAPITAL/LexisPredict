@@ -1,3 +1,4 @@
+import { plainTextFromDjen } from '@/lib/djen';
 /**
  * MOTOR LEXIS (scripts fixos) v15.0
  * Só este motor é determinístico. Grok/Groq/outras IAs NÃO devem ser forçadas a isto.
@@ -69,7 +70,7 @@ function fmtDate(raw?: string | null): string {
 }
 
 function buildCorpus(input: ScriptInput): string {
-  return [
+  const parts = [
     input.evento_resumo || '',
     input.eventoResumo || '',
     input.djen_ultimo_resumo || '',
@@ -78,7 +79,8 @@ function buildCorpus(input: ScriptInput): string {
     ...(input.movimentos || []).map(
       (m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''} ${m.dataHora || ''}`
     ),
-  ].join('\n');
+  ];
+  return parts.map((p) => plainTextFromDjen(String(p || ''))).filter(Boolean).join('\n');
 }
 
 function msg(lines: string[]): string {

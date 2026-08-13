@@ -56,43 +56,156 @@ export interface DjenFetchResult {
 const DJEN_URL = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 
 /**
- * HTML bruto → texto puro legível.
+ * Decodifica entidades HTML (nomeadas + numéricas + hex).
+ * Roda em loop curto para capturar dupla codificação (&amp;ndash; → –).
+ */
+export function decodeHtmlEntities(input: string): string {
+  if (!input) return "";
+  const named: Record<string, string> = {
+    nbsp: " ",
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    ndash: "–",
+    mdash: "—",
+    hellip: "…",
+    sect: "§",
+    deg: "°",
+    ordm: "º",
+    ordf: "ª",
+    // minúsculas
+    aacute: "á",
+    eacute: "é",
+    iacute: "í",
+    oacute: "ó",
+    uacute: "ú",
+    agrave: "à",
+    egrave: "è",
+    igrave: "ì",
+    ograve: "ò",
+    ugrave: "ù",
+    atilde: "ã",
+    otilde: "õ",
+    ntilde: "ñ",
+    acirc: "â",
+    ecirc: "ê",
+    icirc: "î",
+    ocirc: "ô",
+    ucirc: "û",
+    auml: "ä",
+    euml: "ë",
+    iuml: "ï",
+    ouml: "ö",
+    uuml: "ü",
+    ccedil: "ç",
+    // maiúsculas
+    Aacute: "Á",
+    Eacute: "É",
+    Iacute: "Í",
+    Oacute: "Ó",
+    Uacute: "Ú",
+    Agrave: "À",
+    Egrave: "È",
+    Igrave: "Ì",
+    Ograve: "Ò",
+    Ugrave: "Ù",
+    Atilde: "Ã",
+    Otilde: "Õ",
+    Ntilde: "Ñ",
+    Acirc: "Â",
+    Ecirc: "Ê",
+    Icirc: "Î",
+    Ocirc: "Ô",
+    Ucirc: "Û",
+    Auml: "Ä",
+    Euml: "Ë",
+    Iuml: "Ï",
+    Ouml: "Ö",
+    Uuml: "Ü",
+    Ccedil: "Ç",
+    ldquo: "“",
+    rdquo: "”",
+    lsquo: "‘",
+    rsquo: "’",
+    laquo: "«",
+    raquo: "»",
+    bull: "•",
+    middot: "·",
+    times: "×",
+    divide: "÷",
+    euro: "€",
+    real: "R$",
+  };
+
+  let s = String(input);
+  for (let pass = 0; pass < 3; pass++) {
+    const prev = s;
+    s = s.replace(/&([a-zA-Z]+);/g, (m, name) =>
+      Object.prototype.hasOwnProperty.call(named, name) ? named[name] : m
+    );
+    s = s.replace(/&#(\d+);/g, (_, n) => {
+      const code = Number(n);
+      if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return _;
+      try {
+        return String.fromCodePoint(code);
+      } catch {
+        return _;
+      }
+    });
+    s = s.replace(/&#x([0-9a-fA-F]+);/g, (_, h) => {
+      const code = parseInt(h, 16);
+      if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return _;
+      try {
+        return String.fromCodePoint(code);
+      } catch {
+        return _;
+      }
+    });
+    if (s === prev) break;
+  }
+  return s;
+}
+
+/**
+ * HTML bruto / texto com entidades → texto puro legível (DJEN, PDF, scripts).
  */
 export function plainTextFromDjen(html: string): string {
-  if (!html) return '';
-  let s = html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<head[\s\S]*?<\/head>/gi, '')
-    .replace(/<\/(p|div|tr|br|li|h[1-6]|section|article)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&ordm;/gi, 'º')
-    .replace(/&iacute;/gi, 'í')
-    .replace(/&eacute;/gi, 'é')
-    .replace(/&aacute;/gi, 'á')
-    .replace(/&atilde;/gi, 'ã')
-    .replace(/&ccedil;/gi, 'ç')
-    .replace(/&otilde;/gi, 'õ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/\s+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-  // Quebras legíveis em decisões longas (PDF / tela)
+  if (!html) return "";
+  let s = String(html)
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
+    .replace(/<\/(p|div|tr|br|li|h[1-6]|section|article|table|thead|tbody)>/gi, "\n")
+    .replace(/<(br|hr)\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ");
+
+  s = decodeHtmlEntities(s);
+
+  // Lixo residual de entidades / tags quebradas
   s = s
-    .replace(/\s+(?=\d+\.\s)/g, '\n\n')
-    .replace(/\s+(?=Art\.\s)/gi, '\n')
-    .replace(/\s+(?=DESPACHO\/DECIS)/gi, '\n\n')
-    .replace(/\s+(?=Vistos,?)/gi, '\n\n')
-    .replace(/\s+(?=Intimem-se\.?)/gi, '\n\n')
-    .replace(/\n{3,}/g, '\n\n')
+    .replace(/&[a-zA-Z]+;/g, " ")
+    .replace(/&#\d+;/g, " ")
+    .replace(/&#x[0-9a-fA-F]+;/g, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
     .trim();
+
+  // Quebras legíveis em decisões longas
+  s = s
+    .replace(/\s+(?=\d+\.\s)/g, "\n\n")
+    .replace(/\s+(?=Art\.\s)/gi, "\n")
+    .replace(/\s+(?=DESPACHO\/DECIS)/gi, "\n\n")
+    .replace(/\s+(?=Vistos,?)/gi, "\n\n")
+    .replace(/\s+(?=Intimem-se\.?)/gi, "\n\n")
+    .replace(/\s+(?=INTIME-SE)/gi, "\n\n")
+    .replace(/\s+(?=Portanto,?)/gi, "\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
   return s;
 }
 
