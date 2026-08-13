@@ -1,74 +1,42 @@
 /**
- * Motor OCR Lexis — prioridade:
- * 1) Unlimited-OCR interno (self-host GPU) — base Baidu Unlimited-OCR
- * 2) OCR.space externo (alternativa estável no Vercel; não é LLM)
- * 3) Tesseract interno (último recurso — workers podem ser bloqueados por CSP)
+ * Motor OCR Lexis — APENAS INTERNO.
  *
- * NÃO usa Gemini / xAI / Claude / GPT para OCR.
+ * 1) Unlimited-OCR self-host (OCR_UNLIMITED_URL) — modelo Baidu se você hospedar GPU
+ * 2) Tesseract local (servidor) — sem rede externa
+ *
+ * Removido: OCR.space, qualquer endpoint LEXIS_OCR_* comercial, LLM.
  */
 import type { OcrInput, OcrResult } from './types';
 import { ocrUnlimitedInternal } from './internal-unlimited';
 import { ocrTesseractInternal } from './internal-tesseract';
-import { ocrSpaceExternal } from './external-ocrspace';
-
-function hasOcrSpaceKey() {
-  return !!(process.env.OCR_SPACE_API_KEY || '').trim();
-}
-
-/** Em Vercel/serverless, worker do tesseract costuma falhar — OCR.space primeiro após unlimited. */
-function preferSpaceOverTesseract() {
-  if (hasOcrSpaceKey()) return true;
-  if (process.env.VERCEL === '1') return true;
-  if (process.env.OCR_SKIP_TESSERACT === '1') return true;
-  return false;
-}
+import { cleanDocumentText } from './internal-pipeline';
 
 export async function runOcr(input: OcrInput): Promise<OcrResult> {
   const mime = input.mimeType || 'image/png';
   const lang = input.language || 'por';
-  const prefer = input.prefer || 'auto';
-
   const errors: string[] = [];
 
-  if (prefer === 'external') {
-    const ext = await ocrSpaceExternal(input.buffer, mime, lang);
-    if (ext.success && ext.text.trim()) return ext;
-    errors.push(ext.error || 'ocrspace fail');
+  // 1) Self-host Unlimited-OCR (opcional)
+  const u = await ocrUnlimitedInternal(input.buffer, mime, lang);
+  if (u.success && u.text.trim()) {
+    return { ...u, text: cleanDocumentText(u.text) };
   }
+  if (u.error) errors.push(`[unlimited] ${u.error}`);
 
-  if (prefer !== 'external') {
-    // 1) Unlimited self-host
-    const u = await ocrUnlimitedInternal(input.buffer, mime, lang);
-    if (u.success && u.text.trim()) return u;
-    if (u.error) errors.push(`[unlimited] ${u.error}`);
-
-    // 2) OCR.space (estável no browser/server sem worker blob)
-    if (prefer !== 'internal' || preferSpaceOverTesseract()) {
-      const ext = await ocrSpaceExternal(input.buffer, mime, lang);
-      if (ext.success && ext.text.trim()) return ext;
-      if (ext.error) errors.push(`[ocrspace] ${ext.error}`);
-    }
-
-    // 3) Tesseract (pode falhar por CSP worker-src no browser)
-    if (!preferSpaceOverTesseract() || prefer === 'internal') {
-      const t = await ocrTesseractInternal(input.buffer, lang);
-      if (t.success && t.text.trim()) return t;
-      if (t.error) errors.push(`[tesseract] ${t.error}`);
-    }
+  // 2) Tesseract interno
+  const t = await ocrTesseractInternal(input.buffer, lang);
+  if (t.success && t.text.trim()) {
+    return { ...t, text: cleanDocumentText(t.text) };
   }
-
-  // Última tentativa: ocrspace se ainda não tentou
-  if (prefer === 'internal' && hasOcrSpaceKey()) {
-    const ext = await ocrSpaceExternal(input.buffer, mime, lang);
-    if (ext.success && ext.text.trim()) return ext;
-    if (ext.error) errors.push(`[ocrspace] ${ext.error}`);
-  }
+  if (t.error) errors.push(`[tesseract] ${t.error}`);
 
   return {
     success: false,
     text: '',
     provider: 'none',
-    error: errors.join(' | ') || 'Nenhum motor OCR disponível. Configure OCR_SPACE_API_KEY no Vercel ou OCR_UNLIMITED_URL.',
+    error:
+      errors.join(' | ') ||
+      'OCR interno indisponível. No browser use a aba OCR (Tesseract local). Self-host: OCR_UNLIMITED_URL.',
   };
 }
 

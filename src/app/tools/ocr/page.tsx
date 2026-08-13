@@ -1,7 +1,9 @@
 "use client";
+
 /**
- * Motor OCR: tenta endpoint externo (LEXIS_OCR_*) → fallback Tesseract local.
- * NER jurídico determinístico sobre o texto.
+ * OCR 100% interno — pipeline inspirado no Unlimited-OCR (Baidu):
+ * multi-página, raster HD, realce de documento, anti-repetição n-gram.
+ * Reconhecimento: Tesseract local no browser (sem OCR.space / sem LLM).
  */
 
 import React, { useState, useRef, useEffect } from "react";
@@ -23,17 +25,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { createWorker } from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
-import { ocrViaAdapterAction, legalNerFromTextAction } from "@/app/actions/ocr-adapter-actions";
+import { legalNerFromTextAction } from "@/app/actions/ocr-adapter-actions";
 import type { LegalNerResult } from "@/lib/legal-ner";
+import {
+  cleanDocumentText,
+  enhanceCanvasForOcr,
+  INTERNAL_OCR_ENGINE_LABEL,
+} from "@/lib/ocr/internal-pipeline";
 import { cn } from "@/lib/utils";
-
-async function fileToBase64(file: File): Promise<string> {
-  const buf = await file.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buf);
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
 
 export default function OCRToolPage() {
   const [loading, setLoading] = useState(false);
@@ -55,46 +54,105 @@ export default function OCRToolPage() {
     if (r.success) setNer(r.ner);
   };
 
-  const runLocalTesseract = async (file: File) => {
-    setStatus("OCR local (Tesseract)…");
-    setProgress(5);
-    const worker = await createWorker("por");
-    let fullText = "";
+  /** Rasteriza página PDF em canvas HD (estilo multi-page Unlimited-OCR). */
+  async function pdfPageToCanvas(
+    pdf: pdfjsLib.PDFDocumentProxy,
+    pageNum: number,
+    scale = 2
+  ): Promise<HTMLCanvasElement> {
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas indisponível");
+    await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+    return enhanceCanvasForOcr(canvas);
+  }
 
-    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-      const data = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data }).promise;
-      const totalPages = pdf.numPages;
-      for (let i = 1; i <= totalPages; i++) {
-        setStatus(`Página ${i}/${totalPages}`);
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2.0 });
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d")!;
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        const {
-          data: { text },
-        } = await worker.recognize(canvas);
-        fullText += text + "\n\n";
-        setProgress(Math.round((i / totalPages) * 100));
-      }
-    } else {
-      setStatus("Imagem…");
-      const {
-        data: { text },
-      } = await worker.recognize(file);
-      fullText = text;
-      setProgress(100);
+  async function imageFileToCanvas(file: File): Promise<HTMLCanvasElement> {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("Falha ao carregar imagem"));
+        el.src = url;
+      });
+      const canvas = document.createElement("canvas");
+      // escala mínima para textos miúdos (gundam-like densify)
+      const maxSide = Math.max(img.width, img.height);
+      const scale = maxSide < 1200 ? 2 : 1;
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas indisponível");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return enhanceCanvasForOcr(canvas);
+    } finally {
+      URL.revokeObjectURL(url);
     }
-    await worker.terminate();
-    return fullText;
+  }
+
+  const runInternalOcr = async (file: File) => {
+    setStatus("Motor interno · inicializando…");
+    setProgress(3);
+    // worker local — requer CSP worker-src blob: (middleware)
+    const worker = await createWorker("por", 1, {
+      logger: (m: any) => {
+        if (m?.status === "recognizing text" && typeof m.progress === "number") {
+          setProgress(Math.min(95, Math.round(m.progress * 100)));
+        }
+      },
+    } as any);
+
+    let pagesText: string[] = [];
+    try {
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        const data = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const totalPages = pdf.numPages;
+        for (let i = 1; i <= totalPages; i++) {
+          setStatus(`Página ${i}/${totalPages} (pipeline multi-page)`);
+          setProgress(Math.round((i / totalPages) * 90));
+          const canvas = await pdfPageToCanvas(pdf, i, 2);
+          const result = await worker.recognize(canvas);
+          const pageText = String(result?.data?.text || "").trim();
+          if (pageText) {
+            pagesText.push(`--- Página ${i} ---\n${pageText}`);
+          }
+        }
+      } else {
+        setStatus("Imagem · realce + reconhecimento…");
+        setProgress(20);
+        const canvas = await imageFileToCanvas(file);
+        setProgress(50);
+        const result = await worker.recognize(canvas);
+        pagesText.push(String(result?.data?.text || "").trim());
+      }
+    } finally {
+      try {
+        await worker.terminate();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const raw = pagesText.filter(Boolean).join("\n\n");
+    const text = cleanDocumentText(raw);
+    if (!text) {
+      throw new Error(
+        "Nenhum texto reconhecido. Use PDF/imagem legível (scan nítido). CSP deve permitir worker-src blob:."
+      );
+    }
+    return text;
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setLoading(true);
     setExtractedText("");
     setNer(null);
@@ -102,40 +160,20 @@ export default function OCRToolPage() {
     setProgress(0);
 
     try {
-      // 1) Tenta OCR externo (server)
-      setStatus("Tentando OCR externo…");
-      const b64 = await fileToBase64(file);
-      const ext = await ocrViaAdapterAction({
-        base64: b64,
-        filename: file.name,
-        mimeType: file.type,
-      });
-
-      if (ext.success && ext.text) {
-        setExtractedText(ext.text);
-        setEngineUsed(ext.engine);
-        setProgress(100);
-        if (ext.ner) setNer(ext.ner);
-        else await runNer(ext.text);
-        toast({
-          title: "OCR externo",
-          description: `${ext.latencyMs}ms · ${ext.engine}`,
-        });
-        return;
-      }
-
-      // 2) Fallback local
-      setStatus(ext.error || "Fallback local…");
-      const local = await runLocalTesseract(file);
-      const text = local.toUpperCase();
+      const text = await runInternalOcr(file);
       setExtractedText(text);
-      setEngineUsed("tesseract-local");
+      setEngineUsed(INTERNAL_OCR_ENGINE_LABEL);
+      setProgress(100);
+      setStatus("Concluído");
       await runNer(text);
-      toast({ title: "OCR local concluído", description: "Tesseract (soberano)" });
+      toast({
+        title: "OCR interno ok",
+        description: `${text.length} caracteres · ${INTERNAL_OCR_ENGINE_LABEL}`,
+      });
     } catch (err: any) {
       console.error(err);
       toast({
-        title: "Falha no OCR",
+        title: "Falha no OCR interno",
         description: err?.message || "Não foi possível transcrever.",
         variant: "destructive",
       });
@@ -154,12 +192,13 @@ export default function OCRToolPage() {
 
   const downloadTxt = () => {
     if (!extractedText) return;
-    const blob = new Blob([extractedText], { type: "text/plain" });
+    const blob = new Blob([extractedText], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = `Transcricao_LP_${Date.now()}.txt`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -173,12 +212,12 @@ export default function OCRToolPage() {
           </div>
           <div className="flex items-center gap-2">
             {engineUsed ? (
-              <Badge variant="outline" className="text-[10px] font-bold uppercase">
+              <Badge variant="outline" className="text-[10px] font-bold uppercase max-w-[240px] truncate">
                 {engineUsed}
               </Badge>
             ) : null}
             <Badge variant="secondary" className="text-[10px] font-bold uppercase">
-              Externo → Local
+              Somente interno
             </Badge>
           </div>
         </header>
@@ -200,82 +239,58 @@ export default function OCRToolPage() {
             ) : (
               <>
                 <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-                <h3 className="font-black uppercase text-sm">PDF / imagem</h3>
-                <p className="text-[10px] text-muted-foreground uppercase mt-1">
-                  Tenta OCR externo · fallback Tesseract local
+                <p className="font-black uppercase text-sm tracking-wide">PDF / Imagem</p>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase mt-2 text-center max-w-md">
+                  Motor interno · multi-página · realce de documento · anti-repetição
+                  (técnicas Unlimited-OCR + Tesseract local)
                 </p>
               </>
             )}
             <input
-              type="file"
-              accept=".pdf,image/*"
-              className="hidden"
               ref={fileInputRef}
-              onChange={handleFileUpload}
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={handleFile}
             />
           </div>
 
-          {ner ? (
-            <Card>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                  <Scale className="h-3.5 w-3.5" /> NER jurídico
+          {extractedText ? (
+            <Card className="border-border">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 py-3">
+                <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Transcrição
                 </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2">
-                <p className="text-xs font-semibold">{ner.summary}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(ner.byKind.cnj || []).map((v) => (
-                    <Badge key={v} variant="default" className="text-[10px] font-mono">
-                      CNJ {v}
-                    </Badge>
-                  ))}
-                  {(ner.byKind.banco || []).map((v) => (
-                    <Badge key={v} variant="secondary" className="text-[10px]">
-                      {v}
-                    </Badge>
-                  ))}
-                  {(ner.byKind.cpf || []).slice(0, 4).map((v) => (
-                    <Badge key={v} variant="outline" className="text-[10px]">
-                      CPF {v}
-                    </Badge>
-                  ))}
-                  {(ner.byKind.cnpj || []).slice(0, 4).map((v) => (
-                    <Badge key={v} variant="outline" className="text-[10px]">
-                      CNPJ {v}
-                    </Badge>
-                  ))}
-                  {(ner.byKind.oab || []).slice(0, 6).map((v) => (
-                    <Badge key={`o${v}`} variant="outline" className="text-[10px]">
-                      OAB {v}
-                    </Badge>
-                  ))}
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={copyToClipboard}>
+                    <Copy className="h-3.5 w-3.5 mr-1" /> Copiar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={downloadTxt}>
+                    <Download className="h-3.5 w-3.5 mr-1" /> TXT
+                  </Button>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[320px] rounded-md border p-3">
+                  <pre className="text-xs whitespace-pre-wrap font-mono leading-relaxed">
+                    {extractedText}
+                  </pre>
+                </ScrollArea>
               </CardContent>
             </Card>
           ) : null}
 
-          {extractedText ? (
-            <Card>
-              <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                  <FileText className="h-3.5 w-3.5" /> Texto
+          {ner ? (
+            <Card className="border-border">
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+                  <Scale className="h-4 w-4" /> NER jurídico (local)
                 </CardTitle>
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" className="h-8 text-[10px]" onClick={copyToClipboard}>
-                    <Copy className="h-3 w-3 mr-1" /> Copiar
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-8 text-[10px]" onClick={downloadTxt}>
-                    <Download className="h-3 w-3 mr-1" /> TXT
-                  </Button>
-                </div>
               </CardHeader>
-              <CardContent className="p-0 border-t border-border">
-                <ScrollArea className="h-[360px]">
-                  <pre className="p-4 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
-                    {extractedText}
-                  </pre>
-                </ScrollArea>
+              <CardContent className="text-xs space-y-2">
+                <pre className="whitespace-pre-wrap font-mono bg-muted/40 p-3 rounded-md overflow-auto max-h-48">
+                  {JSON.stringify(ner, null, 2)}
+                </pre>
               </CardContent>
             </Card>
           ) : null}

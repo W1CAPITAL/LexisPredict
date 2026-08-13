@@ -1,12 +1,15 @@
 'use server';
 
-import { isExternalOcrConfigured, runExternalOcr } from '@/lib/ocr/external-ocr-adapter';
+/**
+ * OCR adapter — INTERNO ONLY.
+ * Removido: OCR.space, LEXIS_OCR_ENDPOINT externo comercial.
+ * NER determinístico permanece (sem LLM).
+ */
+
 import { extractLegalEntities, type LegalNerResult } from '@/lib/legal-ner';
 
-/**
- * Tenta OCR externo; se falhar, retorna needLocal=true para o cliente usar Tesseract.
- */
-export async function ocrViaAdapterAction(input: {
+/** Sempre indica motor local — não tenta externo. */
+export async function ocrViaAdapterAction(_input: {
   base64: string;
   filename?: string;
   mimeType?: string;
@@ -19,50 +22,17 @@ export async function ocrViaAdapterAction(input: {
   error?: string;
   ner?: LegalNerResult;
 }> {
-  if (!input?.base64) {
-    return { success: false, text: '', engine: 'none', latencyMs: 0, error: 'Sem arquivo' };
-  }
-
-  if (!isExternalOcrConfigured()) {
-    return {
-      success: false,
-      text: '',
-      engine: 'none',
-      latencyMs: 0,
-      needLocal: true,
-      error: 'OCR externo não configurado — use motor local (Tesseract)',
-    };
-  }
-
-  const bytes = Buffer.from(input.base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-  const r = await runExternalOcr({
-    bytes,
-    filename: input.filename,
-    mimeType: input.mimeType,
-  });
-
-  if (!r.ok || !r.text) {
-    return {
-      success: false,
-      text: '',
-      engine: r.engine,
-      latencyMs: r.latencyMs,
-      needLocal: true,
-      error: r.error || 'OCR externo falhou',
-    };
-  }
-
-  const ner = extractLegalEntities(r.text);
   return {
-    success: true,
-    text: r.text,
-    engine: r.engine,
-    latencyMs: r.latencyMs,
-    ner,
+    success: false,
+    text: '',
+    engine: 'internal_only',
+    latencyMs: 0,
+    needLocal: true,
+    error: 'Motor exclusivamente interno — use Tesseract local na aba OCR',
   };
 }
 
-/** NER puro sobre texto já obtido (OCR local ou colado) */
+/** NER puro sobre texto já obtido */
 export async function legalNerFromTextAction(text: string) {
   const ner = extractLegalEntities(text || '');
   return { success: true as const, ner };
@@ -70,14 +40,9 @@ export async function legalNerFromTextAction(text: string) {
 
 export async function ocrHealthAction() {
   return {
-    externalConfigured: isExternalOcrConfigured(),
-    endpointHost: (() => {
-      try {
-        const u = process.env.LEXIS_OCR_ENDPOINT || '';
-        return u ? new URL(u).host : null;
-      } catch {
-        return null;
-      }
-    })(),
+    externalConfigured: false,
+    internalOnly: true,
+    unlimitedUrl: !!(process.env.OCR_UNLIMITED_URL || '').trim(),
+    endpointHost: null as string | null,
   };
 }
