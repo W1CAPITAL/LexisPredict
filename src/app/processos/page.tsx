@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
+import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
@@ -237,30 +237,24 @@ export default function ProcessosEmpresaPage() {
     setAttendanceSaving(true);
     try {
       const situacao = attendanceForm.situacao === "ENCERRADO" ? "ENCERRADO" : "EM ANDAMENTO";
-      const updated: LegalCase = {
-        ...attending,
+      const res = await registrarAtendimentoCompletoAction({
+        protocolo: attending.protocolo,
         situacao,
-        ultimoRetorno: todayBR(),
-        observacao: applyFilaListaToObs(attendanceForm.observacao.trim() || attending.observacao, attendanceForm.filaLista || "normal"),
+        observacao: attendanceForm.observacao.trim() || attending.observacao || "",
         proximoPrazo: situacao === "ENCERRADO" ? "" : attendanceForm.proximoRetorno || attending.proximoPrazo,
-        tem_novo_andamento: false,
-        djen_nova_comunicacao: false,
-        tem_atualizacao_pos_retorno: false,
-        datajud_encerrado_tribunal: situacao === "ENCERRADO" ? true : attending.datajud_encerrado_tribunal,
-      };
-      const res = await saveOneCaseAction(updated);
+        via: "processos-da-empresa",
+        filaLista: attendanceForm.filaLista || "normal",
+      });
       if (res.success) {
-        await registrarAtendimentoAction([attending.protocolo], {
-          situacao,
-          via: "processos-da-empresa",
-          observacao: applyFilaListaToObs(attendanceForm.observacao.trim() || attending?.observacao || "", attendanceForm.filaLista || "normal") || null,
-        });
         setAttendingOpen(false);
         setAttending(null);
         await load();
-        toast({ title: "Atendimento registrado", description: `${attending.cliente} • ${situacao}` });
+        toast({
+          title: "Atendimento registrado",
+          description: `${attending.cliente} • ${situacao} • ${(res as any).ultimoRetorno || ""} · sync Tarefas/WhatsApp`,
+        });
       } else {
-        toast({ title: "Falha ao registrar", description: res.message, variant: "destructive" });
+        toast({ title: "Falha ao registrar", description: (res as any).message, variant: "destructive" });
       }
     } finally {
       setAttendanceSaving(false);

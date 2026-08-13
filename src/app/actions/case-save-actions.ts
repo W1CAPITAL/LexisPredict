@@ -45,7 +45,11 @@ function toRow(c: LegalCase, empresaId: string, authId: string | null) {
     djen_ultimo_link: c.djen_ultimo_link,
     djen_ultima_data: c.djen_ultima_data,
     // Auditoria e espelho completo no JSON — evita erro de schema cache
-    dados: { ...c },
+    dados: {
+      ...c,
+      ultimoRetorno: isoRetorno || c.ultimoRetorno,
+      ultimo_retorno: isoRetorno || (c as any).ultimo_retorno,
+    },
   };
 }
 

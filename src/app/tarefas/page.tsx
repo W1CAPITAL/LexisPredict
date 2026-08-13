@@ -57,7 +57,7 @@ import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
-import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import { isAtendidoNestaSemana, isAtendidoHoje, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { computeKpiCarteira } from '@/lib/kpi-carteira';
 import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import {
@@ -183,6 +183,24 @@ export default function TarefasPage() {
       try { setContatadosHoje(JSON.parse(savedContatados)); } catch (e) { setContatadosHoje([]); }
     }
   }, []);
+
+  // Contatos de hoje = localStorage ∪ casos com ultimoRetorno = hoje (outras abas: WhatsApp/Processos)
+  useEffect(() => {
+    if (!cases.length) return;
+    const fromDb = cases
+      .filter((c) => isAtendidoHoje(c.ultimoRetorno || (c as any).ultimo_retorno))
+      .map((c) => c.cliente)
+      .filter(Boolean);
+    if (!fromDb.length) return;
+    setContatadosHoje((prev) => {
+      const next = Array.from(new Set([...prev, ...fromDb]));
+      try {
+        localStorage.setItem(getTodayKey(), JSON.stringify(next));
+      } catch { /* */ }
+      return next;
+    });
+  }, [cases]);
+
 
   // Persistir filtros (não perdem ao trocar de aba)
   useEffect(() => {

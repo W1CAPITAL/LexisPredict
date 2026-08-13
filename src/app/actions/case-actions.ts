@@ -651,6 +651,91 @@ export async function fetchTeamPerformanceAction() {
  * Registra quem atendeu/registrou retorno de cada processo (auditoria).
  * Chamado após salvar atendimento para contabilizar no ranking da semana.
  */
+
+/**
+ * Atendimento unificado (Tarefas / Processos / WhatsApp).
+ * Grava ultimo_retorno = hoje (Brasília YYYY-MM-DD) + auditoria.
+ * Assim KPI e fila batem em todas as abas.
+ */
+export async function registrarAtendimentoCompletoAction(input: {
+  protocolo: string;
+  situacao?: string;
+  observacao?: string | null;
+  proximoPrazo?: string | null;
+  via?: string;
+  filaLista?: string;
+}) {
+  try {
+    const { getUserContext, getStoredCases, getSupabaseAdmin } = await import('@/lib/server-db');
+    const { processarCaso, formatDateToISO } = await import('@/lib/case-logic');
+    const { hojeBrasilYmd } = await import('@/lib/atendimento-semana');
+    const { patchAtendimentoComEdicao } = await import('@/lib/processos-auditados');
+    const { applyFilaListaToObs } = await import('@/lib/fila-listas');
+    const { saveOneCaseAction } = await import('@/app/actions/case-save-actions');
+
+    const { auth_id, empresa_id } = await getUserContext();
+    if (!empresa_id || !input.protocolo) {
+      return { success: false, message: 'Sessão ou protocolo inválido' };
+    }
+
+    const all = await getStoredCases();
+    const found = (all || []).find(
+      (c: any) => String(c.protocolo || '').replace(/\D/g, '') === String(input.protocolo).replace(/\D/g, '')
+    );
+    if (!found) {
+      return { success: false, message: 'Processo não encontrado na carteira' };
+    }
+
+    const hoje = hojeBrasilYmd();
+    const situacao =
+      input.situacao === 'ENCERRADO' ? 'ENCERRADO' : (found.situacao || 'EM ANDAMENTO');
+    const obs = applyFilaListaToObs(
+      input.observacao != null ? String(input.observacao) : found.observacao || '',
+      (input.filaLista as any) || 'normal'
+    );
+
+    const patch = patchAtendimentoComEdicao(auth_id, hoje);
+    const updated = processarCaso({
+      ...found,
+      ...patch,
+      situacao,
+      observacao: obs,
+      proximoPrazo:
+        situacao === 'ENCERRADO'
+          ? ''
+          : input.proximoPrazo != null
+            ? input.proximoPrazo
+            : found.proximoPrazo,
+      tem_novo_andamento: false,
+      djen_nova_comunicacao: false,
+      tem_atualizacao_pos_retorno: false,
+      datajud_encerrado_tribunal:
+        situacao === 'ENCERRADO' ? true : found.datajud_encerrado_tribunal,
+    });
+
+    const saved = await saveOneCaseAction(updated as any);
+    if (!saved.success) {
+      return { success: false, message: saved.message || 'Falha ao salvar' };
+    }
+
+    await registrarAtendimentoAction([found.protocolo], {
+      situacao,
+      via: input.via || 'unificado',
+      ultimoRetorno: hoje,
+      observacao: obs || null,
+    });
+
+    return {
+      success: true,
+      message: 'Atendimento registrado',
+      case: saved.case || updated,
+      ultimoRetorno: hoje,
+    };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'Erro no atendimento' };
+  }
+}
+
 export async function registrarAtendimentoAction(
   protocolos: string[],
   detalhes: Record<string, any> = {}
