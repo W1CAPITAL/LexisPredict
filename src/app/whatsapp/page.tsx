@@ -52,7 +52,9 @@ import {
 import {
   sendWhatsAppAction,
   fetchWhatsAppHistoryAction,
+  diagnoseWhatsAppStorageAction,
   logOutboundWhatsAppAction,
+  diagnoseWhatsAppStorageAction,
 } from "@/app/actions/whatsapp-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
@@ -112,6 +114,7 @@ function WhatsAppTerminalInner() {
   const [draft, setDraft] = useState("");
   const [history, setHistory] = useState<ChatMsg[]>([]);
   const [histLoading, setHistLoading] = useState(false);
+  const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
 
@@ -173,7 +176,11 @@ function WhatsAppTerminalInner() {
   const loadHistory = useCallback(async (c: LegalCase) => {
     setHistLoading(true);
     setHistory([]);
+    setHistDiag("");
     try {
+      const diag = await diagnoseWhatsAppStorageAction(c.telefone || "");
+      if (diag?.hint) setHistDiag(String(diag.hint));
+
       const res = await fetchWhatsAppHistoryAction(c.telefone || "");
       if (res?.success && Array.isArray(res.messages) && res.messages.length > 0) {
         const mapped: ChatMsg[] = res.messages
@@ -193,6 +200,7 @@ function WhatsAppTerminalInner() {
           })
           .filter((m) => m.body);
         setHistory(mapped);
+        setHistDiag(`Histórico: ${mapped.length} mensagem(ns) no Supabase`);
       } else {
         const key = `lexis_wa_local_${digitsPhone(c.telefone)}`;
         const raw =
@@ -200,22 +208,25 @@ function WhatsAppTerminalInner() {
         if (raw) {
           setHistory(JSON.parse(raw));
         } else {
+          const tip =
+            diag?.hint ||
+            "Sem mensagens no Supabase para este número. Envie 1 mensagem pelo botão Enviar (Evolution) e reabra o contato.";
           setHistory([
             {
               id: "sys-1",
               direction: "system",
-              body: "Sem histórico no banco ainda. Mensagens desta sessão ficam locais. Webhook Evolution grava em whatsapp_messages.",
+              body: tip,
               at: new Date().toISOString(),
             },
           ]);
         }
       }
-    } catch {
+    } catch (e: any) {
       setHistory([
         {
           id: "sys-err",
           direction: "system",
-          body: "Não foi possível carregar o histórico remoto.",
+          body: e?.message || "Não foi possível carregar o histórico remoto.",
           at: new Date().toISOString(),
         },
       ]);
@@ -564,6 +575,7 @@ function WhatsAppTerminalInner() {
         persistLocal(selected.telefone, next);
         setDraft("");
         toast({ title: "Enviado via Evolution" });
+        void loadHistory(selected);
       } else {
         setEvolutionOk(false);
         toast({
@@ -726,6 +738,7 @@ function WhatsAppTerminalInner() {
                         {selected.ultimoRetorno
                           ? ` · retorno ${selected.ultimoRetorno}`
                           : ""}
+                        {histDiag ? ` · ${histDiag}` : ""}
                       </p>
                     </div>
                   </div>

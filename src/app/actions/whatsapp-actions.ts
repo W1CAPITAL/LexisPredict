@@ -107,10 +107,76 @@ export async function sendSuggestedReplyAction(input: {
 export async function fetchWhatsAppHistoryAction(phone: string) {
   try {
     const messages = await getWhatsAppHistory(phone);
-    return { success: true, messages };
+    return {
+      success: true,
+      messages: messages || [],
+      count: (messages || []).length,
+      phone: normalizeBrPhone(phone),
+    };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, messages: [], count: 0 };
   }
+}
+
+/** Diagnóstico: tabela existe? quantas msgs? service role ok? */
+export async function diagnoseWhatsAppStorageAction(phone?: string) {
+  const out: Record<string, any> = {
+    serviceRole: false,
+    tableOk: false,
+    totalRows: null as number | null,
+    forPhone: null as number | null,
+    phoneNormalized: phone ? normalizeBrPhone(phone) : null,
+    error: null as string | null,
+    hint: '',
+  };
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+    out.serviceRole = Boolean(url && key);
+    if (!out.serviceRole) {
+      out.hint = 'Falta SUPABASE_SERVICE_ROLE_KEY na Vercel (não use só a chave anon).';
+      return out;
+    }
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(url!, key!, { auth: { persistSession: false } });
+    const { count, error } = await sb
+      .from('whatsapp_messages')
+      .select('*', { count: 'exact', head: true });
+    if (error) {
+      out.error = error.message;
+      if (/relation|does not exist|schema cache/i.test(error.message)) {
+        out.hint =
+          'Tabela whatsapp_messages NÃO existe no Supabase. Rode o SQL sql-whatsapp-messages.sql no SQL Editor.';
+      } else {
+        out.hint = 'Erro ao ler tabela: ' + error.message;
+      }
+      return out;
+    }
+    out.tableOk = true;
+    out.totalRows = count ?? 0;
+    if (phone) {
+      const n = normalizeBrPhone(phone);
+      const { data } = await sb
+        .from('whatsapp_messages')
+        .select('id')
+        .or(`contact_number.eq.${n},phone.eq.${n},contact_number.ilike.%${n.slice(-8)}`)
+        .limit(50);
+      out.forPhone = data?.length ?? 0;
+    }
+    if (out.totalRows === 0) {
+      out.hint =
+        'Tabela existe mas está VAZIA. Envie 1 msg pelo Lexis (Enviar Evolution) ou confira se o webhook URL tem ?secret=...';
+    } else if (phone && out.forPhone === 0) {
+      out.hint =
+        'Há mensagens no banco, mas nenhuma para este telefone. Confira o número no cadastro do cliente (DDD).';
+    } else {
+      out.hint = 'OK — deve aparecer no histórico ao reabrir o contato.';
+    }
+  } catch (e: any) {
+    out.error = e?.message || String(e);
+    out.hint = out.error;
+  }
+  return out;
 }
 
 /**
