@@ -57,6 +57,19 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
       result.ignoradosCliente++;
     }
 
+    // NUMOPEDE / predatória na carteira do advogado — penaliza ranking
+    if ((c as any).sinal_numopede || (c as any).sinal_predatoria) {
+      const p = -40;
+      totalPoints += p;
+      result.pontos.push({
+        protocolo: c.protocolo,
+        cliente: c.cliente,
+        tipo: "NUMOPEDE",
+        peso: p,
+        motivo: "Menção NUMOPEDE / litigância predatória no processo"
+      });
+    }
+
     // --- GANHOS TÉCNICOS ---
     if (text.includes('procedente') || text.includes('vitoria') || text.includes('homologado') || text.includes('acordo') || c.datajud_encerrado_tribunal) {
       const p = 50;
@@ -133,6 +146,19 @@ export function calcularScoreAssessor(casos: LegalCase[]): ScoreResult {
 
     if (isClientFault) {
       result.ignoradosCliente++;
+    }
+
+    // NUMOPEDE / predatória na carteira do advogado — penaliza ranking
+    if ((c as any).sinal_numopede || (c as any).sinal_predatoria) {
+      const p = -40;
+      totalPoints += p;
+      result.pontos.push({
+        protocolo: c.protocolo,
+        cliente: c.cliente,
+        tipo: "NUMOPEDE",
+        peso: p,
+        motivo: "Menção NUMOPEDE / litigância predatória no processo"
+      });
     }
 
     // --- GANHOS OPERACIONAIS ---

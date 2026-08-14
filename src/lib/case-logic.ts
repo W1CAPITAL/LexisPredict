@@ -118,6 +118,10 @@ export interface LegalCase {
 
   // Auditoria Busca e Apreensão (BA)
   indicio_busca_apreensao?: boolean;
+  /** Menção NUMOPEDE / litigância predatória na carteira */
+  sinal_numopede?: boolean;
+  sinal_predatoria?: boolean;
+  predatoria_marcado_em?: string | null;
   busca_apreensao_confianca?: 'alta' | 'media' | 'baixa' | null;
   busca_apreensao_motivo?: string | null;
   busca_apreensao_consultado_em?: string | null;
@@ -333,6 +337,9 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     datajud_encerrado_motivo: data.datajud_encerrado_motivo,
     datajud_hash: data.datajud_hash || null,
 
+    sinal_numopede: !!(data.sinal_numopede ?? data.sinal_NUMOPEDE),
+    sinal_predatoria: !!(data.sinal_predatoria),
+    predatoria_marcado_em: data.predatoria_marcado_em || null,
     indicio_busca_apreensao: false, // BA desativado — nunca expõe flag legado
     busca_apreensao_confianca: data.busca_apreensao_confianca,
     busca_apreensao_motivo: data.busca_apreensao_motivo,

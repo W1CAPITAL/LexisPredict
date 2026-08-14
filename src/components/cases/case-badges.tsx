@@ -89,6 +89,12 @@ export function CaseBadges({ c, showPriority = false, className }: Props) {
           IA {String((c as any).ai_engine).split(":")[0]}
         </Badge>
       )}
+
+      {(c as any).sinal_numopede || (c as any).sinal_predatoria ? (
+        <Badge className="h-5 px-2 rounded-md bg-violet-700 text-white font-black uppercase text-[8px] tracking-wide">
+          NUMOPEDE
+        </Badge>
+      ) : null}
     </div>
   );
 }

@@ -106,3 +106,25 @@ export function normalizeLawyerKey(name: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+
+/** Só NUMOPEDE / menção explícita a monitoramento de perfis ou litigância predatória forte */
+export function hasNumopedeSignal(signals: PredatoriaSignal[]): boolean {
+  return signals.some((s) =>
+    ['NUMOPEDE', 'ADV_PRED', 'LIT_PRED', 'DEM_PRED', 'CNJ159', 'OAB_COM', 'EXT_PRED'].includes(s.code)
+  );
+}
+
+export function isNumopedeOnly(signals: PredatoriaSignal[]): boolean {
+  return signals.some((s) => s.code === 'NUMOPEDE' || /numopede/i.test(s.label + (s.evidence || '')));
+}
+
+/** Extrai OAB "SP123456" ou "OAB/SP 123.456" de texto livre */
+export function extractOabFromText(text: string): { uf?: string; numero?: string } | null {
+  const t = String(text || '');
+  const m =
+    t.match(/\bOAB[\/\s-]*([A-Z]{2})[\s.-]*(\d{3,7})\b/i) ||
+    t.match(/\b([A-Z]{2})[\s.-]*(\d{4,7})\b.*OAB/i);
+  if (!m) return null;
+  return { uf: m[1].toUpperCase(), numero: m[2].replace(/\D/g, '') };
+}

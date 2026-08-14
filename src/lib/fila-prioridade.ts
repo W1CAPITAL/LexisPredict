@@ -55,6 +55,7 @@ export const PRIORITY_WEIGHTS: Record<string, number> = {
   pred_sem_retorno_cap: 100,
   pred_prazo_cap: 40,
   pred_scan_priority_cap: 80,
+  numopede: 220,
   pred_risco_compound_cap: 120,
 };
 
@@ -251,6 +252,11 @@ export function pesoFila(c: LegalCase): number {
       W.pred_scan_priority_cap,
       Math.max(0, (c as any).scan_priority)
     );
+  }
+
+  // NUMOPEDE / litigância predatória — sobe na fila de contato
+  if ((c as any).sinal_numopede || (c as any).sinal_predatoria) {
+    w += W.numopede ?? 220;
   }
 
   return w;
