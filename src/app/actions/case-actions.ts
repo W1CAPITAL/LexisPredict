@@ -262,8 +262,13 @@ export async function auditCaseCoreSystem(
             cumprimento_ativo: analiseExec.cumprimento_ativo,
             cumprimento_encerrado: analiseExec.cumprimento_encerrado,
             principal_encerrado: !!enc.encerrado,
+            oportunidade_instaurar: (analiseExec as any).oportunidade_instaurar || null,
             scanned_at: new Date().toISOString(),
           },
+          oportunidade_instaurar: (analiseExec as any).oportunidade_instaurar || null,
+          oportunidade_score: (analiseExec as any).oportunidade_instaurar?.score ?? null,
+          oportunidade_elegivel: !!(analiseExec as any).oportunidade_instaurar?.elegivel,
+          oportunidade_tipo_credito: (analiseExec as any).oportunidade_instaurar?.tipo_credito || null,
           datajud_consultado_em: new Date().toISOString(),
           tribunal: dataJud.tribunal || target.tribunal,
         });
@@ -459,6 +464,12 @@ export async function auditCaseCoreSystem(
       patch.cumprimento_ativo = !!analise2.cumprimento_ativo;
       patch.cumprimento_encerrado = !!analise2.cumprimento_encerrado;
       patch.status_executivo = analise2.status_executivo || patch.status_executivo;
+      if ((analise2 as any).oportunidade_instaurar) {
+        patch.oportunidade_instaurar = (analise2 as any).oportunidade_instaurar;
+        patch.oportunidade_score = (analise2 as any).oportunidade_instaurar.score;
+        patch.oportunidade_elegivel = !!(analise2 as any).oportunidade_instaurar.elegivel;
+        patch.oportunidade_tipo_credito = (analise2 as any).oportunidade_instaurar.tipo_credito;
+      }
       if (analise2.cumprimento_pendente_necessario) {
         patch.cumprimento_pendente_necessario = true;
       }
@@ -472,6 +483,7 @@ export async function auditCaseCoreSystem(
       patch.detalhes_execucao = {
         ...(patch.detalhes_execucao || {}),
         ...analise2.detalhes_execucao,
+        oportunidade_instaurar: (analise2 as any).oportunidade_instaurar || null,
         merito_tipo: analise2.merito_tipo,
         scanned_at: new Date().toISOString(),
       };
@@ -1161,6 +1173,10 @@ export async function getCumprimentosEProcedentesAction() {
         c.evento_tipo === 'sentenca_procedente' ||
         c.evento_tipo === 'sentenca_parcial' ||
         c.evento_tipo === 'cumprimento_sentenca' ||
+        c.oportunidade_elegivel ||
+        dados.oportunidade_elegivel ||
+        c.detalhes_execucao?.oportunidade_instaurar?.elegivel ||
+        dados.detalhes_execucao?.oportunidade_instaurar?.elegivel ||
         // telemetria textual (antes da reclassificação formal)
         /CUMPRIMENTO DE SENTEN[CÇ]A|FASE DE CUMPRIMENTO/i.test(
           `${c.datajud_ultimo_nome || ''} ${c.djen_ultimo_resumo || ''} ${dados.datajud_ultimo_nome || ''}`

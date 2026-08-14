@@ -4,6 +4,7 @@
  */
 
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
+import { scoreOportunidadeCumprimentoHonorarios, type OportunidadeInstaurarCumprimento } from './oportunidade-cumprimento';
 
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
@@ -301,6 +302,8 @@ export function analisarProcedenciaECumprimento(
     ativo_forte?: boolean;
     transito_fonte?: string | null;
   };
+  /** Camada comercial: elegível para instaurar + score de honorários */
+  oportunidade_instaurar?: OportunidadeInstaurarCumprimento;
 } {
   const CODIGOS_PROCEDENCIA = [219, 221, 12223, 12329, 12330, 237, 238, 50094, 12185];
   const CLASSES_CUMPRIMENTO = [156, 157, 12078, 12231, 12246, 15159, 1111];
@@ -633,6 +636,24 @@ export function analisarProcedenciaECumprimento(
 
   // Importante: principal extinto NÃO apaga cumprimento.
   // Se houve fase 156, em_cumprimento_sentenca permanece true para a aba.
+  const oportunidade_instaurar: OportunidadeInstaurarCumprimento = scoreOportunidadeCumprimentoHonorarios({
+    is_procedente: isProcedente,
+    merito_tipo: merito,
+    cumprimento_pendente_necessario: cumprimentoPendente,
+    em_cumprimento_sentenca: emCumprimento || cumprimentoEncerrado,
+    cumprimento_encerrado: cumprimentoEncerrado,
+    cumprimento_ativo: cumprimentoAtivo,
+    confianca,
+    dias_apos_transito: diasApos,
+    transito_fonte: transitoFonte,
+    declaratorio_sem_quantia: declaratorioSemQuantia,
+    ativo_forte: ativoForte,
+    blob,
+  });
+  if (oportunidade_instaurar.elegivel) {
+    motivos.push(`oportunidade score ${oportunidade_instaurar.score} · ${oportunidade_instaurar.tipo_credito}`);
+  }
+
   return {
     is_procedente: isProcedente,
     procedente_motivo: procedenteMotivo,
@@ -643,6 +664,7 @@ export function analisarProcedenciaECumprimento(
     data_transito_julgado: dataTransito,
     merito_tipo: merito,
     status_executivo,
+    oportunidade_instaurar,
     detalhes_execucao: {
       motivos,
       classeCodigo: classeCodigo ?? null,

@@ -39,7 +39,7 @@ import {
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 
-type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente";
+type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios";
 
 function casePhone(c?: LegalCase | null): string {
   if (!c) return "";
@@ -112,7 +112,28 @@ export default function CumprimentosProcedentesPage() {
         return nome.includes(term) || proto.includes(term);
       });
     }
-    if (filtro === "pendente") {
+    if (filtro === "honorarios") {
+      base = base.filter((c) => {
+        const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
+        const op =
+          (c as any).oportunidade_instaurar ||
+          dados.oportunidade_instaurar ||
+          (c as any).detalhes_execucao?.oportunidade_instaurar ||
+          dados.detalhes_execucao?.oportunidade_instaurar;
+        const elegivel =
+          !!(c as any).oportunidade_elegivel ||
+          !!dados.oportunidade_elegivel ||
+          !!op?.elegivel;
+        const score = Number((c as any).oportunidade_score ?? op?.score ?? 0);
+        return elegivel && score >= 55;
+      });
+      // prioriza score alto
+      base.sort((a, b) => {
+        const sa = Number((a as any).oportunidade_score ?? (a as any).detalhes_execucao?.oportunidade_instaurar?.score ?? 0);
+        const sb = Number((b as any).oportunidade_score ?? (b as any).detalhes_execucao?.oportunidade_instaurar?.score ?? 0);
+        return sb - sa;
+      });
+    } else if (filtro === "pendente") {
       base = base.filter((c) => statusExecutivo(c) === "pendente" || c.cumprimento_pendente_necessario);
     } else if (filtro === "ativo") {
       base = base.filter((c) => statusExecutivo(c) === "ativo");
@@ -146,7 +167,18 @@ export default function CumprimentosProcedentesPage() {
     const ativos = cases.filter((c) => statusExecutivo(c) === "ativo").length;
     const encerrados = cases.filter((c) => statusExecutivo(c) === "encerrado").length;
     const procedentes = cases.filter((c) => statusExecutivo(c) === "procedente" || (c.is_procedente && statusExecutivo(c) !== "ativo")).length;
-    return { total: cases.length, pendentes, ativos, encerrados, procedentes };
+    const honorarios = cases.filter((c) => {
+      const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
+      const op =
+        (c as any).oportunidade_instaurar ||
+        dados.oportunidade_instaurar ||
+        (c as any).detalhes_execucao?.oportunidade_instaurar ||
+        dados.detalhes_execucao?.oportunidade_instaurar;
+      const elegivel = !!(c as any).oportunidade_elegivel || !!dados.oportunidade_elegivel || !!op?.elegivel;
+      const score = Number((c as any).oportunidade_score ?? op?.score ?? 0);
+      return elegivel && score >= 55;
+    }).length;
+    return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios };
   }, [cases]);
 
   const handleEnriquecer = async (protocolo: string) => {
@@ -435,6 +467,7 @@ export default function CumprimentosProcedentesPage() {
               <div className="p-2 space-y-1">
                 {[
                   { key: "todos" as FiltroAtivo, label: "Todos", icon: Scale, count: stats.total, color: "" },
+                  { key: "honorarios" as FiltroAtivo, label: "Instaurar (honorários)", icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
                   { key: "pendente" as FiltroAtivo, label: "Falta instaurar", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
                   { key: "ativo" as FiltroAtivo, label: "Cumprimento ativo", icon: Clock, count: stats.ativos, color: "text-amber-600" },
                   { key: "encerrado" as FiltroAtivo, label: "Cumprimento encerrado", icon: Gavel, count: stats.encerrados, color: "text-slate-600" },
