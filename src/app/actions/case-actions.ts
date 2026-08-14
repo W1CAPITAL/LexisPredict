@@ -1221,8 +1221,12 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
  * Rápido — ideal antes de exportar ou para popular a aba.
  */
 export async function reclassificarExecutivoCarteiraAction() {
-  const { empresa_id } = await getUserContext();
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin } = ctx;
   if (!empresa_id) return { success: false, updated: 0, error: 'Sem sessão' };
+
+  /** Supervisor / Superadmin / MasterView → empresa inteira; Operador → só created_by */
+  const escopoEmpresa = !!(isMasterView || isSupervisor || isSuperAdmin);
 
   try {
     const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
@@ -1235,14 +1239,20 @@ export async function reclassificarExecutivoCarteiraAction() {
     let hits = 0;
 
     while (true) {
-      const { data: rows, error } = await admin
+      let q = admin
         .from('processos')
         .select(
-          'id, protocolo_ref, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
+          'id, protocolo_ref, created_by, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
         )
         .eq('empresa_id', empresa_id)
+        .order('id', { ascending: true })
         .range(page * pageSize, page * pageSize + pageSize - 1);
 
+      if (!escopoEmpresa && auth_id) {
+        q = q.eq('created_by', auth_id);
+      }
+
+      const { data: rows, error } = await q;
       if (error) throw new Error(error.message);
       if (!rows?.length) break;
 
@@ -1256,7 +1266,6 @@ export async function reclassificarExecutivoCarteiraAction() {
               ? dados.datajud_movimentos
               : [];
 
-        // Pseudo-movimento a partir de colunas já gravadas
         const nomes = [
           row.datajud_ultimo_nome,
           row.cumprimento_sentenca_motivo,
@@ -1268,10 +1277,7 @@ export async function reclassificarExecutivoCarteiraAction() {
         const movs = movimentos.length ? movimentos : pseudo;
 
         const classeCodigo =
-          dados.classeCodigo ??
-          dados.classe_codigo ??
-          dados.classe?.codigo ??
-          null;
+          dados.classeCodigo ?? dados.classe_codigo ?? dados.classe?.codigo ?? null;
 
         const djenTextos = [
           row.djen_ultimo_resumo,
@@ -1304,20 +1310,13 @@ export async function reclassificarExecutivoCarteiraAction() {
             scanned_at: new Date().toISOString(),
           },
         };
-        if (r.em_cumprimento_sentenca && r.procedente_motivo) {
-          /* keep */
-        }
         if (r.em_cumprimento_sentenca) {
           patch.cumprimento_sentenca_motivo =
-            r.detalhes_execucao?.motivos?.[0] || row.cumprimento_sentenca_motivo || 'Cumprimento';
+            r.detalhes_execucao?.motivos?.[0] ||
+            row.cumprimento_sentenca_motivo ||
+            'Cumprimento';
         }
 
-        const changed =
-          !!row.is_procedente !== r.is_procedente ||
-          !!row.em_cumprimento_sentenca !== r.em_cumprimento_sentenca ||
-          !!row.cumprimento_pendente_necessario !== r.cumprimento_pendente_necessario;
-
-        // sempre grava flags atuais + merge dados
         const newDados = { ...dados, ...patch };
         const { error: upErr } = await admin
           .from('processos')
@@ -1328,13 +1327,19 @@ export async function reclassificarExecutivoCarteiraAction() {
             em_cumprimento_sentenca: patch.em_cumprimento_sentenca,
             cumprimento_pendente_necessario: patch.cumprimento_pendente_necessario,
             data_transito_julgado: patch.data_transito_julgado,
-            cumprimento_sentenca_motivo: patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
+            cumprimento_sentenca_motivo:
+              patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
           })
           .eq('id', row.id);
 
         if (!upErr) {
           updated += 1;
-          if (r.is_procedente || r.em_cumprimento_sentenca || r.cumprimento_pendente_necessario) {
+          if (
+            r.is_procedente ||
+            r.em_cumprimento_sentenca ||
+            r.cumprimento_pendente_necessario ||
+            r.cumprimento_encerrado
+          ) {
             hits += 1;
           }
         }
@@ -1344,12 +1349,20 @@ export async function reclassificarExecutivoCarteiraAction() {
       page += 1;
     }
 
-    return { success: true, scanned, updated, hits };
+    return {
+      success: true,
+      scanned,
+      updated,
+      hits,
+      escopo: escopoEmpresa ? 'empresa' : 'usuario',
+    };
   } catch (e: any) {
     console.error('[reclassificarExecutivoCarteiraAction]', e);
     return { success: false, updated: 0, error: e?.message || 'Erro' };
   }
 }
+
+
 
 /**
  * Scan DataJud em lote (lento, respeita rate limit).
@@ -1359,42 +1372,85 @@ export async function reclassificarExecutivoCarteiraAction() {
 export async function batchScanExecutivoAction(opts?: {
   limit?: number;
   onlyMissing?: boolean;
+  /** cursor: próximo id a partir do qual continuar (paginação estável) */
+  afterId?: number | null;
 }) {
-  const { empresa_id } = await getUserContext();
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin, cargo } = ctx;
   if (!empresa_id) return { success: false, done: 0, error: 'Sem sessão' };
 
-  const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 80);
+  const escopoEmpresa = !!(isMasterView || isSupervisor || isSuperAdmin);
+  const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
   const onlyMissing = opts?.onlyMissing !== false;
+  const afterId = opts?.afterId != null ? Number(opts.afterId) : 0;
 
   try {
     const admin = await getSupabaseAdmin();
-    let q = admin
+
+    // Conta total no escopo (para progresso)
+    let countQ = admin
       .from('processos')
-      .select('id, protocolo_ref, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario')
-      .eq('empresa_id', empresa_id)
-      .order('id', { ascending: true })
-      .limit(limit * 3); // margem para filtrar
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresa_id);
+    if (!escopoEmpresa && auth_id) countQ = countQ.eq('created_by', auth_id);
+    const { count: totalEscopo } = await countQ;
 
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
+    // Busca candidatos em páginas até encher o lote
+    const pool: any[] = [];
+    let cursor = afterId;
+    let safety = 0;
+    while (pool.length < limit && safety < 30) {
+      safety += 1;
+      let q = admin
+        .from('processos')
+        .select(
+          'id, protocolo_ref, created_by, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, cumprimento_encerrado, status_executivo, dados'
+        )
+        .eq('empresa_id', empresa_id)
+        .order('id', { ascending: true })
+        .limit(120);
 
-    let pool = rows || [];
-    if (onlyMissing) {
-      pool = pool.filter(
-        (r) =>
-          !r.is_procedente &&
-          !r.em_cumprimento_sentenca &&
-          !r.cumprimento_pendente_necessario
-      );
+      if (!escopoEmpresa && auth_id) {
+        q = q.eq('created_by', auth_id);
+      }
+      if (cursor > 0) {
+        q = q.gt('id', cursor);
+      }
+
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!rows?.length) break;
+
+      for (const r of rows) {
+        cursor = Number(r.id) || cursor;
+        if (onlyMissing) {
+          const dados = (r.dados && typeof r.dados === 'object' ? r.dados : {}) as any;
+          const has =
+            r.is_procedente ||
+            r.em_cumprimento_sentenca ||
+            r.cumprimento_pendente_necessario ||
+            r.cumprimento_encerrado ||
+            dados.is_procedente ||
+            dados.em_cumprimento_sentenca ||
+            dados.cumprimento_pendente_necessario ||
+            dados.status_executivo;
+          if (has) continue;
+        }
+        pool.push(r);
+        if (pool.length >= limit) break;
+      }
+
+      if (rows.length < 120) break;
     }
-    pool = pool.slice(0, limit);
 
     let done = 0;
     let ok = 0;
     const errors: string[] = [];
+    let lastId = afterId;
 
     for (const row of pool) {
       const proto = String(row.protocolo_ref || '');
+      lastId = Number(row.id) || lastId;
       if (!proto) continue;
       try {
         const res = await auditCaseCoreSystem(proto, empresa_id, 'both', { fast: true });
@@ -1404,18 +1460,35 @@ export async function batchScanExecutivoAction(opts?: {
         errors.push(`${proto}: ${e?.message || 'fail'}`);
       }
       done += 1;
-      // pausa anti rate-limit DataJud
-      await new Promise((r) => setTimeout(r, 1200));
+      await new Promise((r) => setTimeout(r, 1100));
     }
+
+    // Ainda há mais no escopo depois do cursor?
+    let moreQ = admin
+      .from('processos')
+      .select('id')
+      .eq('empresa_id', empresa_id)
+      .gt('id', lastId || 0)
+      .order('id', { ascending: true })
+      .limit(1);
+    if (!escopoEmpresa && auth_id) moreQ = moreQ.eq('created_by', auth_id);
+    const { data: moreRows } = await moreQ;
+    const hasMore = !!(moreRows && moreRows.length);
 
     return {
       success: true,
       done,
       ok,
-      remaining_hint:
-        onlyMissing
-          ? 'Rode de novo até done=0 (só faltantes). Ou onlyMissing=false para forçar todos.'
-          : 'Lote concluído.',
+      lastId,
+      hasMore,
+      totalEscopo: totalEscopo ?? null,
+      escopo: escopoEmpresa ? 'empresa' : 'usuario',
+      cargo: cargo || null,
+      remaining_hint: hasMore
+        ? `Lote ok. Clique de novo para continuar (cursor id>${lastId}). Escopo: ${
+            escopoEmpresa ? 'empresa inteira' : 'seus processos'
+          }.`
+        : `Fila do escopo concluída (${escopoEmpresa ? 'empresa' : 'usuário'}).`,
       errors: errors.slice(0, 8),
     };
   } catch (e: any) {
