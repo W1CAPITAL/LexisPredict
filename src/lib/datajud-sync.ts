@@ -296,6 +296,10 @@ export function analisarProcedenciaECumprimento(
     diasAposTransito?: number | null;
     fonte: string[];
     principal_extinto_ignorado?: boolean;
+    confianca?: number;
+    declaratorio_sem_quantia?: boolean;
+    ativo_forte?: boolean;
+    transito_fonte?: string | null;
   };
 } {
   const CODIGOS_PROCEDENCIA = [219, 221, 12223, 12329, 12330, 237, 238, 50094, 12185];
@@ -323,10 +327,10 @@ export function analisarProcedenciaECumprimento(
     'ARQUIVAMENTO DO CUMPRIMENTO',
     'BAIXA DO CUMPRIMENTO',
     'CUMPRIMENTO DE SENTENÇA EXTINTO',
-    'HOMOLOGAÇÃO DE ACORDO',
-    'HOMOLOGACAO DE ACORDO',
     'ACORDO CUMPRIDO',
+    'ACORDO INTEGRALMENTE CUMPRIDO',
   ];
+  const HOMOLOG_ACORDO = ['HOMOLOGAÇÃO DE ACORDO', 'HOMOLOGACAO DE ACORDO'];
 
   const INICIO_CUMPRIMENTO = [
     'CUMPRIMENTO DE SENTENÇA',
@@ -488,22 +492,55 @@ export function analisarProcedenciaECumprimento(
     // ainda "em cumprimento" no sentido de "passou pela fase", mas status = encerrado
   }
 
-  // --- Trânsito ---
+  // Homologação de acordo só encerra se já havia fase de cumprimento
+  if (!cumprimentoEncerrado) {
+    for (const p of HOMOLOG_ACORDO) {
+      if (
+        blob.includes(p) &&
+        (emCumprimento || /CUMPRIMENTO|EXECU[CÇ][AÃ]O DE SENTEN|FASE EXECUT/.test(blob))
+      ) {
+        cumprimentoEncerrado = true;
+        motivos.push(`encerrado: ${p} (com fase de cumprimento)`);
+        fontes.push('homolog-acordo-cump');
+        break;
+      }
+    }
+  }
+
+  // --- Trânsito confiável (TPU 848 > texto movimento > certidão DJEN) ---
   let dataTransito: string | null = null;
+  let transitoFonte: string | null = null;
   for (const mov of window25) {
     const cod = Number(mov.codigo || mov.tipoCodigo || 0);
     if (cod === CODIGO_TRANSITO) {
       dataTransito = mov.dataHora || null;
+      transitoFonte = 'tpu-848';
+      fontes.push('transito-tpu');
       break;
     }
   }
   if (!dataTransito) {
     for (const m of window25) {
       const tx = textOf(m);
-      if (tx.includes('TRÂNSITO EM JULGADO') || tx.includes('TRANSITO EM JULGADO')) {
+      if (
+        tx.includes('TRÂNSITO EM JULGADO') ||
+        tx.includes('TRANSITO EM JULGADO') ||
+        tx.includes('CERTIDÃO DE TRÂNSITO') ||
+        tx.includes('CERTIDAO DE TRANSITO')
+      ) {
         dataTransito = m.dataHora || null;
+        transitoFonte = 'texto-movimento';
+        fontes.push('transito-texto');
         break;
       }
+    }
+  }
+  if (!dataTransito && djenBlob) {
+    if (/TR[AÂ]NSITO EM JULGADO|CERTID[AÃ]O DE TR[AÂ]NSITO|TRANSITO EM JULGADO/.test(djenBlob)) {
+      dataTransito = new Date().toISOString();
+      transitoFonte = 'djen-certidao';
+      fontes.push('transito-djen');
+      motivos.push('trânsito detectado no DJEN (certidão/publicação)');
     }
   }
 
@@ -512,25 +549,63 @@ export function analisarProcedenciaECumprimento(
   const decursoSem =
     /DECORRIDO O PRAZO SEM|SEM PAGAMENTO VOLUNT|SEM EFETIVA[CÇ][AÃ]O DO DEP[OÓ]SITO/.test(blob);
 
+  // Procedente só declaratório / inexigibilidade sem condenação em quantia
+  const declaratorioSemQuantia =
+    isProcedente &&
+    /INEXIGIBILIDADE|DECLAR[OÓ]\s+A\s+INEXIST|DECLARAT[OÓ]RIA|MERO\s+DECLAR|SEM\s+CONDENA[CÇ][AÃ]O/.test(
+      blob
+    ) &&
+    !/CONDENO\s+A\s+PAGAR|PAGAR\s+O\s+VALOR|OBRIGAÇÃO\s+DE\s+PAGAR|OBRIGACAO\s+DE\s+PAGAR|R\$\s*\d/.test(
+      blob
+    );
+  if (declaratorioSemQuantia) {
+    motivos.push('procedente declaratório/inexigibilidade — sem quantia típica');
+    fontes.push('excecao-declaratorio');
+  }
+
+  // Sinais fortes de cumprimento ATIVO
+  const ativoForte =
+    emCumprimento &&
+    /PENHORA|SISBAJUD|BACENJUD|RENAJUD|BLOQUEIO\s+DE\s+VALOR|C[AÁ]LCULOS?\s+DE\s+LIQUIDA|IMPUGNA[CÇ][AÃ]O\s+AOS\s+C[AÁ]LCULOS|HASTA\s+P[UÚ]BLICA|LEIL[AÃ]O|EXPROPRIA|RPV|PRECAT[OÓ]RIO/.test(
+      blob
+    );
+  if (ativoForte) {
+    motivos.push('ativo forte: penhora/Sisbajud/cálculos/RPV');
+    fontes.push('ativo-forte');
+  }
+
   let diasApos: number | null = null;
-  if (dataTransito) {
+  if (dataTransito && transitoFonte !== 'djen-certidao') {
     const dataT = new Date(dataTransito);
     if (!Number.isNaN(dataT.getTime())) {
       diasApos = Math.floor((Date.now() - dataT.getTime()) / (1000 * 3600 * 24));
     }
   }
 
-  // Pendente: procedente, SEM fase instaurada, SEM cumprimento encerrado, prazo ok
+  // Pendente exige trânsito confiável (não marca só com art.523 sem trânsito)
   let cumprimentoPendente = false;
-  if (isProcedente && !emCumprimento && !cumprimentoEncerrado) {
-    if ((diasApos != null && diasApos > 22) || (art523 && decursoSem)) {
+  const temTransitoConfiavel = !!transitoFonte;
+  if (
+    isProcedente &&
+    !emCumprimento &&
+    !cumprimentoEncerrado &&
+    !declaratorioSemQuantia
+  ) {
+    if (temTransitoConfiavel && diasApos != null && diasApos > 15) {
       cumprimentoPendente = true;
-      motivos.push(
-        diasApos != null
-          ? `pendente: ${diasApos}d após trânsito sem fase 156`
-          : 'pendente: art.523 + decurso'
-      );
-      fontes.push('regra-cascata');
+      motivos.push(`pendente: ${diasApos}d após trânsito (${transitoFonte}) sem fase 156`);
+      fontes.push('regra-pendente-transito');
+    } else if (temTransitoConfiavel && transitoFonte === 'djen-certidao' && art523) {
+      cumprimentoPendente = true;
+      motivos.push('pendente: trânsito DJEN + art.523 sem fase 156');
+      fontes.push('regra-pendente-djen');
+    } else if (art523 && decursoSem && temTransitoConfiavel) {
+      cumprimentoPendente = true;
+      motivos.push('pendente: art.523 + decurso após trânsito');
+      fontes.push('regra-pendente-523');
+    } else if (art523 && decursoSem && !temTransitoConfiavel) {
+      motivos.push('art.523+decurso sem trânsito formal — não marca pendente');
+      fontes.push('pendente-rejeitado-sem-transito');
     }
   }
 
@@ -543,6 +618,18 @@ export function analisarProcedenciaECumprimento(
   else if (cumprimentoEncerrado && (emCumprimento || isProcedente))
     status_executivo = 'encerrado';
   else if (isProcedente) status_executivo = 'procedente';
+
+  // Confiança 0–100: TPU/classe > DJEN > heurística
+  let confianca = 40;
+  if (fontes.includes('datajud-tpu')) confianca += 25;
+  if (CLASSES_CUMPRIMENTO.includes(Number(classeCodigo || 0))) confianca += 20;
+  if (transitoFonte === 'tpu-848') confianca += 15;
+  else if (transitoFonte === 'texto-movimento') confianca += 10;
+  else if (transitoFonte === 'djen-certidao') confianca += 8;
+  if (ativoForte) confianca += 10;
+  if (fontes.includes('texto-encerramento') || fontes.includes('homolog-acordo-cump')) confianca += 5;
+  if (declaratorioSemQuantia) confianca = Math.min(confianca, 55);
+  confianca = Math.max(0, Math.min(100, confianca));
 
   // Importante: principal extinto NÃO apaga cumprimento.
   // Se houve fase 156, em_cumprimento_sentenca permanece true para a aba.
@@ -562,6 +649,10 @@ export function analisarProcedenciaECumprimento(
       diasAposTransito: diasApos,
       fonte: [...new Set(fontes)],
       principal_extinto_ignorado: true,
+      confianca,
+      declaratorio_sem_quantia: declaratorioSemQuantia,
+      ativo_forte: ativoForte,
+      transito_fonte: transitoFonte,
     },
   };
 }
