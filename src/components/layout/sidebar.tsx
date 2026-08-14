@@ -173,6 +173,7 @@ function SidebarNavBody({
       { label: "Agenda", href: "/agenda", icon: CalendarDays },
       { label: "Ações Procedentes", href: "/cumprimentos-procedentes", icon: Scale },
       { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
+      { label: "Radar predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
       { label: "CRM Assessoria", href: "/crm", icon: Kanban },

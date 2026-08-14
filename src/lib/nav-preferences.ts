@@ -134,6 +134,7 @@ export const NAV_CATALOG: {
   { href: '/tools/automacao', label: 'Cadastro', group: 'Principal' },
   { href: '/agenda', label: 'Agenda', group: 'Ferramentas', moreTools: true },
   { href: '/busca-apreensao', label: 'Busca e apreensão', group: 'Ferramentas', moreTools: true },
+  { href: '/investigacao-predatoria', label: 'Radar predatória', group: 'Ferramentas', moreTools: true },
   { href: '/report', label: 'Dossiê', group: 'Ferramentas', moreTools: true },
   { href: '/tools/ocr', label: 'OCR', group: 'Ferramentas', moreTools: true },
   { href: '/crm', label: 'CRM Assessoria', group: 'Ferramentas', moreTools: true },
