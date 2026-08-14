@@ -181,7 +181,8 @@ function WhatsAppTerminalInner() {
   useEffect(() => {
     try {
       const m = resolveMotorId(loadPreferredMotor());
-      setSelectedMotor(m === "local_only" ? "omni" : m === "minimax" ? "minimax" : "omni");
+      // Respeita o motor salvo (não força tudo para omni)
+      if (m) setSelectedMotor(m);
     } catch { /* ignore */ }
   }, []);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
@@ -716,7 +717,27 @@ function WhatsAppTerminalInner() {
         return;
       }
 
-      // 2) Motor externo com timeout — não trava a UI
+      // 2) Motor externo — cascata omni pode levar 60–90s (várias APIs em série)
+      const prefRaw = String(selectedMotor || "omni").toLowerCase();
+      const preferredModel =
+        prefRaw === "local_only" || prefRaw === "local" || prefRaw === "lexis" || prefRaw === "scripts"
+          ? "local_only"
+          : prefRaw.includes("claude") || prefRaw.includes("anthropic")
+            ? "claude"
+            : prefRaw.includes("groq")
+              ? "groq"
+              : prefRaw.includes("xai") || prefRaw.includes("grok")
+                ? "xai"
+                : prefRaw.includes("nvidia") || prefRaw.includes("nim") || prefRaw.includes("inkling")
+                  ? "nvidia"
+                  : prefRaw.includes("minimax")
+                    ? "minimax"
+                    : prefRaw === "auto" || prefRaw === "omni" || prefRaw === "cascade"
+                      ? "omni"
+                      : prefRaw;
+
+      const iaTimeoutMs = preferredModel === "omni" ? 120000 : 90000;
+
       const res = await Promise.race([
         gerarRascunhoEstrategico({
           clienteNome: selected.cliente,
@@ -732,14 +753,24 @@ function WhatsAppTerminalInner() {
             .map(String),
           eventoTipo: selected.evento_tipo,
           eventoResumo: selected.evento_resumo,
-          preferredModel: selectedMotor,
+          preferredModel,
+          canal: "whatsapp",
+          empresaId: (selected as any).empresa_id,
           tem_novo_andamento: selected.tem_novo_andamento,
           datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
           indicio_busca_apreensao: selected.indicio_busca_apreensao,
           em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
         } as any),
         new Promise((_, rej) =>
-          setTimeout(() => rej(new Error("IA demorou demais (20s). Use um script pronto ou Motor Lexis.")), 20000)
+          setTimeout(
+            () =>
+              rej(
+                new Error(
+                  `IA demorou demais (${Math.round(iaTimeoutMs / 1000)}s). Use Motor Lexis (script) ou tente um motor direto (xAI/Claude), não só cascata.`
+                )
+              ),
+            iaTimeoutMs
+          )
         ),
       ]);
 
@@ -752,8 +783,8 @@ function WhatsAppTerminalInner() {
         setAiDraft(String(text));
         setDraft(String(text));
         toast({
-          title: "Rascunho IA",
-          description: (res as any)?.engine || selectedMotor,
+          title: (res as any)?.sucesso === false ? "Script / fallback" : "Rascunho IA",
+          description: String((res as any)?.engineUtilizada || (res as any)?.engine || preferredModel),
         });
       } else {
         // Fallback para script local se IA vazia
