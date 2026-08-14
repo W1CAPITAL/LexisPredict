@@ -127,11 +127,13 @@ function casePhoneDigits(c?: any) {
   return digitsPhone(casePhone(c));
 }
 
-function caseLabel(c: LegalCase) {
+function caseLabel(c: LegalCase | null | undefined) {
+  if (!c) return "Cliente";
   return c.cliente || c.protocolo || "Cliente";
 }
 
-function signalBadge(c: LegalCase): { label: string; className: string } | null {
+function signalBadge(c: LegalCase | null | undefined): { label: string; className: string } | null {
+  if (!c) return null;
   if (c.indicio_busca_apreensao || c.evento_tipo === "ba")
     return { label: "B.A.", className: "bg-red-600 text-white" };
   if (c.datajud_encerrado_tribunal)
@@ -216,7 +218,7 @@ function WhatsAppTerminalInner() {
       const list = Array.isArray(data) ? data : [];
       // Mesma base da aba Processos: processarCaso para status/prazo/flags
       setCases(
-        list.map((c: any) => {
+        list.filter((c: any) => c != null).map((c: any) => {
           try {
             return processarCaso({ ...c }) as LegalCase;
           } catch {
@@ -239,7 +241,7 @@ function WhatsAppTerminalInner() {
     const term = q.trim().toLowerCase();
     const termDigits = term.replace(/\D/g, "");
     // Sempre considera a carteira inteira (com e sem telefone) — senão a busca some nomes
-    let base = [...cases];
+    let base = cases.filter((c): c is LegalCase => c != null);
     // Com busca: prioriza match de nome/protocolo/tel em TODOS
     if (term) {
       base = base.filter((c) => {
@@ -257,7 +259,7 @@ function WhatsAppTerminalInner() {
         );
       });
     } else {
-      // Sem busca: mostra com telefone primeiro, depois sem (até 120)
+      // Sem busca: mostra com telefone primeiro, depois sem
       base.sort((a, b) => {
         const pa = casePhoneDigits(a).length >= 8 ? 0 : 1;
         const pb = casePhoneDigits(b).length >= 8 ? 0 : 1;
@@ -276,7 +278,7 @@ function WhatsAppTerminalInner() {
       });
       base = listSortMode === "mais_vencido" ? sorted : [...sorted].reverse();
     }
-    return base.slice(0, 500);
+    return base;
   }, [cases, q, listSortMode]);
 
   const loadHistory = useCallback(async (c: LegalCase) => {
@@ -660,7 +662,8 @@ function WhatsAppTerminalInner() {
   };
 
   /** Scripts locais a partir do caso (sem scan) — rápido como em Tarefas */
-  const buildScriptsFromCase = useCallback((caseData: LegalCase, movimentos: any[] = [], comunicacoes: any[] = []) => {
+  const buildScriptsFromCase = useCallback((caseData: LegalCase | null | undefined, movimentos: any[] = [], comunicacoes: any[] = []) => {
+    if (!caseData) return [];
     const djenTexts = comunicacoes
       .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ""))
       .filter(Boolean);
@@ -1293,7 +1296,7 @@ function WhatsAppTerminalInner() {
                       </p>
                       <p className="text-[10px] text-muted-foreground tabular-nums truncate">
                         {selected ? `${selected.protocolo} · ${casePhone(selected) || "sem telefone"}` : (selectedEvoJid || "")}
-                        {selected.ultimoRetorno
+                        {selected?.ultimoRetorno
                           ? ` · retorno ${selected.ultimoRetorno}`
                           : ""}
                         {histDiag ? ` · ${histDiag}` : ""}
