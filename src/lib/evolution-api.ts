@@ -100,50 +100,188 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/**
- * Acorda instância no Render (cold start): ping connectionState + restart leve.
- */
-export async function wakeEvolutionInstance(): Promise<{ ok: boolean; detail?: string }> {
-  const { baseUrl, apiKey, instance } = getEvolutionConfig();
-  if (!baseUrl || !apiKey) return { ok: false, detail: 'não configurado' };
-
-  const headers: Record<string, string> = {
+function evolutionHeaders(apiKey: string): Record<string, string> {
+  return {
     apikey: apiKey,
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   };
+}
+
+function parseConnectionOpen(body: string): boolean {
+  try {
+    const j = JSON.parse(body);
+    const state =
+      j?.instance?.state ||
+      j?.state ||
+      j?.status ||
+      j?.data?.state ||
+      j?.data?.status ||
+      '';
+    const s = String(state).toLowerCase();
+    return s === 'open' || s === 'connected' || s === 'online';
+  } catch {
+    return /"state"\s*:\s*"open"/i.test(body) || /connected/i.test(body);
+  }
+}
+
+/**
+ * Acorda instância Evolution (Render cold start + sessão WA “dormindo”).
+ * Só deve ser chamada no fluxo de ENVIO — não em consultas DataJud/DJEN.
+ */
+export async function wakeEvolutionInstance(): Promise<{ ok: boolean; detail?: string; open?: boolean }> {
+  const { baseUrl, apiKey, instance } = getEvolutionConfig();
+  if (!baseUrl || !apiKey) return { ok: false, detail: 'não configurado' };
+
+  const headers = evolutionHeaders(apiKey);
+  const inst = encodeURIComponent(instance);
+  const details: string[] = [];
 
   try {
-    // 1) health / root
+    // 1) ping root (acordar container)
     await fetch(`${baseUrl}/`, {
       method: 'GET',
       headers,
+      signal: AbortSignal.timeout(20000),
+    }).catch(() => null);
+
+    // 2) connectionState
+    const stateUrl = `${baseUrl}/instance/connectionState/${inst}`;
+    let st = await fetch(stateUrl, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(25000),
+    });
+    let stBody = await st.text().catch(() => '');
+    let open = st.ok && parseConnectionOpen(stBody);
+    details.push(`state HTTP ${st.status} open=${open}`);
+
+    // 3) se não estiver open: connect + restart + esperar
+    if (!open) {
+      await fetch(`${baseUrl}/instance/connect/${inst}`, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(25000),
+      }).catch(() => null);
+
+      await fetch(`${baseUrl}/instance/restart/${inst}`, {
+        method: 'PUT',
+        headers,
+        signal: AbortSignal.timeout(25000),
+      }).catch(() => null);
+
+      await sleep(3500);
+
+      st = await fetch(stateUrl, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(25000),
+      });
+      stBody = await st.text().catch(() => '');
+      open = st.ok && parseConnectionOpen(stBody);
+      details.push(`after-restart open=${open}`);
+    }
+
+    // 4) presença “available” (várias rotas — builds Evolution diferem)
+    const presenceBodies = [
+      { presence: 'available' },
+      { presence: 'available', number: '' },
+    ];
+    for (const path of [
+      `/chat/sendPresence/${inst}`,
+      `/message/presence/${inst}`,
+    ]) {
+      try {
+        await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ presence: 'available' }),
+          signal: AbortSignal.timeout(12000),
+        });
+        details.push(`presence ${path}`);
+        break;
+      } catch {
+        /* tenta próxima rota */
+      }
+    }
+
+    return { ok: true, open, detail: details.join(' | ').slice(0, 240) };
+  } catch (e: any) {
+    return { ok: false, detail: e?.message || 'wake falhou' };
+  }
+}
+
+/**
+ * Wake direcionado ao envio: instancia + “abre” o chat do número (equivalente a clicar na conversa).
+ * Chamar SEMPRE com await antes de sendText — só no envio.
+ */
+export async function wakeEvolutionForSend(
+  numberE164: string
+): Promise<{ ok: boolean; detail?: string; open?: boolean }> {
+  const { baseUrl, apiKey, instance } = getEvolutionConfig();
+  if (!baseUrl || !apiKey) return { ok: false, detail: 'não configurado', open: false };
+
+  const headers = evolutionHeaders(apiKey);
+  const inst = encodeURIComponent(instance);
+  const number = String(numberE164 || '').replace(/\D/g, '');
+  const baseWake = await wakeEvolutionInstance();
+  const bits: string[] = [baseWake.detail || ''];
+
+  if (!number || number.length < 12) {
+    return { ok: baseWake.ok, detail: bits.join(' | '), open: baseWake.open };
+  }
+
+  try {
+    // Confirma se o número existe no WA (força handshake Baileys)
+    await fetch(`${baseUrl}/chat/whatsappNumbers/${inst}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ numbers: [number] }),
+      signal: AbortSignal.timeout(20000),
+    }).catch(() => null);
+
+    // Presença composing no destino (mesmo efeito de “abrir conversa”)
+    for (const path of [`/chat/sendPresence/${inst}`, `/message/presence/${inst}`]) {
+      try {
+        const r = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            number,
+            presence: 'composing',
+            delay: 1200,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (r.ok || r.status < 500) {
+          bits.push(`chat-presence ${path} ${r.status}`);
+          break;
+        }
+      } catch {
+        /* next */
+      }
+    }
+
+    // Algumas builds: markChatUnread / findMessages acordam o socket
+    await fetch(`${baseUrl}/chat/findMessages/${inst}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ where: { key: { remoteJid: `${number}@s.whatsapp.net` } }, limit: 1 }),
       signal: AbortSignal.timeout(15000),
     }).catch(() => null);
 
-    // 2) connection state
-    const stateUrl = `${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`;
-    const st = await fetch(stateUrl, {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(20000),
-    });
-    const stBody = await st.text().catch(() => '');
-    if (st.ok) {
-      return { ok: true, detail: stBody.slice(0, 120) };
-    }
-
-    // 3) tenta restart (algumas builds)
-    await fetch(`${baseUrl}/instance/restart/${encodeURIComponent(instance)}`, {
-      method: 'PUT',
-      headers,
-      signal: AbortSignal.timeout(20000),
-    }).catch(() => null);
-
-    await sleep(2500);
-    return { ok: true, detail: `wake após HTTP ${st.status}` };
+    await sleep(800);
+    return {
+      ok: true,
+      open: baseWake.open !== false,
+      detail: bits.filter(Boolean).join(' | ').slice(0, 280),
+    };
   } catch (e: any) {
-    return { ok: false, detail: e?.message || 'wake falhou' };
+    return {
+      ok: baseWake.ok,
+      open: baseWake.open,
+      detail: e?.message || bits.join(' | '),
+    };
   }
 }
 
@@ -197,24 +335,31 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
 
   let lastErr = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
-    if (attempt > 1) {
-      await wakeEvolutionInstance();
-      await sleep(1500 * attempt);
-    } else {
-      // wake leve na 1ª tentativa (Render dorme)
-      void wakeEvolutionInstance();
-    }
+    // SEMPRE aguarda wake antes de enviar (1ª e retries). Só neste fluxo de envio.
+    const wake = await wakeEvolutionForSend(number);
+    if (attempt > 1) await sleep(1200 * attempt);
+    else if (!wake.open && attempt === 1) await sleep(1000);
 
     try {
       const res = await postSendText(number, text, presenceDelay);
       if (res.ok) {
         antibanRecordSuccess(text);
-        return res.json().catch(() => ({ ok: true }));
+        return res.json().catch(() => ({ ok: true, wake: wake.detail }));
       }
       const body = await res.text().catch(() => '');
       lastErr = `Evolution HTTP ${res.status}: ${body.slice(0, 220)}`;
-      // Retry only on gateway/server errors
-      if (![500, 502, 503, 504, 408].includes(res.status)) {
+
+      // Sessão “dormindo” / socket fechado → force wake + retry
+      const sleepLike =
+        res.status === 400 ||
+        res.status === 408 ||
+        res.status === 500 ||
+        res.status === 502 ||
+        res.status === 503 ||
+        res.status === 504 ||
+        /not connected|connection closed|closed|offline|timeout|ECONNRESET|session/i.test(body);
+
+      if (!sleepLike && ![500, 502, 503, 504, 408].includes(res.status)) {
         const hint =
           res.status === 404
             ? ` Confira EVOLUTION_INSTANCE (nome no Manager). Atual: ${instance}`
@@ -225,17 +370,15 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
       }
     } catch (e: any) {
       lastErr = e?.message || String(e);
-      if (!/HTTP 50[0234]|timeout|fetch failed|ECONNRESET|network/i.test(lastErr) && attempt === 1) {
-        // non-retryable already thrown above; network errors retry
-        if (!/HTTP 50|timeout|fetch failed|ECONNRESET|network|Failed to fetch/i.test(lastErr)) {
-          throw e;
-        }
-      }
+      const retryable = /HTTP 50|HTTP 400|HTTP 408|timeout|fetch failed|ECONNRESET|network|not connected|connection closed|Failed to fetch/i.test(
+        lastErr
+      );
+      if (!retryable) throw e;
     }
   }
   throw new Error(
     (lastErr || 'Falha Evolution') +
-      ' — tentamos acordar a instância 3x. Abra o Manager Evolution e confira se o WhatsApp está conectado.'
+      ' — acordamos a instância e tentamos 3x. Abra o Manager Evolution e confira se o WhatsApp está conectado (estado open).'
   );
 }
 
