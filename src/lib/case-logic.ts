@@ -133,6 +133,9 @@ export interface LegalCase {
   cumprimento_pendente_necessario?: boolean;
   data_transito_julgado?: string | null;
   detalhes_execucao?: Record<string, any> | null;
+  cumprimento_ativo?: boolean;
+  cumprimento_encerrado?: boolean;
+  status_executivo?: 'pendente' | 'ativo' | 'encerrado' | 'procedente' | 'nenhum' | string | null;
 
   // Auditoria DJEN
   djen_consultado_em?: string | null;
@@ -345,6 +348,9 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     cumprimento_pendente_necessario: toBool(data.cumprimento_pendente_necessario),
     data_transito_julgado: data.data_transito_julgado || null,
     detalhes_execucao: data.detalhes_execucao || null,
+    cumprimento_ativo: toBool(data.cumprimento_ativo),
+    cumprimento_encerrado: toBool(data.cumprimento_encerrado),
+    status_executivo: data.status_executivo || data.detalhes_execucao?.status_executivo || null,
 
     // DJEN
     djen_consultado_em: data.djen_consultado_em,

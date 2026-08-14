@@ -226,18 +226,31 @@ export async function auditCaseCoreSystem(
           indicio_busca_apreensao: !!(ba.indicio || target.indicio_busca_apreensao),
           busca_apreensao_confianca: ba.confianca ?? target.busca_apreensao_confianca ?? null,
           busca_apreensao_motivo: ba.motivo || target.busca_apreensao_motivo || null,
-          // Se encerrado no tribunal, cumprimento ativo = false; senão grava detecção (mantém se já marcado)
-          em_cumprimento_sentenca: enc.encerrado
-            ? false
-            : !!(cump.ativo || analiseExec.em_cumprimento_sentenca || target.em_cumprimento_sentenca),
-          cumprimento_sentenca_motivo: enc.encerrado
-            ? null
-            : (cump.motivo || target.cumprimento_sentenca_motivo || null),
+          // Cumprimento é INDEPENDENTE do processo principal extinto.
+          // Só "desliga" ativo se a própria fase de cumprimento foi satisfeita/extinta.
+          em_cumprimento_sentenca: !!(
+            cump.ativo ||
+            analiseExec.em_cumprimento_sentenca ||
+            target.em_cumprimento_sentenca ||
+            analiseExec.cumprimento_encerrado
+          ),
+          cumprimento_sentenca_motivo:
+            cump.motivo ||
+            analiseExec.procedente_motivo ||
+            target.cumprimento_sentenca_motivo ||
+            null,
           cumprimento_sentenca_consultado_em: new Date().toISOString(),
+          cumprimento_ativo: !!analiseExec.cumprimento_ativo,
+          cumprimento_encerrado: !!analiseExec.cumprimento_encerrado,
+          status_executivo: analiseExec.status_executivo || null,
           // Procedência e cumprimento pendente (módulo executivo)
           is_procedente: analiseExec.is_procedente || target.is_procedente || false,
           procedente_motivo: analiseExec.procedente_motivo || target.procedente_motivo || null,
-          cumprimento_pendente_necessario: analiseExec.cumprimento_pendente_necessario || target.cumprimento_pendente_necessario || false,
+          cumprimento_pendente_necessario:
+            analiseExec.cumprimento_pendente_necessario ||
+            (!analiseExec.em_cumprimento_sentenca &&
+              !analiseExec.cumprimento_encerrado &&
+              (target.cumprimento_pendente_necessario || false)),
           data_transito_julgado: analiseExec.data_transito_julgado || target.data_transito_julgado || null,
           detalhes_execucao: {
             ...(typeof target.detalhes_execucao === 'object' && target.detalhes_execucao
@@ -245,6 +258,10 @@ export async function auditCaseCoreSystem(
               : {}),
             ...analiseExec.detalhes_execucao,
             merito_tipo: analiseExec.merito_tipo,
+            status_executivo: analiseExec.status_executivo,
+            cumprimento_ativo: analiseExec.cumprimento_ativo,
+            cumprimento_encerrado: analiseExec.cumprimento_encerrado,
+            principal_encerrado: !!enc.encerrado,
             scanned_at: new Date().toISOString(),
           },
           datajud_consultado_em: new Date().toISOString(),
@@ -436,11 +453,18 @@ export async function auditCaseCoreSystem(
         djenTextos
       );
       if (analise2.is_procedente) patch.is_procedente = true;
-      if (analise2.em_cumprimento_sentenca && !patch.datajud_encerrado_tribunal) {
+      if (analise2.em_cumprimento_sentenca || analise2.cumprimento_encerrado) {
         patch.em_cumprimento_sentenca = true;
       }
+      patch.cumprimento_ativo = !!analise2.cumprimento_ativo;
+      patch.cumprimento_encerrado = !!analise2.cumprimento_encerrado;
+      patch.status_executivo = analise2.status_executivo || patch.status_executivo;
       if (analise2.cumprimento_pendente_necessario) {
         patch.cumprimento_pendente_necessario = true;
+      }
+      // se cumprimento ativo/encerrado, não é "pendente instaurar"
+      if (analise2.em_cumprimento_sentenca || analise2.cumprimento_encerrado) {
+        patch.cumprimento_pendente_necessario = false;
       }
       if (analise2.data_transito_julgado) {
         patch.data_transito_julgado = analise2.data_transito_julgado;
@@ -1112,14 +1136,23 @@ export async function getCumprimentosEProcedentesAction() {
 
   try {
     const all = await getStoredCasesForEmpresa(empresa_id);
-    const filtered = all.filter((c: any) =>
-      c.is_procedente ||
-      c.em_cumprimento_sentenca ||
-      c.cumprimento_pendente_necessario ||
-      c.evento_tipo === 'sentenca_procedente' ||
-      c.evento_tipo === 'sentenca_parcial' ||
-      c.evento_tipo === 'cumprimento_sentenca'
-    );
+    const filtered = all.filter((c: any) => {
+      const st = c.status_executivo || c.detalhes_execucao?.status_executivo;
+      return (
+        c.is_procedente ||
+        c.em_cumprimento_sentenca ||
+        c.cumprimento_pendente_necessario ||
+        c.cumprimento_encerrado ||
+        c.cumprimento_ativo ||
+        st === 'pendente' ||
+        st === 'ativo' ||
+        st === 'encerrado' ||
+        st === 'procedente' ||
+        c.evento_tipo === 'sentenca_procedente' ||
+        c.evento_tipo === 'sentenca_parcial' ||
+        c.evento_tipo === 'cumprimento_sentenca'
+      );
+    });
     // Ordena: pendente primeiro, depois em cumprimento, depois procedente
     filtered.sort((a: any, b: any) => {
       const pa = a.cumprimento_pendente_necessario ? 0 : a.em_cumprimento_sentenca ? 1 : 2;
@@ -1163,7 +1196,10 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
       .maybeSingle();
 
     if (row) {
+      const { data: cur } = await admin.from('processos').select('dados').eq('id', row.id).maybeSingle();
+      const dados = { ...(cur?.dados || {}), ...resultado, status_executivo: resultado.status_executivo };
       await admin.from('processos').update({
+        dados,
         is_procedente: resultado.is_procedente,
         procedente_motivo: resultado.procedente_motivo,
         em_cumprimento_sentenca: resultado.em_cumprimento_sentenca,
@@ -1254,10 +1290,16 @@ export async function reclassificarExecutivoCarteiraAction() {
           is_procedente: r.is_procedente,
           procedente_motivo: r.procedente_motivo,
           em_cumprimento_sentenca: r.em_cumprimento_sentenca,
+          cumprimento_ativo: r.cumprimento_ativo,
+          cumprimento_encerrado: r.cumprimento_encerrado,
+          status_executivo: r.status_executivo,
           cumprimento_pendente_necessario: r.cumprimento_pendente_necessario,
           data_transito_julgado: r.data_transito_julgado || row.data_transito_julgado || null,
           detalhes_execucao: {
             ...r.detalhes_execucao,
+            status_executivo: r.status_executivo,
+            cumprimento_ativo: r.cumprimento_ativo,
+            cumprimento_encerrado: r.cumprimento_encerrado,
             via: 'reclassificar-local',
             scanned_at: new Date().toISOString(),
           },

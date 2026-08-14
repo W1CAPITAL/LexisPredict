@@ -39,7 +39,7 @@ import {
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 
-type FiltroAtivo = "todos" | "pendente" | "cumprimento" | "procedente";
+type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente";
 
 function casePhone(c?: LegalCase | null): string {
   if (!c) return "";
@@ -55,6 +55,16 @@ function diasDesdeTransito(dateStr?: string | null): number | null {
   } catch {
     return null;
   }
+}
+
+function statusExecutivo(c: LegalCase): string {
+  const st = (c as any).status_executivo || (c as any).detalhes_execucao?.status_executivo;
+  if (st && st !== "nenhum") return String(st);
+  if (c.cumprimento_pendente_necessario) return "pendente";
+  if ((c as any).cumprimento_encerrado) return "encerrado";
+  if ((c as any).cumprimento_ativo || c.em_cumprimento_sentenca) return "ativo";
+  if (c.is_procedente) return "procedente";
+  return "nenhum";
 }
 
 export default function CumprimentosProcedentesPage() {
@@ -97,17 +107,27 @@ export default function CumprimentosProcedentesPage() {
       });
     }
     if (filtro === "pendente") {
-      base = base.filter((c) => c.cumprimento_pendente_necessario);
-    } else if (filtro === "cumprimento") {
-      base = base.filter((c) => c.em_cumprimento_sentenca);
+      base = base.filter((c) => statusExecutivo(c) === "pendente" || c.cumprimento_pendente_necessario);
+    } else if (filtro === "ativo") {
+      base = base.filter((c) => statusExecutivo(c) === "ativo");
+    } else if (filtro === "encerrado") {
+      base = base.filter((c) => statusExecutivo(c) === "encerrado" || !!(c as any).cumprimento_encerrado);
     } else if (filtro === "procedente") {
-      base = base.filter((c) => c.is_procedente);
+      base = base.filter(
+        (c) => statusExecutivo(c) === "procedente" || (c.is_procedente && !c.em_cumprimento_sentenca)
+      );
     }
-    // Pendentes primeiro, depois por data de trânsito mais antiga
+    const rank = (c: LegalCase) => {
+      const s = statusExecutivo(c);
+      if (s === "pendente") return 0;
+      if (s === "ativo") return 1;
+      if (s === "procedente") return 2;
+      if (s === "encerrado") return 3;
+      return 4;
+    };
     base.sort((a, b) => {
-      const pa = a.cumprimento_pendente_necessario ? 0 : a.em_cumprimento_sentenca ? 1 : 2;
-      const pb = b.cumprimento_pendente_necessario ? 0 : b.em_cumprimento_sentenca ? 1 : 2;
-      if (pa !== pb) return pa - pb;
+      const d = rank(a) - rank(b);
+      if (d !== 0) return d;
       const da = a.data_transito_julgado || "";
       const db = b.data_transito_julgado || "";
       return da.localeCompare(db);
@@ -116,10 +136,11 @@ export default function CumprimentosProcedentesPage() {
   }, [cases, q, filtro]);
 
   const stats = useMemo(() => {
-    const pendentes = cases.filter((c) => c.cumprimento_pendente_necessario).length;
-    const cumprimentos = cases.filter((c) => c.em_cumprimento_sentenca).length;
-    const procedentes = cases.filter((c) => c.is_procedente).length;
-    return { total: cases.length, pendentes, cumprimentos, procedentes };
+    const pendentes = cases.filter((c) => statusExecutivo(c) === "pendente").length;
+    const ativos = cases.filter((c) => statusExecutivo(c) === "ativo").length;
+    const encerrados = cases.filter((c) => statusExecutivo(c) === "encerrado").length;
+    const procedentes = cases.filter((c) => statusExecutivo(c) === "procedente" || (c.is_procedente && statusExecutivo(c) !== "ativo")).length;
+    return { total: cases.length, pendentes, ativos, encerrados, procedentes };
   }, [cases]);
 
   const handleEnriquecer = async (protocolo: string) => {
@@ -314,7 +335,7 @@ export default function CumprimentosProcedentesPage() {
                 Ações Procedentes e Cumprimentos
               </h1>
               <p className="text-[10px] text-muted-foreground font-medium truncate">
-                Módulo Executivo · Procedência · Cumprimento · Trânsito em Julgado
+                Principal extinto não esconde cumprimento · Pendente · Ativo · Encerrado · Procedente
               </p>
             </div>
           </div>
@@ -401,8 +422,9 @@ export default function CumprimentosProcedentesPage() {
               <div className="p-2 space-y-1">
                 {[
                   { key: "todos" as FiltroAtivo, label: "Todos", icon: Scale, count: stats.total, color: "" },
-                  { key: "pendente" as FiltroAtivo, label: "Cumprimento Pendente", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
-                  { key: "cumprimento" as FiltroAtivo, label: "Em Cumprimento", icon: Clock, count: stats.cumprimentos, color: "text-amber-600" },
+                  { key: "pendente" as FiltroAtivo, label: "Falta instaurar", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
+                  { key: "ativo" as FiltroAtivo, label: "Cumprimento ativo", icon: Clock, count: stats.ativos, color: "text-amber-600" },
+                  { key: "encerrado" as FiltroAtivo, label: "Cumprimento encerrado", icon: Gavel, count: stats.encerrados, color: "text-slate-600" },
                   { key: "procedente" as FiltroAtivo, label: "Procedente", icon: CheckCircle2, count: stats.procedentes, color: "text-emerald-600" },
                 ].map((f) => (
                   <button
@@ -444,7 +466,11 @@ export default function CumprimentosProcedentesPage() {
                 <div className="p-3 space-y-2">
                   {filtered.map((c) => {
                     const dias = diasDesdeTransito(c.data_transito_julgado);
-                    const isPendente = c.cumprimento_pendente_necessario;
+                    const st = statusExecutivo(c);
+                    const isPendente = st === "pendente";
+                    const isAtivo = st === "ativo";
+                    const isEncerrado = st === "encerrado";
+                    const isProcedente = st === "procedente" || (!!c.is_procedente && st !== "ativo" && st !== "encerrado");
                     return (
                       <div
                         key={c.protocolo || c.id}

@@ -267,15 +267,35 @@ export function analisarProcedenciaECumprimento(
 ): {
   is_procedente: boolean;
   procedente_motivo: string | null;
+  /** Fase de cumprimento instaurada (ativa OU já existiu). */
   em_cumprimento_sentenca: boolean;
+  /** Cumprimento ainda em curso (não satisfeito/extinto). */
+  cumprimento_ativo: boolean;
+  /** Cumprimento já quitado/extinto/arquivado na fase executiva. */
+  cumprimento_encerrado: boolean;
+  /** Procedente + trânsito + sem instauração da fase 156. */
   cumprimento_pendente_necessario: boolean;
   data_transito_julgado: string | null;
   merito_tipo: 'procedente' | 'parcial' | 'improcedente' | null;
+  /**
+   * pendente = falta instaurar
+   * ativo = cumprimento em andamento
+   * encerrado = cumprimento satisfeito/extinto
+   * procedente = procedente sem fase executiva ainda definida
+   * nenhum = fora do módulo
+   */
+  status_executivo:
+    | 'pendente'
+    | 'ativo'
+    | 'encerrado'
+    | 'procedente'
+    | 'nenhum';
   detalhes_execucao: {
     motivos: string[];
     classeCodigo?: number | null;
     diasAposTransito?: number | null;
     fonte: string[];
+    principal_extinto_ignorado?: boolean;
   };
 } {
   const CODIGOS_PROCEDENCIA = [219, 221, 12223, 12329, 12330, 237, 238, 50094, 12185];
@@ -285,61 +305,68 @@ export function analisarProcedenciaECumprimento(
   const fontes: string[] = [];
   const djenBlob = (djenTextos || []).join(' || ').toUpperCase();
 
-  if (!movimentos || movimentos.length === 0) {
-    const cn = detectarCumprimentoFromNome(ultimoNome);
-    // DJEN-only fallback
-    let isProcedente = false;
-    let merito: 'procedente' | 'parcial' | 'improcedente' | null = null;
-    let procedenteMotivo: string | null = null;
-    if (
-      djenBlob.includes('PARCIALMENTE PROCEDENTE') ||
-      djenBlob.includes('PROCEDENTE EM PARTE')
-    ) {
-      isProcedente = true;
-      merito = 'parcial';
-      procedenteMotivo = 'DJEN parcial';
-      motivos.push('DJEN: parcialmente procedente');
-      fontes.push('djen');
-    } else if (
-      (djenBlob.includes('JULGO PROCEDENTE') || djenBlob.includes('JULGADO PROCEDENTE')) &&
-      !djenBlob.includes('IMPROCEDENTE')
-    ) {
-      isProcedente = true;
-      merito = 'procedente';
-      procedenteMotivo = 'DJEN procedente';
-      motivos.push('DJEN: procedente');
-      fontes.push('djen');
-    }
-    let emCumprimento = cn.ativo;
-    if (!emCumprimento && /CUMPRIMENTO\s+DE\s+SENTEN/.test(djenBlob)) {
-      emCumprimento = true;
-      motivos.push('DJEN: cumprimento');
-      fontes.push('djen');
-    }
-    return {
-      is_procedente: isProcedente,
-      procedente_motivo: procedenteMotivo,
-      em_cumprimento_sentenca: emCumprimento,
-      cumprimento_pendente_necessario: false,
-      data_transito_julgado: null,
-      merito_tipo: merito,
-      detalhes_execucao: { motivos, classeCodigo: classeCodigo ?? null, fonte: fontes },
-    };
+  const ENCERRAMENTO_CUMPRIMENTO = [
+    'EXTINÇÃO DO CUMPRIMENTO',
+    'EXTINCAO DO CUMPRIMENTO',
+    'CUMPRIMENTO EXTINTO',
+    'EXTINTO O CUMPRIMENTO',
+    'SATISFAÇÃO DA OBRIGAÇÃO',
+    'SATISFACAO DA OBRIGACAO',
+    'OBRIGAÇÃO SATISFEITA',
+    'OBRIGACAO SATISFEITA',
+    'QUITAÇÃO DO DÉBITO',
+    'QUITACAO DO DEBITO',
+    'QUITADO O DÉBITO',
+    'ALVARÁ DE LEVANTAMENTO',
+    'ALVARA DE LEVANTAMENTO',
+    'LEVANTAMENTO DE VALORES',
+    'ARQUIVAMENTO DO CUMPRIMENTO',
+    'BAIXA DO CUMPRIMENTO',
+    'CUMPRIMENTO DE SENTENÇA EXTINTO',
+    'HOMOLOGAÇÃO DE ACORDO',
+    'HOMOLOGACAO DE ACORDO',
+    'ACORDO CUMPRIDO',
+  ];
+
+  const INICIO_CUMPRIMENTO = [
+    'CUMPRIMENTO DE SENTENÇA',
+    'CUMPRIMENTO DE SENTENCA',
+    'CUMPRIMENTO PROVISÓRIO',
+    'CUMPRIMENTO PROVISORIO',
+    'FASE DE CUMPRIMENTO',
+    'INÍCIO DO CUMPRIMENTO',
+    'INICIO DO CUMPRIMENTO',
+    'REQUERIMENTO DE CUMPRIMENTO',
+    'PETIÇÃO DE CUMPRIMENTO',
+    'PETICAO DE CUMPRIMENTO',
+    'EXECUÇÃO DE SENTENÇA',
+    'EXECUCAO DE SENTENCA',
+    'EXECUÇÃO/CUMPRIMENTO',
+    'EXECUCAO/CUMPRIMENTO',
+  ];
+
+  function textOf(m: any) {
+    return `${m?.nome || ''} ${m?.complemento || ''} ${m?.descricao || ''}`.toUpperCase();
   }
 
-  const sorted = [...movimentos].sort(
+  const movs = Array.isArray(movimentos) ? movimentos : [];
+  const sorted = [...movs].sort(
     (a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
-  const window25 = sorted.slice(0, 25);
-  const allText = window25
-    .map((m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase())
-    .join(' || ');
-  const blob = `${allText} || ${djenBlob}`;
+  const window25 = sorted.slice(0, 40);
+  const allText =
+    window25.map(textOf).join(' || ') +
+    ' || ' +
+    String(ultimoNome || '').toUpperCase() +
+    ' || ' +
+    djenBlob;
+  const blob = allText;
 
-  // 1) Procedência — códigos TPU
+  // --- Procedência ---
   let isProcedente = false;
   let procedenteMotivo: string | null = null;
   let merito: 'procedente' | 'parcial' | 'improcedente' | null = null;
+
   for (const mov of window25) {
     const cod = Number(mov.codigo || mov.tipoCodigo || 0);
     if (CODIGOS_PROCEDENCIA.includes(cod)) {
@@ -351,8 +378,8 @@ export function analisarProcedenciaECumprimento(
       break;
     }
   }
-  if (!isProcedente) {
-    const sentenca = detectarSentencaMerito(movimentos);
+  if (!isProcedente && movs.length) {
+    const sentenca = detectarSentencaMerito(movs);
     if (sentenca.tipo === 'procedente' || sentenca.tipo === 'parcial') {
       isProcedente = true;
       procedenteMotivo = sentenca.motivo || sentenca.tipo;
@@ -362,7 +389,10 @@ export function analisarProcedenciaECumprimento(
     }
   }
   if (!isProcedente && djenBlob) {
-    if (djenBlob.includes('PARCIALMENTE PROCEDENTE') || djenBlob.includes('PROCEDENTE EM PARTE')) {
+    if (
+      djenBlob.includes('PARCIALMENTE PROCEDENTE') ||
+      djenBlob.includes('PROCEDENTE EM PARTE')
+    ) {
       isProcedente = true;
       merito = 'parcial';
       procedenteMotivo = 'DJEN parcial';
@@ -385,36 +415,80 @@ export function analisarProcedenciaECumprimento(
     merito = 'improcedente';
   }
 
-  // 2) Cumprimento ativo
+  // --- Cumprimento instaurado (classe OU texto) ---
   let emCumprimento = CLASSES_CUMPRIMENTO.includes(Number(classeCodigo || 0));
   if (emCumprimento) {
     motivos.push(`classe ${classeCodigo}`);
     fontes.push('datajud-classe');
   }
   if (!emCumprimento) {
-    const cs = detectarCumprimentoSentenca(movimentos);
-    emCumprimento = cs.ativo;
-    if (emCumprimento) {
+    const cs = detectarCumprimentoSentenca(movs);
+    if (cs.ativo) {
+      emCumprimento = true;
       motivos.push(cs.motivo || 'cumprimento movimento');
       fontes.push('datajud-texto');
     }
   }
-  if (!emCumprimento && /CUMPRIMENTO\s+DE\s+SENTEN/.test(djenBlob)) {
-    emCumprimento = true;
-    motivos.push('DJEN cumprimento');
-    fontes.push('djen');
+  if (!emCumprimento) {
+    for (const p of INICIO_CUMPRIMENTO) {
+      if (blob.includes(p)) {
+        emCumprimento = true;
+        motivos.push(`texto: ${p}`);
+        fontes.push(djenBlob.includes(p) ? 'djen' : 'datajud-texto');
+        break;
+      }
+    }
+  }
+  // nome isolado
+  if (!emCumprimento) {
+    const cn = detectarCumprimentoFromNome(ultimoNome);
+    if (cn.ativo) {
+      emCumprimento = true;
+      motivos.push(cn.motivo || 'nome');
+      fontes.push('nome');
+    }
   }
 
-  // Veto: baixa definitiva / arquivamento sozinho NÃO é cumprimento ativo
-  const baixaOnly =
-    /BAIXA DEFINITIVA|ARQUIVAMENTO DEFINITIVO|ARQUIVADO DEFINITIVAMENTE/.test(blob) &&
-    !/CUMPRIMENTO\s+DE\s+SENTEN|FASE DE CUMPRIMENTO|EXECU[CÇ][AÃ]O DE SENTEN/.test(blob);
-  if (baixaOnly) {
-    emCumprimento = false;
-    motivos.push('veto: baixa/arquivo sem cumprimento');
+  // Baixa do PROCESSO PRINCIPAL sozinha não cria cumprimento
+  const baixaPrincipalOnly =
+    /BAIXA DEFINITIVA|ARQUIVAMENTO DEFINITIVO/.test(blob) &&
+    !/CUMPRIMENTO\s+DE\s+SENTEN|FASE DE CUMPRIMENTO|EXECU[CÇ][AÃ]O DE SENTEN|CLASSE.*156/.test(
+      blob
+    );
+  if (baixaPrincipalOnly && !CLASSES_CUMPRIMENTO.includes(Number(classeCodigo || 0))) {
+    // não remove se já detectou cumprimento real acima com keywords fortes
+    const hasCumpKw = INICIO_CUMPRIMENTO.some((p) => blob.includes(p));
+    if (!hasCumpKw) {
+      emCumprimento = false;
+      motivos.push('veto: baixa do principal sem cumprimento');
+    }
   }
 
-  // 3) Trânsito 848
+  // --- Cumprimento ENCERRADO (fase executiva satisfeita) — independente do principal ---
+  let cumprimentoEncerrado = false;
+  for (const p of ENCERRAMENTO_CUMPRIMENTO) {
+    if (blob.includes(p)) {
+      // Se fala em cumprimento + extinção/satisfação, ou acordo quitado na fase
+      if (
+        emCumprimento ||
+        blob.includes('CUMPRIMENTO') ||
+        p.includes('SATISFA') ||
+        p.includes('QUIT') ||
+        p.includes('LEVANTAMENTO')
+      ) {
+        cumprimentoEncerrado = true;
+        motivos.push(`encerrado: ${p}`);
+        fontes.push('texto-encerramento');
+        break;
+      }
+    }
+  }
+  // Se classe ainda é 156 e não há extinção, permanece ativo
+  if (emCumprimento && cumprimentoEncerrado) {
+    // ainda "em cumprimento" no sentido de "passou pela fase", mas status = encerrado
+  }
+
+  // --- Trânsito ---
   let dataTransito: string | null = null;
   for (const mov of window25) {
     const cod = Number(mov.codigo || mov.tipoCodigo || 0);
@@ -425,7 +499,7 @@ export function analisarProcedenciaECumprimento(
   }
   if (!dataTransito) {
     for (const m of window25) {
-      const tx = `${m.nome || ''} ${m.complemento || ''}`.toUpperCase();
+      const tx = textOf(m);
       if (tx.includes('TRÂNSITO EM JULGADO') || tx.includes('TRANSITO EM JULGADO')) {
         dataTransito = m.dataHora || null;
         break;
@@ -446,32 +520,48 @@ export function analisarProcedenciaECumprimento(
     }
   }
 
-  // 4) Pendente: procedente + sem fase 156 + (trânsito > 22d OU art.523+decurso)
+  // Pendente: procedente, SEM fase instaurada, SEM cumprimento encerrado, prazo ok
   let cumprimentoPendente = false;
-  if (isProcedente && !emCumprimento) {
-    if (diasApos != null && diasApos > 22) {
+  if (isProcedente && !emCumprimento && !cumprimentoEncerrado) {
+    if ((diasApos != null && diasApos > 22) || (art523 && decursoSem)) {
       cumprimentoPendente = true;
-      motivos.push(`pendente: ${diasApos}d após trânsito sem classe 156`);
-      fontes.push('regra-cascata');
-    } else if (art523 && decursoSem) {
-      cumprimentoPendente = true;
-      motivos.push('pendente: art.523 + decurso sem pagamento');
+      motivos.push(
+        diasApos != null
+          ? `pendente: ${diasApos}d após trânsito sem fase 156`
+          : 'pendente: art.523 + decurso'
+      );
       fontes.push('regra-cascata');
     }
   }
 
+  const cumprimentoAtivo = emCumprimento && !cumprimentoEncerrado;
+
+  let status_executivo: 'pendente' | 'ativo' | 'encerrado' | 'procedente' | 'nenhum' =
+    'nenhum';
+  if (cumprimentoPendente) status_executivo = 'pendente';
+  else if (cumprimentoAtivo) status_executivo = 'ativo';
+  else if (cumprimentoEncerrado && (emCumprimento || isProcedente))
+    status_executivo = 'encerrado';
+  else if (isProcedente) status_executivo = 'procedente';
+
+  // Importante: principal extinto NÃO apaga cumprimento.
+  // Se houve fase 156, em_cumprimento_sentenca permanece true para a aba.
   return {
     is_procedente: isProcedente,
     procedente_motivo: procedenteMotivo,
-    em_cumprimento_sentenca: emCumprimento,
+    em_cumprimento_sentenca: emCumprimento || cumprimentoEncerrado,
+    cumprimento_ativo: cumprimentoAtivo,
+    cumprimento_encerrado: cumprimentoEncerrado,
     cumprimento_pendente_necessario: cumprimentoPendente,
     data_transito_julgado: dataTransito,
     merito_tipo: merito,
+    status_executivo,
     detalhes_execucao: {
       motivos,
       classeCodigo: classeCodigo ?? null,
       diasAposTransito: diasApos,
       fonte: [...new Set(fontes)],
+      principal_extinto_ignorado: true,
     },
   };
 }
