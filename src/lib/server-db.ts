@@ -496,6 +496,9 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   for (const k of ATENDIMENTO_KEYS) {
     if (k in safePatch) delete safePatch[k];
   }
+  // Scanner / flags NUNCA alteram dono do processo
+  delete safePatch['created_by'];
+  delete safePatch['createdBy'];
 
   // evento_tipo, tem_novo_andamento, etc. ficam no JSON dados
   // Preserva ultimoRetorno / atendido_por já gravados no blob
@@ -598,31 +601,50 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
 }
 
 export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
-  const client = isAdmin ? await getSupabaseAdmin() : supabase;
-  if (!client) return { success: false, message: "Erro de Configuração." };
-
   try {
     const { auth_id } = await getUserContext();
-    const uniqueMap = new Map();
-    cases.forEach(c => { if (c && c.protocolo) uniqueMap.set(c.protocolo, c); });
-    
-    const payload = Array.from(uniqueMap.values()).map(c => {
-      const isoPrazo = formatDateToISO(c.proximoPrazo);
-      const isoRetorno = formatDateToISO(c.ultimoRetorno);
-      
-      return { 
-        empresa_id: empresaId, 
-        created_by: c.created_by || auth_id,
+    const client = isAdmin ? await getSupabaseAdmin() : (supabase || (await getSupabaseAdmin()));
+    if (!client) return { success: false, message: 'Cliente indisponível.' };
+
+    // Mapa de donos já gravados — NUNCA sobrescrever no upsert em lote
+    const protos = (cases || []).map((c) => c.protocolo).filter(Boolean);
+    const ownerByProto = new Map<string, string>();
+    if (protos.length) {
+      const chunk = 200;
+      for (let i = 0; i < protos.length; i += chunk) {
+        const slice = protos.slice(i, i + chunk);
+        const { data: rows } = await client
+          .from('processos')
+          .select('protocolo_ref, created_by')
+          .eq('empresa_id', empresaId)
+          .in('protocolo_ref', slice);
+        for (const r of rows || []) {
+          if (r.created_by) ownerByProto.set(String(r.protocolo_ref), String(r.created_by));
+        }
+      }
+    }
+
+    const payload = (cases || []).map((c) => {
+      const owner =
+        ownerByProto.get(String(c.protocolo)) ||
+        (c as any).created_by ||
+        auth_id ||
+        null;
+      return {
+        empresa_id: empresaId,
+        // Só envia created_by se ainda não existe dono no banco (insert)
+        ...(ownerByProto.has(String(c.protocolo))
+          ? {}
+          : owner
+            ? { created_by: owner }
+            : {}),
         protocolo_ref: c.protocolo,
         advogado: c.advogado || 'NÃO ATRIBUÍDO',
         escritorio: c.escritorio || null,
         status: c.status || 'Sem Prazo',
-        risco: c.risco || 'Normal',
-        proximo_retorno: isoPrazo, 
-        ultimo_retorno: isoRetorno,
-        auditado_em: (c as any).auditado_em || (c as any).auditadoEm || null,
-        auditado_por: (c as any).auditado_por || (c as any).auditadoPor || null,
-        atendido_por: (c as any).atendido_por || (c as any).atendidoPor || null,
+        risco: (c as any).risco || 'Normal',
+        proximo_retorno: formatDateToISO(c.proximoPrazo),
+        ultimo_retorno: formatDateToISO(c.ultimoRetorno),
         tribunal: c.tribunal || 'Outros',
         telefone: c.telefone || '',
         observacoes: c.observacao || '',
@@ -644,13 +666,15 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
         djen_ultimo_resumo: c.djen_ultimo_resumo,
         djen_ultimo_link: c.djen_ultimo_link,
         djen_ultima_data: c.djen_ultima_data,
-        dados: { ...c }
+        dados: { ...c, created_by: owner },
       };
     });
 
     const chunkSize = 50;
     for (let i = 0; i < payload.length; i += chunkSize) {
       const chunk = payload.slice(i, i + chunkSize);
+      // upsert sem created_by quando já existe: Postgres upsert replaces columns sent —
+      // por isso omitimos created_by se já há dono (mapa).
       const { error: upsertError } = await client
         .from('processos')
         .upsert(chunk, { onConflict: 'protocolo_ref, empresa_id' });

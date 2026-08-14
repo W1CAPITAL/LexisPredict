@@ -885,6 +885,8 @@ export async function registrarAtendimentoCompletoAction(input: {
     );
 
     const patch = patchAtendimentoComEdicao(auth_id, hoje);
+    // Quem atendeu: registra, SEM mudar created_by (dono da carteira)
+    const ownerKeep = (found as any).created_by || null;
     const updated = processarCaso({
       ...found,
       ...patch,
@@ -903,6 +905,8 @@ export async function registrarAtendimentoCompletoAction(input: {
         situacao === 'ENCERRADO' ? true : found.datajud_encerrado_tribunal,
     });
 
+    (updated as any).created_by = ownerKeep;
+    (updated as any).atendido_por = auth_id;
     const saved = await saveOneCaseAction(updated as any);
     if (!saved.success) {
       return { success: false, message: saved.message || 'Falha ao salvar' };
