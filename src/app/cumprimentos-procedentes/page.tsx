@@ -64,6 +64,8 @@ function oportunidadeOf(c: LegalCase): {
   tipo: string;
   riscos: string[];
   revisao: boolean;
+  textoPobre: boolean;
+  precisaEnriquecer: boolean;
 } | null {
   const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
   const op =

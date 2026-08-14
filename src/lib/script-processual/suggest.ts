@@ -398,6 +398,7 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     const textoPobre = !!input.texto_pobre;
     out.push({
       id: 'instaurar_cumprimento_oportunidade',
+      categoria: 'execucao',
       titulo:
         tipo === 'sucumbencia'
           ? 'Possível cumprimento — honorários de sucumbência'
