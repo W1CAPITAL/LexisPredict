@@ -32,7 +32,7 @@ async function withOneRetry<T>(fn: () => Promise<T>, label: string): Promise<T> 
   }
 }
 
-import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca } from '@/lib/datajud-sync';
+import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca, analisarProcedenciaECumprimento } from '@/lib/datajud-sync';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
 import { detectarNovaComunicacaoDjen } from '@/lib/djen-sync';
@@ -205,6 +205,11 @@ export async function auditCaseCoreSystem(
         const enc = detectarEncerradoNoTribunal(movimentos);
         const ba = analisarBuscaApreensao(dataJud);
         const cump = detectarCumprimentoSentenca(movimentos);
+        const analiseExec = analisarProcedenciaECumprimento(
+          movimentos,
+          dataJud.classe?.codigo || null,
+          upd.nomeUltimo || target.datajud_ultimo_nome || null
+        );
 
         const dataMovRef = upd.dataUltimo || target.datajud_ultimo_movimento || null;
 
@@ -224,11 +229,24 @@ export async function auditCaseCoreSystem(
           // Se encerrado no tribunal, cumprimento ativo = false; senão grava detecção (mantém se já marcado)
           em_cumprimento_sentenca: enc.encerrado
             ? false
-            : !!(cump.ativo || target.em_cumprimento_sentenca),
+            : !!(cump.ativo || analiseExec.em_cumprimento_sentenca || target.em_cumprimento_sentenca),
           cumprimento_sentenca_motivo: enc.encerrado
             ? null
             : (cump.motivo || target.cumprimento_sentenca_motivo || null),
           cumprimento_sentenca_consultado_em: new Date().toISOString(),
+          // Procedência e cumprimento pendente (módulo executivo)
+          is_procedente: analiseExec.is_procedente || target.is_procedente || false,
+          procedente_motivo: analiseExec.procedente_motivo || target.procedente_motivo || null,
+          cumprimento_pendente_necessario: analiseExec.cumprimento_pendente_necessario || target.cumprimento_pendente_necessario || false,
+          data_transito_julgado: analiseExec.data_transito_julgado || target.data_transito_julgado || null,
+          detalhes_execucao: {
+            ...(typeof target.detalhes_execucao === 'object' && target.detalhes_execucao
+              ? target.detalhes_execucao
+              : {}),
+            ...analiseExec.detalhes_execucao,
+            merito_tipo: analiseExec.merito_tipo,
+            scanned_at: new Date().toISOString(),
+          },
           datajud_consultado_em: new Date().toISOString(),
           tribunal: dataJud.tribunal || target.tribunal,
         });
@@ -399,6 +417,48 @@ export async function auditCaseCoreSystem(
     });
   }
 
+
+  // Reanálise executiva com textos DJEN (completa art.523 / procedência só no diário)
+  try {
+    if (movimentos.length || (comunicacoes && comunicacoes.length)) {
+      const djenTextos = (comunicacoes || [])
+        .slice(0, 20)
+        .map((c: any) => String(c.texto || c.conteudo || c.resumo || ''));
+      const classeCod =
+        patch.detalhes_execucao?.classeCodigo ??
+        (typeof target.detalhes_execucao === 'object'
+          ? target.detalhes_execucao?.classeCodigo
+          : null);
+      const analise2 = analisarProcedenciaECumprimento(
+        movimentos,
+        classeCod ?? null,
+        patch.datajud_ultimo_nome || target.datajud_ultimo_nome || null,
+        djenTextos
+      );
+      if (analise2.is_procedente) patch.is_procedente = true;
+      if (analise2.em_cumprimento_sentenca && !patch.datajud_encerrado_tribunal) {
+        patch.em_cumprimento_sentenca = true;
+      }
+      if (analise2.cumprimento_pendente_necessario) {
+        patch.cumprimento_pendente_necessario = true;
+      }
+      if (analise2.data_transito_julgado) {
+        patch.data_transito_julgado = analise2.data_transito_julgado;
+      }
+      patch.detalhes_execucao = {
+        ...(patch.detalhes_execucao || {}),
+        ...analise2.detalhes_execucao,
+        merito_tipo: analise2.merito_tipo,
+        scanned_at: new Date().toISOString(),
+      };
+      if (analise2.procedente_motivo) {
+        patch.procedente_motivo = analise2.procedente_motivo;
+      }
+    }
+  } catch (e: any) {
+    console.error('[auditCaseCoreSystem] reanalise DJEN exec', e?.message || e);
+  }
+
   patch.evento_tipo = eventTipo;
   patch.evento_resumo = eventResumo;
   patch.evento_fonte =
@@ -419,8 +479,12 @@ export async function auditCaseCoreSystem(
     patch.scan_priority = 90;
   } else if (patch.tem_novo_andamento) {
     patch.scan_priority = 80;
+  } else if (patch.cumprimento_pendente_necessario || target.cumprimento_pendente_necessario) {
+    patch.scan_priority = 85;
   } else if (patch.em_cumprimento_sentenca || target.em_cumprimento_sentenca) {
     patch.scan_priority = 70;
+  } else if (patch.is_procedente || target.is_procedente) {
+    patch.scan_priority = 65;
   } else {
     patch.scan_priority = 40;
   }
@@ -1035,5 +1099,76 @@ export async function backfillEncerradosHojeAction(): Promise<{
     };
   } catch (e: any) {
     return { success: false, updated: 0, message: e?.message || 'Falha no backfill' };
+  }
+}
+
+/**
+ * Busca exclusiva para a aba "Ações Procedentes e Cumprimentos".
+ * Retorna apenas processos com is_procedente, em_cumprimento_sentenca ou cumprimento_pendente_necessario.
+ */
+export async function getCumprimentosEProcedentesAction() {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, data: [] as LegalCase[] };
+
+  try {
+    const all = await getStoredCasesForEmpresa(empresa_id);
+    const filtered = all.filter((c: any) =>
+      c.is_procedente || c.em_cumprimento_sentenca || c.cumprimento_pendente_necessario
+    );
+    // Ordena: pendente primeiro, depois em cumprimento, depois procedente
+    filtered.sort((a: any, b: any) => {
+      const pa = a.cumprimento_pendente_necessario ? 0 : a.em_cumprimento_sentenca ? 1 : 2;
+      const pb = b.cumprimento_pendente_necessario ? 0 : b.em_cumprimento_sentenca ? 1 : 2;
+      if (pa !== pb) return pa - pb;
+      // Desempate por data de trânsito em julgado (mais antigo primeiro)
+      const da = a.data_transito_julgado || '';
+      const db = b.data_transito_julgado || '';
+      return da.localeCompare(db);
+    });
+    return { success: true, data: filtered };
+  } catch (e: any) {
+    return { success: false, data: [] as LegalCase[] };
+  }
+}
+
+/**
+ * Enriquece um caso com flags de procedência/cumprimento via scan DataJud.
+ * Chamado pelo scanner automático ou manualmente pela aba.
+ */
+export async function enriquecerProcedenciaAction(protocolo: string) {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false };
+
+  try {
+    const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
+    const res = await auditCaseCoreSystem(protocolo, empresa_id, 'datajud', { fast: false });
+    const movimentos = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
+    const classeCodigo = (res as any)?.classe?.codigo || null;
+    const ultimoNome = (res as any)?.datajud_ultimo_nome || null;
+
+    const resultado = analisarProcedenciaECumprimento(movimentos, classeCodigo, ultimoNome);
+
+    // Atualiza no banco
+    const admin = await getSupabaseAdmin();
+    const { data: row } = await admin
+      .from('processos')
+      .select('id')
+      .eq('protocolo_ref', protocolo)
+      .eq('empresa_id', empresa_id)
+      .maybeSingle();
+
+    if (row) {
+      await admin.from('processos').update({
+        is_procedente: resultado.is_procedente,
+        procedente_motivo: resultado.procedente_motivo,
+        em_cumprimento_sentenca: resultado.em_cumprimento_sentenca,
+        cumprimento_pendente_necessario: resultado.cumprimento_pendente_necessario,
+        data_transito_julgado: resultado.data_transito_julgado,
+      }).eq('id', row.id);
+    }
+
+    return { success: true, ...resultado };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
   }
 }

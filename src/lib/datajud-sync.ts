@@ -255,6 +255,310 @@ export function detectarSentencaMerito(movimentos: any[]): {
   return { tipo: null, motivo: null };
 }
 
+/**
+ * Análise unificada de Procedência + Cumprimento de Sentença + Pendência Omitida.
+ * Combina detecção TPU de movimentos, classes e trânsito em julgado.
+ */
+export function analisarProcedenciaECumprimento(
+  movimentos: any[],
+  classeCodigo?: number | null,
+  ultimoNome?: string | null,
+  djenTextos?: string[] | null
+): {
+  is_procedente: boolean;
+  procedente_motivo: string | null;
+  em_cumprimento_sentenca: boolean;
+  cumprimento_pendente_necessario: boolean;
+  data_transito_julgado: string | null;
+  merito_tipo: 'procedente' | 'parcial' | 'improcedente' | null;
+  detalhes_execucao: {
+    motivos: string[];
+    classeCodigo?: number | null;
+    diasAposTransito?: number | null;
+    fonte: string[];
+  };
+} {
+  const CODIGOS_PROCEDENCIA = [219, 221, 12223, 12329, 12330, 237, 238, 50094, 12185];
+  const CLASSES_CUMPRIMENTO = [156, 157, 12078, 12231, 12246, 15159, 1111];
+  const CODIGO_TRANSITO = 848;
+  const motivos: string[] = [];
+  const fontes: string[] = [];
+  const djenBlob = (djenTextos || []).join(' || ').toUpperCase();
+
+  if (!movimentos || movimentos.length === 0) {
+    const cn = detectarCumprimentoFromNome(ultimoNome);
+    // DJEN-only fallback
+    let isProcedente = false;
+    let merito: 'procedente' | 'parcial' | 'improcedente' | null = null;
+    let procedenteMotivo: string | null = null;
+    if (
+      djenBlob.includes('PARCIALMENTE PROCEDENTE') ||
+      djenBlob.includes('PROCEDENTE EM PARTE')
+    ) {
+      isProcedente = true;
+      merito = 'parcial';
+      procedenteMotivo = 'DJEN parcial';
+      motivos.push('DJEN: parcialmente procedente');
+      fontes.push('djen');
+    } else if (
+      (djenBlob.includes('JULGO PROCEDENTE') || djenBlob.includes('JULGADO PROCEDENTE')) &&
+      !djenBlob.includes('IMPROCEDENTE')
+    ) {
+      isProcedente = true;
+      merito = 'procedente';
+      procedenteMotivo = 'DJEN procedente';
+      motivos.push('DJEN: procedente');
+      fontes.push('djen');
+    }
+    let emCumprimento = cn.ativo;
+    if (!emCumprimento && /CUMPRIMENTO\s+DE\s+SENTEN/.test(djenBlob)) {
+      emCumprimento = true;
+      motivos.push('DJEN: cumprimento');
+      fontes.push('djen');
+    }
+    return {
+      is_procedente: isProcedente,
+      procedente_motivo: procedenteMotivo,
+      em_cumprimento_sentenca: emCumprimento,
+      cumprimento_pendente_necessario: false,
+      data_transito_julgado: null,
+      merito_tipo: merito,
+      detalhes_execucao: { motivos, classeCodigo: classeCodigo ?? null, fonte: fontes },
+    };
+  }
+
+  const sorted = [...movimentos].sort(
+    (a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
+  );
+  const window25 = sorted.slice(0, 25);
+  const allText = window25
+    .map((m) => `${m.nome || ''} ${m.complemento || ''} ${m.descricao || ''}`.toUpperCase())
+    .join(' || ');
+  const blob = `${allText} || ${djenBlob}`;
+
+  // 1) Procedência — códigos TPU
+  let isProcedente = false;
+  let procedenteMotivo: string | null = null;
+  let merito: 'procedente' | 'parcial' | 'improcedente' | null = null;
+  for (const mov of window25) {
+    const cod = Number(mov.codigo || mov.tipoCodigo || 0);
+    if (CODIGOS_PROCEDENCIA.includes(cod)) {
+      isProcedente = true;
+      procedenteMotivo = mov.nome || `TPU ${cod}`;
+      merito = cod === 221 || cod === 12330 || cod === 238 ? 'parcial' : 'procedente';
+      motivos.push(`TPU ${cod}`);
+      fontes.push('datajud-tpu');
+      break;
+    }
+  }
+  if (!isProcedente) {
+    const sentenca = detectarSentencaMerito(movimentos);
+    if (sentenca.tipo === 'procedente' || sentenca.tipo === 'parcial') {
+      isProcedente = true;
+      procedenteMotivo = sentenca.motivo || sentenca.tipo;
+      merito = sentenca.tipo === 'parcial' ? 'parcial' : 'procedente';
+      motivos.push(`texto: ${procedenteMotivo}`);
+      fontes.push('datajud-texto');
+    }
+  }
+  if (!isProcedente && djenBlob) {
+    if (djenBlob.includes('PARCIALMENTE PROCEDENTE') || djenBlob.includes('PROCEDENTE EM PARTE')) {
+      isProcedente = true;
+      merito = 'parcial';
+      procedenteMotivo = 'DJEN parcial';
+      motivos.push('DJEN: parcial');
+      fontes.push('djen');
+    } else if (
+      (djenBlob.includes('JULGO PROCEDENTE') ||
+        djenBlob.includes('JULGADO PROCEDENTE') ||
+        djenBlob.includes('ACOLHO OS PEDIDOS')) &&
+      !djenBlob.includes('IMPROCEDENTE')
+    ) {
+      isProcedente = true;
+      merito = 'procedente';
+      procedenteMotivo = 'DJEN procedente';
+      motivos.push('DJEN: procedente');
+      fontes.push('djen');
+    }
+  }
+  if (!isProcedente && blob.includes('IMPROCEDENTE')) {
+    merito = 'improcedente';
+  }
+
+  // 2) Cumprimento ativo
+  let emCumprimento = CLASSES_CUMPRIMENTO.includes(Number(classeCodigo || 0));
+  if (emCumprimento) {
+    motivos.push(`classe ${classeCodigo}`);
+    fontes.push('datajud-classe');
+  }
+  if (!emCumprimento) {
+    const cs = detectarCumprimentoSentenca(movimentos);
+    emCumprimento = cs.ativo;
+    if (emCumprimento) {
+      motivos.push(cs.motivo || 'cumprimento movimento');
+      fontes.push('datajud-texto');
+    }
+  }
+  if (!emCumprimento && /CUMPRIMENTO\s+DE\s+SENTEN/.test(djenBlob)) {
+    emCumprimento = true;
+    motivos.push('DJEN cumprimento');
+    fontes.push('djen');
+  }
+
+  // 3) Trânsito 848
+  let dataTransito: string | null = null;
+  for (const mov of window25) {
+    const cod = Number(mov.codigo || mov.tipoCodigo || 0);
+    if (cod === CODIGO_TRANSITO) {
+      dataTransito = mov.dataHora || null;
+      break;
+    }
+  }
+  if (!dataTransito) {
+    for (const m of window25) {
+      const tx = `${m.nome || ''} ${m.complemento || ''}`.toUpperCase();
+      if (tx.includes('TRÂNSITO EM JULGADO') || tx.includes('TRANSITO EM JULGADO')) {
+        dataTransito = m.dataHora || null;
+        break;
+      }
+    }
+  }
+
+  const art523 =
+    /ART\.?\s*523|PAGAMENTO VOLUNT[AÁ]RIO|15 DIAS PARA CUMPRIMENTO|MULTA DE 10%/.test(blob);
+  const decursoSem =
+    /DECORRIDO O PRAZO SEM|SEM PAGAMENTO VOLUNT|SEM EFETIVA[CÇ][AÃ]O DO DEP[OÓ]SITO/.test(blob);
+
+  let diasApos: number | null = null;
+  if (dataTransito) {
+    const dataT = new Date(dataTransito);
+    if (!Number.isNaN(dataT.getTime())) {
+      diasApos = Math.floor((Date.now() - dataT.getTime()) / (1000 * 3600 * 24));
+    }
+  }
+
+  // 4) Pendente: procedente + sem fase 156 + (trânsito > 22d OU art.523+decurso)
+  let cumprimentoPendente = false;
+  if (isProcedente && !emCumprimento) {
+    if (diasApos != null && diasApos > 22) {
+      cumprimentoPendente = true;
+      motivos.push(`pendente: ${diasApos}d após trânsito sem classe 156`);
+      fontes.push('regra-cascata');
+    } else if (art523 && decursoSem) {
+      cumprimentoPendente = true;
+      motivos.push('pendente: art.523 + decurso sem pagamento');
+      fontes.push('regra-cascata');
+    }
+  }
+
+  return {
+    is_procedente: isProcedente,
+    procedente_motivo: procedenteMotivo,
+    em_cumprimento_sentenca: emCumprimento,
+    cumprimento_pendente_necessario: cumprimentoPendente,
+    data_transito_julgado: dataTransito,
+    merito_tipo: merito,
+    detalhes_execucao: {
+      motivos,
+      classeCodigo: classeCodigo ?? null,
+      diasAposTransito: diasApos,
+      fonte: [...new Set(fontes)],
+    },
+  };
+} {
+  const CODIGOS_PROCEDENCIA = [219, 221, 12223, 12329, 12330, 237, 238, 50094, 12185];
+  const CLASSES_CUMPRIMENTO = [156, 157, 12078, 12231, 12246, 15159, 1111];
+  const CODIGO_TRANSITO = 848;
+
+  if (!movimentos || movimentos.length === 0) {
+    // Fallback: tenta detectar cumprimento pelo nome do último movimento
+    const cn = detectarCumprimentoFromNome(ultimoNome);
+    return {
+      is_procedente: false,
+      procedente_motivo: null,
+      em_cumprimento_sentenca: cn.ativo,
+      cumprimento_pendente_necessario: false,
+      data_transito_julgado: null,
+    };
+  }
+
+  const sorted = [...movimentos].sort(
+    (a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
+  );
+  const window25 = sorted.slice(0, 25);
+
+  // 1) Procedência — códigos TPU
+  let isProcedente = false;
+  let procedenteMotivo: string | null = null;
+  for (const mov of window25) {
+    const cod = Number(mov.codigo || mov.tipoCodigo || 0);
+    if (CODIGOS_PROCEDENCIA.includes(cod)) {
+      isProcedente = true;
+      procedenteMotivo = mov.nome || `TPU ${cod}`;
+      break;
+    }
+  }
+  // Fallback textual se não achou por código
+  if (!isProcedente) {
+    const sentenca = detectarSentencaMerito(movimentos);
+    if (sentenca.tipo === 'procedente' || sentenca.tipo === 'parcial') {
+      isProcedente = true;
+      procedenteMotivo = sentenca.motivo || sentenca.tipo;
+    }
+  }
+
+  // 2) Cumprimento de sentença ativo — classe processual
+  let emCumprimento = CLASSES_CUMPRIMENTO.includes(Number(classeCodigo || 0));
+  if (!emCumprimento) {
+    const cs = detectarCumprimentoSentenca(movimentos);
+    emCumprimento = cs.ativo;
+  }
+
+  // 3) Trânsito em julgado — código 848
+  let dataTransito: string | null = null;
+  for (const mov of window25) {
+    const cod = Number(mov.codigo || mov.tipoCodigo || 0);
+    if (cod === CODIGO_TRANSITO) {
+      dataTransito = mov.dataHora || null;
+      break;
+    }
+  }
+  // Fallback textual
+  if (!dataTransito) {
+    for (const m of window25) {
+      const t = `${m.nome || ''} ${m.complemento || ''}`.toUpperCase();
+      if (t.includes('TRÂNSITO EM JULGADO') || t.includes('TRANSITO EM JULGADO')) {
+        dataTransito = m.dataHora || null;
+        break;
+      }
+    }
+  }
+
+  // 4) Cumprimento pendente necessário:
+  //    is_procedente + trânsito em julgado + NÃO está em classe cumprimento + prazo > 22 dias
+  let cumprimentoPendente = false;
+  if (isProcedente && !emCumprimento && dataTransito) {
+    try {
+      const dataTrans = new Date(dataTransito);
+      const hoje = new Date();
+      const diffDias = Math.floor((hoje.getTime() - dataTrans.getTime()) / (1000 * 3600 * 24));
+      if (diffDias > 22) {
+        cumprimentoPendente = true;
+      }
+    } catch {
+      /* data inválida — ignora */
+    }
+  }
+
+  return {
+    is_procedente: isProcedente,
+    procedente_motivo: procedenteMotivo,
+    em_cumprimento_sentenca: emCumprimento,
+    cumprimento_pendente_necessario: cumprimentoPendente,
+    data_transito_julgado: dataTransito,
+  };
+}
+
 export function detectarAtualizacaoPosRetorno(
   ultimoRetornoStr: string | null | undefined,
   movimentos: any[]

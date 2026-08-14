@@ -127,6 +127,12 @@ export interface LegalCase {
   cumprimento_sentenca_motivo?: string | null;
   cumprimento_sentenca_consultado_em?: string | null;
 
+  // Procedência e Cumprimento Pendente (Módulo Executivo)
+  is_procedente?: boolean;
+  procedente_motivo?: string | null;
+  cumprimento_pendente_necessario?: boolean;
+  data_transito_julgado?: string | null;
+
   // Auditoria DJEN
   djen_consultado_em?: string | null;
   djen_nova_comunicacao?: boolean;
@@ -331,6 +337,12 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     em_cumprimento_sentenca: toBool(data.em_cumprimento_sentenca),
     cumprimento_sentenca_motivo: data.cumprimento_sentenca_motivo,
     cumprimento_sentenca_consultado_em: data.cumprimento_sentenca_consultado_em,
+
+    // Procedência e Cumprimento Pendente (Módulo Executivo)
+    is_procedente: toBool(data.is_procedente),
+    procedente_motivo: data.procedente_motivo || null,
+    cumprimento_pendente_necessario: toBool(data.cumprimento_pendente_necessario),
+    data_transito_julgado: data.data_transito_julgado || null,
 
     // DJEN
     djen_consultado_em: data.djen_consultado_em,

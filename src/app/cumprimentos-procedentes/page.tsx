@@ -1,0 +1,334 @@
+"use client";
+
+/**
+ * Ações Procedentes e Cumprimentos de Sentença — aba exclusiva do módulo executivo.
+ * Mapeia: procedências, cumprimentos ativos e cumprimentos pendentes omitidos.
+ * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ */
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import {
+  Scale,
+  Loader2,
+  Search,
+  RefreshCcw,
+  ExternalLink,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  FileSearch,
+  Gavel,
+  ArrowUpDown,
+} from "lucide-react";
+import {
+  getCumprimentosEProcedentesAction,
+  enriquecerProcedenciaAction,
+} from "@/app/actions/case-actions";
+import { type LegalCase } from "@/lib/case-logic";
+import { openWhatsAppClient } from "@/lib/whatsapp-links";
+
+type FiltroAtivo = "todos" | "pendente" | "cumprimento" | "procedente";
+
+function casePhone(c?: LegalCase | null): string {
+  if (!c) return "";
+  return String(c.telefone || "").trim();
+}
+
+function diasDesdeTransito(dateStr?: string | null): number | null {
+  if (!dateStr) return null;
+  try {
+    const d = new Date(dateStr);
+    const hoje = new Date();
+    return Math.floor((hoje.getTime() - d.getTime()) / (1000 * 3600 * 24));
+  } catch {
+    return null;
+  }
+}
+
+export default function CumprimentosProcedentesPage() {
+  const { toast } = useToast();
+  const [cases, setCases] = useState<LegalCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [filtro, setFiltro] = useState<FiltroAtivo>("todos");
+  const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getCumprimentosEProcedentesAction();
+      if (res.success) {
+        setCases(res.data);
+      } else {
+        setCases([]);
+      }
+    } catch {
+      toast({ title: "Falha ao carregar", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    let base = [...cases];
+    if (term) {
+      base = base.filter((c) => {
+        const nome = String(c.cliente || "").toLowerCase();
+        const proto = String(c.protocolo || "").toLowerCase();
+        return nome.includes(term) || proto.includes(term);
+      });
+    }
+    if (filtro === "pendente") {
+      base = base.filter((c) => c.cumprimento_pendente_necessario);
+    } else if (filtro === "cumprimento") {
+      base = base.filter((c) => c.em_cumprimento_sentenca);
+    } else if (filtro === "procedente") {
+      base = base.filter((c) => c.is_procedente);
+    }
+    // Pendentes primeiro, depois por data de trânsito mais antiga
+    base.sort((a, b) => {
+      const pa = a.cumprimento_pendente_necessario ? 0 : a.em_cumprimento_sentenca ? 1 : 2;
+      const pb = b.cumprimento_pendente_necessario ? 0 : b.em_cumprimento_sentenca ? 1 : 2;
+      if (pa !== pb) return pa - pb;
+      const da = a.data_transito_julgado || "";
+      const db = b.data_transito_julgado || "";
+      return da.localeCompare(db);
+    });
+    return base;
+  }, [cases, q, filtro]);
+
+  const stats = useMemo(() => {
+    const pendentes = cases.filter((c) => c.cumprimento_pendente_necessario).length;
+    const cumprimentos = cases.filter((c) => c.em_cumprimento_sentenca).length;
+    const procedentes = cases.filter((c) => c.is_procedente).length;
+    return { total: cases.length, pendentes, cumprimentos, procedentes };
+  }, [cases]);
+
+  const handleEnriquecer = async (protocolo: string) => {
+    setEnriquecendo(protocolo);
+    try {
+      const res = await enriquecerProcedenciaAction(protocolo);
+      if (res.success) {
+        toast({ title: "Caso enriquecido", description: protocolo });
+        await load();
+      } else {
+        toast({ title: "Falha", description: (res as any).error || "Erro", variant: "destructive" });
+      }
+    } finally {
+      setEnriquecendo(null);
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+        {/* Header */}
+        <header className="shrink-0 border-b border-border/60 bg-card/80 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0">
+              <Scale size={20} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-black uppercase text-sm sm:text-base tracking-tight truncate">
+                Ações Procedentes e Cumprimentos
+              </h1>
+              <p className="text-[10px] text-muted-foreground font-medium truncate">
+                Módulo Executivo · Procedência · Cumprimento · Trânsito em Julgado
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end">
+            <Badge variant="outline" className="text-[9px] font-bold">
+              {stats.total} caso(s)
+            </Badge>
+            {stats.pendentes > 0 && (
+              <Badge className="bg-red-600 text-[9px] font-bold">
+                {stats.pendentes} pendente(s)
+              </Badge>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={load}
+              className="h-9 w-9 rounded-xl"
+            >
+              <RefreshCcw size={16} className={cn(loading && "animate-spin")} />
+            </Button>
+          </div>
+        </header>
+
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12">
+          {/* Filtros laterais */}
+          <aside className="lg:col-span-3 border-r border-border/50 flex flex-col min-h-0 bg-card/40">
+            <div className="p-3 border-b border-border/40">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Cliente ou CNJ"
+                  className="pl-9 h-10 rounded-xl bg-background border-border/60"
+                />
+              </div>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-2 space-y-1">
+                {[
+                  { key: "todos" as FiltroAtivo, label: "Todos", icon: Scale, count: stats.total, color: "" },
+                  { key: "pendente" as FiltroAtivo, label: "Cumprimento Pendente", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
+                  { key: "cumprimento" as FiltroAtivo, label: "Em Cumprimento", icon: Clock, count: stats.cumprimentos, color: "text-amber-600" },
+                  { key: "procedente" as FiltroAtivo, label: "Procedente", icon: CheckCircle2, count: stats.procedentes, color: "text-emerald-600" },
+                ].map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFiltro(f.key)}
+                    className={cn(
+                      "w-full text-left rounded-xl px-3 py-2.5 border transition-colors flex items-center gap-2",
+                      filtro === f.key
+                        ? "border-primary/40 bg-primary/10"
+                        : "border-transparent hover:bg-muted/50"
+                    )}
+                  >
+                    <f.icon size={14} className={f.color} />
+                    <span className="text-[12px] font-bold flex-1">{f.label}</span>
+                    <Badge variant="outline" className="text-[9px] font-bold">
+                      {f.count}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </aside>
+
+          {/* Lista principal */}
+          <section className="lg:col-span-9 flex flex-col min-h-0">
+            {loading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="animate-spin text-muted-foreground" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-6 text-center">
+                {cases.length === 0
+                  ? "Nenhum caso com procedência ou cumprimento detectado. Execute um scan em Tarefas/Processos para enriquecer os dados."
+                  : "Nenhum caso para este filtro."}
+              </div>
+            ) : (
+              <ScrollArea className="flex-1">
+                <div className="p-3 space-y-2">
+                  {filtered.map((c) => {
+                    const dias = diasDesdeTransito(c.data_transito_julgado);
+                    const isPendente = c.cumprimento_pendente_necessario;
+                    return (
+                      <div
+                        key={c.protocolo || c.id}
+                        className={cn(
+                          "rounded-xl border p-3 space-y-2 transition-colors hover:bg-muted/30",
+                          isPendente
+                            ? "border-red-500/40 bg-red-500/5"
+                            : c.em_cumprimento_sentenca
+                              ? "border-amber-500/30 bg-amber-500/5"
+                              : "border-border/50"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-black uppercase text-sm truncate">
+                              {c.cliente}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground tabular-nums truncate">
+                              {c.protocolo}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-1 shrink-0">
+                            {isPendente && (
+                              <Badge className="bg-red-600 text-[8px] font-black uppercase">
+                                Pendente
+                              </Badge>
+                            )}
+                            {c.em_cumprimento_sentenca && (
+                              <Badge className="bg-amber-600 text-[8px] font-black uppercase">
+                                Cumprimento
+                              </Badge>
+                            )}
+                            {c.is_procedente && (
+                              <Badge className="bg-emerald-600 text-[8px] font-black uppercase">
+                                Procedente
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+                          {c.procedente_motivo && (
+                            <span>Procedência: {c.procedente_motivo}</span>
+                          )}
+                          {c.cumprimento_sentenca_motivo && (
+                            <span>Cumprimento: {c.cumprimento_sentenca_motivo}</span>
+                          )}
+                          {c.data_transito_julgado && (
+                            <span>
+                              Trânsito:{" "}
+                              {new Date(c.data_transito_julgado).toLocaleDateString("pt-BR")}
+                              {dias !== null ? ` (${dias}d)` : ""}
+                            </span>
+                          )}
+                          {c.tribunal && <span>{c.tribunal}</span>}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 rounded-lg text-[10px] font-semibold gap-1"
+                            onClick={() => handleEnriquecer(c.protocolo)}
+                            disabled={enriquecendo === c.protocolo}
+                          >
+                            {enriquecendo === c.protocolo ? (
+                              <Loader2 size={10} className="animate-spin" />
+                            ) : (
+                              <FileSearch size={10} />
+                            )}
+                            Re-scannar
+                          </Button>
+                          {casePhone(c) && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 rounded-lg text-[10px] gap-1"
+                              onClick={() =>
+                                openWhatsAppClient({ phone: casePhone(c), text: "" })
+                              }
+                            >
+                              <ExternalLink size={10} /> WhatsApp
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
