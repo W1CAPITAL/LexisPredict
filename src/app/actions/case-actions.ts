@@ -1685,7 +1685,7 @@ export async function enriquecerTeorFilaOportunidadeAction(opts?: {
       const proto = String(c.protocolo || '').trim();
       if (!proto) continue;
       try {
-        const r = await scanSingleCaseAction(proto, 'both');
+        const r = await scanSingleCaseAction(proto, { mode: 'both', fast: true });
         done++;
         if (r && (r as any).success !== false) enriched++;
       } catch {
