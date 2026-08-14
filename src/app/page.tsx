@@ -77,6 +77,7 @@ import {
   Tooltip as RechartsTooltip
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { computeCarteiraKpis } from '@/lib/carteira-kpis';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { RevisionalJuridicoKpis } from "@/components/dashboard/revisional-juridico-kpis";
@@ -136,8 +137,12 @@ export default function Dashboard() {
   };
 
   const metrics = useMemo(() => {
+    const kpis = computeCarteiraKpis(cases as any);
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
+    const countEncerradoCarteira = kpis.encerradosCarteira;
+    // Baixas tribunal em TODA a carteira (ativos + já marcados ENCERRADO no gabinete)
+    const countEncerradoTribunal = kpis.baixasTribunal;
    
     const countVencido = ativos.filter(c => statusEfetivo(c) === 'Vencido' || c.status === 'Caso Crítico' || c.statusManual === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => statusEfetivo(c) === 'É Hoje').length;
@@ -147,7 +152,6 @@ export default function Dashboard() {
     
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento || !!c.tem_atualizacao_pos_retorno).length;
-    const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countEditadosApp = countEditadosAppSemana(cases as any);
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
     const countAuditadosHojeN = countEditadosAppHoje(cases as any);
@@ -192,7 +196,9 @@ export default function Dashboard() {
       activeTotal, countVencido, countHoje, countAtencao, countSaudavel, countSemPrazo,
       riskScore, riskLabel, riskColor, statusData,
       countNovoAndamento, rateAndamento,
-      countEncerradoTribunal, countBA, countCumprimento, countAuditadosSemana, countAuditadosTribunal, countEditadosApp, countAuditadosHoje: countAuditadosHojeN,
+      countEncerradoTribunal,
+      countEncerradoCarteira,
+      baixasTribunalAindaAtivos: kpis.baixasTribunalAindaAtivos, countBA, countCumprimento, countAuditadosSemana, countAuditadosTribunal, countEditadosApp, countAuditadosHoje: countAuditadosHojeN,
       countProcedente, countImprocedente, countAudiencia
     };
   }, [cases, t, baHitDigits]);
@@ -324,6 +330,7 @@ export default function Dashboard() {
                   vencidos={metrics.countVencido}
                   novidades={metrics.countNovoAndamento}
                   baixas={metrics.countEncerradoTribunal}
+                  encerradosCarteira={metrics.countEncerradoCarteira}
                   hoje={metrics.countHoje}
                   riskScore={metrics.riskScore}
                   cases={cases}
@@ -338,7 +345,8 @@ export default function Dashboard() {
                 <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} />
                 <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" />
                 <StatCard title="Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} />
-                <StatCard title="Baixas" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color="success" />
+                <StatCard title="Baixas tribunal" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color="success" />
+                <StatCard title="Encerrados carteira" value={loading ? "..." : metrics.countEncerradoCarteira} icon={<Gavel />} color="success" />
                 <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
               </section>
 

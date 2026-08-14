@@ -51,6 +51,7 @@ import { Badge } from "@/components/ui/badge";
 import { BiCompliancePanel } from "@/components/dashboard/bi-compliance-panel";
 import { useAppStore } from "@/store/use-app-store";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { computeCarteiraKpis } from "@/lib/carteira-kpis";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSinalCapa } from "@/lib/sinal-capa";
 import { calcularProbabilidadeEncerramento } from "@/lib/probabilidade-encerramento";
@@ -112,14 +113,16 @@ export default function UnifiedReport() {
   }, [mounted, authLoading, setCases]);
 
   const metrics = useMemo(() => {
+    const kpis = computeCarteiraKpis(cases as any);
     const ativos = cases.filter(c => !isCasoEncerrado(c));
     const activeTotal = ativos.length;
+    const countEncerradoCarteira = kpis.encerradosCarteira;
+    const countEncerradoTribunal = kpis.baixasTribunal;
 
     const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
     const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
 
     const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
-    const countEncerradoTribunal = ativos.filter(c => !!c.datajud_encerrado_tribunal).length;
     const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
     const countAtendidosSemana = countAtendidosNoPeriodo(cases as any, periodo);
@@ -213,6 +216,7 @@ export default function UnifiedReport() {
       countHoje,
       countNovoAndamento,
       countEncerradoTribunal,
+      countEncerradoCarteira,
       countBA,
       countCumprimento,
       countAtendidosSemana,
@@ -251,6 +255,7 @@ export default function UnifiedReport() {
       `Vencidos: ${metrics.countVencido} | É hoje: ${metrics.countHoje}`,
       `Novidades (andamento): ${metrics.countNovoAndamento}`,
       `Baixas tribunal: ${metrics.countEncerradoTribunal}`,
+      `Encerrados carteira: ${metrics.countEncerradoCarteira}`,
       `Busca e apreensão: ${metrics.countBA}`,
       `Cumprimento de sentença: ${metrics.countCumprimento}`,
       `Atendimentos nesta semana (${metrics.semanaLabel}): ${metrics.countAtendidosSemana}`,
@@ -494,6 +499,7 @@ export default function UnifiedReport() {
            <KpiCard label="Risco da Carteira" value={`${metrics.riskScore}%`} tone={metrics.riskScore > 50 ? "danger" : "ok"} />
            <KpiCard label="Busca e Apreensão" value={metrics.countBA} />
            <KpiCard label="Baixas Tribunal" value={metrics.countEncerradoTribunal} />
+           <KpiCard label="Encerrados carteira" value={metrics.countEncerradoCarteira} />
            <KpiCard label="Fase Executiva" value={metrics.countCumprimento} />
         </section>
 

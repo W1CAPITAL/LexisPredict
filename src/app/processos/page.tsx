@@ -15,6 +15,7 @@ import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { computeCarteiraKpis } from "@/lib/carteira-kpis";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase } from "@/lib/case-logic";
 import {
@@ -327,6 +328,7 @@ export default function ProcessosEmpresaPage() {
   const editadosApp = useMemo(() => countEditadosAppSemana(cases), [cases]);
   const auditadosHoje = useMemo(() => countAuditadosHoje(cases), [cases]);
   const ativos = useMemo(() => cases.filter((c) => !isCasoEncerrado(c)), [cases]);
+  const kpisCarteira = useMemo(() => computeCarteiraKpis(cases as any), [cases]);
   const vencidos = useMemo(() => ativos.filter((c) => c.status === "Vencido" || c.status === "Caso Crítico"), [ativos]);
 
   const topAtendentes = useMemo(() => getTopAtendentes(cases, users, 5), [cases, users]);
@@ -442,6 +444,9 @@ export default function ProcessosEmpresaPage() {
                 <div className="flex items-center gap-2">
                   <Eye size={16} className="text-primary" />
                   <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Todos os processos da empresa</h3>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Ativos {kpisCarteira.ativos} · Encerrados carteira {kpisCarteira.encerradosCarteira} · Baixas tribunal {kpisCarteira.baixasTribunal}
+                    </p>
                 </div>
                 <div className="flex items-center gap-2 flex-1 sm:flex-none sm:min-w-[320px]">
                   <div className="relative flex-1">

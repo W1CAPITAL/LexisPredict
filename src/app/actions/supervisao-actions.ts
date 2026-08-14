@@ -28,6 +28,8 @@ export type SupervisaoUsuarioGrupo = {
   total: number;
   ativos: number;
   encerrados: number;
+  /** Baixa/trânsito DataJud/DJEN */
+  baixasTribunal: number;
   vencidos: number;
   novidades: number;
   atendimentos: number;
@@ -79,6 +81,7 @@ function emptySnapshot(periodoLabel = "Esta semana"): SupervisaoSnapshot {
     total: 0,
     ativos: 0,
     encerrados: 0,
+    baixasTribunal: 0,
     vencidos: 0,
     novidades: 0,
     ba: 0,
@@ -140,6 +143,7 @@ export async function getSupervisaoSnapshotAction(
 
     let ativos = 0,
       encerrados = 0,
+      baixasTribunal = 0,
       vencidos = 0,
       novidades = 0,
       ba = 0,
@@ -172,6 +176,13 @@ export async function getSupervisaoSnapshotAction(
       const encerrado = isCasoEncerrado(c);
       if (encerrado) encerrados++;
       else ativos++;
+      if (
+        c.datajud_encerrado_tribunal ||
+        c.evento_tipo === 'transito_ou_baixa' ||
+        c.evento_tipo === 'transito_baixa'
+      ) {
+        baixasTribunal++;
+      }
 
       const status = String(c.status || 'Sem Prazo');
       if (/vencido|cr[ií]tico/i.test(status)) vencidos++;

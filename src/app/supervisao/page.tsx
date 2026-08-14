@@ -249,7 +249,8 @@ export default function SupervisaoPage() {
           </div>
 <KpiCard icon={<Briefcase size={16} />} label="Processos" value={snap.total} tone="primary" />
                   <KpiCard icon={<Activity size={16} />} label="Ativos" value={snap.ativos} />
-                  <KpiCard icon={<CheckCircle2 size={16} />} label="Encerrados" value={snap.encerrados} tone="ok" />
+                  <KpiCard icon={<CheckCircle2 size={16} />} label="Encerrados carteira" value={snap.encerrados} tone="ok" hint="Status ENCERRADO/ARQUIVADO no gabinete" />
+                  <KpiCard icon={<Gavel size={16} />} label="Baixas tribunal" value={(snap as any).baixasTribunal ?? 0} tone="ok" hint="DataJud/DJEN · trânsito/baixa" />
                   <KpiCard icon={<ShieldAlert size={16} />} label="Vencidos" value={snap.vencidos} tone={snap.vencidos > 0 ? "danger" : "default"} />
                   <KpiCard icon={<Sparkles size={16} />} label="Novidades" value={snap.novidades} tone={snap.novidades > 0 ? "warn" : "default"} />
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />

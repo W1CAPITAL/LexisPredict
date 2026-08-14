@@ -29,6 +29,7 @@ import {
   Signal,
   Pencil,
   Search,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -133,6 +134,8 @@ export type LexisDashboardProps = {
   vencidos: number;
   novidades: number;
   baixas?: number;
+  /** Encerrados operacionais (status ENCERRADO na carteira). */
+  encerradosCarteira?: number;
   hoje?: number;
   riskScore?: number;
   className?: string;
@@ -152,6 +155,7 @@ export function Dashboard({
   vencidos,
   novidades,
   baixas = 0,
+  encerradosCarteira = 0,
   hoje = 0,
   riskScore,
   className,
@@ -200,7 +204,8 @@ export function Dashboard({
       { name: "Ativos", v: ativos ?? totalProcessos },
       { name: "Novidades", v: novidades },
       { name: "Vencidos", v: vencidos },
-      { name: "Baixas", v: baixas },
+      { name: "Baixas tribunal", v: baixas },
+      { name: "Enc. carteira", v: encerradosCarteira },
       { name: "Hoje", v: hoje },
     ],
     [totalProcessos, ativos, novidades, vencidos, baixas, hoje]
@@ -246,8 +251,15 @@ export function Dashboard({
       label: "Baixas tribunal",
       value: baixas,
       icon: <Gavel size={16} />,
-      tone: "ok",
-      hint: "Encerrados no CNJ",
+      tone: baixas > 0 ? "ok" : "default",
+      hint: "DataJud/DJEN · trânsito/baixa (ativos + encerrados)",
+    },
+    {
+      label: "Encerrados carteira",
+      value: encerradosCarteira,
+      icon: <CheckCircle2 size={16} />,
+      tone: encerradosCarteira > 0 ? "ok" : "default",
+      hint: "Marcados ENCERRADO/ARQUIVADO no gabinete",
     },
     {
       label: "Atendidos sem.",

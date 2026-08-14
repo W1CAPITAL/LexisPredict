@@ -46,12 +46,16 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
           alerta: 0,
           ativos: 0,
           encerrados: 0,
+          baixasTribunal: 0,
           score: 0
         };
       }
 
       const group = groups[officeName];
       group.total++;
+      if (c.datajud_encerrado_tribunal || c.evento_tipo === 'transito_ou_baixa' || c.evento_tipo === 'transito_baixa') {
+        group.baixasTribunal++;
+      }
 
       if (isCasoEncerrado(c)) {
         group.encerrados++;
@@ -94,7 +98,8 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
               <th className="px-8 py-4">Escritório / Unidade</th>
               <th className="px-8 py-4 text-center">Avaliação Neural</th>
               <th className="px-8 py-4 text-center">Vencidos</th>
-              <th className="px-8 py-4 text-center">Baixas</th>
+              <th className="px-8 py-4 text-center">Enc. carteira</th>
+              <th className="px-8 py-4 text-center">Baixa tribunal</th>
               <th className="px-8 py-4 text-right">Eficiência</th>
             </tr>
           </thead>
@@ -137,6 +142,14 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
                     office.encerrados > 0 ? "text-emerald-600" : "text-muted-foreground/30"
                   )}>
                     {office.encerrados}
+                  </span>
+                </td>
+                <td className="px-8 py-5 text-center">
+                  <span className={cn(
+                    "text-[11px] font-black tabular-nums",
+                    (office as any).baixasTribunal > 0 ? "text-amber-600" : "text-muted-foreground/30"
+                  )}>
+                    {(office as any).baixasTribunal || 0}
                   </span>
                 </td>
                 <td className="px-8 py-5 text-right">
