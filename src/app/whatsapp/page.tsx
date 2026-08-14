@@ -1144,47 +1144,47 @@ function WhatsAppTerminalInner() {
                       <Loader2 className="animate-spin" />
                     </div>
                   )}
-                  {!loading &&
-                    {listSource === "evolution"
-                      ? evoChats
-                          .filter((ch) => {
-                            const qq = (typeof q === "string" ? q : "").trim().toLowerCase();
-                            if (!qq) return true;
-                            return (
-                              ch.name.toLowerCase().includes(qq) ||
-                              ch.jid.toLowerCase().includes(qq) ||
-                              (ch.lastMessage || "").toLowerCase().includes(qq)
-                            );
-                          })
-                          .map((ch) => (
-                            <button
-                              key={ch.jid}
-                              type="button"
-                              onClick={() => void selectEvolutionChat(ch)}
-                              className={cn(
-                                "w-full text-left rounded-xl px-3 py-2.5 border transition-colors",
-                                selectedEvoJid === ch.jid
-                                  ? "border-emerald-500/40 bg-emerald-500/10"
-                                  : "border-transparent hover:bg-muted/50"
-                              )}
-                            >
-                              <div className="flex items-start gap-2">
-                                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                                  {ch.isGroup ? <UsersRound size={14} /> : <User size={14} />}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[12px] font-black uppercase truncate">{ch.name}</p>
-                                  <p className="text-[9px] text-muted-foreground truncate">
-                                    {ch.isGroup ? "Grupo" : "Contato"} · {ch.jid.slice(0, 32)}
-                                  </p>
-                                  {ch.lastMessage ? (
-                                    <p className="text-[10px] text-muted-foreground truncate">{ch.lastMessage}</p>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </button>
-                          ))
-                      : contacts.map((c) => {
+                  {!loading && listSource === "evolution" &&
+                    evoChats
+                      .filter((ch) => {
+                        const qq = (typeof q === "string" ? q : "").trim().toLowerCase();
+                        if (!qq) return true;
+                        return (
+                          ch.name.toLowerCase().includes(qq) ||
+                          ch.jid.toLowerCase().includes(qq) ||
+                          (ch.lastMessage || "").toLowerCase().includes(qq)
+                        );
+                      })
+                      .map((ch) => (
+                        <button
+                          key={ch.jid}
+                          type="button"
+                          onClick={() => void selectEvolutionChat(ch)}
+                          className={cn(
+                            "w-full text-left rounded-xl px-3 py-2.5 border transition-colors",
+                            selectedEvoJid === ch.jid
+                              ? "border-emerald-500/40 bg-emerald-500/10"
+                              : "border-transparent hover:bg-muted/50"
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                              {ch.isGroup ? <UsersRound size={14} /> : <User size={14} />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[12px] font-black uppercase truncate">{ch.name}</p>
+                              <p className="text-[9px] text-muted-foreground truncate">
+                                {ch.isGroup ? "Grupo" : "Contato"} · {ch.jid.slice(0, 32)}
+                              </p>
+                              {ch.lastMessage ? (
+                                <p className="text-[10px] text-muted-foreground truncate">{ch.lastMessage}</p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                  {!loading && listSource === "carteira" &&
+                    contacts.map((c) => {
                       const badge = signalBadge(c);
                       const active = selected?.protocolo === c.protocolo;
                       return (
@@ -1228,9 +1228,16 @@ function WhatsAppTerminalInner() {
                         </button>
                       );
                     })}
-                      }
-                </div>
-
+                  {!loading && listSource === "evolution" && evoChats.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
+                      Nenhum chat/grupo. Clique em Atualizar (instância Evolution open).
+                    </p>
+                  )}
+                  {!loading && listSource === "carteira" && contacts.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
+                      Nenhum processo com telefone na carteira.
+                    </p>
+                  )}
                 </div>
               </ScrollArea>
             </aside>
