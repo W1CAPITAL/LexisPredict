@@ -489,7 +489,7 @@ export async function fetchEvolutionChatByJidAction(jid: string) {
     const messages = (res.messages || []).map((m) => ({
       id: m.id,
       direction: m.fromMe ? ('out' as const) : ('in' as const),
-      body: m.body,
+      body: m.text || (m as any).body || "",
       at: m.timestamp,
       source: 'evolution',
     }));

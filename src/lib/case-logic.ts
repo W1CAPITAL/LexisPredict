@@ -132,6 +132,7 @@ export interface LegalCase {
   procedente_motivo?: string | null;
   cumprimento_pendente_necessario?: boolean;
   data_transito_julgado?: string | null;
+  detalhes_execucao?: Record<string, any> | null;
 
   // Auditoria DJEN
   djen_consultado_em?: string | null;
@@ -343,6 +344,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     procedente_motivo: data.procedente_motivo || null,
     cumprimento_pendente_necessario: toBool(data.cumprimento_pendente_necessario),
     data_transito_julgado: data.data_transito_julgado || null,
+    detalhes_execucao: data.detalhes_execucao || null,
 
     // DJEN
     djen_consultado_em: data.djen_consultado_em,

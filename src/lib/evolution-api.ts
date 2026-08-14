@@ -518,6 +518,7 @@ export type EvolutionChatMessage = {
   id: string;
   fromMe: boolean;
   text: string;
+  body?: string;
   timestamp: string;
   remoteJid?: string;
   pushName?: string;
