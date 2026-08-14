@@ -464,3 +464,37 @@ export async function importEvolutionHistoryBulkAction(opts?: {
     };
   }
 }
+
+export async function listEvolutionChatsAction(opts?: { onlyGroups?: boolean; limit?: number }) {
+  try {
+    const { listEvolutionChats } = await import('@/lib/evolution-api');
+    const res = await listEvolutionChats(opts);
+    return {
+      success: res.ok,
+      chats: res.chats || [],
+      error: res.error,
+    };
+  } catch (e: any) {
+    return { success: false, chats: [], error: e?.message || String(e) };
+  }
+}
+
+export async function fetchEvolutionChatByJidAction(jid: string) {
+  try {
+    const { fetchMessagesByRemoteJid } = await import('@/lib/evolution-api');
+    const res = await fetchMessagesByRemoteJid(jid, { limit: 60 });
+    if (!res.ok) return { success: false, messages: [], error: res.error };
+    const messages = (res.messages || []).map((m) => ({
+      id: m.id,
+      direction: m.fromMe ? ('out' as const) : ('in' as const),
+      body: m.body,
+      at: m.timestamp,
+      source: 'evolution',
+    }));
+    // ordem cronológica
+    messages.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+    return { success: true, messages, jid };
+  } catch (e: any) {
+    return { success: false, messages: [], error: e?.message || String(e) };
+  }
+}

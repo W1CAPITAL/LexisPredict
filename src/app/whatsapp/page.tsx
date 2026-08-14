@@ -21,6 +21,7 @@ import {
   FileSearch,
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
+  UsersRound,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,8 @@ import {
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
   importEvolutionHistoryBulkAction,
+  listEvolutionChatsAction,
+  fetchEvolutionChatByJidAction,
 } from "@/app/actions/whatsapp-actions";
 import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
@@ -178,6 +181,15 @@ function WhatsAppTerminalInner() {
   const [djenComunicacoes, setDjenComunicacoes] = useState<any[]>([]);
   const [loadingTribunal, setLoadingTribunal] = useState(false);
   const [selectedMotor, setSelectedMotor] = useState<string>("omni");
+  const [listSource, setListSource] = useState<"carteira" | "evolution">("carteira");
+  const [evoChats, setEvoChats] = useState<
+    { jid: string; name: string; isGroup: boolean; lastMessage?: string }[]
+  >([]);
+  const [evoLoading, setEvoLoading] = useState(false);
+  const [evoOnlyGroups, setEvoOnlyGroups] = useState(true);
+  const [selectedEvoJid, setSelectedEvoJid] = useState<string | null>(null);
+  const [selectedEvoName, setSelectedEvoName] = useState<string>("");
+
   useEffect(() => {
     try {
       const m = resolveMotorId(loadPreferredMotor());
@@ -365,7 +377,52 @@ function WhatsAppTerminalInner() {
     }
   }, []);
 
+  const loadEvolutionChats = useCallback(async (onlyGroups?: boolean) => {
+    setEvoLoading(true);
+    try {
+      const res = await listEvolutionChatsAction({
+        onlyGroups: onlyGroups ?? evoOnlyGroups,
+        limit: 300,
+      });
+      if (!res.success) {
+        toast({ title: "Evolution — chats", description: res.error || "Falha", variant: "destructive" });
+        setEvoChats([]);
+        return;
+      }
+      setEvoChats(res.chats || []);
+      toast({ title: "Chats Evolution", description: `${(res.chats || []).length} conversa(s)` });
+    } catch (e: any) {
+      toast({ title: "Erro chats", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setEvoLoading(false);
+    }
+  }, [evoOnlyGroups, toast]);
+
+  const selectEvolutionChat = async (chat: { jid: string; name: string; isGroup: boolean }) => {
+    setSelected(null);
+    setSelectedEvoJid(chat.jid);
+    setSelectedEvoName(chat.name || chat.jid);
+    setDraft("");
+    setAiDraft(null);
+    setTribunalMovimentos([]);
+    setDjenComunicacoes([]);
+    setWaScripts([]);
+    setHistLoading(true);
+    try {
+      const res = await fetchEvolutionChatByJidAction(chat.jid);
+      if (res.success) setHistory(res.messages || []);
+      else {
+        setHistory([]);
+        toast({ title: "Histórico", description: res.error || "Sem mensagens", variant: "destructive" });
+      }
+    } finally {
+      setHistLoading(false);
+    }
+  };
+
   const selectCase = (c: LegalCase) => {
+    setSelectedEvoJid(null);
+    setSelectedEvoName("");
     setSelected(c);
     setPhoneDraft(casePhone(c) || "");
     setDraft("");
@@ -884,7 +941,20 @@ function WhatsAppTerminalInner() {
   };
 
   const sendViaEvolution = async () => {
-    if (!selected || casePhoneDigits(selected).length < 8 || !draft.trim()) return;
+    const evoTarget = selectedEvoJid;
+    const caseTarget =
+      selected && casePhoneDigits(selected).length >= 8 ? casePhone(selected) : "";
+    const to = evoTarget || caseTarget;
+    if (!to || !draft.trim()) {
+      toast({
+        title: "Destino",
+        description: evoTarget
+          ? "Mensagem vazia"
+          : "Selecione um processo com telefone ou um chat Evolution",
+        variant: "destructive",
+      });
+      return;
+    }
     if (sending) return;
     if (!confirmIfDuplicate()) {
       toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
@@ -893,10 +963,15 @@ function WhatsAppTerminalInner() {
     setSending(true);
     try {
       const res = await Promise.race([
-        sendWhatsAppAction(casePhone(selected), draft.trim()),
+        sendWhatsAppAction(to, draft.trim()),
         new Promise<{ success: false; message: string }>((resolve) =>
           setTimeout(
-            () => resolve({ success: false, message: "Tempo esgotado (90s). Confira Evolution Manager (estado open) e EVOLUTION_INSTANCE=Lexis." }),
+            () =>
+              resolve({
+                success: false,
+                message:
+                  "Tempo esgotado (90s). Confira Evolution Manager (estado open) e EVOLUTION_INSTANCE=Lexis.",
+              }),
             90000
           )
         ),
@@ -912,7 +987,10 @@ function WhatsAppTerminalInner() {
         };
         const next = [...history.filter((h) => h.direction !== "system"), msg];
         setHistory(next);
-        persistLocal(casePhone(selected) || selected.protocolo, next);
+        if (selected) {
+          persistLocal(casePhone(selected) || selected.protocolo, next);
+          void loadHistory(selected);
+        }
         setDraft("");
         if ((res as any).persisted === false) {
           toast({
@@ -923,7 +1001,6 @@ function WhatsAppTerminalInner() {
         } else {
           toast({ title: "Enviado e gravado no histórico" });
         }
-        void loadHistory(selected);
       } else {
         setEvolutionOk(false);
         toast({
@@ -936,7 +1013,7 @@ function WhatsAppTerminalInner() {
       setEvolutionOk(false);
       toast({
         title: "Falha no envio",
-        description: e?.message || "Configure EVOLUTION_* ou use wa.me",
+        description: e?.message || String(e),
         variant: "destructive",
       });
     } finally {
@@ -1034,7 +1111,33 @@ function WhatsAppTerminalInner() {
                   />
                 </div>
               </div>
-              <ScrollArea className="flex-1">
+              
+                <div className="px-3 pt-2 space-y-2">
+                  <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border/50">
+                    <button type="button" onClick={() => setListSource("carteira")}
+                      className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "carteira" ? "bg-background shadow" : "text-muted-foreground")}>
+                      Processos
+                    </button>
+                    <button type="button" onClick={() => { setListSource("evolution"); void loadEvolutionChats(evoOnlyGroups); }}
+                      className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "evolution" ? "bg-background shadow" : "text-muted-foreground")}>
+                      WA / Grupos
+                    </button>
+                  </div>
+                  {listSource === "evolution" && (
+                    <div className="flex items-center gap-2 pb-1">
+                      <button type="button" className="text-[9px] font-bold uppercase text-muted-foreground"
+                        onClick={() => { setEvoOnlyGroups((v) => { const n = !v; void loadEvolutionChats(n); return n; }); }}>
+                        {evoOnlyGroups ? "Só grupos" : "Todos os chats"}
+                      </button>
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase ml-auto"
+                        disabled={evoLoading} onClick={() => void loadEvolutionChats(evoOnlyGroups)}>
+                        {evoLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCcw size={12} />}
+                        Atualizar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+<ScrollArea className="flex-1">
                 <div className="p-2 space-y-1">
                   {loading && (
                     <div className="flex justify-center py-10 text-muted-foreground">
@@ -1042,7 +1145,46 @@ function WhatsAppTerminalInner() {
                     </div>
                   )}
                   {!loading &&
-                    contacts.map((c) => {
+                    {listSource === "evolution"
+                      ? evoChats
+                          .filter((ch) => {
+                            const qq = (typeof q === "string" ? q : "").trim().toLowerCase();
+                            if (!qq) return true;
+                            return (
+                              ch.name.toLowerCase().includes(qq) ||
+                              ch.jid.toLowerCase().includes(qq) ||
+                              (ch.lastMessage || "").toLowerCase().includes(qq)
+                            );
+                          })
+                          .map((ch) => (
+                            <button
+                              key={ch.jid}
+                              type="button"
+                              onClick={() => void selectEvolutionChat(ch)}
+                              className={cn(
+                                "w-full text-left rounded-xl px-3 py-2.5 border transition-colors",
+                                selectedEvoJid === ch.jid
+                                  ? "border-emerald-500/40 bg-emerald-500/10"
+                                  : "border-transparent hover:bg-muted/50"
+                              )}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                  {ch.isGroup ? <UsersRound size={14} /> : <User size={14} />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[12px] font-black uppercase truncate">{ch.name}</p>
+                                  <p className="text-[9px] text-muted-foreground truncate">
+                                    {ch.isGroup ? "Grupo" : "Contato"} · {ch.jid.slice(0, 32)}
+                                  </p>
+                                  {ch.lastMessage ? (
+                                    <p className="text-[10px] text-muted-foreground truncate">{ch.lastMessage}</p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                      : contacts.map((c) => {
                       const badge = signalBadge(c);
                       const active = selected?.protocolo === c.protocolo;
                       return (
@@ -1086,26 +1228,28 @@ function WhatsAppTerminalInner() {
                         </button>
                       );
                     })}
+                      }
+                </div>
+
                 </div>
               </ScrollArea>
             </aside>
 
             {/* Chat + ações */}
             <section className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-0">
-              {!selected ? (
+              {!selected && !selectedEvoJid ? (
                 <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-6 text-center">
-                  Selecione um cliente à esquerda (ou abra pelo botão WhatsApp em
-                  Tarefas/Processos).
+                  Selecione um cliente (Processos) ou um chat/grupo (WA / Grupos) à esquerda.
                 </div>
               ) : (
                 <>
                   <div className="shrink-0 border-b border-border/40 px-4 py-3 flex flex-wrap items-center gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-black uppercase text-sm truncate">
-                        {selected.cliente}
+                        {selected ? selected.cliente : selectedEvoName}
                       </p>
                       <p className="text-[10px] text-muted-foreground tabular-nums truncate">
-                        {selected.protocolo} · {casePhone(selected) || "sem telefone — cadastre em Processos"}
+                        {selected ? `${selected.protocolo} · ${casePhone(selected) || "sem telefone"}` : (selectedEvoJid || "")}
                         {selected.ultimoRetorno
                           ? ` · retorno ${selected.ultimoRetorno}`
                           : ""}

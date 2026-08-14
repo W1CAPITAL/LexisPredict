@@ -804,3 +804,224 @@ export async function fetchChatMessagesFromEvolution(
     tried,
   };
 }
+
+
+/** Lista chats da instância Evolution (1:1 e grupos @g.us). */
+export type EvolutionChatItem = {
+  jid: string;
+  name: string;
+  isGroup: boolean;
+  lastMessage?: string;
+  unread?: number;
+  updatedAt?: string | null;
+};
+
+export async function listEvolutionChats(opts?: {
+  onlyGroups?: boolean;
+  limit?: number;
+}): Promise<{ ok: boolean; chats: EvolutionChatItem[]; error?: string }> {
+  const { baseUrl, apiKey, instance } = getEvolutionConfig();
+  if (!baseUrl || !apiKey) {
+    return { ok: false, chats: [], error: 'Evolution não configurada' };
+  }
+  await wakeEvolutionInstance().catch(() => null);
+
+  const headers = evolutionHeaders(apiKey);
+  const inst = encodeURIComponent(instance);
+  const limit = Math.min(500, Math.max(20, opts?.limit ?? 200));
+
+  async function tryPost(path: string, body: any) {
+    const r = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(45000),
+    });
+    const json = await r.json().catch(() => null);
+    return { ok: r.ok, status: r.status, json };
+  }
+  async function tryGet(path: string) {
+    const r = await fetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(45000),
+    });
+    const json = await r.json().catch(() => null);
+    return { ok: r.ok, status: r.status, json };
+  }
+
+  const attempts = [
+    () => tryPost(`/chat/findChats/${inst}`, {}),
+    () => tryGet(`/chat/findChats/${inst}`),
+    () => tryPost(`/chat/findChats/${inst}`, { where: {} }),
+    () => tryPost(`/chat/findChats/${inst}`, { limit }),
+  ];
+
+  let arr: any[] = [];
+  for (const fn of attempts) {
+    try {
+      const r = await fn();
+      if (!r.ok) continue;
+      const raw = r.json;
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.chats)
+          ? raw.chats
+          : Array.isArray(raw?.data)
+            ? raw.data
+            : Array.isArray(raw?.records)
+              ? raw.records
+              : [];
+      if (list.length) {
+        arr = list;
+        break;
+      }
+    } catch {
+      /* next */
+    }
+  }
+
+  if (!arr.length) {
+    return {
+      ok: false,
+      chats: [],
+      error:
+        'Nenhum chat retornado pela Evolution (findChats). Instância pode estar fria ou sem histórico sincronizado.',
+    };
+  }
+
+  const chats: EvolutionChatItem[] = [];
+  const seen = new Set<string>();
+  for (const ch of arr) {
+    const jid = String(
+      ch?.id || ch?.remoteJid || ch?.key?.remoteJid || ch?.jid || ''
+    ).trim();
+    if (!jid || seen.has(jid)) continue;
+    seen.add(jid);
+    const isGroup = jid.includes('@g.us') || !!ch?.isGroup || ch?.type === 'group';
+    if (opts?.onlyGroups && !isGroup) continue;
+    const name = String(
+      ch?.name ||
+        ch?.pushName ||
+        ch?.subject ||
+        ch?.notify ||
+        (isGroup ? jid.split('@')[0] : jid.split('@')[0]) ||
+        jid
+    ).slice(0, 120);
+    const lastMessage = String(
+      ch?.lastMessage?.message?.conversation ||
+        ch?.lastMessage?.message?.extendedTextMessage?.text ||
+        ch?.lastMsg ||
+        ch?.msg ||
+        ''
+    ).slice(0, 160);
+    chats.push({
+      jid,
+      name,
+      isGroup,
+      lastMessage: lastMessage || undefined,
+      unread: typeof ch?.unreadCount === 'number' ? ch.unreadCount : undefined,
+      updatedAt: ch?.updatedAt || ch?.conversationTimestamp || null,
+    });
+  }
+
+  chats.sort((a, b) => {
+    if (a.isGroup !== b.isGroup) return a.isGroup ? -1 : 1; // grupos primeiro se onlyGroups false still ok
+    return (a.name || '').localeCompare(b.name || '', 'pt-BR');
+  });
+
+  return { ok: true, chats: chats.slice(0, limit) };
+}
+
+/** Histórico por remoteJid (grupo ou 1:1), sem filtrar por telefone de processo. */
+export async function fetchMessagesByRemoteJid(
+  remoteJid: string,
+  opts?: { limit?: number }
+): Promise<{ ok: boolean; messages: EvolutionChatMessage[]; error?: string }> {
+  const { baseUrl, apiKey, instance } = getEvolutionConfig();
+  if (!baseUrl || !apiKey) {
+    return { ok: false, messages: [], error: 'Evolution não configurada' };
+  }
+  const jid = String(remoteJid || '').trim();
+  if (!jid.includes('@')) {
+    return { ok: false, messages: [], error: 'JID inválido' };
+  }
+
+  await wakeEvolutionInstance().catch(() => null);
+  const headers = evolutionHeaders(apiKey);
+  const inst = encodeURIComponent(instance);
+  const limit = Math.min(100, Math.max(10, opts?.limit ?? 50));
+
+  async function tryPost(path: string, body: any) {
+    const r = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(40000),
+    });
+    const json = await r.json().catch(() => null);
+    return { ok: r.ok, json };
+  }
+
+  const bodies = [
+    { where: { key: { remoteJid: jid } }, page: 1, offset: limit },
+    { where: { key: { remoteJid: jid } }, limit },
+    { remoteJid: jid, limit },
+  ];
+
+  for (const body of bodies) {
+    try {
+      const r = await tryPost(`/chat/findMessages/${inst}`, body);
+      if (!r.ok) continue;
+      const raw = r.json;
+      const arr = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.messages)
+          ? raw.messages
+          : Array.isArray(raw?.data)
+            ? raw.data
+            : Array.isArray(raw?.records)
+              ? raw.records
+              : [];
+      if (!arr.length) continue;
+
+      const messages: EvolutionChatMessage[] = arr.map((item: any, i: number) => {
+        const key = item?.key || {};
+        const msg = item?.message || item || {};
+        const text =
+          msg?.conversation ||
+          msg?.extendedTextMessage?.text ||
+          msg?.imageMessage?.caption ||
+          msg?.videoMessage?.caption ||
+          item?.body ||
+          item?.text ||
+          '[mídia/sem texto]';
+        const tsRaw = item?.messageTimestamp || item?.timestamp || item?.t;
+        let at = new Date().toISOString();
+        if (typeof tsRaw === 'number') {
+          at = new Date(tsRaw > 1e12 ? tsRaw : tsRaw * 1000).toISOString();
+        } else if (typeof tsRaw === 'string' && tsRaw) {
+          at = new Date(tsRaw).toISOString();
+        }
+        return {
+          id: String(key?.id || item?.id || `evo-${i}`),
+          body: String(text).slice(0, 4000),
+          fromMe: !!(key?.fromMe || item?.fromMe),
+          timestamp: at,
+          remoteJid: key?.remoteJid || jid,
+          raw: item,
+        };
+      });
+
+      return { ok: true, messages };
+    } catch {
+      /* next */
+    }
+  }
+
+  return {
+    ok: false,
+    messages: [],
+    error: 'Sem mensagens para este JID (grupo pode não sincronizar histórico completo).',
+  };
+}
