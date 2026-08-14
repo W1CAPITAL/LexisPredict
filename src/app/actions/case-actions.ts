@@ -444,8 +444,33 @@ export async function auditCaseCoreSystem(
   try {
     if (movimentos.length || (comunicacoes && comunicacoes.length)) {
       const djenTextos = (comunicacoes || [])
-        .slice(0, 20)
-        .map((c: any) => String(c.texto || c.conteudo || c.resumo || ''));
+        .slice(0, 40)
+        .map((c: any) => {
+          const raw = String(c.texto || c.conteudo || c.resumo || c.teor || '');
+          // HTML entities comuns no DJEN
+          return raw
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&ndash;/gi, '–')
+            .replace(/&mdash;/gi, '—')
+            .replace(/&sect;/gi, '§')
+            .replace(/&aacute;/gi, 'á')
+            .replace(/&eacute;/gi, 'é')
+            .replace(/&iacute;/gi, 'í')
+            .replace(/&oacute;/gi, 'ó')
+            .replace(/&uacute;/gi, 'ú')
+            .replace(/&atilde;/gi, 'ã')
+            .replace(/&otilde;/gi, 'õ')
+            .replace(/&ccedil;/gi, 'ç')
+            .replace(/&Aacute;/gi, 'Á')
+            .replace(/&Eacute;/gi, 'É')
+            .replace(/&Ccedil;/gi, 'Ç')
+            .replace(/&quot;/gi, '"')
+            .replace(/&#\d+;/g, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        })
+        .filter(Boolean);
       const classeCod =
         patch.detalhes_execucao?.classeCodigo ??
         (typeof target.detalhes_execucao === 'object'
@@ -465,10 +490,13 @@ export async function auditCaseCoreSystem(
       patch.cumprimento_encerrado = !!analise2.cumprimento_encerrado;
       patch.status_executivo = analise2.status_executivo || patch.status_executivo;
       if ((analise2 as any).oportunidade_instaurar) {
-        patch.oportunidade_instaurar = (analise2 as any).oportunidade_instaurar;
-        patch.oportunidade_score = (analise2 as any).oportunidade_instaurar.score;
-        patch.oportunidade_elegivel = !!(analise2 as any).oportunidade_instaurar.elegivel;
-        patch.oportunidade_tipo_credito = (analise2 as any).oportunidade_instaurar.tipo_credito;
+        const op = (analise2 as any).oportunidade_instaurar;
+        patch.oportunidade_instaurar = op;
+        patch.oportunidade_score = op.score;
+        patch.oportunidade_elegivel = !!op.elegivel;
+        patch.oportunidade_tipo_credito = op.tipo_credito;
+        patch.texto_pobre = !!op.texto_pobre;
+        patch.precisa_enriquecer_teor = !!op.precisa_enriquecer_teor;
       }
       if (analise2.cumprimento_pendente_necessario) {
         patch.cumprimento_pendente_necessario = true;
@@ -1584,5 +1612,96 @@ export async function batchScanExecutivoAction(opts?: {
     };
   } catch (e: any) {
     return { success: false, done: 0, error: e?.message || 'Erro' };
+  }
+}
+
+/**
+ * Enriquecimento SELETIVO de teor — só fila "texto pobre" / pendente / score médio.
+ * Não varre a carteira inteira. Reexecuta DataJud+DJEN (both) com janela ampla.
+ * Inspirado no ROI de eSAJ/juscraper, mas só com fontes oficiais já integradas.
+ */
+export async function enriquecerTeorFilaOportunidadeAction(opts?: {
+  limit?: number;
+  onlyTextoPobre?: boolean;
+}): Promise<{
+  success: boolean;
+  done: number;
+  enriched: number;
+  remaining: number;
+  error?: string;
+}> {
+  try {
+    const limit = Math.min(Math.max(opts?.limit ?? 15, 1), 40);
+    const onlyPoor = opts?.onlyTextoPobre !== false;
+    const res = await getCumprimentosEProcedentesAction();
+    if (!res.success || !res.data?.length) {
+      return { success: true, done: 0, enriched: 0, remaining: 0 };
+    }
+
+    const candidates = (res.data as any[]).filter((c) => {
+      const dados = c.dados && typeof c.dados === 'object' ? c.dados : {};
+      const op =
+        c.oportunidade_instaurar ||
+        dados.oportunidade_instaurar ||
+        c.detalhes_execucao?.oportunidade_instaurar ||
+        dados.detalhes_execucao?.oportunidade_instaurar;
+      const textoPobre =
+        !!c.texto_pobre ||
+        !!dados.texto_pobre ||
+        !!op?.texto_pobre ||
+        !!c.precisa_enriquecer_teor ||
+        !!dados.precisa_enriquecer_teor ||
+        !!op?.precisa_enriquecer_teor;
+      const pendente =
+        c.cumprimento_pendente_necessario ||
+        dados.cumprimento_pendente_necessario ||
+        c.status_executivo === 'pendente' ||
+        dados.status_executivo === 'pendente';
+      const score = Number(c.oportunidade_score ?? op?.score ?? 0);
+      const elegivel = !!(c.oportunidade_elegivel || op?.elegivel);
+      // Prioridade: texto pobre; senão pendente jurídico com score baixo/médio
+      if (onlyPoor) return textoPobre || (pendente && !elegivel);
+      return textoPobre || pendente || (score > 0 && score < 70);
+    });
+
+    // Prioriza texto_pobre e score mais alto entre os pobres
+    candidates.sort((a, b) => {
+      const opA = a.oportunidade_instaurar || a.detalhes_execucao?.oportunidade_instaurar;
+      const opB = b.oportunidade_instaurar || b.detalhes_execucao?.oportunidade_instaurar;
+      const pA = (a.texto_pobre || opA?.texto_pobre ? 2 : 0) + Number(a.oportunidade_score ?? opA?.score ?? 0) / 100;
+      const pB = (b.texto_pobre || opB?.texto_pobre ? 2 : 0) + Number(b.oportunidade_score ?? opB?.score ?? 0) / 100;
+      return pB - pA;
+    });
+
+    const batch = candidates.slice(0, limit);
+    let done = 0;
+    let enriched = 0;
+
+    for (const c of batch) {
+      const proto = String(c.protocolo || '').trim();
+      if (!proto) continue;
+      try {
+        const r = await scanSingleCaseAction(proto, 'both', { deep: true } as any);
+        done++;
+        if (r && (r as any).success !== false) enriched++;
+      } catch {
+        done++;
+      }
+    }
+
+    return {
+      success: true,
+      done,
+      enriched,
+      remaining: Math.max(0, candidates.length - batch.length),
+    };
+  } catch (e: any) {
+    return {
+      success: false,
+      done: 0,
+      enriched: 0,
+      remaining: 0,
+      error: e?.message || 'Falha no enriquecimento seletivo',
+    };
   }
 }

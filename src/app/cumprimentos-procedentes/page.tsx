@@ -31,7 +31,7 @@ import {
   Database,
 } from "lucide-react";
 import {
-  getCumprimentosEProcedentesAction,
+  getCumprimentosEProcedentesAction, enriquecerTeorFilaOportunidadeAction,
   enriquecerProcedenciaAction,
   reclassificarExecutivoCarteiraAction,
   batchScanExecutivoAction,
@@ -78,6 +78,11 @@ function oportunidadeOf(c: LegalCase): {
     tipo: String((c as any).oportunidade_tipo_credito || op?.tipo_credito || "incerto"),
     riscos: Array.isArray(op?.riscos) ? op.riscos : [],
     revisao: op?.requer_revisao_humana !== false,
+    textoPobre: !!(c as any).texto_pobre || !!dados.texto_pobre || !!op?.texto_pobre,
+    precisaEnriquecer:
+      !!(c as any).precisa_enriquecer_teor ||
+      !!dados.precisa_enriquecer_teor ||
+      !!op?.precisa_enriquecer_teor,
   };
 }
 
@@ -105,11 +110,12 @@ export default function CumprimentosProcedentesPage() {
   const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [scanCursor, setScanCursor] = useState(0);
+  const [enrichBusy, setEnrichBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getCumprimentosEProcedentesAction();
+      const res = await getCumprimentosEProcedentesAction, enriquecerTeorFilaOportunidadeAction();
       if (res.success) {
         setCases(res.data);
       } else {
@@ -121,6 +127,27 @@ export default function CumprimentosProcedentesPage() {
       setLoading(false);
     }
   }, [toast]);
+
+
+  const handleEnriquecerTeor = useCallback(async () => {
+    setEnrichBusy(true);
+    try {
+      const r = await enriquecerTeorFilaOportunidadeAction({ limit: 15, onlyTextoPobre: true });
+      if (r.success) {
+        toast({
+          title: "Enriquecimento seletivo",
+          description: `${r.enriched}/${r.done} re-scan · restam ~${r.remaining} com texto pobre`,
+        });
+        await load();
+      } else {
+        toast({ title: "Falha", description: r.error || "erro", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Falha no enriquecimento", variant: "destructive" });
+    } finally {
+      setEnrichBusy(false);
+    }
+  }, [toast, load]);
 
   useEffect(() => {
     load();
@@ -599,6 +626,11 @@ export default function CumprimentosProcedentesPage() {
                                       Revisar teor
                                     </Badge>
                                   )}
+                                  {(op.textoPobre || op.precisaEnriquecer) && (
+                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-500/50 text-orange-700">
+                                      Texto pobre
+                                    </Badge>
+                                  )}
                                 </>
                               );
                             })()}
@@ -643,6 +675,17 @@ export default function CumprimentosProcedentesPage() {
                             )}
                             Re-scannar
                           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-8 rounded-lg text-[10px] font-bold gap-1"
+            disabled={enrichBusy || loading}
+            onClick={handleEnriquecerTeor}
+          >
+            {enrichBusy ? <Loader2 size={12} className="animate-spin" /> : <FileSearch size={12} />}
+            Enriquecer teor (fila pobre)
+          </Button>
                           {casePhone(c) && (
                             <Button
                               type="button"

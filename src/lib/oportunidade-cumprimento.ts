@@ -20,6 +20,12 @@ export type OportunidadeInstaurarCumprimento = {
   confianca_analise: number;
   dias_apos_transito: number | null;
   requer_revisao_humana: boolean;
+  /**
+   * Texto indexado (DataJud/DJEN) sem quantia nem sucumbência clara.
+   * Candidato a enriquecimento seletivo de teor (não scan completo).
+   */
+  texto_pobre: boolean;
+  precisa_enriquecer_teor: boolean;
 };
 
 export type InputOportunidade = {
@@ -76,7 +82,11 @@ const FAZENDA =
 const PEDIDO_NEGADO =
   /PEDIDO\s+DE\s+CUMPRIMENTO\s+.*INDEFER|INDEFERIDO\s+O\s+CUMPRIMENTO|CUMPRIMENTO\s+INDEFERIDO/i;
 
-function empty(motivos: string[], riscos: string[] = []): OportunidadeInstaurarCumprimento {
+function empty(
+  motivos: string[],
+  riscos: string[] = [],
+  extra?: Partial<OportunidadeInstaurarCumprimento>
+): OportunidadeInstaurarCumprimento {
   return {
     elegivel: false,
     score: 0,
@@ -87,6 +97,9 @@ function empty(motivos: string[], riscos: string[] = []): OportunidadeInstaurarC
     confianca_analise: 0,
     dias_apos_transito: null,
     requer_revisao_humana: true,
+    texto_pobre: false,
+    precisa_enriquecer_teor: false,
+    ...extra,
   };
 }
 
@@ -283,6 +296,24 @@ export function scoreOportunidadeCumprimentoHonorarios(
     );
   }
 
+  // Texto pobre = base jurídica de pendência mas sem sinal econômico no índice
+  const textoPobre =
+    (basePendente || baseAlternativa || input.is_procedente) &&
+    !temQuantia &&
+    !temSucumbenciaCredito &&
+    !input.declaratorio_sem_quantia;
+
+  // Enriquecer teor só faz sentido se ainda não há fase e há chance de título
+  const precisaEnriquecer =
+    textoPobre &&
+    !input.em_cumprimento_sentenca &&
+    !input.cumprimento_encerrado &&
+    input.merito_tipo !== 'improcedente';
+
+  if (textoPobre) {
+    riscos.push('texto indexado pobre — re-scan teor (DJEN amplo / movimentos)');
+  }
+
   return {
     elegivel,
     score,
@@ -292,7 +323,9 @@ export function scoreOportunidadeCumprimentoHonorarios(
     acima_limiar_cobranca: acima,
     confianca_analise: confianca,
     dias_apos_transito: dias,
-    requer_revisao_humana: requerRevisao,
+    requer_revisao_humana: requerRevisao || precisaEnriquecer,
+    texto_pobre: textoPobre,
+    precisa_enriquecer_teor: precisaEnriquecer,
   };
 }
 

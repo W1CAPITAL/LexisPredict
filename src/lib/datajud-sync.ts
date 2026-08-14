@@ -360,7 +360,7 @@ export function analisarProcedenciaECumprimento(
   const sorted = [...movs].sort(
     (a, b) => new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
   );
-  const window25 = sorted.slice(0, 40);
+  const window25 = sorted.slice(0, 80);
   const allText =
     window25.map(textOf).join(' || ') +
     ' || ' +
