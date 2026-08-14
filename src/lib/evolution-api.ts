@@ -291,10 +291,52 @@ export async function wakeEvolutionForSend(
   }
 }
 
-async function postSendText(number: string, text: string, presenceDelayMs = 1200): Promise<Response> {
+/** Destino Evolution: 1:1 (E.164) ou grupo (@g.us). */
+export function resolveEvolutionRecipient(to: string): {
+  number: string;
+  isGroup: boolean;
+  candidates: string[];
+} {
+  const raw = String(to || '').trim();
+  if (!raw) return { number: '', isGroup: false, candidates: [] };
+
+  // Grupo WhatsApp
+  if (raw.includes('@g.us') || /@g\.us$/i.test(raw)) {
+    const jid = raw.includes('@') ? raw : `${raw.replace(/\D/g, '')}@g.us`;
+    return { number: jid, isGroup: true, candidates: [jid] };
+  }
+
+  // JID 1:1 já formatado
+  if (raw.includes('@s.whatsapp.net')) {
+    const n = normalizeBrPhone(raw.split('@')[0]);
+    const cands = phoneMatchVariants(n).filter((v) => v.length >= 12);
+    return { number: cands[0] || n, isGroup: false, candidates: cands.length ? cands : [n] };
+  }
+
+  const n = normalizeBrPhone(raw);
+  const cands = phoneMatchVariants(n).filter((v) => v.startsWith('55') && v.length >= 12);
+  // prioriza com 55 + 11 dígitos (celular com 9)
+  cands.sort((a, b) => b.length - a.length);
+  return { number: cands[0] || n, isGroup: false, candidates: cands.length ? cands : [n].filter(Boolean) };
+}
+
+async function postSendText(
+  number: string,
+  text: string,
+  presenceDelayMs = 1200,
+  isGroup = false
+): Promise<Response> {
   const { baseUrl, apiKey, instance } = getEvolutionConfig();
   const url = `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`;
-  const delay = Math.min(15000, Math.max(800, Math.floor(presenceDelayMs)));
+  const delay = Math.min(isGroup ? 3000 : 15000, Math.max(400, Math.floor(presenceDelayMs)));
+
+  // Evolution v2: number pode ser E.164 ou JID completo
+  const numberField = isGroup
+    ? number.includes('@')
+      ? number
+      : `${number}@g.us`
+    : number.replace(/\D/g, '');
+
   return fetch(url, {
     method: 'POST',
     headers: {
@@ -303,12 +345,15 @@ async function postSendText(number: string, text: string, presenceDelayMs = 1200
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      number,
+      number: numberField,
       text,
-      // presence composing + delay variável = padrão mais humano (anti-ban)
-      options: { delay, presence: 'composing' },
+      options: {
+        delay,
+        presence: isGroup ? 'available' : 'composing',
+        linkPreview: false,
+      },
     }),
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(50000),
   });
 }
 
@@ -325,10 +370,16 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
     );
   }
 
-  const number = normalizeBrPhone(to);
   const text = String(message || '').trim();
-  if (!number || number.length < 12) throw new Error('Telefone inválido (use DDD + número).');
   if (!text) throw new Error('Mensagem vazia.');
+
+  const dest = resolveEvolutionRecipient(to);
+  if (!dest.number) {
+    throw new Error('Destino inválido (telefone DDD+número ou JID de grupo @g.us).');
+  }
+  if (!dest.isGroup && dest.number.replace(/\D/g, '').length < 12) {
+    throw new Error('Telefone inválido (use DDD + número com DDI 55).');
+  }
 
   // Anti-ban: teto diário, gap, typing humano, bloqueio de spam idêntico
   const { antibanPrecheck, antibanWait, antibanRecordSuccess, evolutionPresenceDelayMs } = await import(
@@ -337,25 +388,57 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
   const gate = antibanPrecheck(text);
   if (!gate.ok) throw new Error(gate.error);
   if (gate.waitMs > 0) await antibanWait(gate.waitMs);
-  const presenceDelay = evolutionPresenceDelayMs(text);
+  // Grupos: delay menor (socket do Baileys costuma falhar com composing longo após abrir grupo)
+  const presenceDelay = dest.isGroup
+    ? Math.min(2000, evolutionPresenceDelayMs(text))
+    : evolutionPresenceDelayMs(text);
 
+  const candidates = dest.isGroup ? [dest.number] : dest.candidates;
   let lastErr = '';
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    // SEMPRE aguarda wake antes de enviar (1ª e retries). Só neste fluxo de envio.
-    const wake = await wakeEvolutionForSend(number);
-    if (attempt > 1) await sleep(1200 * attempt);
-    else if (!wake.open && attempt === 1) await sleep(1000);
+
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const number = candidates[(attempt - 1) % candidates.length];
+
+    // Wake 1:1 só com dígitos; grupos: wake genérico da instância
+    if (dest.isGroup) {
+      await wakeEvolutionInstance();
+    } else {
+      const wake = await wakeEvolutionForSend(number.replace(/\D/g, ''));
+      if (attempt > 1) await sleep(1500 * attempt);
+      else if (!wake.open) await sleep(1200);
+    }
+
+    // Connection Closed após abrir grupo no Manager: reconnect leve
+    if (attempt >= 2 && /connection closed|not connected|closed/i.test(lastErr)) {
+      try {
+        const headers = evolutionHeaders(apiKey);
+        const inst = encodeURIComponent(instance);
+        await fetch(`${baseUrl}/instance/connect/${inst}`, {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(20000),
+        }).catch(() => null);
+        await sleep(2500);
+      } catch {
+        /* ignore */
+      }
+    }
 
     try {
-      const res = await postSendText(number, text, presenceDelay);
+      const res = await postSendText(number, text, presenceDelay, dest.isGroup);
       if (res.ok) {
         antibanRecordSuccess(text);
-        return res.json().catch(() => ({ ok: true, wake: wake.detail }));
+        return res.json().catch(() => ({ ok: true }));
       }
       const body = await res.text().catch(() => '');
-      lastErr = `Evolution HTTP ${res.status}: ${body.slice(0, 220)}`;
+      lastErr = `Evolution HTTP ${res.status}: ${body.slice(0, 280)}`;
 
-      // Sessão “dormindo” / socket fechado → force wake + retry
+      // Erros típicos ao misturar grupo no Manager + envio 1:1
+      if (/Connection Closed|not connected|closed|offline/i.test(body)) {
+        lastErr +=
+          ' — socket fechado (comum após abrir GRUPO no Manager). Volte a um chat 1:1 no Manager ou Restart da instância e tente de novo.';
+      }
+
       const sleepLike =
         res.status === 400 ||
         res.status === 408 ||
@@ -363,9 +446,11 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
         res.status === 502 ||
         res.status === 503 ||
         res.status === 504 ||
-        /not connected|connection closed|closed|offline|timeout|ECONNRESET|session/i.test(body);
+        /not connected|connection closed|closed|offline|timeout|ECONNRESET|session|exists.*false/i.test(
+          body
+        );
 
-      if (!sleepLike && ![500, 502, 503, 504, 408].includes(res.status)) {
+      if (!sleepLike && ![500, 502, 503, 504, 408, 400].includes(res.status)) {
         const hint =
           res.status === 404
             ? ` Confira EVOLUTION_INSTANCE (nome no Manager). Atual: ${instance}`
@@ -376,15 +461,17 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
       }
     } catch (e: any) {
       lastErr = e?.message || String(e);
-      const retryable = /HTTP 50|HTTP 400|HTTP 408|timeout|fetch failed|ECONNRESET|network|not connected|connection closed|Failed to fetch/i.test(
-        lastErr
-      );
+      const retryable =
+        /HTTP 50|HTTP 400|HTTP 408|timeout|fetch failed|ECONNRESET|network|not connected|connection closed|Failed to fetch/i.test(
+          lastErr
+        );
       if (!retryable) throw e;
     }
   }
+
   throw new Error(
     (lastErr || 'Falha Evolution') +
-      ' — acordamos a instância e tentamos 3x. Abra o Manager Evolution e confira se o WhatsApp está conectado (estado open).'
+      ' — tentamos 4x (variantes de número / reconnect). No Manager: estado open, Proxy OFF, evite deixar um GRUPO aberto como última conversa antes de enviar 1:1.'
   );
 }
 
