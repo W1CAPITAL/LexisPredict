@@ -416,14 +416,11 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     'em_cumprimento_sentenca',
     'cumprimento_sentenca_motivo',
     'cumprimento_sentenca_consultado_em',
+    // Flags executivas extras ficam em `dados` JSONB (evita erro se coluna não existe no Supabase)
     'is_procedente',
     'procedente_motivo',
     'cumprimento_pendente_necessario',
-    'status_executivo',
-    'cumprimento_encerrado',
-    'cumprimento_ativo',
     'data_transito_julgado',
-    'detalhes_execucao',
     'djen_ultima_data',
     'djen_ultimo_resumo',
     'djen_ultimo_link',
@@ -445,7 +442,26 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     }
   }
 
-  const { error } = await admin.from('processos').update(row).eq('id', caseId);
+    let { error } = await admin.from('processos').update(row).eq('id', caseId);
+
+  // Se alguma coluna real não existir no Supabase, grava só em `dados` + campos seguros
+  if (error && /does not exist|column/i.test(error.message || '')) {
+    console.warn('[updateCaseDataJudSystem] retry só dados:', error.message);
+    const safe = {
+      dados: updatedDados,
+      em_cumprimento_sentenca: row.em_cumprimento_sentenca,
+      cumprimento_sentenca_motivo: row.cumprimento_sentenca_motivo,
+      datajud_ultimo_movimento: row.datajud_ultimo_movimento,
+      datajud_ultimo_nome: row.datajud_ultimo_nome,
+      datajud_consultado_em: row.datajud_consultado_em,
+      datajud_encerrado_tribunal: row.datajud_encerrado_tribunal,
+      datajud_encerrado_motivo: row.datajud_encerrado_motivo,
+      tribunal: row.tribunal,
+    };
+    Object.keys(safe).forEach((k) => safe[k] === undefined && delete safe[k]);
+    const retry = await admin.from('processos').update(safe).eq('id', caseId);
+    error = retry.error;
+  }
 
   if (error) {
     console.error('[updateCaseDataJudSystem] update', error);

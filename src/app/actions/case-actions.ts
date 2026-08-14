@@ -1416,10 +1416,11 @@ export async function batchScanExecutivoAction(opts?: {
         r.is_procedente ||
         r.em_cumprimento_sentenca ||
         r.cumprimento_pendente_necessario ||
-        r.cumprimento_encerrado ||
         dados.is_procedente ||
         dados.em_cumprimento_sentenca ||
         dados.cumprimento_pendente_necessario ||
+        dados.cumprimento_encerrado ||
+        dados.cumprimento_ativo ||
         dados.status_executivo;
       // Já classificado → não reprocessa (evita “duplicar” trabalho e ruído)
       if (onlyMissing && hasFlag) return false;
