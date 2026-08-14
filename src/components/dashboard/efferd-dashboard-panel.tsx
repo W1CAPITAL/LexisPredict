@@ -208,7 +208,7 @@ export function Dashboard({
       { name: "Enc. carteira", v: encerradosCarteira },
       { name: "Hoje", v: hoje },
     ],
-    [totalProcessos, ativos, novidades, vencidos, baixas, hoje]
+    [totalProcessos, ativos, novidades, vencidos, baixas, encerradosCarteira, hoje]
   );
 
   const kpis: Kpi[] = [
@@ -252,7 +252,7 @@ export function Dashboard({
       value: baixas,
       icon: <Gavel size={16} />,
       tone: baixas > 0 ? "ok" : "default",
-      hint: "DataJud/DJEN · trânsito/baixa (ativos + encerrados)",
+      hint: "Telemetria tribunal (isBaixaTribunal). Diferente de Enc. carteira.",
     },
     {
       label: "Encerrados carteira",

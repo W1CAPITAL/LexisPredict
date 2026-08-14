@@ -1,7 +1,10 @@
 /**
- * KPIs de carteira — separa telemetria de tribunal vs status operacional.
- * - Baixa tribunal: DataJud/DJEN (datajud_encerrado_tribunal / isBaixaTribunal)
- * - Encerrado carteira: situacao/status ENCERRADO|ARQUIVADO|… (isCasoEncerrado)
+ * KPIs de carteira — SEPARAR sempre:
+ * - Baixa tribunal: isBaixaTribunal (DataJud/DJEN, telemetria)
+ * - Encerrado carteira: isCasoEncerrado (status operacional do gabinete)
+ *
+ * Não misturar. Não recontar datajud_encerrado cru se isBaixaTribunal
+ * já excluiu cumprimento ativo (evita painel ≠ dossiê e sobe/desce no scan).
  */
 import { isCasoEncerrado, isBaixaTribunal } from '@/lib/status-encerrado';
 
@@ -10,7 +13,7 @@ export type CarteiraKpis = {
   ativos: number;
   /** Marcados ENCERRADO/ARQUIVADO/etc. na operação (gabinete). */
   encerradosCarteira: number;
-  /** Baixa/trânsito detectado no tribunal (DataJud/DJEN) — em qualquer status operacional. */
+  /** Baixa/trânsito no tribunal — regra única isBaixaTribunal. */
   baixasTribunal: number;
   /** Interseção: encerrado no gabinete E baixa no tribunal. */
   encerradosComBaixaTribunal: number;
@@ -28,11 +31,7 @@ export function computeCarteiraKpis(cases: any[]): CarteiraKpis {
   for (const c of cases || []) {
     if (!c) continue;
     const enc = isCasoEncerrado(c);
-    const baixa =
-      isBaixaTribunal(c) ||
-      !!(c as any).datajud_encerrado_tribunal ||
-      (c as any).evento_tipo === 'transito_ou_baixa' ||
-      (c as any).evento_tipo === 'transito_baixa';
+    const baixa = isBaixaTribunal(c);
 
     if (enc) encerradosCarteira++;
     else ativos++;

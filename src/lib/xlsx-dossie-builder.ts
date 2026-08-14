@@ -383,7 +383,7 @@ export async function buildDossieXlsxBase64(
     if (!r.advogado || r.advogado === '-') semAdvogado++;
     if (!r.cliente) semCliente++;
     if (r.novo_andamento === 'SIM') and++;
-    if (r.encerrado === 'SIM') encTrib++;
+    if (r.encerrado_tribunal === 'SIM' || r.encerrado === 'SIM') encTrib++;
     if (r.ba === 'SIM') ba++;
     if (r.cumprimento === 'SIM') cump++;
     if (r.procedente === 'SIM') proc++;
@@ -430,7 +430,7 @@ export async function buildDossieXlsxBase64(
     { values: ['Documento gerado por LexisPredict — uso interno operacional.'], styleRow: 'normal' },
     { values: [''], styleRow: 'normal' },
     { values: ['RESUMO EXECUTIVO'], styleRow: 'section' },
-    { values: ['Total', n, 'Em andamento', emAndamento, 'Encerrados', encerrados], styleRow: 'kpi' },
+    { values: ['Total', n, 'Em andamento', emAndamento, 'Encerrados na carteira', encerrados], styleRow: 'kpi' },
     { values: ['Vencidos', vencidos, 'Novos andamentos', and, 'B.A.', ba], styleRow: 'kpi' },
     { values: ['Cumprimento', cump, 'Procedentes', proc, 'Improcedentes', impr], styleRow: 'kpi' },
     { values: ['Casos críticos', criticos, 'Risco estimado', `${risco}%`, 'Atendidos (semana)', atendidosSemana], styleRow: criticos > 0 ? 'alert' : 'kpi' },
@@ -449,7 +449,7 @@ export async function buildDossieXlsxBase64(
     { values: ['Sem cliente', semCliente, '', 'Risco estimado', `${risco}%`], styleRow: risco > 40 ? 'alert' : 'zebra' },
     { values: [''], styleRow: 'normal' },
     { values: ['SINAIS OPERACIONAIS'], styleRow: 'section' },
-    { values: ['Novos andamentos', and, '', 'Baixa no tribunal', encTrib], styleRow: 'kpi' },
+    { values: ['Novos andamentos', and, '', 'Baixa no tribunal (DataJud)', encTrib], styleRow: 'kpi' },
     { values: ['Indícios de B.A.', ba, '', 'Cumprimento de sentença', cump], styleRow: ba > 0 ? 'alert' : 'zebra' },
     { values: ['Sentenças procedentes', proc, '', 'Sentenças improcedentes', impr], styleRow: 'ok' },
     { values: ['Casos com DJEN ativo', djen, '', 'Casos críticos (ação)', criticos], styleRow: criticos > 0 ? 'warn' : 'zebra' },

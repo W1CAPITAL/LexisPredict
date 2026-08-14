@@ -8,7 +8,7 @@
 import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/lib/server-db';
 import { parseUltimoAtendimento, weekBounds, periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
 import { countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, countEditadosAppSemana } from '@/lib/processos-auditados';
-import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { isCasoEncerrado, isBaixaTribunal } from '@/lib/status-encerrado';
 
 export type SupervisaoProcessoResumo = {
   id: string;
@@ -178,11 +178,7 @@ export async function getSupervisaoSnapshotAction(
       const encerrado = isCasoEncerrado(c);
       if (encerrado) encerrados++;
       else ativos++;
-      if (
-        c.datajud_encerrado_tribunal ||
-        c.evento_tipo === 'transito_ou_baixa' ||
-        c.evento_tipo === 'transito_baixa'
-      ) {
+      if (isBaixaTribunal(c)) {
         baixasTribunal++;
       }
 
@@ -268,11 +264,7 @@ export async function getSupervisaoSnapshotAction(
       ug.total++;
       if (encerrado) ug.encerrados++;
       else ug.ativos++;
-      if (
-        c.datajud_encerrado_tribunal ||
-        c.evento_tipo === 'transito_ou_baixa' ||
-        c.evento_tipo === 'transito_baixa'
-      ) {
+      if (isBaixaTribunal(c)) {
         ug.baixasTribunal++;
       }
       if (/vencido|cr[ií]tico/i.test(status)) ug.vencidos++;

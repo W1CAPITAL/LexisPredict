@@ -7,7 +7,7 @@
 
 import React, { useMemo } from 'react';
 import { LegalCase } from '@/lib/case-logic';
-import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { isCasoEncerrado, isBaixaTribunal } from '@/lib/status-encerrado';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Building2, TrendingDown, Zap } from 'lucide-react';
@@ -54,7 +54,7 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
 
       const group = groups[officeName];
       group.total++;
-      if (c.datajud_encerrado_tribunal || c.evento_tipo === 'transito_ou_baixa' || c.evento_tipo === 'transito_baixa') {
+      if (isBaixaTribunal(c)) {
         group.baixasTribunal++;
       }
 

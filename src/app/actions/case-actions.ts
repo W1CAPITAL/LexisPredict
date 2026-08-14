@@ -221,7 +221,11 @@ export async function auditCaseCoreSystem(
         Object.assign(patch, {
           datajud_ultimo_movimento: upd.dataUltimo || target.datajud_ultimo_movimento || null,
           datajud_ultimo_nome: upd.nomeUltimo || target.datajud_ultimo_nome || null,
-          datajud_encerrado_tribunal: !!(enc.encerrado || target.datajud_encerrado_tribunal),
+          datajud_encerrado_tribunal: !!(
+            // sticky: uma vez true, não apaga em re-scan parcial
+            target.datajud_encerrado_tribunal ||
+            enc.encerrado
+          ),
           datajud_encerrado_motivo: enc.motivo || target.datajud_encerrado_motivo || null,
           indicio_busca_apreensao: !!(ba.indicio || target.indicio_busca_apreensao),
           busca_apreensao_confianca: ba.confianca ?? target.busca_apreensao_confianca ?? null,
