@@ -356,7 +356,7 @@ function SidebarNavBody({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-sidebar-border space-y-3 shrink-0 overflow-hidden">
+      <div className="p-3 border-t border-sidebar-border space-y-3 shrink-0 overflow-visible">
         {!collapsed && <InstallAppButton />}
         {!collapsed && (
           <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sidebar-accent/50 border border-sidebar-border min-w-0">
@@ -376,13 +376,13 @@ function SidebarNavBody({
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1">
+        <div className={cn("flex gap-2", collapsed ? "flex-col items-center" : "items-center justify-between")}>
+          <div className={cn("flex items-center gap-1", collapsed && "flex-col")}>
             <button
               type="button"
               onClick={onLogout}
               title={t.logout}
-              className="h-9 w-9 text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded-lg flex items-center justify-center"
+              className="h-9 w-9 text-sidebar-foreground/80 hover:text-destructive hover:bg-destructive/10 rounded-lg flex items-center justify-center"
             >
               <SafeIcon icon={LogOut} size={16} />
             </button>
@@ -392,10 +392,16 @@ function SidebarNavBody({
             <button
               type="button"
               onClick={onToggleCollapsed}
-              className="hidden md:flex h-9 w-9 text-sidebar-foreground/60 hover:text-primary rounded-lg items-center justify-center"
+              className={cn(
+                "hidden md:flex items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent/50",
+                "text-sidebar-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary",
+                "shrink-0 z-10",
+                collapsed ? "h-10 w-10 mx-auto" : "h-9 w-9"
+              )}
               title={collapsed ? "Expandir menu" : "Recolher menu"}
+              aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
             >
-              <SafeIcon icon={collapsed ? ChevronRight : ChevronLeft} size={18} />
+              <SafeIcon icon={collapsed ? ChevronRight : ChevronLeft} size={collapsed ? 20 : 18} />
             </button>
           )}
         </div>
