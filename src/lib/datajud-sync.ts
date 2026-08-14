@@ -405,6 +405,15 @@ export function analisarProcedenciaECumprimento(
     fontes.push('djen');
   }
 
+  // Veto: baixa definitiva / arquivamento sozinho NÃO é cumprimento ativo
+  const baixaOnly =
+    /BAIXA DEFINITIVA|ARQUIVAMENTO DEFINITIVO|ARQUIVADO DEFINITIVAMENTE/.test(blob) &&
+    !/CUMPRIMENTO\s+DE\s+SENTEN|FASE DE CUMPRIMENTO|EXECU[CÇ][AÃ]O DE SENTEN/.test(blob);
+  if (baixaOnly) {
+    emCumprimento = false;
+    motivos.push('veto: baixa/arquivo sem cumprimento');
+  }
+
   // 3) Trânsito 848
   let dataTransito: string | null = null;
   for (const mov of window25) {

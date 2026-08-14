@@ -26,10 +26,15 @@ import {
   FileSearch,
   Gavel,
   ArrowUpDown,
+  Download,
+  Zap,
+  Database,
 } from "lucide-react";
 import {
   getCumprimentosEProcedentesAction,
   enriquecerProcedenciaAction,
+  reclassificarExecutivoCarteiraAction,
+  batchScanExecutivoAction,
 } from "@/app/actions/case-actions";
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
@@ -59,6 +64,7 @@ export default function CumprimentosProcedentesPage() {
   const [q, setQ] = useState("");
   const [filtro, setFiltro] = useState<FiltroAtivo>("todos");
   const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,6 +137,168 @@ export default function CumprimentosProcedentesPage() {
     }
   };
 
+  const handleReclassLocal = async () => {
+    setBulkBusy(true);
+    try {
+      const res = await reclassificarExecutivoCarteiraAction();
+      if (!res.success) {
+        toast({
+          title: "Falha na reclassificação",
+          description: res.error || "Erro",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Reclassificação local concluída",
+          description: `Varridos ${res.scanned} · atualizados ${res.updated} · hits executivos ${res.hits}`,
+        });
+        await load();
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBatchScan = async () => {
+    setBulkBusy(true);
+    try {
+      const res = await batchScanExecutivoAction({ limit: 25, onlyMissing: true });
+      if (!res.success) {
+        toast({
+          title: "Falha no lote DataJud",
+          description: res.error || "Erro",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Lote DataJud",
+          description: `Processados ${res.done} · ok ${res.ok}. ${res.remaining_hint || ""} Clique de novo para o próximo lote.`,
+        });
+        await load();
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const exportCsv = () => {
+    const rows = filtered.length ? filtered : cases;
+    if (!rows.length) {
+      toast({ title: "Nada para exportar", variant: "destructive" });
+      return;
+    }
+    const headers = [
+      "cliente",
+      "protocolo",
+      "tribunal",
+      "is_procedente",
+      "em_cumprimento_sentenca",
+      "cumprimento_pendente_necessario",
+      "procedente_motivo",
+      "cumprimento_sentenca_motivo",
+      "data_transito_julgado",
+      "advogado",
+      "evento_resumo",
+    ];
+    const esc = (v: any) => {
+      const s = String(v ?? "");
+      if (/[",\n;]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const lines = [headers.join(";")];
+    for (const c of rows) {
+      lines.push(
+        [
+          c.cliente,
+          c.protocolo,
+          c.tribunal,
+          c.is_procedente ? "1" : "0",
+          c.em_cumprimento_sentenca ? "1" : "0",
+          c.cumprimento_pendente_necessario ? "1" : "0",
+          (c as any).procedente_motivo,
+          (c as any).cumprimento_sentenca_motivo,
+          c.data_transito_julgado,
+          c.advogado,
+          c.evento_resumo,
+        ]
+          .map(esc)
+          .join(";")
+      );
+    }
+    const blob = new Blob(["\ufeff" + lines.join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cumprimentos-procedentes-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV exportado", description: `${rows.length} linhas` });
+  };
+
+  const exportXls = () => {
+    const rows = filtered.length ? filtered : cases;
+    if (!rows.length) {
+      toast({ title: "Nada para exportar", variant: "destructive" });
+      return;
+    }
+    // Planilha XML simples (abre no Excel)
+    const cell = (v: any) =>
+      `<Cell><Data ss:Type="String">${String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")}</Data></Cell>`;
+    const header = [
+      "Cliente",
+      "CNJ",
+      "Tribunal",
+      "Procedente",
+      "Em cumprimento",
+      "Pendente",
+      "Motivo procedência",
+      "Motivo cumprimento",
+      "Trânsito",
+      "Advogado",
+      "Resumo",
+    ];
+    let table = `<Row>${header.map(cell).join("")}</Row>`;
+    for (const c of rows) {
+      table += `<Row>${[
+        c.cliente,
+        c.protocolo,
+        c.tribunal,
+        c.is_procedente ? "SIM" : "NÃO",
+        c.em_cumprimento_sentenca ? "SIM" : "NÃO",
+        c.cumprimento_pendente_necessario ? "SIM" : "NÃO",
+        (c as any).procedente_motivo,
+        (c as any).cumprimento_sentenca_motivo,
+        c.data_transito_julgado
+          ? String(c.data_transito_julgado).slice(0, 10)
+          : "",
+        c.advogado,
+        c.evento_resumo,
+      ]
+        .map(cell)
+        .join("")}</Row>`;
+    }
+    const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Executivo"><Table>${table}</Table></Worksheet>
+</Workbook>`;
+    const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cumprimentos-procedentes-${new Date().toISOString().slice(0, 10)}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Excel exportado", description: `${rows.length} linhas` });
+  };
+
+
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
@@ -159,6 +327,50 @@ export default function CumprimentosProcedentesPage() {
                 {stats.pendentes} pendente(s)
               </Badge>
             )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
+              disabled={bulkBusy}
+              onClick={() => void handleReclassLocal()}
+              title="Usa dados já salvos no banco — rápido, sem DataJud"
+            >
+              {bulkBusy ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+              Reclassificar local
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
+              disabled={bulkBusy}
+              onClick={() => void handleBatchScan()}
+              title="DataJud+DJEN em lotes de 25 (só faltantes)"
+            >
+              {bulkBusy ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
+              Scan lote 25
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
+              disabled={!cases.length}
+              onClick={exportCsv}
+            >
+              <Download size={12} /> CSV
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
+              disabled={!cases.length}
+              onClick={exportXls}
+            >
+              <Download size={12} /> Excel
+            </Button>
             <Button
               type="button"
               variant="ghost"

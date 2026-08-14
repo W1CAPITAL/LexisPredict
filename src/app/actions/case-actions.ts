@@ -1113,7 +1113,12 @@ export async function getCumprimentosEProcedentesAction() {
   try {
     const all = await getStoredCasesForEmpresa(empresa_id);
     const filtered = all.filter((c: any) =>
-      c.is_procedente || c.em_cumprimento_sentenca || c.cumprimento_pendente_necessario
+      c.is_procedente ||
+      c.em_cumprimento_sentenca ||
+      c.cumprimento_pendente_necessario ||
+      c.evento_tipo === 'sentenca_procedente' ||
+      c.evento_tipo === 'sentenca_parcial' ||
+      c.evento_tipo === 'cumprimento_sentenca'
     );
     // Ordena: pendente primeiro, depois em cumprimento, depois procedente
     filtered.sort((a: any, b: any) => {
@@ -1170,5 +1175,208 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
     return { success: true, ...resultado };
   } catch (e: any) {
     return { success: false, error: e?.message };
+  }
+}
+
+
+/**
+ * Reclassifica a carteira inteira OFFLINE (sem DataJud).
+ * Usa movimentos salvos / último nome / resumos DJEN já no banco.
+ * Rápido — ideal antes de exportar ou para popular a aba.
+ */
+export async function reclassificarExecutivoCarteiraAction() {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, updated: 0, error: 'Sem sessão' };
+
+  try {
+    const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
+    const admin = await getSupabaseAdmin();
+
+    let page = 0;
+    const pageSize = 500;
+    let updated = 0;
+    let scanned = 0;
+    let hits = 0;
+
+    while (true) {
+      const { data: rows, error } = await admin
+        .from('processos')
+        .select(
+          'id, protocolo_ref, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
+        )
+        .eq('empresa_id', empresa_id)
+        .range(page * pageSize, page * pageSize + pageSize - 1);
+
+      if (error) throw new Error(error.message);
+      if (!rows?.length) break;
+
+      for (const row of rows) {
+        scanned += 1;
+        const dados = (row.dados && typeof row.dados === 'object' ? row.dados : {}) as any;
+        const movimentos =
+          Array.isArray(dados.movimentos) && dados.movimentos.length
+            ? dados.movimentos
+            : Array.isArray(dados.datajud_movimentos)
+              ? dados.datajud_movimentos
+              : [];
+
+        // Pseudo-movimento a partir de colunas já gravadas
+        const nomes = [
+          row.datajud_ultimo_nome,
+          row.cumprimento_sentenca_motivo,
+          row.datajud_encerrado_motivo,
+          dados.evento_resumo,
+          dados.datajud_ultimo_nome,
+        ].filter(Boolean);
+        const pseudo = nomes.map((n: string) => ({ nome: String(n), dataHora: null }));
+        const movs = movimentos.length ? movimentos : pseudo;
+
+        const classeCodigo =
+          dados.classeCodigo ??
+          dados.classe_codigo ??
+          dados.classe?.codigo ??
+          null;
+
+        const djenTextos = [
+          row.djen_ultimo_resumo,
+          dados.djen_ultimo_resumo,
+          ...(Array.isArray(dados.djen_textos) ? dados.djen_textos : []),
+        ].filter(Boolean) as string[];
+
+        const r = analisarProcedenciaECumprimento(
+          movs,
+          classeCodigo != null ? Number(classeCodigo) : null,
+          row.datajud_ultimo_nome || dados.datajud_ultimo_nome || null,
+          djenTextos
+        );
+
+        const patch: Record<string, any> = {
+          is_procedente: r.is_procedente,
+          procedente_motivo: r.procedente_motivo,
+          em_cumprimento_sentenca: r.em_cumprimento_sentenca,
+          cumprimento_pendente_necessario: r.cumprimento_pendente_necessario,
+          data_transito_julgado: r.data_transito_julgado || row.data_transito_julgado || null,
+          detalhes_execucao: {
+            ...r.detalhes_execucao,
+            via: 'reclassificar-local',
+            scanned_at: new Date().toISOString(),
+          },
+        };
+        if (r.em_cumprimento_sentenca && r.procedente_motivo) {
+          /* keep */
+        }
+        if (r.em_cumprimento_sentenca) {
+          patch.cumprimento_sentenca_motivo =
+            r.detalhes_execucao?.motivos?.[0] || row.cumprimento_sentenca_motivo || 'Cumprimento';
+        }
+
+        const changed =
+          !!row.is_procedente !== r.is_procedente ||
+          !!row.em_cumprimento_sentenca !== r.em_cumprimento_sentenca ||
+          !!row.cumprimento_pendente_necessario !== r.cumprimento_pendente_necessario;
+
+        // sempre grava flags atuais + merge dados
+        const newDados = { ...dados, ...patch };
+        const { error: upErr } = await admin
+          .from('processos')
+          .update({
+            dados: newDados,
+            is_procedente: patch.is_procedente,
+            procedente_motivo: patch.procedente_motivo,
+            em_cumprimento_sentenca: patch.em_cumprimento_sentenca,
+            cumprimento_pendente_necessario: patch.cumprimento_pendente_necessario,
+            data_transito_julgado: patch.data_transito_julgado,
+            cumprimento_sentenca_motivo: patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
+          })
+          .eq('id', row.id);
+
+        if (!upErr) {
+          updated += 1;
+          if (r.is_procedente || r.em_cumprimento_sentenca || r.cumprimento_pendente_necessario) {
+            hits += 1;
+          }
+        }
+      }
+
+      if (rows.length < pageSize) break;
+      page += 1;
+    }
+
+    return { success: true, scanned, updated, hits };
+  } catch (e: any) {
+    console.error('[reclassificarExecutivoCarteiraAction]', e);
+    return { success: false, updated: 0, error: e?.message || 'Erro' };
+  }
+}
+
+/**
+ * Scan DataJud em lote (lento, respeita rate limit).
+ * limit: quantos processos por chamada (padrão 30).
+ * onlyMissing: só quem ainda não tem is_procedente nem cumprimento.
+ */
+export async function batchScanExecutivoAction(opts?: {
+  limit?: number;
+  onlyMissing?: boolean;
+}) {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, done: 0, error: 'Sem sessão' };
+
+  const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 80);
+  const onlyMissing = opts?.onlyMissing !== false;
+
+  try {
+    const admin = await getSupabaseAdmin();
+    let q = admin
+      .from('processos')
+      .select('id, protocolo_ref, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario')
+      .eq('empresa_id', empresa_id)
+      .order('id', { ascending: true })
+      .limit(limit * 3); // margem para filtrar
+
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+
+    let pool = rows || [];
+    if (onlyMissing) {
+      pool = pool.filter(
+        (r) =>
+          !r.is_procedente &&
+          !r.em_cumprimento_sentenca &&
+          !r.cumprimento_pendente_necessario
+      );
+    }
+    pool = pool.slice(0, limit);
+
+    let done = 0;
+    let ok = 0;
+    const errors: string[] = [];
+
+    for (const row of pool) {
+      const proto = String(row.protocolo_ref || '');
+      if (!proto) continue;
+      try {
+        const res = await auditCaseCoreSystem(proto, empresa_id, 'both', { fast: true });
+        if (res?.success) ok += 1;
+        else errors.push(proto);
+      } catch (e: any) {
+        errors.push(`${proto}: ${e?.message || 'fail'}`);
+      }
+      done += 1;
+      // pausa anti rate-limit DataJud
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+
+    return {
+      success: true,
+      done,
+      ok,
+      remaining_hint:
+        onlyMissing
+          ? 'Rode de novo até done=0 (só faltantes). Ou onlyMissing=false para forçar todos.'
+          : 'Lote concluído.',
+      errors: errors.slice(0, 8),
+    };
+  } catch (e: any) {
+    return { success: false, done: 0, error: e?.message || 'Erro' };
   }
 }
