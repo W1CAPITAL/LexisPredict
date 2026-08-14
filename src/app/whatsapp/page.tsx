@@ -369,14 +369,11 @@ function WhatsAppTerminalInner() {
     setPhoneDraft(casePhone(c) || "");
     setDraft("");
     setAiDraft(null);
+    // NÃO consulta tribunal ao abrir contato — só chat WhatsApp (envio livre)
     setTribunalMovimentos([]);
     setDjenComunicacoes([]);
     setWaScripts([]);
     loadHistory(c);
-    // Histórico do tribunal (DataJud + DJEN) já abre no terminal, adaptado à aba
-    if (c?.protocolo && !loadingTribunal) {
-      void loadTribunalContext(c, { scan: true, fast: true, silent: true });
-    }
   };
 
   const sortedByOverdue = useMemo(() => {
@@ -1119,7 +1116,7 @@ function WhatsAppTerminalInner() {
                         className="h-9 rounded-xl font-semibold text-[11px] gap-1.5 bg-amber-500 hover:bg-amber-600 text-black"
                         onClick={() => loadTribunalContext(selected, { scan: true })}
                         disabled={loadingTribunal || !selected?.protocolo}
-                        title="Mesma auditoria DataJud+DJEN da aba Processos (Sugerir resposta)"
+                        title="Consulta DataJud+DJEN só quando você clicar — não roda ao abrir o contato"
                       >
                         {loadingTribunal ? (
                           <Loader2 size={14} className="animate-spin" />
@@ -1351,7 +1348,7 @@ function WhatsAppTerminalInner() {
                     {(historicoTribunal.length > 0 || loadingTribunal) && (
                       <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2 max-h-56 overflow-y-auto">
                         <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                          Histórico do tribunal · DataJud + DJEN
+                          Histórico do tribunal · DataJud + DJEN (manual)
                           {loadingTribunal ? (
                             <Loader2 size={11} className="animate-spin" />
                           ) : null}
@@ -1385,8 +1382,8 @@ function WhatsAppTerminalInner() {
                               {it.title}
                             </p>
                             {it.subtitle ? (
-                              <p className="text-muted-foreground line-clamp-2 whitespace-pre-wrap">
-                                {plainTextFromDjen(String(it.subtitle)).slice(0, 400)}
+                              <p className="text-muted-foreground whitespace-pre-wrap text-[11px] leading-relaxed max-h-40 overflow-y-auto">
+                                {plainTextFromDjen(String(it.subtitle)).slice(0, 2500)}
                               </p>
                             ) : null}
                           </div>

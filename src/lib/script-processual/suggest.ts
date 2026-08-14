@@ -248,8 +248,14 @@ function detectSignals(U: string, input: ScriptInput): Signals {
     /[^.!\n]*sob\s+pena\s+(de\s+)?cancelamento[^.!\n]*/gi,
     ' '
   );
+  // Apelação / 2º grau ativo → NÃO tratar como cancelamento de distribuição
+  const recursoAtivo =
+    /apela[çc][aã]o|contrarraz[oõ]es|recurso|desembargador|2[oº]\s*grau|tribunal\s+de\s+justi[çc]a|preparo|deser[çc][aã]o|justi[çc]a\s+gratuita.{0,40}recurso/i.test(
+      U
+    );
   const cancelamentoDistribuicao =
     !sobPenaCancelamento &&
+    !recursoAtivo &&
     /cancelamento\s+da\s+distribui[çc][aã]o|cancelada\s+a\s+distribui[çc][aã]o|foi\s+cancelad[ao]\s+a\s+distribui|determino\s+o\s+cancelamento\s+da\s+distribui/i.test(
       corpusSemPena
     );
