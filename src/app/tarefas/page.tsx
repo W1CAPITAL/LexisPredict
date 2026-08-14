@@ -308,6 +308,12 @@ export default function TarefasPage() {
         tem_novo_andamento: !!caseData?.tem_novo_andamento,
         datajud_encerrado_tribunal: !!caseData?.datajud_encerrado_tribunal,
         indicio_busca_apreensao: !!caseData?.indicio_busca_apreensao,
+        cumprimento_pendente_necessario: !!(caseData as any)?.cumprimento_pendente_necessario,
+        is_procedente: !!(caseData as any)?.is_procedente,
+        oportunidade_elegivel: !!(caseData as any)?.oportunidade_elegivel,
+        oportunidade_tipo_credito: (caseData as any)?.oportunidade_tipo_credito || null,
+        oportunidade_score: (caseData as any)?.oportunidade_score ?? null,
+        texto_pobre: !!(caseData as any)?.texto_pobre,
         em_cumprimento_sentenca: !!caseData?.em_cumprimento_sentenca,
       });
       setSuggestedScripts(suggestions);
@@ -347,6 +353,12 @@ export default function TarefasPage() {
         tem_novo_andamento: historyResult.case.tem_novo_andamento,
         datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal,
         indicio_busca_apreensao: false,
+        cumprimento_pendente_necessario: !!(caseData as any)?.cumprimento_pendente_necessario,
+        is_procedente: !!(caseData as any)?.is_procedente,
+        oportunidade_elegivel: !!(caseData as any)?.oportunidade_elegivel,
+        oportunidade_tipo_credito: (caseData as any)?.oportunidade_tipo_credito || null,
+        oportunidade_score: (caseData as any)?.oportunidade_score ?? null,
+        texto_pobre: !!(caseData as any)?.texto_pobre,
         em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca,
       });
       if (res.rascunho) {

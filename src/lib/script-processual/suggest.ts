@@ -46,6 +46,12 @@ export interface ScriptInput {
   djen_nova_comunicacao?: boolean;
   datajud_encerrado_tribunal?: boolean;
   em_cumprimento_sentenca?: boolean;
+  cumprimento_pendente_necessario?: boolean;
+  is_procedente?: boolean;
+  oportunidade_elegivel?: boolean;
+  oportunidade_tipo_credito?: string | null;
+  oportunidade_score?: number | null;
+  texto_pobre?: boolean;
   indicio_busca_apreensao?: boolean;
   busca_apreensao?: boolean;
 }
@@ -208,7 +214,13 @@ type Signals = {
   custasPagas: boolean;
   valorCustas: string | null;
   prazoDias: string | null;
-  cumprimentoIniciado: boolean;
+  pendenteInstaurar:
+      !!input.cumprimento_pendente_necessario ||
+      (!!input.oportunidade_elegivel && !input.em_cumprimento_sentenca) ||
+      (!!input.is_procedente &&
+        !input.em_cumprimento_sentenca &&
+        /tr[aâ]nsito|art\.?\s*523|pagamento volunt/i.test(U)),
+    cumprimentoIniciado: boolean;
   intimacaoExecutado: boolean;
   procedenteParcial: boolean;
   improcedente: boolean;
@@ -306,6 +318,12 @@ function detectSignals(U: string, input: ScriptInput): Signals {
     custasPagas,
     valorCustas: extractValorCustas(U),
     prazoDias: extractPrazoDias(U),
+    pendenteInstaurar:
+      !!input.cumprimento_pendente_necessario ||
+      (!!input.oportunidade_elegivel && !input.em_cumprimento_sentenca) ||
+      (!!input.is_procedente &&
+        !input.em_cumprimento_sentenca &&
+        /tr[aâ]nsito|art\.?\s*523|pagamento volunt/i.test(U)),
     cumprimentoIniciado:
       !!input.em_cumprimento_sentenca ||
       /cumprimento\s+de\s+senten[çc]a\s+iniciada|execu[çc][aã]o\/cumprimento\s+de\s+senten[çc]a\s+iniciada|dado\s+in[ií]cio\s+ao\s+cumprimento/i.test(
@@ -378,6 +396,29 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
   }
 
   // ——— Cumprimento / intimação ao BANCO (boa notícia) — Alessandro execução
+  // Falta instaurar cumprimento — mensagem cautelosa (não promete R$)
+  if (s.pendenteInstaurar && !s.cumprimentoIniciado && out.length < 3) {
+    const tipo = String(input.oportunidade_tipo_credito || '');
+    const score = Number(input.oportunidade_score || 0);
+    const textoPobre = !!input.texto_pobre;
+    out.push({
+      id: 'instaurar_cumprimento_oportunidade',
+      titulo:
+        tipo === 'sucumbencia'
+          ? 'Possível cumprimento — honorários de sucumbência'
+          : tipo === 'ambos'
+            ? 'Possível cumprimento — crédito + sucumbência'
+            : 'Possível fase de cumprimento de sentença',
+      quandoUsar:
+        'Procedente/parcial com trânsito e ainda sem fase 156. Use só após conferir o teor. Nunca invente valor de multa/honorários.',
+      texto: textoPobre
+        ? `Olá, ${firstName(input.clienteNome)}! Estamos revisando o teor da decisão do seu processo para confirmar se já é possível iniciar a fase de cumprimento (cobrança do que foi definido). Assim que a análise estiver completa, te retorno com os próximos passos — sem compromisso de valores antes do cálculo oficial.`
+        : score >= 55
+          ? `Olá, ${firstName(input.clienteNome)}! Há indícios de que o seu processo já tem título para a fase de cumprimento de sentença (após o prazo de pagamento voluntário previsto no art. 523 do CPC). Nossa equipe está preparando a análise do teor e do demonstrativo. Qualquer cobrança ou protocolo só ocorre depois dessa conferência; te mantenho informado.`
+          : `Olá, ${firstName(input.clienteNome)}! Identificamos movimentação compatível com título transitado. Vamos confirmar no teor se cabe iniciar o cumprimento de sentença e quais documentos faltam. Retorno em breve com orientação objetiva.`,
+    });
+  }
+
   if (s.cumprimentoIniciado || (s.custasDoReu && s.intimacaoExecutado)) {
     out.push({
       id: 'cumprimento_positivo',

@@ -681,7 +681,13 @@ function WhatsAppTerminalInner() {
       tem_novo_andamento: !!(caseData as any).tem_novo_andamento,
       datajud_encerrado_tribunal: !!(caseData as any).datajud_encerrado_tribunal,
       indicio_busca_apreensao: !!(caseData as any).indicio_busca_apreensao,
-      em_cumprimento_sentenca: !!(caseData as any).em_cumprimento_sentenca,
+      cumprimento_pendente_necessario: !!(caseData as any)?.cumprimento_pendente_necessario,
+        is_procedente: !!(caseData as any)?.is_procedente,
+        oportunidade_elegivel: !!(caseData as any)?.oportunidade_elegivel,
+        oportunidade_tipo_credito: (caseData as any)?.oportunidade_tipo_credito || null,
+        oportunidade_score: (caseData as any)?.oportunidade_score ?? null,
+        texto_pobre: !!(caseData as any)?.texto_pobre,
+        em_cumprimento_sentenca: !!(caseData as any).em_cumprimento_sentenca,
     } as any);
     return scripts.map((s, idx) => ({
       id: String((s as any).id || `script-${idx}`),
@@ -844,7 +850,13 @@ function WhatsAppTerminalInner() {
           tem_novo_andamento: selected.tem_novo_andamento,
           datajud_encerrado_tribunal: selected.datajud_encerrado_tribunal,
           indicio_busca_apreensao: selected.indicio_busca_apreensao,
-          em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
+          cumprimento_pendente_necessario: !!(caseData as any)?.cumprimento_pendente_necessario,
+        is_procedente: !!(caseData as any)?.is_procedente,
+        oportunidade_elegivel: !!(caseData as any)?.oportunidade_elegivel,
+        oportunidade_tipo_credito: (caseData as any)?.oportunidade_tipo_credito || null,
+        oportunidade_score: (caseData as any)?.oportunidade_score ?? null,
+        texto_pobre: !!(caseData as any)?.texto_pobre,
+        em_cumprimento_sentenca: selected.em_cumprimento_sentenca,
         } as any),
         new Promise((_, rej) =>
           setTimeout(

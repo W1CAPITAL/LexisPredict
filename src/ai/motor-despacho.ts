@@ -11,6 +11,7 @@ import { suggestScripts, sortDjenTextsRecentFirst } from '@/lib/script-processua
 import { retrieveKnowledge } from '@/lib/knowledge/retrieve';
 import { searchKnowledgeChunksAction } from '@/app/actions/knowledge-actions';
 import { EventoTipo } from '@/lib/case-logic';
+import { blocoFundamentoInstaurarCumprimento } from '@/lib/conhecimento-cpc-honorarios';
 
 export interface MotorDespachoInput {
   clienteNome: string;
@@ -29,6 +30,14 @@ export interface MotorDespachoInput {
   indicio_busca_apreensao?: boolean;
   em_cumprimento_sentenca?: boolean;
   datajud_ultimo_nome?: string | null;
+  /** Falta instaurar cumprimento (motor executivo) */
+  cumprimento_pendente_necessario?: boolean;
+  is_procedente?: boolean;
+  oportunidade_elegivel?: boolean;
+  oportunidade_score?: number | null;
+  oportunidade_tipo_credito?: string | null;
+  oportunidade_dias_apos_transito?: number | null;
+  texto_pobre?: boolean;
 }
 
 const BANNED_TERMS = [
@@ -77,9 +86,30 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     datajud_encerrado_tribunal,
     indicio_busca_apreensao,
     em_cumprimento_sentenca,
+    cumprimento_pendente_necessario,
+    is_procedente,
+    oportunidade_elegivel,
+    oportunidade_score,
+    oportunidade_tipo_credito,
+    oportunidade_dias_apos_transito,
+    texto_pobre,
   } = input;
 
+
   const djenTexts = sortDjenTextsRecentFirst(djenTextsRaw || []);
+
+  const deveFalarCumprimento =
+    !!cumprimento_pendente_necessario ||
+    !!oportunidade_elegivel ||
+    (!!is_procedente && !em_cumprimento_sentenca && !datajud_encerrado_tribunal);
+
+  const fundamentoCumprimento = deveFalarCumprimento
+    ? blocoFundamentoInstaurarCumprimento({
+        tipoCredito: oportunidade_tipo_credito || undefined,
+        diasAposTransito: oportunidade_dias_apos_transito ?? null,
+      })
+    : '';
+
 
   const suggestions = suggestScripts({
     clienteNome,
@@ -100,9 +130,18 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
 
   // ——— APENAS Motor Lexis: script fixo
   if (isLocalOnly(preferredModel)) {
+    let localTxt = baseScript;
+    if (deveFalarCumprimento && fundamentoCumprimento && canal !== 'whatsapp') {
+      localTxt = `${baseScript}\n\n---\n${fundamentoCumprimento}`;
+    } else if (deveFalarCumprimento && !baseScript) {
+      localTxt =
+        canal === 'whatsapp'
+          ? `Olá! Sobre o seu processo, identificamos indícios de título transitado que pode permitir a fase de cumprimento. Nossa equipe vai conferir o teor e o cálculo antes de qualquer cobrança ou protocolo. Qualquer novidade te avisamos.`
+          : fundamentoCumprimento;
+    }
     return {
       sucesso: true,
-      rascunho: cleanBannedTerms(baseScript),
+      rascunho: cleanBannedTerms(localTxt),
       engine: 'MOTOR_LEXIS_SCRIPTS',
       engineUtilizada: 'MOTOR_LEXIS_SCRIPTS',
     };
@@ -174,7 +213,9 @@ ${contextKnowledge || '(sem base extra)'}
   const userPrompt = `PROCESSO: ${protocolo}
 CLIENTE (autor/polo ativo típico): ${clienteNome}
 EVENTO: ${eventoTipo || 'N/A'} — ${eventoResumo || 'N/A'}
-FLAGS: ENCERRADO=${!!datajud_encerrado_tribunal} CUMPRIMENTO=${!!em_cumprimento_sentenca} NOVIDADE=${!!tem_novo_andamento}\n(IGNORE qualquer tag B.A. da interface; só use o histórico abaixo.)
+FLAGS: ENCERRADO=${!!datajud_encerrado_tribunal} CUMPRIMENTO=${!!em_cumprimento_sentenca} PENDENTE_INSTAURAR=${!!cumprimento_pendente_necessario} PROCEDENTE=${!!is_procedente} OPORTUNIDADE=${oportunidade_elegivel ? `sim score=${oportunidade_score ?? '?'} tipo=${oportunidade_tipo_credito || 'incerto'}` : 'não'} TEXTO_POBRE=${!!texto_pobre} NOVIDADE=${!!tem_novo_andamento}
+(IGNORE qualquer tag B.A. da interface; só use o histórico abaixo.)
+${fundamentoCumprimento ? `\nFUNDAMENTO JURÍDICO (citável, NÃO invente valores em R$):\n${fundamentoCumprimento}\n` : ''}
 
 CRONOLOGIA / MOVIMENTOS (já priorize o MAIS RECENTE):
 ${historicoTxt || '(sem movimentos detalhados)'}

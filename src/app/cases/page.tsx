@@ -402,6 +402,12 @@ function CasesContent() {
         tem_novo_andamento: caseData.tem_novo_andamento ?? c.tem_novo_andamento,
         datajud_encerrado_tribunal: caseData.datajud_encerrado_tribunal ?? c.datajud_encerrado_tribunal,
         indicio_busca_apreensao: caseData.indicio_busca_apreensao ?? c.indicio_busca_apreensao,
+        cumprimento_pendente_necessario: !!(caseData as any)?.cumprimento_pendente_necessario,
+        is_procedente: !!(caseData as any)?.is_procedente,
+        oportunidade_elegivel: !!(caseData as any)?.oportunidade_elegivel,
+        oportunidade_tipo_credito: (caseData as any)?.oportunidade_tipo_credito || null,
+        oportunidade_score: (caseData as any)?.oportunidade_score ?? null,
+        texto_pobre: !!(caseData as any)?.texto_pobre,
         em_cumprimento_sentenca: caseData.em_cumprimento_sentenca ?? c.em_cumprimento_sentenca,
       });
       setSuggestedScripts(suggestions);
@@ -436,7 +442,13 @@ function CasesContent() {
     setAiDraft(null);
     try {
       const djenTexts = (historyResult.djenComunicacoes || []).map(d => plainTextFromDjen(d.texto)).filter(Boolean);
-      const res = await gerarRascunhoEstrategico({ clienteNome: historyResult.case.cliente, protocolo: historyResult.case.protocolo, ultimoRetorno: historyResult.case.ultimoRetorno, movimentos: historyResult.movimentos, djenTexts, eventoTipo: historyResult.case.evento_tipo, eventoResumo: historyResult.case.evento_resumo, preferredModel: selectedMotor === "local_only" || selectedMotor === "local" ? "local_only" : "omni", empresaId: profile?.empresa_id, tem_novo_andamento: historyResult.case.tem_novo_andamento, datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal, indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao, em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca });
+      const res = await gerarRascunhoEstrategico({ clienteNome: historyResult.case.cliente, protocolo: historyResult.case.protocolo, ultimoRetorno: historyResult.case.ultimoRetorno, movimentos: historyResult.movimentos, djenTexts, eventoTipo: historyResult.case.evento_tipo, eventoResumo: historyResult.case.evento_resumo, preferredModel: selectedMotor === "local_only" || selectedMotor === "local" ? "local_only" : "omni", empresaId: profile?.empresa_id, tem_novo_andamento: historyResult.case.tem_novo_andamento, datajud_encerrado_tribunal: historyResult.case.datajud_encerrado_tribunal, indicio_busca_apreensao: historyResult.case.indicio_busca_apreensao, cumprimento_pendente_necessario: !!(caseData as any)?.cumprimento_pendente_necessario,
+        is_procedente: !!(caseData as any)?.is_procedente,
+        oportunidade_elegivel: !!(caseData as any)?.oportunidade_elegivel,
+        oportunidade_tipo_credito: (caseData as any)?.oportunidade_tipo_credito || null,
+        oportunidade_score: (caseData as any)?.oportunidade_score ?? null,
+        texto_pobre: !!(caseData as any)?.texto_pobre,
+        em_cumprimento_sentenca: historyResult.case.em_cumprimento_sentenca });
       if (res.rascunho) { setAiDraft(res.rascunho); toast({ title: "Draft Gerado" }); }
     } finally { setIsGeneratingAIDraft(false); }
   };
