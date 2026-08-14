@@ -140,35 +140,61 @@ export function sortCasesByPrazo(cases: LegalCase[], mode: SortPrazoMode): Legal
 
 /** Fila de scanner: críticos/vencidos primeiro, depois hoje, atenção, novidade, resto */
 export function prioritizeScanQueue(cases: LegalCase[]): LegalCase[] {
+  /** Texto de telemetria para caçar cumprimento / procedência */
+  const blobOf = (c: LegalCase) =>
+    `${(c as any).datajud_ultimo_nome || ''} ${(c as any).datajud_encerrado_motivo || ''} ${(c as any).djen_ultimo_resumo || ''} ${(c as any).cumprimento_sentenca_motivo || ''} ${(c as any).evento_resumo || ''} ${(c as any).status || ''}`.toUpperCase();
+
+  const hintCumprimento = (c: LegalCase) => {
+    const b = blobOf(c);
+    return /CUMPRIMENTO|ART\.?\s*523|ART\.?\s*524|EXECU[CÇ][AÃ]O DE SENTEN[CÇ]A|FASE DE EXECU|PENHORA|CONSTRI[CÇ][AÃ]O|LEIL[AÃ]O|EXPROPRIA|OBRIGAC[AÃ]O DE PAGAR|IMPULSIONAMENTO.*EXECUT/.test(b);
+  };
+  const hintProcedente = (c: LegalCase) => {
+    const b = blobOf(c);
+    return /PROCEDENTE|PARCIALMENTE PROCEDENTE|JULGO PROCEDENTE|PROVIMENTO|RECURSO PROVIDO|DERAM PROVIMENTO/.test(b) && !/IMPROCEDENTE/.test(b);
+  };
+  const hintTransito = (c: LegalCase) => {
+    const b = blobOf(c);
+    return /TR[AÂ]NSITO|TRANSITO EM JULGADO|BAIXA DEFINITIVA|ARQUIVAMENTO DEFINITIVO/.test(b) || !!(c as any).datajud_encerrado_tribunal;
+  };
+
   return [...cases].sort((a, b) => {
     const score = (c: LegalCase) => {
       let s = 0;
       const st = statusOf(c);
       const encerradoOp = isCasoEncerrado(c);
-      // Ativos sempre acima de encerrados operacionais
-      if (!encerradoOp) s += 10000;
+      const dados = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
+
+      // ===== PRIORIDADE MÁXIMA: achar cumprimentos / procedentes =====
+      if ((c as any).em_cumprimento_sentenca || dados.em_cumprimento_sentenca) s += 20000;
+      if ((c as any).cumprimento_ativo || dados.cumprimento_ativo) s += 19000;
+      if ((c as any).cumprimento_pendente_necessario || dados.cumprimento_pendente_necessario) s += 18500;
+      if (hintCumprimento(c)) s += 17000;
+      if ((c as any).is_procedente || dados.is_procedente || hintProcedente(c)) s += 15000;
+      if (hintTransito(c) && (hintProcedente(c) || !(c as any).em_cumprimento_sentenca)) s += 12000;
+
+      // Ativos operacionais acima de encerrados "normais"
+      if (!encerradoOp) s += 8000;
+
       if (c.statusManual === 'Caso Crítico' || st === 'Caso Crítico') s += 5000;
       if (st === 'Vencido') s += 4000;
       if (st === 'É Hoje') s += 3000;
       if (st === 'Atenção') s += 2000;
       if (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno) s += 1500;
       if ((c as any).indicio_busca_apreensao) s += 4500;
-      if ((c as any).em_cumprimento_sentenca) s += 1200;
-      // Encerrados: ainda entram na fila para checar cumprimento / procedência / falta instaurar
+
+      // Encerrado sem flag executiva → ainda precisa ser varrido
       if (encerradoOp) {
-        s += 500; // base para não ficarem no fim absoluto se houver score 0
-        const dados = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
-        const jaAnalisado =
+        const ja =
           !!(c as any).status_executivo ||
           !!dados.status_executivo ||
           !!(c as any).is_procedente ||
           !!dados.is_procedente ||
           !!(c as any).cumprimento_pendente_necessario ||
           !!dados.cumprimento_pendente_necessario;
-        if (!jaAnalisado) s += 800; // prioriza quem ainda não tem flag executiva
-        if ((c as any).datajud_encerrado_tribunal) s += 400;
-        if (!(c as any).datajud_consultado_em) s += 300;
+        if (!ja) s += 9000; // sobe na fila para classificar
+        else s += 400;
       }
+
       const d = dias(c);
       if (d !== null && d < 0) s += Math.min(800, Math.abs(d) * 2);
       return s;

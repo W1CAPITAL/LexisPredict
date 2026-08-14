@@ -58,7 +58,12 @@ function diasDesdeTransito(dateStr?: string | null): number | null {
 }
 
 function statusExecutivo(c: LegalCase): string {
-  const st = (c as any).status_executivo || (c as any).detalhes_execucao?.status_executivo;
+  const dados = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
+  const st =
+    (c as any).status_executivo ||
+    dados.status_executivo ||
+    (c as any).detalhes_execucao?.status_executivo ||
+    dados.detalhes_execucao?.status_executivo;
   if (st && st !== "nenhum") return String(st);
   if (c.cumprimento_pendente_necessario) return "pendente";
   if ((c as any).cumprimento_encerrado) return "encerrado";

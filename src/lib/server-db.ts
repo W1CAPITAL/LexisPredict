@@ -93,15 +93,16 @@ function toLegalCase(item: any): LegalCase {
     busca_apreensao_confianca: item.busca_apreensao_confianca,
     busca_apreensao_motivo: item.busca_apreensao_motivo,
     busca_apreensao_consultado_em: item.busca_apreensao_consultado_em,
-    em_cumprimento_sentenca: item.em_cumprimento_sentenca,
-    cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
-    cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em,
-    is_procedente: item.is_procedente,
-    procedente_motivo: item.procedente_motivo,
-    cumprimento_pendente_necessario: item.cumprimento_pendente_necessario,
-    cumprimento_ativo: item.cumprimento_ativo ?? item.dados?.cumprimento_ativo,
-    cumprimento_encerrado: item.cumprimento_encerrado ?? item.dados?.cumprimento_encerrado,
-    status_executivo: item.status_executivo ?? item.dados?.status_executivo,
+    em_cumprimento_sentenca: item.em_cumprimento_sentenca ?? dados.em_cumprimento_sentenca,
+    cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo ?? dados.cumprimento_sentenca_motivo,
+    cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em ?? dados.cumprimento_sentenca_consultado_em,
+    is_procedente: item.is_procedente ?? dados.is_procedente,
+    procedente_motivo: item.procedente_motivo ?? dados.procedente_motivo,
+    cumprimento_pendente_necessario: item.cumprimento_pendente_necessario ?? dados.cumprimento_pendente_necessario,
+    cumprimento_ativo: item.cumprimento_ativo ?? dados.cumprimento_ativo,
+    cumprimento_encerrado: item.cumprimento_encerrado ?? dados.cumprimento_encerrado,
+    status_executivo: item.status_executivo ?? dados.status_executivo,
+    detalhes_execucao: item.detalhes_execucao ?? dados.detalhes_execucao,
     data_transito_julgado: item.data_transito_julgado,
     djen_nova_comunicacao: item.djen_nova_comunicacao,
     djen_ultimo_resumo: item.djen_ultimo_resumo,
@@ -475,14 +476,11 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     'em_cumprimento_sentenca',
     'cumprimento_sentenca_motivo',
     'cumprimento_sentenca_consultado_em',
+    // status_executivo / cumprimento_ativo / cumprimento_encerrado / detalhes_execucao → só em dados JSONB
     'is_procedente',
     'procedente_motivo',
     'cumprimento_pendente_necessario',
-    'status_executivo',
-    'cumprimento_encerrado',
-    'cumprimento_ativo',
     'data_transito_julgado',
-    'detalhes_execucao',
     'djen_ultima_data',
     'djen_ultimo_resumo',
     'djen_ultimo_link',
@@ -504,7 +502,17 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     }
   }
 
-  const { error } = await admin.from('processos').update(row).eq('id', caseId);
+    let { error } = await admin.from('processos').update(row).eq('id', caseId);
+
+  if (error && /does not exist|column/i.test(error.message || '')) {
+    console.warn('[updateCaseDataJudSystem] retry só dados:', error.message);
+    const safe: Record<string, any> = { dados: updatedDados };
+    for (const k of ['em_cumprimento_sentenca','cumprimento_sentenca_motivo','datajud_ultimo_movimento','datajud_ultimo_nome','datajud_consultado_em','datajud_encerrado_tribunal','datajud_encerrado_motivo','tribunal','is_procedente','procedente_motivo','cumprimento_pendente_necessario']) {
+      if (row[k] !== undefined) safe[k] = row[k];
+    }
+    const retry = await admin.from('processos').update(safe).eq('id', caseId);
+    error = retry.error;
+  }
 
   if (error) {
     console.error('[updateCaseDataJudSystem] update', error);

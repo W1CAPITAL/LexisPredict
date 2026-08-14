@@ -1137,20 +1137,34 @@ export async function getCumprimentosEProcedentesAction() {
   try {
     const all = await getStoredCasesForEmpresa(empresa_id);
     const filtered = all.filter((c: any) => {
-      const st = c.status_executivo || c.detalhes_execucao?.status_executivo;
+      const dados = (c.dados && typeof c.dados === 'object' ? c.dados : {}) as any;
+      const st =
+        c.status_executivo ||
+        dados.status_executivo ||
+        c.detalhes_execucao?.status_executivo ||
+        dados.detalhes_execucao?.status_executivo;
       return (
         c.is_procedente ||
+        dados.is_procedente ||
         c.em_cumprimento_sentenca ||
+        dados.em_cumprimento_sentenca ||
         c.cumprimento_pendente_necessario ||
+        dados.cumprimento_pendente_necessario ||
         c.cumprimento_encerrado ||
+        dados.cumprimento_encerrado ||
         c.cumprimento_ativo ||
+        dados.cumprimento_ativo ||
         st === 'pendente' ||
         st === 'ativo' ||
         st === 'encerrado' ||
         st === 'procedente' ||
         c.evento_tipo === 'sentenca_procedente' ||
         c.evento_tipo === 'sentenca_parcial' ||
-        c.evento_tipo === 'cumprimento_sentenca'
+        c.evento_tipo === 'cumprimento_sentenca' ||
+        // telemetria textual (antes da reclassificação formal)
+        /CUMPRIMENTO DE SENTEN[CÇ]A|FASE DE CUMPRIMENTO/i.test(
+          `${c.datajud_ultimo_nome || ''} ${c.djen_ultimo_resumo || ''} ${dados.datajud_ultimo_nome || ''}`
+        )
       );
     });
 
@@ -1346,22 +1360,36 @@ export async function reclassificarExecutivoCarteiraAction() {
 
         // sempre grava flags atuais + merge dados
         const newDados = { ...dados, ...patch };
-        const { error: upErr } = await admin
-          .from('processos')
-          .update({
-            dados: newDados,
-            is_procedente: patch.is_procedente,
-            procedente_motivo: patch.procedente_motivo,
-            em_cumprimento_sentenca: patch.em_cumprimento_sentenca,
-            cumprimento_pendente_necessario: patch.cumprimento_pendente_necessario,
-            data_transito_julgado: patch.data_transito_julgado,
-            cumprimento_sentenca_motivo: patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
-          })
-          .eq('id', row.id);
+        let upErr = (
+          await admin
+            .from('processos')
+            .update({
+              dados: newDados,
+              is_procedente: patch.is_procedente,
+              procedente_motivo: patch.procedente_motivo,
+              em_cumprimento_sentenca: patch.em_cumprimento_sentenca,
+              cumprimento_pendente_necessario: patch.cumprimento_pendente_necessario,
+              data_transito_julgado: patch.data_transito_julgado,
+              cumprimento_sentenca_motivo: patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
+            })
+            .eq('id', row.id)
+        ).error;
+
+        // Coluna inexistente → grava só JSON dados (flags executivas)
+        if (upErr && /does not exist|column/i.test(upErr.message || '')) {
+          upErr = (await admin.from('processos').update({ dados: newDados, em_cumprimento_sentenca: patch.em_cumprimento_sentenca }).eq('id', row.id)).error;
+        }
 
         if (!upErr) {
           updated += 1;
-          if (r.is_procedente || r.em_cumprimento_sentenca || r.cumprimento_pendente_necessario) {
+          if (
+            r.is_procedente ||
+            r.em_cumprimento_sentenca ||
+            r.cumprimento_pendente_necessario ||
+            r.cumprimento_ativo ||
+            r.cumprimento_encerrado ||
+            (r.status_executivo && r.status_executivo !== 'nenhum')
+          ) {
             hits += 1;
           }
         }
