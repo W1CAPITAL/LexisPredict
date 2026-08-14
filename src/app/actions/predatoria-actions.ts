@@ -1,21 +1,27 @@
-
 'use server';
 
 /**
- * Radar predatória — banca de advogados da carteira + NUMOPEDE.
- * Só alerta com menção real a NUMOPEDE / litigância predatória nos textos já capturados.
+ * Radar NUMOPEDE — cruza advogados_banca (nome+OAB) com processos.advogado (apelidos/combos).
  */
-import { getUserContext, getStoredCasesForEmpresa, saveStoredCasesForEmpresa } from '@/lib/server-db';
+import {
+  getUserContext,
+  getStoredCasesForEmpresa,
+  saveStoredCasesForEmpresa,
+  listAdvogadosBanca,
+} from '@/lib/server-db';
 import {
   scanTextForPredatoria,
   scorePredatoria,
   normalizeLawyerKey,
   hasNumopedeSignal,
-  isNumopedeOnly,
-  extractOabFromText,
   type PredatoriaRisk,
   type PredatoriaSignal,
 } from '@/lib/predatoria-radar';
+import {
+  caseMatchesBancaAdv,
+  oabNumbersFromBanca,
+  type BancaAdv,
+} from '@/lib/advogado-match';
 import { buildCnaSearchUrl, normalizeOabNumero, isValidOabUf } from '@/lib/oab-consulta';
 import { consultarOabAction } from '@/app/actions/oab-actions';
 import type { LegalCase } from '@/lib/case-logic';
@@ -24,6 +30,7 @@ export type PredatoriaHitCase = {
   protocolo: string;
   cliente: string;
   advogado: string;
+  bancaNome?: string;
   tribunal?: string;
   signals: PredatoriaSignal[];
   temNumopede: boolean;
@@ -40,12 +47,15 @@ export type PredatoriaReport = {
   error?: string;
 };
 
-export type AdvogadoBanca = {
+export type AdvogadoBancaRadar = {
+  id: string;
   nome: string;
   key: string;
   totalProcessos: number;
   oabUf?: string;
   oabNumero?: string;
+  oabLabel?: string;
+  aliases: string[];
   numopedeHits: number;
 };
 
@@ -60,8 +70,7 @@ function collectCaseText(c: any): string {
     c.observacoes,
     c.busca_apreensao_motivo,
     c.cumprimento_sentenca_motivo,
-    (c as any).dados?.datajud_ultimo_nome,
-    (c as any).dados?.djen_ultimo_resumo,
+    c.advogado,
     ...(Array.isArray(c.movimentos)
       ? c.movimentos.map((m: any) => [m.nome, m.complemento, m.descricao].filter(Boolean).join(' '))
       : []),
@@ -70,78 +79,104 @@ function collectCaseText(c: any): string {
 }
 
 function caseHasNumopedeFlag(c: any): boolean {
-  return !!(
-    c.sinal_numopede ||
-    c.sinal_predatoria ||
-    (c as any).dados?.sinal_numopede ||
-    (c as any).dados?.sinal_predatoria
-  );
+  return !!(c.sinal_numopede || c.sinal_predatoria || c.dados?.sinal_numopede || c.dados?.sinal_predatoria);
 }
 
-/** Lista advogados únicos da carteira (com contagem e OAB se houver no texto/cadastro). */
+function pickOabLabel(a: BancaAdv): { uf?: string; numero?: string; label?: string } {
+  const raw = [a.oab, a.numero_oab, a.oabs].filter(Boolean).join(' | ');
+  const nums = oabNumbersFromBanca(a);
+  const m = String(raw).match(/\b([A-Z]{2})\s*[\/\s-]*\s*([\d.]+)/i);
+  const uf = (a.oab_uf || m?.[1] || '').toUpperCase() || undefined;
+  const numero = nums[0];
+  return { uf, numero, label: raw || (numero ? `${uf || ''}/${numero}` : undefined) };
+}
+
 export async function listarAdvogadosBancaAction(): Promise<{
   success: boolean;
-  advogados: AdvogadoBanca[];
+  advogados: AdvogadoBancaRadar[];
+  orfaos: Array<{ label: string; total: number }>;
   error?: string;
 }> {
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false, advogados: [], error: 'Sessão expirada' };
+  if (!empresa_id) return { success: false, advogados: [], orfaos: [], error: 'Sessão expirada' };
 
-  const cases = await getStoredCasesForEmpresa(empresa_id);
-  const map = new Map<string, AdvogadoBanca>();
+  const [bancaRaw, cases] = await Promise.all([
+    listAdvogadosBanca(),
+    getStoredCasesForEmpresa(empresa_id, true),
+  ]);
+  const banca = (bancaRaw || []) as BancaAdv[];
+
+  const rows: AdvogadoBancaRadar[] = banca.map((a) => {
+    const o = pickOabLabel(a);
+    return {
+      id: String(a.id || normalizeLawyerKey(a.nome || '')),
+      nome: String(a.nome || 'Sem nome'),
+      key: normalizeLawyerKey(a.nome || '') || String(a.id),
+      totalProcessos: 0,
+      oabUf: o.uf,
+      oabNumero: o.numero,
+      oabLabel: o.label,
+      aliases: [],
+      numopedeHits: 0,
+    };
+  });
+
+  const aliasCount = new Map<string, Map<string, number>>();
+  const orphan = new Map<string, number>();
 
   for (const c of cases || []) {
-    const nome = String((c as any).advogado || '').trim();
-    if (!nome || nome === '-' || /n[aã]o\s*atribu/i.test(nome)) continue;
-    const key = normalizeLawyerKey(nome);
-    if (key.length < 3) continue;
+    const field = String((c as any).advogado || '').trim();
+    if (!field || /n[aã]o\s*atribu/i.test(field)) continue;
+    const text = collectCaseText(c);
+    const sigs = scanTextForPredatoria(text);
+    const temN = hasNumopedeSignal(sigs) || caseHasNumopedeFlag(c);
 
-    let row = map.get(key);
-    if (!row) {
-      const oabFrom =
-        extractOabFromText(nome) ||
-        extractOabFromText(String((c as any).oab || '')) ||
-        extractOabFromText(collectCaseText(c));
-      row = {
-        nome,
-        key,
-        totalProcessos: 0,
-        oabUf: oabFrom?.uf,
-        oabNumero: oabFrom?.numero,
-        numopedeHits: 0,
-      };
-      map.set(key, row);
-    }
-    row.totalProcessos += 1;
-
-    const sigs = scanTextForPredatoria(collectCaseText(c));
-    if (hasNumopedeSignal(sigs) || caseHasNumopedeFlag(c)) {
-      row.numopedeHits += 1;
-    }
-    if (!row.oabNumero) {
-      const o2 = extractOabFromText(nome) || extractOabFromText(String((c as any).oab || ''));
-      if (o2?.numero) {
-        row.oabUf = o2.uf;
-        row.oabNumero = o2.numero;
+    let matched = false;
+    for (const row of rows) {
+      const src = banca.find((b) => String(b.id) === row.id) || { nome: row.nome, oab: row.oabLabel };
+      if (caseMatchesBancaAdv(field, src as BancaAdv, text)) {
+        matched = true;
+        row.totalProcessos += 1;
+        if (temN) row.numopedeHits += 1;
+        if (!aliasCount.has(row.key)) aliasCount.set(row.key, new Map());
+        const am = aliasCount.get(row.key)!;
+        am.set(field, (am.get(field) || 0) + 1);
       }
+    }
+    if (!matched) orphan.set(field, (orphan.get(field) || 0) + 1);
+  }
+
+  for (const row of rows) {
+    const am = aliasCount.get(row.key);
+    if (am) {
+      row.aliases = Array.from(am.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([label, n]) => (n > 1 ? `${label} (${n})` : label));
     }
   }
 
-  const advogados = Array.from(map.values()).sort((a, b) => {
+  rows.sort((a, b) => {
     if (b.numopedeHits !== a.numopedeHits) return b.numopedeHits - a.numopedeHits;
     return b.totalProcessos - a.totalProcessos;
   });
 
-  return { success: true, advogados };
+  const orfaos = Array.from(orphan.entries())
+    .map(([label, total]) => ({ label, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 40);
+
+  return { success: true, advogados: rows, orfaos };
 }
 
 export async function analisarAdvogadoPredatoriaAction(input: {
   nome?: string;
   oabUf?: string;
   oabNumero?: string;
+  bancaId?: string;
 }): Promise<PredatoriaReport> {
   const disclaimer =
-    'Processos disciplinares da OAB em curso são sigilosos. Este radar só usa sinais da SUA carteira e textos públicos já capturados (DataJud/DJEN). Não afirma que existe investigação oficial.';
+    'Cruza advogados_banca com o campo advogado dos processos. Só alerta NUMOPEDE/predatória nos textos capturados.';
 
   const { empresa_id } = await getUserContext();
   if (!empresa_id) {
@@ -167,45 +202,53 @@ export async function analisarAdvogadoPredatoriaAction(input: {
       nome: (o as any)?.nome,
       situacao: (o as any)?.situacao,
       consultaUrl: buildCnaSearchUrl(oabUf, oabNumero),
-      error: (o as any)?.error || (o as any)?.success === false ? (o as any)?.error : undefined,
+      error: (o as any)?.error,
     };
-  } else if (oabUf && oabNumero) {
-    oabBlock = { consultaUrl: buildCnaSearchUrl(oabUf, oabNumero) };
   }
 
-  const cases = await getStoredCasesForEmpresa(empresa_id);
-  const keyNome = normalizeLawyerKey(nomeQ || oabBlock?.nome || '');
+  const banca = ((await listAdvogadosBanca()) || []) as BancaAdv[];
+  let target: BancaAdv | null = null;
+  if (input.bancaId) target = banca.find((b) => String(b.id) === String(input.bancaId)) || null;
+  if (!target && nomeQ) {
+    const k = normalizeLawyerKey(nomeQ);
+    target =
+      banca.find((b) => normalizeLawyerKey(b.nome || '') === k) ||
+      banca.find((b) => {
+        const bn = normalizeLawyerKey(b.nome || '');
+        return bn.includes(k) || k.includes(bn) || caseMatchesBancaAdv(nomeQ, b);
+      }) ||
+      null;
+  }
+  if (!target && oabNumero) {
+    target = banca.find((b) => oabNumbersFromBanca(b).includes(oabNumero)) || null;
+  }
+  if (!target && (nomeQ || oabNumero)) {
+    target = { nome: nomeQ || oabBlock?.nome, oab: oabNumero ? `${oabUf}/${oabNumero}` : undefined, numero_oab: oabNumero };
+  }
+
+  const cases = await getStoredCasesForEmpresa(empresa_id, true);
   const hits: PredatoriaHitCase[] = [];
   const allSignals: PredatoriaSignal[] = [];
 
   for (const c of cases || []) {
-    const adv = String((c as any).advogado || '');
-    const advKey = normalizeLawyerKey(adv);
-    const matchNome =
-      !keyNome ||
-      (keyNome.length >= 3 &&
-        (advKey.includes(keyNome) ||
-          keyNome.includes(advKey) ||
-          advKey.split(' ').some((p) => p.length > 3 && keyNome.includes(p))));
-
-    if (keyNome && !matchNome) continue;
-
+    const field = String((c as any).advogado || '');
     const text = collectCaseText(c);
+    if (target && !caseMatchesBancaAdv(field, target, text)) continue;
+
     const sigs = scanTextForPredatoria(text);
     const temN = hasNumopedeSignal(sigs) || caseHasNumopedeFlag(c);
+    if (!temN) continue;
 
-    // Alerta só com NUMOPEDE / predatória textual — volume sem keyword não apita
-    if (temN) {
-      hits.push({
-        protocolo: String((c as any).protocolo || ''),
-        cliente: String((c as any).cliente || ''),
-        advogado: adv,
-        tribunal: String((c as any).tribunal || ''),
-        signals: sigs.length ? sigs : [{ code: 'NUMOPEDE', label: 'Flag NUMOPEDE já gravada', weight: 25 }],
-        temNumopede: true,
-      });
-      allSignals.push(...(sigs.length ? sigs : [{ code: 'NUMOPEDE', label: 'Flag NUMOPEDE', weight: 25 }]));
-    }
+    hits.push({
+      protocolo: String((c as any).protocolo || ''),
+      cliente: String((c as any).cliente || ''),
+      advogado: field,
+      bancaNome: target?.nome,
+      tribunal: String((c as any).tribunal || ''),
+      signals: sigs.length ? sigs : [{ code: 'NUMOPEDE', label: 'Flag NUMOPEDE', weight: 25 }],
+      temNumopede: true,
+    });
+    allSignals.push(...(sigs.length ? sigs : [{ code: 'NUMOPEDE', label: 'Flag NUMOPEDE', weight: 25 }]));
   }
 
   const byCode = new Map<string, PredatoriaSignal>();
@@ -214,25 +257,19 @@ export async function analisarAdvogadoPredatoriaAction(input: {
     if (!prev || s.weight >= prev.weight) byCode.set(s.code, s);
   }
 
-  const risk = scorePredatoria(Array.from(byCode.values()), { volumeCases: hits.length });
-
   return {
     success: true,
-    query: { nome: nomeQ || oabBlock?.nome, oabUf: oabUf || undefined, oabNumero: oabNumero || undefined },
+    query: { nome: target?.nome || nomeQ, oabUf: oabUf || undefined, oabNumero: oabNumero || undefined },
     oab: oabBlock,
     casesMatched: hits.length,
-    risk,
+    risk: scorePredatoria(Array.from(byCode.values()), { volumeCases: hits.length }),
     hits: hits.slice(0, 120),
     disclaimer,
   };
 }
 
-/**
- * Varre a banca inteira (ou lista de keys) e retorna só processos com NUMOPEDE/predatória.
- * Opcionalmente grava flags no banco.
- */
 export async function escanearBancaNumopedeAction(input?: {
-  lawyerKeys?: string[]; // vazio = todos
+  lawyerKeys?: string[];
   aplicarFlags?: boolean;
 }): Promise<{
   success: boolean;
@@ -244,44 +281,85 @@ export async function escanearBancaNumopedeAction(input?: {
   error?: string;
 }> {
   const disclaimer =
-    'Só processos com menção NUMOPEDE / litigância predatória nos textos da carteira. Não confirma investigação OAB.';
+    'Varredura pela banca cadastrada cruzada com processos.advogado. Só NUMOPEDE/predatória textual.';
 
   const { empresa_id } = await getUserContext();
   if (!empresa_id) {
     return { success: false, scannedLawyers: 0, hits: [], flagged: 0, byLawyer: [], disclaimer, error: 'Sessão' };
   }
 
-  const cases = (await getStoredCasesForEmpresa(empresa_id)) as LegalCase[];
-  const keysFilter = (input?.lawyerKeys || []).map(normalizeLawyerKey).filter(Boolean);
+  const banca = ((await listAdvogadosBanca()) || []) as BancaAdv[];
+  const keys = (input?.lawyerKeys || []).map(String);
+  const selected =
+    keys.length === 0
+      ? banca
+      : banca.filter(
+          (b) =>
+            keys.includes(String(b.id)) ||
+            keys.includes(normalizeLawyerKey(b.nome || '')) ||
+            keys.some((k) => {
+              const bn = normalizeLawyerKey(b.nome || '');
+              return bn.includes(k) || k.includes(bn);
+            })
+        );
+
+  const cases = (await getStoredCasesForEmpresa(empresa_id, true)) as LegalCase[];
   const hits: PredatoriaHitCase[] = [];
   const lawyerHitCount = new Map<string, { nome: string; hits: number }>();
   const flagProtocols = new Set<string>();
 
   for (const c of cases || []) {
-    const adv = String((c as any).advogado || '').trim();
-    const advKey = normalizeLawyerKey(adv);
-    if (keysFilter.length && !keysFilter.some((k) => advKey.includes(k) || k.includes(advKey))) continue;
-
+    const field = String((c as any).advogado || '');
     const text = collectCaseText(c);
     const sigs = scanTextForPredatoria(text);
     const temN = hasNumopedeSignal(sigs) || caseHasNumopedeFlag(c);
     if (!temN) continue;
 
-    const proto = String((c as any).protocolo || '');
-    hits.push({
-      protocolo: proto,
-      cliente: String((c as any).cliente || ''),
-      advogado: adv,
-      tribunal: String((c as any).tribunal || ''),
-      signals: sigs.length ? sigs : [{ code: 'NUMOPEDE', label: 'Flag NUMOPEDE', weight: 25 }],
-      temNumopede: true,
-    });
-    flagProtocols.add(proto);
+    const matched = selected.filter((b) => caseMatchesBancaAdv(field, b, text));
+    if (selected.length && matched.length === 0) {
+      if (keys.length === 0) {
+        hits.push({
+          protocolo: String((c as any).protocolo || ''),
+          cliente: String((c as any).cliente || ''),
+          advogado: field,
+          bancaNome: '(não mapeado na banca)',
+          tribunal: String((c as any).tribunal || ''),
+          signals: sigs,
+          temNumopede: true,
+        });
+        flagProtocols.add(String((c as any).protocolo || ''));
+        const prev = lawyerHitCount.get('_orfao') || { nome: '(sem match na banca)', hits: 0 };
+        prev.hits += 1;
+        lawyerHitCount.set('_orfao', prev);
+      }
+      continue;
+    }
 
-    const prev = lawyerHitCount.get(advKey) || { nome: adv || 'Sem advogado', hits: 0 };
-    prev.hits += 1;
-    lawyerHitCount.set(advKey, prev);
+    const use = matched.length ? matched : [];
+    for (const b of use) {
+      hits.push({
+        protocolo: String((c as any).protocolo || ''),
+        cliente: String((c as any).cliente || ''),
+        advogado: field,
+        bancaNome: b.nome,
+        tribunal: String((c as any).tribunal || ''),
+        signals: sigs.length ? sigs : [{ code: 'NUMOPEDE', label: 'Flag NUMOPEDE', weight: 25 }],
+        temNumopede: true,
+      });
+      const k = normalizeLawyerKey(b.nome || '') || String(b.id);
+      const prev = lawyerHitCount.get(k) || { nome: String(b.nome || field), hits: 0 };
+      prev.hits += 1;
+      lawyerHitCount.set(k, prev);
+    }
+    flagProtocols.add(String((c as any).protocolo || ''));
   }
+
+  const seen = new Set<string>();
+  const uniqueHits = hits.filter((h) => {
+    if (seen.has(h.protocolo)) return false;
+    seen.add(h.protocolo);
+    return true;
+  });
 
   let flagged = 0;
   if (input?.aplicarFlags && flagProtocols.size) {
@@ -296,21 +374,13 @@ export async function escanearBancaNumopedeAction(input?: {
         predatoria_marcado_em: new Date().toISOString(),
       } as LegalCase;
     });
-    await saveStoredCasesForEmpresa(updated, empresa_id);
+    await saveStoredCasesForEmpresa(updated, empresa_id, true);
   }
-
-  const scanned =
-    keysFilter.length ||
-    new Set(
-      (cases || [])
-        .map((c) => normalizeLawyerKey(String((c as any).advogado || '')))
-        .filter((k) => k.length >= 3)
-    ).size;
 
   return {
     success: true,
-    scannedLawyers: typeof scanned === 'number' ? scanned : 0,
-    hits: hits.slice(0, 200),
+    scannedLawyers: selected.length || banca.length,
+    hits: uniqueHits.slice(0, 200),
     flagged,
     byLawyer: Array.from(lawyerHitCount.values()).sort((a, b) => b.hits - a.hits),
     disclaimer,
@@ -326,6 +396,6 @@ export async function analisarTextoPredatoriaAction(texto: string): Promise<{
   return {
     success: true,
     risk: scorePredatoria(signals),
-    disclaimer: 'Análise só do texto colado. Não consulta OAB nem confirma investigação oficial.',
+    disclaimer: 'Análise só do texto colado.',
   };
 }
