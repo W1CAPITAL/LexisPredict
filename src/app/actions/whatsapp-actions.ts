@@ -473,6 +473,8 @@ export async function listEvolutionChatsAction(opts?: { onlyGroups?: boolean; li
       success: res.ok,
       chats: res.chats || [],
       error: res.error,
+      totalRaw: (res as any).totalRaw,
+      groups: (res.chats || []).filter((c: any) => c.isGroup).length,
     };
   } catch (e: any) {
     return { success: false, chats: [], error: e?.message || String(e) };

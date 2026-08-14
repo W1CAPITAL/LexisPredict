@@ -186,7 +186,7 @@ function WhatsAppTerminalInner() {
     { jid: string; name: string; isGroup: boolean; lastMessage?: string }[]
   >([]);
   const [evoLoading, setEvoLoading] = useState(false);
-  const [evoOnlyGroups, setEvoOnlyGroups] = useState(true);
+  const [evoOnlyGroups, setEvoOnlyGroups] = useState(false);
   const [selectedEvoJid, setSelectedEvoJid] = useState<string | null>(null);
   const [selectedEvoName, setSelectedEvoName] = useState<string>("");
 
@@ -378,10 +378,12 @@ function WhatsAppTerminalInner() {
   }, []);
 
   const loadEvolutionChats = useCallback(async (onlyGroups?: boolean) => {
+    setListSource("evolution");
     setEvoLoading(true);
     try {
+      const only = onlyGroups ?? evoOnlyGroups;
       const res = await listEvolutionChatsAction({
-        onlyGroups: onlyGroups ?? evoOnlyGroups,
+        onlyGroups: only,
         limit: 300,
       });
       if (!res.success) {
@@ -389,8 +391,15 @@ function WhatsAppTerminalInner() {
         setEvoChats([]);
         return;
       }
-      setEvoChats(res.chats || []);
-      toast({ title: "Chats Evolution", description: `${(res.chats || []).length} conversa(s)` });
+      const list = res.chats || [];
+      setEvoChats(list);
+      const g = list.filter((c) => c.isGroup).length;
+      toast({
+        title: "Chats Evolution",
+        description: only
+          ? `${list.length} grupo(s) · clique para abrir`
+          : `${list.length} chat(s) · ${g} grupo(s) · clique na linha`,
+      });
     } catch (e: any) {
       toast({ title: "Erro chats", description: e?.message || String(e), variant: "destructive" });
     } finally {
@@ -398,7 +407,11 @@ function WhatsAppTerminalInner() {
     }
   }, [evoOnlyGroups, toast]);
 
-  const selectEvolutionChat = async (chat: { jid: string; name: string; isGroup: boolean }) => {
+  const selectEvolutionChat = async (chat: {
+    jid: string;
+    name: string;
+    isGroup: boolean;
+  }) => {
     setSelected(null);
     setSelectedEvoJid(chat.jid);
     setSelectedEvoName(chat.name || chat.jid);
@@ -410,11 +423,23 @@ function WhatsAppTerminalInner() {
     setHistLoading(true);
     try {
       const res = await fetchEvolutionChatByJidAction(chat.jid);
-      if (res.success) setHistory(res.messages || []);
-      else {
+      if (res.success) {
+        setHistory(res.messages || []);
+      } else {
         setHistory([]);
-        toast({ title: "Histórico", description: res.error || "Sem mensagens", variant: "destructive" });
+        toast({
+          title: "Histórico",
+          description: res.error || "Sem mensagens neste chat",
+          variant: "destructive",
+        });
       }
+    } catch (e: any) {
+      setHistory([]);
+      toast({
+        title: "Histórico",
+        description: e?.message || String(e),
+        variant: "destructive",
+      });
     } finally {
       setHistLoading(false);
     }
@@ -1118,13 +1143,16 @@ function WhatsAppTerminalInner() {
                       className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "carteira" ? "bg-background shadow" : "text-muted-foreground")}>
                       Processos
                     </button>
-                    <button type="button" onClick={() => { setListSource("evolution"); void loadEvolutionChats(evoOnlyGroups); }}
+                    <button type="button" onClick={() => { setListSource("evolution"); setQ(""); void loadEvolutionChats(evoOnlyGroups); }}
                       className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "evolution" ? "bg-background shadow" : "text-muted-foreground")}>
                       WA / Grupos
                     </button>
                   </div>
                   {listSource === "evolution" && (
-                    <div className="flex items-center gap-2 pb-1">
+                    <div className="flex items-center gap-2 pb-1 flex-wrap">
+                      <span className="text-[9px] font-black uppercase text-emerald-600 tabular-nums">
+                        {evoLoading ? "…" : `${evoChats.length} na lista`}
+                      </span>
                       <button type="button" className="text-[9px] font-bold uppercase text-muted-foreground"
                         onClick={() => { setEvoOnlyGroups((v) => { const n = !v; void loadEvolutionChats(n); return n; }); }}>
                         {evoOnlyGroups ? "Só grupos" : "Todos os chats"}
@@ -1137,18 +1165,26 @@ function WhatsAppTerminalInner() {
                     </div>
                   )}
                 </div>
-<ScrollArea className="flex-1">
-                <div className="p-2 space-y-1">
-                  {loading && (
+<ScrollArea className="flex-1 min-h-0">
+                <div className="p-2 space-y-1 min-h-[200px]">
+                  {listSource === "evolution" && evoLoading && (
                     <div className="flex justify-center py-10 text-muted-foreground">
                       <Loader2 className="animate-spin" />
                     </div>
                   )}
-                  {!loading && listSource === "evolution" &&
+                  {listSource === "carteira" && loading && (
+                    <div className="flex justify-center py-10 text-muted-foreground">
+                      <Loader2 className="animate-spin" />
+                    </div>
+                  )}
+                  {listSource === "evolution" && !evoLoading &&
                     evoChats
                       .filter((ch) => {
+                        // busca da carteira NÃO esconde grupos: só filtra se parecer JID/nome curto
                         const qq = (typeof q === "string" ? q : "").trim().toLowerCase();
                         if (!qq) return true;
+                        // se query parece CNJ/protocolo de processo, ignore na aba Evolution
+                        if (/\d{7}-\d{2}/.test(qq) || qq.replace(/\D/g, "").length >= 15) return true;
                         return (
                           ch.name.toLowerCase().includes(qq) ||
                           ch.jid.toLowerCase().includes(qq) ||
@@ -1228,12 +1264,12 @@ function WhatsAppTerminalInner() {
                         </button>
                       );
                     })}
-                  {!loading && listSource === "evolution" && evoChats.length === 0 && (
+                  {listSource === "evolution" && !evoLoading && evoChats.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
                       Nenhum chat/grupo. Clique em Atualizar (instância Evolution open).
                     </p>
                   )}
-                  {!loading && listSource === "carteira" && contacts.length === 0 && (
+                  {listSource === "carteira" && !loading && contacts.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
                       Nenhum processo com telefone na carteira.
                     </p>

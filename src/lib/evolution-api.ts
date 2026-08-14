@@ -890,47 +890,94 @@ export async function listEvolutionChats(opts?: {
     };
   }
 
+  function extractJid(ch: any): string {
+    const candidates = [
+      ch?.remoteJid,
+      ch?.key?.remoteJid,
+      ch?.jid,
+      ch?.id?.remoteJid,
+      typeof ch?.id === 'string' ? ch.id : null,
+      ch?.chatId,
+      ch?.participant,
+    ];
+    for (const c of candidates) {
+      if (c == null) continue;
+      const s = String(c).trim();
+      if (!s) continue;
+      // JID válido WhatsApp
+      if (s.includes('@g.us') || s.includes('@s.whatsapp.net') || s.includes('@lid')) return s;
+      // só dígitos longos → 1:1
+      const dig = s.replace(/\D/g, '');
+      if (dig.length >= 10 && dig.length <= 15) return `${dig}@s.whatsapp.net`;
+      // id numérico de grupo sem sufixo (raro)
+      if (/^\d{10,}$/.test(s)) return `${s}@g.us`;
+    }
+    return '';
+  }
+
   const chats: EvolutionChatItem[] = [];
   const seen = new Set<string>();
   for (const ch of arr) {
-    const jid = String(
-      ch?.id || ch?.remoteJid || ch?.key?.remoteJid || ch?.jid || ''
-    ).trim();
+    const jid = extractJid(ch);
     if (!jid || seen.has(jid)) continue;
     seen.add(jid);
-    const isGroup = jid.includes('@g.us') || !!ch?.isGroup || ch?.type === 'group';
+    const isGroup =
+      jid.includes('@g.us') ||
+      !!ch?.isGroup ||
+      ch?.type === 'group' ||
+      !!ch?.groupMetadata ||
+      String(ch?.subject || '').length > 0 && jid.includes('@g.us');
     if (opts?.onlyGroups && !isGroup) continue;
     const name = String(
       ch?.name ||
         ch?.pushName ||
         ch?.subject ||
         ch?.notify ||
-        (isGroup ? jid.split('@')[0] : jid.split('@')[0]) ||
+        ch?.verifiedName ||
+        ch?.contact?.pushName ||
+        (isGroup ? `Grupo ${jid.split('@')[0].slice(-8)}` : jid.split('@')[0]) ||
         jid
     ).slice(0, 120);
     const lastMessage = String(
       ch?.lastMessage?.message?.conversation ||
         ch?.lastMessage?.message?.extendedTextMessage?.text ||
+        ch?.lastMessage?.conversation ||
         ch?.lastMsg ||
         ch?.msg ||
+        ch?.lastMessageText ||
         ''
     ).slice(0, 160);
+    const ts =
+      ch?.updatedAt ||
+      ch?.conversationTimestamp ||
+      ch?.lastMsgTimestamp ||
+      ch?.lastMessage?.messageTimestamp ||
+      null;
     chats.push({
       jid,
       name,
       isGroup,
       lastMessage: lastMessage || undefined,
       unread: typeof ch?.unreadCount === 'number' ? ch.unreadCount : undefined,
-      updatedAt: ch?.updatedAt || ch?.conversationTimestamp || null,
+      updatedAt: ts != null ? String(ts) : null,
     });
   }
 
   chats.sort((a, b) => {
-    if (a.isGroup !== b.isGroup) return a.isGroup ? -1 : 1; // grupos primeiro se onlyGroups false still ok
+    // mais recentes primeiro quando houver timestamp
+    const ta = Number(a.updatedAt) || 0;
+    const tb = Number(b.updatedAt) || 0;
+    if (ta || tb) return tb - ta;
+    if (a.isGroup !== b.isGroup) return a.isGroup ? -1 : 1;
     return (a.name || '').localeCompare(b.name || '', 'pt-BR');
   });
 
-  return { ok: true, chats: chats.slice(0, limit) };
+  return {
+    ok: true,
+    chats: chats.slice(0, limit),
+    // debug leve para a UI
+    totalRaw: arr.length,
+  } as any;
 }
 
 /** Histórico por remoteJid (grupo ou 1:1), sem filtrar por telefone de processo. */
