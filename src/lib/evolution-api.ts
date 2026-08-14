@@ -138,49 +138,55 @@ export async function wakeEvolutionInstance(): Promise<{ ok: boolean; detail?: s
   const details: string[] = [];
 
   try {
-    // 1) ping root (acordar container)
+    // 1) connectionState PRIMEIRO (rápido se já open)
+    const stateUrl = `${baseUrl}/instance/connectionState/${inst}`;
+    let st: Response | null = null;
+    try {
+      st = await fetch(stateUrl, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      st = null;
+    }
+
+    let stBody = st ? await st.text().catch(() => '') : '';
+    let open = !!(st && st.ok && parseConnectionOpen(stBody));
+    details.push(`state HTTP ${st?.status ?? 'fail'} open=${open}`);
+
+    if (open) {
+      return { ok: true, open: true, detail: details.join(' | ') };
+    }
+
+    // 2) ping root (Render cold start)
     await fetch(`${baseUrl}/`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => null);
+
+    // 3) connect apenas — SEM restart (evita 401 logout)
+    await fetch(`${baseUrl}/instance/connect/${inst}`, {
       method: 'GET',
       headers,
       signal: AbortSignal.timeout(20000),
     }).catch(() => null);
 
-    // 2) connectionState
-    const stateUrl = `${baseUrl}/instance/connectionState/${inst}`;
-    let st = await fetch(stateUrl, {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(25000),
-    });
-    let stBody = await st.text().catch(() => '');
-    let open = st.ok && parseConnectionOpen(stBody);
-    details.push(`state HTTP ${st.status} open=${open}`);
+    await sleep(2500);
 
-    // 3) se não estiver open: connect + restart + esperar
-    if (!open) {
-      await fetch(`${baseUrl}/instance/connect/${inst}`, {
-        method: 'GET',
-        headers,
-        signal: AbortSignal.timeout(25000),
-      }).catch(() => null);
-
-      await fetch(`${baseUrl}/instance/restart/${inst}`, {
-        method: 'PUT',
-        headers,
-        signal: AbortSignal.timeout(25000),
-      }).catch(() => null);
-
-      await sleep(3500);
-
+    try {
       st = await fetch(stateUrl, {
         method: 'GET',
         headers,
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(15000),
       });
-      stBody = await st.text().catch(() => '');
-      open = st.ok && parseConnectionOpen(stBody);
-      details.push(`after-restart open=${open}`);
+    } catch {
+      st = null;
     }
+    stBody = st ? await st.text().catch(() => '') : '';
+    open = !!(st && st.ok && parseConnectionOpen(stBody));
+    details.push(`after-connect open=${open}`);
 
     // 4) presença “available” (várias rotas — builds Evolution diferem)
     const presenceBodies = [

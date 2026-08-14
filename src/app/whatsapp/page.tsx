@@ -868,8 +868,8 @@ function WhatsAppTerminalInner() {
         sendWhatsAppAction(casePhone(selected), draft.trim()),
         new Promise<{ success: false; message: string }>((resolve) =>
           setTimeout(
-            () => resolve({ success: false, message: "Tempo esgotado (25s). Tente wa.me ou verifique a Evolution." }),
-            25000
+            () => resolve({ success: false, message: "Tempo esgotado (90s). Confira Evolution Manager (estado open) e EVOLUTION_INSTANCE=Lexis." }),
+            90000
           )
         ),
       ]);

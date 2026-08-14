@@ -608,20 +608,39 @@ export async function scanOneDjenAction(protocolo: string) {
 export async function runDataJudScanAction(empresaId: string) {
   try {
     if (!empresaId) return { success: false, error: 'Missing ID' };
-    const cases = await getStoredCasesForEmpresa(empresaId, true);
-    const activeCases = cases.filter((c) => !isCasoEncerrado(c));
+    const { getGlobalPendingProcessesSystem } = await import('@/lib/server-db');
+    const LIMIT = 20;
+    const RE_SCAN_MS = 6 * 60 * 60 * 1000;
+    const candidates = await getGlobalPendingProcessesSystem(LIMIT * 3, empresaId);
+    const targetCases = (candidates || []).filter((c: any) => {
+      if (isCasoEncerrado(c)) return false;
+      const lastScan = c.datajud_consultado_em || c.djen_consultado_em || null;
+      if (!lastScan) return true;
+      try {
+        return new Date(lastScan).getTime() < Date.now() - RE_SCAN_MS;
+      } catch {
+        return true;
+      }
+    }).slice(0, LIMIT);
     let updated = 0;
-    const targetCases = activeCases.slice(0, 20);
+    let failed = 0;
     for (const c of targetCases) {
-      const res = await auditCaseCoreSystem(c.protocolo, empresaId, 'both', {
-        fast: true,
-      });
-      const p = (res.casePatch as Record<string, any>) || {};
-      if (res.success && (p.tem_atualizacao_pos_retorno || p.djen_nova_comunicacao)) {
-        updated++;
+      try {
+        const res = await auditCaseCoreSystem(c.protocolo, empresaId, 'both', { fast: true });
+        const p = (res.casePatch as Record<string, any>) || {};
+        if (res.success && (p.tem_atualizacao_pos_retorno || p.djen_nova_comunicacao)) updated++;
+        if (!res.success) failed++;
+      } catch {
+        failed++;
       }
     }
-    return { success: true, scanned: targetCases.length, updated };
+    return {
+      success: true,
+      scanned: targetCases.length,
+      updated,
+      failed,
+      skipped: Math.max(0, (candidates || []).length - targetCases.length),
+    };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
@@ -724,6 +743,14 @@ export async function registrarAtendimentoCompletoAction(input: {
       ultimoRetorno: hoje,
       observacao: obs || null,
     });
+
+    if (situacao === 'ENCERRADO') {
+      await registrarAuditoriaEventAction('encerramento', [found.protocolo], {
+        via: input.via || 'unificado',
+        encerrado_em: hoje,
+        por: auth_id,
+      });
+    }
 
     return {
       success: true,
@@ -931,6 +958,21 @@ export async function backfillEncerradosHojeAction(): Promise<{
         };
       }
       const res = await saveStoredCasesForEmpresa(next, ctx.empresa_id, true);
+      if (res.success && n > 0) {
+        try {
+          const corrigidos = next
+            .filter((c: any) => String(c.ultimoRetorno || '') === hoje)
+            .map((c: any) => String(c.protocolo || '').replace(/\D/g, ''))
+            .filter(Boolean);
+          if (corrigidos.length) {
+            await registrarAuditoriaEventAction('encerramento', corrigidos, {
+              via: 'backfillEncerradosHoje',
+              por: 'sistema',
+              data: hoje,
+            });
+          }
+        } catch { /* */ }
+      }
       return { success: !!res.success, updated: n, message: res.message };
     }
 
@@ -971,6 +1013,21 @@ export async function backfillEncerradosHojeAction(): Promise<{
 
     if (n === 0) return { success: true, updated: 0, message: 'Já contabilizados' };
     const res = await saveStoredCasesForEmpresa(next, ctx.empresa_id, true);
+    if (res.success && n > 0) {
+      try {
+        const corrigidos = next
+          .filter((c: any) => String(c.ultimoRetorno || '') === hoje)
+          .map((c: any) => String(c.protocolo || '').replace(/\D/g, ''))
+          .filter(Boolean);
+        if (corrigidos.length) {
+          await registrarAuditoriaEventAction('encerramento', corrigidos, {
+            via: 'backfillEncerradosHoje',
+            por: 'sistema',
+            data: hoje,
+          });
+        }
+      } catch { /* */ }
+    }
     return {
       success: !!res.success,
       updated: n,
