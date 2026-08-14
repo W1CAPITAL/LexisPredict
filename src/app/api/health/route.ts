@@ -1,13 +1,20 @@
-import { db } from "@/db";
-import { sql } from "drizzle-orm";
+import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Health check leve — NÃO usa Drizzle/pg.
+ * Confirma que o processo Next está vivo; DB é opcional via env.
+ */
 export async function GET() {
-  try {
-    await db.execute(sql`select 1`);
-    return Response.json({ ok: true });
-  } catch {
-    return Response.json({ ok: false }, { status: 500 });
-  }
+  const hasSupabase = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+  );
+  return NextResponse.json({
+    ok: true,
+    app: "lexispredict",
+    supabaseEnv: hasSupabase,
+    ts: new Date().toISOString(),
+  });
 }
