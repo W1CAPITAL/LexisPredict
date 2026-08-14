@@ -195,7 +195,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     });
     get().addLog({
       protocolo: 'SISTEMA',
-      message: 'Iniciando varredura local… fila priorizada (vencidos/críticos primeiro)',
+      message: 'Iniciando varredura local… ativos primeiro; encerrados depois (checa cumprimento/falta instaurar)',
       latency: 0,
       success: true,
       type: 'ok',
@@ -203,9 +203,20 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
     });
 
-    let cases = prioritizeScanQueue(
-      (useAppStore.getState().cases || []).filter((c) => !isCasoEncerrado(c))
-    );
+    // Inclui ENCERRADOS/ARQUIVADOS: scanner verifica se falta instaurar cumprimento ou se está realmente fechado
+    const allLocal = useAppStore.getState().cases || [];
+    const nEnc = allLocal.filter((c) => isCasoEncerrado(c)).length;
+    let cases = prioritizeScanQueue(allLocal);
+    if (nEnc > 0) {
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message: `Fila local com ${nEnc} processo(s) encerrado(s)/arquivado(s) — análise de cumprimento/procedência (falta instaurar?)`,
+        latency: 0,
+        success: true,
+        type: 'ok',
+        engine: 'Local',
+      });
+    }
 
     // Se a store estiver vazia (ex.: RLS / refresh), tenta buscar no servidor
     if (cases.length === 0) {
@@ -215,7 +226,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         if (Array.isArray(remote) && remote.length > 0) {
           const setCases = useAppStore.getState().setCases;
           if (typeof setCases === 'function') setCases(remote);
-          cases = prioritizeScanQueue(remote.filter((c: any) => !isCasoEncerrado(c)));
+          const nEncR = remote.filter((c: any) => isCasoEncerrado(c)).length;
+          cases = prioritizeScanQueue(remote);
+          if (nEncR > 0) {
+            get().addLog({
+              protocolo: 'SISTEMA',
+              message: `Carteira remota: ${nEncR} encerrado(s) incluídos na fila para checagem de cumprimento`,
+              latency: 0,
+              success: true,
+              type: 'ok',
+              engine: 'Local',
+            });
+          }
         }
       } catch (e: any) {
         get().addLog({
@@ -233,7 +255,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       get().addLog({
         protocolo: 'SISTEMA',
         message:
-          'Nenhum processo ativo na memória. Abra Dashboard/Processos, aguarde carregar e tente de novo. (RLS/empresa_id pode zerar a lista.)',
+          'Nenhum processo na memória (ativos nem encerrados). Abra Dashboard/Processos, aguarde carregar e tente de novo. (RLS/empresa_id pode zerar a lista.)',
         latency: 0,
         success: false,
         type: 'error',

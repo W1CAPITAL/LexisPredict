@@ -144,6 +144,9 @@ export function prioritizeScanQueue(cases: LegalCase[]): LegalCase[] {
     const score = (c: LegalCase) => {
       let s = 0;
       const st = statusOf(c);
+      const encerradoOp = isCasoEncerrado(c);
+      // Ativos sempre acima de encerrados operacionais
+      if (!encerradoOp) s += 10000;
       if (c.statusManual === 'Caso Crítico' || st === 'Caso Crítico') s += 5000;
       if (st === 'Vencido') s += 4000;
       if (st === 'É Hoje') s += 3000;
@@ -151,6 +154,21 @@ export function prioritizeScanQueue(cases: LegalCase[]): LegalCase[] {
       if (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno) s += 1500;
       if ((c as any).indicio_busca_apreensao) s += 4500;
       if ((c as any).em_cumprimento_sentenca) s += 1200;
+      // Encerrados: ainda entram na fila para checar cumprimento / procedência / falta instaurar
+      if (encerradoOp) {
+        s += 500; // base para não ficarem no fim absoluto se houver score 0
+        const dados = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
+        const jaAnalisado =
+          !!(c as any).status_executivo ||
+          !!dados.status_executivo ||
+          !!(c as any).is_procedente ||
+          !!dados.is_procedente ||
+          !!(c as any).cumprimento_pendente_necessario ||
+          !!dados.cumprimento_pendente_necessario;
+        if (!jaAnalisado) s += 800; // prioriza quem ainda não tem flag executiva
+        if ((c as any).datajud_encerrado_tribunal) s += 400;
+        if (!(c as any).datajud_consultado_em) s += 300;
+      }
       const d = dias(c);
       if (d !== null && d < 0) s += Math.min(800, Math.abs(d) * 2);
       return s;

@@ -252,22 +252,8 @@ export async function searchKnowledgeChunksSystem(keywords: string[], empresaId:
   return { success: !error, data, error };
 }
 
-export async function getGlobalPendingProcessesSystem(limit: number, empresaId: string): Promise<LegalCase[]> {
-  const admin = await getSupabaseAdmin();
-  const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
-
-  const { data, error } = await admin
-    .from('processos')
-    .select('*')
-    .eq('empresa_id', empresaId)
-    .not('status', 'in', `(${statusExcluidos.map(s => `"${s}"`).join(',')})`)
-    .order('scan_priority', { ascending: false })
-    .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
-    .limit(limit);
-
-  if (error || !data) return [];
-
-  return data.map(item => processarCaso({
+function mapProcessoRow(item: any): LegalCase {
+  return processarCaso({
     ...(item.dados as any),
     id: item.id.toString(),
     db_id: item.id.toString(),
@@ -288,11 +274,84 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
     em_cumprimento_sentenca: item.em_cumprimento_sentenca,
     cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
     cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em,
+    is_procedente: item.is_procedente ?? item.dados?.is_procedente,
+    cumprimento_pendente_necessario: item.cumprimento_pendente_necessario ?? item.dados?.cumprimento_pendente_necessario,
+    status_executivo: item.status_executivo ?? item.dados?.status_executivo,
     djen_nova_comunicacao: item.djen_nova_comunicacao,
     djen_ultimo_resumo: item.djen_ultimo_resumo,
     djen_ultimo_link: item.djen_ultimo_link,
-    djen_ultima_data: item.djen_ultima_data
-  }));
+    djen_ultima_data: item.djen_ultima_data,
+    dados: item.dados,
+  });
+}
+
+export async function getGlobalPendingProcessesSystem(limit: number, empresaId: string): Promise<LegalCase[]> {
+  const admin = await getSupabaseAdmin();
+  const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
+  const statusFilter = `(${statusExcluidos.map(s => `"${s}"`).join(',')})`;
+
+  // Reserva ~1/3 do lote para ENCERRADOS (cumprimento / falta instaurar), resto ativos
+  const slotsEnc = Math.max(1, Math.floor(limit / 3));
+  const slotsAtivos = Math.max(1, limit - slotsEnc);
+
+  const { data: ativos, error } = await admin
+    .from('processos')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .not('status', 'in', statusFilter)
+    .order('scan_priority', { ascending: false })
+    .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
+    .limit(slotsAtivos);
+
+  if (error) return [];
+
+  const out: LegalCase[] = (ativos || []).map(mapProcessoRow);
+
+  // ENCERRADOS operacionais ainda sem flag executiva (ou nunca consultados no DataJud)
+  const { data: encerrados } = await admin
+    .from('processos')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .in('status', statusExcluidos)
+    .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
+    .limit(slotsEnc * 4);
+
+  for (const item of encerrados || []) {
+    if (out.length >= limit) break;
+    const dados = (item.dados && typeof item.dados === 'object' ? item.dados : {}) as any;
+    const ja =
+      item.is_procedente ||
+      item.em_cumprimento_sentenca ||
+      item.cumprimento_pendente_necessario ||
+      dados.is_procedente ||
+      dados.em_cumprimento_sentenca ||
+      dados.cumprimento_pendente_necessario ||
+      dados.status_executivo ||
+      dados.cumprimento_encerrado ||
+      dados.cumprimento_ativo;
+    // Já analisado e já consultado → pula (evita loop eterno)
+    if (ja && item.datajud_consultado_em) continue;
+    out.push(mapProcessoRow(item));
+  }
+
+  // Se ainda sobrar vaga (poucos encerrados), completa com mais ativos
+  if (out.length < limit) {
+    const ids = new Set(out.map((c) => String(c.id || (c as any).db_id)));
+    const { data: maisAtivos } = await admin
+      .from('processos')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .not('status', 'in', statusFilter)
+      .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
+      .limit(limit * 2);
+    for (const item of maisAtivos || []) {
+      if (out.length >= limit) break;
+      if (ids.has(String(item.id))) continue;
+      out.push(mapProcessoRow(item));
+    }
+  }
+
+  return out;
 }
 
 export async function getScanStatusMetrics(empresaId: string) {
@@ -416,11 +475,14 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     'em_cumprimento_sentenca',
     'cumprimento_sentenca_motivo',
     'cumprimento_sentenca_consultado_em',
-    // Flags executivas extras ficam em `dados` JSONB (evita erro se coluna não existe no Supabase)
     'is_procedente',
     'procedente_motivo',
     'cumprimento_pendente_necessario',
+    'status_executivo',
+    'cumprimento_encerrado',
+    'cumprimento_ativo',
     'data_transito_julgado',
+    'detalhes_execucao',
     'djen_ultima_data',
     'djen_ultimo_resumo',
     'djen_ultimo_link',
@@ -442,26 +504,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     }
   }
 
-    let { error } = await admin.from('processos').update(row).eq('id', caseId);
-
-  // Se alguma coluna real não existir no Supabase, grava só em `dados` + campos seguros
-  if (error && /does not exist|column/i.test(error.message || '')) {
-    console.warn('[updateCaseDataJudSystem] retry só dados:', error.message);
-    const safe = {
-      dados: updatedDados,
-      em_cumprimento_sentenca: row.em_cumprimento_sentenca,
-      cumprimento_sentenca_motivo: row.cumprimento_sentenca_motivo,
-      datajud_ultimo_movimento: row.datajud_ultimo_movimento,
-      datajud_ultimo_nome: row.datajud_ultimo_nome,
-      datajud_consultado_em: row.datajud_consultado_em,
-      datajud_encerrado_tribunal: row.datajud_encerrado_tribunal,
-      datajud_encerrado_motivo: row.datajud_encerrado_motivo,
-      tribunal: row.tribunal,
-    };
-    Object.keys(safe).forEach((k) => safe[k] === undefined && delete safe[k]);
-    const retry = await admin.from('processos').update(safe).eq('id', caseId);
-    error = retry.error;
-  }
+  const { error } = await admin.from('processos').update(row).eq('id', caseId);
 
   if (error) {
     console.error('[updateCaseDataJudSystem] update', error);
