@@ -66,5 +66,10 @@ export function checkIfSuperAdmin(user: any) {
  */
 export function checkIfSupervisor(user: any) {
   if (!user) return false;
-  return user.cargo === 'Supervisor';
+  const c = String(user.cargo || user.role || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  return c === 'supervisor' || c === 'supervisao' || c.includes('supervisor');
 }

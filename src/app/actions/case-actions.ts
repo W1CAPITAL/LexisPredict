@@ -817,22 +817,61 @@ export async function registrarAtendimentoCompletoAction(input: {
   filaLista?: string;
 }) {
   try {
-    const { getUserContext, getStoredCases, getSupabaseAdmin } = await import('@/lib/server-db');
+    const { getUserContext, getStoredCases, getStoredCasesForEmpresa, getSupabaseAdmin } = await import('@/lib/server-db');
     const { processarCaso, formatDateToISO } = await import('@/lib/case-logic');
     const { hojeBrasilYmd } = await import('@/lib/atendimento-semana');
     const { patchAtendimentoComEdicao } = await import('@/lib/processos-auditados');
     const { applyFilaListaToObs } = await import('@/lib/fila-listas');
     const { saveOneCaseAction } = await import('@/app/actions/case-save-actions');
 
-    const { auth_id, empresa_id } = await getUserContext();
+    const { auth_id, empresa_id, isMasterView } = await getUserContext();
     if (!empresa_id || !input.protocolo) {
       return { success: false, message: 'Sessão ou protocolo inválido' };
     }
 
-    const all = await getStoredCases();
-    const found = (all || []).find(
-      (c: any) => String(c.protocolo || '').replace(/\D/g, '') === String(input.protocolo).replace(/\D/g, '')
-    );
+    const digits = String(input.protocolo).replace(/\D/g, '');
+    // Busca soberana por empresa + CNJ (não depende de created_by / filtro de carteira pessoal)
+    let found: any = null;
+    try {
+      const admin = await getSupabaseAdmin();
+      if (admin && digits.length >= 15) {
+        const { data: rows } = await admin
+          .from('processos')
+          .select('*')
+          .eq('empresa_id', empresa_id)
+          .limit(3000);
+        const hit = (rows || []).find((r: any) => {
+          const ref = String(r.protocolo_ref || r.dados?.protocolo || '').replace(/\D/g, '');
+          return ref === digits || ref.endsWith(digits) || digits.endsWith(ref);
+        });
+        if (hit) {
+          const { processarCaso: pc } = await import('@/lib/case-logic');
+          const dados = hit.dados && typeof hit.dados === 'object' ? hit.dados : {};
+          found = pc({
+            ...dados,
+            id: String(hit.id),
+            db_id: String(hit.id),
+            created_by: hit.created_by,
+            protocolo: hit.protocolo_ref || dados.protocolo,
+            advogado: hit.advogado ?? dados.advogado,
+            escritorio: hit.escritorio ?? dados.escritorio,
+            status: hit.status ?? dados.status,
+            tribunal: hit.tribunal ?? dados.tribunal,
+            telefone: hit.telefone ?? dados.telefone,
+            observacao: hit.observacoes ?? dados.observacao,
+            ultimoRetorno: hit.ultimo_retorno ?? dados.ultimoRetorno,
+            proximoPrazo: hit.proximo_retorno ?? dados.proximoPrazo,
+          });
+        }
+      }
+    } catch { /* fallback abaixo */ }
+
+    if (!found) {
+      const all = await getStoredCasesForEmpresa(empresa_id, true);
+      found = (all || []).find(
+        (c: any) => String(c.protocolo || '').replace(/\D/g, '') === digits
+      );
+    }
     if (!found) {
       return { success: false, message: 'Processo não encontrado na carteira' };
     }

@@ -40,7 +40,8 @@ export async function getUserContext() {
     
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = checkIfSuperAdmin(profile);
-  const isSupervisor = checkIfSupervisor(profile);
+  const isSupervisor = checkIfSupervisor(profile) || /supervisor/i.test(String(profile?.cargo || ''));
+  // Visão de carteira integral: Superadmin e Supervisor (não Administrador — regra de produto)
   const isMasterView = isSuperAdmin || isSupervisor; 
 
   return { 
@@ -113,32 +114,33 @@ function toLegalCase(item: any): LegalCase {
 
 export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = false): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
-  const client = isAdmin ? await getSupabaseAdmin() : supabase;
+  if (!empresaId) return [];
+
+  const context = await getUserContext();
+  const { auth_id, isMasterView } = context;
+  // isAdmin OU visão master: service role (evita RLS/created_by zerando a carteira)
+  const useAdmin = isAdmin || isMasterView === true;
+  let client = useAdmin ? await getSupabaseAdmin() : supabase;
+  if (!client && useAdmin) client = supabase;
   if (!client) return [];
 
-  try {
-    const context = await getUserContext();
-    const { auth_id, isMasterView } = context;
+  const fetchPages = async (cli: any, filterByCreator: boolean) => {
     let allData: any[] = [];
     let page = 0;
     const pageSize = 1000;
     let hasMore = true;
-
     while (hasMore) {
-      let query = client
+      let query = cli
         .from('processos')
         .select('*')
         .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (!isAdmin && !isMasterView && auth_id) {
+      if (filterByCreator && auth_id) {
         query = query.eq('created_by', auth_id);
       }
-
       const { data, error } = await query;
       if (error) throw error;
-
       if (data && data.length > 0) {
         allData = [...allData, ...data];
         hasMore = data.length === pageSize;
@@ -147,10 +149,44 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         hasMore = false;
       }
     }
-    
-    return allData.map(item => toLegalCase(item));
+    return allData;
+  };
+
+  try {
+    // Operador comum: só os seus. Master/admin: empresa inteira.
+    const filterByCreator = !useAdmin && !!auth_id;
+    let allData = await fetchPages(client, filterByCreator);
+
+    // Fallback: se master/admin veio vazio (service key ausente / RLS), tenta anon+master sem created_by
+    if (allData.length === 0 && useAdmin && client === supabase) {
+      try {
+        const admin = await getSupabaseAdmin();
+        if (admin) allData = await fetchPages(admin, false);
+      } catch { /* ignore */ }
+    }
+
+    // Fallback operador: se created_by não bate (import antigo com null), não deixar tela zerada à toa —
+    // só quando isMasterView (supervisor) já coberto; para admin de empresa use isAdmin=true nas actions.
+    return allData.map((item) => {
+      try {
+        return toLegalCase(item);
+      } catch {
+        return null;
+      }
+    }).filter(Boolean) as LegalCase[];
   } catch (error) {
-    return [];
+    console.error('[getStoredCasesForEmpresa]', error);
+    // Última tentativa: service role sem filtro
+    try {
+      const admin = await getSupabaseAdmin();
+      if (!admin) return [];
+      const allData = await fetchPages(admin, false);
+      return allData.map((item) => {
+        try { return toLegalCase(item); } catch { return null; }
+      }).filter(Boolean) as LegalCase[];
+    } catch {
+      return [];
+    }
   }
 }
 
