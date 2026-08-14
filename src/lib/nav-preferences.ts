@@ -139,10 +139,8 @@ export const NAV_CATALOG: {
   { href: '/crm', label: 'CRM Assessoria', group: 'Ferramentas', moreTools: true },
   { href: '/crm/followups', label: 'Follow-ups CRM', group: 'Ferramentas', moreTools: true },
   { href: '/financas', label: 'Finanças', group: 'Ferramentas', moreTools: true },
-  { href: '/modelos', label: 'Modelos', group: 'Ferramentas', moreTools: true },
-  { href: '/documents', label: 'Documentos', group: 'Ferramentas', moreTools: true },
-  { href: '/substabelecimento', label: 'Substabelecimento', group: 'Ferramentas', moreTools: true },
-  { href: '/habilitacao-peca', label: 'Habilitação', group: 'Ferramentas', moreTools: true },
+  // Peças/modelos ficam dentro da Central de documentos (não no menu lateral).
+  { href: '/documents', label: 'Central de documentos', group: 'Ferramentas', moreTools: true },
   { href: '/veredito', label: 'Veredito', group: 'Ferramentas', moreTools: true },
   { href: '/chat', label: 'Assistente', group: 'Ferramentas', moreTools: true },
   { href: '/whatsapp', label: 'WhatsApp', group: 'Ferramentas', moreTools: true },
