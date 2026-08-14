@@ -57,6 +57,30 @@ function diasDesdeTransito(dateStr?: string | null): number | null {
   }
 }
 
+
+function oportunidadeOf(c: LegalCase): {
+  elegivel: boolean;
+  score: number;
+  tipo: string;
+  riscos: string[];
+  revisao: boolean;
+} | null {
+  const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
+  const op =
+    (c as any).oportunidade_instaurar ||
+    dados.oportunidade_instaurar ||
+    (c as any).detalhes_execucao?.oportunidade_instaurar ||
+    dados.detalhes_execucao?.oportunidade_instaurar;
+  if (!op && !(c as any).oportunidade_score && !dados.oportunidade_score) return null;
+  return {
+    elegivel: !!(c as any).oportunidade_elegivel || !!dados.oportunidade_elegivel || !!op?.elegivel,
+    score: Number((c as any).oportunidade_score ?? op?.score ?? 0),
+    tipo: String((c as any).oportunidade_tipo_credito || op?.tipo_credito || "incerto"),
+    riscos: Array.isArray(op?.riscos) ? op.riscos : [],
+    revisao: op?.requer_revisao_humana !== false,
+  };
+}
+
 function statusExecutivo(c: LegalCase): string {
   const dados = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
   const st =
@@ -554,10 +578,39 @@ export default function CumprimentosProcedentesPage() {
                                 Procedente
                               </Badge>
                             )}
+                            {(() => {
+                              const op = oportunidadeOf(c);
+                              if (!op || op.score <= 0) return null;
+                              const hot = op.elegivel && op.score >= 55;
+                              return (
+                                <>
+                                  <Badge
+                                    className={
+                                      hot
+                                        ? "bg-violet-600 text-[8px] font-black uppercase"
+                                        : "bg-slate-500 text-[8px] font-black uppercase"
+                                    }
+                                  >
+                                    Score {op.score}
+                                    {op.tipo !== "incerto" ? ` · ${op.tipo}` : ""}
+                                  </Badge>
+                                  {op.revisao && hot && (
+                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-amber-500/50 text-amber-700">
+                                      Revisar teor
+                                    </Badge>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
 
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+                          {(() => {
+                            const op = oportunidadeOf(c);
+                            if (!op?.riscos?.length) return null;
+                            return <span className="text-amber-700 dark:text-amber-400">Risco: {op.riscos[0]}</span>;
+                          })()}
                           {c.procedente_motivo && (
                             <span>Procedência: {c.procedente_motivo}</span>
                           )}
