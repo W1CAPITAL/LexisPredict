@@ -1153,17 +1153,44 @@ export async function getCumprimentosEProcedentesAction() {
         c.evento_tipo === 'cumprimento_sentenca'
       );
     });
-    // Ordena: pendente primeiro, depois em cumprimento, depois procedente
-    filtered.sort((a: any, b: any) => {
-      const pa = a.cumprimento_pendente_necessario ? 0 : a.em_cumprimento_sentenca ? 1 : 2;
-      const pb = b.cumprimento_pendente_necessario ? 0 : b.em_cumprimento_sentenca ? 1 : 2;
-      if (pa !== pb) return pa - pb;
-      // Desempate por data de trânsito em julgado (mais antigo primeiro)
-      const da = a.data_transito_julgado || '';
-      const db = b.data_transito_julgado || '';
-      return da.localeCompare(db);
+
+    // Anti-duplicata por CNJ/protocolo (mantém o mais completo)
+    const byProto = new Map<string, any>();
+    for (const c of filtered) {
+      const key = String(c.protocolo || c.protocolo_ref || c.id || '')
+        .replace(/\D/g, '')
+        .slice(-20);
+      if (!key) continue;
+      const prev = byProto.get(key);
+      if (!prev) {
+        byProto.set(key, c);
+        continue;
+      }
+      const score = (x: any) =>
+        (x.cumprimento_pendente_necessario ? 4 : 0) +
+        (x.em_cumprimento_sentenca ? 3 : 0) +
+        (x.is_procedente ? 2 : 0) +
+        (x.cumprimento_encerrado ? 1 : 0);
+      if (score(c) >= score(prev)) byProto.set(key, c);
+    }
+    const unique = Array.from(byProto.values());
+
+    unique.sort((a: any, b: any) => {
+      const rank = (x: any) => {
+        const st = x.status_executivo || x.detalhes_execucao?.status_executivo;
+        if (x.cumprimento_pendente_necessario || st === 'pendente') return 0;
+        if (x.cumprimento_ativo || st === 'ativo') return 1;
+        if (x.is_procedente || st === 'procedente') return 2;
+        if (x.cumprimento_encerrado || st === 'encerrado') return 3;
+        return 4;
+      };
+      const d = rank(a) - rank(b);
+      if (d !== 0) return d;
+      return String(a.data_transito_julgado || '').localeCompare(
+        String(b.data_transito_julgado || '')
+      );
     });
-    return { success: true, data: filtered };
+    return { success: true, data: unique };
   } catch (e: any) {
     return { success: false, data: [] as LegalCase[] };
   }
@@ -1221,12 +1248,8 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
  * Rápido — ideal antes de exportar ou para popular a aba.
  */
 export async function reclassificarExecutivoCarteiraAction() {
-  const ctx = await getUserContext();
-  const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin } = ctx;
+  const { empresa_id } = await getUserContext();
   if (!empresa_id) return { success: false, updated: 0, error: 'Sem sessão' };
-
-  /** Supervisor / Superadmin / MasterView → empresa inteira; Operador → só created_by */
-  const escopoEmpresa = !!(isMasterView || isSupervisor || isSuperAdmin);
 
   try {
     const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
@@ -1239,20 +1262,14 @@ export async function reclassificarExecutivoCarteiraAction() {
     let hits = 0;
 
     while (true) {
-      let q = admin
+      const { data: rows, error } = await admin
         .from('processos')
         .select(
-          'id, protocolo_ref, created_by, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
+          'id, protocolo_ref, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
         )
         .eq('empresa_id', empresa_id)
-        .order('id', { ascending: true })
         .range(page * pageSize, page * pageSize + pageSize - 1);
 
-      if (!escopoEmpresa && auth_id) {
-        q = q.eq('created_by', auth_id);
-      }
-
-      const { data: rows, error } = await q;
       if (error) throw new Error(error.message);
       if (!rows?.length) break;
 
@@ -1266,6 +1283,7 @@ export async function reclassificarExecutivoCarteiraAction() {
               ? dados.datajud_movimentos
               : [];
 
+        // Pseudo-movimento a partir de colunas já gravadas
         const nomes = [
           row.datajud_ultimo_nome,
           row.cumprimento_sentenca_motivo,
@@ -1277,7 +1295,10 @@ export async function reclassificarExecutivoCarteiraAction() {
         const movs = movimentos.length ? movimentos : pseudo;
 
         const classeCodigo =
-          dados.classeCodigo ?? dados.classe_codigo ?? dados.classe?.codigo ?? null;
+          dados.classeCodigo ??
+          dados.classe_codigo ??
+          dados.classe?.codigo ??
+          null;
 
         const djenTextos = [
           row.djen_ultimo_resumo,
@@ -1310,13 +1331,20 @@ export async function reclassificarExecutivoCarteiraAction() {
             scanned_at: new Date().toISOString(),
           },
         };
+        if (r.em_cumprimento_sentenca && r.procedente_motivo) {
+          /* keep */
+        }
         if (r.em_cumprimento_sentenca) {
           patch.cumprimento_sentenca_motivo =
-            r.detalhes_execucao?.motivos?.[0] ||
-            row.cumprimento_sentenca_motivo ||
-            'Cumprimento';
+            r.detalhes_execucao?.motivos?.[0] || row.cumprimento_sentenca_motivo || 'Cumprimento';
         }
 
+        const changed =
+          !!row.is_procedente !== r.is_procedente ||
+          !!row.em_cumprimento_sentenca !== r.em_cumprimento_sentenca ||
+          !!row.cumprimento_pendente_necessario !== r.cumprimento_pendente_necessario;
+
+        // sempre grava flags atuais + merge dados
         const newDados = { ...dados, ...patch };
         const { error: upErr } = await admin
           .from('processos')
@@ -1327,19 +1355,13 @@ export async function reclassificarExecutivoCarteiraAction() {
             em_cumprimento_sentenca: patch.em_cumprimento_sentenca,
             cumprimento_pendente_necessario: patch.cumprimento_pendente_necessario,
             data_transito_julgado: patch.data_transito_julgado,
-            cumprimento_sentenca_motivo:
-              patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
+            cumprimento_sentenca_motivo: patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
           })
           .eq('id', row.id);
 
         if (!upErr) {
           updated += 1;
-          if (
-            r.is_procedente ||
-            r.em_cumprimento_sentenca ||
-            r.cumprimento_pendente_necessario ||
-            r.cumprimento_encerrado
-          ) {
+          if (r.is_procedente || r.em_cumprimento_sentenca || r.cumprimento_pendente_necessario) {
             hits += 1;
           }
         }
@@ -1349,31 +1371,19 @@ export async function reclassificarExecutivoCarteiraAction() {
       page += 1;
     }
 
-    return {
-      success: true,
-      scanned,
-      updated,
-      hits,
-      escopo: escopoEmpresa ? 'empresa' : 'usuario',
-    };
+    return { success: true, scanned, updated, hits };
   } catch (e: any) {
     console.error('[reclassificarExecutivoCarteiraAction]', e);
     return { success: false, updated: 0, error: e?.message || 'Erro' };
   }
 }
 
-
-
-/**
- * Scan DataJud em lote (lento, respeita rate limit).
- * limit: quantos processos por chamada (padrão 30).
- * onlyMissing: só quem ainda não tem is_procedente nem cumprimento.
- */
 export async function batchScanExecutivoAction(opts?: {
   limit?: number;
   onlyMissing?: boolean;
-  /** cursor: próximo id a partir do qual continuar (paginação estável) */
   afterId?: number | null;
+  /** Prioriza processos já marcados como encerrados no tribunal (falta instaurar?) */
+  priorizarEncerrados?: boolean;
 }) {
   const ctx = await getUserContext();
   const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin, cargo } = ctx;
@@ -1382,12 +1392,12 @@ export async function batchScanExecutivoAction(opts?: {
   const escopoEmpresa = !!(isMasterView || isSupervisor || isSuperAdmin);
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
   const onlyMissing = opts?.onlyMissing !== false;
+  const priorizarEncerrados = opts?.priorizarEncerrados !== false;
   const afterId = opts?.afterId != null ? Number(opts.afterId) : 0;
 
   try {
     const admin = await getSupabaseAdmin();
 
-    // Conta total no escopo (para progresso)
     let countQ = admin
       .from('processos')
       .select('id', { count: 'exact', head: true })
@@ -1395,27 +1405,63 @@ export async function batchScanExecutivoAction(opts?: {
     if (!escopoEmpresa && auth_id) countQ = countQ.eq('created_by', auth_id);
     const { count: totalEscopo } = await countQ;
 
-    // Busca candidatos em páginas até encher o lote
     const pool: any[] = [];
     let cursor = afterId;
     let safety = 0;
-    while (pool.length < limit && safety < 30) {
+
+    // Função: caso ainda precisa de análise executiva?
+    const needsScan = (r: any) => {
+      const dados = (r.dados && typeof r.dados === 'object' ? r.dados : {}) as any;
+      const hasFlag =
+        r.is_procedente ||
+        r.em_cumprimento_sentenca ||
+        r.cumprimento_pendente_necessario ||
+        r.cumprimento_encerrado ||
+        dados.is_procedente ||
+        dados.em_cumprimento_sentenca ||
+        dados.cumprimento_pendente_necessario ||
+        dados.status_executivo;
+      // Já classificado → não reprocessa (evita “duplicar” trabalho e ruído)
+      if (onlyMissing && hasFlag) return false;
+      return true;
+    };
+
+    // 1) Prioridade: encerrados no tribunal sem flags executivas (pode faltar instaurar)
+    if (priorizarEncerrados && pool.length < limit) {
+      let qEnc = admin
+        .from('processos')
+        .select(
+          'id, protocolo_ref, created_by, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, datajud_encerrado_tribunal, dados'
+        )
+        .eq('empresa_id', empresa_id)
+        .eq('datajud_encerrado_tribunal', true)
+        .order('id', { ascending: true })
+        .limit(150);
+      if (!escopoEmpresa && auth_id) qEnc = qEnc.eq('created_by', auth_id);
+      if (cursor > 0) qEnc = qEnc.gt('id', cursor);
+
+      const { data: encRows } = await qEnc;
+      for (const r of encRows || []) {
+        if (!needsScan(r)) continue;
+        pool.push(r);
+        cursor = Math.max(cursor, Number(r.id) || 0);
+        if (pool.length >= limit) break;
+      }
+    }
+
+    // 2) Restante da carteira no escopo (sem flag ainda)
+    while (pool.length < limit && safety < 40) {
       safety += 1;
       let q = admin
         .from('processos')
         .select(
-          'id, protocolo_ref, created_by, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, cumprimento_encerrado, status_executivo, dados'
+          'id, protocolo_ref, created_by, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, datajud_encerrado_tribunal, dados'
         )
         .eq('empresa_id', empresa_id)
         .order('id', { ascending: true })
         .limit(120);
-
-      if (!escopoEmpresa && auth_id) {
-        q = q.eq('created_by', auth_id);
-      }
-      if (cursor > 0) {
-        q = q.gt('id', cursor);
-      }
+      if (!escopoEmpresa && auth_id) q = q.eq('created_by', auth_id);
+      if (cursor > 0) q = q.gt('id', cursor);
 
       const { data: rows, error } = await q;
       if (error) throw new Error(error.message);
@@ -1423,36 +1469,36 @@ export async function batchScanExecutivoAction(opts?: {
 
       for (const r of rows) {
         cursor = Number(r.id) || cursor;
-        if (onlyMissing) {
-          const dados = (r.dados && typeof r.dados === 'object' ? r.dados : {}) as any;
-          const has =
-            r.is_procedente ||
-            r.em_cumprimento_sentenca ||
-            r.cumprimento_pendente_necessario ||
-            r.cumprimento_encerrado ||
-            dados.is_procedente ||
-            dados.em_cumprimento_sentenca ||
-            dados.cumprimento_pendente_necessario ||
-            dados.status_executivo;
-          if (has) continue;
-        }
+        // já no pool?
+        if (pool.some((p) => p.id === r.id || p.protocolo_ref === r.protocolo_ref)) continue;
+        if (!needsScan(r)) continue;
         pool.push(r);
         if (pool.length >= limit) break;
       }
-
       if (rows.length < 120) break;
+    }
+
+    // Anti-duplicata de protocolo no próprio lote
+    const seenProto = new Set<string>();
+    const uniquePool: any[] = [];
+    for (const r of pool) {
+      const k = String(r.protocolo_ref || '').replace(/\D/g, '');
+      if (k && seenProto.has(k)) continue;
+      if (k) seenProto.add(k);
+      uniquePool.push(r);
     }
 
     let done = 0;
     let ok = 0;
-    const errors: string[] = [];
     let lastId = afterId;
+    const errors: string[] = [];
 
-    for (const row of pool) {
+    for (const row of uniquePool) {
       const proto = String(row.protocolo_ref || '');
       lastId = Number(row.id) || lastId;
       if (!proto) continue;
       try {
+        // Só ATUALIZA processo já existente — auditCaseCoreSystem não cria carteira nova
         const res = await auditCaseCoreSystem(proto, empresa_id, 'both', { fast: true });
         if (res?.success) ok += 1;
         else errors.push(proto);
@@ -1463,7 +1509,6 @@ export async function batchScanExecutivoAction(opts?: {
       await new Promise((r) => setTimeout(r, 1100));
     }
 
-    // Ainda há mais no escopo depois do cursor?
     let moreQ = admin
       .from('processos')
       .select('id')
@@ -1484,11 +1529,82 @@ export async function batchScanExecutivoAction(opts?: {
       totalEscopo: totalEscopo ?? null,
       escopo: escopoEmpresa ? 'empresa' : 'usuario',
       cargo: cargo || null,
+      priorizouEncerrados: priorizarEncerrados,
       remaining_hint: hasMore
-        ? `Lote ok. Clique de novo para continuar (cursor id>${lastId}). Escopo: ${
-            escopoEmpresa ? 'empresa inteira' : 'seus processos'
+        ? `Lote ok (inclui encerrados sem flag). Clique de novo (cursor>${lastId}). Escopo: ${
+            escopoEmpresa ? 'empresa' : 'seus processos'
           }.`
-        : `Fila do escopo concluída (${escopoEmpresa ? 'empresa' : 'usuário'}).`,
+        : `Fila concluída no escopo (${escopoEmpresa ? 'empresa' : 'usuário'}). Já classificados não foram reprocessados.`,
+      errors: errors.slice(0, 8),
+    };
+  } catch (e: any) {
+    return { success: false, done: 0, error: e?.message || 'Erro' };
+  }
+}
+
+
+/**
+ * Scan DataJud em lote (lento, respeita rate limit).
+ * limit: quantos processos por chamada (padrão 30).
+ * onlyMissing: só quem ainda não tem is_procedente nem cumprimento.
+ */
+) {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, done: 0, error: 'Sem sessão' };
+
+  const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 80);
+  const onlyMissing = opts?.onlyMissing !== false;
+
+  try {
+    const admin = await getSupabaseAdmin();
+    let q = admin
+      .from('processos')
+      .select('id, protocolo_ref, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario')
+      .eq('empresa_id', empresa_id)
+      .order('id', { ascending: true })
+      .limit(limit * 3); // margem para filtrar
+
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+
+    let pool = rows || [];
+    if (onlyMissing) {
+      pool = pool.filter(
+        (r) =>
+          !r.is_procedente &&
+          !r.em_cumprimento_sentenca &&
+          !r.cumprimento_pendente_necessario
+      );
+    }
+    pool = pool.slice(0, limit);
+
+    let done = 0;
+    let ok = 0;
+    const errors: string[] = [];
+
+    for (const row of pool) {
+      const proto = String(row.protocolo_ref || '');
+      if (!proto) continue;
+      try {
+        const res = await auditCaseCoreSystem(proto, empresa_id, 'both', { fast: true });
+        if (res?.success) ok += 1;
+        else errors.push(proto);
+      } catch (e: any) {
+        errors.push(`${proto}: ${e?.message || 'fail'}`);
+      }
+      done += 1;
+      // pausa anti rate-limit DataJud
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+
+    return {
+      success: true,
+      done,
+      ok,
+      remaining_hint:
+        onlyMissing
+          ? 'Rode de novo até done=0 (só faltantes). Ou onlyMissing=false para forçar todos.'
+          : 'Lote concluído.',
       errors: errors.slice(0, 8),
     };
   } catch (e: any) {

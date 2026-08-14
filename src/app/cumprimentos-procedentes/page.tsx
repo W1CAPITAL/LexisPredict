@@ -75,6 +75,7 @@ export default function CumprimentosProcedentesPage() {
   const [filtro, setFiltro] = useState<FiltroAtivo>("todos");
   const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [scanCursor, setScanCursor] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,7 +184,14 @@ export default function CumprimentosProcedentesPage() {
   const handleBatchScan = async () => {
     setBulkBusy(true);
     try {
-      const res = await batchScanExecutivoAction({ limit: 25, onlyMissing: true });
+      const res = await batchScanExecutivoAction({
+        limit: 25,
+        onlyMissing: true,
+        afterId: scanCursor || 0,
+        priorizarEncerrados: true,
+      });
+      if ((res as any).lastId) setScanCursor(Number((res as any).lastId));
+      if ((res as any).hasMore === false) setScanCursor(0);
       if (!res.success) {
         toast({
           title: "Falha no lote DataJud",
