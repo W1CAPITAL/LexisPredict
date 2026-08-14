@@ -152,7 +152,10 @@ export function countAtendidosNestaSemana(
   cases: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null }>,
   ref = new Date()
 ): number {
-  return (cases || []).filter((c) => casoAtendidoNestaSemana(c, ref)).length;
+  return (cases || []).filter((c) => {
+    const raw = pickUltimoRetorno(c) ?? (c as any).ultimoRetorno ?? (c as any).ultimo_retorno;
+    return isAtendidoNestaSemana(raw, ref);
+  }).length;
 }
 
 export function labelSemanaAtual(ref = new Date()): string {
@@ -191,7 +194,7 @@ export function countAtendimentosPorUsuario(
   const userCounts = new Map<string, { dia: number; semana: number; mes: number }>();
   
   for (const c of cases || []) {
-    const raw = c.ultimoRetorno ?? c.ultimo_retorno ?? null;
+    const raw = pickUltimoRetorno(c) ?? c.ultimoRetorno ?? c.ultimo_retorno ?? null;
     if (!raw) continue;
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
@@ -199,6 +202,7 @@ export function countAtendimentosPorUsuario(
     // Quem atendeu: atendido_por > edited_by > updated_by > created_by (não zerar KPI)
     const userId =
       (c as any).atendido_por ??
+      (c as any).atendidoPor ??
       (c as any).edited_by ??
       (c as any).updated_by ??
       (c as any).created_by ??

@@ -450,11 +450,29 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     return { success: false, error: fetchError?.message };
   }
 
+  // Scanner/DataJud NUNCA pode apagar atendimento humano
+  const ATENDIMENTO_KEYS = [
+    'ultimoRetorno', 'ultimo_retorno', 'ULTIMO_RETORNO',
+    'atendido_por', 'atendidoPor', 'atendido_em',
+    'proximoPrazo', 'proximo_retorno', 'PROXIMO_RETORNO',
+  ] as const;
+  const safePatch: Record<string, any> = { ...(patch || {}) };
+  for (const k of ATENDIMENTO_KEYS) {
+    if (k in safePatch) delete safePatch[k];
+  }
+
   // evento_tipo, tem_novo_andamento, etc. ficam no JSON dados
-  const updatedDados = {
-    ...(current.dados as any),
-    ...patch,
+  // Preserva ultimoRetorno / atendido_por já gravados no blob
+  const prevDados = (current.dados && typeof current.dados === 'object' ? current.dados : {}) as any;
+  const updatedDados: Record<string, any> = {
+    ...prevDados,
+    ...safePatch,
   };
+  for (const k of ATENDIMENTO_KEYS) {
+    if (prevDados[k] != null && prevDados[k] !== '' && (updatedDados[k] == null || updatedDados[k] === '')) {
+      updatedDados[k] = prevDados[k];
+    }
+  }
 
   const row: Record<string, any> = {
     dados: updatedDados,
