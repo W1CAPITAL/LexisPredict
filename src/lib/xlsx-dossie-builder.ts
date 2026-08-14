@@ -143,6 +143,8 @@ export function normalizeCase(r: DossieCase) {
     ),
     encerrado_tribunal: sim(r.datajud_encerrado_tribunal || dados.datajud_encerrado_tribunal),
     encerrado_carteira: sim(isEncerradoStatus(r.status) || isEncerradoStatus(r.situacao) || isEncerradoStatus(dados.situacao)),
+    /** @deprecated alias: preferir encerrado_tribunal */
+    encerrado: sim(r.datajud_encerrado_tribunal || dados.datajud_encerrado_tribunal),
     ba: sim(r.indicio_busca_apreensao || dados.indicio_busca_apreensao),
     cumprimento: sim(
       r.em_cumprimento_sentenca || dados.em_cumprimento_sentenca || evento === 'cumprimento_sentenca'

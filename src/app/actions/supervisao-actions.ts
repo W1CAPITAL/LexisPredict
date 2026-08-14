@@ -45,6 +45,8 @@ export type SupervisaoSnapshot = {
   total: number;
   ativos: number;
   encerrados: number;
+  /** Baixa/trânsito DataJud/DJEN (ativos + encerrados) */
+  baixasTribunal: number;
   vencidos: number;
   novidades: number;
   ba: number;
@@ -251,6 +253,7 @@ export async function getSupervisaoSnapshotAction(
           total: 0,
           ativos: 0,
           encerrados: 0,
+          baixasTribunal: 0,
           vencidos: 0,
           novidades: 0,
           atendimentos: 0,
@@ -261,9 +264,17 @@ export async function getSupervisaoSnapshotAction(
         };
         userMap.set(userKey, ug);
       }
+      ug = userMap.get(userKey)!;
       ug.total++;
       if (encerrado) ug.encerrados++;
       else ug.ativos++;
+      if (
+        c.datajud_encerrado_tribunal ||
+        c.evento_tipo === 'transito_ou_baixa' ||
+        c.evento_tipo === 'transito_baixa'
+      ) {
+        ug.baixasTribunal++;
+      }
       if (/vencido|cr[ií]tico/i.test(status)) ug.vencidos++;
       if (isNov) ug.novidades++;
       if (c.indicio_busca_apreensao) ug.ba++;
@@ -311,6 +322,7 @@ export async function getSupervisaoSnapshotAction(
         total: cases.length,
         ativos,
         encerrados,
+        baixasTribunal,
         vencidos,
         novidades,
         ba,

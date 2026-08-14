@@ -1187,7 +1187,7 @@ export async function getCumprimentosEProcedentesAction() {
     // Anti-duplicata por CNJ/protocolo (mantém o mais completo)
     const byProto = new Map<string, any>();
     for (const c of filtered) {
-      const key = String(c.protocolo || c.protocolo_ref || c.id || '')
+      const key = String(c.protocolo || (c as any).protocolo_ref || c.id || '')
         .replace(/\D/g, '')
         .slice(-20);
       if (!key) continue;

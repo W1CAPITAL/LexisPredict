@@ -26,6 +26,7 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
       alerta: number;
       ativos: number;
       encerrados: number;
+      baixasTribunal: number;
       score: number;
     }> = {};
 
