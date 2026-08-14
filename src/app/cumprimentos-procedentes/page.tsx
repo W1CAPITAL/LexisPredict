@@ -115,7 +115,7 @@ export default function CumprimentosProcedentesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getCumprimentosEProcedentesAction, enriquecerTeorFilaOportunidadeAction();
+      const res = await getCumprimentosEProcedentesAction();
       if (res.success) {
         setCases(res.data);
       } else {

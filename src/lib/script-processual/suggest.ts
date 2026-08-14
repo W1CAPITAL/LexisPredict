@@ -214,13 +214,8 @@ type Signals = {
   custasPagas: boolean;
   valorCustas: string | null;
   prazoDias: string | null;
-  pendenteInstaurar:
-      !!input.cumprimento_pendente_necessario ||
-      (!!input.oportunidade_elegivel && !input.em_cumprimento_sentenca) ||
-      (!!input.is_procedente &&
-        !input.em_cumprimento_sentenca &&
-        /tr[aâ]nsito|art\.?\s*523|pagamento volunt/i.test(U)),
-    cumprimentoIniciado: boolean;
+  pendenteInstaurar: boolean;
+  cumprimentoIniciado: boolean;
   intimacaoExecutado: boolean;
   procedenteParcial: boolean;
   improcedente: boolean;
