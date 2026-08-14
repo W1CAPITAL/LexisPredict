@@ -11,6 +11,7 @@ import {
   listarAdvogadosBancaAction,
   analisarAdvogadoPredatoriaAction,
   escanearBancaNumopedeAction,
+  escanearBancaNumopedeProfundoAction,
   type AdvogadoBancaRadar,
   type PredatoriaReport,
   type PredatoriaHitCase,
@@ -36,6 +37,9 @@ export default function InvestigacaoPredatoriaPage() {
   const [bulkHits, setBulkHits] = useState<PredatoriaHitCase[]>([]);
   const [byLawyer, setByLawyer] = useState<Array<{ nome: string; hits: number }>>([]);
   const [flagged, setFlagged] = useState(0);
+  const [deepOffset, setDeepOffset] = useState(0);
+  const [deepLogs, setDeepLogs] = useState<string[]>([]);
+  const [deepMeta, setDeepMeta] = useState<{ scanned: number; remaining: number; errors: number } | null>(null);
 
   const loadBanca = useCallback(async () => {
     setLoadingBanca(true);
@@ -101,6 +105,42 @@ export default function InvestigacaoPredatoriaPage() {
     }
   };
 
+  const runDeep = async (aplicarFlags: boolean, reset = false) => {
+    setLoading(true);
+    setReport(null);
+    try {
+      const keys = selected.size ? Array.from(selected) : undefined;
+      const off = reset ? 0 : deepOffset;
+      const r = await escanearBancaNumopedeProfundoAction({
+        lawyerKeys: keys,
+        limit: 20,
+        offset: off,
+        aplicarFlags,
+        delayMs: 350,
+      });
+      if (!r.success) {
+        toast({ title: "Varredura tribunal", description: r.error || "Falha", variant: "destructive" });
+        return;
+      }
+      setBulkHits((prev) => {
+        const map = new Map(prev.map((h) => [h.protocolo, h]));
+        for (const h of r.hits) map.set(h.protocolo, h);
+        return Array.from(map.values());
+      });
+      setByLawyer(r.byLawyer);
+      setFlagged((f) => f + (r.flagged || 0));
+      setDeepOffset(r.nextOffset);
+      setDeepLogs((prev) => [...r.logs, ...prev].slice(0, 120));
+      setDeepMeta({ scanned: r.scanned, remaining: r.remaining, errors: r.errors });
+      toast({
+        title: "Lote tribunal",
+        description: `Consultados ${r.scanned} · restam ${r.remaining} · hits ${r.hits.length} · erros ${r.errors}`,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const hits = report?.hits?.length ? report.hits : bulkHits;
 
   return (
@@ -159,14 +199,35 @@ export default function InvestigacaoPredatoriaPage() {
                 ))}
               </ul>
             )}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button className="flex-1 rounded-xl" disabled={loading} onClick={() => void runBanca(false)}>
-                {loading ? <Loader2 className="animate-spin mr-2" size={16} /> : <Search size={16} className="mr-2" />}
-                Varrer NUMOPEDE
+            <p className="text-[10px] text-muted-foreground">
+              <strong>Rápida</strong> = só textos já no banco. <strong>Tribunal</strong> = DataJud+DJEN de verdade (lotes de 20; repita até remaining=0).
+            </p>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button className="flex-1 rounded-xl" variant="outline" disabled={loading} onClick={() => void runBanca(false)}>
+                  {loading ? <Loader2 className="animate-spin mr-2" size={16} /> : <Search size={16} className="mr-2" />}
+                  Rápida (banco)
+                </Button>
+                <Button variant="secondary" className="flex-1 rounded-xl" disabled={loading} onClick={() => void runBanca(true)}>
+                  <ShieldAlert size={16} className="mr-2" /> Rápida + flags
+                </Button>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button className="flex-1 rounded-xl" disabled={loading} onClick={() => void runDeep(false, true)}>
+                  Tribunal DataJud+DJEN (do início)
+                </Button>
+                <Button className="flex-1 rounded-xl" variant="secondary" disabled={loading || deepOffset === 0} onClick={() => void runDeep(false, false)}>
+                  Continuar lote ({deepOffset})
+                </Button>
+              </div>
+              <Button variant="outline" className="rounded-xl" disabled={loading} onClick={() => void runDeep(true, false)}>
+                Tribunal + gravar flags (lote atual)
               </Button>
-              <Button variant="secondary" className="flex-1 rounded-xl" disabled={loading} onClick={() => void runBanca(true)}>
-                <ShieldAlert size={16} className="mr-2" /> Gravar flags
-              </Button>
+              {deepMeta && (
+                <p className="text-[10px] text-muted-foreground">
+                  Último lote: {deepMeta.scanned} consultados · restam {deepMeta.remaining} · erros {deepMeta.errors}
+                </p>
+              )}
             </div>
           </section>
 
@@ -214,6 +275,17 @@ export default function InvestigacaoPredatoriaPage() {
             )}
           </section>
         </div>
+
+        {deepLogs.length > 0 && (
+          <section className="rounded-2xl border p-4 space-y-2">
+            <h3 className="text-sm font-semibold">Feed tribunal (DataJud ∪ DJEN)</h3>
+            <ul className="text-[10px] font-mono max-h-40 overflow-y-auto space-y-0.5 text-muted-foreground">
+              {deepLogs.map((l, i) => (
+                <li key={i} className={l.includes('NUMOPEDE') ? 'text-violet-600 font-semibold' : ''}>{l}</li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {byLawyer.length > 0 && (
           <section className="rounded-2xl border p-4 space-y-2">

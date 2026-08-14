@@ -399,3 +399,178 @@ export async function analisarTextoPredatoriaAction(texto: string): Promise<{
     disclaimer: 'Análise só do texto colado.',
   };
 }
+
+/**
+ * Varredura PROFUNDA: consulta DataJud + DJEN de verdade (lento, 1 CNJ por vez).
+ * Use em lotes (limit 20–50) para não estourar timeout da Vercel (~60s).
+ */
+export async function escanearBancaNumopedeProfundoAction(input?: {
+  lawyerKeys?: string[];
+  limit?: number;
+  offset?: number;
+  aplicarFlags?: boolean;
+  delayMs?: number;
+}): Promise<{
+  success: boolean;
+  scanned: number;
+  remaining: number;
+  hits: PredatoriaHitCase[];
+  flagged: number;
+  byLawyer: Array<{ nome: string; hits: number }>;
+  errors: number;
+  logs: string[];
+  nextOffset: number;
+  disclaimer: string;
+  error?: string;
+}> {
+  const disclaimer =
+    'Varredura profunda: DataJud + DJEN por CNJ. Rápida = só texto já no banco. Use lotes (ex. 25) e repita com offset.';
+
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) {
+    return {
+      success: false,
+      scanned: 0,
+      remaining: 0,
+      hits: [],
+      flagged: 0,
+      byLawyer: [],
+      errors: 0,
+      logs: [],
+      nextOffset: 0,
+      disclaimer,
+      error: 'Sessão',
+    };
+  }
+
+  const limit = Math.min(Math.max(input?.limit ?? 25, 1), 40);
+  const offset = Math.max(input?.offset ?? 0, 0);
+  const delayMs = Math.min(Math.max(input?.delayMs ?? 400, 0), 2000);
+
+  const banca = ((await listAdvogadosBanca()) || []) as BancaAdv[];
+  const keys = (input?.lawyerKeys || []).map(String);
+  const selected =
+    keys.length === 0
+      ? banca
+      : banca.filter(
+          (b) =>
+            keys.includes(String(b.id)) ||
+            keys.includes(normalizeLawyerKey(b.nome || '')) ||
+            keys.some((k) => {
+              const bn = normalizeLawyerKey(b.nome || '');
+              return bn.includes(k) || k.includes(bn);
+            })
+        );
+
+  const cases = (await getStoredCasesForEmpresa(empresa_id, true)) as LegalCase[];
+
+  // Fila: processos que batem com a banca selecionada (ou todos se banca vazia)
+  const queue: LegalCase[] = [];
+  for (const c of cases || []) {
+    const field = String((c as any).advogado || '');
+    if (selected.length === 0) {
+      queue.push(c);
+      continue;
+    }
+    const ok = selected.some((b) => caseMatchesBancaAdv(field, b, field));
+    if (ok) queue.push(c);
+  }
+
+  const slice = queue.slice(offset, offset + limit);
+  const remaining = Math.max(0, queue.length - offset - slice.length);
+
+  const { scanSingleCaseAction } = await import('@/app/actions/case-actions');
+
+  const hits: PredatoriaHitCase[] = [];
+  const lawyerHitCount = new Map<string, { nome: string; hits: number }>();
+  const flagProtocols = new Set<string>();
+  const logs: string[] = [];
+  let errors = 0;
+  let scanned = 0;
+
+  for (const c of slice) {
+    const proto = String((c as any).protocolo || '').trim();
+    if (!proto) continue;
+    scanned++;
+    try {
+      const res: any = await scanSingleCaseAction(proto, {
+        mode: 'both',
+        fast: false,
+      });
+      const mov = Array.isArray(res?.movimentos) ? res.movimentos : [];
+      const com = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
+      const textParts = [
+        collectCaseText(c),
+        ...mov.map((m: any) => [m.nome, m.complemento, m.descricao].filter(Boolean).join(' ')),
+        ...com.map((x: any) => String(x.texto || x.tipoDocumento || '')),
+        res?.datajud_ultimo_nome,
+        res?.djen_ultimo_resumo,
+        res?.evento_resumo,
+      ];
+      const text = textParts.filter(Boolean).join('\n');
+      const sigs = scanTextForPredatoria(text);
+      const temN = hasNumopedeSignal(sigs);
+
+      logs.push(
+        temN
+          ? `[NUMOPEDE] ${proto} — ${sigs.map((s) => s.code).join(',')}`
+          : `[ok] ${proto} — sem NUMOPEDE (${mov.length} mov / ${com.length} djen)`
+      );
+
+      if (temN) {
+        const field = String((c as any).advogado || '');
+        const matched = selected.filter((b) => caseMatchesBancaAdv(field, b, text));
+        const b0 = matched[0];
+        hits.push({
+          protocolo: proto,
+          cliente: String((c as any).cliente || ''),
+          advogado: field,
+          bancaNome: b0?.nome,
+          tribunal: String((c as any).tribunal || ''),
+          signals: sigs,
+          temNumopede: true,
+        });
+        flagProtocols.add(proto);
+        const k = normalizeLawyerKey(b0?.nome || field) || '_';
+        const prev = lawyerHitCount.get(k) || { nome: String(b0?.nome || field || proto), hits: 0 };
+        prev.hits += 1;
+        lawyerHitCount.set(k, prev);
+      }
+    } catch (e: any) {
+      errors++;
+      logs.push(`[erro] ${proto} — ${e?.message || 'falha'}`);
+    }
+    if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+  }
+
+  let flagged = 0;
+  if (input?.aplicarFlags && flagProtocols.size) {
+    // Recarrega carteira (scan já persistiu movimentos; só flags)
+    const fresh = (await getStoredCasesForEmpresa(empresa_id, true)) as LegalCase[];
+    const updated = fresh.map((c) => {
+      const proto = String((c as any).protocolo || '');
+      if (!flagProtocols.has(proto)) return c;
+      flagged++;
+      return {
+        ...c,
+        sinal_numopede: true,
+        sinal_predatoria: true,
+        predatoria_marcado_em: new Date().toISOString(),
+      } as LegalCase;
+    });
+    await saveStoredCasesForEmpresa(updated, empresa_id, true);
+  }
+
+  return {
+    success: true,
+    scanned,
+    remaining,
+    hits,
+    flagged,
+    byLawyer: Array.from(lawyerHitCount.values()).sort((a, b) => b.hits - a.hits),
+    errors,
+    logs: logs.slice(-80),
+    nextOffset: offset + scanned,
+    disclaimer,
+  };
+}
