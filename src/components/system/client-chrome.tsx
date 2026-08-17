@@ -1,5 +1,5 @@
 /**
- * Chrome client-only. Pac-Man só com ?troll=1 — nunca bloqueia CRM.
+ * Chrome client-only. Pac-Man BSOD só com ?troll=1.
  */
 "use client";
 
