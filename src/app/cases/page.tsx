@@ -41,6 +41,7 @@ import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
+import { saveOneCaseAction, transferCasesOwnerAction } from '@/app/actions/case-save-actions';
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
@@ -63,7 +64,8 @@ import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';
 import { descreverPrazo } from '@/lib/prazos-cpc';
 
 const CaseRow = React.memo(({ 
-  c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest, onDossie
+  c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest, onDossie,
+  selectable, selected, onToggleSelect
 }: { 
   c: LegalCase;
   isOperador: boolean;
@@ -73,6 +75,9 @@ const CaseRow = React.memo(({
   onScan: (c: LegalCase) => void;
   onSuggest: (c: LegalCase) => void;
   onDossie?: (c: LegalCase) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (protocolo: string, on: boolean) => void;
 }) => {
   const [loading, setLoading] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -81,7 +86,15 @@ const CaseRow = React.memo(({
   return (
     <tr className="hover:bg-secondary/30 transition-all border-b border-border/50 group">
       <td className="px-6 py-4 align-top">
-        <div className="flex flex-col gap-1.5 min-w-0 max-w-[380px]">
+        <div className="relative pl-8 flex flex-col gap-1.5 min-w-0 max-w-[380px]">
+      {selectable && (
+        <div className="absolute left-2 top-3 z-10" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={!!selected}
+            onCheckedChange={(v) => onToggleSelect?.(String(c.protocolo || ''), !!v)}
+          />
+        </div>
+      )}
           <div className="flex items-start gap-2 min-w-0">
             <span className="text-foreground font-semibold text-[13px] leading-snug tracking-tight group-hover:text-primary transition-colors line-clamp-2">
               {c.cliente}
@@ -225,6 +238,9 @@ function CasesContent() {
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
   const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
   const [ownerAuthId, setOwnerAuthId] = useState<string>('self');
+  const [selectedProtos, setSelectedProtos] = useState<Set<string>>(new Set());
+  const [bulkOwnerId, setBulkOwnerId] = useState<string>('');
+  const [bulkTransferring, setBulkTransferring] = useState(false);
   const [visibleCount, setVisibleCount] = useState(25);
   const PAGE_SIZE = 25;
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -632,6 +648,57 @@ function CasesContent() {
     });
   };
 
+  const toggleSelectProto = (protocolo: string, on: boolean) => {
+    setSelectedProtos((prev) => {
+      const n = new Set(prev);
+      if (on) n.add(protocolo);
+      else n.delete(protocolo);
+      return n;
+    });
+  };
+
+  const handleBulkTransfer = async () => {
+    if (!canAssignOwner) return;
+    if (!bulkOwnerId) {
+      toast({ title: 'Escolha o responsável', description: 'Selecione para quem transferir.', variant: 'destructive' });
+      return;
+    }
+    const list = Array.from(selectedProtos);
+    if (!list.length) {
+      toast({ title: 'Nada selecionado', description: 'Marque os processos na lista.', variant: 'destructive' });
+      return;
+    }
+    setBulkTransferring(true);
+    try {
+      const res = await transferCasesOwnerAction({ protocolos: list, novoOwnerAuthId: bulkOwnerId });
+      if (res.success && res.updated > 0) {
+        // Remove da lista local se não for mais "meu" (operador) ou atualiza created_by
+        setCases((prev) =>
+          prev
+            .map((c) =>
+              list.includes(String(c.protocolo || ''))
+                ? ({ ...c, created_by: bulkOwnerId } as any)
+                : c
+            )
+            .filter((c) => {
+              if (!isOperador) return true;
+              return String((c as any).created_by || '') === String((profile as any)?.auth_user_id || '');
+            })
+        );
+        setSelectedProtos(new Set());
+        toast({ title: 'Transferência em massa', description: res.message });
+      } else {
+        toast({
+          title: 'Transferência incompleta',
+          description: res.message || '0 atualizados — verifique trigger SQL prevent_created_by_steal',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setBulkTransferring(false);
+    }
+  };
+
   const handleSaveCase = async (e: React.FormEvent) => {
     e.preventDefault();
     const cliente = (formState.cliente || '').trim();
@@ -679,12 +746,24 @@ function CasesContent() {
         protocolo,
         tribunal: tribunalData?.tribunal || editingCase.tribunal,
       });
-      if (canAssignOwner && ownerAuthId && ownerAuthId !== 'self') {
-        (updatedCase as any).created_by = ownerAuthId;
+      const prevOwner = String((editingCase as any).created_by || '');
+      const nextOwner =
+        canAssignOwner && ownerAuthId && ownerAuthId !== 'self'
+          ? ownerAuthId
+          : prevOwner;
+      if (nextOwner) {
+        (updatedCase as any).created_by = nextOwner;
+      }
+      // Transferência de carteira só quando o responsável mudou de propósito
+      if (canAssignOwner && nextOwner && prevOwner && nextOwner !== prevOwner) {
+        (updatedCase as any).force_transfer_owner = true;
       }
       if (cnjChanged) {
         const res = await updateCaseCnjAction(String(editingCase.protocolo || ''), updatedCase);
         if (res?.success) {
+          if ((updatedCase as any).force_transfer_owner) {
+            await saveOneCaseAction(updatedCase as any);
+          }
           const updatedList = cases.map(c => (c.id === editingCase.id ? updatedCase : c));
           setCases(updatedList);
           setIsModalOpen(false);
@@ -695,15 +774,23 @@ function CasesContent() {
         }
         return;
       }
-      const updatedList = cases.map(c => (c.id === editingCase.id ? updatedCase : c));
-      const res = await syncRepoCases(updatedList);
+      // Salva 1 processo (permite transferir created_by se force_transfer_owner)
+      const res = await saveOneCaseAction(updatedCase as any);
       if (res.success) {
+        const saved = (res as any).case || updatedCase;
+        const updatedList = cases.map(c => (c.id === editingCase.id ? { ...c, ...saved } : c));
         setCases(updatedList);
         setIsModalOpen(false);
         setEditingCase(null);
-        toast({ title: 'Alterações salvas' });
+        const transferred = !!(updatedCase as any).force_transfer_owner;
+        toast({
+          title: transferred ? 'Responsável e dados salvos' : 'Alterações salvas',
+          description: transferred
+            ? 'O processo saiu da carteira anterior e entrou na do novo responsável.'
+            : undefined,
+        });
       } else {
-        toast({ title: 'Falha ao salvar', description: (res as any).error || 'Tente novamente', variant: 'destructive' });
+        toast({ title: 'Falha ao salvar', description: (res as any).message || 'Tente novamente', variant: 'destructive' });
       }
       return;
     }
@@ -933,6 +1020,7 @@ function CasesContent() {
               <table className="w-full text-left border-collapse min-w-[1100px]">
                 <thead className="sticky top-0 bg-white z-20 border-b border-border">
                   <tr className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">
+                    <th className="px-4 py-5 w-10"></th>
                     <th className="px-8 py-5">Identificação</th>
                     <th className="px-8 py-5">Tribunal</th>
                     <th className="px-8 py-5">Advogado</th>
@@ -943,7 +1031,10 @@ function CasesContent() {
                 </thead>
                 <tbody className="divide-y divide-border/20">
                   {visibleItems.map((c) => (
-                    <CaseRow key={c.id} c={c} isOperador={isOperador} onLogReturn={handleLogReturn} onEdit={handleEdit} onDelete={handleDelete} onScan={handleSingleScan} onSuggest={handleSuggestClick} onDossie={handleDossieProcesso} />
+                    <CaseRow
+                      selectable={canAssignOwner}
+                      selected={selectedProtos.has(String(c.protocolo || ""))}
+                      onToggleSelect={toggleSelectProto} key={c.id} c={c} isOperador={isOperador} onLogReturn={handleLogReturn} onEdit={handleEdit} onDelete={handleDelete} onScan={handleSingleScan} onSuggest={handleSuggestClick} onDossie={handleDossieProcesso} />
                   ))}
                 </tbody>
               </table>
@@ -1306,7 +1397,7 @@ function CasesContent() {
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] text-muted-foreground">
-                      O processo entra na carteira do usuário escolhido (campo created_by). Operadores só veem os próprios.
+                      Ao salvar, o processo muda de carteira (created_by) para o responsável escolhido. Use “Transferir selecionados” para vários de uma vez. Operadores só veem os próprios.
                     </p>
                   </div>
                 )}

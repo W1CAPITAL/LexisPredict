@@ -98,7 +98,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     if (!client) client = await getSupabaseAdmin();
     if (!client) return { success: false, message: 'Cliente Supabase indisponível.' };
 
-    // PRESERVAR DONO: se o processo já existe, created_by do banco vence
+    // PRESERVAR DONO por padrão; TRANSFERÊNCIA só se explícita + cargo autorizado
     const { data: existing } = await client
       .from('processos')
       .select('id, created_by')
@@ -106,28 +106,51 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
       .eq('protocolo_ref', processed.protocolo)
       .maybeSingle();
 
+    const profile = auth_id ? await getProfileByAuthId(auth_id) : null;
+    const cargo = String(profile?.cargo || '').toLowerCase();
+    const canTransfer =
+      /supervisor|superadmin|super admin|administrador|admin/i.test(cargo) ||
+      String((profile as any)?.role || '').toLowerCase() === 'admin';
+
+    const requestedOwner = String((caseData as any).created_by || (processed as any).created_by || '').trim();
+    const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
+
     let owner: string | null = null;
     if (existing?.created_by) {
-      owner = existing.created_by;
-    } else if ((processed as any).created_by) {
-      // só em criação / legado sem dono: respeita assign explícito (supervisor no cadastro)
-      owner = String((processed as any).created_by);
+      if (forceTransfer && canTransfer && requestedOwner && requestedOwner !== String(existing.created_by)) {
+        owner = requestedOwner;
+      } else {
+        owner = existing.created_by;
+      }
+    } else if (requestedOwner) {
+      owner = requestedOwner;
     } else {
       owner = auth_id || null;
     }
     (processed as any).created_by = owner;
 
     const row = toRow(processed, empresa_id, owner);
+    const transferring =
+      !!(existing?.created_by) &&
+      forceTransfer &&
+      canTransfer &&
+      owner &&
+      String(existing.created_by) !== String(owner);
 
     if (existing?.id) {
-      // UPDATE: não mexe em created_by
+      // UPDATE: não mexe em created_by EXCETO transferência explícita autorizada
       const { created_by: _drop, ...updateRow } = row;
-      // garante que não sobrescreve dono
-      delete (updateRow as any).created_by;
+      if (!transferring) {
+        delete (updateRow as any).created_by;
+      } else {
+        (updateRow as any).created_by = owner;
+      }
       if (updateRow.dados && typeof updateRow.dados === 'object') {
         updateRow.dados = { ...updateRow.dados, created_by: owner };
       }
-      const { error } = await client.from('processos').update(updateRow).eq('id', existing.id);
+      // Prefer admin client on transfer (bypass RLS)
+      const writer = transferring ? (await getSupabaseAdmin()) || client : client;
+      const { error } = await writer.from('processos').update(updateRow).eq('id', existing.id);
       if (error) {
         const msg = String(error.message || '');
         if (/edited_at|edited_by|schema cache/i.test(msg)) {
@@ -196,5 +219,67 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{
     return { success: true, message: 'Removido.' };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao excluir.' };
+  }
+}
+
+
+/**
+ * Transferência de carteira em massa (created_by).
+ * Só Supervisor / Superadmin / Administrador.
+ * Se existir trigger prevent_created_by_steal no Postgres, desative-o só para este UPDATE ou use função SECURITY DEFINER no SQL.
+ */
+export async function transferCasesOwnerAction(input: {
+  protocolos: string[];
+  novoOwnerAuthId: string;
+}): Promise<{ success: boolean; updated: number; message: string; error?: string }> {
+  try {
+    const { empresa_id, auth_id } = await getUserContext();
+    if (!empresa_id || !auth_id) {
+      return { success: false, updated: 0, message: 'Sessão expirada.' };
+    }
+    const profile = await getProfileByAuthId(auth_id);
+    const cargo = String(profile?.cargo || '').toLowerCase();
+    const can =
+      /supervisor|superadmin|super admin|administrador|admin/i.test(cargo);
+    if (!can) {
+      return { success: false, updated: 0, message: 'Sem permissão para transferir carteira.' };
+    }
+    const novo = String(input.novoOwnerAuthId || '').trim();
+    if (!novo) return { success: false, updated: 0, message: 'Selecione o novo responsável.' };
+    const protos = (input.protocolos || [])
+      .map((p) => String(p || '').trim())
+      .filter(Boolean);
+    if (!protos.length) return { success: false, updated: 0, message: 'Nenhum processo selecionado.' };
+
+    const admin = await getSupabaseAdmin();
+    if (!admin) return { success: false, updated: 0, message: 'Service role indisponível.' };
+
+    let updated = 0;
+    const chunk = 80;
+    for (let i = 0; i < protos.length; i += chunk) {
+      const slice = protos.slice(i, i + chunk);
+      const { data: rows } = await admin
+        .from('processos')
+        .select('id, protocolo_ref, created_by, dados')
+        .eq('empresa_id', empresa_id)
+        .in('protocolo_ref', slice);
+      for (const r of rows || []) {
+        const dados = typeof r.dados === 'object' && r.dados ? { ...r.dados, created_by: novo } : { created_by: novo };
+        const { error } = await admin
+          .from('processos')
+          .update({ created_by: novo, dados })
+          .eq('id', r.id);
+        if (!error) updated++;
+      }
+    }
+    return {
+      success: true,
+      updated,
+      message: updated
+        ? `${updated} processo(s) transferido(s). Se o número for 0, desative o trigger prevent_created_by_steal no SQL.`
+        : 'Nenhuma linha atualizada (trigger ou protocolo).',
+    };
+  } catch (e: any) {
+    return { success: false, updated: 0, message: e?.message || 'Falha', error: e?.message };
   }
 }
