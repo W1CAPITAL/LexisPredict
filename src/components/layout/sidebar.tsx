@@ -39,6 +39,7 @@ import {
   HelpCircle,
   Search,
   Zap,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils"
@@ -179,6 +180,7 @@ function SidebarNavBody({
       { label: "CRM Assessoria", href: "/crm", icon: Kanban },
       { label: "Follow-ups CRM", href: "/crm/followups", icon: ListTodo },
       { label: "Finanças", href: "/financas", icon: Wallet },
+      { label: "Cálculos judiciais", href: "/calculos", icon: Calculator },
       // Peças/modelos (procuração, substabelecimento, habilitação, revogação, modelos)
       // ficam só na Central de Documentos — evita menu duplicado.
       { label: "Central de documentos", href: "/documents", icon: FileText },

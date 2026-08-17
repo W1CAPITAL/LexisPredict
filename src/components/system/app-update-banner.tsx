@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Aviso forçado de nova versão (deploy Vercel).
- * Compara buildId remoto com o guardado no localStorage.
+ * Aviso forçado de nova versão (deploy Vercel) + o que foi adicionado.
  */
 import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ const POLL_MS = 45_000;
 export function AppUpdateBanner() {
   const [visible, setVisible] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
+  const [changelog, setChangelog] = useState<string[]>([]);
 
   const check = useCallback(async () => {
     try {
@@ -26,6 +26,12 @@ export function AppUpdateBanner() {
       const remote = String(data.buildId || "").trim();
       if (!remote || remote === "dev") return;
 
+      const notes: string[] = Array.isArray(data.changelog)
+        ? data.changelog.map(String)
+        : data.whatsNew
+          ? [String(data.whatsNew)]
+          : [];
+
       const local = localStorage.getItem(STORAGE_KEY);
       if (!local) {
         localStorage.setItem(STORAGE_KEY, remote);
@@ -33,6 +39,7 @@ export function AppUpdateBanner() {
       }
       if (local !== remote) {
         setRemoteId(remote);
+        setChangelog(notes);
         setVisible(true);
       }
     } catch {
@@ -41,7 +48,6 @@ export function AppUpdateBanner() {
   }, []);
 
   useEffect(() => {
-    // imediato + curto atraso (pós-hidratação) + intervalo + foco
     check();
     const t1 = setTimeout(check, 2500);
     const t2 = setTimeout(check, 8000);
@@ -68,7 +74,7 @@ export function AppUpdateBanner() {
       role="alert"
       className="fixed inset-x-0 top-0 z-[9999] flex justify-center p-3 pointer-events-none"
     >
-      <div className="pointer-events-auto w-[min(96vw,520px)] rounded-2xl border-2 border-primary bg-background p-4 shadow-2xl">
+      <div className="pointer-events-auto w-[min(96vw,560px)] rounded-2xl border-2 border-primary bg-background p-4 shadow-2xl">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Sparkles size={20} />
@@ -78,9 +84,19 @@ export function AppUpdateBanner() {
               Nova versão do LexisPredict
             </p>
             <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-              O app foi atualizado no servidor. Você ainda está na versão antiga em cache.
-              Recarregue agora para evitar erros e usar as correções.
+              O app foi atualizado. Recarregue para usar as novidades abaixo.
             </p>
+            {changelog.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-[11px] text-foreground/90 list-disc pl-4">
+                {changelog.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Correções e melhorias desta publicação.
+              </p>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 size="sm"
