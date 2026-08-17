@@ -774,19 +774,36 @@ function CasesContent() {
         }
         return;
       }
-      // Salva 1 processo (permite transferir created_by se force_transfer_owner)
+      // 1) Transferência de carteira (action dedicada + service role)
+      if (canAssignOwner && nextOwner && prevOwner && nextOwner !== prevOwner) {
+        const tr = await transferCasesOwnerAction({
+          protocolos: [String(updatedCase.protocolo || editingCase.protocolo || '')],
+          novoOwnerAuthId: nextOwner,
+        });
+        if (!tr.success || tr.updated < 1) {
+          toast({
+            title: 'Não transferiu o responsável',
+            description:
+              tr.message ||
+              'Verifique SUPABASE_SERVICE_ROLE_KEY no Vercel e se o trigger prevent_created_by_steal foi removido no SQL.',
+            variant: 'destructive',
+          });
+          // continua tentando salvar demais campos
+        }
+      }
+      // 2) Demais campos do processo
       const res = await saveOneCaseAction(updatedCase as any);
       if (res.success) {
-        const saved = (res as any).case || updatedCase;
+        const saved = { ...(res as any).case, ...updatedCase, created_by: nextOwner || (updatedCase as any).created_by };
         const updatedList = cases.map(c => (c.id === editingCase.id ? { ...c, ...saved } : c));
         setCases(updatedList);
         setIsModalOpen(false);
         setEditingCase(null);
-        const transferred = !!(updatedCase as any).force_transfer_owner;
+        const transferred = !!(prevOwner && nextOwner && prevOwner !== nextOwner);
         toast({
-          title: transferred ? 'Responsável e dados salvos' : 'Alterações salvas',
+          title: transferred ? 'Responsável transferido' : 'Alterações salvas',
           description: transferred
-            ? 'O processo saiu da carteira anterior e entrou na do novo responsável.'
+            ? 'Carteira atualizada (created_by). Atualize a lista (F5) se o caso ainda aparecer.'
             : undefined,
         });
       } else {

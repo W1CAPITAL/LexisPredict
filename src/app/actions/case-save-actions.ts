@@ -109,8 +109,8 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     const profile = auth_id ? await getProfileByAuthId(auth_id) : null;
     const cargo = String(profile?.cargo || '').toLowerCase();
     const canTransfer =
-      /supervisor|superadmin|super admin|administrador|admin/i.test(cargo) ||
-      String((profile as any)?.role || '').toLowerCase() === 'admin';
+      /supervisor|superadmin|super.?admin|administrador|admin|dono|owner/i.test(cargo) ||
+      /admin|supervisor|super/i.test(String((profile as any)?.role || ''));
 
     const requestedOwner = String((caseData as any).created_by || (processed as any).created_by || '').trim();
     const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
@@ -148,8 +148,19 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
       if (updateRow.dados && typeof updateRow.dados === 'object') {
         updateRow.dados = { ...updateRow.dados, created_by: owner };
       }
-      // Prefer admin client on transfer (bypass RLS)
-      const writer = transferring ? (await getSupabaseAdmin()) || client : client;
+      // Transferência: OBRIGA service role (RLS do user muitas vezes bloqueia created_by)
+      let writer = client;
+      if (transferring) {
+        const admin = await getSupabaseAdmin();
+        if (!admin) {
+          return {
+            success: false,
+            message:
+              'SUPABASE_SERVICE_ROLE_KEY ausente no Vercel. Sem service role não dá para transferir created_by (RLS). Configure a env e faça redeploy.',
+          };
+        }
+        writer = admin;
+      }
       const { error } = await writer.from('processos').update(updateRow).eq('id', existing.id);
       if (error) {
         const msg = String(error.message || '');
@@ -252,32 +263,63 @@ export async function transferCasesOwnerAction(input: {
     if (!protos.length) return { success: false, updated: 0, message: 'Nenhum processo selecionado.' };
 
     const admin = await getSupabaseAdmin();
-    if (!admin) return { success: false, updated: 0, message: 'Service role indisponível.' };
+    if (!admin) {
+      return {
+        success: false,
+        updated: 0,
+        message:
+          'SUPABASE_SERVICE_ROLE_KEY não configurada no Vercel. A transferência exige service role (bypassa RLS).',
+      };
+    }
 
     let updated = 0;
+    const errors: string[] = [];
     const chunk = 80;
     for (let i = 0; i < protos.length; i += chunk) {
       const slice = protos.slice(i, i + chunk);
-      const { data: rows } = await admin
+      // Match por protocolo_ref exato OU só dígitos via filtro em memória
+      const { data: rows, error: qErr } = await admin
         .from('processos')
         .select('id, protocolo_ref, created_by, dados')
         .eq('empresa_id', empresa_id)
         .in('protocolo_ref', slice);
-      for (const r of rows || []) {
-        const dados = typeof r.dados === 'object' && r.dados ? { ...r.dados, created_by: novo } : { created_by: novo };
-        const { error } = await admin
+      if (qErr) errors.push(qErr.message);
+      const found = rows || [];
+      // fallback: se .in não achou (formatação CNJ), busca mais larga
+      if (found.length < slice.length) {
+        const { data: allEmp } = await admin
+          .from('processos')
+          .select('id, protocolo_ref, created_by, dados')
+          .eq('empresa_id', empresa_id)
+          .limit(5000);
+        const want = new Set(slice.map((p) => p.replace(/\D/g, '')));
+        for (const r of allEmp || []) {
+          const dig = String(r.protocolo_ref || '').replace(/\D/g, '');
+          if (want.has(dig) && !found.some((f) => f.id === r.id)) found.push(r);
+        }
+      }
+      for (const r of found) {
+        const dados =
+          typeof r.dados === 'object' && r.dados
+            ? { ...(r.dados as object), created_by: novo }
+            : { created_by: novo };
+        const { error, count } = await admin
           .from('processos')
           .update({ created_by: novo, dados })
-          .eq('id', r.id);
-        if (!error) updated++;
+          .eq('id', r.id)
+          .select('id');
+        if (error) errors.push(`${r.protocolo_ref}: ${error.message}`);
+        else updated += 1;
       }
     }
     return {
-      success: true,
+      success: updated > 0,
       updated,
-      message: updated
-        ? `${updated} processo(s) transferido(s). Se o número for 0, desative o trigger prevent_created_by_steal no SQL.`
-        : 'Nenhuma linha atualizada (trigger ou protocolo).',
+      message:
+        updated > 0
+          ? `${updated} processo(s) transferido(s) com sucesso.`
+          : `Nenhuma linha atualizada. ${errors[0] || 'Confira SERVICE_ROLE e se o trigger prevent_created_by_steal foi removido.'}`,
+      error: errors[0],
     };
   } catch (e: any) {
     return { success: false, updated: 0, message: e?.message || 'Falha', error: e?.message };
