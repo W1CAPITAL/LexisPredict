@@ -14,6 +14,8 @@ import {
   escanearBancaNumopedeProfundoAction,
   listarFilaNumopedeAction,
   escanearUmNumopedeAction,
+  listarQueriesComunicaNumopedeAction,
+  executarQueryComunicaNumopedeAction,
   type AdvogadoBancaRadar,
   type PredatoriaReport,
   type PredatoriaHitCase,
@@ -197,6 +199,86 @@ export default function InvestigacaoPredatoriaPage() {
     }
   };
 
+  
+  const runComunica = async (aplicarFlags: boolean) => {
+    setLoading(true);
+    setDeepRunning(true);
+    setReport(null);
+    abortDeepRef.current = false;
+    setBulkHits([]);
+    setDeepLogs([]);
+    setByLawyer([]);
+    setFlagged(0);
+    try {
+      const keys = selected.size ? Array.from(selected) : undefined;
+      const qres = await listarQueriesComunicaNumopedeAction({ lawyerKeys: keys });
+      if (!qres.success) {
+        toast({ title: "Comunica", description: qres.error || "Falha", variant: "destructive" });
+        return;
+      }
+      const queries = qres.queries || [];
+      const oabFilter = queries.filter((x) => x.tipo === "oab").map((x) => x.valor);
+      setDeepMeta({ scanned: 0, remaining: queries.length, errors: 0, total: queries.length });
+      toast({
+        title: "Comunica CNJ",
+        description: `${queries.length} buscas (NUMOPED + OABs da banca). Hits aparecem um a um.`,
+      });
+
+      let scanned = 0;
+      let errors = 0;
+      const lawyerMap = new Map<string, { nome: string; hits: number }>();
+
+      for (const query of queries) {
+        if (abortDeepRef.current) {
+          setDeepLogs((prev) => [`[SISTEMA] Pausado.`, ...prev]);
+          break;
+        }
+        setDeepLogs((prev) => [`→ Comunica: ${query.label}`, ...prev].slice(0, 250));
+        const r = await executarQueryComunicaNumopedeAction({
+          tipo: query.tipo,
+          valor: query.valor,
+          label: query.label,
+          aplicarFlags,
+          oabFilter,
+        });
+        scanned++;
+        if (!r.success) errors++;
+        setDeepLogs((prev) => [r.log, ...prev].slice(0, 250));
+        // cada hit entra na hora
+        for (const h of r.hits) {
+          setBulkHits((prev) => {
+            if (prev.some((x) => x.protocolo === h.protocolo)) return prev;
+            return [h, ...prev];
+          });
+          setDeepLogs((prev) => [
+            `  ★ NUMOPED ${h.protocolo} · ${(h.signals || []).map((s) => s.code).join(",")}`,
+            ...prev,
+          ].slice(0, 250));
+          const nome = h.bancaNome || h.advogado || query.label;
+          const prevL = lawyerMap.get(nome) || { nome, hits: 0 };
+          prevL.hits += 1;
+          lawyerMap.set(nome, prevL);
+        }
+        setByLawyer(Array.from(lawyerMap.values()).sort((a, b) => b.hits - a.hits));
+        if (r.flagged) setFlagged((f) => f + r.flagged);
+        setDeepMeta({
+          scanned,
+          remaining: Math.max(0, queries.length - scanned),
+          errors,
+          total: queries.length,
+        });
+      }
+
+      toast({
+        title: abortDeepRef.current ? "Comunica pausado" : "Comunica concluído",
+        description: `${scanned} buscas · veja lista ao vivo`,
+      });
+    } finally {
+      setLoading(false);
+      setDeepRunning(false);
+    }
+  };
+
   const hits = report?.hits?.length ? report.hits : bulkHits;
 
   return (
@@ -256,7 +338,7 @@ export default function InvestigacaoPredatoriaPage() {
               </ul>
             )}
             <p className="text-[10px] text-muted-foreground">
-              <strong>Rápida</strong> = só textos já no banco. <strong>Tribunal</strong> = DataJud+DJEN de verdade (lotes de 20; repita até remaining=0).
+              <strong>Rápida</strong> = banco. <strong>Comunica NUMOPED+OAB</strong> = mesma busca do site CNJ (teor NUMOPED + OAB da banca, ex. 472089). Hits entram um a um no feed.
             </p>
             <div className="flex flex-col gap-2">
               <div className="flex flex-col sm:flex-row gap-2">

@@ -717,3 +717,216 @@ export async function escanearUmNumopedeAction(input: {
     };
   }
 }
+
+/**
+ * Monta fila de buscas no Comunica (DJEN API) — igual ao site CNJ:
+ * 1) texto NUMOPEDE / NUMOPED
+ * 2) cada número de OAB da banca selecionada
+ */
+export async function listarQueriesComunicaNumopedeAction(input?: {
+  lawyerKeys?: string[];
+}): Promise<{
+  success: boolean;
+  queries: Array<{ id: string; tipo: 'texto' | 'oab'; valor: string; label: string }>;
+  error?: string;
+}> {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, queries: [], error: 'Sessão' };
+
+  const banca = ((await listAdvogadosBanca()) || []) as BancaAdv[];
+  const keys = (input?.lawyerKeys || []).map(String);
+  const selected =
+    keys.length === 0
+      ? banca
+      : banca.filter(
+          (b) =>
+            keys.includes(String(b.id)) ||
+            keys.includes(normalizeLawyerKey(b.nome || '')) ||
+            keys.some((k) => {
+              const bn = normalizeLawyerKey(b.nome || '');
+              return bn.includes(k) || k.includes(bn);
+            })
+        );
+
+  const queries: Array<{ id: string; tipo: 'texto' | 'oab'; valor: string; label: string }> = [
+    { id: 't-numopede', tipo: 'texto', valor: 'NUMOPEDE', label: 'Teor: NUMOPEDE' },
+    { id: 't-numoped', tipo: 'texto', valor: 'NUMOPED', label: 'Teor: NUMOPED' },
+    {
+      id: 't-nucleo',
+      tipo: 'texto',
+      valor: 'núcleo de monitoramento de perfis',
+      label: 'Teor: núcleo de monitoramento',
+    },
+    {
+      id: 't-litig',
+      tipo: 'texto',
+      valor: 'litigância predatória',
+      label: 'Teor: litigância predatória',
+    },
+  ];
+
+  const oabSeen = new Set<string>();
+  for (const b of selected) {
+    const nums = oabNumbersFromBanca(b);
+    for (const n of nums) {
+      const d = String(n).replace(/\D/g, '');
+      if (d.length < 4 || oabSeen.has(d)) continue;
+      oabSeen.add(d);
+      queries.push({
+        id: `oab-${d}`,
+        tipo: 'oab',
+        valor: d,
+        label: `OAB ${d} (${b.nome || 'banca'})`,
+      });
+    }
+  }
+
+  return { success: true, queries };
+}
+
+/**
+ * Executa UMA busca no Comunica e devolve hits NUMOPEDE um a um (lista).
+ * Filtra teor com NUMOPED + opcionalmente OAB.
+ */
+export async function executarQueryComunicaNumopedeAction(input: {
+  tipo: 'texto' | 'oab';
+  valor: string;
+  label?: string;
+  aplicarFlags?: boolean;
+  /** OABs da banca para reforçar match no teor */
+  oabFilter?: string[];
+}): Promise<{
+  success: boolean;
+  log: string;
+  hits: PredatoriaHitCase[];
+  flagged: number;
+  rawCount: number;
+  error?: string;
+}> {
+  const q = String(input.valor || '').trim();
+  if (!q) {
+    return { success: false, log: '[erro] query vazia', hits: [], flagged: 0, rawCount: 0 };
+  }
+
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) {
+    return { success: false, log: '[erro] sessão', hits: [], flagged: 0, rawCount: 0, error: 'Sessão' };
+  }
+
+  try {
+    const { fetchDjenPorTexto } = await import('@/lib/djen-busca-texto');
+    const oabFilter = (input.oabFilter || []).map((x) => String(x).replace(/\D/g, '')).filter(Boolean);
+
+    const res = await fetchDjenPorTexto(q, {
+      itensPorPagina: 100,
+      dataInicio: new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      dataFim: new Date().toISOString().split('T')[0],
+    });
+
+    if (!res.success) {
+      return {
+        success: false,
+        log: `[erro] Comunica "${input.label || q}": ${res.error || 'falha'}`,
+        hits: [],
+        flagged: 0,
+        rawCount: 0,
+        error: res.error,
+      };
+    }
+
+    const cases = (await getStoredCasesForEmpresa(empresa_id, true)) as LegalCase[];
+    const byProto = new Map<string, LegalCase>();
+    for (const c of cases || []) {
+      const p = String((c as any).protocolo || '').replace(/\D/g, '');
+      if (p) byProto.set(p, c);
+    }
+
+    const hits: PredatoriaHitCase[] = [];
+    const flagSet = new Set<string>();
+
+    for (const item of res.items || []) {
+      const texto = String(item.texto || '');
+      const protoRaw = String(item.numero_processo || '').trim();
+      const protoDigits = protoRaw.replace(/\D/g, '');
+
+      // Se busca foi por OAB, exige NUMOPED/predatória no teor; se busca foi NUMOPED, ok
+      const sigs = scanTextForPredatoria(texto, {
+        oabNumbers: input.tipo === 'oab' ? [q] : oabFilter,
+      });
+      let tem = hasNumopedeSignal(sigs);
+
+      if (input.tipo === 'oab') {
+        // OAB sozinha no DJEN não basta — precisa contexto predatório
+        const hasOab = new RegExp(`\\b${q}\\b`).test(texto.replace(/\D/g, ' ') + ' ' + texto);
+        const hasCtx =
+          /\bnumoped[ei]?\b|predat[oó]ria|monitoramento\s+de\s+perfil|recomenda[cç][aã]o\s*159/i.test(
+            texto
+          );
+        tem = hasOab && (hasCtx || tem);
+        if (tem && !sigs.some((s) => s.code === 'NUMOPEDE' || s.code === 'NUMOPEDE_OAB')) {
+          sigs.push({
+            code: 'NUMOPEDE_OAB',
+            label: `OAB ${q} + contexto no teor`,
+            weight: 42,
+            evidence: texto.slice(0, 180),
+          });
+        }
+      } else {
+        // busca por texto: aceita se keyword bateu (já em sigs) ou se oabFilter aparece com contexto
+        if (!tem && oabFilter.length) {
+          const sig2 = scanTextForPredatoria(texto, { oabNumbers: oabFilter });
+          if (hasNumopedeSignal(sig2)) {
+            tem = true;
+            sigs.push(...sig2);
+          }
+        }
+      }
+
+      if (!tem) continue;
+
+      const local = protoDigits ? byProto.get(protoDigits) : undefined;
+      hits.push({
+        protocolo: protoRaw || protoDigits || item.id || '—',
+        cliente: String((local as any)?.cliente || item.nomeOrgao || '—'),
+        advogado: String((local as any)?.advogado || ''),
+        tribunal: String(item.siglaTribunal || (local as any)?.tribunal || ''),
+        signals: sigs.length ? sigs : [{ code: 'NUMOPEDE', label: 'NUMOPED no Comunica', weight: 40 }],
+        temNumopede: true,
+      });
+      if (protoDigits) flagSet.add(protoDigits);
+    }
+
+    let flagged = 0;
+    if (input.aplicarFlags && flagSet.size) {
+      const updated = cases.map((c) => {
+        const p = String((c as any).protocolo || '').replace(/\D/g, '');
+        if (!flagSet.has(p)) return c;
+        flagged++;
+        return {
+          ...c,
+          sinal_numopede: true,
+          sinal_predatoria: true,
+          predatoria_marcado_em: new Date().toISOString(),
+        } as LegalCase;
+      });
+      await saveStoredCasesForEmpresa(updated, empresa_id, true);
+    }
+
+    return {
+      success: true,
+      log: `[Comunica] ${input.label || q}: ${res.count ?? res.items?.length ?? 0} comunic. → ${hits.length} NUMOPED`,
+      hits,
+      flagged,
+      rawCount: res.items?.length || 0,
+    };
+  } catch (e: any) {
+    return {
+      success: false,
+      log: `[erro] ${input.label || q}: ${e?.message || 'falha'}`,
+      hits: [],
+      flagged: 0,
+      rawCount: 0,
+      error: e?.message,
+    };
+  }
+}
