@@ -43,10 +43,10 @@ export default function CalculosPage() {
 
   // campos simples (o que o usuário realmente preenche)
   const [valor1, setValor1] = useState(""); // tarifa
-  const [data1, setData1] = useState("2016-01-15");
+  const [data1, setData1] = useState("2023-04-14");
   const [label1, setLabel1] = useState("Tarifa / taxa cobrada");
   const [valor2, setValor2] = useState(""); // seguro
-  const [data2, setData2] = useState("2016-01-15");
+  const [data2, setData2] = useState("2023-04-14");
   const [label2, setLabel2] = useState("Seguro");
   const [dataCitacao, setDataCitacao] = useState("2025-09-01");
   const [dataFinal, setDataFinal] = useState(todayISO());
@@ -186,7 +186,7 @@ export default function CalculosPage() {
             <p className="text-xs font-black uppercase tracking-wide text-primary">2 · Valores a devolver</p>
             <p className="text-[11px] text-muted-foreground flex gap-1.5">
               <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              Use a data em que o cliente <strong>pagou</strong> (desembolso), não a data da sentença. Ex.: tarifa em jan/2016.
+              Use a data em que o cliente <strong>pagou</strong> (desembolso), não a data da sentença. Ex.: data da contratação/desembolso no contrato (neste caso 14/04/2023).
             </p>
 
             <div className="space-y-2 rounded-xl border p-3 bg-muted/20">
@@ -194,7 +194,7 @@ export default function CalculosPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Valor R$</Label>
-                  <Input value={valor1} onChange={(e) => setValor1(e.target.value)} placeholder="10900,00" />
+                  <Input value={valor1} onChange={(e) => setValor1(e.target.value)} placeholder="4900,00" />
                 </div>
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Data do pagamento</Label>
@@ -208,7 +208,7 @@ export default function CalculosPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Valor R$</Label>
-                  <Input value={valor2} onChange={(e) => setValor2(e.target.value)} placeholder="opcional" />
+                  <Input value={valor2} onChange={(e) => setValor2(e.target.value)} placeholder="23522,30" />
                 </div>
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Data do pagamento</Label>
@@ -311,9 +311,9 @@ export default function CalculosPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground pb-8">
-            Exemplo do seu caso (Claudio / Bradesco): tarifa R$ 10.900 desde jan/2016 + seguro (se souber o valor) +
-            Tabela TJSP + juros 1% a.m. desde a citação + honorários 10%. Enquanto houver apelação, o valor é
-            estimativa — só cobra após trânsito (ou execução provisória, se cabível).
+            Contrato Bradesco (CCB 16.136.016, 14/04/2023): tarifa R$ 4.900 + seguro R$ 23.522,30 = R$ 28.422,30
+            desde 14/04/2023 (não use 2016). Tabela TJSP + juros 1% a.m. desde a citação + honorários 10%.
+            Com apelação pendente, o total é só estimativa — cobrança após trânsito (ou execução provisória, se cabível).
           </p>
         </div>
       </main>
