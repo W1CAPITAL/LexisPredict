@@ -21,6 +21,14 @@ const DataJudScannerPanel = dynamic(
   { ssr: false }
 );
 
+const PacmanTrollOverlay = dynamic(
+  () =>
+    import("@/components/troll/pacman-troll-overlay").then(
+      (m) => m.PacmanTrollOverlay
+    ),
+  { ssr: false }
+);
+
 const AppUpdateBanner = dynamic(
   () =>
     import("@/components/system/app-update-banner").then(
@@ -35,6 +43,7 @@ export function ClientChrome() {
       <GuidedTour />
       <DataJudScannerPanel />
       <AppUpdateBanner />
+      <PacmanTrollOverlay />
     </>
   );
 }
