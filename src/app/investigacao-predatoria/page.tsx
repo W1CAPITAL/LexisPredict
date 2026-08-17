@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ import {
   analisarAdvogadoPredatoriaAction,
   escanearBancaNumopedeAction,
   escanearBancaNumopedeProfundoAction,
+  listarFilaNumopedeAction,
+  escanearUmNumopedeAction,
   type AdvogadoBancaRadar,
   type PredatoriaReport,
   type PredatoriaHitCase,
@@ -39,7 +41,9 @@ export default function InvestigacaoPredatoriaPage() {
   const [flagged, setFlagged] = useState(0);
   const [deepOffset, setDeepOffset] = useState(0);
   const [deepLogs, setDeepLogs] = useState<string[]>([]);
-  const [deepMeta, setDeepMeta] = useState<{ scanned: number; remaining: number; errors: number } | null>(null);
+  const [deepMeta, setDeepMeta] = useState<{ scanned: number; remaining: number; errors: number; total: number } | null>(null);
+  const [deepRunning, setDeepRunning] = useState(false);
+  const abortDeepRef = useRef(false);
 
   const loadBanca = useCallback(async () => {
     setLoadingBanca(true);
@@ -105,39 +109,91 @@ export default function InvestigacaoPredatoriaPage() {
     }
   };
 
+  const stopDeep = () => {
+    abortDeepRef.current = true;
+  };
+
   const runDeep = async (aplicarFlags: boolean, reset = false) => {
     setLoading(true);
+    setDeepRunning(true);
     setReport(null);
+    abortDeepRef.current = false;
     try {
       const keys = selected.size ? Array.from(selected) : undefined;
-      const off = reset ? 0 : deepOffset;
-      const r = await escanearBancaNumopedeProfundoAction({
-        lawyerKeys: keys,
-        limit: 20,
-        offset: off,
-        aplicarFlags,
-        delayMs: 350,
-      });
-      if (!r.success) {
-        toast({ title: "Varredura tribunal", description: r.error || "Falha", variant: "destructive" });
+      const fila = await listarFilaNumopedeAction({ lawyerKeys: keys });
+      if (!fila.success) {
+        toast({ title: "Fila", description: fila.error || "Falha", variant: "destructive" });
         return;
       }
-      setBulkHits((prev) => {
-        const map = new Map(prev.map((h) => [h.protocolo, h]));
-        for (const h of r.hits) map.set(h.protocolo, h);
-        return Array.from(map.values());
-      });
-      setByLawyer(r.byLawyer);
-      setFlagged((f) => f + (r.flagged || 0));
-      setDeepOffset(r.nextOffset);
-      setDeepLogs((prev) => [...r.logs, ...prev].slice(0, 120));
-      setDeepMeta({ scanned: r.scanned, remaining: r.remaining, errors: r.errors });
+      const items = fila.items || [];
+      const start = reset ? 0 : deepOffset;
+      if (reset) {
+        setBulkHits([]);
+        setDeepLogs([]);
+        setDeepOffset(0);
+        setByLawyer([]);
+        setFlagged(0);
+      }
+      const slice = items.slice(start);
+      setDeepMeta({ scanned: 0, remaining: slice.length, errors: 0, total: items.length });
       toast({
-        title: "Lote tribunal",
-        description: `Consultados ${r.scanned} · restam ${r.remaining} · hits ${r.hits.length} · erros ${r.errors}`,
+        title: "Tribunal iniciado",
+        description: `${slice.length} CNJ(s) na fila (total carteira filtrada: ${items.length}). Cada um aparece ao terminar.`,
+      });
+
+      let scanned = 0;
+      let errors = 0;
+      let flags = 0;
+      const lawyerMap = new Map<string, { nome: string; hits: number }>();
+
+      for (let i = 0; i < slice.length; i++) {
+        if (abortDeepRef.current) {
+          setDeepLogs((prev) => [`[SISTEMA] Pausado pelo usuário em ${scanned}/${slice.length}.`, ...prev]);
+          break;
+        }
+        const item = slice[i];
+        setDeepLogs((prev) => [`→ consultando ${item.protocolo} (${item.cliente || '…'})`, ...prev].slice(0, 200));
+
+        const r = await escanearUmNumopedeAction({
+          protocolo: item.protocolo,
+          aplicarFlags,
+        });
+        scanned++;
+        if (!r.success && !r.hit) errors++;
+
+        setDeepLogs((prev) => [r.log, ...prev].slice(0, 200));
+        setDeepOffset(start + scanned);
+        setDeepMeta({
+          scanned: start + scanned,
+          remaining: Math.max(0, items.length - start - scanned),
+          errors,
+          total: items.length,
+        });
+
+        if (r.hit) {
+          setBulkHits((prev) => {
+            if (prev.some((h) => h.protocolo === r.hit!.protocolo)) return prev;
+            return [r.hit!, ...prev];
+          });
+          const nome = r.hit.bancaNome || r.hit.advogado || r.hit.protocolo;
+          const prevL = lawyerMap.get(nome) || { nome, hits: 0 };
+          prevL.hits += 1;
+          lawyerMap.set(nome, prevL);
+          setByLawyer(Array.from(lawyerMap.values()).sort((a, b) => b.hits - a.hits));
+        }
+        if (r.flagged) {
+          flags++;
+          setFlagged((f) => f + 1);
+        }
+      }
+
+      toast({
+        title: abortDeepRef.current ? "Varredura pausada" : "Lote concluído",
+        description: `${scanned} consultados · ${flags} flags · ${errors} erros`,
       });
     } finally {
       setLoading(false);
+      setDeepRunning(false);
     }
   };
 
@@ -217,15 +273,23 @@ export default function InvestigacaoPredatoriaPage() {
                   Tribunal DataJud+DJEN (do início)
                 </Button>
                 <Button className="flex-1 rounded-xl" variant="secondary" disabled={loading || deepOffset === 0} onClick={() => void runDeep(false, false)}>
-                  Continuar lote ({deepOffset})
+                  Continuar ({deepOffset})
                 </Button>
               </div>
-              <Button variant="outline" className="rounded-xl" disabled={loading} onClick={() => void runDeep(true, false)}>
-                Tribunal + gravar flags (lote atual)
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" className="flex-1 rounded-xl" disabled={loading} onClick={() => void runDeep(true, true)}>
+                  Tribunal + flags (do início)
+                </Button>
+                {deepRunning ? (
+                  <Button variant="destructive" className="flex-1 rounded-xl" onClick={stopDeep}>
+                    Pausar
+                  </Button>
+                ) : null}
+              </div>
               {deepMeta && (
                 <p className="text-[10px] text-muted-foreground">
-                  Último lote: {deepMeta.scanned} consultados · restam {deepMeta.remaining} · erros {deepMeta.errors}
+                  Progresso: {deepMeta.scanned}/{deepMeta.total} · restam {deepMeta.remaining} · erros {deepMeta.errors}
+                  {deepRunning ? ' · em andamento…' : ''}
                 </p>
               )}
             </div>
@@ -303,7 +367,7 @@ export default function InvestigacaoPredatoriaPage() {
 
         {hits.length > 0 && (
           <section className="rounded-2xl border p-4 space-y-3">
-            <h3 className="text-sm font-semibold">Processos NUMOPEDE ({hits.length})</h3>
+            <h3 className="text-sm font-semibold">NUMOPEDE encontrados ao vivo ({hits.length})</h3>
             <ul className="space-y-2 max-h-[400px] overflow-y-auto">
               {hits.map((h) => (
                 <li key={h.protocolo} className="rounded-xl border p-3 text-sm">

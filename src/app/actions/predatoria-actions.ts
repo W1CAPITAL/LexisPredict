@@ -574,3 +574,146 @@ export async function escanearBancaNumopedeProfundoAction(input?: {
     disclaimer,
   };
 }
+
+/** Monta a fila de CNJs da banca (sem chamar tribunal). */
+export async function listarFilaNumopedeAction(input?: {
+  lawyerKeys?: string[];
+}): Promise<{
+  success: boolean;
+  total: number;
+  items: Array<{ protocolo: string; cliente: string; advogado: string }>;
+  error?: string;
+}> {
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) return { success: false, total: 0, items: [], error: 'Sessão' };
+
+  const banca = ((await listAdvogadosBanca()) || []) as BancaAdv[];
+  const keys = (input?.lawyerKeys || []).map(String);
+  const selected =
+    keys.length === 0
+      ? banca
+      : banca.filter(
+          (b) =>
+            keys.includes(String(b.id)) ||
+            keys.includes(normalizeLawyerKey(b.nome || '')) ||
+            keys.some((k) => {
+              const bn = normalizeLawyerKey(b.nome || '');
+              return bn.includes(k) || k.includes(bn);
+            })
+        );
+
+  const cases = (await getStoredCasesForEmpresa(empresa_id, true)) as LegalCase[];
+  const items: Array<{ protocolo: string; cliente: string; advogado: string }> = [];
+  for (const c of cases || []) {
+    const field = String((c as any).advogado || '');
+    const proto = String((c as any).protocolo || '').trim();
+    if (!proto) continue;
+    if (selected.length && !selected.some((b) => caseMatchesBancaAdv(field, b, field))) continue;
+    items.push({
+      protocolo: proto,
+      cliente: String((c as any).cliente || ''),
+      advogado: field,
+    });
+  }
+  return { success: true, total: items.length, items };
+}
+
+/**
+ * Um CNJ por vez — DataJud + DJEN + detecção NUMOPEDE.
+ * Chamado em loop no cliente para UI progressiva.
+ */
+export async function escanearUmNumopedeAction(input: {
+  protocolo: string;
+  aplicarFlags?: boolean;
+}): Promise<{
+  success: boolean;
+  protocolo: string;
+  log: string;
+  hit: PredatoriaHitCase | null;
+  flagged: boolean;
+  error?: string;
+}> {
+  const proto = String(input.protocolo || '').trim();
+  if (!proto) return { success: false, protocolo: '', log: '[erro] protocolo vazio', hit: null, flagged: false };
+
+  const { empresa_id } = await getUserContext();
+  if (!empresa_id) {
+    return { success: false, protocolo: proto, log: '[erro] sessão', hit: null, flagged: false, error: 'Sessão' };
+  }
+
+  try {
+    const { scanSingleCaseAction } = await import('@/app/actions/case-actions');
+    const cases = (await getStoredCasesForEmpresa(empresa_id, true)) as LegalCase[];
+    const c = cases.find(
+      (x) => String((x as any).protocolo || '').replace(/\D/g, '') === proto.replace(/\D/g, '')
+    );
+
+    const res: any = await scanSingleCaseAction(proto, { mode: 'both', fast: false });
+    const mov = Array.isArray(res?.movimentos) ? res.movimentos : [];
+    const com = Array.isArray(res?.comunicacoes) ? res.comunicacoes : [];
+    const textParts = [
+      c ? collectCaseText(c) : '',
+      ...mov.map((m: any) => [m.nome, m.complemento, m.descricao].filter(Boolean).join(' ')),
+      ...com.map((x: any) => String(x.texto || x.tipoDocumento || '')),
+      res?.datajud_ultimo_nome,
+      res?.djen_ultimo_resumo,
+      res?.evento_resumo,
+    ];
+    const text = textParts.filter(Boolean).join('\n');
+    const sigs = scanTextForPredatoria(text);
+    const temN = hasNumopedeSignal(sigs);
+
+    if (!temN) {
+      return {
+        success: true,
+        protocolo: proto,
+        log: `[ok] ${proto} — sem NUMOPEDE (${mov.length} mov / ${com.length} djen)`,
+        hit: null,
+        flagged: false,
+      };
+    }
+
+    const field = String((c as any)?.advogado || '');
+    const hit: PredatoriaHitCase = {
+      protocolo: proto,
+      cliente: String((c as any)?.cliente || ''),
+      advogado: field,
+      tribunal: String((c as any)?.tribunal || ''),
+      signals: sigs,
+      temNumopede: true,
+    };
+
+    let flagged = false;
+    if (input.aplicarFlags && c) {
+      const updated = cases.map((row) => {
+        if (String((row as any).protocolo || '').replace(/\D/g, '') !== proto.replace(/\D/g, '')) return row;
+        flagged = true;
+        return {
+          ...row,
+          sinal_numopede: true,
+          sinal_predatoria: true,
+          predatoria_marcado_em: new Date().toISOString(),
+        } as LegalCase;
+      });
+      await saveStoredCasesForEmpresa(updated, empresa_id, true);
+    }
+
+    const codes = sigs.map((s) => s.code).join(',');
+    return {
+      success: true,
+      protocolo: proto,
+      log: `[NUMOPEDE] ${proto} — ${codes}${flagged ? ' · flag gravada' : ''}`,
+      hit,
+      flagged,
+    };
+  } catch (e: any) {
+    return {
+      success: false,
+      protocolo: proto,
+      log: `[erro] ${proto} — ${e?.message || 'falha'}`,
+      hit: null,
+      flagged: false,
+      error: e?.message,
+    };
+  }
+}
