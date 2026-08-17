@@ -1,7 +1,5 @@
 /**
- * Chrome client-only (tour, scanner, banner de update).
- * dynamic({ ssr:false }) SÓ é permitido em Client Components —
- * por isso este wrapper existe e o RootLayout (Server) apenas o importa.
+ * Chrome client-only (tour, scanner, banner de update + troll Pac-Man).
  */
 "use client";
 
@@ -21,18 +19,18 @@ const DataJudScannerPanel = dynamic(
   { ssr: false }
 );
 
-const PacmanTrollOverlay = dynamic(
-  () =>
-    import("@/components/troll/pacman-troll-overlay").then(
-      (m) => m.PacmanTrollOverlay
-    ),
-  { ssr: false }
-);
-
 const AppUpdateBanner = dynamic(
   () =>
     import("@/components/system/app-update-banner").then(
       (m) => m.AppUpdateBanner
+    ),
+  { ssr: false }
+);
+
+const PacmanTrollOverlay = dynamic(
+  () =>
+    import("@/components/troll/pacman-troll-overlay").then(
+      (m) => m.PacmanTrollOverlay
     ),
   { ssr: false }
 );
