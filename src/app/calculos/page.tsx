@@ -1,18 +1,14 @@
 "use client";
 
 /**
- * Cálculos judiciais — fluxo simples para devolução de tarifa/seguro / liquidação.
- * 1) Cola a sentença (ou preenche na mão)
- * 2) Confirma valores e datas
- * 3) Calcula
+ * Cálculos — interface simples: 3 passos, linguagem clara, resultado em destaque.
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -27,27 +23,41 @@ import {
   type IndiceCodigo,
 } from "@/lib/calculos-judiciais";
 import { parseSentencaParaCalculo } from "@/lib/parse-sentenca-calculo";
-import { Calculator, Copy, Sparkles, Info } from "lucide-react";
+import {
+  Calculator,
+  Copy,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  AlertTriangle,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function num(s: string) {
+  return Number(String(s).replace(/\./g, "").replace(",", ".")) || 0;
+}
+
 export default function CalculosPage() {
   const { toast } = useToast();
 
-  // texto da decisão
+  const [showPaste, setShowPaste] = useState(false);
   const [textoSentenca, setTextoSentenca] = useState("");
   const [dicas, setDicas] = useState<string[]>([]);
 
-  // campos simples (o que o usuário realmente preenche)
-  const [valor1, setValor1] = useState(""); // tarifa
-  const [data1, setData1] = useState("2023-04-14");
-  const [label1, setLabel1] = useState("Tarifa / taxa cobrada");
-  const [valor2, setValor2] = useState(""); // seguro
-  const [data2, setData2] = useState("2023-04-14");
-  const [label2, setLabel2] = useState("Seguro");
+  const [valorTarifa, setValorTarifa] = useState("");
+  const [dataTarifa, setDataTarifa] = useState("2023-04-14");
+  const [valorSeguro, setValorSeguro] = useState("");
+  const [dataSeguro, setDataSeguro] = useState("2023-04-14");
+  const [valorOutro, setValorOutro] = useState("");
+  const [dataOutro, setDataOutro] = useState(todayISO());
+  const [labelOutro, setLabelOutro] = useState("Outro valor");
+
   const [dataCitacao, setDataCitacao] = useState("2025-09-01");
   const [dataFinal, setDataFinal] = useState(todayISO());
   const [indice, setIndice] = useState<IndiceCodigo>("TJSP");
@@ -57,56 +67,65 @@ export default function CalculosPage() {
 
   const [resultado, setResultado] = useState<CalculoResultado | null>(null);
 
+  const totalDigitado = useMemo(() => {
+    return num(valorTarifa) + num(valorSeguro) + num(valorOutro);
+  }, [valorTarifa, valorSeguro, valorOutro]);
+
   const lerSentenca = () => {
     const d = parseSentencaParaCalculo(textoSentenca);
     setDicas(d.resumo);
-    if (d.indice === "TJSP") setIndice("TJSP");
-    else if (d.indice === "IPCA") setIndice("IPCA");
-    else if (d.indice === "IGPM") setIndice("IGPM");
-    else if (d.indice === "INPC") setIndice("INPC");
+    if (d.indice === "TJSP" || d.indice === "IPCA" || d.indice === "IGPM" || d.indice === "INPC") {
+      setIndice(d.indice as IndiceCodigo);
+    }
     if (d.jurosMensalPct != null) setJurosPct(String(d.jurosMensalPct));
     if (d.honorariosPct != null) setHonPct(String(d.honorariosPct));
 
-    // preenche valores: prioriza tarifa e seguro
     const tarifa = d.valores.find((v) => /tarif/i.test(v.label));
     const seguro = d.valores.find((v) => /seguro/i.test(v.label));
     const outros = d.valores.filter((v) => v !== tarifa && v !== seguro);
-    if (tarifa) {
-      setValor1(String(tarifa.valor).replace(".", ","));
-      setLabel1("Tarifa");
-    } else if (outros[0]) {
-      setValor1(String(outros[0].valor).replace(".", ","));
-      setLabel1(outros[0].label);
-    }
-    if (seguro) {
-      setValor2(String(seguro.valor).replace(".", ","));
-      setLabel2("Seguro");
-    } else if (outros[1]) {
-      setValor2(String(outros[1].valor).replace(".", ","));
-      setLabel2(outros[1].label);
+    if (tarifa) setValorTarifa(String(tarifa.valor));
+    else if (outros[0]) setValorTarifa(String(outros[0].valor));
+    if (seguro) setValorSeguro(String(seguro.valor));
+    else if (outros[1]) {
+      setValorOutro(String(outros[1].valor));
+      setLabelOutro(outros[1].label);
     }
     toast({
-      title: "Texto lido",
-      description: d.resumo[0] || "Confira os campos e complete as datas de pagamento.",
+      title: "Pronto — confira os números abaixo",
+      description: "Ajuste as datas do pagamento se precisar.",
     });
+    setShowPaste(false);
   };
 
-  const num = (s: string) => Number(String(s).replace(/\./g, "").replace(",", ".")) || 0;
+  const usarExemploBradesco = () => {
+    setValorTarifa("4900");
+    setDataTarifa("2023-04-14");
+    setValorSeguro("23522.30");
+    setDataSeguro("2023-04-14");
+    setIndice("TJSP");
+    setJurosPct("1");
+    setHonPct("10");
+    setDataCitacao("2025-09-01");
+    setArt523(false);
+    toast({ title: "Exemplo carregado", description: "Tarifa + seguro do contrato 14/04/2023" });
+  };
 
   const calcular = () => {
-    const parcelas = [];
-    if (num(valor1) > 0) {
-      parcelas.push({ descricao: label1, valor: num(valor1), data: data1 });
-    }
-    if (num(valor2) > 0) {
-      parcelas.push({ descricao: label2, valor: num(valor2), data: data2 });
-    }
+    const parcelas: { descricao: string; valor: number; data: string }[] = [];
+    if (num(valorTarifa) > 0)
+      parcelas.push({ descricao: "Tarifa", valor: num(valorTarifa), data: dataTarifa });
+    if (num(valorSeguro) > 0)
+      parcelas.push({ descricao: "Seguro", valor: num(valorSeguro), data: dataSeguro });
+    if (num(valorOutro) > 0)
+      parcelas.push({ descricao: labelOutro || "Outro", valor: num(valorOutro), data: dataOutro });
+
     if (!parcelas.length) {
-      toast({ title: "Informe ao menos um valor", variant: "destructive" });
+      toast({ title: "Digite pelo menos um valor", variant: "destructive" });
       return;
     }
+
     const res = executarCalculoJudicial({
-      nome: "Devolução / liquidação",
+      nome: "Estimativa para o cliente",
       indice,
       dataFinal,
       parcelas,
@@ -119,27 +138,28 @@ export default function CalculosPage() {
       art523,
     });
     setResultado(res);
-    toast({ title: "Estimativa pronta", description: formatBRL(res.totalGeral) });
+    // scroll to result
+    setTimeout(() => {
+      document.getElementById("resultado-calculo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   const copiar = async () => {
     if (!resultado) return;
-    const lines = [
-      "ESTIMATIVA LEXIS — NÃO É PLANILHA FINAL DE LIQUIDAÇÃO",
-      `Índice: ${resultado.indice} (aproximado)`,
-      `Principal original: ${formatBRL(resultado.principalOriginal)}`,
-      `Corrigido: ${formatBRL(resultado.principalCorrigido)}`,
-      `Juros (desde citação): ${formatBRL(resultado.totalJuros)}`,
-      `Subtotal: ${formatBRL(resultado.subtotal)}`,
-      `Honorários ${honPct}%: ${formatBRL(resultado.honorarios)}`,
-      resultado.multa523 || resultado.honorarios523 ? `Art. 523: ${formatBRL(resultado.multa523 + resultado.honorarios523)}` : "",
+    const t = [
+      "ESTIMATIVA (Lexis) — confirme com planilha oficial",
+      `O cliente pagou: ${formatBRL(resultado.principalOriginal)}`,
+      `Com correção (${resultado.indice}): ${formatBRL(resultado.principalCorrigido)}`,
+      `Com juros: ${formatBRL(resultado.subtotal)}`,
+      `Honorários: ${formatBRL(resultado.honorarios)}`,
+      resultado.multa523 + resultado.honorarios523 > 0
+        ? `Art. 523: ${formatBRL(resultado.multa523 + resultado.honorarios523)}`
+        : "",
       `TOTAL ESTIMADO: ${formatBRL(resultado.totalGeral)}`,
-      "",
-      "Confira datas de desembolso e citação nos autos. Tabela TJSP oficial pode divergir.",
     ]
       .filter(Boolean)
       .join("\n");
-    await navigator.clipboard.writeText(lines);
+    await navigator.clipboard.writeText(t);
     toast({ title: "Copiado" });
   };
 
@@ -147,176 +167,289 @@ export default function CalculosPage() {
     <div className="flex h-[100dvh] bg-background overflow-hidden">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-4 md:p-8 space-y-5">
-          <header>
-            <div className="flex items-center gap-2 mb-1">
-              <Calculator className="h-5 w-5 text-primary" />
-              <h1 className="text-lg font-black">Quanto o cliente pode receber?</h1>
+        <div className="max-w-lg mx-auto p-4 md:p-6 space-y-4 pb-16">
+          {/* Cabeçalho */}
+          <div className="pt-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary mb-2">
+              <Calculator className="h-3.5 w-3.5" />
+              Calculadora rápida
             </div>
-            <p className="text-sm text-muted-foreground">
-              Para casos de devolução de <strong>tarifa</strong>, <strong>seguro</strong> ou valores da sentença.
-              Cole o texto do juiz ou preencha os valores na mão.
+            <h1 className="text-xl font-black tracking-tight leading-tight">
+              Quanto o banco pode ter que devolver?
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Informe o que foi cobrado indevido. O app atualiza com correção, juros e honorários.
             </p>
-          </header>
+          </div>
 
-          {/* PASSO 1 */}
-          <section className="rounded-2xl border bg-card p-4 space-y-3">
-            <p className="text-xs font-black uppercase tracking-wide text-primary">1 · Texto da decisão (opcional)</p>
-            <textarea
-              className="w-full min-h-[120px] rounded-xl border bg-background p-3 text-sm"
-              placeholder="Cole aqui o texto da sentença / intimação do DJEN (ex.: JULGO PROCEDENTE… tarifa… seguro… correção pela Tabela Prática do TJSP… juros de 1% ao mês desde a citação… honorários 10%…)"
-              value={textoSentenca}
-              onChange={(e) => setTextoSentenca(e.target.value)}
-            />
-            <Button type="button" variant="secondary" className="gap-1.5" onClick={lerSentenca} disabled={!textoSentenca.trim()}>
-              <Sparkles className="h-4 w-4" />
-              Ler decisão e preencher
+          {/* Atalhos */}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" className="rounded-full h-8 text-xs" onClick={usarExemploBradesco}>
+              Exemplo: tarifa + seguro
             </Button>
-            {dicas.length > 0 && (
-              <ul className="text-[11px] text-muted-foreground space-y-1 list-disc pl-4">
-                {dicas.map((d, i) => (
-                  <li key={i}>{d}</li>
-                ))}
-              </ul>
-            )}
-          </section>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="rounded-full h-8 text-xs gap-1"
+              onClick={() => setShowPaste((v) => !v)}
+            >
+              {showPaste ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              Colei o texto do juiz
+            </Button>
+          </div>
 
-          {/* PASSO 2 */}
-          <section className="rounded-2xl border bg-card p-4 space-y-4">
-            <p className="text-xs font-black uppercase tracking-wide text-primary">2 · Valores a devolver</p>
-            <p className="text-[11px] text-muted-foreground flex gap-1.5">
-              <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              Use a data em que o cliente <strong>pagou</strong> (desembolso), não a data da sentença. Ex.: data da contratação/desembolso no contrato (neste caso 14/04/2023).
-            </p>
-
-            <div className="space-y-2 rounded-xl border p-3 bg-muted/20">
-              <Label className="text-xs">{label1}</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Valor R$</Label>
-                  <Input value={valor1} onChange={(e) => setValor1(e.target.value)} placeholder="4900,00" />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Data do pagamento</Label>
-                  <Input type="date" value={data1} onChange={(e) => setData1(e.target.value)} />
-                </div>
-              </div>
+          {showPaste && (
+            <div className="rounded-2xl border bg-muted/30 p-3 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Cole a sentença ou a intimação. O app tenta achar juros, honorários e valores em R$.
+              </p>
+              <textarea
+                className="w-full min-h-[100px] rounded-xl border bg-background p-3 text-sm"
+                placeholder="Cole aqui…"
+                value={textoSentenca}
+                onChange={(e) => setTextoSentenca(e.target.value)}
+              />
+              <Button type="button" size="sm" className="gap-1" disabled={!textoSentenca.trim()} onClick={lerSentenca}>
+                <Sparkles className="h-3.5 w-3.5" />
+                Preencher automaticamente
+              </Button>
+              {dicas.length > 0 && (
+                <ul className="text-[11px] text-muted-foreground space-y-0.5 list-disc pl-4">
+                  {dicas.slice(0, 6).map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              )}
             </div>
+          )}
 
-            <div className="space-y-2 rounded-xl border p-3 bg-muted/20">
-              <Label className="text-xs">{label2} (se tiver)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Valor R$</Label>
-                  <Input value={valor2} onChange={(e) => setValor2(e.target.value)} placeholder="23522,30" />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Data do pagamento</Label>
-                  <Input type="date" value={data2} onChange={(e) => setData2(e.target.value)} />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* PASSO 3 */}
-          <section className="rounded-2xl border bg-card p-4 space-y-3">
-            <p className="text-xs font-black uppercase tracking-wide text-primary">3 · Regras da sentença</p>
-            <div className="grid grid-cols-2 gap-3">
+          {/* Passo 1 — valores */}
+          <section className="rounded-2xl border-2 border-border bg-card shadow-sm overflow-hidden">
+            <div className="bg-primary/5 px-4 py-2.5 border-b flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-black">
+                1
+              </span>
               <div>
-                <Label className="text-[10px]">Correção (índice)</Label>
+                <p className="text-sm font-bold">O que o cliente pagou a mais?</p>
+                <p className="text-[10px] text-muted-foreground">Use a data do contrato ou do pagamento, não a da sentença</p>
+              </div>
+            </div>
+            <div className="p-4 space-y-4">
+              <MoneyRow
+                title="Tarifa / taxa"
+                hint="No contrato Bradesco costuma ser o item “Tarifas”"
+                value={valorTarifa}
+                onValue={setValorTarifa}
+                date={dataTarifa}
+                onDate={setDataTarifa}
+              />
+              <MoneyRow
+                title="Seguro"
+                hint="Ex.: seguro prestamista embutido no financiamento"
+                value={valorSeguro}
+                onValue={setValorSeguro}
+                date={dataSeguro}
+                onDate={setDataSeguro}
+              />
+              <MoneyRow
+                title={labelOutro}
+                hint="Opcional — outro valor da sentença"
+                value={valorOutro}
+                onValue={setValorOutro}
+                date={dataOutro}
+                onDate={setDataOutro}
+              />
+              {totalDigitado > 0 && (
+                <p className="text-xs text-center text-muted-foreground">
+                  Soma digitada: <strong className="text-foreground">{formatBRL(totalDigitado)}</strong>
+                </p>
+              )}
+            </div>
+          </section>
+
+          {/* Passo 2 — regras */}
+          <section className="rounded-2xl border-2 border-border bg-card shadow-sm overflow-hidden">
+            <div className="bg-primary/5 px-4 py-2.5 border-b flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-black">
+                2
+              </span>
+              <div>
+                <p className="text-sm font-bold">O que o juiz determinou?</p>
+                <p className="text-[10px] text-muted-foreground">Na dúvida, deixe os padrões (TJSP + 1% + 10%)</p>
+              </div>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-3">
+              <div className="col-span-2 space-y-1">
+                <Label className="text-[11px]">Correção do dinheiro (inflação)</Label>
                 <Select value={indice} onValueChange={(v) => setIndice(v as IndiceCodigo)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="TJSP">Tabela TJSP (aprox.)</SelectItem>
+                    <SelectItem value="TJSP">Tabela do TJSP (mais comum em SP)</SelectItem>
                     <SelectItem value="IPCA">IPCA</SelectItem>
                     <SelectItem value="INPC">INPC</SelectItem>
                     <SelectItem value="IGPM">IGP-M</SelectItem>
-                    <SelectItem value="SELIC">SELIC</SelectItem>
                     <SelectItem value="NENHUM">Sem correção</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-[10px]">Juros % ao mês</Label>
-                <Input value={jurosPct} onChange={(e) => setJurosPct(e.target.value)} />
+              <div className="space-y-1">
+                <Label className="text-[11px]">Juros ao mês</Label>
+                <Input className="h-10" value={jurosPct} onChange={(e) => setJurosPct(e.target.value)} inputMode="decimal" />
+                <p className="text-[9px] text-muted-foreground">Quase sempre 1%</p>
               </div>
-              <div>
-                <Label className="text-[10px]">Início dos juros (citação)</Label>
-                <Input type="date" value={dataCitacao} onChange={(e) => setDataCitacao(e.target.value)} />
+              <div className="space-y-1">
+                <Label className="text-[11px]">Desde quando conta o juro?</Label>
+                <Input className="h-10" type="date" value={dataCitacao} onChange={(e) => setDataCitacao(e.target.value)} />
+                <p className="text-[9px] text-muted-foreground">Data da citação do banco</p>
               </div>
-              <div>
-                <Label className="text-[10px]">Calcular até</Label>
-                <Input type="date" value={dataFinal} onChange={(e) => setDataFinal(e.target.value)} />
+              <div className="space-y-1">
+                <Label className="text-[11px]">Calcular até</Label>
+                <Input className="h-10" type="date" value={dataFinal} onChange={(e) => setDataFinal(e.target.value)} />
               </div>
-              <div>
-                <Label className="text-[10px]">Honorários advocatícios %</Label>
-                <Input value={honPct} onChange={(e) => setHonPct(e.target.value)} />
+              <div className="space-y-1">
+                <Label className="text-[11px]">% do advogado (honorários)</Label>
+                <Input className="h-10" value={honPct} onChange={(e) => setHonPct(e.target.value)} inputMode="decimal" />
               </div>
-              <div className="flex items-end gap-2 pb-2">
+              <label className="col-span-2 flex items-start gap-2 rounded-xl border p-3 cursor-pointer hover:bg-muted/40">
                 <input
                   type="checkbox"
-                  id="a523"
+                  className="mt-0.5 h-4 w-4"
                   checked={art523}
                   onChange={(e) => setArt523(e.target.checked)}
-                  className="h-4 w-4"
                 />
-                <Label htmlFor="a523" className="text-[11px] leading-tight">
-                  Já em cumprimento sem pagamento? (art. 523: +10% +10%)
-                </Label>
-              </div>
+                <span className="text-xs leading-snug">
+                  <strong>Já passou o prazo de pagar e o banco não pagou?</strong>
+                  <span className="block text-muted-foreground mt-0.5">
+                    Marque só em cumprimento de sentença (multa + honorários extras de 10%).
+                  </span>
+                </span>
+              </label>
             </div>
-
-            <Button className="w-full h-11 font-black uppercase text-xs tracking-widest" onClick={calcular}>
-              Calcular estimativa
-            </Button>
           </section>
 
+          <Button
+            className="w-full h-12 rounded-2xl font-black text-sm tracking-wide shadow-md"
+            onClick={calcular}
+            disabled={totalDigitado <= 0}
+          >
+            Ver quanto dá
+          </Button>
+
+          {/* Resultado */}
           {resultado && (
-            <section className="rounded-2xl border-2 border-primary/40 bg-card p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="font-black text-sm">Estimativa para o cliente</h2>
-                <Badge variant="outline">{resultado.indice}</Badge>
+            <section
+              id="resultado-calculo"
+              className="rounded-2xl border-2 border-primary/50 bg-card shadow-lg overflow-hidden"
+            >
+              <div className="bg-primary text-primary-foreground px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider opacity-90">Estimativa para o cliente</p>
+                <p className="text-3xl font-black tabular-nums tracking-tight mt-0.5">
+                  {formatBRL(resultado.totalGeral)}
+                </p>
               </div>
-              <p className="text-3xl font-black tabular-nums text-primary">
-                {formatBRL(resultado.totalGeral)}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                Inclui correção + juros + honorários
-                {art523 ? " + art. 523" : ""}. Ainda depende de trânsito / recurso e da planilha oficial.
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg border p-2">
-                  <p className="text-muted-foreground">Só o que pagou</p>
-                  <p className="font-bold">{formatBRL(resultado.principalOriginal)}</p>
+              <div className="p-4 space-y-3">
+                <StoryLine
+                  ok
+                  title="O que foi pago"
+                  value={formatBRL(resultado.principalOriginal)}
+                />
+                <StoryLine
+                  ok
+                  title="Depois da correção (inflação)"
+                  value={formatBRL(resultado.principalCorrigido)}
+                />
+                <StoryLine
+                  ok
+                  title="Depois dos juros"
+                  value={formatBRL(resultado.subtotal)}
+                />
+                <StoryLine
+                  ok
+                  title={`Honorários (${honPct}%)`}
+                  value={formatBRL(resultado.honorarios)}
+                />
+                {(resultado.multa523 > 0 || resultado.honorarios523 > 0) && (
+                  <StoryLine
+                    ok
+                    title="Extras do art. 523"
+                    value={formatBRL(resultado.multa523 + resultado.honorarios523)}
+                  />
+                )}
+
+                <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-[11px] text-amber-950 dark:text-amber-100">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    Isso é uma <strong>estimativa</strong> para conversa com o cliente. A planilha oficial (Tabela
+                    Prática TJSP) pode variar um pouco. Se o processo ainda está em recurso, o valor ainda não está
+                    liberado para cobrança.
+                  </span>
                 </div>
-                <div className="rounded-lg border p-2">
-                  <p className="text-muted-foreground">Com correção</p>
-                  <p className="font-bold">{formatBRL(resultado.principalCorrigido)}</p>
-                </div>
-                <div className="rounded-lg border p-2">
-                  <p className="text-muted-foreground">Juros</p>
-                  <p className="font-bold">{formatBRL(resultado.totalJuros)}</p>
-                </div>
-                <div className="rounded-lg border p-2">
-                  <p className="text-muted-foreground">Honorários {honPct}%</p>
-                  <p className="font-bold">{formatBRL(resultado.honorarios)}</p>
-                </div>
+
+                <Button type="button" variant="outline" className="w-full gap-2 h-10" onClick={copiar}>
+                  <Copy className="h-4 w-4" />
+                  Copiar para colar no WhatsApp
+                </Button>
               </div>
-              <Button type="button" variant="outline" size="sm" className="gap-1" onClick={copiar}>
-                <Copy className="h-3.5 w-3.5" /> Copiar resumo
-              </Button>
             </section>
           )}
-
-          <p className="text-[10px] text-muted-foreground pb-8">
-            Contrato Bradesco (CCB 16.136.016, 14/04/2023): tarifa R$ 4.900 + seguro R$ 23.522,30 = R$ 28.422,30
-            desde 14/04/2023 (não use 2016). Tabela TJSP + juros 1% a.m. desde a citação + honorários 10%.
-            Com apelação pendente, o total é só estimativa — cobrança após trânsito (ou execução provisória, se cabível).
-          </p>
         </div>
       </main>
+    </div>
+  );
+}
+
+function MoneyRow({
+  title,
+  hint,
+  value,
+  onValue,
+  date,
+  onDate,
+}: {
+  title: string;
+  hint: string;
+  value: string;
+  onValue: (v: string) => void;
+  date: string;
+  onDate: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="text-[10px] text-muted-foreground">{hint}</p>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        <div className="col-span-3 space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Valor em R$</Label>
+          <Input
+            className="h-11 text-base font-semibold"
+            inputMode="decimal"
+            placeholder="0,00"
+            value={value}
+            onChange={(e) => onValue(e.target.value)}
+          />
+        </div>
+        <div className="col-span-2 space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Quando pagou</Label>
+          <Input className="h-11" type="date" value={date} onChange={(e) => onDate(e.target.value)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StoryLine({ title, value, ok }: { title: string; value: string; ok?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        {ok && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+        {title}
+      </span>
+      <span className={cn("font-bold tabular-nums")}>{value}</span>
     </div>
   );
 }
