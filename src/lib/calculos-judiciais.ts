@@ -5,7 +5,7 @@
  * substitua por série oficial (BCB/SGS) quando integrar API.
  */
 
-export type IndiceCodigo = 'IPCA' | 'INPC' | 'IGPM' | 'SELIC' | 'CDI' | 'TR' | 'NENHUM';
+export type IndiceCodigo = 'IPCA' | 'INPC' | 'IGPM' | 'SELIC' | 'CDI' | 'TR' | 'TJSP' | 'NENHUM';
 
 export type ParcelaInput = {
   id?: string;
@@ -94,13 +94,14 @@ export type CalculoResultado = {
 };
 
 /** Fator mensal aproximado (1 + taxa). Não substitui série oficial. */
-const FATOR_MENSAL_APROX: Record<Exclude<IndiceCodigo, 'NENHUM'>, number> = {
+const FATOR_MENSAL_APROX: Record<string, number> = {
   IPCA: 1.0045,
   INPC: 1.0042,
   IGPM: 1.0055,
   SELIC: 1.009,
   CDI: 1.0088,
   TR: 1.001,
+  TJSP: 1.0048, // aprox. Tabela Prática TJSP (média)
 };
 
 function parseDate(s: string): Date {

@@ -3,11 +3,11 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-/** Mensagem sempre exibida no banner de nova versão — atualize a cada release. */
+/** Atualize a cada release — aparece no banner de nova versão. */
 export const LEXIS_CHANGELOG = [
-  "Nova aba Cálculos judiciais (/calculos): correção monetária, juros, multa, honorários, art. 523 CPC, custas e abatimentos.",
-  "Memória de cálculo com resumo copiável e avisos de triagem (índices aproximados).",
-  "Menu lateral: item Cálculos judiciais ao lado de Finanças.",
+  "Cálculos judiciais mais simples: cole a sentença ou informe tarifa/seguro e datas — estimativa do que o cliente pode receber.",
+  "Leitura de dicas da decisão (juros, honorários %, Tabela TJSP, valores R$).",
+  "Fluxo em 3 passos alinhado a liquidação de devolução (correção + juros desde citação + honorários).",
 ];
 
 export async function GET() {
