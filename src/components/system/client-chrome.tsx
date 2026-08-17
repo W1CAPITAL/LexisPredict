@@ -1,13 +1,12 @@
 /**
- * Chrome client-only (tour, scanner, banner de update + troll Pac-Man).
+ * Chrome client-only. Pac-Man só com ?troll=1 — nunca bloqueia CRM.
  */
 "use client";
 
 import dynamic from "next/dynamic";
 
 const GuidedTour = dynamic(
-  () =>
-    import("@/components/onboarding/guided-tour").then((m) => m.GuidedTour),
+  () => import("@/components/onboarding/guided-tour").then((m) => m.GuidedTour),
   { ssr: false }
 );
 
@@ -21,17 +20,13 @@ const DataJudScannerPanel = dynamic(
 
 const AppUpdateBanner = dynamic(
   () =>
-    import("@/components/system/app-update-banner").then(
-      (m) => m.AppUpdateBanner
-    ),
+    import("@/components/system/app-update-banner").then((m) => m.AppUpdateBanner),
   { ssr: false }
 );
 
 const PacmanTrollOverlay = dynamic(
   () =>
-    import("@/components/troll/pacman-troll-overlay").then(
-      (m) => m.PacmanTrollOverlay
-    ),
+    import("@/components/troll/pacman-troll-overlay").then((m) => m.PacmanTrollOverlay),
   { ssr: false }
 );
 
