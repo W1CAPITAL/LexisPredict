@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * Telemetria de Performance por Escritório + Ranking de Advogados.
- * Inclui: procedentes, sucumbência/oportunidade honorários, cumprimento, BA, novidades.
+ * Telemetria por Escritório / Advogado / Dono (operador).
+ * - Vencidos = responsabilidade do DONO (created_by), não do advogado.
+ * - Score proporcional ao volume (taxas), não contagem bruta.
+ * - Improcedentes entram no cálculo (espelho lógico dos procedentes).
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -19,8 +21,8 @@ import {
   TrendingUp,
   Scale,
   Gavel,
-  User,
   Zap,
+  UserCog,
 } from "lucide-react";
 
 interface OfficeStatsProps {
@@ -28,40 +30,7 @@ interface OfficeStatsProps {
   className?: string;
 }
 
-type OfficeRow = {
-  name: string;
-  total: number;
-  ativos: number;
-  vencidos: number;
-  alerta: number;
-  encerrados: number;
-  baixasTribunal: number;
-  procedentes: number;
-  improcedentes: number;
-  cumprimentoAtivo: number;
-  faltaInstaurar: number;
-  sucumbencia: number; // oportunidade honorários elegível
-  oportunidadeScoreSum: number;
-  ba: number;
-  novidades: number;
-  atendidosSemana: number;
-  score: number;
-};
-
-type AdvRow = {
-  name: string;
-  escritorio: string;
-  total: number;
-  ativos: number;
-  procedentes: number;
-  cumprimentoAtivo: number;
-  faltaInstaurar: number;
-  sucumbencia: number;
-  baixasTribunal: number;
-  vencidos: number;
-  novidades: number;
-  score: number;
-};
+type Tab = "escritorio" | "advogado" | "dono";
 
 function dadosOf(c: LegalCase): Record<string, any> {
   const d = (c as any).dados;
@@ -80,12 +49,10 @@ function isCumprimentoAtivo(c: LegalCase): boolean {
 
 function isFaltaInstaurar(c: LegalCase): boolean {
   if (c.cumprimento_pendente_necessario) return true;
-  const d = dadosOf(c);
-  return !!d.cumprimento_pendente_necessario;
+  return !!dadosOf(c).cumprimento_pendente_necessario;
 }
 
-/** Sucumbência / oportunidade de honorários (camada comercial do scanner). */
-function isSucumbenciaOportunidade(c: LegalCase): boolean {
+function isOportunidadeHonorarios(c: LegalCase): boolean {
   const d = dadosOf(c);
   const op =
     (c as any).oportunidade_instaurar ||
@@ -96,163 +63,202 @@ function isSucumbenciaOportunidade(c: LegalCase): boolean {
     !!(c as any).oportunidade_elegivel || !!d.oportunidade_elegivel || !!op?.elegivel;
   const score = Number((c as any).oportunidade_score ?? op?.score ?? 0);
   const tipo = String((c as any).oportunidade_tipo_credito || op?.tipo_credito || "").toLowerCase();
-  // sucumbência explícita ou elegível com score de cobrança
   if (tipo.includes("sucumb")) return elegivel || score >= 40;
   return elegivel && score >= 55;
 }
 
-function oportunidadeScore(c: LegalCase): number {
-  const d = dadosOf(c);
-  const op =
-    (c as any).oportunidade_instaurar ||
-    d.oportunidade_instaurar ||
-    d.detalhes_execucao?.oportunidade_instaurar;
-  return Number((c as any).oportunidade_score ?? op?.score ?? 0) || 0;
+/** Espelho negativo do procedente: improcedente ainda relevante na operação. */
+function isImprocedenteRelevante(c: LegalCase): boolean {
+  if (!isSentencaImprocedente(c as any)) return false;
+  if (isCasoEncerrado(c) && isBaixaTribunal(c)) return false;
+  return true;
 }
 
 function isBA(c: LegalCase): boolean {
   return !!(c as any).indicio_busca_apreensao || !!dadosOf(c).indicio_busca_apreensao;
 }
 
-function isAtendidoSemana(c: LegalCase): boolean {
-  const raw = String(c.ultimoRetorno || (c as any).ultimo_retorno || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
-  const d = new Date(raw + "T12:00:00");
-  const now = new Date();
-  const day = now.getDay(); // 0 dom
-  const diff = day === 0 ? 6 : day - 1; // segunda = início
-  const start = new Date(now);
-  start.setDate(now.getDate() - diff);
-  start.setHours(0, 0, 0, 0);
-  return d >= start && d <= now;
+function isVencidoOperacional(c: LegalCase): boolean {
+  if (isCasoEncerrado(c)) return false;
+  return c.status === "Vencido" || c.status === "Caso Crítico";
 }
 
-function scoreOffice(g: Omit<OfficeRow, "score" | "name">): number {
-  // Procedente / sucumbência / cumprimento pesam positivamente; vencido e BA pesam negativamente
-  return (
-    g.procedentes * 20 +
-    g.sucumbencia * 35 +
-    g.cumprimentoAtivo * 12 +
-    g.faltaInstaurar * 8 +
-    g.encerrados * 6 +
-    g.atendidosSemana * 10 +
-    g.ativos * 1 -
-    g.vencidos * 25 -
-    g.ba * 15 -
-    Math.max(0, g.improcedentes) * 5
-  );
+function pct(n: number, den: number): number {
+  if (!den || den <= 0) return 0;
+  return (n / den) * 100;
 }
 
-function scoreAdv(g: Omit<AdvRow, "score" | "name" | "escritorio">): number {
-  return (
-    g.procedentes * 20 +
-    g.sucumbencia * 35 +
-    g.cumprimentoAtivo * 12 +
-    g.faltaInstaurar * 8 +
-    g.baixasTribunal * 4 +
-    g.ativos * 1 -
-    g.vencidos * 25
-  );
+/** Score 0–100 por TAXAS (volume-aware). Carteira pequena é suavizada. */
+function scorePorTaxas(opts: {
+  total: number;
+  ativos: number;
+  procedRate: number;
+  improcRate: number;
+  oportRate: number;
+  cumprRate: number;
+  instaurarRate: number;
+  vencidoRate?: number;
+  baRate?: number;
+}): number {
+  const {
+    total,
+    procedRate,
+    improcRate,
+    oportRate,
+    cumprRate,
+    instaurarRate,
+    vencidoRate = 0,
+    baRate = 0,
+  } = opts;
+  if (total <= 0) return 0;
+
+  let s =
+    50 +
+    procedRate * 0.35 +
+    oportRate * 0.25 +
+    cumprRate * 0.1 +
+    instaurarRate * 0.08 -
+    improcRate * 0.35 -
+    vencidoRate * 0.4 -
+    baRate * 0.2;
+
+  const k = 12;
+  const w = total / (total + k);
+  s = 50 * (1 - w) + s * w;
+  return Math.round(Math.max(0, Math.min(100, s)));
+}
+
+type Agg = {
+  key: string;
+  label: string;
+  sub?: string;
+  total: number;
+  ativos: number;
+  vencidos: number;
+  procedentes: number;
+  improcedentes: number;
+  improcedentesRelevantes: number;
+  cumprimentoAtivo: number;
+  faltaInstaurar: number;
+  oportunidade: number;
+  baixasTribunal: number;
+  ba: number;
+  novidades: number;
+};
+
+function emptyAgg(key: string, label: string, sub?: string): Agg {
+  return {
+    key,
+    label,
+    sub,
+    total: 0,
+    ativos: 0,
+    vencidos: 0,
+    procedentes: 0,
+    improcedentes: 0,
+    improcedentesRelevantes: 0,
+    cumprimentoAtivo: 0,
+    faltaInstaurar: 0,
+    oportunidade: 0,
+    baixasTribunal: 0,
+    ba: 0,
+    novidades: 0,
+  };
+}
+
+function bump(a: Agg, c: LegalCase, opts: { countVencido: boolean }) {
+  a.total++;
+  if (!isCasoEncerrado(c)) a.ativos++;
+  if (opts.countVencido && isVencidoOperacional(c)) a.vencidos++;
+  if (isSentencaProcedente(c as any)) a.procedentes++;
+  if (isSentencaImprocedente(c as any)) a.improcedentes++;
+  if (isImprocedenteRelevante(c)) a.improcedentesRelevantes++;
+  if (isCumprimentoAtivo(c)) a.cumprimentoAtivo++;
+  if (isFaltaInstaurar(c)) a.faltaInstaurar++;
+  if (isOportunidadeHonorarios(c)) a.oportunidade++;
+  if (isBaixaTribunal(c)) a.baixasTribunal++;
+  if (isBA(c)) a.ba++;
+  if (resolveTemNovoAndamento(c as any)) a.novidades++;
+}
+
+type Scored = Agg & {
+  procedRate: number;
+  improcRate: number;
+  oportRate: number;
+  vencidoRate: number;
+  score: number;
+};
+
+function withScores(rows: Agg[], mode: "advogado" | "operacao"): Scored[] {
+  return rows
+    .map((r) => {
+      const den = r.total || 1;
+      const procedRate = pct(r.procedentes, den);
+      const improcRate = pct(r.improcedentesRelevantes || r.improcedentes, den);
+      const oportRate = pct(r.oportunidade, den);
+      const cumprRate = pct(r.cumprimentoAtivo, den);
+      const instaurarRate = pct(r.faltaInstaurar, den);
+      const vencidoRate = mode === "operacao" ? pct(r.vencidos, r.ativos || den) : 0;
+      const baRate = mode === "operacao" ? pct(r.ba, den) : 0;
+      const score = scorePorTaxas({
+        total: r.total,
+        ativos: r.ativos,
+        procedRate,
+        improcRate,
+        oportRate,
+        cumprRate,
+        instaurarRate,
+        vencidoRate,
+        baRate,
+      });
+      return { ...r, procedRate, improcRate, oportRate, vencidoRate, score };
+    })
+    .sort((a, b) => b.score - a.score || b.total - a.total);
+}
+
+function shortId(id: string) {
+  if (!id || id === "sem-dono") return "Sem dono";
+  if (id.length <= 12) return id;
+  return id.slice(0, 8) + "…";
 }
 
 export function OfficeStats({ cases, className }: OfficeStatsProps) {
-  const [tab, setTab] = useState<"escritorio" | "advogado">("escritorio");
+  const [tab, setTab] = useState<Tab>("escritorio");
 
-  const { offices, lawyers } = useMemo(() => {
+  const { offices, lawyers, owners } = useMemo(() => {
     const uniqueMap = new Map<string, LegalCase>();
     cases.forEach((c) => {
       if (c?.protocolo) uniqueMap.set(c.protocolo, c);
     });
 
-    const officeGroups: Record<string, Omit<OfficeRow, "score">> = {};
-    const advGroups: Record<string, Omit<AdvRow, "score">> = {};
+    const byOffice: Record<string, Agg> = {};
+    const byAdv: Record<string, Agg> = {};
+    const byOwner: Record<string, Agg> = {};
 
     uniqueMap.forEach((c) => {
-      const officeName = (c.escritorio || "Sem Escritório").trim().toUpperCase() || "SEM ESCRITÓRIO";
-      const advName = (c.advogado || "Sem advogado").trim().toUpperCase() || "SEM ADVOGADO";
+      const office = (c.escritorio || "Sem Escritório").trim().toUpperCase() || "SEM ESCRITÓRIO";
+      const adv = (c.advogado || "Sem advogado").trim().toUpperCase() || "SEM ADVOGADO";
+      const ownerRaw = String((c as any).created_by || "").trim() || "sem-dono";
 
-      if (!officeGroups[officeName]) {
-        officeGroups[officeName] = {
-          name: officeName,
-          total: 0,
-          ativos: 0,
-          vencidos: 0,
-          alerta: 0,
-          encerrados: 0,
-          baixasTribunal: 0,
-          procedentes: 0,
-          improcedentes: 0,
-          cumprimentoAtivo: 0,
-          faltaInstaurar: 0,
-          sucumbencia: 0,
-          oportunidadeScoreSum: 0,
-          ba: 0,
-          novidades: 0,
-          atendidosSemana: 0,
-        };
-      }
-      const og = officeGroups[officeName];
-      og.total++;
+      if (!byOffice[office]) byOffice[office] = emptyAgg(office, office);
+      if (!byAdv[`${adv}||${office}`])
+        byAdv[`${adv}||${office}`] = emptyAgg(`${adv}||${office}`, adv, office);
+      if (!byOwner[ownerRaw])
+        byOwner[ownerRaw] = emptyAgg(
+          ownerRaw,
+          ownerRaw === "sem-dono" ? "Sem dono" : shortId(ownerRaw)
+        );
 
-      const encerrado = isCasoEncerrado(c);
-      if (encerrado) og.encerrados++;
-      else {
-        og.ativos++;
-        if (c.status === "Vencido" || c.status === "Caso Crítico") og.vencidos++;
-        else if (["É Hoje", "Atenção"].includes(String(c.status))) og.alerta++;
-      }
-
-      if (isBaixaTribunal(c)) og.baixasTribunal++;
-      if (isSentencaProcedente(c as any)) og.procedentes++;
-      if (isSentencaImprocedente(c as any)) og.improcedentes++;
-      if (isCumprimentoAtivo(c)) og.cumprimentoAtivo++;
-      if (isFaltaInstaurar(c)) og.faltaInstaurar++;
-      if (isSucumbenciaOportunidade(c)) og.sucumbencia++;
-      og.oportunidadeScoreSum += oportunidadeScore(c);
-      if (isBA(c)) og.ba++;
-      if (resolveTemNovoAndamento(c as any)) og.novidades++;
-      if (isAtendidoSemana(c)) og.atendidosSemana++;
-
-      const advKey = `${advName}||${officeName}`;
-      if (!advGroups[advKey]) {
-        advGroups[advKey] = {
-          name: advName,
-          escritorio: officeName,
-          total: 0,
-          ativos: 0,
-          procedentes: 0,
-          cumprimentoAtivo: 0,
-          faltaInstaurar: 0,
-          sucumbencia: 0,
-          baixasTribunal: 0,
-          vencidos: 0,
-          novidades: 0,
-        };
-      }
-      const ag = advGroups[advKey];
-      ag.total++;
-      if (!encerrado) {
-        ag.ativos++;
-        if (c.status === "Vencido" || c.status === "Caso Crítico") ag.vencidos++;
-      }
-      if (isSentencaProcedente(c as any)) ag.procedentes++;
-      if (isCumprimentoAtivo(c)) ag.cumprimentoAtivo++;
-      if (isFaltaInstaurar(c)) ag.faltaInstaurar++;
-      if (isSucumbenciaOportunidade(c)) ag.sucumbencia++;
-      if (isBaixaTribunal(c)) ag.baixasTribunal++;
-      if (resolveTemNovoAndamento(c as any)) ag.novidades++;
+      bump(byOffice[office], c, { countVencido: true });
+      bump(byAdv[`${adv}||${office}`], c, { countVencido: false });
+      bump(byOwner[ownerRaw], c, { countVencido: true });
     });
 
-    const offices: OfficeRow[] = Object.values(officeGroups)
-      .map((g) => ({ ...g, score: scoreOffice(g) }))
-      .sort((a, b) => b.score - a.score);
-
-    const lawyers: AdvRow[] = Object.values(advGroups)
-      .map((g) => ({ ...g, score: scoreAdv(g) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 25);
-
-    return { offices, lawyers };
+    return {
+      offices: withScores(Object.values(byOffice), "operacao"),
+      lawyers: withScores(Object.values(byAdv), "advogado").slice(0, 30),
+      owners: withScores(Object.values(byOwner), "operacao").slice(0, 30),
+    };
   }, [cases]);
 
   if (cases.length === 0) return null;
@@ -266,211 +272,221 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
           </div>
           <div>
             <h3 className="text-sm font-black tracking-tight">Telemetria de Performance</h3>
-            <p className="text-[10px] text-muted-foreground">
-              Procedentes · sucumbência · cumprimento · ranking por escritório e advogado
+            <p className="text-[10px] text-muted-foreground max-w-lg">
+              Score por <strong>taxa</strong> (1 ruim em 4 ≠ 10 ruins em 1000). Vencidos no{" "}
+              <strong>dono</strong>, não no advogado. Improcedentes no cálculo como espelho dos
+              procedentes.
             </p>
           </div>
         </div>
-        <div className="flex rounded-full border bg-muted/40 p-0.5">
-          <button
-            type="button"
-            onClick={() => setTab("escritorio")}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition",
-              tab === "escritorio" ? "bg-background shadow text-foreground" : "text-muted-foreground"
-            )}
-          >
-            Por escritório
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("advogado")}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition",
-              tab === "advogado" ? "bg-background shadow text-foreground" : "text-muted-foreground"
-            )}
-          >
-            Ranking advogados
-          </button>
+        <div className="flex flex-wrap rounded-full border bg-muted/40 p-0.5">
+          {(
+            [
+              ["escritorio", "Escritório"],
+              ["advogado", "Advogados"],
+              ["dono", "Donos (atraso)"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition",
+                tab === id ? "bg-background shadow text-foreground" : "text-muted-foreground"
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        {tab === "escritorio" ? (
-          <table className="w-full min-w-[900px] text-left">
-            <thead>
-              <tr className="border-b border-border/40 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                <th className="px-6 py-3">Escritório</th>
-                <th className="px-3 py-3 text-center">Total</th>
-                <th className="px-3 py-3 text-center">Ativos</th>
-                <th className="px-3 py-3 text-center text-emerald-700">Proced.</th>
-                <th className="px-3 py-3 text-center text-violet-700">Sucumb.</th>
-                <th className="px-3 py-3 text-center text-blue-700">Cumpr.</th>
-                <th className="px-3 py-3 text-center text-amber-700">Instaurar</th>
-                <th className="px-3 py-3 text-center">Baixa TJ</th>
-                <th className="px-3 py-3 text-center text-red-700">Vencidos</th>
-                <th className="px-3 py-3 text-center">Novid.</th>
-                <th className="px-3 py-3 text-right">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {offices.map((o) => (
-                <tr key={o.name} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
-                  <td className="px-6 py-3.5">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-bold truncate max-w-[180px]">{o.name}</span>
-                      <div className="flex flex-wrap gap-1">
-                        {o.sucumbencia > 0 && (
-                          <Badge className="bg-violet-500/15 text-violet-700 border-none text-[8px] font-black">
-                            {o.sucumbencia} honorários
-                          </Badge>
-                        )}
-                        {o.ba > 0 && (
-                          <Badge className="bg-red-500/15 text-red-700 border-none text-[8px] font-black">
-                            {o.ba} B.A.
-                          </Badge>
-                        )}
-                        {o.score >= 0 ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-700 border-none text-[8px] font-black gap-0.5">
-                            <TrendingUp size={9} /> OK
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-red-500 text-white border-none text-[8px] font-black gap-0.5">
-                            <TrendingDown size={9} /> Risco
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums">{o.total}</td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums text-muted-foreground">
-                    {o.ativos}
-                  </td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums text-emerald-700">
-                    {o.procedentes}
-                  </td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums text-violet-700">
-                    {o.sucumbencia}
-                  </td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums text-blue-700">
-                    {o.cumprimentoAtivo}
-                  </td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums text-amber-700">
-                    {o.faltaInstaurar}
-                  </td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums">
-                    {o.baixasTribunal}
-                  </td>
-                  <td
-                    className={cn(
-                      "px-3 py-3.5 text-center text-[11px] font-black tabular-nums",
-                      o.vencidos > 0 ? "text-red-600" : "text-muted-foreground/40"
-                    )}
-                  >
-                    {o.vencidos}
-                  </td>
-                  <td className="px-3 py-3.5 text-center text-[11px] font-black tabular-nums">
-                    {o.novidades}
-                  </td>
-                  <td className="px-6 py-3.5 text-right">
-                    <span
-                      className={cn(
-                        "text-xs font-black tabular-nums",
-                        o.score >= 0 ? "text-emerald-600" : "text-red-600"
-                      )}
-                    >
-                      {o.score > 0 ? `+${o.score}` : o.score}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <table className="w-full min-w-[800px] text-left">
-            <thead>
-              <tr className="border-b border-border/40 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                <th className="px-6 py-3">#</th>
-                <th className="px-3 py-3">Advogado</th>
-                <th className="px-3 py-3">Escritório</th>
-                <th className="px-3 py-3 text-center">Carteira</th>
-                <th className="px-3 py-3 text-center text-emerald-700">Proced.</th>
-                <th className="px-3 py-3 text-center text-violet-700">Sucumb.</th>
-                <th className="px-3 py-3 text-center text-blue-700">Cumpr.</th>
-                <th className="px-3 py-3 text-center text-amber-700">Instaurar</th>
-                <th className="px-3 py-3 text-center text-red-700">Vencidos</th>
-                <th className="px-6 py-3 text-right">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lawyers.map((a, i) => (
-                <tr key={`${a.name}-${a.escritorio}`} className="border-b border-border/20 hover:bg-muted/30">
-                  <td className="px-6 py-3 text-[11px] font-black text-muted-foreground">{i + 1}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-xs font-bold truncate max-w-[160px]">{a.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-[10px] text-muted-foreground truncate max-w-[120px]">
-                    {a.escritorio}
-                  </td>
-                  <td className="px-3 py-3 text-center text-[11px] font-black tabular-nums">{a.total}</td>
-                  <td className="px-3 py-3 text-center text-[11px] font-black tabular-nums text-emerald-700">
-                    {a.procedentes}
-                  </td>
-                  <td className="px-3 py-3 text-center text-[11px] font-black tabular-nums text-violet-700">
-                    {a.sucumbencia}
-                  </td>
-                  <td className="px-3 py-3 text-center text-[11px] font-black tabular-nums text-blue-700">
-                    {a.cumprimentoAtivo}
-                  </td>
-                  <td className="px-3 py-3 text-center text-[11px] font-black tabular-nums text-amber-700">
-                    {a.faltaInstaurar}
-                  </td>
-                  <td
-                    className={cn(
-                      "px-3 py-3 text-center text-[11px] font-black tabular-nums",
-                      a.vencidos > 0 ? "text-red-600" : "text-muted-foreground/40"
-                    )}
-                  >
-                    {a.vencidos}
-                  </td>
-                  <td className="px-6 py-3 text-right">
-                    <span
-                      className={cn(
-                        "text-xs font-black tabular-nums",
-                        a.score >= 0 ? "text-emerald-600" : "text-red-600"
-                      )}
-                    >
-                      {a.score > 0 ? `+${a.score}` : a.score}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {lawyers.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="px-8 py-10 text-center text-[10px] font-black uppercase text-muted-foreground opacity-40">
-                    Sem advogados nos processos
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        {tab === "escritorio" && (
+          <MetricsTable rows={offices} nameHeader="Escritório" showVencidos showSub={false} />
+        )}
+        {tab === "advogado" && (
+          <MetricsTable
+            rows={lawyers}
+            nameHeader="Advogado"
+            showVencidos={false}
+            showSub
+            empty="Sem advogados nos processos"
+          />
+        )}
+        {tab === "dono" && (
+          <MetricsTable
+            rows={owners}
+            nameHeader="Dono (operador)"
+            showVencidos
+            showSub={false}
+            empty="Sem donos atribuídos"
+          />
         )}
       </div>
 
-      <div className="px-6 py-3 border-t border-border/30 flex flex-wrap gap-3 text-[9px] text-muted-foreground">
+      <div className="px-6 py-3 border-t border-border/30 flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
-          <Scale className="h-3 w-3 text-emerald-600" /> Proced. = is_procedente / scanner
+          <Scale className="h-3 w-3 text-emerald-600" /> Proced. % sobre N
         </span>
         <span className="inline-flex items-center gap-1">
-          <Gavel className="h-3 w-3 text-violet-600" /> Sucumb. = oportunidade honorários elegível
+          <Gavel className="h-3 w-3 text-red-600" /> Improc. relevante (espelho)
         </span>
         <span className="inline-flex items-center gap-1">
-          <Zap className="h-3 w-3 text-blue-600" /> Cumpr. = fase 156 / em cumprimento
+          <Zap className="h-3 w-3 text-violet-600" /> Oport. = oportunidade_instaurar
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <UserCog className="h-3 w-3 text-amber-600" /> Vencidos* só Escritório / Donos
         </span>
       </div>
     </section>
+  );
+}
+
+function MetricsTable({
+  rows,
+  nameHeader,
+  showVencidos,
+  showSub,
+  empty,
+}: {
+  rows: Scored[];
+  nameHeader: string;
+  showVencidos: boolean;
+  showSub?: boolean;
+  empty?: string;
+}) {
+  return (
+    <table className="w-full min-w-[920px] text-left">
+      <thead>
+        <tr className="border-b border-border/40 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+          <th className="px-6 py-3">{nameHeader}</th>
+          <th className="px-2 py-3 text-center">N</th>
+          <th className="px-2 py-3 text-center text-emerald-700">Proced.</th>
+          <th className="px-2 py-3 text-center text-red-700">Improc.</th>
+          <th className="px-2 py-3 text-center text-violet-700">Oport.</th>
+          <th className="px-2 py-3 text-center text-blue-700">Cumpr.</th>
+          <th className="px-2 py-3 text-center text-amber-700">Instaurar</th>
+          {showVencidos && (
+            <th className="px-2 py-3 text-center text-orange-700">Vencidos*</th>
+          )}
+          <th className="px-2 py-3 text-center">Taxa P/I</th>
+          <th className="px-6 py-3 text-right">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.length === 0 ? (
+          <tr>
+            <td
+              colSpan={showVencidos ? 10 : 9}
+              className="px-8 py-10 text-center text-[10px] font-black uppercase text-muted-foreground opacity-40"
+            >
+              {empty || "Sem dados"}
+            </td>
+          </tr>
+        ) : (
+          rows.map((r) => (
+            <tr key={r.key} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
+              <td className="px-6 py-3.5">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-bold truncate max-w-[200px]">{r.label}</span>
+                  {showSub && r.sub && (
+                    <span className="text-[9px] text-muted-foreground truncate max-w-[200px]">
+                      {r.sub}
+                    </span>
+                  )}
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {r.score >= 60 ? (
+                      <Badge className="bg-emerald-500/15 text-emerald-700 border-none text-[8px] font-black gap-0.5">
+                        <TrendingUp size={9} /> {r.score}
+                      </Badge>
+                    ) : r.score >= 40 ? (
+                      <Badge className="bg-amber-500/15 text-amber-800 border-none text-[8px] font-black">
+                        {r.score}
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-red-500/15 text-red-700 border-none text-[8px] font-black gap-0.5">
+                        <TrendingDown size={9} /> {r.score}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </td>
+              <td className="px-2 py-3.5 text-center text-[11px] font-black tabular-nums">{r.total}</td>
+              <td className="px-2 py-3.5 text-center">
+                <CellCountRate n={r.procedentes} rate={r.procedRate} tone="emerald" />
+              </td>
+              <td className="px-2 py-3.5 text-center">
+                <CellCountRate
+                  n={r.improcedentesRelevantes || r.improcedentes}
+                  rate={r.improcRate}
+                  tone="red"
+                />
+              </td>
+              <td className="px-2 py-3.5 text-center">
+                <CellCountRate n={r.oportunidade} rate={r.oportRate} tone="violet" />
+              </td>
+              <td className="px-2 py-3.5 text-center text-[11px] font-black tabular-nums text-blue-700">
+                {r.cumprimentoAtivo}
+              </td>
+              <td className="px-2 py-3.5 text-center text-[11px] font-black tabular-nums text-amber-700">
+                {r.faltaInstaurar}
+              </td>
+              {showVencidos && (
+                <td className="px-2 py-3.5 text-center">
+                  <CellCountRate n={r.vencidos} rate={r.vencidoRate} tone="orange" />
+                </td>
+              )}
+              <td className="px-2 py-3.5 text-center text-[10px] font-bold tabular-nums text-muted-foreground">
+                {r.procedRate.toFixed(0)}% / {r.improcRate.toFixed(0)}%
+              </td>
+              <td className="px-6 py-3.5 text-right">
+                <span
+                  className={cn(
+                    "text-sm font-black tabular-nums",
+                    r.score >= 60
+                      ? "text-emerald-600"
+                      : r.score >= 40
+                        ? "text-amber-600"
+                        : "text-red-600"
+                  )}
+                >
+                  {r.score}
+                </span>
+                <div className="text-[7px] font-bold text-muted-foreground uppercase">/ 100</div>
+              </td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function CellCountRate({
+  n,
+  rate,
+  tone,
+}: {
+  n: number;
+  rate: number;
+  tone: "emerald" | "red" | "violet" | "orange";
+}) {
+  const color =
+    tone === "emerald"
+      ? "text-emerald-700"
+      : tone === "red"
+        ? "text-red-700"
+        : tone === "violet"
+          ? "text-violet-700"
+          : "text-orange-700";
+  return (
+    <div className="flex flex-col items-center leading-tight">
+      <span className={cn("text-[11px] font-black tabular-nums", color)}>{n}</span>
+      <span className="text-[8px] font-bold text-muted-foreground tabular-nums">
+        {rate.toFixed(0)}%
+      </span>
+    </div>
   );
 }
