@@ -7,6 +7,7 @@ import {
 
 
 import { statusEfetivo } from "@/lib/prazo-status";
+import { isSentencaProcedente, isSentencaImprocedente } from "@/lib/merito-detect";
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashboard-panel";
 
@@ -158,16 +159,11 @@ export default function Dashboard() {
     const countAuditadosSemana = countEditadosApp;
     const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
     const countBA = countBaFromCases(ativos as any, baSet);
-    const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca').length;
+    const countCumprimento = cases.filter(c => !!c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca' || !!(c as any).dados?.em_cumprimento_sentenca).length;
     // MÉRITO OBRIGATÓRIO
-    const countProcedente = ativos.filter(c =>
-      c.evento_tipo === 'sentenca_procedente' ||
-      /PROCEDENTE/i.test(String(c.evento_resumo || '')) && !/IMPROCEDENTE/i.test(String(c.evento_resumo || ''))
-    ).length;
-    const countImprocedente = ativos.filter(c =>
-      c.evento_tipo === 'sentenca_improcedente' ||
-      /IMPROCEDENTE/i.test(String(c.evento_resumo || c.datajud_ultimo_nome || ''))
-    ).length;
+    // Alinhado à aba Ações Procedentes: flag is_procedente do scanner (não só evento_tipo)
+    const countProcedente = cases.filter((c) => isSentencaProcedente(c as any)).length;
+    const countImprocedente = cases.filter((c) => isSentencaImprocedente(c as any)).length;
     const countAudiencia = ativos.filter(c =>
       String(c.evento_tipo || '').includes('audiencia')
     ).length;

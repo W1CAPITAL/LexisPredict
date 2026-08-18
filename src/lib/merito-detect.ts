@@ -168,10 +168,44 @@ export function hasAudienciaPosRetorno(c: {
   );
 }
 
-export function isSentencaProcedente(c: { evento_tipo?: string | null }): boolean {
-  return c.evento_tipo === 'sentenca_procedente';
+/**
+ * Procedente alinhado ao scanner / aba Ações Procedentes.
+ * Não usar só evento_tipo — a maioria dos casos grava is_procedente no scan DataJud/DJEN.
+ */
+export function isSentencaProcedente(c: {
+  evento_tipo?: string | null;
+  is_procedente?: boolean | null;
+  dados?: any;
+  status_executivo?: string | null;
+  [k: string]: any;
+}): boolean {
+  if (!c) return false;
+  const ev = String(c.evento_tipo || '');
+  if (ev === 'sentenca_procedente' || ev === 'sentenca_parcial') return true;
+  if (c.is_procedente === true) return true;
+  const dados = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  if (dados.is_procedente === true) return true;
+  const st =
+    c.status_executivo ||
+    dados.status_executivo ||
+    (c as any).detalhes_execucao?.status_executivo ||
+    dados.detalhes_execucao?.status_executivo;
+  if (String(st) === 'procedente') return true;
+  return false;
 }
 
-export function isSentencaImprocedente(c: { evento_tipo?: string | null }): boolean {
-  return c.evento_tipo === 'sentenca_improcedente';
+export function isSentencaImprocedente(c: {
+  evento_tipo?: string | null;
+  is_improcedente?: boolean | null;
+  dados?: any;
+  [k: string]: any;
+}): boolean {
+  if (!c) return false;
+  if (c.evento_tipo === 'sentenca_improcedente') return true;
+  if (c.is_improcedente === true) return true;
+  const dados = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  if (dados.is_improcedente === true) return true;
+  // evita marcar procedente e improcedente juntos
+  if (isSentencaProcedente(c)) return false;
+  return false;
 }
