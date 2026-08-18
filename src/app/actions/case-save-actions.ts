@@ -325,3 +325,89 @@ export async function transferCasesOwnerAction(input: {
     return { success: false, updated: 0, message: e?.message || 'Falha', error: e?.message };
   }
 }
+
+/**
+ * Troca o dono (created_by) de UM processo — uso direto na UI de edição.
+ * Supervisor / Superadmin / Administrador. Usa service role.
+ */
+export async function reassignCaseOwnerAction(input: {
+  protocolo: string;
+  novoOwnerAuthId: string;
+}): Promise<{ success: boolean; message: string; created_by?: string }> {
+  try {
+    const { empresa_id, auth_id, isSuperAdmin, isSupervisor } = await getUserContext();
+    if (!empresa_id || !auth_id) {
+      return { success: false, message: 'Sessão expirada.' };
+    }
+    const profile = await getProfileByAuthId(auth_id);
+    const cargo = String(profile?.cargo || '').toLowerCase();
+    const role = String((profile as any)?.role || '').toLowerCase();
+    const can =
+      !!isSuperAdmin ||
+      !!isSupervisor ||
+      /supervisor|superadmin|super.?admin|administrador|admin/i.test(cargo) ||
+      /supervisor|superadmin|admin/i.test(role);
+    if (!can) {
+      return { success: false, message: 'Sem permissão. Só Supervisor, Administrador ou Superadmin alteram o dono.' };
+    }
+    const novo = String(input.novoOwnerAuthId || '').trim();
+    if (!novo) return { success: false, message: 'Selecione o novo responsável.' };
+    const proto = String(input.protocolo || '').trim();
+    if (!proto) return { success: false, message: 'Protocolo inválido.' };
+    const digits = proto.replace(/\D/g, '');
+
+    const admin = await getSupabaseAdmin();
+    if (!admin) {
+      return {
+        success: false,
+        message:
+          'SUPABASE_SERVICE_ROLE_KEY não configurada no Vercel. Sem isso a troca de created_by é bloqueada pelo RLS.',
+      };
+    }
+
+    let { data: row } = await admin
+      .from('processos')
+      .select('id, protocolo_ref, created_by, dados')
+      .eq('empresa_id', empresa_id)
+      .eq('protocolo_ref', proto)
+      .maybeSingle();
+
+    if (!row && digits) {
+      const { data: list } = await admin
+        .from('processos')
+        .select('id, protocolo_ref, created_by, dados')
+        .eq('empresa_id', empresa_id)
+        .limit(8000);
+      row =
+        (list || []).find(
+          (r: any) => String(r.protocolo_ref || '').replace(/\D/g, '') === digits
+        ) || null;
+    }
+    if (!row) return { success: false, message: 'Processo não encontrado.' };
+
+    const dados =
+      typeof row.dados === 'object' && row.dados
+        ? { ...(row.dados as object), created_by: novo }
+        : { created_by: novo };
+
+    const { error } = await admin
+      .from('processos')
+      .update({ created_by: novo, dados })
+      .eq('id', row.id)
+      .eq('empresa_id', empresa_id);
+
+    if (error) {
+      return {
+        success: false,
+        message: `${error.message} — se houver trigger prevent_created_by_steal, remova-o no SQL Editor.`,
+      };
+    }
+    return {
+      success: true,
+      message: 'Dono (created_by) atualizado.',
+      created_by: novo,
+    };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'Falha ao reatribuir.' };
+  }
+}

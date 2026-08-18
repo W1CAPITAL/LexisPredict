@@ -12,6 +12,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
+import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
@@ -122,6 +123,11 @@ function Kpi({ icon, label, value, hint, tone = "default" }: {
 export default function ProcessosEmpresaPage() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const canAssignOwner =
+    /supervisor|superadmin|administrador|admin/i.test(String((profile as any)?.cargo || '')) ||
+    String((profile as any)?.role || '').toLowerCase() === 'superadmin' ||
+    !!(profile as any)?.isSuperAdmin;
+
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
@@ -746,6 +752,13 @@ export default function ProcessosEmpresaPage() {
                     {editing.status}
                   </Badge>
                 </div>
+
+                <ReassignOwnerControl
+                  protocolo={String(editing.protocolo || '')}
+                  currentOwnerAuthId={(editing as any).created_by}
+                  canAssign={canAssignOwner}
+                  onAssigned={(id) => setEditing({ ...editing, created_by: id } as any)}
+                />
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">

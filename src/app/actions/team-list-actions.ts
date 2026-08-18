@@ -19,9 +19,7 @@ export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
   const can =
     ctx.isSuperAdmin ||
     ctx.isSupervisor ||
-    cargo === 'Administrador' ||
-    cargo === 'Supervisor' ||
-    cargo === 'Superadmin';
+    /administrador|supervisor|superadmin|admin/i.test(cargo);
 
   if (!can) return [];
 
