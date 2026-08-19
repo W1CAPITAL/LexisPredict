@@ -241,8 +241,8 @@ function CasesContent() {
   const [selectedProtos, setSelectedProtos] = useState<Set<string>>(new Set());
   const [bulkOwnerId, setBulkOwnerId] = useState<string>('');
   const [bulkTransferring, setBulkTransferring] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(25);
-  const PAGE_SIZE = 25;
+  const [visibleCount, setVisibleCount] = useState(80);
+  const PAGE_SIZE = 80;
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], djenComunicacoes?: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);

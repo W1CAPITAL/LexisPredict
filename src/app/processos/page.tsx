@@ -147,8 +147,8 @@ export default function ProcessosEmpresaPage() {
     proximoRetorno: "",
     filaLista: "normal" as FilaLista,
   });
-  const [visibleCount, setVisibleCount] = useState(25);
-  const PAGE_SIZE = 25;
+  const [visibleCount, setVisibleCount] = useState(80);
+  const PAGE_SIZE = 80;
 
   const load = async () => {
     setLoading(true);

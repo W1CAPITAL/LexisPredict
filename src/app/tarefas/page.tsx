@@ -126,6 +126,8 @@ interface TaskGroup {
 export default function TarefasPage() {
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
+  const LIST_PAGE_SIZE = 80;
+  const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   // filtros persistidos entre abas
@@ -833,16 +835,36 @@ const handleSaveAttendance = async () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {taskData.focus.map((group) => (
+              {taskData.focus.slice(0, listVisible).map((group) => (
                 <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
               ))}
             </div>
+            {taskData.focus.length > listVisible && (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full h-10 px-6 text-[10px] font-black uppercase tracking-wider"
+                  onClick={() => setListVisible((n) => Math.min(n + LIST_PAGE_SIZE, taskData.focus.length))}
+                >
+                  Ver mais ({taskData.focus.length - listVisible} restantes)
+                </Button>
+                <button
+                  type="button"
+                  className="text-[10px] font-bold uppercase text-muted-foreground hover:text-foreground"
+                  onClick={() => setListVisible(taskData.focus.length)}
+                >
+                  Ver todos ({taskData.focus.length})
+                </button>
+              </div>
+            )}
           </div>
 
           {taskData.backlog.length > 0 && (
             <div className="space-y-4 pt-10 border-t border-border/30">
                <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
-               {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">{taskData.backlog.map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
+               {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {taskData.backlog.map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
             </div>
           )}
         </div>
