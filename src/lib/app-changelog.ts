@@ -17,9 +17,22 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.10.1';
+export const APP_VERSION = '1.13.0';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.13.0',
+    date: '2026-08-20',
+    title: 'Next.js 16.3.1 + TypeScript 7.0.2',
+    details: [
+      'next e eslint-config-next em 16.3.1 (menor RAM no dev, builds mais rápidos).',
+      'TypeScript ~7.0.2 (compilador nativo, typecheck bem mais rápido).',
+      'tsconfig: target ES2024, exclude services/, moduleDetection force.',
+      'engines.node >= 20.9 — ver docs/UPGRADE_NEXT16_TS7.md.',
+    ],
+    tags: ['infra', 'next16', 'typescript7'],
+  },
+
   {
     version: '1.10.1',
     date: '2026-08-20',

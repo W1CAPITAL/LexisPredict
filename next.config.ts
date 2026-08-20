@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  // Next.js 16.3 + TypeScript 7 — LexisPredict
   compress: true,
   productionBrowserSourceMaps: false,
   typescript: {
