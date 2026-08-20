@@ -98,6 +98,8 @@ export default function ProcessosParadosPage() {
   const [tratados, setTratados] = useState<Record<string, string>>({});
   const [onlyComTel, setOnlyComTel] = useState(false);
   const [filtrosFase, setFiltrosFase] = useState<FiltroFaseParado[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,7 +277,7 @@ export default function ProcessosParadosPage() {
       return;
     }
     try {
-      const { buildXlsxWithSheetJS } = await import("@/lib/sheetjs-bridge");
+      const { buildXlsxBytes } = await import("@/lib/spreadsheet-io");
       const rows = rowsExport();
       const headers = [
         "Cliente","Processo","Estado","Dias parado","Fonte","Advogado","Telefone","Score","Tratado",
@@ -286,7 +288,7 @@ export default function ProcessosParadosPage() {
         r.score, r.tratado, r.tem_contestacao, r.tem_sentenca, r.tem_replica,
         r.replica_pendente, r.cumprimento_aberto, r.cumprimento_recebido, r.ultimo_sinal,
       ]);
-      const u8 = await buildXlsxWithSheetJS([{ name: "Parados", rows: [headers, ...body] }]);
+      const u8 = await buildXlsxBytes(headers, body);
       const blob = u8ToBlob(
       u8,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -716,7 +718,7 @@ export default function ProcessosParadosPage() {
         </div>
 
         <div className="p-6 space-y-3">
-          <ScanLogPanel compact />
+          {hydrated ? <ScanLogPanel compact /> : null}
           {loading && (
             <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
               <Loader2 className="animate-spin" /> Carregando carteira…
