@@ -1,5 +1,7 @@
-import { useAdmin } from '@/hooks/use-admin';
 "use client";
+
+import { useAdmin } from "@/hooks/use-admin";
+
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
