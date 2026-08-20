@@ -64,6 +64,20 @@ export function checkIfSuperAdmin(user: any) {
 /**
  * Utilitário de Verificação de Visão Master (Supervisor).
  */
+export function checkIfViewer(user: any) {
+  if (!user) return false;
+  const c = String(user.cargo || user.role || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  return (
+    c === 'visualizador' ||
+    c === 'viewer' ||
+    c.includes('visualiz')
+  );
+}
+
 export function checkIfSupervisor(user: any) {
   if (!user) return false;
   const c = String(user.cargo || user.role || '')

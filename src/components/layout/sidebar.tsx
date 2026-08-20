@@ -48,6 +48,7 @@ import { flattenNavItems, loadNavPreferences, type NavPreferences } from "@/lib/
 import { Button } from "@/components/ui/button";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useAdmin } from "@/hooks/use-admin";
 import {
   Sheet,
   SheetContent,
@@ -257,7 +258,7 @@ function SidebarNavBody({
           <SafeIcon icon={Zap} size={16} />
           {!collapsed && (
             <span className="text-[11px] font-bold uppercase tracking-wide">
-              {status === "running" ? "Scanner ativo" : "Scanner tribunal"}
+              {!canScan ? "Scanner bloqueado (visualização)" : status === "running" ? "Scanner ativo" : "Scanner tribunal"}
             </span>
           )}
         </LiquidMetalButton>
@@ -432,6 +433,7 @@ export function Sidebar() {
   const { profile, signOut } = useAuth();
   const { setDarkMode, isDarkMode, setTutorialActive } = useAppStore();
   const { status, toggleMinimize } = useDataJudScanStore();
+  const { canScan, isViewer } = useAdmin();
 
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);

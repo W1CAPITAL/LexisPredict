@@ -5,34 +5,44 @@
  */
 
 import { useAuth } from '@/components/auth/auth-provider';
-import { checkIfSuperAdmin, checkIfSupervisor } from '@/lib/supabase';
+import { checkIfSuperAdmin, checkIfSupervisor, checkIfViewer } from '@/lib/supabase';
 
 export function useAdmin() {
   const { profile, loading, signOut } = useAuth();
 
-  // Superadmin herda privilégios de Admin e Operador
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
+  const isViewer = checkIfViewer(profile);
+  // Superadmin herda privilégios de Admin e Operador
+  // Visualizador: vê carteira, edita/cadastra, MAS sem export/cópia/scanner
   const isAdmin = profile?.cargo === 'Administrador' || isSuperAdmin || isSupervisor;
-  const isOperador = profile?.cargo === 'Operador' || isAdmin;
-  
-  /**
-   * Senha mestre NÃO deve ser validada no client (NEXT_PUBLIC_* vaza no browser).
-   * Use verifyMasterPasswordAction (server action) em fluxos sensíveis.
-   */
-  const login = (_password: string) => {
+  const isOperador = profile?.cargo === 'Operador' || isAdmin || isViewer;
+
+  /** Exportar CSV/XLSX/PDF */
+  const canExport = !isViewer && !!profile;
+  /** Scanner DataJud/DJEN (manual e nuvem via UI) */
+  const canScan = !isViewer && !!profile;
+  /** Copiar scripts / rascunhos / texto sensível */
+  const canCopy = !isViewer && !!profile;
+
+  const login = async (_password?: string) => {
     console.warn('[useAdmin] login() no client está desativado por segurança. Use verifyMasterPasswordAction.');
     return false;
   };
 
-  return { 
-    isAdmin, 
+  return {
+    profile,
+    loading,
+    isAdmin,
     isOperador,
     isSuperAdmin,
     isSupervisor,
-    login, 
-    logout: signOut, 
-    loading,
-    profile 
+    isViewer,
+    canExport,
+    canScan,
+    canCopy,
+    login,
+    logout: signOut,
+    isAuthenticated: !!profile,
   };
 }

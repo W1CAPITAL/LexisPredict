@@ -217,3 +217,15 @@
 ::view-transition-new(root) {
   animation-duration: 0.32s;
 }
+
+/* Modo Visualizador: impede seleção de texto fora de campos editáveis */
+html.lexis-viewer-mode body.lexis-viewer-mode :not(input):not(textarea):not([contenteditable="true"]) {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+html.lexis-viewer-mode body.lexis-viewer-mode input,
+html.lexis-viewer-mode body.lexis-viewer-mode textarea,
+html.lexis-viewer-mode body.lexis-viewer-mode [contenteditable="true"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}

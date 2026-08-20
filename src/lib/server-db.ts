@@ -1,6 +1,6 @@
 'use server';
 
-import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor } from './supabase';
+import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor, checkIfViewer } from './supabase';
 import { LegalCase, formatDateToISO, processarCaso } from './case-logic';
 import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
@@ -30,7 +30,7 @@ export async function getUserContext() {
   const cookieStore = await cookies();
   const userEmail = cookieStore.get('lexis_user_email')?.value;
   
-  if (!userEmail || !supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isMasterView: false, weight: 0 };
+  if (!userEmail || !supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, weight: 0 };
 
   const { data: profile } = await supabase
     .from('usuarios')
@@ -41,8 +41,9 @@ export async function getUserContext() {
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile) || /supervisor/i.test(String(profile?.cargo || ''));
-  // Visão de carteira integral: Superadmin e Supervisor (não Administrador — regra de produto)
-  const isMasterView = isSuperAdmin || isSupervisor; 
+  // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
+  const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
+  const isMasterView = isSuperAdmin || isSupervisor || isViewer; 
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -51,6 +52,7 @@ export async function getUserContext() {
     email: profile?.email || null,
     isSuperAdmin,
     isSupervisor,
+    isViewer,
     isMasterView,
     weight: ROLE_WEIGHTS[cargo] || 0
   };

@@ -683,7 +683,16 @@ export async function scanSingleCaseAction(
   protocolo: string,
   options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
 ) {
-  const { empresa_id } = await getUserContext();
+  const ctx = await getUserContext();
+  const { empresa_id } = ctx;
+  if ((ctx as any).isViewer || String(ctx.cargo || '').toLowerCase().includes('visualiz')) {
+    return {
+      success: false,
+      error: 'Modo visualização: scanner tribunal bloqueado neste perfil.',
+      movimentos: [],
+      comunicacoes: [],
+    };
+  }
   if (!empresa_id) return { success: false, error: '401', movimentos: [], comunicacoes: [] };
   const safeEmpresaId = String(empresa_id);
   // UI pontual: NUNCA fast por padrão — evita "Auditoria indisponível" falso

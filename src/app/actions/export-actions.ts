@@ -134,7 +134,21 @@ function parseFlexDate(raw: string): Date | null {
 }
 
 /** CSV operacional (sem metadados internos) */
+
+async function assertCanExport() {
+  const ctx = await getUserContext();
+  if ((ctx as any).isViewer || String(ctx.cargo || '').toLowerCase().includes('visualiz')) {
+    return { blocked: true as const, error: 'Modo visualização: exportação e download estão bloqueados neste perfil.' };
+  }
+  return { blocked: false as const };
+}
+
 export async function exportCasesToCSVAction() {
+  {
+    const _viewerGate = await assertCanExport();
+    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
+  }
+
   try {
     const { cases } = await loadCasesForSession();
     const lines = [EXPORT_HEADERS.join(',')];
@@ -163,6 +177,11 @@ export async function exportCasesToCSVAction() {
  * Botão "Exportar XLSX" / Dossiê Operacional
  */
 export async function exportDossieXlsxAction() {
+  {
+    const _viewerGate = await assertCanExport();
+    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
+  }
+
   try {
     const { cases, email, escopo, cargo, fullCarteira } = await loadCasesForSession();
     const result = await buildDossieXlsxBase64(cases, {
@@ -188,10 +207,20 @@ export async function exportDossieXlsxAction() {
 
 /** Alias legados */
 export async function exportCasesToXlsxAction() {
+  {
+    const _viewerGate = await assertCanExport();
+    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
+  }
+
   return exportDossieXlsxAction();
 }
 
 export async function exportCasesXlsxAction() {
+  {
+    const _viewerGate = await assertCanExport();
+    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
+  }
+
   return exportDossieXlsxAction();
 }
 
@@ -201,6 +230,11 @@ export async function exportCasesXlsxAction() {
  * Formulas, formatação profissional, auto-filtro, frozen panes
  */
 export async function exportProcessosProfissionalXlsxAction(filtros?: {
+  {
+    const _viewerGate = await assertCanExport();
+    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
+  }
+
   q?: string;
   statusFilter?: string;
   baOnly?: boolean;
@@ -257,6 +291,11 @@ export async function exportProcessosProfissionalXlsxAction(filtros?: {
 
 /** Planilha só com colunas operacionais + flags executivas (sem ids internos). */
 export async function exportExecutivoXlsxAction() {
+  {
+    const _viewerGate = await assertCanExport();
+    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
+  }
+
   try {
     const { cases } = await loadCasesForSession();
     const rows = (cases || []).map((c: any) => rowExecutivoExport(c));

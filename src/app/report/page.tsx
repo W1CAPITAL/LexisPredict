@@ -1,3 +1,4 @@
+import { useAdmin } from '@/hooks/use-admin';
 "use client";
 
 /**
@@ -66,6 +67,7 @@ import {
 import { FileDown } from "lucide-react";
 
 export default function UnifiedReport() {
+  const { canExport, isViewer } = useAdmin();
   const { setCases } = useAppStore();
   const [cases, setLocalCases] = useState<LegalCase[]>([]);
   const [notes, setNotes] = useState<CaseNote[]>([]);
@@ -314,6 +316,7 @@ export default function UnifiedReport() {
   };
 
   const handleDownloadPdf = async () => {
+    if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
     setPdfLoading(true);
     try {
       const [{ downloadPdf }, { DossieOperacionalPDF }] = await Promise.all([

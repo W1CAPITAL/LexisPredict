@@ -3,6 +3,7 @@ import './globals.css';
 import '@/styles/lexis-responsive.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
+import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';
 import { SessionGuard } from '@/components/auth/session-guard';
 import Script from 'next/script';
 import { MotionRoot } from "@/components/providers/motion-root";
@@ -208,7 +209,10 @@ export default function RootLayout({
           <div className="relative z-10 min-h-screen">
             <ClientChrome />
             <LexisErrorBoundary>
+              <>
+              <ViewerModeBanner />
               <SessionGuard><MotionRoot>{children}</MotionRoot></SessionGuard>
+            </>
             </LexisErrorBoundary>
             </div>
           <Toaster />

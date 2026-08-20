@@ -259,7 +259,7 @@ function CasesContent() {
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
-  const { isOperador, profile, isSupervisor, isSuperAdmin } = useAdmin();
+  const { isOperador, profile, isSupervisor, isSuperAdmin, canExport, canCopy, canScan, isViewer } = useAdmin();
   const kpiCarteira = useMemo(
     () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
     [cases, profile]
@@ -325,6 +325,10 @@ function CasesContent() {
   };
 
   const handleExportXlsx = async () => {
+    if (!canExport) {
+      toast({ title: 'Modo visualização', description: 'Exportação bloqueada neste perfil.', variant: 'destructive' });
+      return;
+    }
     setExporting(true);
     try {
       await runCasesPlanilhaExport(toast);
@@ -334,6 +338,10 @@ function CasesContent() {
   };
 
   const handleExportCSV = async () => {
+    if (!canExport) {
+      toast({ title: 'Modo visualização', description: 'Exportação bloqueada neste perfil.', variant: 'destructive' });
+      return;
+    }
     setExporting(true);
     try {
       const res = await exportCasesToCSVAction();
@@ -581,6 +589,10 @@ function CasesContent() {
   };
 
   const copyScript = (text: string) => {
+    if (!canCopy) {
+      toast({ title: 'Modo visualização', description: 'Copiar está desabilitado neste perfil.', variant: 'destructive' });
+      return;
+    }
     navigator.clipboard.writeText(text);
     toast({ title: "Copiado" });
   };
@@ -980,17 +992,17 @@ function CasesContent() {
             <Button
               variant="default"
               size="sm"
-              onClick={handleExportXlsx}
+              onClick={handleExportXlsx} disabled={!canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
               disabled={exporting}
               className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-              Exportar XLSX
+              {canExport ? "Exportar XLSX" : "Exportar (bloqueado)"}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExportCSV}
+              onClick={handleExportCSV} disabled={!canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
               disabled={exporting}
               className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
             >
