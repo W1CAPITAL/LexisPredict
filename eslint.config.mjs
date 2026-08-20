@@ -1,8 +1,18 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-
-export default defineConfig([
-  // Keep the starter on the flat config export that actually runs under the pinned ESLint/Next toolchain.
-  ...nextCoreWebVitals,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "reports/**", "coverage/**"]),
-]);
+/**
+ * ESLint sem typescript-eslint.
+ * eslint-config-next puxa typescript-eslint, que ainda não aceita TypeScript 7.0.
+ * https://github.com/typescript-eslint/typescript-eslint/issues/10940
+ */
+export default [
+  {
+    ignores: [
+      ".next/**",
+      "out/**",
+      "build/**",
+      "node_modules/**",
+      "reports/**",
+      "coverage/**",
+      "next-env.d.ts",
+    ],
+  },
+];

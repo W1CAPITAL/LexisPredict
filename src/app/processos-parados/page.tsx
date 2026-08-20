@@ -34,6 +34,7 @@ import {
   Square,
 } from "lucide-react";
 import { fetchRepoCases, scanSingleCaseAction } from "@/app/actions/case-actions";
+import { u8ToBlob } from "@/lib/u8-to-blob";
 import {
   loadParadosScanCkpt,
   saveParadosScanCkpt,
@@ -283,9 +284,10 @@ export default function ProcessosParadosPage() {
         r.replica_pendente, r.cumprimento_aberto, r.cumprimento_recebido, r.ultimo_sinal,
       ]);
       const u8 = await buildXlsxWithSheetJS([{ name: "Parados", rows: [headers, ...body] }]);
-      const blob = new Blob([u8], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
+      const blob = u8ToBlob(
+      u8,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
       const suf = filtrosFase.length ? filtrosFase.join("-") : "todos";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
