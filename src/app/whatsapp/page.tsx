@@ -1,5 +1,6 @@
-import { useAdmin } from "@/hooks/use-admin";
 "use client";
+
+import { useAdmin } from "@/hooks/use-admin";
 
 /**
  * Terminal WhatsApp — conversa + histórico + andamentos + motores IA + atendimento.

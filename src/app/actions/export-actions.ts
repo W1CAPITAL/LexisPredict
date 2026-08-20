@@ -230,15 +230,14 @@ export async function exportCasesXlsxAction() {
  * Formulas, formatação profissional, auto-filtro, frozen panes
  */
 export async function exportProcessosProfissionalXlsxAction(filtros?: {
-  {
-    const _viewerGate = await assertCanExport();
-    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
-  }
-
   q?: string;
   statusFilter?: string;
   baOnly?: boolean;
 }) {
+  {
+    const _viewerGate = await assertCanExport();
+    if (_viewerGate.blocked) return { success: false as const, error: _viewerGate.error };
+  }
   try {
     const { cases, email, escopo, cargo, fullCarteira } = await loadCasesForSession();
     
