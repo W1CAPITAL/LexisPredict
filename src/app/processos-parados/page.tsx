@@ -8,7 +8,7 @@ import { useAdmin } from "@/hooks/use-admin";
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,19 @@ import {
   Database,
   Download,
   FileSpreadsheet,
+  Square,
 } from "lucide-react";
 import { fetchRepoCases, scanSingleCaseAction } from "@/app/actions/case-actions";
+import {
+  loadParadosScanCkpt,
+  saveParadosScanCkpt,
+  clearParadosScanCkpt,
+  isScanFresh,
+  scanDelayMs,
+  sleepMs,
+  type ParadosScanCheckpoint,
+  type ParadosScanMode,
+} from "@/lib/parados-scan-queue";
 import type { LegalCase } from "@/lib/case-logic";
 import {
   listProcessosParados,
@@ -65,6 +76,10 @@ type FiltroEstado = "todos" | "confirmados" | "sem_scan" | "tratados" | "pendent
 export default function ProcessosParadosPage() {
   const { canScan, canCopy, canExport } = useAdmin();
   const [batchScanning, setBatchScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<string>("");
+  const [pendingResume, setPendingResume] = useState<ParadosScanCheckpoint | null>(null);
+  const abortRef = useRef(false);
+  const runningRef = useRef(false);
 
   const { toast } = useToast();
   const [cases, setCases] = useState<LegalCase[]>([]);
@@ -104,6 +119,8 @@ export default function ProcessosParadosPage() {
       if (m) setDailyMeta(Math.max(10, Math.min(100, parseInt(m, 10) || 25)));
       const s = localStorage.getItem("lexis_parados_somente_meta");
       if (s === "0") setSomenteMeta(false);
+      const ck = loadParadosScanCkpt();
+      if (ck) setPendingResume(ck);
     } catch {
       /* */
     }
@@ -283,12 +300,17 @@ export default function ProcessosParadosPage() {
   };
 
 
+  const applyScanPatch = (protocolo: string, patch: any) => {
+    if (!patch || typeof patch !== "object") return;
+    setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? { ...c, ...patch } : c)));
+  };
+
   const scanOne = async (protocolo: string) => {
     setScanning(protocolo);
     try {
       const res: any = await scanSingleCaseAction(protocolo, { mode: "both", fast: false } as any);
       if (res?.case) {
-        setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? { ...c, ...res.case } : c)));
+        applyScanPatch(protocolo, res.case);
         toast({ title: "Auditoria atualizada", description: protocolo });
       } else {
         toast({
@@ -303,6 +325,125 @@ export default function ProcessosParadosPage() {
       setScanning(null);
     }
   };
+
+  const stopBatch = () => {
+    abortRef.current = true;
+    toast({ title: "Scanner pausado", description: "O ponto foi gravado. Pode retomar." });
+  };
+
+  const runQueue = async (ck: ParadosScanCheckpoint) => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    abortRef.current = false;
+    setPendingResume(null);
+    setBatchScanning(true);
+    let failStreak = 0;
+    let state = { ...ck };
+    try {
+      while (state.index < state.queue.length) {
+        if (abortRef.current) {
+          saveParadosScanCkpt(state);
+          setPendingResume({ ...state });
+          toast({
+            title: "Fila pausada",
+            description: `${state.index}/${state.queue.length} · OK ${state.ok} · falha ${state.fail}`,
+          });
+          return;
+        }
+        const p = String(state.queue[state.index] || "");
+        setScanning(p);
+        setScanProgress(`${state.index + 1}/${state.queue.length} · ${p}`);
+        state.lastProtocolo = p;
+
+        const current = cases.find((c) => c.protocolo === p);
+        const consultado =
+          (current as any)?.datajud_consultado_em ||
+          (current as any)?.djen_consultado_em ||
+          (current as any)?.ultimo_scan_em;
+        if (isScanFresh(consultado)) {
+          state.skipped += 1;
+          state.index += 1;
+          saveParadosScanCkpt(state);
+          continue;
+        }
+
+        let okItem = false;
+        let lastErr = "";
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const res: any = await scanSingleCaseAction(p, { mode: "both", fast: false } as any);
+            if (res?.case) applyScanPatch(p, res.case);
+            if (res?.success === false) {
+              lastErr = String(res?.error || res?.message || "falha");
+            } else {
+              okItem = true;
+              break;
+            }
+          } catch (e: any) {
+            lastErr = e?.message || String(e);
+          }
+          if (attempt === 1) await sleepMs(1200);
+        }
+
+        if (okItem) {
+          state.ok += 1;
+          failStreak = 0;
+        } else {
+          state.fail += 1;
+          failStreak += 1;
+          state.lastError = lastErr;
+        }
+        state.index += 1;
+        saveParadosScanCkpt(state);
+        await sleepMs(scanDelayMs(failStreak));
+      }
+      clearParadosScanCkpt();
+      toast({
+        title: "Lote de parados concluído",
+        description: `OK ${state.ok} · falhas ${state.fail} · pulados ${state.skipped}`,
+      });
+    } finally {
+      setScanning(null);
+      setScanProgress("");
+      setBatchScanning(false);
+      runningRef.current = false;
+    }
+  };
+
+  const startBatch = (mode: ParadosScanMode, limit = 40) => {
+    if (!canScan) {
+      toast({ title: "Modo visualização", description: "Scanner bloqueado neste perfil.", variant: "destructive" });
+      return;
+    }
+    const opts =
+      mode === "sem_scan"
+        ? { includeSemScan: true, onlyConfirmados: false }
+        : { includeSemScan: false, onlyConfirmados: true };
+    let alvo = listProcessosParados(cases, minDias, opts as any)
+      .filter((i) => !tratados[String(i.case?.protocolo || "")]);
+    if (mode === "sem_scan") alvo = alvo.filter((i) => i.estado === "sem_scan");
+    if (mode === "lista") alvo = lista.filter((i) => !i.tratado);
+    const queue = alvo
+      .map((i) => String(i.case?.protocolo || ""))
+      .filter(Boolean)
+      .slice(0, limit);
+    if (!queue.length) {
+      toast({ title: "Nada a auditar", description: "Nenhum CNJ nesta seleção." });
+      return;
+    }
+    const ck: ParadosScanCheckpoint = {
+      queue,
+      index: 0,
+      ok: 0,
+      fail: 0,
+      skipped: 0,
+      mode,
+      startedAt: new Date().toISOString(),
+    };
+    saveParadosScanCkpt(ck);
+    void runQueue(ck);
+  };
+
 
   const estadoBadge = (e: EstadoParado) => {
     if (e === "sem_scan")
@@ -330,47 +471,54 @@ export default function ProcessosParadosPage() {
             </div>
             <div className="flex gap-2 flex-wrap">
               
+              {pendingResume && !batchScanning && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={!canScan}
+                  onClick={() => runQueue(pendingResume)}
+                  className="gap-2"
+                >
+                  Retomar fila ({pendingResume.index}/{pendingResume.queue.length})
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 size="sm"
                 disabled={!canScan || batchScanning}
-                onClick={async () => {
-                  if (!canScan) {
-                    toast({ title: "Modo visualização", description: "Scanner bloqueado neste perfil.", variant: "destructive" });
-                    return;
-                  }
-                  const alvo = listProcessosParados(cases, minDias, { includeSemScan: false, onlyConfirmados: true })
-                    .filter((i) => !tratados[String(i.case?.protocolo || "")])
-                    .slice(0, 15);
-                  if (!alvo.length) {
-                    toast({ title: "Nada a auditar", description: "Sem parados acionáveis no processo nesta faixa." });
-                    return;
-                  }
-                  setBatchScanning(true);
-                  let ok = 0, fail = 0;
-                  try {
-                    for (const item of alvo) {
-                      const p = String(item.case?.protocolo || "");
-                      if (!p) continue;
-                      try {
-                        const res: any = await scanSingleCaseAction(p, { mode: "both", fast: false } as any);
-                        if (res?.success !== false) ok++;
-                        else fail++;
-                      } catch {
-                        fail++;
-                      }
-                      await new Promise((r) => setTimeout(r, 400));
-                    }
-                    toast({ title: "Lote de parados", description: `OK ${ok} · falhas ${fail} (máx. 15)` });
-                    await load();
-                  } finally {
-                    setBatchScanning(false);
-                  }
-                }}
+                onClick={() => startBatch("parados", 40)}
                 className="gap-2"
               >
-                {batchScanning ? "Auditando…" : "Auditar top 15 parados"}
+                {batchScanning ? "Auditando…" : "Auditar parados (40)"}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canScan || batchScanning}
+                onClick={() => startBatch("sem_scan", 25)}
+                className="gap-2"
+              >
+                Auditar sem scan (25)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canScan || batchScanning}
+                onClick={() => startBatch("lista", 40)}
+                className="gap-2"
+              >
+                Auditar lista filtrada
+              </Button>
+              {batchScanning && (
+                <Button variant="destructive" size="sm" onClick={stopBatch} className="gap-2">
+                  <Square size={12} /> Pausar
+                </Button>
+              )}
+              {scanProgress ? (
+                <span className="text-[10px] font-mono text-muted-foreground self-center">
+                  {scanProgress}
+                </span>
+              ) : null}
 
               <Button variant="outline" size="sm" onClick={exportCsv} disabled={!canExport} className="gap-2">
                 <Download size={14} /> CSV
