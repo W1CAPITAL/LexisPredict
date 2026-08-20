@@ -8,7 +8,7 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "NODE_ENV=production next build --webpack",
     "start": "next start",
-    "lint": "next lint .",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -76,7 +76,7 @@
     "@playwright/test": "^1.49.1",
     "@types/file-saver": "^2.0.7",
     "@types/jszip": "^3.4.1",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/pdf-parse": "^1.1.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -89,6 +89,6 @@
     "eslint-config-next": "16.3.1"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   }
 }
