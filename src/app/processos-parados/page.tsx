@@ -1,11 +1,11 @@
-import { useAdmin } from '@/hooks/use-admin';
+
 "use client";
 
 /**
  * Processos parados (com ação possível) v2 — reativação com estados sem_scan / confirmado.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
-
+import { useAdmin } from '@/hooks/use-admin';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
