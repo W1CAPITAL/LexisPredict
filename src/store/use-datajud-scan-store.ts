@@ -346,8 +346,16 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         });
       } catch (err: any) {
         const latency = Date.now() - start;
-        set((s) => ({ manualErrors: s.manualErrors + 1, manualDone: s.manualDone + 1,
-      // cache progresso (não KPI) }));
+        set((s) => ({
+          manualErrors: s.manualErrors + 1,
+          manualDone: s.manualDone + 1,
+        }));
+        try {
+          const st = get();
+          writeScanProgress(st.manualDone || 0, st.manualTotal || 0, st.scanMode);
+        } catch {
+          /* ignore */
+        }
         get().addLog({
           protocolo: c.protocolo,
           message: `Erro no scanner: ${err?.message || err}`,
@@ -356,7 +364,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           type: 'error',
           engine: 'Local',
         });
-        try { const st = get(); writeScanProgress(st.manualDone||0, st.manualTotal||0, st.scanMode); } catch { /* */ }
         continue;
       }
       const latency = Date.now() - start;
@@ -407,8 +414,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         aiEngine: aiEng,
       });
 
-      set((s) => ({ manualDone: s.manualDone + 1,
-      // cache progresso (não KPI) }));
+      set((s) => ({ manualDone: s.manualDone + 1 }));
+      try {
+        const st = get();
+        writeScanProgress(st.manualDone || 0, st.manualTotal || 0, st.scanMode);
+      } catch {
+        /* ignore */
+      }
       const courtId = c.protocolo.split('.')[4];
       if (courtId) get().updateCourtHealth(courtId, latency, !!res.success);
 
@@ -416,7 +428,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       await new Promise((r) => setTimeout(r, 450));
     }
 
-    if (get().manualStatus === 'running') set({ manualStatus: 'done' });
+    if (get().manualStatus === 'running') {
+      clearScanProgress();
+      set({ manualStatus: 'done' });
+    }
   },
 
   resumeManualScan: async () => {
