@@ -156,20 +156,25 @@ export default function Dashboard() {
     const countHoje = ativos.filter(c => statusEfetivo(c) === 'É Hoje').length;
     const countAtencao = ativos.filter(c => statusEfetivo(c) === 'Atenção').length;
     const countSaudavel = ativos.filter(c => statusEfetivo(c) === 'No Prazo').length;
-    const countSemPrazo = ativos.filter(c => c.status === 'Sem Prazo').length;
+    const countSemPrazo = ativos.filter(c =>
+      statusEfetivo(c) === 'Sem Prazo' || c.status === 'Sem Prazo'
+    ).length;
     
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
-    const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento || !!c.tem_atualizacao_pos_retorno).length;
+    // LOTE4: união canônica DataJud ∪ DJEN
+    const countNovoAndamento = ativos.filter(c =>
+      !!(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || (c as any).djen_nova_comunicacao)
+    ).length;
     const countEditadosApp = countEditadosAppSemana(cases as any);
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
     const countAuditadosHojeN = countEditadosAppHoje(cases as any);
     const countAuditadosSemana = countEditadosApp;
     const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
     const countBA = countBaFromCases(ativos as any, baSet);
-    const countCumprimento = kpiExec.cumprimentoAtivo;
-    // MÉRITO OBRIGATÓRIO
+    // MÉRITO OBRIGATÓRIO (kpiExec ANTES de usar cumprimento/procedentes)
     // Alinhado à aba Ações Procedentes: flag is_procedente do scanner (não só evento_tipo)
     const kpiExec = computeKpiExecutivo(cases as any);
+    const countCumprimento = kpiExec.cumprimentoAtivo;
     const countProcedente = kpiExec.procedentes;
     const countImprocedente = kpiExec.improcedentes;
     const countAudiencia = ativos.filter(c =>
@@ -354,8 +359,8 @@ export default function Dashboard() {
                 <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
               </section>
 
-              {/* CONTADORES DE MÉRITO — obrigatório */}
-              <section className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="merit-counters">
+              {/* CONTADORES DE MÉRITO — obrigatório (Lote 4) */}
+              <section className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="merit-counters" aria-label="Mérito e audiências">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 p-5 flex items-center justify-between shadow-sm">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/80">Procedentes</p>
@@ -609,7 +614,7 @@ export default function Dashboard() {
             </>)}
             
               {/* BI recolhível — dentro do scroll, não fora */}
-              <BiCompliancePanel cases={cases} defaultOpen={false} className="mt-2" />
+              <BiCompliancePanel cases={cases} defaultOpen={false} className="mt-2 shrink-0" />
 
 </TabsContent>
 

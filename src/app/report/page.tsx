@@ -243,7 +243,7 @@ export default function UnifiedReport() {
   }, [cases, profile, periodo]);
 
   const buildResumoCarteira = () => {
-    const topCrit = metrics.topCriticos.slice(0, 8).map((i) =>
+    const topCrit = metrics.topCriticos.slice(0, 10).map((i) =>
       `${i.case.cliente} | ${i.case.protocolo} | ${i.sinal.titulo}`
     ).join("\n");
     const topCh = metrics.topChance.slice(0, 5).map((i) =>
@@ -346,7 +346,7 @@ export default function UnifiedReport() {
                     pago: money(financeResumo?.pago),
                     vencido: money(financeResumo?.vencido),
                     lancamentos: financeResumo?.total ?? 0,
-                    destaques: financeRows.slice(0, 8).map((r) => ({
+                    destaques: financeRows.slice(0, 10).map((r) => ({
                       cliente: r.cliente || "—",
                       descricao: r.descricao || r.tipo || "sem descrição",
                       valor: money(Number(r.valor)),
@@ -547,7 +547,7 @@ export default function UnifiedReport() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
-                      {financeRows.slice(0, 8).map((r) => (
+                      {financeRows.slice(0, 10).map((r) => (
                         <tr key={r.id} className="hover:bg-muted/40">
                           <td className="p-3">
                             <p className="text-[9px] font-black text-foreground">{r.cliente || "—"}</p>

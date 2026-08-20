@@ -59,7 +59,7 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
 
     // NUMOPEDE / predatória na carteira do advogado — penaliza ranking
     if ((c as any).sinal_numopede || (c as any).sinal_predatoria) {
-      const p = -40;
+      const p = -55; // LOTE4: penalidade mais visível no ranking
       totalPoints += p;
       result.pontos.push({
         protocolo: c.protocolo,
@@ -71,7 +71,27 @@ export function calcularScoreAdvogado(casos: LegalCase[]): ScoreResult {
     }
 
     // --- GANHOS TÉCNICOS ---
-    if (text.includes('procedente') || text.includes('vitoria') || text.includes('homologado') || text.includes('acordo') || c.datajud_encerrado_tribunal) {
+    if ((c as any).is_procedente || (c as any).sentenca_procedente || String(c.evento_tipo||'') === 'sentenca_procedente') {
+      const p = 55;
+      totalPoints += p;
+      result.pontos.push({
+        protocolo: c.protocolo,
+        cliente: c.cliente,
+        tipo: "Vitória Técnica",
+        peso: p,
+        motivo: "Flag is_procedente / sentença procedente"
+      });
+    } else if ((c as any).is_improcedente || (c as any).sentenca_improcedente || String(c.evento_tipo||'') === 'sentenca_improcedente') {
+      const p = -25;
+      totalPoints += p;
+      result.pontos.push({
+        protocolo: c.protocolo,
+        cliente: c.cliente,
+        tipo: "Improcedente",
+        peso: p,
+        motivo: "Flag is_improcedente / sentença improcedente"
+      });
+    } else if (text.includes('procedente') || text.includes('vitoria') || text.includes('homologado') || text.includes('acordo') || c.datajud_encerrado_tribunal) {
       const p = 50;
       totalPoints += p;
       result.pontos.push({
@@ -150,7 +170,7 @@ export function calcularScoreAssessor(casos: LegalCase[]): ScoreResult {
 
     // NUMOPEDE / predatória na carteira do advogado — penaliza ranking
     if ((c as any).sinal_numopede || (c as any).sinal_predatoria) {
-      const p = -40;
+      const p = -55; // LOTE4: penalidade mais visível no ranking
       totalPoints += p;
       result.pontos.push({
         protocolo: c.protocolo,
