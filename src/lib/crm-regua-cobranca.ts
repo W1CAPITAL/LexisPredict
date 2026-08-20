@@ -115,3 +115,11 @@ export function sugerirProximaAcaoAgente(item: ReguaItem): string {
     'Registrar no CRM o contato e o resultado. Marcar pago somente com comprovação.',
   ].join('\n');
 }
+
+
+export function totaisRegua(items: { valor?: number; etapa?: string }[]) {
+  const n = items.length;
+  const valor = items.reduce((s, it) => s + Number(it.valor || 0), 0);
+  const criticos = items.filter((it) => it.etapa === 'critico' || it.etapa === 'D+7').length;
+  return { n, valor, criticos };
+}

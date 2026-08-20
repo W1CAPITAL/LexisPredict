@@ -14,6 +14,7 @@ import { ArrowLeft, Loader2, RefreshCcw, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/use-admin";
+import { totaisRegua } from "@/lib/crm-regua-cobranca";
 
 function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -21,13 +22,14 @@ function brl(n: number) {
 
 export default function CrmCobrancaPage() {
   const { toast } = useToast();
-  const { isSupervisor, isSuperAdmin } = useAdmin();
-  const visaoEmpresa = isSupervisor || isSuperAdmin;
+  const { isSupervisor, isSuperAdmin, isAdmin } = useAdmin();
+  const visaoEmpresa = isSupervisor || isSuperAdmin || isAdmin;
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
   const [soAtrasados, setSoAtrasados] = useState(true);
   const [paying, setPaying] = useState<string | null>(null);
+  const [forma, setForma] = useState("pix");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,11 +45,12 @@ export default function CrmCobrancaPage() {
   const visiveis = soAtrasados
     ? items.filter((it) => Number(it.diaRelativo) >= 0)
     : items;
+  const totais = totaisRegua(visiveis);
 
   const marcarPago = async (id: string) => {
     setPaying(id);
     try {
-      const res = await marcarReceberPagoAction(id, "pix");
+      const res = await marcarReceberPagoAction(id, forma);
       if (res.success) {
         toast({ title: "Marcado como pago" });
         await load();
@@ -153,6 +156,17 @@ export default function CrmCobrancaPage() {
                     )}
                     Copiar script do agente
                   </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="h-9 rounded-md border bg-background px-2 text-[11px]"
+                    value={forma}
+                    onChange={(e) => setForma(e.target.value)}
+                  >
+                    <option value="pix">PIX</option>
+                    <option value="ted">TED</option>
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="outros">Outros</option>
+                  </select>
                   <Button
                     size="sm"
                     variant="outline"
@@ -161,6 +175,7 @@ export default function CrmCobrancaPage() {
                   >
                     {paying === it.receber_id ? "Baixando…" : "Marcar pago"}
                   </Button>
+                  </div>
                 </li>
               ))}
             </ul>
