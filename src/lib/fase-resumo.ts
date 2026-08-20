@@ -69,3 +69,16 @@ export function proximoPasso(c?: LegalCase | null): string {
 export function linhaDonoPasso(c?: LegalCase | null): string {
   return `${linhaDonoAto(c)} · próximo: ${proximoPasso(c)}`;
 }
+
+
+export function diasDesdeTribunal(c?: LegalCase | null): number | null {
+  if (!c) return null;
+  const raw = String((c as any).datajud_ultimo_movimento || (c as any).djen_ultima_data || c.evento_data || "").slice(0, 10);
+  if (!raw) return null;
+  const d = new Date(raw.includes("/") ? raw.split("/").reverse().join("-") : raw);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.round((b - a) / 86400000));
+}

@@ -58,6 +58,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { linhaDonoPasso } from '@/lib/fase-resumo';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
@@ -475,6 +476,7 @@ export default function Dashboard() {
                                         <div className="flex flex-col">
                                            <span className="text-[11px] font-black uppercase group-hover:text-primary transition-colors">{c.cliente}</span>
                                            <span className={cn("text-[8px] font-mono opacity-40", ui.cnj)}>{c.protocolo}</span>
+                                           <span className="text-[10px] text-muted-foreground line-clamp-2">{linhaDonoPasso(c)}</span>
                                         </div>
                                      </td>
                                      <td className="px-8 py-4">

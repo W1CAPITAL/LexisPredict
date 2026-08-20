@@ -4,6 +4,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import type { LegalCase } from "@/lib/case-logic";
 import {
+  detectFlagsFase,
   matchFiltrosFase,
   type FiltroFaseParado,
 } from "@/lib/processos-parados";
@@ -22,7 +23,7 @@ export function toggleFase(list: FiltroFaseParado[], id: FiltroFaseParado): Filt
 
 export function filtrarPorFase(cases: LegalCase[], filtros: FiltroFaseParado[]): LegalCase[] {
   if (!filtros.length) return cases;
-  return cases.filter((c) => matchFiltrosFase(c, filtros));
+  return cases.filter((c) => matchFiltrosFase(detectFlagsFase(c), filtros));
 }
 
 export function FaseFilterBar({

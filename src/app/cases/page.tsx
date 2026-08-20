@@ -63,7 +63,9 @@ import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDje
 // djenTextsRecentFirst usado no rascunho;
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
-import { linhaFase, linhaDonoAto } from '@/lib/fase-resumo';
+import { linhaFase, linhaDonoAto, linhaDonoPasso, diasDesdeTribunal } from '@/lib/fase-resumo';
+import { FaseFilterBar, filtrarPorFase } from '@/components/cases/fase-filter-bar';
+import type { FiltroFaseParado } from '@/lib/processos-parados';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';
 import { descreverPrazo } from '@/lib/prazos-cpc';
@@ -122,11 +124,11 @@ const CaseRow = React.memo(({
           </div>
           <span className={cn("text-[11px] font-mono text-muted-foreground", ui.cnj)}>{c.protocolo}</span>
                     <p className="text-[11px] text-foreground/80 font-medium leading-snug line-clamp-2 mt-0.5">
-            {linhaFase(c)}
+            {linhaDonoPasso(c)}
           </p>
-          <p className="text-[11px] text-muted-foreground leading-snug line-clamp-1">
-            {linhaDonoAto(c)}
-          </p>
+          {diasDesdeTribunal(c) != null ? (
+            <p className="text-[10px] text-muted-foreground">Último ato tribunal: {diasDesdeTribunal(c)}d</p>
+          ) : null}
           {sinal.titulo && !/BUSCA E APREENS/i.test(String(sinal.titulo)) ? (
             <p className="text-[11px] text-muted-foreground leading-snug line-clamp-1">
               {sinal.titulo}
@@ -236,6 +238,7 @@ function CasesContent() {
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
   const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
+  const [filtrosFase, setFiltrosFase] = useState<FiltroFaseParado[]>([]);
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -940,8 +943,9 @@ function CasesContent() {
       quick: quickFilter,
       advogado: lawyerFilter,
     });
-    return sortCasesByPrazo(base, sortPrazo);
-  }, [cases, search, quickFilter, lawyerFilter, sortPrazo]);
+    const sorted = sortCasesByPrazo(base, sortPrazo);
+    return filtrarPorFase(sorted, filtrosFase);
+  }, [cases, search, quickFilter, lawyerFilter, sortPrazo, filtrosFase]);
 
   // Lista paginada — só a aba /cases; não afeta dashboard
   useEffect(() => {
@@ -1043,6 +1047,7 @@ function CasesContent() {
           <div className="premium-card flex-1 flex flex-col overflow-hidden border-none bg-white">
             <div className="p-4 border-b border-border/30 flex flex-col lg:flex-row items-center justify-between gap-4">
               <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
+              <div className="w-full px-4 sm:px-10 pb-2"><FaseFilterBar value={filtrosFase} onChange={setFiltrosFase} /></div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
                 <SelectTrigger className="h-12 w-44 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
