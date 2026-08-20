@@ -55,7 +55,8 @@ import {
 } from '@/lib/flags-operacionais';
 import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade, scorePreditivo } from '@/lib/fila-prioridade';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
-import { cn, formatWhatsAppLink } from '@/lib/utils'
+import { cn, formatWhatsAppLink } from '@/lib/utils';
+import { CaseResumoChip } from '@/components/cases/case-resumo-chip'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
 import { isAtendidoNestaSemana, isAtendidoHoje, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { computeKpiCarteira } from '@/lib/kpi-carteira';

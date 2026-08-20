@@ -46,6 +46,7 @@ import {
   Gavel,
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { CaseResumoChip } from "@/components/cases/case-resumo-chip";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/ui/user-avatar";

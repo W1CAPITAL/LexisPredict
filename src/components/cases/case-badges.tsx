@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { LegalCase } from "@/lib/case-logic";
 import { isAtendidoNestaSemana } from "@/lib/atendimento-semana";
 import { getStatusChip, chipClass } from "@/lib/case-status-chip";
+import { CaseResumoChip } from "@/components/cases/case-resumo-chip";
 
 type Props = {
   c: LegalCase;
@@ -26,14 +27,7 @@ export function CaseBadges({ c, className }: Props) {
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
-      <Badge
-        className={cn(
-          "h-5 px-2 rounded-md font-black uppercase text-[8px] border",
-          chipClass(chip.tone)
-        )}
-      >
-        {chip.label}
-      </Badge>
+      <CaseResumoChip caseData={c} />
       {semana && chip.tone !== "danger" && (
         <Badge
           variant="outline"

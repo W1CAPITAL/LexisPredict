@@ -18,7 +18,8 @@ import {
 import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic'
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { CaseBadges } from '@/components/cases/case-badges';
-import { cn, formatWhatsAppLink } from '@/lib/utils'
+import { cn, formatWhatsAppLink } from '@/lib/utils';
+import { CaseResumoChip } from '@/components/cases/case-resumo-chip'
 import { isAtendidoNestaSemana, isAtendidoHoje, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { computeKpiCarteira } from '@/lib/kpi-carteira';
 import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
