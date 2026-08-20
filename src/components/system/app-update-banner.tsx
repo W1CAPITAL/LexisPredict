@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCcw, X, Sparkles } from "lucide-react";
 
 const STORAGE_KEY = "lexis_app_build_id";
-const POLL_MS = 30_000;
+const POLL_MS = 12_000;
 
 export function AppUpdateBanner() {
   const [visible, setVisible] = useState(false);
@@ -49,6 +49,7 @@ export function AppUpdateBanner() {
         setRemoteId(remote);
         setChangelog(notes);
         setVisible(true);
+        try { window.dispatchEvent(new Event("lexis-release-check")); } catch { /* */ }
       }
     } catch {
       /* offline */

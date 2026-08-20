@@ -17,9 +17,20 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.13.2';
+export const APP_VERSION = '1.13.3';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.13.3',
+    date: '2026-08-20',
+    title: 'Notas ao vivo + README da operação',
+    details: [
+      'Menu Notas: em vigor, próximas e log via /api/version (15s).',
+      'Banner de atualização a cada 12s + foco da aba.',
+      'README reescrito para o caminho do dia.',
+    ],
+    tags: ['notas', 'readme'],
+  },
   {
     version: '1.13.2',
     date: '2026-08-20',
