@@ -50,6 +50,9 @@ import { loadCarteiraComCache } from "@/lib/session-carteira-cache";
 import { listAdvogados } from "@/lib/case-filters";
 
 const FAIXAS: { id: FaixaParado; label: string }[] = [
+  { id: 0, label: "Todos + recentes" },
+  { id: 7, label: "≥ 7 dias" },
+  { id: 15, label: "≥ 15 dias" },
   { id: 30, label: "≥ 30 dias" },
   { id: 60, label: "≥ 60 dias" },
   { id: 90, label: "≥ 90 dias" },
@@ -66,7 +69,7 @@ export default function ProcessosParadosPage() {
   const { toast } = useToast();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [minDias, setMinDias] = useState<FaixaParado>(60);
+  const [minDias, setMinDias] = useState<FaixaParado>(15);
   const [search, setSearch] = useState("");
   const [scanning, setScanning] = useState<string | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("pendentes");
@@ -153,8 +156,14 @@ export default function ProcessosParadosPage() {
             temContestacao: i.temContestacao,
             temSentenca: i.temSentenca,
             temReplica: i.temReplica,
+            cumprimentoRecebido: !!i.cumprimentoRecebido,
+            cumprimentoAberto: !!i.cumprimentoAberto,
+            replicaPendente: !!i.replicaPendente,
+            temCitacao: false,
+            temAudiencia: false,
           },
-          filtrosFase
+          filtrosFase,
+          i.diasParadoTribunal
         )
       );
     }
@@ -209,6 +218,9 @@ export default function ProcessosParadosPage() {
       tem_contestacao: i.temContestacao ? "sim" : "nao",
       tem_sentenca: i.temSentenca ? "sim" : "nao",
       tem_replica: i.temReplica ? "sim" : "nao",
+      replica_pendente: i.replicaPendente ? "sim" : "nao",
+      cumprimento_aberto: i.cumprimentoAberto ? "sim" : "nao",
+      cumprimento_recebido: i.cumprimentoRecebido ? "sim" : "nao",
       ultimo_sinal: i.ultimoSinalResumo || "",
     }));
 
@@ -220,7 +232,7 @@ export default function ProcessosParadosPage() {
     const rows = rowsExport();
     const header = [
       "cliente","protocolo","estado","dias_parado","fonte","advogado","telefone","score","tratado",
-      "tem_contestacao","tem_sentenca","tem_replica","ultimo_sinal",
+      "tem_contestacao","tem_sentenca","tem_replica","replica_pendente","cumprimento_aberto","cumprimento_recebido","ultimo_sinal",
     ];
     const lines = [header.join(";")];
     for (const r of rows) {
@@ -246,11 +258,12 @@ export default function ProcessosParadosPage() {
       const rows = rowsExport();
       const headers = [
         "Cliente","Processo","Estado","Dias parado","Fonte","Advogado","Telefone","Score","Tratado",
-        "Tem contestação","Tem sentença","Tem réplica","Último sinal",
+        "Tem contestação","Tem sentença","Tem réplica","Réplica pendente","Cumprimento aberto","Cumprimento recebido","Último sinal",
       ];
       const body = rows.map((r) => [
         r.cliente, r.protocolo, r.estado, r.dias_parado, r.fonte, r.advogado, r.telefone,
-        r.score, r.tratado, r.tem_contestacao, r.tem_sentenca, r.tem_replica, r.ultimo_sinal,
+        r.score, r.tratado, r.tem_contestacao, r.tem_sentenca, r.tem_replica,
+        r.replica_pendente, r.cumprimento_aberto, r.cumprimento_recebido, r.ultimo_sinal,
       ]);
       const u8 = await buildXlsxWithSheetJS([{ name: "Parados", rows: [headers, ...body] }]);
       const blob = new Blob([u8], {
@@ -516,6 +529,9 @@ export default function ProcessosParadosPage() {
                   ["sem_contestacao", "Sem contestação"],
                   ["sem_sentenca", "Sem sentença"],
                   ["sem_replica", "Sem réplica"],
+                  ["replica_pendente", "Réplica pendente"],
+                  ["cumprimento_aberto", "Cumprimento em aberto"],
+                  ["janela_recente", "Janela recente (≤30d)"],
                 ] as const
               ).map(([id, label]) => {
                 const on = filtrosFase.includes(id);
@@ -538,7 +554,7 @@ export default function ProcessosParadosPage() {
                 </Button>
               ) : null}
               <span className="text-[10px] text-muted-foreground">
-                {filtrosFase.length ? "AND — falta tudo o que está marcado" : "sem filtro de fase"}
+                {filtrosFase.length ? "AND — combina os critérios marcados" : "sem filtro de fase"}
               </span>
             </div>
           </div>
@@ -611,6 +627,16 @@ export default function ProcessosParadosPage() {
                       {!item.temReplica && (
                         <Badge variant="outline" className="text-[9px] uppercase">
                           Sem réplica
+                        </Badge>
+                      )}
+                      {item.replicaPendente && (
+                        <Badge className="text-[9px] uppercase bg-sky-600 text-white">
+                          Réplica pendente
+                        </Badge>
+                      )}
+                      {item.cumprimentoAberto && (
+                        <Badge className="text-[9px] uppercase bg-violet-700 text-white">
+                          Cumprimento em aberto
                         </Badge>
                       )}
                       {item.tratado && (

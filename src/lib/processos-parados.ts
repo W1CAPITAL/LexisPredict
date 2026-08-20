@@ -8,7 +8,7 @@
 import type { LegalCase } from './case-logic';
 import { isCasoEncerrado } from './status-encerrado';
 
-export type FaixaParado = 30 | 60 | 90 | 120 | 180;
+export type FaixaParado = 0 | 7 | 15 | 30 | 60 | 90 | 120 | 180;
 
 /** Classificação operacional */
 export type EstadoParado = 'sem_scan' | 'parado_confirmado' | 'parado_provavel';
@@ -28,6 +28,9 @@ export interface ProcessoParadoItem {
   temContestacao: boolean;
   temSentenca: boolean;
   temReplica: boolean;
+  cumprimentoRecebido?: boolean;
+  cumprimentoAberto?: boolean;
+  replicaPendente?: boolean;
 }
 
 export function parseDateLoose(raw?: string | null): Date | null {
@@ -215,6 +218,13 @@ export type FlagsFaseParado = {
   temContestacao: boolean;
   temSentenca: boolean;
   temReplica: boolean;
+  /** Cumprimento com levantamento / pagamento / quitação já sinalizados */
+  cumprimentoRecebido: boolean;
+  /** Sentença ou cumprimento em curso, ainda sem satisfação */
+  cumprimentoAberto: boolean;
+  replicaPendente: boolean;
+  temCitacao: boolean;
+  temAudiencia: boolean;
 };
 
 function blobProcessual(c: LegalCase): string {
@@ -232,6 +242,23 @@ function blobProcessual(c: LegalCase): string {
   ]
     .map((x) => String(x || '').toUpperCase())
     .join(' | ');
+}
+
+
+export function isCumprimentoRecebido(c: LegalCase): boolean {
+  const any = c as any;
+  const txt = blobProcessual(c);
+  if (any.cumprimento_satisfeito === true || any.alvara_levantado === true) return true;
+  return (
+    /ALVAR[AÁ]\s+(EXPEDIDO|LEVANTADO|CUMPRIDO)/.test(txt) ||
+    /LEVANTAMENTO\s+(REALIZADO|EFETUADO|DE\s+VALORES)/.test(txt) ||
+    /VALORES?\s+(RECEBIDOS?|LEVANTADOS?|CREDITADOS?)/.test(txt) ||
+    /QUITA[CÇ][AÃ]O\s+(DO\s+D[EÉ]BITO|DA\s+OBRIGA)/.test(txt) ||
+    /OBRIGA[CÇ][AÃ]O\s+SATISFEITA/.test(txt) ||
+    /PAGAMENTO\s+(INTEGRAL|COMPROVADO|EFETUADO)/.test(txt) ||
+    /CUMPRIMENTO\s+(INTEGRAL|SATISFEITO|HOMOLOGADO)/.test(txt) ||
+    /EXTIN[CÇ][AÃ]O\s+PELO\s+PAGAMENTO/.test(txt)
+  );
 }
 
 export function detectFlagsFase(c: LegalCase): FlagsFaseParado {
@@ -267,17 +294,50 @@ export function detectFlagsFase(c: LegalCase): FlagsFaseParado {
     /\bR[EÉ]PLICA\b/.test(txt) && !/PRAZO\s+(PARA\s+)?(A\s+)?R[EÉ]PLICA/.test(txt)
   );
 
-  return { temContestacao, temSentenca, temReplica };
+  const temCitacao = /\bCITA[CÇ][AÃ]O\b|CITADO|MANDADO\s+DE\s+CITA/.test(txt);
+  const temAudiencia = /AUDI[EÊ]NCIA/.test(txt);
+  const cumprimentoRecebido = isCumprimentoRecebido(c);
+  const emCumpr =
+    !!c.em_cumprimento_sentenca ||
+    tipo === 'cumprimento_sentenca' ||
+    !!(c as any).cumprimento_ativo ||
+    !!(c as any).cumprimento_pendente_necessario;
+  const cumprimentoAberto = !cumprimentoRecebido && (emCumpr || (temSentenca && ((c as any).is_procedente || tipo === 'sentenca_procedente')));
+  const replicaPendente = temContestacao && !temReplica && !temSentenca;
+
+  return {
+    temContestacao,
+    temSentenca,
+    temReplica,
+    cumprimentoRecebido,
+    cumprimentoAberto,
+    replicaPendente,
+    temCitacao,
+    temAudiencia,
+  };
 }
 
-export type FiltroFaseParado = 'sem_contestacao' | 'sem_sentenca' | 'sem_replica';
+export type FiltroFaseParado =
+  | 'sem_contestacao'
+  | 'sem_sentenca'
+  | 'sem_replica'
+  | 'replica_pendente'
+  | 'cumprimento_aberto'
+  | 'janela_recente';
 
-export function matchFiltrosFase(flags: FlagsFaseParado, ativos: FiltroFaseParado[]): boolean {
+export function matchFiltrosFase(
+  flags: FlagsFaseParado,
+  ativos: FiltroFaseParado[],
+  diasParado?: number
+): boolean {
   if (!ativos.length) return true;
   for (const f of ativos) {
     if (f === 'sem_contestacao' && flags.temContestacao) return false;
     if (f === 'sem_sentenca' && flags.temSentenca) return false;
     if (f === 'sem_replica' && flags.temReplica) return false;
+    if (f === 'replica_pendente' && !flags.replicaPendente) return false;
+    if (f === 'cumprimento_aberto' && !flags.cumprimentoAberto) return false;
+    if (f === 'janela_recente' && (diasParado == null || diasParado > 30)) return false;
   }
   return true;
 }
@@ -322,6 +382,7 @@ export function aindaDaParaAgirNoProcesso(c: LegalCase): boolean {
     c.evento_tipo === 'sentenca_improcedente';
 
   if (baixaForte && !temResiduo) return false;
+  if (isCumprimentoRecebido(c) && (baixaForte || /EXTIN[CÇ][AÃ]O|ARQUIV/.test(txt))) return false;
   return true;
 }
 
@@ -340,8 +401,25 @@ function oportunidadesDe(c: LegalCase, diasParado: number, estado: EstadoParado)
   }
 
   // --- Mérito / execução ---
-  if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca' || any.cumprimento_ativo) {
-    ops.push('Cumprimento: protocolar/acompanhar ato (guia, depósito, penhora, impugnação)');
+  const fase = detectFlagsFase(c);
+
+  if (fase.cumprimentoRecebido) {
+    // Já satisfeito — não empilhar ato de cumprimento
+  } else if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca' || any.cumprimento_ativo) {
+    ops.push('Cumprimento em curso: conferir depósito, penhora, impugnação ou ato pendente');
+  }
+
+  if (fase.replicaPendente) {
+    ops.push('Contestação nos autos: avaliar réplica ou manifestação no prazo');
+  }
+  if (fase.temCitacao && !fase.temContestacao && !fase.temSentenca) {
+    ops.push('Citação sinalizada: conferir prazo de defesa e juntadas');
+  }
+  if (fase.temAudiencia) {
+    ops.push('Audiência no histórico: confirmar pauta, acordo ou petição prévia');
+  }
+  if (fase.temContestacao && !fase.temReplica && diasParado >= 7 && diasParado < 45) {
+    ops.push('Janela recente após defesa: conferir prazo de réplica/manifestação');
   }
   if (any.cumprimento_pendente_necessario || ((any.is_procedente || c.evento_tipo === 'sentenca_procedente') && !c.em_cumprimento_sentenca)) {
     ops.push('Sentença favorável: avaliar instauração ou andamento do cumprimento');
@@ -402,7 +480,12 @@ export function scoreAcaoParado(
   let s = Math.min(420, Math.max(0, diasParado) * 2.2);
   const ops = oportunidadesDe(c, diasParado, estado);
   s += ops.length * 35;
-  if (c.em_cumprimento_sentenca || (c as any).cumprimento_pendente_necessario) s += 80;
+  const faseS = detectFlagsFase(c);
+  if (faseS.cumprimentoRecebido) s = Math.round(s * 0.25);
+  else if (c.em_cumprimento_sentenca || (c as any).cumprimento_pendente_necessario) s += 80;
+  if (faseS.replicaPendente) s += 55;
+  if (faseS.cumprimentoAberto) s += 40;
+  if (diasParado <= 30 && (faseS.replicaPendente || faseS.temCitacao)) s += 50;
   if ((c as any).is_procedente || c.evento_tipo === 'sentenca_procedente') s += 70;
   if (c.indicio_busca_apreensao) s += 90;
   if (c.datajud_encerrado_tribunal) s += 25; // residual, não prioridade máxima
@@ -424,6 +507,10 @@ export interface ListParadosOpts {
    */
   onlyAcionaveis?: boolean;
   now?: Date;
+  /** Default true — cumprimento já satisfeito/levantado sai da fila */
+  excludeCumprimentoRecebido?: boolean;
+  /** Default true — inclui fase viva mesmo com menos dias que minDias */
+  includeJanelaRecente?: boolean;
 }
 
 /**
@@ -446,11 +533,20 @@ export function listProcessosParados(
     if (isCasoEncerrado(c)) continue;
     if (String(c.situacao || '').toUpperCase() === 'ARQUIVADO') continue;
     if (onlyAcionaveis && !aindaDaParaAgirNoProcesso(c)) continue;
-    // Custas isoladas: processo pode continuar — fora da fila crítica de parados
     if (onlyAcionaveis && isOnlyCustasSignal(c)) continue;
+
+    const fasePre = detectFlagsFase(c);
+    const excludeRecebido = opts.excludeCumprimentoRecebido !== false;
+    if (excludeRecebido && fasePre.cumprimentoRecebido) continue;
 
     const ult = ultimaDataTribunal(c);
     const diasParado = diasDesde(ult.date, now);
+    const includeRecente = opts.includeJanelaRecente !== false;
+    const faseViva =
+      fasePre.replicaPendente ||
+      fasePre.cumprimentoAberto ||
+      (fasePre.temCitacao && !fasePre.temContestacao && !fasePre.temSentenca) ||
+      fasePre.temAudiencia;
 
     let estado: EstadoParado;
     if (!ult.temSinalTribunal) {
@@ -465,7 +561,8 @@ export function listProcessosParados(
       if (!includeSemScan || onlyConfirmados) continue;
     } else {
       const dias = diasParado == null ? 0 : diasParado;
-      if (dias < minDias) continue;
+      const recenteComFase = includeRecente && faseViva && dias < minDias;
+      if (dias < minDias && !recenteComFase) continue;
     }
 
     const retD = parseDateLoose(c.ultimoRetorno || (c as any).ultimo_retorno);
@@ -490,6 +587,9 @@ export function listProcessosParados(
       temContestacao: fase.temContestacao,
       temSentenca: fase.temSentenca,
       temReplica: fase.temReplica,
+      cumprimentoRecebido: fase.cumprimentoRecebido,
+      cumprimentoAberto: fase.cumprimentoAberto,
+      replicaPendente: fase.replicaPendente,
     });
   }
 
