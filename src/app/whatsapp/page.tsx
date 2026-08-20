@@ -73,7 +73,7 @@ import {
 import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { suggestScripts } from "@/lib/script-processual/suggest";
-import { plainTextFromDjen } from "@/lib/djen";
+import { plainTextFromDjen, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst} from "@/lib/djen";
 import { buildUnifiedTimeline } from "@/lib/timeline-normalize";
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
@@ -664,9 +664,7 @@ function WhatsAppTerminalInner() {
   /** Scripts locais a partir do caso (sem scan) — rápido como em Tarefas */
   const buildScriptsFromCase = useCallback((caseData: LegalCase | null | undefined, movimentos: any[] = [], comunicacoes: any[] = []) => {
     if (!caseData) return [];
-    const djenTexts = comunicacoes
-      .map((d: any) => plainTextFromDjen(d.texto || d.conteudo || d.inteiroTeor || ""))
-      .filter(Boolean);
+    const djenTexts = djenTextsRecentFirst(comunicacoes);
     const scripts = suggestScripts({
       clienteNome: caseData.cliente,
       protocolo: caseData.protocolo,

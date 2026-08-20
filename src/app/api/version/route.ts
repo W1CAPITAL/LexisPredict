@@ -3,17 +3,16 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const LEXIS_APP_VERSION = "9.51.0";
+export const LEXIS_APP_VERSION = "9.52.0";
 
 export const LEXIS_CHANGELOG: string[] = [
-  "Nova versão 9.51 — fila operacional (Lote B).",
-  "Atendimento recente (36h) reduz prioridade automaticamente — não fica no topo sem necessidade.",
-  "Listas Blacklist e Crítico em tratamento pesam menos na sequência prioritária.",
-  "Oportunidade de instaurar cumprimento sobe na fila quando elegível (score comercial).",
-  "Sub-abas Tarefas: Toda a fila · Em tratamento · Blacklist (já disponíveis no filtro).",
-  "Ao registrar atendimento, use as opções: normal / em tratamento / blacklist.",
-  "KPI e resumo único de status (lote 9.50) mantidos.",
-  "Cálculos Price/SAC + Bacen e banner de versão em tempo real.",
+  "Nova versão 9.52 — Lote C (comunicação).",
+  "Rascunhos ao cliente em 2ª pessoa (você) — remove 'o autor / parte autora'.",
+  "Âncora DJEN: textos ordenados pela data de disponibilização (ato mais recente manda).",
+  "Sugerir resposta (Tarefas / Processos / WhatsApp) usa a mesma âncora DJEN.",
+  "WhatsApp: canal=whatsapp no motor; atendimento com próximo retorno, observação e encerrar.",
+  "Histórico WA: busca por variantes de telefone (55, 9º dígito, remote_jid).",
+  "Lote B (fila): atendimento recente e listas tratamento/blacklist mantidos.",
 ];
 
 export async function GET() {
@@ -35,10 +34,6 @@ export async function GET() {
       title: "Nova versão do LexisPredict",
       subtitle: "O app foi atualizado. Recarregue para usar as novidades abaixo.",
     },
-    {
-      headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-      },
-    }
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
   );
 }

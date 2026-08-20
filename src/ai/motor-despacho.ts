@@ -53,6 +53,29 @@ const BANNED_TERMS = [
   'ASSECOM',
 ];
 
+
+/** Remove 3ª pessoa de processo e reforça tom de mensagem ao cliente. */
+export function sanitizeClienteFacingDraft(text: string, clienteNome?: string): string {
+  let s = String(text || '');
+  const nome = (clienteNome || '').trim().split(/\s+/)[0];
+  s = s
+    .replace(/\bo autor\b/gi, 'você')
+    .replace(/\ba autora\b/gi, 'você')
+    .replace(/\bapelante\b/gi, 'você')
+    .replace(/\brequerente\b/gi, 'você')
+    .replace(/\ba parte autora\b/gi, 'você')
+    .replace(/\bnossa equipe identificou que o autor\b/gi, 'identificamos que você')
+    .replace(/\bO processo em questão é o\b/gi, 'Sobre o seu processo')
+    .replace(/\bque se encontra em grau de recurso\b/gi, 'que está em recurso')
+    .replace(/\bÉ importante que o autor\b/gi, 'É importante que você')
+    .replace(/\bo autor tome\b/gi, 'você tome')
+    .replace(/\bAtenciosamente,?\s*Nossa Equipe\.?/gi, 'Qualquer dúvida, estamos à disposição.');
+  if (nome && !/^(olá|oi|prezad)/i.test(s.trim())) {
+    s = `Olá, ${nome}!\n\n` + s.trim();
+  }
+  return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function cleanBannedTerms(text: string): string {
   let cleaned = text;
   BANNED_TERMS.forEach((term) => {
@@ -141,7 +164,7 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     }
     return {
       sucesso: true,
-      rascunho: cleanBannedTerms(localTxt),
+      rascunho: sanitizeClienteFacingDraft(cleanBannedTerms(localTxt), clienteNome),
       engine: 'MOTOR_LEXIS_SCRIPTS',
       engineUtilizada: 'MOTOR_LEXIS_SCRIPTS',
     };
@@ -223,7 +246,9 @@ ${historicoTxt || '(sem movimentos detalhados)'}
 Lembrete: o evento no TOPO da lista (data mais nova) manda na mensagem. Não resuma só o despacho de maio se existir intimação/petição em julho/agosto.
 ${djenBlock}
 
-${canal === 'whatsapp' ? 'MODO WHATSAPP: fale com VOCÊ (2ª pessoa), 4-8 linhas, só o ato mais recente, proibido "o autor/apelante".' : ''}\nRedija a mensagem final ao cliente, honesta e tranquilizadora quando for o caso, urgente só se a cobrança for dele de verdade.`;
+MODO CLIENTE (obrigatório): 2ª pessoa (você), sem "o autor/a parte autora/apelante".
+${canal === 'whatsapp' ? 'WHATSAPP: 4-8 linhas, só o ato mais recente com efeito prático, tom humano.' : 'E-mail/interno: pode ser um pouco mais longo, mas mantenha 2ª pessoa e o ato mais recente no centro.'}
+Redija a mensagem final ao cliente. Urgente só se o prazo/cobrança for DELE de verdade.`;
 
   try {
     const response = await perguntarIA({
@@ -243,11 +268,10 @@ ${canal === 'whatsapp' ? 'MODO WHATSAPP: fale com VOCÊ (2ª pessoa), 4-8 linhas
       preferredModel ||
       'IA';
 
+    const rawDraft = (response as any).resposta || (response as any).texto || baseScript;
     return {
       sucesso: true,
-      rascunho: cleanBannedTerms(
-        (response as any).resposta || (response as any).texto || baseScript
-      ),
+      rascunho: sanitizeClienteFacingDraft(cleanBannedTerms(rawDraft), clienteNome),
       engine,
       engineUtilizada: engine,
     };
@@ -255,7 +279,7 @@ ${canal === 'whatsapp' ? 'MODO WHATSAPP: fale com VOCÊ (2ª pessoa), 4-8 linhas
     // Fallback só se a IA falhar: script Lexis
     return {
       sucesso: false,
-      rascunho: cleanBannedTerms(baseScript),
+      rascunho: sanitizeClienteFacingDraft(cleanBannedTerms(baseScript), clienteNome),
       engine: 'LOCAL_FALLBACK_SCRIPT',
       engineUtilizada: 'LOCAL_FALLBACK_SCRIPT',
     };

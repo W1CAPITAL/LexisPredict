@@ -59,7 +59,8 @@ import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/sugges
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
 import { buildUnifiedTimeline } from '@/lib/timeline-normalize';
-import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
+import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst } from '@/lib/djen';
+// djenTextsRecentFirst usado no rascunho;
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';

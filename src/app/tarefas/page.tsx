@@ -99,7 +99,8 @@ import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/sugges
 import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
 import { useAuth } from '@/components/auth/auth-provider';
-import { plainTextFromDjen, summarizeDjenKeywords } from '@/lib/djen';
+import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst } from '@/lib/djen';
+// djenTextsRecentFirst usado no rascunho;
 import { buildUnifiedTimeline } from '@/lib/timeline-normalize';
 import { Checkbox } from '@/components/ui/checkbox';
 import { generateDjenPublicationPDFAction } from '@/app/actions/document-actions';
@@ -348,7 +349,7 @@ export default function TarefasPage() {
     setIsGeneratingAIDraft(true);
     setAiDraft(null);
     try {
-      const djenTexts = (historyResult.djenComunicacoes || []).map((d: any) => plainTextFromDjen(d.texto)).filter(Boolean);
+      const djenTexts = djenTextsRecentFirst(historyResult.djenComunicacoes || []);
       const res = await gerarRascunhoEstrategico({
         clienteNome: historyResult.case.cliente,
         protocolo: historyResult.case.protocolo,

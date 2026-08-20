@@ -555,3 +555,37 @@ async function fetchDjenComunicacoesUncached(
     items: [],
   };
 }
+
+
+/** Ordena comunicações DJEN pela data de disponibilização (mais recente primeiro). */
+export function sortDjenComunicacoesRecentFirst<T extends Record<string, any>>(items: T[]): T[] {
+  const score = (it: any): number => {
+    const raw =
+      it?.data_disponibilizacao ||
+      it?.dataDisponibilizacao ||
+      it?.data_disponibilizacao_dj ||
+      it?.data ||
+      it?.date ||
+      '';
+    const s = String(raw).trim();
+    if (!s) return 0;
+    try {
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s).getTime() || 0;
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+        const [dd, mm, yyyy] = s.slice(0, 10).split('/').map(Number);
+        return new Date(yyyy, mm - 1, dd).getTime() || 0;
+      }
+      return new Date(s).getTime() || 0;
+    } catch {
+      return 0;
+    }
+  };
+  return [...(items || [])].sort((a, b) => score(b) - score(a));
+}
+
+/** Textos DJEN já ordenados + plain text (âncora = índice 0). */
+export function djenTextsRecentFirst(items: any[]): string[] {
+  return sortDjenComunicacoesRecentFirst(items || [])
+    .map((d) => plainTextFromDjen(String(d?.texto || d?.conteudo || d?.inteiroTeor || '')))
+    .filter((t) => t && t.length > 20);
+}
