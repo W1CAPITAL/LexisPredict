@@ -3,6 +3,7 @@
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 
+import { applyFlagsTruth } from './flags-truth';
 import { startOfDay, differenceInCalendarDays, parseISO } from 'date-fns';
 import { diasAtePrazo, statusPorPrazo, normalizarDataPrazo, hojeBrasilISO } from './prazo-status';
 import { sanitizeDateCell } from './csv-import-engine';
@@ -133,6 +134,9 @@ export interface LegalCase {
 
   // Procedência e Cumprimento Pendente (Módulo Executivo)
   is_procedente?: boolean;
+  is_improcedente?: boolean;
+  classe_processual?: string;
+  replica_pendente?: boolean;
   procedente_motivo?: string | null;
   cumprimento_pendente_necessario?: boolean;
   data_transito_julgado?: string | null;
@@ -292,7 +296,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const temAndamentoDjen = toBool(data.djen_nova_comunicacao);
   const novidadeUnificada = temAndamentoDataJud || temAndamentoDjen || toBool(data.tem_novo_andamento);
 
-  return {
+  const built = {
     id: raw.id || crypto.randomUUID(),
     created_by: data.created_by,
     cliente,
@@ -371,5 +375,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     auditado_em: data.auditado_em ?? data.auditadoEm ?? null,
     auditado_por: data.auditado_por ?? data.auditadoPor ?? null,
     atendido_por: data.atendido_por ?? data.atendidoPor ?? null,
+    classe_processual: data.classe_processual || data.datajud_classe || data.classe_acao || data.classe || '',
   };
+  return applyFlagsTruth(built as LegalCase);
 }
