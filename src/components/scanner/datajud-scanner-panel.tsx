@@ -35,6 +35,7 @@ import { ui } from '@/lib/responsive-ui';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from '@/components/ui/label';
+import { APP_VERSION } from '@/lib/app-changelog';
 
 export function DataJudScannerPanel() {
   const { 
@@ -296,7 +297,7 @@ export function DataJudScannerPanel() {
       </ScrollArea>
       
       <div className="p-3 bg-black text-white text-[8px] font-black uppercase text-center border-t-2 border-black shrink-0 flex items-center justify-center gap-4">
-        <span>Authority System • v9.8</span>
+        <span>{`Authority System · app v${APP_VERSION}`}</span>
         <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> Rede Ativa</div>
       </div>
     </div>

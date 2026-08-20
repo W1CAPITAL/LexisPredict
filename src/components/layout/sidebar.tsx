@@ -64,6 +64,7 @@ import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InstallAppButton } from "@/components/mobile/InstallAppButton";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { SystemNotesPanel } from "@/components/layout/system-notes-panel";
 
 function SafeIcon({
   icon: Icon,
@@ -263,6 +264,8 @@ function SidebarNavBody({
           )}
         </LiquidMetalButton>
       </div>
+
+      <SystemNotesPanel collapsed={collapsed} />
 
       {/* Nav */}
       <div

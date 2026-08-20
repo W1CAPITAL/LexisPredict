@@ -1,0 +1,137 @@
+/**
+ * Histórico de atualizações do LexisPredict (fonte única).
+ * Exibido de forma discreta abaixo do atalho do Scanner no menu lateral.
+ * Ao publicar um lote, acrescente um item no topo de APP_CHANGELOG.
+ */
+export type ChangelogItem = {
+  /** Semver do produto (não confundir com build do scanner) */
+  version: string;
+  /** ISO date YYYY-MM-DD */
+  date: string;
+  /** Título curto legível */
+  title: string;
+  /** Detalhes do que entrou / mudou */
+  details: string[];
+  /** Opcional: tags internas */
+  tags?: string[];
+};
+
+/** Versão atual embutida na UI */
+export const APP_VERSION = '1.8.0';
+
+export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.8.0',
+    date: '2026-08-20',
+    title: 'Modo visualização + TypeScript 6',
+    details: [
+      'Perfil Visualizador: vê carteira da empresa, cadastra e edita.',
+      'Bloqueio de cópia, exportação (CSV/XLSX/PDF) e scanner tribunal.',
+      'Faixa de aviso permanente no topo quando o modo está ativo.',
+      'Toolchain alinhada a TypeScript 6 (devDependency).',
+      'Este painel de notas de versão (discreto, sob o scanner).',
+    ],
+    tags: ['segurança', 'ops', 'toolchain'],
+  },
+  {
+    version: '1.7.0',
+    date: '2026-08-19',
+    title: 'Processos parados na operação',
+    details: [
+      'Aba Processos parados: tribunal sem movimento ≥60d, score de ação.',
+      'Separação sem_scan vs parado confirmado (DataJud/DJEN/evento).',
+      'Filtro Parados na fila de contato e bloco no dossiê/report.',
+      'Marcar tratado (sessão) e scripts por faixa de dias.',
+    ],
+    tags: ['carteira', 'fila'],
+  },
+  {
+    version: '1.6.2',
+    date: '2026-08-18',
+    title: 'Build e exportação estáveis',
+    details: [
+      'Correção use server em export-actions (build Vercel).',
+      'Export CSV + XLSX dossiê com fallback SheetJS.',
+      'Typecheck: cargo no perfil, setCases, ultimoRetorno, predatoria.',
+    ],
+    tags: ['build'],
+  },
+  {
+    version: '1.6.0',
+    date: '2026-08-17',
+    title: 'Carteira, dono do caso e radar',
+    details: [
+      'Transferência de responsável (app + service role).',
+      'Proteção created_by no banco (sem roubo por scan/edição).',
+      'Radar NUMOPEDE e flags na fila / ranking.',
+      'Redistribuição controlada de ativos entre operadores.',
+    ],
+    tags: ['carteira', 'compliance'],
+  },
+  {
+    version: '1.5.0',
+    date: '2026-08-15',
+    title: 'WhatsApp terminal e Omni IA',
+    details: [
+      'Terminal WhatsApp: andamentos, rascunho, envio Evolution.',
+      'Cascata Omni de motores de IA (fallback sem travar a tela).',
+      'Importação de histórico com limpeza e deduplicação.',
+      'Aviso de mensagem duplicada antes do envio.',
+    ],
+    tags: ['whatsapp', 'ia'],
+  },
+  {
+    version: '1.4.0',
+    date: '2026-08-10',
+    title: 'Scanner híbrido e telemetria unificada',
+    details: [
+      'Auditoria DataJud ∪ DJEN com flags idempotentes.',
+      'getSinalCapa, linguagem simples e scripts por evento.',
+      'Dashboard: procedentes/improcedentes, BA, prazos.',
+      'Dossiê operacional com períodos e top críticos.',
+    ],
+    tags: ['scanner', 'telemetria'],
+  },
+  {
+    version: '1.3.0',
+    date: '2026-07-31',
+    title: 'Agenda, BI e UI operacional',
+    details: [
+      'Agenda da semana com feriados por UF (calendário TJ).',
+      'Painel BI/compliance no dashboard e report.',
+      'Ajustes de microcopy (menos “cara de IA”).',
+      'Navegação e preferências de menu por perfil.',
+    ],
+    tags: ['ui', 'agenda'],
+  },
+  {
+    version: '1.2.0',
+    date: '2026-07-20',
+    title: 'Base multi-tenant e gabinete',
+    details: [
+      'Gestão processual multi-empresa (Supabase).',
+      'Fila de contato, equipe, documentos e veredito.',
+      'Importação CSV e operações de volume.',
+    ],
+    tags: ['core'],
+  },
+];
+
+export function formatChangelogDate(iso: string): string {
+  try {
+    const [y, m, d] = iso.split('-').map(Number);
+    if (!y || !m || !d) return iso;
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  } catch {
+    return iso;
+  }
+}
+
+export function getLatestChangelog(): ChangelogItem {
+  return APP_CHANGELOG[0] ?? {
+    version: APP_VERSION,
+    date: new Date().toISOString().slice(0, 10),
+    title: 'LexisPredict',
+    details: [],
+  };
+}
