@@ -795,6 +795,9 @@ export default function ProcessosParadosPage() {
                           Cumprimento em aberto
                         </Badge>
                       )}
+                      {item.tratado && (
+                        <Badge className="bg-emerald-600 text-white text-[9px]">TRATADO</Badge>
+                      )}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
                       {linhaFase(c)}
@@ -802,10 +805,6 @@ export default function ProcessosParadosPage() {
                     <p className="text-[11px] text-muted-foreground">
                       {linhaDonoAto(c)}
                     </p>
-                      {item.tratado && (
-                        <Badge className="bg-emerald-600 text-white text-[9px]">TRATADO</Badge>
-                      )}
-                    </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{item.ultimoSinalResumo}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {item.oportunidades.map((o, idx) => (
