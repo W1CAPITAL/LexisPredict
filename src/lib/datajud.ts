@@ -347,7 +347,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
         numeroProcesso: cnjLimpo,
         movimentos: [],
         error: true,
-        message: "Taxa excedida (429).",
+        message: "O tribunal pediu pausa (429). Esperando e tentando de novo.",
         latency,
         attempts: attempt
       };

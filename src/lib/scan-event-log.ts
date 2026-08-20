@@ -48,3 +48,23 @@ export function clearScanLog() {
     /* */
   }
 }
+
+
+export function exportScanLogCsv(): string {
+  const rows = loadScanLog();
+  const head = "hora,cnj,motor,ok,detalhe";
+  const body = rows.map((r) =>
+    [r.ts, r.cnj, r.motor, r.ok ? "ok" : "falha", JSON.stringify(r.detalhe || "")].join(",")
+  );
+  return [head, ...body].join("\n");
+}
+
+export function downloadScanLogCsv() {
+  if (typeof window === "undefined") return;
+  const blob = new Blob([exportScanLogCsv()], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `scan-log-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}

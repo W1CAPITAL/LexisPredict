@@ -8,6 +8,9 @@ import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { prioritizeScanQueue } from '@/lib/case-filters';
 import { readScanProgress, writeScanProgress, clearScanProgress, readCarteiraCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
+import { appendScanLog } from '@/lib/scan-event-log';
+import { isScanFresh, scanDelayMs, sleepMs } from '@/lib/parados-scan-queue';
+import { mensagemScanHttp } from '@/lib/scan-http-pt';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -328,8 +331,26 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
     }
 
+    let failStreak = 0;
     for (const c of cases) {
       if (get().manualStatus !== 'running') break;
+
+      const djFresh = mode !== 'djen' && isScanFresh((c as any).datajud_consultado_em);
+      const djenFresh = mode !== 'datajud' && isScanFresh((c as any).djen_consultado_em);
+      const skip = mode === 'both' ? djFresh && djenFresh : mode === 'datajud' ? djFresh : djenFresh;
+      if (skip) {
+        set((s) => ({ manualDone: s.manualDone + 1 }));
+        get().addLog({
+          protocolo: c.protocolo,
+          message: 'Pulado: auditado nas últimas 8h',
+          latency: 0,
+          success: true,
+          type: 'ok',
+          engine: 'Local',
+        });
+        appendScanLog({ cnj: c.protocolo, motor: mode, ok: true, detalhe: 'skip-8h' });
+        continue;
+      }
 
       const start = Date.now();
       if (useClaude) {
@@ -366,12 +387,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         }
         get().addLog({
           protocolo: c.protocolo,
-          message: `Erro no scanner: ${err?.message || err}`,
+          message: mensagemScanHttp(err?.message || err),
           latency,
           success: false,
           type: 'error',
           engine: 'Local',
         });
+        appendScanLog({ cnj: c.protocolo, motor: mode, ok: false, detalhe: mensagemScanHttp(err?.message || err) });
+        failStreak += 1;
+        await sleepMs(scanDelayMs(failStreak));
         continue;
       }
       const latency = Date.now() - start;
@@ -423,6 +447,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
 
       set((s) => ({ manualDone: s.manualDone + 1 }));
+      appendScanLog({
+        cnj: c.protocolo,
+        motor: mode,
+        ok: !!res.success,
+        detalhe: String(message || '').slice(0, 120),
+      });
+      if (res.success) failStreak = 0;
+      else failStreak += 1;
+      await sleepMs(scanDelayMs(failStreak));
       // LOTE2: heartbeat a cada 10 CNJs no feed (confiança visual)
       {
         const st = get();

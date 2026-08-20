@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas. */
 
-export const RELEASE_VERSION = "9.61.0";
+export const RELEASE_VERSION = "9.62.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.62 — Lote C: pular CNJ 8h, 429/403 em português, log+CSV, backoff no scanner.",
   "9.61 — Lote B: filtro de fase na carteira, dono/próximo passo no painel, dias desde o ato do tribunal.",
   "9.60 — Lote A: flags confiáveis (BA, mérito exclusivo, cumprimento, novidade, classe).",
   "9.59 — B.A. só com classe + mandado; dono e próximo passo nas listas; régua do supervisor.",

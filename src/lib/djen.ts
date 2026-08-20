@@ -436,7 +436,7 @@ async function fetchDjenComunicacoesUncached(
           success: false,
           isGeoBlocked: true,
           error:
-            'DJEN geo-bloqueou o servidor (403). Região Vercel deve ser gru1 (São Paulo).',
+            'DJEN recusou o servidor (403). No Vercel use região gru1 (São Paulo).',
           count: 0,
           items: [],
         };
@@ -447,7 +447,7 @@ async function fetchDjenComunicacoesUncached(
         return {
           success: false,
           isRateLimited: true,
-          error: 'Rate limit DJEN (429). Aguarde 1 minuto.',
+          error: 'DJEN pediu pausa (429). Esperando um minuto.',
           count: 0,
           items: [],
         };

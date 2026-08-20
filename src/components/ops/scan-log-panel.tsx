@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { clearScanLog, loadScanLog, type ScanLogRow } from "@/lib/scan-event-log";
+import { clearScanLog, downloadScanLogCsv, loadScanLog, type ScanLogRow } from "@/lib/scan-event-log";
 
 export function ScanLogPanel({ compact = false }: { compact?: boolean }) {
   const [rows, setRows] = useState<ScanLogRow[]>([]);
@@ -26,9 +26,14 @@ export function ScanLogPanel({ compact = false }: { compact?: boolean }) {
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
           Log de scan
         </p>
-        <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => { clearScanLog(); setRows([]); }}>
-          Limpar
-        </Button>
+        <div className="flex gap-1">
+          <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => downloadScanLogCsv()}>
+            CSV
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => { clearScanLog(); setRows([]); }}>
+            Limpar
+          </Button>
+        </div>
       </div>
       <ul className="space-y-1 max-h-48 overflow-y-auto font-mono text-[10px]">
         {view.map((r, i) => (
