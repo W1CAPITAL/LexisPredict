@@ -49,6 +49,8 @@ import { Button } from "@/components/ui/button";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
+import { usePlano } from "@/hooks/use-plano";
+import { filterNavByPlan } from "@/lib/planos-pacotes";
 import {
   Sheet,
   SheetContent,
@@ -100,6 +102,7 @@ function SidebarNavBody({
   profile,
   status,
   canScan = true,
+  plan = "maximo",
   onToggleMinimize,
   onStartTour,
   onLogout,
@@ -114,6 +117,7 @@ function SidebarNavBody({
   profile: any;
   status: string;
   canScan?: boolean;
+  plan?: import("@/lib/planos-pacotes").PlanId;
   onToggleMinimize: () => void;
   onStartTour: () => void;
   onLogout: () => void;
@@ -216,6 +220,7 @@ function SidebarNavBody({
     );
 
     let items = flattenNavItems(primary, secondary, rest, navPrefs, showMoreTools);
+    items = filterNavByPlan(items, isSuperAdmin ? "maximo" : plan);
 
     const q = navQuery.trim().toLowerCase();
     if (q) {
@@ -226,7 +231,7 @@ function SidebarNavBody({
       );
     }
     return items;
-  }, [isAdmin, isSuperAdmin, navQuery, showMoreTools, navPrefs]);
+  }, [isAdmin, isSuperAdmin, navQuery, showMoreTools, navPrefs, plan]);
 
 
   return (
@@ -439,6 +444,7 @@ export function Sidebar() {
   const { setDarkMode, isDarkMode, setTutorialActive } = useAppStore();
   const { status, toggleMinimize } = useDataJudScanStore();
   const { canScan, isViewer } = useAdmin();
+  const { plan, canHref } = usePlano();
 
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
@@ -463,6 +469,7 @@ export function Sidebar() {
     profile,
     status: status || "idle",
     canScan,
+    plan,
     onToggleMinimize: () => { if (!canScan) return; toggleMinimize(); },
     onStartTour: () => {
       setTutorialActive(true);

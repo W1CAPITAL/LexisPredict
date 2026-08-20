@@ -2,6 +2,7 @@
 
 import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
 import { changePasswordAction } from "@/app/actions/change-password-action";
+import { PlanosEmpresaPanel } from "@/components/settings/planos-empresa-panel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
@@ -531,8 +532,10 @@ export default function SettingsPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full space-y-8">
+          <PlanosEmpresaPanel />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+            {/* spacer no: injeta acima do grid */}
             <aside className="space-y-4">
               <section className="p-6 border border-border rounded-lg bg-background/20 backdrop-blur-xl flex flex-col items-center text-center space-y-4 shadow-xl">
                  <div className="relative group">
