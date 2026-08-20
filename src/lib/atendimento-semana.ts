@@ -200,13 +200,12 @@ export function countAtendimentosPorUsuario(
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
     
-    // Quem atendeu: atendido_por > edited_by > updated_by > created_by (não zerar KPI)
+    // Quem atendeu de verdade — NUNCA created_by (dono da carteira ≠ quem ligou)
     const userId =
       (c as any).atendido_por ??
       (c as any).atendidoPor ??
       (c as any).edited_by ??
       (c as any).updated_by ??
-      (c as any).created_by ??
       null;
     if (!userId) continue;
     
@@ -244,10 +243,10 @@ export function getTopAtendentes(
 
 /**
  * Contagem alinhada perfil ↔ /processos:
- * - Preferência: atendido_por === userId
- * - Legado: sem atendido_por e created_by === userId
- * Evita 16 no perfil e 15 no Top por regras diferentes.
+ * - Só atendido_por / edited_by / updated_by (quem trabalhou no caso)
+ * - NÃO usa created_by (dono da carteira) — evita creditar o dono quando outro atende
  */
+
 export function isAtendidoHoje(ultimoRetorno?: string | null, ref = new Date()): boolean {
   const d = parseUltimoAtendimento(ultimoRetorno);
   if (!d) return false;
@@ -266,10 +265,9 @@ export function countAtendidosSemanaDoUsuario(
   const uid = String(userId);
   return (cases || []).filter((c) => {
     if (!casoAtendidoNestaSemana(c, ref)) return false;
-    const por = c.atendido_por ?? c.atendidoPor ?? null;
-    if (por) return String(por) === uid;
-    const created = c.created_by ?? null;
-    return created != null && String(created) === uid;
+    // Só quem registrou o atendimento (não o dono do processo)
+    const por = c.atendido_por ?? c.atendidoPor ?? c.edited_by ?? c.updated_by ?? null;
+    return por != null && String(por) === uid;
   }).length;
 }
 
@@ -282,10 +280,8 @@ export function countAtendidosHojeDoUsuario(
   const uid = String(userId);
   return (cases || []).filter((c) => {
     if (!isAtendidoHoje(pickUltimoRetorno(c), ref)) return false;
-    const por = c.atendido_por ?? c.atendidoPor ?? null;
-    if (por) return String(por) === uid;
-    const created = c.created_by ?? null;
-    return created != null && String(created) === uid;
+    const por = c.atendido_por ?? c.atendidoPor ?? c.edited_by ?? c.updated_by ?? null;
+    return por != null && String(por) === uid;
   }).length;
 }
 
