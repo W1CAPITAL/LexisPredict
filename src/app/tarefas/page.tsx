@@ -52,7 +52,8 @@ import {
   isCasoProblematico,
   isCasoTranquilo,
   temCumprimento,
-} from '@/lib/flags-operacionais';
+} from '@/lib/flags-operacionais'
+import { isCasoParadoTribunal } from '@/lib/processos-parados';
 import { faixaPrioridade, pesoFila, pesoGrupo, rotuloPreditivo, rotuloPrioridade, scorePreditivo } from '@/lib/fila-prioridade';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
@@ -134,7 +135,7 @@ export default function TarefasPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   // filtros persistidos entre abas
-  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento'>('all');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
@@ -614,6 +615,7 @@ const handleSaveAttendance = async () => {
         if (filaFiltro === 'tranquilos') return g.cases.every((c: any) => isCasoTranquilo(c, baSet)) && !g.hasBA && !g.hasClosedCourt;
         if (filaFiltro === 'blacklist') return groupFilaLista(g.cases as any) === 'blacklist';
         if (filaFiltro === 'tratamento') return groupFilaLista(g.cases as any) === 'tratamento';
+        if (filaFiltro === 'parados') return g.cases.some((c: any) => isCasoParadoTribunal(c, 60));
         // Fila principal: esconde blacklist (fica na lista própria)
         if (filaFiltro === 'all' || !filaFiltro) {
           if (groupFilaLista(g.cases as any) === 'blacklist') return false;
@@ -822,6 +824,7 @@ const handleSaveAttendance = async () => {
                       <SelectItem value="tranquilos" className="font-black uppercase text-[10px]">Casos tranquilos</SelectItem>
                       <SelectItem value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
                       <SelectItem value="ba" className="font-black uppercase text-[10px]">Busca e apreensão</SelectItem>
+                      <SelectItem value="parados" className="font-black uppercase text-[10px]">Parados tribunal (≥60d)</SelectItem>
                    </SelectContent>
                 </Select>
              </div>
@@ -835,6 +838,7 @@ const handleSaveAttendance = async () => {
               { id: 'blacklist', label: 'Blacklist' },
               { id: 'novidade', label: 'Novidades' },
               { id: 'ba', label: 'B.A.' },
+              { id: 'parados', label: 'Parados' },
             ] as const).map((tab) => (
               <button
                 key={tab.id}

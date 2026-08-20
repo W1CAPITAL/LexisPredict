@@ -409,3 +409,10 @@ export function clearTratado(protocolo: string) {
   delete map[String(protocolo)];
   localStorage.setItem(PARADOS_TRATADOS_KEY, JSON.stringify(map));
 }
+
+/** True se ativo e parado confirmado ≥ minDias (sem incluir sem_scan). */
+export function isCasoParadoTribunal(c: LegalCase, minDias = 60): boolean {
+  if (isCasoEncerrado(c)) return false;
+  const items = listProcessosParados([c], minDias, { includeSemScan: false, onlyConfirmados: true });
+  return items.length > 0;
+}

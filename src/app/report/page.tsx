@@ -53,7 +53,8 @@ import { useAppStore } from "@/store/use-app-store";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { computeCarteiraKpis } from "@/lib/carteira-kpis";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
-import { getSinalCapa } from "@/lib/sinal-capa";
+import { getSinalCapa } from "@/lib/sinal-capa"
+import { listProcessosParados } from "@/lib/processos-parados";
 import { calcularProbabilidadeEncerramento } from "@/lib/probabilidade-encerramento";
 import { calcularScoreAdvogado } from "@/lib/score-engine";
 import { generateRelatorioClaudeAction } from "@/app/actions/report-claude-action";
@@ -176,6 +177,11 @@ export default function UnifiedReport() {
     const listProcedente = filterMerit('sentenca_procedente', 'PROCEDENTE');
     const listImprocedente = filterMerit('sentenca_improcedente', 'IMPROCEDENTE');
 
+    
+    const topParados = listProcessosParados(ativos as any, 60, { includeSemScan: false, onlyConfirmados: true }).slice(0, 10);
+    const countParados60 = listProcessosParados(ativos as any, 60, { includeSemScan: false, onlyConfirmados: true }).length;
+    const countParados90 = listProcessosParados(ativos as any, 90, { includeSemScan: false, onlyConfirmados: true }).length;
+
     const lawyerGroups: Record<string, LegalCase[]> = {};
     cases.forEach(c => {
       const name = (c.advogado || "NÃO ATRIBUÍDO").trim().toUpperCase();
@@ -233,6 +239,9 @@ export default function UnifiedReport() {
       myVencidos,
       myNovidades,
       topCriticos,
+      topParados,
+      countParados60,
+      countParados90,
       topChance,
       listCumprimento,
       listProcedente,
@@ -750,7 +759,29 @@ export default function UnifiedReport() {
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 break-inside-avoid">
-           <MeritList title="Fase Executiva" data={metrics.listCumprimento} icon={<Activity size={14}/>} color="bg-blue-600" />
+           
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid mb-4">
+          <div className="p-4 border-b flex items-center justify-between">
+            <h3 className="text-xs font-black uppercase tracking-widest">Processos parados (tribunal ≥60d)</h3>
+            <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
+              {(metrics as any).countParados60 ?? 0} · ≥90d: {(metrics as any).countParados90 ?? 0}
+            </span>
+          </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+            {((metrics as any).topParados || []).length === 0 && (
+              <p className="text-[10px] text-muted-foreground uppercase font-bold col-span-2 py-6 text-center">Nenhum parado confirmado nesta faixa</p>
+            )}
+            {((metrics as any).topParados || []).map((item: any, i: number) => (
+              <Link key={i} href={`/cases?search=${encodeURIComponent(item.case?.protocolo || '')}`} className="border border-border/50 rounded-xl p-3 hover:bg-secondary/30">
+                <p className="text-[10px] font-black uppercase truncate">{item.case?.cliente}</p>
+                <p className="text-[9px] font-mono opacity-50">{item.case?.protocolo}</p>
+                <p className="text-[9px] mt-1 text-amber-700 font-bold">{item.diasParadoTribunal}d · score {item.scoreAcao}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+<MeritList title="Fase Executiva" data={metrics.listCumprimento} icon={<Activity size={14}/>} color="bg-blue-600" />
            <MeritList title="Vitórias (Procedente)" data={metrics.listProcedente} icon={<CheckCircle2 size={14}/>} color="bg-emerald-600" />
            <MeritList title="Revisões (Improcedente)" data={metrics.listImprocedente} icon={<AlertTriangle size={14}/>} color="bg-red-600" />
         </section>
