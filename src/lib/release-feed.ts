@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas. */
 
-export const RELEASE_VERSION = "9.64.0";
+export const RELEASE_VERSION = "9.65.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.65 — Lote F: CPF/CNPJ reais, banco omitido sem placeholder, habilitação sem réu vazio.",
   "9.64 — Lote E: régua com totais, forma de pagamento e visão admin.",
   "9.63 — Lote D: atendimento em Processos entra no dashboard/fila/relatório; admin vê empresa; operador vê o que atendeu.",
   "9.62 — Lote C: pular CNJ 8h, 429/403 em português, log+CSV, backoff no scanner.",

@@ -4,6 +4,8 @@
  */
 
 import type { PecaMeta, ModeloPeca } from '@/lib/pecas-modelos';
+import { cpfValido, cnpjValido } from '@/lib/cpf-cnpj';
+export { sanitizePecaTexto } from '@/lib/pecas-sanitize';
 
 const NOME_KEYS: (keyof PecaMeta)[] = [
   'cliente',
@@ -75,9 +77,8 @@ export function validatePecaMeta(
       issues.push({ field: key, message: `Campo ${key} inválido ou curto demais.` });
     }
     if (key.startsWith('cpf')) {
-      const d = onlyDigits(raw);
-      if (d.length > 0 && d.length !== 11) {
-        issues.push({ field: key, message: 'CPF deve ter 11 dígitos (pode formatar com pontos).' });
+      if (!cpfValido(raw)) {
+        issues.push({ field: key, message: 'CPF inválido (dígitos verificadores).' });
       }
     }
   }
@@ -86,6 +87,13 @@ export function validatePecaMeta(
     const uf = meta.uf.trim().toUpperCase();
     if (uf.length !== 2) {
       issues.push({ field: 'uf', message: 'UF da OAB deve ter 2 letras (ex.: SP, GO).' });
+    }
+  }
+
+  const includeBanco = (meta as any).includeBanco !== false;
+  if (includeBanco && campos.includes('cnpjBanco') && meta.cnpjBanco) {
+    if (!cnpjValido(String(meta.cnpjBanco))) {
+      issues.push({ field: 'cnpjBanco', message: 'CNPJ do banco inválido.' });
     }
   }
 
@@ -103,4 +111,19 @@ export function validatePecaPreview(preview: string): PecaValidationIssue[] {
     return [{ message: 'Ainda há muitos campos em branco (placeholders). Complete nome, OAB e dados essenciais.' }];
   }
   return [];
+}
+
+
+/** Tira placeholder e frase de banco vazia do texto final. */
+export function sanitizePecaTexto(text: string, opts?: { includeBanco?: boolean }): string {
+  let t = String(text || '');
+  if (opts?.includeBanco === false) {
+    t = t.replace(/,?\s*promovida contra[^.,]*/gi, '');
+    t = t.replace(/,?\s*em face de[^.,]*/gi, '');
+    t = t.replace(/,?\s*envolvendo[^.,]*/gi, '');
+    t = t.replace(/,?\s*inscrit[oa] no CNPJ[^.,]*/gi, '');
+  }
+  t = t.replace(/\[(BANCO|CNPJ|CREDOR|INSTITUIÇÃO|INSTITUICAO)[^\]]*\]/gi, '');
+  t = t.replace(/\s{2,}/g, ' ').replace(/\s+\./g, '.').trim();
+  return t;
 }

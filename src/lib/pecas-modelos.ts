@@ -6,6 +6,8 @@
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
+import { sanitizePecaTexto } from '@/lib/pecas-sanitize';
+
 export type CategoriaPeca =
   | 'Procuração'
   | 'Habilitação'
@@ -32,6 +34,7 @@ export interface PecaMeta {
   emailCliente?: string;
   banco?: string;
   cnpjBanco?: string;
+  includeBanco?: boolean;
   advogado?: string;
   oab?: string;
   uf?: string;
@@ -589,5 +592,10 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
 export function renderModelo(modeloId: string, meta: PecaMeta): string | null {
   const modelo = MODELOS_DE_PECAS.find((x) => x.id === modeloId);
   if (!modelo) return null;
-  return modelo.render(meta || {});
+  const m = { ...(meta || {}) };
+  if (m.includeBanco === false) {
+    m.banco = '';
+    m.cnpjBanco = '';
+  }
+  return sanitizePecaTexto(modelo.render(m), { includeBanco: m.includeBanco !== false });
 }
