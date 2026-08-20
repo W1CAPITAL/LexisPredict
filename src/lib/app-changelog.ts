@@ -17,9 +17,22 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.10.0';
+export const APP_VERSION = '1.10.1';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.10.1',
+    date: '2026-08-20',
+    title: 'Parados = processo sem movimento + ainda cabe ato',
+    details: [
+      'Critério de parado: DataJud/DJEN/evento (rito), não só silêncio do cliente.',
+      'Só lista se aindaDaParaAgirNoProcesso (exclui baixa definitiva sem residual).',
+      'Oportunidades processuais: impulso, cumprimento, custas, JG, BA, recurso.',
+      'Score prioriza providência no processo; contato é secundário.',
+    ],
+    tags: ['parados', 'ops'],
+  },
+
   {
     version: '1.10.0',
     date: '2026-08-20',

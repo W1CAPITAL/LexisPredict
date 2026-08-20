@@ -180,30 +180,114 @@ export function ultimaDataTribunal(c: LegalCase): {
   };
 }
 
+/**
+ * Texto unificado para detectar meros "sinais" do processo (eventos + nomes DataJud/DJEN).
+ */
+function textoProcessual(c: LegalCase): string {
+  const any = c as any;
+  return [
+    c.evento_tipo,
+    c.evento_resumo,
+    c.datajud_ultimo_nome,
+    any.djen_ultimo_resumo,
+    c.observacao,
+    c.situacao,
+  ]
+    .map((x) => String(x || '').toUpperCase())
+    .join(' | ');
+}
+
+/**
+ * Ainda há providência útil **dentro do processo** (não só CRM/telefone).
+ * Parado = sem movimento útil no tribunal; acionável = ainda cabe ato processual.
+ */
+export function aindaDaParaAgirNoProcesso(c: LegalCase): boolean {
+  if (isCasoEncerrado(c)) return false;
+  const sit = String(c.situacao || '').toUpperCase();
+  if (sit === 'ARQUIVADO' || sit === 'ENCERRADO' || sit.includes('BAIXA DEFINITIVA')) return false;
+
+  // Baixa no tribunal sem pendência residual → não listar como "ainda dá para agir"
+  const txt = textoProcessual(c);
+  const baixaForte =
+    !!c.datajud_encerrado_tribunal ||
+    /TRANSITO EM JULGADO|TRÂNSITO EM JULGADO|BAIXA DEFINITIVA|ARQUIVAMENTO DEFINITIVO/.test(txt);
+  const temResiduo =
+    !!c.em_cumprimento_sentenca ||
+    !!(c as any).cumprimento_pendente_necessario ||
+    !!(c as any).cumprimento_ativo ||
+    /CUSTAS|TAXA JUDICIARIA|TAXA JUDICIÁRIA|GUIA|UFESP|GRATUIDADE|CUMPRIMENTO|EXECUCAO|EXECUÇÃO|HONORAR/.test(txt) ||
+    (c as any).is_procedente === true ||
+    c.evento_tipo === 'sentenca_procedente' ||
+    c.evento_tipo === 'cumprimento_sentenca';
+
+  if (baixaForte && !temResiduo) return false;
+  return true;
+}
+
+/**
+ * Oportunidades **processuais** (o que ainda se pode fazer no rito).
+ * Evita priorizar só "ligar para o cliente".
+ */
 function oportunidadesDe(c: LegalCase, diasParado: number, estado: EstadoParado): string[] {
   const ops: string[] = [];
+  const any = c as any;
+  const txt = textoProcessual(c);
+
   if (estado === 'sem_scan') {
-    ops.push('Auditar DataJud + DJEN antes de contatar o cliente');
+    ops.push('Auditar DataJud + DJEN para saber a fase real do processo');
     return ops;
   }
-  if (diasParado >= 30) ops.push('Avaliar petição de impulso / cobrança de andamento');
-  if (diasParado >= 60) ops.push('Contatar cliente: alinhar expectativa (processo sem novidade)');
-  if (diasParado >= 90) ops.push('Revisão interna: recurso, cumprimento ou baixa?');
-  if (diasParado >= 180) ops.push('Prioridade alta: paralisação prolongada');
-  if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca') {
-    ops.push('Fase executiva: guia, depósito ou ato de cumprimento');
+
+  // --- Mérito / execução ---
+  if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca' || any.cumprimento_ativo) {
+    ops.push('Cumprimento: protocolar/acompanhar ato (guia, depósito, penhora, impugnação)');
   }
-  if ((c as any).is_procedente || c.evento_tipo === 'sentenca_procedente') {
-    ops.push('Procedente: oportunidade de honorários / cumprimento');
+  if (any.cumprimento_pendente_necessario || ((any.is_procedente || c.evento_tipo === 'sentenca_procedente') && !c.em_cumprimento_sentenca)) {
+    ops.push('Sentença favorável: avaliar instauração ou andamento do cumprimento');
   }
+  if (c.evento_tipo === 'sentenca_improcedente' || /IMPROCEDENTE/.test(txt)) {
+    ops.push('Improcedência: avaliar embargos de declaração / recurso no prazo');
+  }
+
+  // --- Custas / regularização ---
+  if (/CUSTAS|TAXA JUDICIARIA|TAXA JUDICIÁRIA|GUIA GERADA|UFESP|RECOLHER/.test(txt)) {
+    ops.push('Custas/guia: regularizar no portal do tribunal ou orientá-lo com base no DJEN');
+  }
+  if (/GRATUIDADE|JUSTICA GRATUITA|JUSTIÇA GRATUITA|ASSISTENCIA JUDICIARIA/.test(txt)) {
+    ops.push('Justiça gratuita: juntar documentos ou cumprir intimação no processo');
+  }
+
+  // --- Impulso quando o processo está parado de verdade ---
+  if (diasParado >= 30 && !c.datajud_encerrado_tribunal) {
+    ops.push('Petição de impulso / cobrança de andamento no próprio processo');
+  }
+  if (diasParado >= 90 && !c.datajud_encerrado_tribunal) {
+    ops.push('Revisão da fase: saneamento, prova, conclusão ou recurso cabível');
+  }
+
+  // --- Riscos / defesa ---
+  if (c.indicio_busca_apreensao || any.evento_tipo === 'ba' || /BUSCA E APREENSAO|BUSCA E APREENSÃO|MANDADO DE PRISAO/.test(txt)) {
+    ops.push('Risco possessório/BA: medida urgente no processo (defesa / informação ao juízo)');
+  }
+  if (/AUDIENCIA|AUDIÊNCIA/.test(txt) && !/REALIZADA|CANCELADA|REDESIGNADA/.test(txt)) {
+    ops.push('Audiência: confirmar pauta e eventual petição prévia no processo');
+  }
+  if (/DOCUMENTO|JUNTADA|INTIMACAO|INTIMAÇÃO PARA/.test(txt) && diasParado >= 15) {
+    ops.push('Intimação/documento: verificar se cabe resposta ou juntada no processo');
+  }
+
+  // --- Baixa residual ---
   if (c.datajud_encerrado_tribunal && !isCasoEncerrado(c)) {
-    ops.push('Tribunal indica baixa — alinhar status na carteira');
+    ops.push('Tribunal sinaliza baixa: conferir se ainda há ato (custas, alvará, cumprimento)');
   }
-  if (!(c.telefone || (c as any).phone)) {
-    ops.push('Cadastrar telefone para reativação');
-  }
-  if (!ops.length) ops.push('Monitorar e reagendar contato');
+
+  // Sem oportunidade processual clara → não inventar "só telefone"
   return ops;
+}
+
+/** Há ao menos uma providência no processo (não CRM genérico). */
+export function temOportunidadeProcessual(c: LegalCase, diasParado: number, estado: EstadoParado): boolean {
+  return oportunidadesDe(c, diasParado, estado).length > 0;
 }
 
 export function scoreAcaoParado(
@@ -213,17 +297,19 @@ export function scoreAcaoParado(
   estado: EstadoParado
 ): number {
   if (estado === 'sem_scan') {
-    // Score médio: precisa auditar, não “cobrar andamento” ainda
-    return 100 + (diasSemRetorno != null ? Math.min(80, diasSemRetorno) : 40);
+    return 90 + (diasSemRetorno != null ? Math.min(60, diasSemRetorno) : 30);
   }
-  let s = Math.min(400, diasParado * 2);
-  if (diasSemRetorno != null) s += Math.min(200, diasSemRetorno);
-  else s += 80;
-  if (c.em_cumprimento_sentenca) s += 60;
-  if ((c as any).is_procedente || c.evento_tipo === 'sentenca_procedente') s += 50;
-  if (c.datajud_encerrado_tribunal) s += 40;
-  if (c.telefone) s += 20;
-  if (estado === 'parado_provavel') s = Math.round(s * 0.75);
+  // Base: tempo **sem movimento no processo** (tribunal)
+  let s = Math.min(420, Math.max(0, diasParado) * 2.2);
+  const ops = oportunidadesDe(c, diasParado, estado);
+  s += ops.length * 35;
+  if (c.em_cumprimento_sentenca || (c as any).cumprimento_pendente_necessario) s += 80;
+  if ((c as any).is_procedente || c.evento_tipo === 'sentenca_procedente') s += 70;
+  if (c.indicio_busca_apreensao) s += 90;
+  if (c.datajud_encerrado_tribunal) s += 25; // residual, não prioridade máxima
+  // Contato da equipe é secundário (não define "parado")
+  if (diasSemRetorno != null && diasSemRetorno > 45) s += Math.min(40, diasSemRetorno / 3);
+  if (estado === 'parado_provavel') s = Math.round(s * 0.7);
   return Math.round(s);
 }
 
@@ -233,11 +319,18 @@ export interface ListParadosOpts {
   includeSemScan?: boolean;
   /** Só confirmados com data de tribunal */
   onlyConfirmados?: boolean;
+  /**
+   * Só processos em que ainda cabe providência no rito (default true).
+   * Desligue só para auditoria técnica / inventário bruto.
+   */
+  onlyAcionaveis?: boolean;
   now?: Date;
 }
 
 /**
- * Lista processos ativos parados / sem auditoria.
+ * Lista processos **parados no tribunal** com possibilidade de ação no processo.
+ * Critério de "parado": ausência de movimento útil (DataJud/DJEN/evento) ≥ minDias.
+ * Critério de "acionável": aindaDaParaAgirNoProcesso + ao menos uma oportunidade processual.
  */
 export function listProcessosParados(
   cases: LegalCase[],
@@ -247,11 +340,13 @@ export function listProcessosParados(
   const now = opts.now || new Date();
   const includeSemScan = opts.includeSemScan !== false;
   const onlyConfirmados = !!opts.onlyConfirmados;
+  const onlyAcionaveis = opts.onlyAcionaveis !== false;
   const out: ProcessoParadoItem[] = [];
 
   for (const c of cases || []) {
     if (isCasoEncerrado(c)) continue;
     if (String(c.situacao || '').toUpperCase() === 'ARQUIVADO') continue;
+    if (onlyAcionaveis && !aindaDaParaAgirNoProcesso(c)) continue;
 
     const ult = ultimaDataTribunal(c);
     const diasParado = diasDesde(ult.date, now);
@@ -275,6 +370,10 @@ export function listProcessosParados(
     const retD = parseDateLoose(c.ultimoRetorno || (c as any).ultimo_retorno);
     const diasSemRetorno = diasDesde(retD, now);
     const diasForScore = estado === 'sem_scan' ? 0 : diasParado == null ? 0 : diasParado;
+    const oportunidades = oportunidadesDe(c, diasForScore, estado);
+
+    // Sem providência no processo → não entra na fila de parados acionáveis
+    if (onlyAcionaveis && oportunidades.length === 0) continue;
 
     out.push({
       case: c,
@@ -284,7 +383,7 @@ export function listProcessosParados(
       fonteData: ult.fonte,
       dataReferencia: ult.raw,
       ultimoSinalResumo: ult.resumo,
-      oportunidades: oportunidadesDe(c, diasForScore, estado),
+      oportunidades,
       scoreAcao: scoreAcaoParado(diasForScore, diasSemRetorno, c, estado),
     });
   }
@@ -373,7 +472,7 @@ export function scriptProcessoParado(c: LegalCase, diasParado: number, estado?: 
     ``,
     `Passando para alinhar o andamento do processo nº ${cnj}.`,
     ``,
-    `Pelos registros do tribunal, não houve movimentação nova há ${faixa}. Em algumas fases isso é esperado; mesmo assim estamos acompanhando para ver se cabe alguma providência.`,
+    `Pelos registros oficiais, o processo nº ${cnj} está sem movimentação nova no tribunal há ${faixa}. Nossa equipe está avaliando se ainda cabe alguma providência **dentro do próprio processo** (impulso, cumprimento, custas ou recurso).`,
     ``,
     `Você não precisa fazer nada neste momento. Assim que houver orientação clara, te retorno.`,
     ``,
@@ -413,14 +512,14 @@ export function clearTratado(protocolo: string) {
 /** True se ativo e parado confirmado ≥ minDias (sem incluir sem_scan). */
 export function isCasoParadoTribunal(c: LegalCase, minDias = 60): boolean {
   if (isCasoEncerrado(c)) return false;
-  const items = listProcessosParados([c], minDias, { includeSemScan: false, onlyConfirmados: true });
+  const items = listProcessosParados([c], minDias, { includeSemScan: false, onlyConfirmados: true, onlyAcionaveis: true });
   return items.length > 0;
 }
 
 /** Dias parado confirmado ou null se não aplicável / sem_scan. */
 export function getDiasParadoTribunal(c: LegalCase, minDias = 60): number | null {
   if (isCasoEncerrado(c)) return null;
-  const items = listProcessosParados([c], minDias, { includeSemScan: false, onlyConfirmados: true });
+  const items = listProcessosParados([c], minDias, { includeSemScan: false, onlyConfirmados: true, onlyAcionaveis: true });
   if (!items.length) return null;
   return items[0].diasParadoTribunal;
 }

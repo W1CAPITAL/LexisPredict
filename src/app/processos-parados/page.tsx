@@ -2,7 +2,7 @@ import { useAdmin } from '@/hooks/use-admin';
 "use client";
 
 /**
- * Processos parados v2 — reativação com estados sem_scan / confirmado.
+ * Processos parados (com ação possível) v2 — reativação com estados sem_scan / confirmado.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -265,7 +265,7 @@ export default function ProcessosParadosPage() {
                     .filter((i) => !tratados[String(i.case?.protocolo || "")])
                     .slice(0, 15);
                   if (!alvo.length) {
-                    toast({ title: "Nada a auditar", description: "Sem parados confirmados nesta faixa." });
+                    toast({ title: "Nada a auditar", description: "Sem parados acionáveis no processo nesta faixa." });
                     return;
                   }
                   setBatchScanning(true);
