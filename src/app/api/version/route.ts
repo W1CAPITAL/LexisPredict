@@ -3,28 +3,17 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-/**
- * LEXIS_APP_VERSION — incremente a cada release para o banner aparecer.
- * O buildId mistura SHA do Vercel + esta versão.
- */
-export const LEXIS_APP_VERSION = "9.50.0";
+export const LEXIS_APP_VERSION = "9.51.0";
 
-/** O que foi adicionado/melhorado nesta versão (banner em tempo real). */
 export const LEXIS_CHANGELOG: string[] = [
-  "Nova versão 9.50 — lote de estabilidade, KPI, fila e cálculos.",
-  "KPI unificado: Dashboard, Top Atendentes e Relatório usam a mesma semana (Brasília, com data fim).",
-  "Atendimento conta para quem registrou (não o dono do processo); SUPERVISÃO credita o perfil principal.",
-  "Editar com retorno = hoje passa a contar como atendimento.",
-  "Cache de sessão nas abas: lista rápida; KPI só com dados da rede (sem somar cache+nuvem).",
-  "Scanner: retoma progresso da sessão; replace da carteira sem duplicar fila.",
-  "Resumo único no card do processo (menos flags repetidas).",
-  "Webhook Evolution com autenticação por secret.",
-  "Cálculos: Price/SAC + média Bacen (API pública) + limiar 1,5× (triagem).",
-  "Headers de segurança reforçados (CSP, HSTS, XFO, nosniff).",
-  "Banner de atualização: lista o que mudou e pede recarregar.",
-  "Filtros de lista persistem na sessão ao trocar de aba.",
-  "DJEN: texto de decisão limpo (entities HTML) para rascunhos.",
-  "Avisos éticos OAB na área de cálculos (não é consulta jurídica automatizada).",
+  "Nova versão 9.51 — fila operacional (Lote B).",
+  "Atendimento recente (36h) reduz prioridade automaticamente — não fica no topo sem necessidade.",
+  "Listas Blacklist e Crítico em tratamento pesam menos na sequência prioritária.",
+  "Oportunidade de instaurar cumprimento sobe na fila quando elegível (score comercial).",
+  "Sub-abas Tarefas: Toda a fila · Em tratamento · Blacklist (já disponíveis no filtro).",
+  "Ao registrar atendimento, use as opções: normal / em tratamento / blacklist.",
+  "KPI e resumo único de status (lote 9.50) mantidos.",
+  "Cálculos Price/SAC + Bacen e banner de versão em tempo real.",
 ];
 
 export async function GET() {

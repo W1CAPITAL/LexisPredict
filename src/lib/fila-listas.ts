@@ -55,3 +55,19 @@ export function groupFilaLista(cases: { observacao?: string }[]): FilaLista {
   if (flags.includes("tratamento")) return "tratamento";
   return "normal";
 }
+
+
+/**
+ * Após atendimento: se ainda crítico e não blacklist, sugere "tratamento"
+ * para sair do topo automático sem perder o caso.
+ */
+export function suggestFilaListaAfterAtendimento(
+  current: FilaLista,
+  opts: { aindaCritico?: boolean; marcarBlacklist?: boolean; marcarTratamento?: boolean }
+): FilaLista {
+  if (opts.marcarBlacklist) return 'blacklist';
+  if (opts.marcarTratamento) return 'tratamento';
+  if (current === 'blacklist') return 'blacklist';
+  if (opts.aindaCritico) return 'tratamento';
+  return current === 'tratamento' ? 'tratamento' : 'normal';
+}

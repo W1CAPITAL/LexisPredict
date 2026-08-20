@@ -15,6 +15,7 @@ import {
   isSentencaImprocedente,
   isSentencaProcedente,
 } from './merito-detect';
+import { isAtendimentoRecente, parseFilaListaFromObs } from './fila-listas';
 
 /** Pesos base — ajustáveis sem mudar a hierarquia */
 export const PRIORITY_WEIGHTS: Record<string, number> = {
@@ -57,6 +58,10 @@ export const PRIORITY_WEIGHTS: Record<string, number> = {
   pred_scan_priority_cap: 80,
   numopede: 220,
   pred_risco_compound_cap: 120,
+  oportunidade_instaurar: 520,
+  atendimento_recente_penalty: -800,
+  lista_tratamento_penalty: -600,
+  lista_blacklist_penalty: -2000,
 };
 
 function baTipo(c: LegalCase): string | null {
@@ -259,7 +264,26 @@ export function pesoFila(c: LegalCase): number {
     w += W.numopede ?? 220;
   }
 
-  return w;
+  // Oportunidade comercial de instaurar cumprimento (score backend)
+  const op = (c as any).oportunidade_instaurar || (c as any).dados?.oportunidade_instaurar;
+  if (op?.elegivel && (op.acima_limiar_cobranca || (op.score ?? 0) >= 55)) {
+    w += W.oportunidade_instaurar ?? 520;
+  } else if ((c as any).cumprimento_pendente_necessario) {
+    w += 360;
+  }
+
+  // Listas operacionais: não competem no topo
+  const lista = parseFilaListaFromObs(c.observacao || (c as any).dados?.observacao);
+  if (lista === 'blacklist') w += W.lista_blacklist_penalty ?? -2000;
+  if (lista === 'tratamento') w += W.lista_tratamento_penalty ?? -600;
+
+  // Atendimento recente (36h): operador já está tratando — desce na sequência
+  const ur = c.ultimoRetorno || (c as any).ultimo_retorno;
+  if (isAtendimentoRecente(ur, 36)) {
+    w += W.atendimento_recente_penalty ?? -800;
+  }
+
+  return Math.max(0, w);
 }
 
 export type FaixaPrioridade =
