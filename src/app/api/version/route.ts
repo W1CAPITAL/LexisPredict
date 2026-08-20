@@ -3,15 +3,18 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const LEXIS_APP_VERSION = "9.53.0";
+/** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
+export const LEXIS_APP_VERSION = "9.54.0";
 
 export const LEXIS_CHANGELOG: string[] = [
-  "Nova versão 9.53 — Lote D (mérito / cumprimento / export).",
-  "KPI executivo unificado: procedentes, cumprimento ativo/encerrado, falta instaurar, sucumbência.",
-  "Dashboard e aba Ações Procedentes usam a mesma regra de contagem.",
-  "Fila: bônus para sucumbência e oportunidade de honorários.",
-  "Export: colunas executivas legíveis (sem id / empresa_id / created_by).",
-  "Lotes B e C mantidos (fila + comunicação 2ª pessoa + âncora DJEN).",
+  "9.54 — Processos parados: filtro multi Sem contestação / Sem sentença / Sem réplica + export CSV/XLSX da lista filtrada.",
+  "WhatsApp: wake completo da Evolution só no envio (connectionState + presença + abrir chat) — evita ter que clicar no Manager.",
+  "Anti-ban Evolution: delay/composing, gap entre envios, teto diário e bloqueio de texto idêntico.",
+  "Terminal WhatsApp: botões Mais vencido / Menos vencido no cabeçalho.",
+  "Vercel/Next 16: Node 24.x, lint via eslint (acaba o erro da pasta /lint), região gru1 no lugar de preferredRegion.",
+  "Peças: modelo Ad Judicia (qualificação + poderes art. 105) e validação de nomes/CPF/placeholders.",
+  "Sidebar: grupos claros, busca e ícones distintos.",
+  "Lotes 9.53 mantidos: mérito/cumprimento, KPI executivo, fila e export sem colunas internas.",
 ];
 
 export async function GET() {

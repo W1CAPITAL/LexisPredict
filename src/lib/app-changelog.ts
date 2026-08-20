@@ -17,9 +17,22 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.13.1';
+export const APP_VERSION = '1.13.2';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.13.2',
+    date: '2026-08-20',
+    title: 'Parados por fase + changelog 9.54 no banner',
+    details: [
+      'Processos parados: filtro multi Sem contestação / Sem sentença / Sem réplica e export XLSX/CSV da lista filtrada.',
+      'Banner “Nova versão” (build 9.54.x) lista o lote recente via /api/version.',
+      'WhatsApp: wake Evolution só no envio; antiban e próximo caso por vencimento.',
+      'Vercel: Node 24.x, eslint no lugar de next lint, região gru1.',
+    ],
+    tags: ['parados', 'whatsapp', 'infra'],
+  },
+
   {
     version: '1.13.1',
     date: '2026-08-20',
