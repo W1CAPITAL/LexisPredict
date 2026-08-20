@@ -67,6 +67,7 @@ import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } fro
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
+import { computeKpiExecutivo, flagProcedente } from '@/lib/kpi-executivo';
 import Link from 'next/link';
 import { getTranslation } from '@/lib/i18n';
 import { useAppStore } from '@/store/use-app-store';
@@ -165,11 +166,12 @@ export default function Dashboard() {
     const countAuditadosSemana = countEditadosApp;
     const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
     const countBA = countBaFromCases(ativos as any, baSet);
-    const countCumprimento = cases.filter(c => !!c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca' || !!(c as any).dados?.em_cumprimento_sentenca).length;
+    const countCumprimento = kpiExec.cumprimentoAtivo;
     // MÉRITO OBRIGATÓRIO
     // Alinhado à aba Ações Procedentes: flag is_procedente do scanner (não só evento_tipo)
-    const countProcedente = cases.filter((c) => isSentencaProcedente(c as any)).length;
-    const countImprocedente = cases.filter((c) => isSentencaImprocedente(c as any)).length;
+    const kpiExec = computeKpiExecutivo(cases as any);
+    const countProcedente = kpiExec.procedentes;
+    const countImprocedente = kpiExec.improcedentes;
     const countAudiencia = ativos.filter(c =>
       String(c.evento_tipo || '').includes('audiencia')
     ).length;

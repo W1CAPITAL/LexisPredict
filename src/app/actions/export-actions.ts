@@ -1,3 +1,4 @@
+import { rowExecutivoExport } from '@/lib/export-executivo-row';
 'use server';
 
 /**
@@ -249,5 +250,30 @@ export async function exportProcessosProfissionalXlsxAction(filtros?: {
   } catch (e: any) {
     console.error('[exportProcessosProfissionalXlsx]', e);
     return { success: false as const, error: e?.message || 'Falha ao gerar XLSX Profissional' };
+  }
+}
+
+
+/** Planilha só com colunas operacionais + flags executivas (sem ids internos). */
+export async function exportExecutivoXlsxAction() {
+  try {
+    const { cases } = await loadCasesForSession();
+    const rows = (cases || []).map((c: any) => rowExecutivoExport(c));
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Executivo');
+    const buf = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    await auditarExportacao('xlsx_executivo', cases || []);
+    return {
+      success: true as const,
+      base64: buf,
+      filename: `lexis-executivo-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      count: rows.length,
+    };
+  } catch (e: any) {
+    console.error('[exportExecutivoXlsx]', e);
+    return { success: false as const, error: e?.message || 'Falha no export' };
   }
 }

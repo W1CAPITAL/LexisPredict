@@ -426,7 +426,7 @@ export async function buildDossieXlsxBase64(
     { values: ['6. Codigos_TJ — tabela oficial CNJ'], styleRow: 'normal' },
     { values: [''], styleRow: 'normal' },
     { values: ['Privacidade'], styleRow: 'section' },
-    { values: ['Não inclui ID interno, empresa_id, created_by nem data de criação do banco.'], styleRow: 'normal' },
+    { values: ['Não inclui ID interno, empresa_id, created_by nem data de criação do banco. Inclui flags executivas: procedente, cumprimento, falta instaurar, oportunidade/sucumbência.'], styleRow: 'normal' },
     { values: ['Documento gerado por LexisPredict — uso interno operacional.'], styleRow: 'normal' },
     { values: [''], styleRow: 'normal' },
     { values: ['RESUMO EXECUTIVO'], styleRow: 'section' },

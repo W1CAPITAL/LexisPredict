@@ -16,6 +16,7 @@ import {
   isSentencaProcedente,
 } from './merito-detect';
 import { isAtendimentoRecente, parseFilaListaFromObs } from './fila-listas';
+import { flagSucumbencia, flagOportunidadeHonorarios } from './kpi-executivo';
 
 /** Pesos base — ajustáveis sem mudar a hierarquia */
 export const PRIORITY_WEIGHTS: Record<string, number> = {
@@ -59,6 +60,7 @@ export const PRIORITY_WEIGHTS: Record<string, number> = {
   numopede: 220,
   pred_risco_compound_cap: 120,
   oportunidade_instaurar: 520,
+  sucumbencia_bonus: 180,
   atendimento_recente_penalty: -800,
   lista_tratamento_penalty: -600,
   lista_blacklist_penalty: -2000,
@@ -271,6 +273,10 @@ export function pesoFila(c: LegalCase): number {
   } else if ((c as any).cumprimento_pendente_necessario) {
     w += 360;
   }
+  try {
+    if (flagSucumbencia(c)) w += W.sucumbencia_bonus ?? 180;
+    if (flagOportunidadeHonorarios(c) && !(op?.elegivel)) w += 200;
+  } catch { /* */ }
 
   // Listas operacionais: não competem no topo
   const lista = parseFilaListaFromObs(c.observacao || (c as any).dados?.observacao);

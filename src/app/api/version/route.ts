@@ -3,16 +3,15 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const LEXIS_APP_VERSION = "9.52.0";
+export const LEXIS_APP_VERSION = "9.53.0";
 
 export const LEXIS_CHANGELOG: string[] = [
-  "Nova versão 9.52 — Lote C (comunicação).",
-  "Rascunhos ao cliente em 2ª pessoa (você) — remove 'o autor / parte autora'.",
-  "Âncora DJEN: textos ordenados pela data de disponibilização (ato mais recente manda).",
-  "Sugerir resposta (Tarefas / Processos / WhatsApp) usa a mesma âncora DJEN.",
-  "WhatsApp: canal=whatsapp no motor; atendimento com próximo retorno, observação e encerrar.",
-  "Histórico WA: busca por variantes de telefone (55, 9º dígito, remote_jid).",
-  "Lote B (fila): atendimento recente e listas tratamento/blacklist mantidos.",
+  "Nova versão 9.53 — Lote D (mérito / cumprimento / export).",
+  "KPI executivo unificado: procedentes, cumprimento ativo/encerrado, falta instaurar, sucumbência.",
+  "Dashboard e aba Ações Procedentes usam a mesma regra de contagem.",
+  "Fila: bônus para sucumbência e oportunidade de honorários.",
+  "Export: colunas executivas legíveis (sem id / empresa_id / created_by).",
+  "Lotes B e C mantidos (fila + comunicação 2ª pessoa + âncora DJEN).",
 ];
 
 export async function GET() {
@@ -22,7 +21,6 @@ export async function GET() {
     process.env.NEXT_PUBLIC_BUILD_ID ||
     "dev";
   const buildId = `${LEXIS_APP_VERSION}-${String(sha).slice(0, 12)}`;
-
   return NextResponse.json(
     {
       version: LEXIS_APP_VERSION,

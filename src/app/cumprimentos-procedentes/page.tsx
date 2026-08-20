@@ -38,6 +38,7 @@ import {
 } from "@/app/actions/case-actions";
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
+import { computeKpiExecutivo } from "@/lib/kpi-executivo";
 
 type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios";
 
@@ -155,7 +156,10 @@ export default function CumprimentosProcedentesPage() {
     load();
   }, [load]);
 
-  const filtered = useMemo(() => {
+  
+  const kpiExecutivo = useMemo(() => computeKpiExecutivo((cases || []) as any), [cases]);
+
+const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     let base = [...cases];
     if (term) {
