@@ -57,6 +57,7 @@ export function detectarAudienciaPendente(
   const comData = RE_DATA_PROXIMA.test(t);
   // Exige designação explícita OU (palavra audiência + padrão de data marcada)
   // NÃO aceita só a palavra AUDIÊNCIA isolada.
+  // LOTE2: nome de movimento "Audiência" isolado no DataJud sem designação/data = NÃO
   if (!designada && !comData) {
     return {
       isAudienciaPendente: false,

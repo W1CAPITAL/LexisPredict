@@ -105,10 +105,14 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
   addLog: (log) =>
     set((state) => {
-      const filtered = state.lastLogs.filter(
-        (l) => !(l.protocolo === log.protocolo && l.engine === log.engine)
-      );
-      return { lastLogs: [log, ...filtered].slice(0, 60) };
+      // LOTE2: logs SISTEMA sempre empilham; demais CNJ dedup por protocolo+engine
+      const isSys = String(log.protocolo || '').toUpperCase() === 'SISTEMA';
+      const filtered = isSys
+        ? state.lastLogs
+        : state.lastLogs.filter(
+            (l) => !(l.protocolo === log.protocolo && l.engine === log.engine && l.message === log.message)
+          );
+      return { lastLogs: [log, ...filtered].slice(0, 120) };
     }),
 
   updateCourtHealth: (courtId, latency, success) => {
@@ -196,11 +200,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
             manualClosed: 0,
             manualDjenAlerts: 0,
             manualErrors: 0,
+            // LOTE2: não apaga o feed inteiro — mantém últimos 15 para contexto
+            lastLogs: get().lastLogs.slice(0, 15),
           }),
     });
     get().addLog({
       protocolo: 'SISTEMA',
-      message: 'Iniciando varredura local… ativos primeiro; encerrados depois (checa cumprimento/falta instaurar)',
+      message: resume
+        ? 'Retomando varredura local…'
+        : 'Iniciando varredura local… ativos primeiro; encerrados depois (checa cumprimento/falta instaurar)',
       latency: 0,
       success: true,
       type: 'ok',
@@ -415,6 +423,20 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
 
       set((s) => ({ manualDone: s.manualDone + 1 }));
+      // LOTE2: heartbeat a cada 10 CNJs no feed (confiança visual)
+      {
+        const st = get();
+        if (st.manualDone > 0 && st.manualDone % 10 === 0) {
+          get().addLog({
+            protocolo: 'SISTEMA',
+            message: `Progresso ${st.manualDone}/${st.manualTotal || '?'} · alertas ${st.manualAlerts} · DJEN ${st.manualDjenAlerts} · erros ${st.manualErrors}`,
+            latency: 0,
+            success: true,
+            type: 'ok',
+            engine: 'Local',
+          });
+        }
+      }
       try {
         const st = get();
         writeScanProgress(st.manualDone || 0, st.manualTotal || 0, st.scanMode);

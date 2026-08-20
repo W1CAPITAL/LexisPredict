@@ -316,7 +316,7 @@ export function classifyEventFromText(
   const temIntima = /(INTIMA[CÇ][AÃ]O|INTIMADO|INTIMEM-SE|CI[EÊ]NCIA)/.test(upper);
   const temJG = /(JUSTI[CÇ]A\s+GRATUITA|GRATUIDADE\s+DA\s+JUSTI[CÇ]A|ASSIST[EÊ]NCIA\s+JUDICI[AÁ]RIA)/.test(upper);
   const temPrazoDocs = /(PRAZO\s+DE\s+\d+|ASSINO\s+[AÀ]\s+PARTE|APRESENTE\(M\)|DECLARA[CÇ][OÕ]ES\s+DE\s+BENS|EXTRATOS\s+BANC[AÁ]RIOS)/.test(upper);
-  const temCustas = /(CUSTAS|PREPARO|RECOLHIMENTO|DESER[CÇ][AÃ]O|GUIA\s+OFICIAL)/.test(upper);
+  const temCustas = /(CUSTAS|PREPARO|RECOLHIMENTO|DESER[CÇ][AÃ]O|GUIA\s+OFICIAL|GUIA\s+GERADA|JUNTADA.{0,40}GUIA|TAXA\s+JUDICI[AÁ]RIA)/.test(upper);
   const temDespacho = /(DESPACHO\/DECIS|DESPACHO|DETERMINO)/.test(upper);
 
   if (temIntima && temJG && temPrazoDocs) {

@@ -613,13 +613,6 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     });
   }
 
-  if (out.length === 0) {
-    const temNovidade =
-      input.tem_novo_andamento ||
-      input.tem_atualizacao_pos_retorno ||
-      input.djen_nova_comunicacao ||
-      (input.movimentos && input.movimentos.length > 0);
-    
   // Intimação de justiça gratuita com prazo para documentos
   // Se o prazo (ex.: 15 dias) já se esgotou e não há novidade recente → NÃO pedir docs de novo:
   // o cenário usual é "documentação enviada / prazo expirou → aguardando decisão do juiz".
@@ -678,14 +671,22 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     }
   }
 
+
   // Monitoramento regular / sem ato relevante
+  // LOTE 2: nunca empurrar "rotina/acompanhando" se há sinal crítico ou novidade aberta
   {
     const soRotinaCartorio =
-      !/(INTIMA|DESPACHO|DECIS|SENTEN|LIMINAR|AUDI[EÊ]NCIA|CUSTAS|PREPARO|BAIXA|TR[AÂ]NSITO|CUMPRIMENTO|PROCEDENTE|IMPROCEDENTE)/i.test(U) &&
+      !/(INTIMA|DESPACHO|DECIS|SENTEN|LIMINAR|AUDI[EÊ]NCIA|CUSTAS|PREPARO|BAIXA|TR[AÂ]NSITO|CUMPRIMENTO|PROCEDENTE|IMPROCEDENTE|GUIA\s+GERADA|NUMOPED)/i.test(U) &&
       /(REMESSA|RECEBIMENTO|PUBLICA|DISPONIBILIZA|EXPEDI[CÇ]|ATO\s+ORDINAT|MERO\s+EXPEDIENTE)/i.test(U);
     const temNovidadeFlag =
       !!(input.tem_novo_andamento || input.tem_atualizacao_pos_retorno || input.djen_nova_comunicacao);
-    if (soRotinaCartorio || (!temNovidadeFlag && !U.trim())) {
+    const criticoAberto =
+      !!(input.indicio_busca_apreensao || input.busca_apreensao) ||
+      !!(input.datajud_encerrado_tribunal) ||
+      /^(ba|transito|baixa|sentenca|liminar|cumprimento|custas|intimacao_custas)/i.test(
+        String(input.evento_tipo || input.eventoTipo || '')
+      );
+    if (!criticoAberto && !temNovidadeFlag && (soRotinaCartorio || !U.trim())) {
       out.push({
         id: 'monitoramento_regular',
         categoria: 'monitoramento',
@@ -703,21 +704,50 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     }
   }
 
-out.push({
-      id: 'fallback',
-      categoria: 'andamento',
-      titulo: temNovidade ? 'Atualização' : 'Acompanhamento',
-      quandoUsar: 'Sem classificação forte',
-      texto: msg([
-        `Olá, ${nome}! Tudo bem?`,
-        ``,
-        temNovidade
-          ? `Houve movimentação no processo nº ${cnj}. Nossa equipe está conferindo o teor completo antes de qualquer conclusão.`
-          : `Seguimos acompanhando o processo nº ${cnj}.`,
-        ``,
-        `Qualquer novidade objetiva, te aviso.`,
-      ]),
-    });
+  // Fallback só se ainda não há script forte
+  {
+    const temNovidade = !!(
+      input.tem_novo_andamento ||
+      input.tem_atualizacao_pos_retorno ||
+      input.djen_nova_comunicacao ||
+      (input.movimentos && input.movimentos.length > 0)
+    );
+    const temScriptForte = out.some(
+      (x) =>
+        x.id !== 'monitoramento_regular' &&
+        x.id !== 'fallback' &&
+        !/acompanhamento|monitoramento regular/i.test(x.titulo || '')
+    );
+    const criticoAberto =
+      !!(input.indicio_busca_apreensao || input.busca_apreensao) ||
+      !!(input.datajud_encerrado_tribunal) ||
+      temNovidade ||
+      /^(ba|transito|baixa|sentenca|liminar|cumprimento|custas)/i.test(
+        String(input.evento_tipo || input.eventoTipo || '')
+      );
+
+    if (!temScriptForte) {
+      out.push({
+        id: 'fallback',
+        categoria: 'andamento',
+        titulo: criticoAberto || temNovidade ? 'Atualização em análise' : 'Acompanhamento',
+        quandoUsar:
+          criticoAberto || temNovidade
+            ? 'Há sinal de tribunal/diário — equipe conferindo teor (nunca rotina genérica)'
+            : 'Sem classificação forte',
+        texto: msg([
+          `Olá, ${nome}! Tudo bem?`,
+          ``,
+          criticoAberto || temNovidade
+            ? `Identificamos movimentação no processo nº ${cnj}. Nossa equipe está conferindo o teor completo (DataJud/DJEN) antes de qualquer conclusão ou cobrança.`
+            : `Seguimos acompanhando o processo nº ${cnj}.`,
+          ``,
+          criticoAberto || temNovidade
+            ? `Assim que tivermos a leitura objetiva do ato, te retorno com os próximos passos.`
+            : `Qualquer novidade objetiva, te aviso.`,
+        ]),
+      });
+    }
   }
 
   // Preparo urgente no topo; remove scripts de contrarrazões conflitantes

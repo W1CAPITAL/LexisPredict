@@ -278,9 +278,16 @@ export function DataJudScannerPanel() {
                   </div>
                 ))}
                 {lastLogs.length === 0 && (
-                  <div className="py-20 flex flex-col items-center justify-center opacity-20 space-y-4">
-                     <Search size={32} />
-                     <p className="text-[9px] font-black uppercase tracking-widest">Aguardando telemetria...</p>
+                  <div className="py-16 flex flex-col items-center justify-center opacity-40 space-y-3">
+                     <Search size={28} />
+                     <p className="text-[9px] font-black uppercase tracking-widest text-center px-4">
+                       {manualStatus === 'running'
+                         ? 'Varredura em curso — os logs aparecem a cada CNJ'
+                         : 'Aguardando telemetria — inicie a varredura local ou de nuvem'}
+                     </p>
+                     {manualStatus === 'paused' && (
+                       <p className="text-[8px] font-bold uppercase text-amber-700">Pausado — use Retomar de onde parou</p>
+                     )}
                   </div>
                 )}
              </div>
