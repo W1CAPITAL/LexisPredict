@@ -12,6 +12,7 @@ import {
   parse,
   isValid,
   startOfDay,
+  endOfDay,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -79,7 +80,7 @@ export function weekBounds(ref = new Date()) {
   const hojeLocal = ymdToLocalDate(hojeYmd);
   const start = startOfWeek(hojeLocal, { weekStartsOn: 1 });
   const end = endOfWeek(hojeLocal, { weekStartsOn: 1 });
-  return { start: startOfDay(start), end: startOfDay(end) };
+  return { start: startOfDay(start), end: endOfDay(end) };
 }
 
 /** Extrai último retorno de várias formas do objeto caso */
@@ -305,7 +306,7 @@ export function periodBounds(periodo: PeriodoRelatorio, ref = new Date()) {
   if (periodo === 'esta_semana') {
     const start = startOfWeek(hojeLocal, { weekStartsOn: 1 });
     const end = endOfWeek(hojeLocal, { weekStartsOn: 1 });
-    return { start: startOfDay(start), end: startOfDay(end) };
+    return { start: startOfDay(start), end: endOfDay(end) };
   }
 
   if (periodo === 'semana_passada') {
@@ -314,7 +315,7 @@ export function periodBounds(periodo: PeriodoRelatorio, ref = new Date()) {
     start.setDate(start.getDate() - 7);
     const end = new Date(esta.end);
     end.setDate(end.getDate() - 7);
-    return { start: startOfDay(start), end: startOfDay(end) };
+    return { start: startOfDay(start), end: endOfDay(end) };
   }
 
   // mês atual (calendário BR)

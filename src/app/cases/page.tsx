@@ -19,7 +19,7 @@ import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { CaseBadges } from '@/components/cases/case-badges';
 import { cn, formatWhatsAppLink } from '@/lib/utils'
-import { isAtendidoNestaSemana, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import { isAtendidoNestaSemana, isAtendidoHoje, hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { computeKpiCarteira } from '@/lib/kpi-carteira';
 import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { ui } from '@/lib/responsive-ui';
@@ -707,18 +707,30 @@ function CasesContent() {
       toast({ title: 'Campos obrigatórios', description: 'Informe cliente e protocolo (CNJ).', variant: 'destructive' });
       return;
     }
-    // ENCERRADO sempre atualiza ultimoRetorno para HOJE (conta na semana)
+    // ENCERRADO ou último retorno hoje/semana = conta como atendimento
+    const isoForm = formatDateToISO(formState.ultimoRetorno) || '';
+    const isEncerrado = String(formState.situacao || '').toUpperCase() === 'ENCERRADO';
     const formForSave =
-      String(formState.situacao || '').toUpperCase() === 'ENCERRADO'
+      isEncerrado
         ? {
             ...formState,
             ...patchAtendimentoComEdicao(
               (profile as any)?.auth_user_id || (profile as any)?.id,
               hojeBrasilYmd()
             ),
+            ultimoRetorno: hojeBrasilYmd(),
             proximoPrazo: '',
           }
-        : formState;
+        : isoForm && (isAtendidoHoje(isoForm) || isAtendidoNestaSemana(isoForm))
+          ? {
+              ...formState,
+              ultimoRetorno: isoForm,
+              ...patchAtendimentoComEdicao(
+                (profile as any)?.auth_user_id || (profile as any)?.id,
+                isoForm
+              ),
+            }
+          : { ...formState, ultimoRetorno: isoForm || formState.ultimoRetorno };
     if (editingCase) {
       const digits = protocolo.replace(/\D/g, '');
       if (digits.length !== 20) {

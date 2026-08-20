@@ -9,6 +9,8 @@
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { createClient } from '@/lib/supabase/server';
+import { hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
+import { patchAtendimentoComEdicao } from '@/lib/processos-auditados';
 
 function toRow(
   c: LegalCase,
@@ -47,10 +49,12 @@ function toRow(
     djen_ultimo_resumo: c.djen_ultimo_resumo,
     djen_ultimo_link: c.djen_ultimo_link,
     djen_ultima_data: c.djen_ultima_data,
+    atendido_por: (c as any).atendido_por || null,
     dados: {
       ...c,
       ultimoRetorno: isoRetorno || c.ultimoRetorno,
       ultimo_retorno: isoRetorno || (c as any).ultimo_retorno,
+      atendido_por: (c as any).atendido_por || null,
       // nunca espalhar created_by errado no JSON como se fosse dono novo
       created_by: ownerAuthId || (c as any).created_by || null,
     },
@@ -72,7 +76,18 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     if (!empresa_id) return { success: false, message: 'Sessão expirada.' };
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
-    const processed = processarCaso(caseData as any);
+    let processed = processarCaso(caseData as any);
+
+    // Último retorno hoje/semana = atendimento (Editar em Processos/Tarefas/Cases)
+    const isoRet = formatDateToISO(
+      processed.ultimoRetorno ||
+        (caseData as any).ultimoRetorno ||
+        (caseData as any).ultimo_retorno
+    );
+    if (isoRet) {
+      processed.ultimoRetorno = isoRet;
+      (processed as any).ultimo_retorno = isoRet;
+    }
 
     let editorName = 'Sistema';
     if (auth_id) {
@@ -84,9 +99,15 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     processed.edited_by = auth_id || null;
     processed.edited_at = now;
     processed.edited_by_name = editorName;
-    // Atendimento: se veio atendido_por no payload, mantém; senão não força o dono
+    // Atendimento: payload ou último retorno hoje/nesta semana (conta KPI + fila)
     if ((caseData as any).atendido_por) {
       (processed as any).atendido_por = (caseData as any).atendido_por;
+    }
+    if (isoRet && auth_id && (isAtendidoHoje(isoRet) || isAtendidoNestaSemana(isoRet))) {
+      const patch = patchAtendimentoComEdicao(auth_id, isoRet);
+      Object.assign(processed, patch);
+      (processed as any).atendido_por = (processed as any).atendido_por || auth_id;
+      processed.ultimoRetorno = isoRet;
     }
 
     let client: any = null;
@@ -178,6 +199,16 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
           return { success: true, message: 'Salvo.', case: processed };
         }
         return { success: false, message: error.message };
+      }
+      if (isoRet && isAtendidoHoje(isoRet)) {
+        try {
+          const { registrarAtendimentoAction } = await import('@/app/actions/case-actions');
+          await registrarAtendimentoAction([processed.protocolo], {
+            via: 'saveOneCase',
+            ultimoRetorno: isoRet,
+            atendido_por: auth_id,
+          });
+        } catch { /* não bloqueia save */ }
       }
       return { success: true, message: 'Salvo.', case: processed };
     }

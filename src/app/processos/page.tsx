@@ -213,12 +213,31 @@ export default function ProcessosEmpresaPage() {
   const saveEdit = async () => {
     if (!editing) return;
     setSaving(true);
-    const updated: LegalCase = { ...editing };
+    const iso = formatDateToISO(editing.ultimoRetorno) || "";
+    let updated: LegalCase = {
+      ...editing,
+      ultimoRetorno: iso || editing.ultimoRetorno,
+    };
+    if (iso && (isAtendidoHoje(iso) || isAtendidoNestaSemana(iso))) {
+      updated = {
+        ...updated,
+        ...patchAtendimentoComEdicao(
+          (profile as any)?.auth_user_id || (profile as any)?.id,
+          iso
+        ),
+      } as LegalCase;
+    }
     const res = await saveOneCaseAction(updated);
     if (res.success) {
       await registrarAuditoriaEventAction("edicao", [editing.protocolo], {
         detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
       });
+      if (iso && isAtendidoHoje(iso)) {
+        await registrarAtendimentoAction([editing.protocolo], {
+          via: "processos-editar",
+          ultimoRetorno: iso,
+        });
+      }
       setEditOpen(false);
       setEditing(null);
       await load();

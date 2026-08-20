@@ -269,7 +269,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const situacao = (data.SITUACAO || data.situacao || data.STATUS || 'EM ANDAMENTO').toUpperCase();
   
   const proximoPrazoRaw = sanitizeDateCell(data.PROXIMO_RETORNO || data.PROXIMO_PRAZO || data.proximoPrazo || '');
-  const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || '');
+  const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || data.ultimo_retorno || data.ULTIMORETORNO || '');
   
   const statusManual = data.STATUS_MANUAL || data.statusManual || 'Automatico';
 
