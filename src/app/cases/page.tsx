@@ -992,8 +992,7 @@ function CasesContent() {
             <Button
               variant="default"
               size="sm"
-              onClick={handleExportXlsx} disabled={!canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
-              disabled={exporting}
+              onClick={handleExportXlsx} disabled={exporting || !canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
               className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
@@ -1002,8 +1001,7 @@ function CasesContent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExportCSV} disabled={!canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
-              disabled={exporting}
+              onClick={handleExportCSV} disabled={exporting || !canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
               className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
             >
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}

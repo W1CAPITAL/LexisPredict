@@ -57,7 +57,7 @@ export async function runExternalOcr(input: {
     let res: Response;
     if (mode === 'multipart') {
       const form = new FormData();
-      const blob = new Blob([input.bytes], { type: input.mimeType || 'application/octet-stream' });
+      const blob = new Blob([new Uint8Array(input.bytes)], { type: input.mimeType || 'application/octet-stream' });
       form.append('file', blob, input.filename || 'document.bin');
       res = await fetch(endpoint, { method: 'POST', headers, body: form });
     } else {

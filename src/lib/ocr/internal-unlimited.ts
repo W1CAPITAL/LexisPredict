@@ -67,7 +67,7 @@ export async function ocrUnlimitedInternal(
 
     // 2) multipart fallback
     const form = new FormData();
-    form.append('file', new Blob([buffer], { type: mimeType }), 'doc.png');
+    form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), 'doc.png');
     form.append('language', language);
     const res2 = await fetch(base, {
       method: 'POST',

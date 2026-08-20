@@ -1,5 +1,7 @@
-import { useAdmin } from '@/hooks/use-admin';
 "use client";
+
+import { useAdmin } from '@/hooks/use-admin';
+
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 

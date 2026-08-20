@@ -158,7 +158,7 @@ export default function InsightsPage() {
     ]);
     try {
       const u8 = await buildXlsxWithSheetJS([{ name: "IA Preditiva", rows: [headers, ...aoa] }]);
-      const blob = new Blob([u8], {
+      const blob = new Blob([new Uint8Array(u8)], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const url = URL.createObjectURL(blob);

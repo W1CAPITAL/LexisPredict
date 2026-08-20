@@ -99,6 +99,7 @@ function SidebarNavBody({
   isSuperAdmin,
   profile,
   status,
+  canScan = true,
   onToggleMinimize,
   onStartTour,
   onLogout,
@@ -112,6 +113,7 @@ function SidebarNavBody({
   isSuperAdmin?: boolean;
   profile: any;
   status: string;
+  canScan?: boolean;
   onToggleMinimize: () => void;
   onStartTour: () => void;
   onLogout: () => void;
@@ -460,7 +462,8 @@ export function Sidebar() {
     isSuperAdmin,
     profile,
     status: status || "idle",
-    onToggleMinimize: () => toggleMinimize(),
+    canScan,
+    onToggleMinimize: () => { if (!canScan) return; toggleMinimize(); },
     onStartTour: () => {
       setTutorialActive(true);
       setIsMobileOpen(false);

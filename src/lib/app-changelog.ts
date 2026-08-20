@@ -17,9 +17,23 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.9.0';
+export const APP_VERSION = '1.10.0';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.10.0',
+    date: '2026-08-20',
+    title: 'Build estável (client directives + types)',
+    details: [
+      'use client no topo de Tarefas e WhatsApp.',
+      'canScan propagado no SidebarNavBody.',
+      'Export Processos: disabled sem atributo duplicado.',
+      'Imports ai/dev sem extensão .ts (TS6).',
+      'Declarações CSS e Blob/Uint8Array para typecheck.',
+    ],
+    tags: ['build', 'typescript'],
+  },
+
   {
     version: '1.9.0',
     date: '2026-08-20',
