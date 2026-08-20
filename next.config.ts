@@ -1,17 +1,20 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+/**
+ * Next.js 16.3.1 — LexisPredict
+ * - `eslint` removido do next.config (não existe mais em Next 16)
+ * - Build de produção usa Webpack explicitamente (`next build --webpack`)
+ *   porque há custom webpack; Turbopack no `next dev` continua ok
+ * - `turbopack: {}` silencia conflito se alguém rodar build sem flag
+ */
 const nextConfig: NextConfig = {
-  // Next.js 16.3 + TypeScript 7 — LexisPredict
   compress: true,
   productionBrowserSourceMaps: false,
   typescript: {
+    // typecheck no CI via `npm run typecheck`; build não deve falhar por dívida de tipos
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // metal-fx é ESM moderno — transpile no build
   transpilePackages: ["metal-fx"],
   serverExternalPackages: [
     "tesseract.js",
@@ -27,6 +30,8 @@ const nextConfig: NextConfig = {
     "puppeteer-core",
     "@sparticuz/chromium",
   ],
+  // Next 16: Turbopack default no build — declarar bloco vazio + script --webpack
+  turbopack: {},
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
@@ -42,7 +47,6 @@ const nextConfig: NextConfig = {
       },
     };
     if (!dev) {
-      // menos ruído de serialização em CI
       config.infrastructureLogging = { level: "error" };
     }
     return config;
@@ -67,7 +71,6 @@ const nextConfig: NextConfig = {
         },
         {
           key: "Content-Security-Policy",
-          // App Next + Supabase + Vercel; ajuste se usar CDNs extras
           value: [
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net",
@@ -76,7 +79,6 @@ const nextConfig: NextConfig = {
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: blob: https:",
             "font-src 'self' https://fonts.gstatic.com data:",
-            // blob: workers Tesseract; tessdata só para baixar idioma por.traineddata (não é motor OCR)
             "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://cdn.jsdelivr.net https://tessdata.projectnaptha.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",

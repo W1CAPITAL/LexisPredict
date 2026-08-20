@@ -17,9 +17,21 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.13.0';
+export const APP_VERSION = '1.13.1';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.13.1',
+    date: '2026-08-20',
+    title: 'Fix build Next 16.3 (webpack + sem eslint config)',
+    details: [
+      'Removida chave eslint do next.config (inválida no Next 16).',
+      'Build produção: next build --webpack (mantém cache filesystem).',
+      'turbopack: {} no config; engines node 20.x.',
+    ],
+    tags: ['infra', 'build'],
+  },
+
   {
     version: '1.13.0',
     date: '2026-08-20',
