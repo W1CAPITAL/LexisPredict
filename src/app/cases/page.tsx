@@ -43,7 +43,7 @@ import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAc
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
-import { saveOneCaseAction, transferCasesOwnerAction } from '@/app/actions/case-save-actions';
+import { saveOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
@@ -671,6 +671,17 @@ function CasesContent() {
       toast({ title: 'Nada selecionado', description: 'Marque os processos na lista.', variant: 'destructive' });
       return;
     }
+    const nomeDest =
+      (assignableUsers || []).find((u) => String(u.auth_user_id) === String(bulkOwnerId))?.nome ||
+      bulkOwnerId;
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        `Transferir ${list.length} processo(s) para ${nomeDest}?\n\nIsso muda a carteira (created_by). Quem atendia continua no histórico de atendimento.`
+      )
+    ) {
+      return;
+    }
     setBulkTransferring(true);
     try {
       const res = await transferCasesOwnerAction({ protocolos: list, novoOwnerAuthId: bulkOwnerId });
@@ -770,7 +781,7 @@ function CasesContent() {
         (updatedCase as any).created_by = nextOwner;
       }
       // Transferência de carteira só quando o responsável mudou de propósito
-      if (canAssignOwner && nextOwner && prevOwner && nextOwner !== prevOwner) {
+      if (canAssignOwner && nextOwner && nextOwner !== prevOwner) {
         (updatedCase as any).force_transfer_owner = true;
       }
       if (cnjChanged) {
@@ -789,21 +800,23 @@ function CasesContent() {
         }
         return;
       }
-      // 1) Transferência de carteira (action dedicada + service role)
-      if (canAssignOwner && nextOwner && prevOwner && nextOwner !== prevOwner) {
-        const tr = await transferCasesOwnerAction({
-          protocolos: [String(updatedCase.protocolo || editingCase.protocolo || '')],
+      // 1) Transferência de carteira (reassign + service role + verificação pós-UPDATE)
+      if (canAssignOwner && nextOwner && nextOwner !== prevOwner) {
+        const tr = await reassignCaseOwnerAction({
+          protocolo: String(updatedCase.protocolo || editingCase.protocolo || ''),
           novoOwnerAuthId: nextOwner,
         });
-        if (!tr.success || tr.updated < 1) {
+        if (!tr.success) {
           toast({
             title: 'Não transferiu o responsável',
             description:
               tr.message ||
-              'Verifique SUPABASE_SERVICE_ROLE_KEY no Vercel e se o trigger prevent_created_by_steal foi removido no SQL.',
+              'SERVICE_ROLE no Vercel + DROP TRIGGER prevent_created_by_steal no Supabase.',
             variant: 'destructive',
           });
-          // continua tentando salvar demais campos
+          // continua salvando demais campos; created_by pode permanecer
+        } else {
+          (updatedCase as any).created_by = nextOwner;
         }
       }
       // 2) Demais campos do processo
