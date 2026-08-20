@@ -44,6 +44,7 @@ import {
   Building2
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic'
+import { linhaFase, linhaDonoAto } from '@/lib/fase-resumo';
 import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
 import { scoreGroupPriority } from '@/lib/case-priority';
 import { CaseBadges } from '@/components/cases/case-badges';

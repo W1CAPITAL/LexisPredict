@@ -7,7 +7,8 @@ export type FaseResumo = {
 };
 
 /** Uma linha honesta: fase atual + o que ainda falta. Sem “ALERTA BA” genérico. */
-export function resumirFase(c: LegalCase): FaseResumo {
+export function resumirFase(c?: LegalCase | null): FaseResumo {
+  if (!c) return { fase: "Sem processo", falta: [] };
   const f = detectFlagsFase(c);
   const falta: string[] = [];
   let fase = "Em andamento";
@@ -38,12 +39,13 @@ export function resumirFase(c: LegalCase): FaseResumo {
   return { fase, falta: falta.slice(0, 3) };
 }
 
-export function linhaFase(c: LegalCase): string {
+export function linhaFase(c?: LegalCase | null): string {
   const r = resumirFase(c);
   return r.falta.length ? `${r.fase} · falta ${r.falta.join(", ")}` : r.fase;
 }
 
-export function linhaDonoAto(c: LegalCase): string {
+export function linhaDonoAto(c?: LegalCase | null): string {
+  if (!c) return "—";
   const dono = String((c as any).atendido_por || c.advogado || "—").trim();
   const quando = String(c.ultimoRetorno || (c as any).ultimo_retorno || "").slice(0, 10) || "sem retorno";
   const passo = String(c.evento_resumo || c.datajud_ultimo_nome || "").slice(0, 80) || "sem último ato";
