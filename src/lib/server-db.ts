@@ -46,7 +46,7 @@ export async function getUserContext() {
   const isMasterView = isSuperAdmin || isSupervisor || isViewer;
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
-  const isEmpresaWide = isMasterView || isAdministrador;
+  const isEmpresaWide = isMasterView; // Supervisor / Superadmin / Visualizador — NÃO Administrador
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -125,7 +125,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   const context = await getUserContext();
   const { auth_id, isMasterView, isEmpresaWide } = context as any;
-  const useAdmin = isAdmin || isMasterView === true || isEmpresaWide === true;
+  const useAdmin = isAdmin || isMasterView === true;
   let client = useAdmin ? await getSupabaseAdmin() : supabase;
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
