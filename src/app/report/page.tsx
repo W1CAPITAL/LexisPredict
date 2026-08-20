@@ -572,7 +572,7 @@ export default function UnifiedReport() {
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-6 space-y-3 break-inside-avoid">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Atendimentos nesta semana</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Atendimentos no período</p>
               <p className="text-3xl font-black tabular-nums text-foreground">{metrics.countAtendidosSemana ?? 0}
                 <span className="text-sm font-bold text-muted-foreground ml-2">casos · {metrics.semanaLabel}</span>
               </p>

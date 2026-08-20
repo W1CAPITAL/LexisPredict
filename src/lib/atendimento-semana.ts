@@ -172,52 +172,52 @@ export interface AtendimentoPorUsuario {
   mes: number;
 }
 
-/** Conta atendimentos por usuário (dia/semana/mês) baseado no ultimoRetorno */
+/** Conta atendimentos por usuário — MESMA regra do dashboard (Brasília, semana com fim). */
 export function countAtendimentosPorUsuario(
   cases: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null; atendido_por?: string | null; updated_by?: string | null; edited_by?: string | null }>,
   users: Array<{ auth_user_id: string; nome: string }>,
   ref = new Date()
 ): AtendimentoPorUsuario[] {
-  const userMap = new Map(users.map(u => [u.auth_user_id, u.nome]));
-  const now = ref;
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const startOfWeek = (d: Date) => {
-    const day = d.getDay();
-    const diff = d.getDay() === 0 ? -6 : 1 - day; // Monday start
-    return startOfDay(new Date(d.getTime() + diff * 86400000));
-  };
-  const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
-  
-  const todayStart = startOfDay(now);
-  const weekStart = startOfWeek(now);
-  const monthStart = startOfMonth(now);
-  
+  const userMap = new Map(users.map((u) => [String(u.auth_user_id), u.nome]));
+  const { start: weekStart, end: weekEnd } = weekBounds(ref);
+  const hojeYmd = hojeBrasilYmd(ref);
+  const [yy, mm] = hojeYmd.split('-').map((n) => parseInt(n, 10));
+  const monthStart = startOfDay(new Date(yy, mm - 1, 1));
+  const monthEnd = endOfDay(new Date(yy, mm, 0)); // último dia do mês
+
   const userCounts = new Map<string, { dia: number; semana: number; mes: number }>();
-  
+
   for (const c of cases || []) {
-    const raw = pickUltimoRetorno(c) ?? c.ultimoRetorno ?? c.ultimo_retorno ?? null;
+    const raw = pickUltimoRetorno(c);
     if (!raw) continue;
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
-    
-    // Quem atendeu de verdade — NUNCA created_by (dono da carteira ≠ quem ligou)
-    const userId =
+
+    // Quem atendeu — nunca created_by (dono ≠ quem ligou)
+    const userId = String(
       (c as any).atendido_por ??
-      (c as any).atendidoPor ??
-      (c as any).edited_by ??
-      (c as any).updated_by ??
-      null;
+        (c as any).atendidoPor ??
+        (c as any).edited_by ??
+        (c as any).updated_by ??
+        ''
+    ).trim();
     if (!userId) continue;
-    
-    const userCountsEntry = userCounts.get(userId) || { dia: 0, semana: 0, mes: 0 };
-    
-    if (startOfDay(d).getTime() === todayStart.getTime()) userCountsEntry.dia += 1;
-    if (d >= weekStart) userCountsEntry.semana += 1;
-    if (d >= monthStart) userCountsEntry.mes += 1;
-    
-    userCounts.set(userId, userCountsEntry);
+
+    const entry = userCounts.get(userId) || { dia: 0, semana: 0, mes: 0 };
+
+    if (isAtendidoHoje(raw, ref)) entry.dia += 1;
+    if (isWithinInterval(d, { start: weekStart, end: weekEnd })) entry.semana += 1;
+    if (isWithinInterval(d, { start: monthStart, end: monthEnd })) entry.mes += 1;
+
+    userCounts.set(userId, entry);
   }
-  
+
+  // Garante linha zerada para usuários da empresa (ranking estável)
+  for (const u of users || []) {
+    const id = String(u.auth_user_id);
+    if (!userCounts.has(id)) userCounts.set(id, { dia: 0, semana: 0, mes: 0 });
+  }
+
   const result: AtendimentoPorUsuario[] = [];
   for (const [userId, counts] of userCounts.entries()) {
     result.push({
@@ -228,7 +228,7 @@ export function countAtendimentosPorUsuario(
       mes: counts.mes,
     });
   }
-  
+
   return result.sort((a, b) => b.semana - a.semana || b.dia - a.dia || b.mes - a.mes);
 }
 
