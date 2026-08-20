@@ -140,6 +140,7 @@ export default function TarefasPage() {
   const [lawyerFilter, setLawyerFilter] = useState('all');
   const [sortPrazo, setSortPrazo] = useState<'mais_vencido' | 'menos_vencido' | 'prazo_asc'>('mais_vencido');
   const [dailyMeta, setDailyMeta] = useState(25);
+  const [somenteMeta, setSomenteMeta] = useState(true);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
   const [showBacklog, setShowBacklog] = useState(false);
   
@@ -183,6 +184,9 @@ export default function TarefasPage() {
       const parsed = parseInt(savedMeta);
       if (!isNaN(parsed)) setDailyMeta(parsed);
     }
+    const savedSomente = localStorage.getItem('lexis_tarefas_somente_meta');
+    if (savedSomente === '0') setSomenteMeta(false);
+    else if (savedSomente === '1') setSomenteMeta(true);
     const savedContatados = localStorage.getItem(getTodayKey());
     if (savedContatados) {
       try { setContatadosHoje(JSON.parse(savedContatados)); } catch (e) { setContatadosHoje([]); }
@@ -749,7 +753,29 @@ const handleSaveAttendance = async () => {
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
           <section className={ui.metrics}>
             <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes · auto {autoTarefas.length}</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
-            <div className="premium-card p-6 border-l-4 border-l-primary relative group"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Meta do Dia</p><div className="flex items-center gap-4"><span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span><div className="flex items-center gap-1.5 ml-auto"><Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button><Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button></div></div></div>
+            <div className="premium-card p-6 border-l-4 border-l-primary relative group space-y-3">
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Meta do dia (fila ativa)</p>
+              <div className="flex items-center gap-4">
+                <span className="text-4xl font-black text-foreground tabular-nums">{dailyMeta}</span>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <Button variant="outline" size="icon" onClick={() => adjustMeta(-5)} className="h-8 w-8"><Minus size={14} /></Button>
+                  <Button variant="outline" size="icon" onClick={() => adjustMeta(5)} className="h-8 w-8"><Plus size={14} /></Button>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <Checkbox
+                  checked={somenteMeta}
+                  onCheckedChange={(v) => {
+                    const on = !!v;
+                    setSomenteMeta(on);
+                    try { localStorage.setItem('lexis_tarefas_somente_meta', on ? '1' : '0'); } catch { /* */ }
+                  }}
+                />
+                <span className="text-[10px] font-bold uppercase text-muted-foreground leading-tight">
+                  Só a meta — esconde os outros {taskData.totalPendingCount > dailyMeta ? taskData.totalPendingCount - dailyMeta : 0} pendentes
+                </span>
+              </label>
+            </div>
             <div className="premium-card p-6 border-l-4 border-l-emerald-500" title="Clientes únicos com ultimo retorno = hoje (todas as abas) · processos no tooltip">
               <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Finalizados</p>
               <h3 className="text-3xl font-black text-emerald-600 tabular-nums">{finalizadosHoje.clientes}</h3>
@@ -868,7 +894,7 @@ const handleSaveAttendance = async () => {
             )}
           </div>
 
-          {taskData.backlog.length > 0 && (
+          {!somenteMeta && taskData.backlog.length > 0 && (
             <div className="space-y-4 pt-10 border-t border-border/30">
                <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
                {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

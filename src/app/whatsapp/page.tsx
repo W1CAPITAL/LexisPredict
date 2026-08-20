@@ -732,7 +732,16 @@ function WhatsAppTerminalInner() {
         } catch {
           /* mantém caseData */
         }
-        setTribunalMovimentos(movimentos);
+        // LOTE3: andamentos aparecem 1 a 1 (feedback visual)
+        setTribunalMovimentos([]);
+        const list = Array.isArray(movimentos) ? movimentos : [];
+        for (let i = 0; i < list.length; i++) {
+          const slice = list.slice(0, i + 1);
+          setTribunalMovimentos(slice);
+          if (i < list.length - 1) {
+            await new Promise((r) => setTimeout(r, 40));
+          }
+        }
         setDjenComunicacoes(comunicacoes);
         if (caseData?.protocolo) {
           setSelected((prev) => (prev ? { ...prev, ...caseData } : caseData));
@@ -787,12 +796,19 @@ function WhatsAppTerminalInner() {
     setIsGeneratingAIDraft(true);
     setAiDraft(null);
     try {
-      // 1) Scripts locais IMEDIATOS (igual Tarefas) — não espera scan
+      // LOTE3: scripts locais IMEDIATOS no campo de envio (não espera IA nem scan)
       const localScripts =
         waScripts.length > 0
           ? waScripts
           : buildScriptsFromCase(selected, tribunalMovimentos, djenComunicacoes);
-      if (localScripts.length && !waScripts.length) setWaScripts(localScripts);
+      if (localScripts.length) {
+        if (!waScripts.length) setWaScripts(localScripts);
+        // Pré-preenche draft para o operador poder enviar sem esperar a IA
+        if (!draft.trim() && localScripts[0]?.texto) {
+          setDraft(localScripts[0].texto);
+          setAiDraft(localScripts[0].texto);
+        }
+      }
 
       if (selectedMotor === "local_only") {
         const text = localScripts[0]?.texto || "";
@@ -1721,6 +1737,7 @@ function WhatsAppTerminalInner() {
                         className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
                         onClick={sendViaEvolution}
                         disabled={sending || !draft.trim() || !selected || casePhoneDigits(selected).length < 8}
+                        title={isGeneratingAIDraft ? "Você pode enviar o script local mesmo com a IA carregando" : undefined}
                       >
                         {sending ? (
                           <Loader2 size={14} className="animate-spin" />

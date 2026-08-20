@@ -57,7 +57,7 @@ export const PRIORITY_WEIGHTS: Record<string, number> = {
   pred_sem_retorno_cap: 100,
   pred_prazo_cap: 40,
   pred_scan_priority_cap: 80,
-  numopede: 220,
+  numopede: 560, // LOTE3: sobe na fila de contato
   pred_risco_compound_cap: 120,
   oportunidade_instaurar: 520,
   sucumbencia_bonus: 180,

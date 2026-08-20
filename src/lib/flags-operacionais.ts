@@ -9,6 +9,7 @@ import {
   isSentencaImprocedente,
   isSentencaProcedente,
 } from './merito-detect';
+import { detectarAudienciaPendente } from './audiencia-detect';
 
 /** Protocolos com hit real na aba B.A. (ba_scan_logs / fila). */
 export type BaHitIndex = Set<string>;
@@ -41,26 +42,19 @@ export function temNovidadeIdentificada(c: LegalCase): boolean {
 }
 
 export function temAudienciaPendente(c: LegalCase): boolean {
-  if ((c as any).tem_audiencia === true) return true;
-  if (String(c.evento_tipo || '').startsWith('audiencia')) return true;
+  // LOTE3: não basta a palavra "audiência" — exige designação/data (audiencia-detect)
   if (hasAudienciaPosRetorno(c)) return true;
+  if (String(c.evento_tipo || '').startsWith('audiencia') && (c as any).tem_audiencia !== false) {
+    // evento_tipo já classificado pelo scan (mais confiável que keyword solta)
+    return true;
+  }
   const resumo = String(
     c.evento_resumo || (c as any).datajud_ultimo_nome || (c as any).djen_ultimo_resumo || ''
   );
-  if (/AUDI[EÊ]NCIA|CONCILIA/i.test(resumo) && !/REALIZADA|CANCELADA|DESMARCADA/i.test(resumo)) {
-    return true;
-  }
-  // Data futura no resumo (dd/mm/yyyy)
-  const m = resumo.match(/(\d{2}\/\d{2}\/\d{4})/);
-  if (m && /AUDI/i.test(resumo)) {
-    try {
-      const [dd, mm, yyyy] = m[1].split('/').map(Number);
-      const d = new Date(yyyy, mm - 1, dd);
-      if (d.getTime() >= Date.now() - 86400000) return true;
-    } catch {
-      /* */
-    }
-  }
+  const det = detectarAudienciaPendente(resumo);
+  if (det.isAudienciaPendente) return true;
+  // Flag explícita só se veio do classificador (não indício frágil)
+  if ((c as any).tem_audiencia === true && det.motivo !== 'apenas menção da palavra') return true;
   return false;
 }
 
