@@ -14,7 +14,8 @@ import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAt
 import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
-import {countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana} from '@/lib/atendimento-semana';
+import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
+import { linhaDonoPasso, proximoPasso } from '@/lib/fase-resumo';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
@@ -546,6 +547,7 @@ export default function ProcessosEmpresaPage() {
                               <Link href={`/cases?search=${encodeURIComponent(c.protocolo)}`} className="hover:text-primary transition-colors">
                                 <p className="text-[11px] font-black uppercase leading-tight">{c.cliente}</p>
                                 <p className="text-[8px] font-mono text-muted-foreground/60 mt-0.5 truncate max-w-[240px]">{c.protocolo}</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{linhaDonoPasso(c)}</p>
                               </Link>
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.advogado}</td>

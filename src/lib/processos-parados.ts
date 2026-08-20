@@ -5,6 +5,7 @@
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
+import { isBuscaApreensaoReal } from "@/lib/ba-real";
 import type { LegalCase } from './case-logic';
 import { isCasoEncerrado } from './status-encerrado';
 
@@ -443,7 +444,7 @@ function oportunidadesDe(c: LegalCase, diasParado: number, estado: EstadoParado)
   }
 
   // --- Riscos / defesa ---
-  if (c.indicio_busca_apreensao || any.evento_tipo === 'ba' || /BUSCA E APREENSAO|BUSCA E APREENSÃO|MANDADO DE PRISAO/.test(txt)) {
+  if (isBuscaApreensaoReal(c)) {
     ops.push('Risco possessório/BA: medida urgente no processo (defesa / informação ao juízo)');
   }
   if (/AUDIENCIA|AUDIÊNCIA/.test(txt) && !/REALIZADA|CANCELADA|REDESIGNADA/.test(txt)) {

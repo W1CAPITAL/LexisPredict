@@ -13,6 +13,7 @@ import { crmReguaCobrancaAction, marcarReceberPagoAction } from "@/app/actions/c
 import { ArrowLeft, Loader2, RefreshCcw, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAdmin } from "@/hooks/use-admin";
 
 function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -20,6 +21,8 @@ function brl(n: number) {
 
 export default function CrmCobrancaPage() {
   const { toast } = useToast();
+  const { isSupervisor, isSuperAdmin } = useAdmin();
+  const visaoEmpresa = isSupervisor || isSuperAdmin;
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
@@ -82,7 +85,7 @@ export default function CrmCobrancaPage() {
               <div>
                 <h1 className="text-lg font-black">Régua de cobrança</h1>
                 <p className="text-xs text-muted-foreground">
-                  Só atrasados (D0+) por padrão. D-3 fica no interruptor.
+                  {visaoEmpresa ? "Supervisor: todos os atrasados da empresa." : "Só atrasados (D0+) por padrão."}
                 </p>
               </div>
             </div>

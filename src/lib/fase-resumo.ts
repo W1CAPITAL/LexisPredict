@@ -51,3 +51,21 @@ export function linhaDonoAto(c?: LegalCase | null): string {
   const passo = String(c.evento_resumo || c.datajud_ultimo_nome || "").slice(0, 80) || "sem último ato";
   return `${dono} · ${quando} · ${passo}`;
 }
+
+
+export function proximoPasso(c?: LegalCase | null): string {
+  const r = resumirFase(c);
+  if (!c) return "Abrir o processo e conferir o último ato";
+  if (r.falta.includes("satisfação do cumprimento")) return "Conferir levantamento / quitação do cumprimento";
+  if (r.falta.includes("réplica")) return "Prazo de réplica: protocolar ou pedir prazo";
+  if (r.falta.includes("contestação")) return "Checar citação e prazo de defesa";
+  if (r.fase.includes("Silêncio")) return "Auditar tribunal e impulsionar se parado";
+  if (r.falta.length) return `Tratar: ${r.falta[0]}`;
+  const dono = String((c as any).atendido_por || "").trim();
+  if (!c.ultimoRetorno && !dono) return "Registrar primeiro atendimento";
+  return "Manter acompanhamento na data combinada";
+}
+
+export function linhaDonoPasso(c?: LegalCase | null): string {
+  return `${linhaDonoAto(c)} · próximo: ${proximoPasso(c)}`;
+}

@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas. */
 
-export const RELEASE_VERSION = "9.58.0";
+export const RELEASE_VERSION = "9.59.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.59 — B.A. só com classe + mandado; dono e próximo passo nas listas; régua do supervisor.",
   "9.58 — Filtro de fase na carteira e dono/último ato na visão da empresa.",
   "9.57 — Notas e avisos de atualização em tempo real; README da operação atual.",
   "9.56 — Carteira com fase honesta, log de scan em Processos/Fila, caminho do dia.",

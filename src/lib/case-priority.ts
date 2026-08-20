@@ -1,3 +1,4 @@
+import { isBuscaApreensaoReal } from '@/lib/ba-real';
 /**
  * Prioridade operacional unificada — Fila (/tarefas) + Carteira (/cases)
  * Ordem: BA > baixa/encerrado tribunal > mérito/novidade > cumprimento >
@@ -53,7 +54,7 @@ export function scoreCasePriority(c: LegalCase): PriorityResult {
   if (!c) return { score: 0, band: 'normal', label: '—' };
 
   const st = statusOf(c);
-  const hasBA = !!(c as any).indicio_busca_apreensao;
+  const hasBA = isBuscaApreensaoReal(c);
   const closedCourt = !!(c as any).datajud_encerrado_tribunal;
   const novidade =
     !!(c as any).tem_novo_andamento ||
