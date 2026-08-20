@@ -64,6 +64,7 @@ import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDje
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
 import { linhaFase, linhaDonoAto, linhaDonoPasso, diasDesdeTribunal } from '@/lib/fase-resumo';
+import { OpsCaseLine } from '@/components/ops/ops-case-line';
 import { FaseFilterBar, filtrarPorFase } from '@/components/cases/fase-filter-bar';
 import type { FiltroFaseParado } from '@/lib/processos-parados';
 import { appendScanLog } from '@/lib/scan-event-log';
@@ -123,12 +124,7 @@ const CaseRow = React.memo(({
             )}
           </div>
           <span className={cn("text-[11px] font-mono text-muted-foreground", ui.cnj)}>{c.protocolo}</span>
-                    <p className="text-[11px] text-foreground/80 font-medium leading-snug line-clamp-2 mt-0.5">
-            {linhaDonoPasso(c)}
-          </p>
-          {diasDesdeTribunal(c) != null ? (
-            <p className="text-[10px] text-muted-foreground">Último ato tribunal: {diasDesdeTribunal(c)}d</p>
-          ) : null}
+          <OpsCaseLine c={c} className="mt-0.5" />
           {sinal.titulo && !/BUSCA E APREENS/i.test(String(sinal.titulo)) ? (
             <p className="text-[11px] text-muted-foreground leading-snug line-clamp-1">
               {sinal.titulo}
@@ -237,7 +233,7 @@ function CasesContent() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
-  const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
+  const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('ops');
   const [filtrosFase, setFiltrosFase] = useState<FiltroFaseParado[]>([]);
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1074,6 +1070,7 @@ function CasesContent() {
                 <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Ordenar prazo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="prioridade" className="font-black uppercase text-[10px]">Prioridade operacional</SelectItem>
+                  <SelectItem value="ops" className="font-black uppercase text-[10px]">Score ops (réplica / silêncio / BA)</SelectItem>
                       <SelectItem value="mais_vencido">Mais vencido → menos</SelectItem>
                   <SelectItem value="menos_vencido">Menos vencido → mais</SelectItem>
                   <SelectItem value="prazo_asc">Próximo prazo (crescente)</SelectItem>

@@ -58,7 +58,8 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { linhaDonoPasso } from '@/lib/fase-resumo';
+import { computeOpsKpis, compareOps } from '@/lib/ops-linha';
+import { OpsCaseLine } from '@/components/ops/ops-case-line';
 import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
@@ -217,29 +218,13 @@ export default function Dashboard() {
   }, [cases, t, baHitDigits]);
 
   const priorityQueue = useMemo(() => {
-    return cases
-      .filter(c => !isCasoEncerrado(c) && (['Caso Crítico', 'Vencido', 'É Hoje'].includes(c.status) || !!c.tem_novo_andamento))
-      .sort((a, b) => {
-        if (!!a.datajud_encerrado_tribunal !== !!b.datajud_encerrado_tribunal) return a.datajud_encerrado_tribunal ? -1 : 1;
-
-        const getWeight = (tipo?: string) => {
-           if (!tipo) return 0;
-           if (tipo.includes('sentenca')) return 100;
-           if (tipo.includes('audiencia')) return 80;
-           if (tipo.includes('cumprimento')) return 60;
-           return 0;
-        };
-        const weightDiff = getWeight(b.evento_tipo) - getWeight(a.evento_tipo);
-        if (weightDiff !== 0) return weightDiff;
-
-        const order: Record<string, number> = { 'Caso Crítico': 0, 'Vencido': 1, 'É Hoje': 2 };
-        const statusDiff = (order[a.status] ?? 99) - (order[b.status] ?? 99);
-        if (statusDiff !== 0) return statusDiff;
-        
-        return (a.diasFaltando || 0) - (b.diasFaltando || 0);
-      })
-      .slice(0, 6);
+    return [...cases]
+      .filter(c => !isCasoEncerrado(c))
+      .sort(compareOps)
+      .slice(0, 8);
   }, [cases]);
+
+  const opsKpis = useMemo(() => computeOpsKpis(cases), [cases]);
 
   const isEmpty = !loading && cases.length === 0;
 
@@ -363,6 +348,23 @@ export default function Dashboard() {
                 <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
               </section>
 
+              {!loading && (
+                <div className="flex flex-wrap gap-2 px-1">
+                  <Link href="/tarefas?filter=replica" className="text-[10px] font-black uppercase tracking-wider rounded-full border px-3 py-1.5 hover:border-primary">
+                    Réplica {opsKpis.replicaPendente}
+                  </Link>
+                  <Link href="/processos-parados" className="text-[10px] font-black uppercase tracking-wider rounded-full border px-3 py-1.5 hover:border-primary">
+                    Silêncio 45d {opsKpis.silencio45}
+                  </Link>
+                  <Link href="/tarefas" className="text-[10px] font-black uppercase tracking-wider rounded-full border px-3 py-1.5 hover:border-primary">
+                    Cumprimento aberto {opsKpis.cumprimentoAberto}
+                  </Link>
+                  <Link href="/tarefas?filter=ba" className="text-[10px] font-black uppercase tracking-wider rounded-full border px-3 py-1.5 hover:border-primary">
+                    BA real {opsKpis.baReal}
+                  </Link>
+                </div>
+              )}
+
               
               {/* Processos parados — lote v2 */}
               {(metrics as any).countParados60 > 0 && (
@@ -476,7 +478,7 @@ export default function Dashboard() {
                                         <div className="flex flex-col">
                                            <span className="text-[11px] font-black uppercase group-hover:text-primary transition-colors">{c.cliente}</span>
                                            <span className={cn("text-[8px] font-mono opacity-40", ui.cnj)}>{c.protocolo}</span>
-                                           <span className="text-[10px] text-muted-foreground line-clamp-2">{linhaDonoPasso(c)}</span>
+                                           <OpsCaseLine c={c} className="mt-1" />
                                         </div>
                                      </td>
                                      <td className="px-8 py-4">

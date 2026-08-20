@@ -45,6 +45,8 @@ import {
 } from 'lucide-react';
 import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic'
 import { linhaFase, linhaDonoAto, linhaDonoPasso } from '@/lib/fase-resumo';
+import { OpsCaseLine } from '@/components/ops/ops-case-line';
+import { computeOpsLinha, computeOpsKpis } from '@/lib/ops-linha';
 import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
 import { scoreGroupPriority } from '@/lib/case-priority';
 import { CaseBadges } from '@/components/cases/case-badges';
@@ -141,11 +143,11 @@ export default function TarefasPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   // filtros persistidos entre abas
-  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados'>('all');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
-  const [sortPrazo, setSortPrazo] = useState<'mais_vencido' | 'menos_vencido' | 'prazo_asc'>('mais_vencido');
+  const [sortPrazo, setSortPrazo] = useState<'mais_vencido' | 'menos_vencido' | 'prazo_asc' | 'ops'>('ops');
   const [dailyMeta, setDailyMeta] = useState(25);
   const [somenteMeta, setSomenteMeta] = useState(true);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
@@ -179,6 +181,8 @@ export default function TarefasPage() {
 
   const { toast } = useToast();
   const [soMeusHoje, setSoMeusHoje] = useState(false);
+  const [kbIndex, setKbIndex] = useState(0);
+  const opsKpis = useMemo(() => computeOpsKpis(cases as any), [cases]);
 
   const getTodayKey = () => {
     // Sempre calendário de Brasília (não UTC do toISOString)
@@ -637,6 +641,8 @@ const handleSaveAttendance = async () => {
         if (filaFiltro === 'blacklist') return groupFilaLista(g.cases as any) === 'blacklist';
         if (filaFiltro === 'tratamento') return groupFilaLista(g.cases as any) === 'tratamento';
         if (filaFiltro === 'parados') return g.cases.some((c: any) => isCasoParadoTribunal(c, 60));
+        if (filaFiltro === 'replica') return g.cases.some((c: any) => computeOpsLinha(c).tags.includes('réplica') || computeOpsLinha(c).fase.includes('Réplica'));
+        if (filaFiltro === 'silencio') return g.cases.some((c: any) => (computeOpsLinha(c).diasTribunal || 0) >= 45);
         // Fila principal: esconde blacklist (fica na lista própria)
         if (filaFiltro === 'all' || !filaFiltro) {
           if (groupFilaLista(g.cases as any) === 'blacklist') return false;
@@ -644,6 +650,11 @@ const handleSaveAttendance = async () => {
         return true;
       })
       .sort((a, b) => {
+        if (sortPrazo === 'ops') {
+          const sa = Math.max(0, ...((a.cases || []).map((c: any) => computeOpsLinha(c).score)));
+          const sb = Math.max(0, ...((b.cases || []).map((c: any) => computeOpsLinha(c).score)));
+          if (sb !== sa) return sb - sa;
+        }
         // ordenação por vencimento (mais/menos) alinhada ao filtro da UI
         if (sortPrazo === 'mais_vencido' || sortPrazo === 'menos_vencido' || sortPrazo === 'prazo_asc') {
           const diasGroup = (g: typeof a) => {
@@ -714,6 +725,35 @@ const handleSaveAttendance = async () => {
     return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
   }, [cases, search, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (isAttendanceOpen) return;
+      const n = taskData.focus.length;
+      if (!n) return;
+      if (e.key === "j" || e.key === "J" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setKbIndex((i) => Math.min(n - 1, i + 1));
+      } else if (e.key === "k" || e.key === "K" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setKbIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === "Enter") {
+        const g = taskData.focus[kbIndex];
+        if (g) {
+          setActiveGroup(g);
+          setIsAttendanceOpen(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [taskData.focus, kbIndex, isAttendanceOpen]);
+
+  useEffect(() => {
+    setKbIndex(0);
+  }, [filaFiltro, search, officeFilter, lawyerFilter, sortPrazo]);
+
   const autoTarefas = useMemo(() => {
     try {
       return gerarTarefasJuridicas(cases || [], { limit: 40 });
@@ -759,6 +799,10 @@ const handleSaveAttendance = async () => {
             <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila Crítica de Atendimento</h1>
             <span className="ml-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground tabular-nums" title={kpiCarteira.semanaLabel}>
               Atendidos sem.: {kpiCarteira.atendidosSemana}
+              <span className="ml-2">Réplica {opsKpis.replicaPendente}</span>
+              <span className="ml-2">Silêncio {opsKpis.silencio45}</span>
+              <span className="ml-2 text-[9px] font-bold">J/K próximo caso</span>
+            </span>
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -829,6 +873,7 @@ const handleSaveAttendance = async () => {
               <Select value={sortPrazo} onValueChange={(v: any) => setSortPrazo(v)}>
                 <SelectTrigger className="h-11 w-48 bg-secondary/30 border-none rounded-xl text-[10px] font-semibold uppercase"><SelectValue placeholder="Prazo" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ops">Score ops</SelectItem>
                   <SelectItem value="mais_vencido">Mais vencido</SelectItem>
                   <SelectItem value="menos_vencido">Menos vencido</SelectItem>
                   <SelectItem value="prazo_asc">Próximo prazo</SelectItem>
@@ -849,6 +894,8 @@ const handleSaveAttendance = async () => {
                       <SelectItem value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
                       <SelectItem value="ba" className="font-black uppercase text-[10px]">Busca e apreensão</SelectItem>
                       <SelectItem value="parados" className="font-black uppercase text-[10px]">Parados tribunal (≥60d)</SelectItem>
+                      <SelectItem value="replica" className="font-black uppercase text-[10px]">Réplica pendente</SelectItem>
+                      <SelectItem value="silencio" className="font-black uppercase text-[10px]">Silêncio ≥45d</SelectItem>
                    </SelectContent>
                 </Select>
              </div>
@@ -862,6 +909,8 @@ const handleSaveAttendance = async () => {
               { id: 'blacklist', label: 'Blacklist' },
               { id: 'novidade', label: 'Novidades' },
               { id: 'ba', label: 'B.A.' },
+              { id: 'replica', label: 'Réplica' },
+              { id: 'silencio', label: 'Silêncio 45d' },
               { id: 'parados', label: 'Parados' },
             ] as const).map((tab) => (
               <button
@@ -897,8 +946,8 @@ const handleSaveAttendance = async () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {taskData.focus.slice(0, listVisible).map((group) => (
-                <TaskCard key={group.cliente} group={group} isFocus onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
+              {taskData.focus.slice(0, listVisible).map((group, idx) => (
+                <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
               ))}
             </div>
             {taskData.focus.length > listVisible && (
@@ -1070,9 +1119,9 @@ const handleSaveAttendance = async () => {
   );
 }
 
-function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }: { group: TaskGroup, isFocus?: boolean, onMarkContacted: () => void, onScan: (protocolo: string) => void, onSuggest: () => void }) {
+function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, onScan, onSuggest }: { group: TaskGroup, isFocus?: boolean, isKbFocus?: boolean, onMarkContacted: () => void, onScan: (protocolo: string) => void, onSuggest: () => void }) {
   return (
-    <div className={cn("premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
+    <div className={cn("premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", isKbFocus ? "ring-2 ring-primary border-l-primary shadow-md" : isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
       <div className="flex justify-between items-start mb-6">
         <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all", group.hasBA ? "bg-red-600 text-white" : group.hasClosedCourt ? "bg-black text-white" : "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white")}>
           {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <UserCheck size={24} />}
@@ -1089,6 +1138,7 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
         <p className="text-[11px] text-muted-foreground truncate">
           {linhaDonoPasso(group.cases[0])}
         </p>
+        <OpsCaseLine c={group.cases[0]} className="mt-1" />
         <p className={cn("text-muted-foreground uppercase", ui.cnj)}>{group.protocoloReferencia}</p>
         <div className="mt-4 flex items-center gap-2">
            <Building2 size={12} className="text-black/30" />

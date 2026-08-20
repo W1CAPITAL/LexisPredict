@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas. */
 
-export const RELEASE_VERSION = "9.65.0";
+export const RELEASE_VERSION = "9.66.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.66 — Lote ops: prioridade 0–100 nas 5 telas do dia (carteira, processos, fila, relatório, dashboard). Réplica, silêncio 45/60d e BA real no mesmo número.",
   "9.65 — Lote F: CPF/CNPJ reais, banco omitido sem placeholder, habilitação sem réu vazio.",
   "9.64 — Lote E: régua com totais, forma de pagamento e visão admin.",
   "9.63 — Lote D: atendimento em Processos entra no dashboard/fila/relatório; admin vê empresa; operador vê o que atendeu.",

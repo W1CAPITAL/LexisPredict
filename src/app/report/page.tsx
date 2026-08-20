@@ -58,6 +58,7 @@ import { computeCarteiraKpis } from "@/lib/carteira-kpis";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSinalCapa } from "@/lib/sinal-capa"
 import { listProcessosParados } from "@/lib/processos-parados";
+import { computeOpsKpis, computeOpsLinha } from "@/lib/ops-linha";
 import { calcularProbabilidadeEncerramento } from "@/lib/probabilidade-encerramento";
 import { calcularScoreAdvogado } from "@/lib/score-engine";
 import { generateRelatorioClaudeAction } from "@/app/actions/report-claude-action";
@@ -142,16 +143,8 @@ export default function UnifiedReport() {
         ? Math.round((serieAtendimentosSemana.reduce((acc, d: any) => acc + d.atendimentos, 0) / serieAtendimentosSemana.length) * 10) / 10
         : 0;
 
-    const topCriticos = ativos
-      .map(c => ({ case: c, sinal: getSinalCapa(c) }))
-      .filter(i => i.sinal.prioridade > 10 || i.case.status === 'Vencido')
-      .sort((a, b) => {
-        if (b.sinal.prioridade !== a.sinal.prioridade) return b.sinal.prioridade - a.sinal.prioridade;
-        const dateA = a.sinal.data ? new Date(a.sinal.data).getTime() : 0;
-        const dateB = b.sinal.data ? new Date(b.sinal.data).getTime() : 0;
-        return dateB - dateA;
-      })
-      .slice(0, 10);
+    const ops = computeOpsKpis(ativos as any);
+    const topCriticos = ops.top.slice(0, 10).map((c) => ({ case: c, sinal: getSinalCapa(c), ops: computeOpsLinha(c) }));
 
     const topChance = ativos
       .map(c => {
@@ -216,6 +209,9 @@ export default function UnifiedReport() {
     if (countNovoAndamento > 0) recomendacoes.push(`Responder/validar ${countNovoAndamento} novidade(s) de andamento para alinhamento do cliente.`);
     if (countBA > 0) recomendacoes.push(`Validar ${countBA} caso(s) com indício de busca e apreensão — decisão urgente.`);
     if (countCumprimento > 0) recomendacoes.push(`Impulsionar a fase executiva em ${countCumprimento} caso(s) em cumprimento de sentença.`);
+    if (ops.replicaPendente > 0) recomendacoes.push(`Tratar ${ops.replicaPendente} réplica(s) pendente(s) — prazo de defesa do cliente.`);
+    if (ops.silencio45 > 0) recomendacoes.push(`Auditar ${ops.silencio45} caso(s) sem ato no tribunal há 45+ dias.`);
+    if (ops.baReal > 0) recomendacoes.push(`Validar ${ops.baReal} busca e apreensão real (classe + mandado) — não jurisprudência.`);
     if (countEncerradoTribunal > 0) recomendacoes.push(`Confirmar e arquivar ${countEncerradoTribunal} baixa(s) detectadas pelo tribunal.`);
     if (countAtendidosSemana > 0) recomendacoes.push(`Manter o ritmo de atendimento: ${countAtendidosSemana} caso(s) nesta semana (média ${mediaDia}/dia).`);
     if (recomendacoes.length === 0) recomendacoes.push("Carteira estável: manter rotina de acompanhamento e atualização cadastral.");
@@ -229,6 +225,9 @@ export default function UnifiedReport() {
       countEncerradoCarteira,
       countBA,
       countCumprimento,
+      replicaPendente: ops.replicaPendente,
+      silencio45: ops.silencio45,
+      baReal: ops.baReal,
       countAtendidosSemana,
       countAuditadosSemana,
       countAuditadosTribunal,
@@ -266,6 +265,7 @@ export default function UnifiedReport() {
       `Auditor: ${profile?.nome || "—"} | Cargo: ${profile?.cargo || "—"}`,
       `Ativos: ${metrics.activeTotal}`,
       `Vencidos: ${metrics.countVencido} | É hoje: ${metrics.countHoje}`,
+      `Réplica pendente: ${metrics.replicaPendente ?? 0} | Silêncio 45d: ${metrics.silencio45 ?? 0} | BA real: ${metrics.baReal ?? 0}`,
       `Novidades (andamento): ${metrics.countNovoAndamento}`,
       `Baixas tribunal: ${metrics.countEncerradoTribunal}`,
       `Encerrados carteira: ${metrics.countEncerradoCarteira}`,
@@ -515,6 +515,9 @@ export default function UnifiedReport() {
            <KpiCard label="Baixas Tribunal" value={metrics.countEncerradoTribunal} />
            <KpiCard label="Encerrados carteira" value={metrics.countEncerradoCarteira} />
            <KpiCard label="Fase Executiva" value={metrics.countCumprimento} />
+           <KpiCard label="Réplica pendente" value={metrics.replicaPendente ?? 0} tone="danger" />
+           <KpiCard label="Silêncio tribunal ≥45d" value={metrics.silencio45 ?? 0} tone="danger" />
+           <KpiCard label="B.A. real" value={metrics.baReal ?? 0} />
         </section>
 
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
@@ -721,6 +724,11 @@ export default function UnifiedReport() {
                          <td className="p-4">
                             <p className="text-[10px] font-black text-foreground">{item.case.cliente}</p>
                             <p className="text-[8px] text-muted-foreground font-mono">{item.case.protocolo}</p>
+                            {(item as any).ops ? (
+                              <p className="text-[9px] text-muted-foreground mt-1 line-clamp-2">
+                                {(item as any).ops.score} · {(item as any).ops.proximo}
+                              </p>
+                            ) : null}
                          </td>
                          <td className="p-4">
                             <p className={cn(item.sinal.prioridade >= 80 ? "text-destructive" : "text-foreground")}>{item.sinal.titulo}</p>

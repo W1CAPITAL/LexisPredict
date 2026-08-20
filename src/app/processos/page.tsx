@@ -16,6 +16,9 @@ import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { linhaDonoPasso, proximoPasso } from '@/lib/fase-resumo';
+import { OpsCaseLine } from '@/components/ops/ops-case-line';
+import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
+import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
@@ -138,6 +141,8 @@ export default function ProcessosEmpresaPage() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [baOnly, setBaOnly] = useState(false);
+  const [silencioOnly, setSilencioOnly] = useState(false);
+  const [sortOps, setSortOps] = useState(true);
   const [editing, setEditing] = useState<LegalCase | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -201,7 +206,7 @@ export default function ProcessosEmpresaPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const baCount = useMemo(() => cases.filter((c) => !!c.indicio_busca_apreensao || c.evento_tipo === "ba").length, [cases]);
+  const baCount = useMemo(() => cases.filter((c) => isBuscaApreensaoReal(c)).length, [cases]);
 
   const toDateInput = (v?: string) => {
     if (!v) return "";
@@ -374,20 +379,26 @@ export default function ProcessosEmpresaPage() {
 
   const filtered = useMemo(() => {
     const query = q.toLowerCase().trim();
-    return cases.filter((c) => {
+    let list = cases.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
-      if (baOnly && !c.indicio_busca_apreensao && c.evento_tipo !== "ba") return false;
+      if (baOnly && !isBuscaApreensaoReal(c)) return false;
+      if (silencioOnly) {
+        const d = computeOpsLinha(c).diasTribunal;
+        if (d == null || d < 45) return false;
+      }
       if (!query) return true;
       return [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, String(c.status)]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(query));
     });
-  }, [cases, q, statusFilter, baOnly]);
+    if (sortOps) list = [...list].sort(compareOps);
+    return list;
+  }, [cases, q, statusFilter, baOnly, silencioOnly, sortOps]);
 
   // Ao mudar filtro/busca, volta a mostrar só a 1ª página (não afeta dashboard)
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [q, statusFilter, baOnly, cases.length]);
+  }, [q, statusFilter, baOnly, silencioOnly, sortOps, cases.length]);
 
   const visibleItems = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
@@ -505,7 +516,31 @@ export default function ProcessosEmpresaPage() {
                     )}
                     title="Filtrar apenas processos com indício de busca e apreensão"
                   >
-                    <ShieldAlert size={13} /> B.A. {baCount > 0 ? `(${baCount})` : ""}
+                    <ShieldAlert size={13} /> B.A. real {baCount > 0 ? `(${baCount})` : ""}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSilencioOnly(!silencioOnly)}
+                    className={cn(
+                      "h-9 rounded-xl border px-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-colors shrink-0",
+                      silencioOnly
+                        ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
+                        : "border-border/60 bg-card/60 hover:bg-card text-muted-foreground"
+                    )}
+                  >
+                    Silêncio ≥45d
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortOps(!sortOps)}
+                    className={cn(
+                      "h-9 rounded-xl border px-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-colors shrink-0",
+                      sortOps
+                        ? "border-primary/50 bg-primary/10 text-primary"
+                        : "border-border/60 bg-card/60 hover:bg-card text-muted-foreground"
+                    )}
+                  >
+                    Score ops
                   </button>
                 </div>
               </div>
@@ -549,6 +584,7 @@ export default function ProcessosEmpresaPage() {
                                 <p className="text-[11px] font-black uppercase leading-tight">{c.cliente}</p>
                                 <p className="text-[8px] font-mono text-muted-foreground/60 mt-0.5 truncate max-w-[240px]">{c.protocolo}</p>
                                 <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{linhaDonoPasso(c)}</p>
+                                <OpsCaseLine c={c} className="mt-1" />
                               </Link>
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.advogado}</td>
@@ -559,7 +595,7 @@ export default function ProcessosEmpresaPage() {
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.tribunal}</td>
                             <td className="px-4 py-3 text-center">
-                              {(c.indicio_busca_apreensao || c.evento_tipo === "ba") ? (
+                              {isBuscaApreensaoReal(c) ? (
                                 <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
                                   <ShieldAlert size={10} className="mr-1" /> B.A.{(c as any).ba_tipo ? ` ${(c as any).ba_tipo}` : ""}
                                 </Badge>
