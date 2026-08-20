@@ -63,6 +63,8 @@ import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDje
 // djenTextsRecentFirst usado no rascunho;
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
+import { linhaFase, linhaDonoAto } from '@/lib/fase-resumo';
+import { appendScanLog } from '@/lib/scan-event-log';
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';
 import { descreverPrazo } from '@/lib/prazos-cpc';
 
@@ -119,19 +121,20 @@ const CaseRow = React.memo(({
             )}
           </div>
           <span className={cn("text-[11px] font-mono text-muted-foreground", ui.cnj)}>{c.protocolo}</span>
-          {(sinal.titulo || sinal.detalhe) && (
-            <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
-              <span className="text-foreground/80 font-medium">
-                {sinal.titulo}
-              </span>
+                    <p className="text-[11px] text-foreground/80 font-medium leading-snug line-clamp-2 mt-0.5">
+            {linhaFase(c)}
+          </p>
+          <p className="text-[11px] text-muted-foreground leading-snug line-clamp-1">
+            {linhaDonoAto(c)}
+          </p>
+          {sinal.titulo && !/BUSCA E APREENS/i.test(String(sinal.titulo)) ? (
+            <p className="text-[11px] text-muted-foreground leading-snug line-clamp-1">
+              {sinal.titulo}
               {sinal.data ? (
-                <span className="text-muted-foreground/80"> · {(() => { try { return format(parseISO(sinal.data), 'dd/MM/yy'); } catch { return ''; } })()}</span>
-              ) : null}
-              {sinal.detalhe && sinal.detalhe !== sinal.titulo ? (
-                <span className="block text-muted-foreground mt-0.5 line-clamp-1">{sinal.detalhe}</span>
+                <span> · {(() => { try { return format(parseISO(sinal.data), 'dd/MM/yy'); } catch { return ''; } })()}</span>
               ) : null}
             </p>
-          )}
+          ) : null}
           <AndamentoLeigoBlock
             caseData={c}
             showPrazo={false}
@@ -369,6 +372,7 @@ function CasesContent() {
     try {
       // Auditoria 3D: so DJEN (rapido)
       const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: false });
+      appendScanLog({ cnj: c.protocolo, motor: 'djen', ok: (res as any)?.success !== false });
       const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
         case: (res as any).case || c,
@@ -403,6 +407,7 @@ function CasesContent() {
     try {
       // Auditoria unificada: DataJud + DJEN (obrigatorio para Sugerir resposta)
       const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: false });
+      appendScanLog({ cnj: c.protocolo, motor: 'datajud+djen', ok: (res as any)?.success !== false });
       const movimentos = normalizeMovList((res as any).movimentos);
       const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       const caseData = (res as any).case || c;

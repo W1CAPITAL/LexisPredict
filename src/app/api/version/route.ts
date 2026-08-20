@@ -4,9 +4,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.55.0";
+export const LEXIS_APP_VERSION = "9.56.0";
 
 export const LEXIS_CHANGELOG: string[] = [
+  "9.56 — Carteira com fase honesta (sem alerta BA genérico), log de scan em Processos/Fila, caminho do dia no treinamento.",
   "9.55 — Fase honesta no card (o que falta) + dono/último ato; régua só atrasados + marcar pago; log de scan CNJ/hora; README da operação de hoje.",
   "WhatsApp: wake completo da Evolution só no envio (connectionState + presença + abrir chat) — evita ter que clicar no Manager.",
   "Anti-ban Evolution: delay/composing, gap entre envios, teto diário e bloqueio de texto idêntico.",

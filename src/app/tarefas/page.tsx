@@ -77,6 +77,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { appendScanLog } from '@/lib/scan-event-log';
 import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -270,6 +271,7 @@ export default function TarefasPage() {
     setLoading(true);
     try {
       const res = await scanSingleCaseAction(protocolo, { mode: 'djen', fast: false });
+      appendScanLog({ cnj: protocolo, motor: 'djen', ok: (res as any)?.success !== false });
       const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
         case: (res as any).case || ({ protocolo } as any),
@@ -301,6 +303,7 @@ export default function TarefasPage() {
     setAiDraft(null);
     try {
       const res = await scanSingleCaseAction(protocolo, { mode: 'both', fast: false });
+      appendScanLog({ cnj: protocolo, motor: 'datajud+djen', ok: (res as any)?.success !== false });
       const movimentos = Array.isArray((res as any).movimentos) ? (res as any).movimentos.slice(0, 80) : [];
       const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       const caseData = (res as any).case || ({ protocolo, cliente, ultimoRetorno } as any);

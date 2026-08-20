@@ -47,6 +47,27 @@ export default function OnboardingVideoPage() {
       <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain lexis-surface p-4 lg:p-8 flex flex-col">
         <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col min-w-0">
           <div className="mb-6"><SetupWizard /></div>
+          <div className="mb-6 rounded-2xl border bg-card p-4 sm:p-5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Caminho do dia</p>
+            <ol className="mt-2 grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-foreground">
+              <li>1. Painel — vencidos e novidades</li>
+              <li>2. Fila — quem atender agora</li>
+              <li>3. Parados — silêncio no tribunal</li>
+              <li>4. Processos — fase e o que falta</li>
+              <li>5. Peças — Central de documentos</li>
+              <li>6. Régua — atrasados e marcar pago</li>
+              <li>7. Dossiê / relatório se precisar</li>
+              <li>8. O resto fica em Mais no menu</li>
+            </ol>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <Button asChild size="sm" variant="secondary"><Link href="/">Painel</Link></Button>
+              <Button asChild size="sm" variant="secondary"><Link href="/tarefas">Fila</Link></Button>
+              <Button asChild size="sm" variant="secondary"><Link href="/processos-parados">Parados</Link></Button>
+              <Button asChild size="sm" variant="secondary"><Link href="/cases">Processos</Link></Button>
+              <Button asChild size="sm" variant="secondary"><Link href="/documents">Peças</Link></Button>
+              <Button asChild size="sm" variant="secondary"><Link href="/crm/cobranca">Régua</Link></Button>
+            </div>
+          </div>
           <HoverVideoPlayer
             videoSrc="/Onboarding_LexisPredict.mp4"
             title="Treinamento LexisPredict"
