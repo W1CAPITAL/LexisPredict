@@ -59,6 +59,9 @@ import {
   matchFiltrosFase,
 } from "@/lib/processos-parados";
 import { loadCarteiraComCache } from "@/lib/session-carteira-cache";
+import { linhaFase, linhaDonoAto } from "@/lib/fase-resumo";
+import { appendScanLog } from "@/lib/scan-event-log";
+import { ScanLogPanel } from "@/components/ops/scan-log-panel";
 import { listAdvogados } from "@/lib/case-filters";
 
 const FAIXAS: { id: FaixaParado; label: string }[] = [
@@ -390,10 +393,12 @@ export default function ProcessosParadosPage() {
         if (okItem) {
           state.ok += 1;
           failStreak = 0;
+          appendScanLog({ cnj: p, motor: "datajud+djen", ok: true });
         } else {
           state.fail += 1;
           failStreak += 1;
           state.lastError = lastErr;
+          appendScanLog({ cnj: p, motor: "datajud+djen", ok: false, detalhe: lastErr });
         }
         state.index += 1;
         saveParadosScanCkpt(state);
@@ -711,6 +716,7 @@ export default function ProcessosParadosPage() {
         </div>
 
         <div className="p-6 space-y-3">
+          <ScanLogPanel compact />
           {loading && (
             <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
               <Loader2 className="animate-spin" /> Carregando carteira…
@@ -789,6 +795,13 @@ export default function ProcessosParadosPage() {
                           Cumprimento em aberto
                         </Badge>
                       )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {linhaFase(c)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {linhaDonoAto(c)}
+                    </p>
                       {item.tratado && (
                         <Badge className="bg-emerald-600 text-white text-[9px]">TRATADO</Badge>
                       )}

@@ -9,7 +9,7 @@ import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { crmReguaCobrancaAction } from "@/app/actions/crm-actions";
+import { crmReguaCobrancaAction, marcarReceberPagoAction } from "@/app/actions/crm-actions";
 import { ArrowLeft, Loader2, RefreshCcw, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,8 @@ export default function CrmCobrancaPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
+  const [soAtrasados, setSoAtrasados] = useState(true);
+  const [paying, setPaying] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,6 +36,25 @@ export default function CrmCobrancaPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const visiveis = soAtrasados
+    ? items.filter((it) => Number(it.diaRelativo) >= 0)
+    : items;
+
+  const marcarPago = async (id: string) => {
+    setPaying(id);
+    try {
+      const res = await marcarReceberPagoAction(id, "pix");
+      if (res.success) {
+        toast({ title: "Marcado como pago" });
+        await load();
+      } else {
+        toast({ title: "Não foi possível baixar", description: res.error, variant: "destructive" });
+      }
+    } finally {
+      setPaying(null);
+    }
+  };
 
   const copyScript = async (id: string, text: string) => {
     try {
@@ -61,13 +82,19 @@ export default function CrmCobrancaPage() {
               <div>
                 <h1 className="text-lg font-black">Régua de cobrança</h1>
                 <p className="text-xs text-muted-foreground">
-                  D-3 · D0 · D+3 · D+7 · crítico — grátis, ação manual pela equipe
+                  Só atrasados (D0+) por padrão. D-3 fica no interruptor.
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            </Button>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                <input type="checkbox" checked={soAtrasados} onChange={(e) => setSoAtrasados(e.target.checked)} />
+                Só atrasados
+              </label>
+              <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
@@ -79,13 +106,13 @@ export default function CrmCobrancaPage() {
             <div className="flex justify-center py-16">
               <Loader2 className="animate-spin text-muted-foreground" />
             </div>
-          ) : items.length === 0 ? (
+          ) : visiveis.length === 0 ? (
             <p className="text-sm text-muted-foreground py-12 text-center">
-              Nenhum título na janela da régua (D-3 até crítico).
+              Nenhum título atrasado. Desmarque “Só atrasados” para ver D-3.
             </p>
           ) : (
             <ul className="space-y-3">
-              {items.map((it) => (
+              {visiveis.map((it) => (
                 <li
                   key={it.receber_id}
                   className={cn(
@@ -122,6 +149,14 @@ export default function CrmCobrancaPage() {
                       <Copy className="h-4 w-4 mr-1" />
                     )}
                     Copiar script do agente
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={paying === it.receber_id}
+                    onClick={() => marcarPago(it.receber_id)}
+                  >
+                    {paying === it.receber_id ? "Baixando…" : "Marcar pago"}
                   </Button>
                 </li>
               ))}

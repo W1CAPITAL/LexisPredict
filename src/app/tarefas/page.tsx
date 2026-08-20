@@ -1070,6 +1070,9 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
       </div>
       <div className="space-y-1 flex-1">
         <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate group-hover:text-primary transition-colors">{group.cliente}</h3>
+        <p className="text-[11px] text-muted-foreground truncate">
+          {linhaFase(group.cases[0])} · {linhaDonoAto(group.cases[0])}
+        </p>
         <p className={cn("text-muted-foreground uppercase", ui.cnj)}>{group.protocoloReferencia}</p>
         <div className="mt-4 flex items-center gap-2">
            <Building2 size={12} className="text-black/30" />
