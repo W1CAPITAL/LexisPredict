@@ -79,7 +79,8 @@ import {
   Cell,
   Tooltip as RechartsTooltip
 } from 'recharts';
-import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { isCasoEncerrado } from '@/lib/status-encerrado'
+import { countProcessosParados } from '@/lib/processos-parados';
 import { computeCarteiraKpis } from '@/lib/carteira-kpis';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -171,6 +172,8 @@ export default function Dashboard() {
     const countAuditadosSemana = countEditadosApp;
     const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
     const countBA = countBaFromCases(ativos as any, baSet);
+    const countParados60 = countProcessosParados(ativos as any, 60);
+    const countParados90 = countProcessosParados(ativos as any, 90);
     // MÉRITO OBRIGATÓRIO (kpiExec ANTES de usar cumprimento/procedentes)
     // Alinhado à aba Ações Procedentes: flag is_procedente do scanner (não só evento_tipo)
     const kpiExec = computeKpiExecutivo(cases as any);
@@ -207,7 +210,7 @@ export default function Dashboard() {
       countNovoAndamento, rateAndamento,
       countEncerradoTribunal,
       countEncerradoCarteira,
-      baixasTribunalAindaAtivos: kpis.baixasTribunalAindaAtivos, countBA, countCumprimento, countAuditadosSemana, countAuditadosTribunal, countEditadosApp, countAuditadosHoje: countAuditadosHojeN,
+      baixasTribunalAindaAtivos: kpis.baixasTribunalAindaAtivos, countBA, countParados60, countParados90, countCumprimento, countAuditadosSemana, countAuditadosTribunal, countEditadosApp, countAuditadosHoje: countAuditadosHojeN,
       countProcedente, countImprocedente, countAudiencia
     };
   }, [cases, t, baHitDigits]);
@@ -359,7 +362,24 @@ export default function Dashboard() {
                 <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
               </section>
 
-              {/* CONTADORES DE MÉRITO — obrigatório (Lote 4) */}
+              
+              {/* Processos parados — lote v2 */}
+              {(metrics as any).countParados60 > 0 && (
+                <Link
+                  href="/processos-parados"
+                  className="flex items-center justify-between rounded-xl border border-amber-300/60 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3 text-sm hover:bg-amber-100/80 transition-colors"
+                >
+                  <span className="font-semibold text-amber-900 dark:text-amber-100">
+                    Processos parados ≥60d: <strong className="tabular-nums">{(metrics as any).countParados60}</strong>
+                    {(metrics as any).countParados90 > 0 && (
+                      <span className="text-muted-foreground font-normal"> · ≥90d: {(metrics as any).countParados90}</span>
+                    )}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase text-amber-800">Ver fila →</span>
+                </Link>
+              )}
+
+{/* CONTADORES DE MÉRITO — obrigatório (Lote 4) */}
               <section className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="merit-counters" aria-label="Mérito e audiências">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 p-5 flex items-center justify-between shadow-sm">
                   <div>
