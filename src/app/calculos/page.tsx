@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { RevisionalPricePanel } from "@/components/calculos/revisional-price-panel";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -167,6 +168,8 @@ export default function CalculosPage() {
     <div className="flex h-[100dvh] bg-background overflow-hidden">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
+          <div className="w-full max-w-5xl mx-auto px-4 pt-4 md:px-6"><RevisionalPricePanel /></div>
+
         <div className="max-w-lg mx-auto p-4 md:p-6 space-y-4 pb-16">
           {/* Cabeçalho */}
           <div className="pt-2">

@@ -174,7 +174,7 @@ function money(n: number): number {
  */
 export function executarCalculoJudicial(input: CalculoInput): CalculoResultado {
   const avisos: string[] = [
-    'Índices usam fator mensal aproximado embutido (não são série oficial BCB). Use o resultado como triagem; para petição formal, confira com contadoria/índice da sentença.',
+    'Índices usam fator mensal aproximado embutido (não são série oficial BCB). Use o resultado como triagem; para petição formal, confira com contadoria/índice da sentença. Não é consulta jurídica automatizada (Provimento OAB 205/2021).',
   ];
   const dataFinal = input.dataFinal || fmtDate(new Date());
   const linhas: LinhaMemoria[] = [];
