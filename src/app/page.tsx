@@ -63,6 +63,7 @@ import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
+import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
@@ -105,7 +106,12 @@ export default function Dashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const caseData = await fetchRepoCases();
+      const cachedRun = await loadCarteiraComCache({
+        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        onShow: (caseData) => { if (Array.isArray(caseData)) setCases(caseData); },
+        allowStaleKpiFallback: false,
+      });
+      const caseData = cachedRun.cases;
         try {
           const baRes = await fetchBaHitProtocolosAction();
           if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);

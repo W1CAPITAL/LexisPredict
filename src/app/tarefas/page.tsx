@@ -72,6 +72,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -237,7 +238,12 @@ export default function TarefasPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchRepoCases();
+      const _pack = await loadCarteiraComCache({
+        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        onShow: (data) => { if (Array.isArray(data)) setCases(data); },
+        allowStaleKpiFallback: false,
+      });
+      const data = _pack.cases;
       try {
         const baRes = await fetchBaHitProtocolosAction();
         if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);

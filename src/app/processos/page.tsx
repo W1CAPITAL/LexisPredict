@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
+import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
@@ -153,7 +154,10 @@ export default function ProcessosEmpresaPage() {
   const load = async () => {
     setLoading(true);
     const res = await fetchCompanyProcessosAction();
-    setCases(res.cases || []);
+    // REPLACE (não concatena com cache antigo)
+    const list = res.cases || [];
+    setCases(list);
+    writeCarteiraCache(list);
     setAudit(res.audit || []);
     setUsers(res.users || []);
     setLoading(false);

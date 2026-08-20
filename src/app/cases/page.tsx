@@ -39,6 +39,7 @@ import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { saveOneCaseAction, transferCasesOwnerAction } from '@/app/actions/case-save-actions';

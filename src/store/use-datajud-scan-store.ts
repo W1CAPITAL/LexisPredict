@@ -7,6 +7,7 @@ import { scanSingleCaseAction } from '@/app/actions/case-actions';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { prioritizeScanQueue } from '@/lib/case-filters';
+import { readScanProgress, writeScanProgress, clearScanProgress, readCarteiraCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -178,7 +179,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   startManualScan: async (opts?: { resume?: boolean }) => {
     const mode = get().scanMode || 'both';
     const resume = opts?.resume === true;
-    const startFrom = resume ? Math.max(0, get().manualDone || 0) : 0;
+    const savedProg = readScanProgress();
+    const startFrom = resume
+      ? Math.max(0, get().manualDone || savedProg?.manualDone || 0)
+      : 0;
+    if (!resume) clearScanProgress();
     // Feedback imediato na UI (evita "cliquei e nada acontece")
     set({
       isMinimized: false,
@@ -225,7 +230,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const remote = await fetchRepoCases();
         if (Array.isArray(remote) && remote.length > 0) {
           const setCases = useAppStore.getState().setCases;
+          // REPLACE store — nunca merge com cache residual
           if (typeof setCases === 'function') setCases(remote);
+          writeCarteiraCache(remote);
           const nEncR = remote.filter((c: any) => isCasoEncerrado(c)).length;
           cases = prioritizeScanQueue(remote);
           if (nEncR > 0) {
@@ -339,7 +346,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         });
       } catch (err: any) {
         const latency = Date.now() - start;
-        set((s) => ({ manualErrors: s.manualErrors + 1, manualDone: s.manualDone + 1 }));
+        set((s) => ({ manualErrors: s.manualErrors + 1, manualDone: s.manualDone + 1,
+      // cache progresso (não KPI) }));
         get().addLog({
           protocolo: c.protocolo,
           message: `Erro no scanner: ${err?.message || err}`,
@@ -348,6 +356,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           type: 'error',
           engine: 'Local',
         });
+        try { const st = get(); writeScanProgress(st.manualDone||0, st.manualTotal||0, st.scanMode); } catch { /* */ }
         continue;
       }
       const latency = Date.now() - start;
@@ -398,7 +407,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         aiEngine: aiEng,
       });
 
-      set((s) => ({ manualDone: s.manualDone + 1 }));
+      set((s) => ({ manualDone: s.manualDone + 1,
+      // cache progresso (não KPI) }));
       const courtId = c.protocolo.split('.')[4];
       if (courtId) get().updateCourtHealth(courtId, latency, !!res.success);
 
