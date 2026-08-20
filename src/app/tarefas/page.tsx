@@ -178,6 +178,7 @@ export default function TarefasPage() {
   );
 
   const { toast } = useToast();
+  const [soMeusHoje, setSoMeusHoje] = useState(false);
 
   const getTodayKey = () => {
     // Sempre calendário de Brasília (não UTC do toISOString)
@@ -618,6 +619,14 @@ const handleSaveAttendance = async () => {
             (c: any) => String(c.advogado || '').trim().toUpperCase() === lawyerKey
           );
         if (!matchSearch || !matchOffice || !matchLawyer) return false;
+        if (soMeusHoje) {
+          const uid = String((profile as any)?.auth_user_id || (profile as any)?.id || '');
+          const mine = (g.cases || []).some((c: any) =>
+            String(c.created_by || '') === uid || String(c.atendido_por || '') === uid
+          );
+          const today = (g.cases || []).some((c: any) => isAtendidoHoje(c));
+          if (!mine || !today) return false;
+        }
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
@@ -703,7 +712,7 @@ const handleSaveAttendance = async () => {
 
     const pending = sortedAll.filter(g => !contactedSet.has(String(g.cliente || '').trim().toUpperCase()));
     return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
-  }, [cases, search, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits]);
+  }, [cases, search, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
 
   const autoTarefas = useMemo(() => {
     try {
@@ -825,7 +834,10 @@ const handleSaveAttendance = async () => {
                   <SelectItem value="prazo_asc">Próximo prazo</SelectItem>
                 </SelectContent>
               </Select>
-<Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
+<Button type="button" size="sm" variant={soMeusHoje ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setSoMeusHoje((v) => !v)}>
+                Meus hoje
+              </Button>
+              <Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
                    <SelectTrigger className="h-12 w-full md:w-[260px] bg-[#f8f9fb] border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
                    <SelectContent className="bg-white border-2 border-black rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>

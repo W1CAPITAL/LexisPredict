@@ -30,7 +30,7 @@ export async function getUserContext() {
   const cookieStore = await cookies();
   const userEmail = cookieStore.get('lexis_user_email')?.value;
   
-  if (!userEmail || !supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, weight: 0 };
+  if (!userEmail || !supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, weight: 0 };
 
   const { data: profile } = await supabase
     .from('usuarios')
@@ -43,7 +43,10 @@ export async function getUserContext() {
   const isSupervisor = checkIfSupervisor(profile) || /supervisor/i.test(String(profile?.cargo || ''));
   // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
-  const isMasterView = isSuperAdmin || isSupervisor || isViewer; 
+  const isMasterView = isSuperAdmin || isSupervisor || isViewer;
+  const isAdministrador =
+    /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
+  const isEmpresaWide = isMasterView || isAdministrador;
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -54,6 +57,8 @@ export async function getUserContext() {
     isSupervisor,
     isViewer,
     isMasterView,
+    isAdministrador,
+    isEmpresaWide,
     weight: ROLE_WEIGHTS[cargo] || 0
   };
 }
@@ -119,9 +124,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!empresaId) return [];
 
   const context = await getUserContext();
-  const { auth_id, isMasterView } = context;
-  // isAdmin OU visão master: service role (evita RLS/created_by zerando a carteira)
-  const useAdmin = isAdmin || isMasterView === true;
+  const { auth_id, isMasterView, isEmpresaWide } = context as any;
+  const useAdmin = isAdmin || isMasterView === true || isEmpresaWide === true;
   let client = useAdmin ? await getSupabaseAdmin() : supabase;
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
@@ -139,7 +143,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
       if (filterByCreator && auth_id) {
-        query = query.eq('created_by', auth_id);
+        query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -217,8 +221,8 @@ export async function getStoredCasesPageForEmpresa(
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (!isAdmin && !isMasterView && auth_id) {
-      query = query.eq('created_by', auth_id);
+    if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
+      query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
     }
 
     const { data, error } = await query;

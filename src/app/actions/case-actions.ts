@@ -106,9 +106,10 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 }
 
 export async function fetchRepoCases() {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return [];
-  return await getStoredCasesForEmpresa(empresa_id);
+  const ctx = await getUserContext();
+  if (!ctx.empresa_id) return [];
+  const wide = !!(ctx as any).isEmpresaWide || ctx.isMasterView || ctx.isSupervisor || ctx.isSuperAdmin;
+  return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
 
 export async function syncRepoCases(cases: LegalCase[]) {

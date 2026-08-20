@@ -223,7 +223,8 @@ export default function ProcessosEmpresaPage() {
     let updated: LegalCase = {
       ...editing,
       ultimoRetorno: iso || editing.ultimoRetorno,
-    };
+      atendido_por: (profile as any)?.auth_user_id || (profile as any)?.id || (editing as any).atendido_por,
+    } as LegalCase;
     if (iso && (isAtendidoHoje(iso) || isAtendidoNestaSemana(iso))) {
       updated = {
         ...updated,
