@@ -886,7 +886,7 @@ export async function executarQueryComunicaNumopedeAction(input: {
 
       const local = protoDigits ? byProto.get(protoDigits) : undefined;
       hits.push({
-        protocolo: protoRaw || protoDigits || item.id || '—',
+        protocolo: String(protoRaw || protoDigits || item.id || '—'),
         cliente: String((local as any)?.cliente || item.nomeOrgao || '—'),
         advogado: String((local as any)?.advogado || ''),
         tribunal: String(item.siglaTribunal || (local as any)?.tribunal || ''),

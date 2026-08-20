@@ -1,5 +1,6 @@
-import { rowExecutivoExport } from '@/lib/export-executivo-row';
 'use server';
+
+import { rowExecutivoExport } from '@/lib/export-executivo-row';
 
 /**
  * Exportação operacional — CSV + XLSX Dossiê
@@ -259,11 +260,19 @@ export async function exportExecutivoXlsxAction() {
   try {
     const { cases } = await loadCasesForSession();
     const rows = (cases || []).map((c: any) => rowExecutivoExport(c));
-    const XLSX = await import('xlsx');
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Executivo');
-    const buf = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    const XLSX: any = await import('xlsx');
+    const utils = XLSX.utils || XLSX;
+    const ws = typeof utils.json_to_sheet === 'function'
+      ? utils.json_to_sheet(rows)
+      : utils.aoa_to_sheet([
+          rows.length ? Object.keys(rows[0]) : ['vazio'],
+          ...rows.map((r: any) => Object.values(r)),
+        ]);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'Executivo');
+    const buf = XLSX.write
+      ? XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+      : utils.write(wb, { type: 'base64', bookType: 'xlsx' });
     await auditarExportacao('xlsx_executivo', cases || []);
     return {
       success: true as const,

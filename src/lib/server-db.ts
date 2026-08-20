@@ -870,18 +870,24 @@ export async function getCurrentUserNome(): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function getProfileByAuthId(authId: string): Promise<{ nome: string } | null> {
+export async function getProfileByAuthId(
+  authId: string
+): Promise<{ nome: string; cargo?: string | null; role?: string | null } | null> {
   try {
     const { empresa_id } = await getUserContext();
     if (!empresa_id || !supabase || !authId) return null;
     const { data } = await supabase
       .from('usuarios')
-      .select('nome')
+      .select('nome, cargo, role')
       .eq('auth_user_id', authId)
       .eq('empresa_id', empresa_id)
       .maybeSingle();
-    return data ? { nome: data.nome } : null;
-  } catch { return null; }
+    return data
+      ? { nome: data.nome, cargo: (data as any).cargo, role: (data as any).role }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento' | 'exportacao' | 'scan_datajud' | 'scan_djen' | 'auditoria';

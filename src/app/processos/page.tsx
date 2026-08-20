@@ -14,11 +14,11 @@ import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAt
 import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
-import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import {countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana} from '@/lib/atendimento-semana';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
-import { LegalCase } from "@/lib/case-logic";
+import { LegalCase, formatDateToISO } from "@/lib/case-logic";
 import {
   Briefcase,
   Activity,

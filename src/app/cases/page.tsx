@@ -687,18 +687,19 @@ function CasesContent() {
       const res = await transferCasesOwnerAction({ protocolos: list, novoOwnerAuthId: bulkOwnerId });
       if (res.success && res.updated > 0) {
         // Remove da lista local se não for mais "meu" (operador) ou atualiza created_by
-        setCases((prev) =>
-          prev
-            .map((c) =>
+        {
+          const next = cases
+            .map((c: LegalCase) =>
               list.includes(String(c.protocolo || ''))
-                ? ({ ...c, created_by: bulkOwnerId } as any)
+                ? ({ ...c, created_by: bulkOwnerId } as LegalCase)
                 : c
             )
-            .filter((c) => {
+            .filter((c: LegalCase) => {
               if (!isOperador) return true;
               return String((c as any).created_by || '') === String((profile as any)?.auth_user_id || '');
-            })
-        );
+            });
+          setCases(next);
+        }
         setSelectedProtos(new Set());
         toast({ title: 'Transferência em massa', description: res.message });
       } else {
@@ -732,17 +733,17 @@ function CasesContent() {
               (profile as any)?.auth_user_id || (profile as any)?.id,
               hojeBrasilYmd()
             ),
-            ultimoRetorno: hojeBrasilYmd(),
             proximoPrazo: '',
+            ultimoRetorno: hojeBrasilYmd(),
           }
         : isoForm && (isAtendidoHoje(isoForm) || isAtendidoNestaSemana(isoForm))
           ? {
               ...formState,
-              ultimoRetorno: isoForm,
               ...patchAtendimentoComEdicao(
                 (profile as any)?.auth_user_id || (profile as any)?.id,
                 isoForm
               ),
+              ultimoRetorno: isoForm,
             }
           : { ...formState, ultimoRetorno: isoForm || formState.ultimoRetorno };
     if (editingCase) {
