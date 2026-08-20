@@ -25,6 +25,9 @@ export interface ProcessoParadoItem {
   scoreAcao: number;
   /** Tratado localmente (localStorage / futuro banco) */
   tratado?: boolean;
+  temContestacao: boolean;
+  temSentenca: boolean;
+  temReplica: boolean;
 }
 
 export function parseDateLoose(raw?: string | null): Date | null {
@@ -206,6 +209,79 @@ function textoProcessual(c: LegalCase): string {
  * Sinal dominante é só custas/guia/taxa — processo ainda pode continuar;
  * não entra na fila de parados acionáveis (baixa relevância operacional).
  */
+
+/** Flags de fase — heurística sobre evento + texto DataJud/DJEN (não é certidão). */
+export type FlagsFaseParado = {
+  temContestacao: boolean;
+  temSentenca: boolean;
+  temReplica: boolean;
+};
+
+function blobProcessual(c: LegalCase): string {
+  const any = c as any;
+  return [
+    c.evento_tipo,
+    c.evento_resumo,
+    (c as any).datajud_ultimo_nome,
+    any.djen_ultimo_resumo,
+    any.datajud_encerrado_motivo,
+    c.observacao,
+    c.situacao,
+    any.classe_processual,
+    any.movimento_nome,
+  ]
+    .map((x) => String(x || '').toUpperCase())
+    .join(' | ');
+}
+
+export function detectFlagsFase(c: LegalCase): FlagsFaseParado {
+  const any = c as any;
+  const txt = blobProcessual(c);
+  const tipo = String(c.evento_tipo || '').toLowerCase();
+
+  const temSentenca = !!(
+    any.em_cumprimento_sentenca ||
+    c.em_cumprimento_sentenca ||
+    /sentenca_(procedente|improcedente|parcial)/.test(tipo) ||
+    tipo === 'cumprimento_sentenca' ||
+    any.is_procedente ||
+    any.is_improcedente ||
+    /\bSENTEN[CÇ]A\b/.test(txt) ||
+    /\bJULGADO\b/.test(txt) ||
+    /PROCED[EÊ]NCIA/.test(txt)
+  );
+
+  const temContestacao = !!(
+    /contest/.test(tipo) ||
+    /CONTESTA[CÇ][AÃ]O\s+(APRESENTAD|JUNTAD|OFERTAD|OFERECID|PROTOCOLAD|RECEBID|INTERPOST)/.test(txt) ||
+    /JUNTAD[AO].{0,50}CONTESTA/.test(txt) ||
+    /CONTESTA[CÇ][AÃ]O\s+(DA|DO)\s+R[EÉ]U/.test(txt) ||
+    /\bCONTESTA[CÇ][AÃ]O\b/.test(txt) && !/PRAZO\s+(PARA\s+)?(A\s+)?CONTESTA/.test(txt)
+  );
+
+  const temReplica = !!(
+    /replica/.test(tipo) ||
+    /R[EÉ]PLICA\s+(APRESENTAD|JUNTAD|OFERTAD|OFERECID|PROTOCOLAD)/.test(txt) ||
+    /JUNTAD[AO].{0,50}R[EÉ]PLICA/.test(txt) ||
+    /MANIFESTA[CÇ][AÃ]O\s+SOBRE\s+A\s+CONTESTA/.test(txt) ||
+    /\bR[EÉ]PLICA\b/.test(txt) && !/PRAZO\s+(PARA\s+)?(A\s+)?R[EÉ]PLICA/.test(txt)
+  );
+
+  return { temContestacao, temSentenca, temReplica };
+}
+
+export type FiltroFaseParado = 'sem_contestacao' | 'sem_sentenca' | 'sem_replica';
+
+export function matchFiltrosFase(flags: FlagsFaseParado, ativos: FiltroFaseParado[]): boolean {
+  if (!ativos.length) return true;
+  for (const f of ativos) {
+    if (f === 'sem_contestacao' && flags.temContestacao) return false;
+    if (f === 'sem_sentenca' && flags.temSentenca) return false;
+    if (f === 'sem_replica' && flags.temReplica) return false;
+  }
+  return true;
+}
+
 export function isOnlyCustasSignal(c: LegalCase): boolean {
   const txt = textoProcessual(c);
   const hasCustas = /CUSTAS|TAXA JUDICIARIA|TAXA JUDICIÁRIA|GUIA GERADA|UFESP|RECOLHER\s+TAXA|PREPARO/.test(txt);
@@ -400,6 +476,7 @@ export function listProcessosParados(
     // Sem providência no processo → não entra na fila de parados acionáveis
     if (onlyAcionaveis && oportunidades.length === 0) continue;
 
+    const fase = detectFlagsFase(c);
     out.push({
       case: c,
       estado,
@@ -410,6 +487,9 @@ export function listProcessosParados(
       ultimoSinalResumo: ult.resumo,
       oportunidades,
       scoreAcao: scoreAcaoParado(diasForScore, diasSemRetorno, c, estado),
+      temContestacao: fase.temContestacao,
+      temSentenca: fase.temSentenca,
+      temReplica: fase.temReplica,
     });
   }
 

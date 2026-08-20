@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   Database,
   Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import { fetchRepoCases, scanSingleCaseAction } from "@/app/actions/case-actions";
 import type { LegalCase } from "@/lib/case-logic";
@@ -42,6 +43,8 @@ import {
   type FaixaParado,
   type ProcessoParadoItem,
   type EstadoParado,
+  type FiltroFaseParado,
+  matchFiltrosFase,
 } from "@/lib/processos-parados";
 import { loadCarteiraComCache } from "@/lib/session-carteira-cache";
 import { listAdvogados } from "@/lib/case-filters";
@@ -72,6 +75,7 @@ export default function ProcessosParadosPage() {
   const [dailyMeta, setDailyMeta] = useState(25);
   const [tratados, setTratados] = useState<Record<string, string>>({});
   const [onlyComTel, setOnlyComTel] = useState(false);
+  const [filtrosFase, setFiltrosFase] = useState<FiltroFaseParado[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,9 +146,21 @@ export default function ProcessosParadosPage() {
     } else if (filtroEstado === "pendentes") {
       items = items.filter((i) => !i.tratado);
     }
+    if (filtrosFase.length) {
+      items = items.filter((i) =>
+        matchFiltrosFase(
+          {
+            temContestacao: i.temContestacao,
+            temSentenca: i.temSentenca,
+            temReplica: i.temReplica,
+          },
+          filtrosFase
+        )
+      );
+    }
     if (somenteMeta) items = items.slice(0, dailyMeta);
     return items;
-  }, [listaBase, search, lawyerFilter, onlyComTel, filtroEstado, somenteMeta, dailyMeta]);
+  }, [listaBase, search, lawyerFilter, onlyComTel, filtroEstado, somenteMeta, dailyMeta, filtrosFase]);
 
   const kpis = useMemo(() => {
     const all = listaBase;
@@ -174,38 +190,85 @@ export default function ProcessosParadosPage() {
     toast({ title: "Mensagem copiada", description: item.estado === "sem_scan" ? "Auditar antes de prometer andamento" : "Reativação / andamento" });
   };
 
+
+  const toggleFase = (id: FiltroFaseParado) => {
+    setFiltrosFase((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const rowsExport = () =>
+    lista.map((i) => ({
+      cliente: i.case.cliente,
+      protocolo: i.case.protocolo,
+      estado: i.estado,
+      dias_parado: i.diasParadoTribunal,
+      fonte: i.fonteData,
+      advogado: i.case.advogado || "",
+      telefone: i.case.telefone || "",
+      score: i.scoreAcao,
+      tratado: i.tratado ? "sim" : "nao",
+      tem_contestacao: i.temContestacao ? "sim" : "nao",
+      tem_sentenca: i.temSentenca ? "sim" : "nao",
+      tem_replica: i.temReplica ? "sim" : "nao",
+      ultimo_sinal: i.ultimoSinalResumo || "",
+    }));
+
   const exportCsv = () => {
     if (!canExport) {
       toast({ title: "Modo visualização", description: "Exportação bloqueada neste perfil.", variant: "destructive" });
       return;
     }
-    const headers = ["cliente", "protocolo", "estado", "dias_parado", "fonte", "advogado", "telefone", "score", "tratado"];
-    const lines = [headers.join(";")];
-    for (const i of lista) {
-      lines.push(
-        [
-          i.case.cliente,
-          i.case.protocolo,
-          i.estado,
-          i.diasParadoTribunal,
-          i.fonteData,
-          i.case.advogado || "",
-          i.case.telefone || "",
-          i.scoreAcao,
-          i.tratado ? "sim" : "nao",
-        ]
-          .map((x) => `"${String(x).replace(/"/g, '""')}"`)
-          .join(";")
-      );
+    const rows = rowsExport();
+    const header = [
+      "cliente","protocolo","estado","dias_parado","fonte","advogado","telefone","score","tratado",
+      "tem_contestacao","tem_sentenca","tem_replica","ultimo_sinal",
+    ];
+    const lines = [header.join(";")];
+    for (const r of rows) {
+      lines.push(header.map((k) => `"${String((r as any)[k] ?? "").replace(/"/g, '""')}"`).join(";"));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `processos-parados-${minDias}d.csv`;
+    const suf = filtrosFase.length ? filtrosFase.join("-") : "todos";
+    a.download = `processos-parados-${minDias}d-${suf}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const exportXlsx = async () => {
+    if (!canExport) {
+      toast({ title: "Modo visualização", description: "Exportação bloqueada neste perfil.", variant: "destructive" });
+      return;
+    }
+    try {
+      const { buildXlsxWithSheetJS } = await import("@/lib/sheetjs-bridge");
+      const rows = rowsExport();
+      const headers = [
+        "Cliente","Processo","Estado","Dias parado","Fonte","Advogado","Telefone","Score","Tratado",
+        "Tem contestação","Tem sentença","Tem réplica","Último sinal",
+      ];
+      const body = rows.map((r) => [
+        r.cliente, r.protocolo, r.estado, r.dias_parado, r.fonte, r.advogado, r.telefone,
+        r.score, r.tratado, r.tem_contestacao, r.tem_sentenca, r.tem_replica, r.ultimo_sinal,
+      ]);
+      const u8 = await buildXlsxWithSheetJS([{ name: "Parados", rows: [headers, ...body] }]);
+      const blob = new Blob([u8], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const suf = filtrosFase.length ? filtrosFase.join("-") : "todos";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `processos-parados-${minDias}d-${suf}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "XLSX gerado", description: `${rows.length} linha(s)` });
+    } catch (e: any) {
+      toast({ title: "Falha no XLSX", description: e?.message || "Use o CSV", variant: "destructive" });
+    }
+  };
+
 
   const scanOne = async (protocolo: string) => {
     setScanning(protocolo);
@@ -298,6 +361,9 @@ export default function ProcessosParadosPage() {
 
               <Button variant="outline" size="sm" onClick={exportCsv} disabled={!canExport} className="gap-2">
                 <Download size={14} /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!canExport} className="gap-2">
+                <FileSpreadsheet size={14} /> XLSX
               </Button>
               <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
                 {loading ? <Loader2 className="animate-spin" size={14} /> : <RefreshCcw size={14} />}
@@ -443,6 +509,38 @@ export default function ProcessosParadosPage() {
                 </Button>
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Fase (um ou vários):</span>
+              {(
+                [
+                  ["sem_contestacao", "Sem contestação"],
+                  ["sem_sentenca", "Sem sentença"],
+                  ["sem_replica", "Sem réplica"],
+                ] as const
+              ).map(([id, label]) => {
+                const on = filtrosFase.includes(id);
+                return (
+                  <Button
+                    key={id}
+                    type="button"
+                    size="sm"
+                    variant={on ? "default" : "outline"}
+                    className="h-8 text-[10px] font-bold uppercase"
+                    onClick={() => toggleFase(id)}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+              {filtrosFase.length > 0 ? (
+                <Button type="button" size="sm" variant="ghost" className="h-8 text-[10px]" onClick={() => setFiltrosFase([])}>
+                  Limpar fase
+                </Button>
+              ) : null}
+              <span className="text-[10px] text-muted-foreground">
+                {filtrosFase.length ? "AND — falta tudo o que está marcado" : "sem filtro de fase"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -500,6 +598,21 @@ export default function ProcessosParadosPage() {
                       <Badge variant="secondary" className="text-[9px] uppercase">
                         {item.fonteData}
                       </Badge>
+                      {!item.temContestacao && (
+                        <Badge variant="outline" className="text-[9px] uppercase text-amber-800 border-amber-400">
+                          Sem contestação
+                        </Badge>
+                      )}
+                      {!item.temSentenca && (
+                        <Badge variant="outline" className="text-[9px] uppercase">
+                          Sem sentença
+                        </Badge>
+                      )}
+                      {!item.temReplica && (
+                        <Badge variant="outline" className="text-[9px] uppercase">
+                          Sem réplica
+                        </Badge>
+                      )}
                       {item.tratado && (
                         <Badge className="bg-emerald-600 text-white text-[9px]">TRATADO</Badge>
                       )}
