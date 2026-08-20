@@ -201,6 +201,28 @@ function textoProcessual(c: LegalCase): string {
  * Ainda há providência útil **dentro do processo** (não só CRM/telefone).
  * Parado = sem movimento útil no tribunal; acionável = ainda cabe ato processual.
  */
+
+/**
+ * Sinal dominante é só custas/guia/taxa — processo ainda pode continuar;
+ * não entra na fila de parados acionáveis (baixa relevância operacional).
+ */
+export function isOnlyCustasSignal(c: LegalCase): boolean {
+  const txt = textoProcessual(c);
+  const hasCustas = /CUSTAS|TAXA JUDICIARIA|TAXA JUDICIÁRIA|GUIA GERADA|UFESP|RECOLHER\s+TAXA|PREPARO/.test(txt);
+  if (!hasCustas) return false;
+  const hasStrong =
+    !!c.em_cumprimento_sentenca ||
+    !!(c as any).cumprimento_pendente_necessario ||
+    !!(c as any).cumprimento_ativo ||
+    !!c.indicio_busca_apreensao ||
+    (c as any).is_procedente === true ||
+    c.evento_tipo === 'sentenca_procedente' ||
+    c.evento_tipo === 'sentenca_improcedente' ||
+    c.evento_tipo === 'cumprimento_sentenca' ||
+    /CUMPRIMENTO|EMBARGOS|RECURSO|APELACAO|APELAÇÃO|BUSCA E APREEN|AUDIENCIA|AUDIÊNCIA|PENHORA/.test(txt);
+  return !hasStrong;
+}
+
 export function aindaDaParaAgirNoProcesso(c: LegalCase): boolean {
   if (isCasoEncerrado(c)) return false;
   const sit = String(c.situacao || '').toUpperCase();
@@ -211,14 +233,17 @@ export function aindaDaParaAgirNoProcesso(c: LegalCase): boolean {
   const baixaForte =
     !!c.datajud_encerrado_tribunal ||
     /TRANSITO EM JULGADO|TRÂNSITO EM JULGADO|BAIXA DEFINITIVA|ARQUIVAMENTO DEFINITIVO/.test(txt);
+  // Custas/guia sozinhas NÃO contam como residuo crítico:
+  // processo com custas ainda pode tramitar normalmente e não é o foco da fila de parados.
   const temResiduo =
     !!c.em_cumprimento_sentenca ||
     !!(c as any).cumprimento_pendente_necessario ||
     !!(c as any).cumprimento_ativo ||
-    /CUSTAS|TAXA JUDICIARIA|TAXA JUDICIÁRIA|GUIA|UFESP|GRATUIDADE|CUMPRIMENTO|EXECUCAO|EXECUÇÃO|HONORAR/.test(txt) ||
+    /CUMPRIMENTO|EXECUCAO|EXECUÇÃO|HONORAR|EMBARGOS|RECURSO|APELACAO|APELAÇÃO/.test(txt) ||
     (c as any).is_procedente === true ||
     c.evento_tipo === 'sentenca_procedente' ||
-    c.evento_tipo === 'cumprimento_sentenca';
+    c.evento_tipo === 'cumprimento_sentenca' ||
+    c.evento_tipo === 'sentenca_improcedente';
 
   if (baixaForte && !temResiduo) return false;
   return true;
@@ -249,10 +274,8 @@ function oportunidadesDe(c: LegalCase, diasParado: number, estado: EstadoParado)
     ops.push('Improcedência: avaliar embargos de declaração / recurso no prazo');
   }
 
-  // --- Custas / regularização ---
-  if (/CUSTAS|TAXA JUDICIARIA|TAXA JUDICIÁRIA|GUIA GERADA|UFESP|RECOLHER/.test(txt)) {
-    ops.push('Custas/guia: regularizar no portal do tribunal ou orientá-lo com base no DJEN');
-  }
+  // Custas isoladas: sem relevância nesta fila (processo pode continuar no rito normal).
+  // Justiça gratuita ainda é ato no processo (documentação / cumprimento de intimação).
   if (/GRATUIDADE|JUSTICA GRATUITA|JUSTIÇA GRATUITA|ASSISTENCIA JUDICIARIA/.test(txt)) {
     ops.push('Justiça gratuita: juntar documentos ou cumprir intimação no processo');
   }
@@ -278,7 +301,7 @@ function oportunidadesDe(c: LegalCase, diasParado: number, estado: EstadoParado)
 
   // --- Baixa residual ---
   if (c.datajud_encerrado_tribunal && !isCasoEncerrado(c)) {
-    ops.push('Tribunal sinaliza baixa: conferir se ainda há ato (custas, alvará, cumprimento)');
+    ops.push('Tribunal sinaliza baixa: conferir alvará, cumprimento residual ou ato útil no processo');
   }
 
   // Sem oportunidade processual clara → não inventar "só telefone"
@@ -347,6 +370,8 @@ export function listProcessosParados(
     if (isCasoEncerrado(c)) continue;
     if (String(c.situacao || '').toUpperCase() === 'ARQUIVADO') continue;
     if (onlyAcionaveis && !aindaDaParaAgirNoProcesso(c)) continue;
+    // Custas isoladas: processo pode continuar — fora da fila crítica de parados
+    if (onlyAcionaveis && isOnlyCustasSignal(c)) continue;
 
     const ult = ultimaDataTribunal(c);
     const diasParado = diasDesde(ult.date, now);
@@ -472,7 +497,7 @@ export function scriptProcessoParado(c: LegalCase, diasParado: number, estado?: 
     ``,
     `Passando para alinhar o andamento do processo nº ${cnj}.`,
     ``,
-    `Pelos registros oficiais, o processo nº ${cnj} está sem movimentação nova no tribunal há ${faixa}. Nossa equipe está avaliando se ainda cabe alguma providência **dentro do próprio processo** (impulso, cumprimento, custas ou recurso).`,
+    `Pelos registros oficiais, o processo nº ${cnj} está sem movimentação nova no tribunal há ${faixa}. Nossa equipe está avaliando se ainda cabe alguma providência **dentro do próprio processo** (impulso, cumprimento ou recurso).`,
     ``,
     `Você não precisa fazer nada neste momento. Assim que houver orientação clara, te retorno.`,
     ``,
