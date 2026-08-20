@@ -1,3 +1,4 @@
+import { useAdmin } from '@/hooks/use-admin';
 "use client";
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
@@ -128,6 +129,7 @@ interface TaskGroup {
 }
 
 export default function TarefasPage() {
+  const { canCopy, canExport, canScan, isViewer } = useAdmin();
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
   const LIST_PAGE_SIZE = 80;
@@ -503,6 +505,10 @@ const handleSaveAttendance = async () => {
   };
 
   const copyScript = (text: string) => {
+    if (!canCopy) {
+      toast({ title: "Modo visualização", description: "Copiar está desabilitado neste perfil.", variant: "destructive" });
+      return;
+    }
     navigator.clipboard.writeText(text);
     toast({ title: "Copiado" });
   };
@@ -938,7 +944,7 @@ const handleSaveAttendance = async () => {
                                  size="sm"
                                  onClick={() => handleExportDjenPDF(item.raw)}
                                  className="h-8 px-3 text-[9px] font-black uppercase border-blue-600 text-blue-700 hover:bg-blue-600 hover:text-white ml-auto gap-1"
-                                 title="Exportar decisão / publicação em PDF"
+                                 title={canExport ? "Exportar decisão / publicação em PDF" : "Modo visualização: download bloqueado"}
                                >
                                  <Download size={12} /> Exportar PDF
                                </Button>

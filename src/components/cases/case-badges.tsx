@@ -11,6 +11,7 @@ import type { LegalCase } from "@/lib/case-logic";
 import { isAtendidoNestaSemana } from "@/lib/atendimento-semana";
 import { getStatusChip, chipClass } from "@/lib/case-status-chip";
 import { CaseResumoChip } from "@/components/cases/case-resumo-chip";
+import { getDiasParadoTribunal } from "@/lib/processos-parados";
 
 type Props = {
   c: LegalCase;
@@ -24,10 +25,27 @@ export function CaseBadges({ c, className }: Props) {
   const semana = isAtendidoNestaSemana(
     (c as any).ultimoRetorno || (c as any).ultimo_retorno
   );
+  const diasParado = getDiasParadoTribunal(c, 60);
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
       <CaseResumoChip caseData={c} />
+      {typeof diasParado === "number" && diasParado >= 60 && (
+        <Badge
+          variant="outline"
+          className={cn(
+            "h-5 px-2 rounded-md text-[8px] font-bold uppercase",
+            diasParado >= 180
+              ? "border-red-600/50 text-red-700 bg-red-50"
+              : diasParado >= 90
+                ? "border-amber-600/50 text-amber-800 bg-amber-50"
+                : "border-orange-500/40 text-orange-800 bg-orange-50/80"
+          )}
+          title="Sem movimento útil no tribunal há bastante tempo"
+        >
+          Parado {diasParado}d
+        </Badge>
+      )}
       {semana && chip.tone !== "danger" && (
         <Badge
           variant="outline"

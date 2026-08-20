@@ -17,9 +17,22 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.8.0';
+export const APP_VERSION = '1.9.0';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.9.0',
+    date: '2026-08-20',
+    title: 'Parados na linha + visualização nas abas',
+    details: [
+      'Badge Parado XXd em Processos (60/90/180d).',
+      'Fila de contato e WhatsApp: bloqueio de cópia no modo visualização.',
+      'Processos parados: auditar top 15 em lote (respeita canScan).',
+      'Export CSV de parados desabilitado para visualizador.',
+    ],
+    tags: ['ops', 'visualização', 'parados'],
+  },
+
   {
     version: '1.8.0',
     date: '2026-08-20',

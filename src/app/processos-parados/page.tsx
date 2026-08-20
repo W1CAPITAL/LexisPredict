@@ -1,3 +1,4 @@
+import { useAdmin } from '@/hooks/use-admin';
 "use client";
 
 /**
@@ -54,6 +55,9 @@ const FAIXAS: { id: FaixaParado; label: string }[] = [
 type FiltroEstado = "todos" | "confirmados" | "sem_scan" | "tratados" | "pendentes";
 
 export default function ProcessosParadosPage() {
+  const { canScan, canCopy, canExport } = useAdmin();
+  const [batchScanning, setBatchScanning] = useState(false);
+
   const { toast } = useToast();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,6 +173,10 @@ export default function ProcessosParadosPage() {
   };
 
   const exportCsv = () => {
+    if (!canExport) {
+      toast({ title: "Modo visualização", description: "Exportação bloqueada neste perfil.", variant: "destructive" });
+      return;
+    }
     const headers = ["cliente", "protocolo", "estado", "dias_parado", "fonte", "advogado", "telefone", "score", "tratado"];
     const lines = [headers.join(";")];
     for (const i of lista) {
@@ -243,7 +251,50 @@ export default function ProcessosParadosPage() {
               </p>
             </div>
             <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={exportCsv} className="gap-2">
+              
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!canScan || batchScanning}
+                onClick={async () => {
+                  if (!canScan) {
+                    toast({ title: "Modo visualização", description: "Scanner bloqueado neste perfil.", variant: "destructive" });
+                    return;
+                  }
+                  const alvo = listProcessosParados(cases, minDias, { includeSemScan: false, onlyConfirmados: true })
+                    .filter((i) => !tratados[String(i.case?.protocolo || "")])
+                    .slice(0, 15);
+                  if (!alvo.length) {
+                    toast({ title: "Nada a auditar", description: "Sem parados confirmados nesta faixa." });
+                    return;
+                  }
+                  setBatchScanning(true);
+                  let ok = 0, fail = 0;
+                  try {
+                    for (const item of alvo) {
+                      const p = String(item.case?.protocolo || "");
+                      if (!p) continue;
+                      try {
+                        const res: any = await scanSingleCaseAction(p, { mode: "both", fast: false } as any);
+                        if (res?.success !== false) ok++;
+                        else fail++;
+                      } catch {
+                        fail++;
+                      }
+                      await new Promise((r) => setTimeout(r, 400));
+                    }
+                    toast({ title: "Lote de parados", description: `OK ${ok} · falhas ${fail} (máx. 15)` });
+                    await load();
+                  } finally {
+                    setBatchScanning(false);
+                  }
+                }}
+                className="gap-2"
+              >
+                {batchScanning ? "Auditando…" : "Auditar top 15 parados"}
+              </Button>
+
+              <Button variant="outline" size="sm" onClick={exportCsv} disabled={!canExport} className="gap-2">
                 <Download size={14} /> CSV
               </Button>
               <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">

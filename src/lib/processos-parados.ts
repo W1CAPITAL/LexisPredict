@@ -416,3 +416,11 @@ export function isCasoParadoTribunal(c: LegalCase, minDias = 60): boolean {
   const items = listProcessosParados([c], minDias, { includeSemScan: false, onlyConfirmados: true });
   return items.length > 0;
 }
+
+/** Dias parado confirmado ou null se não aplicável / sem_scan. */
+export function getDiasParadoTribunal(c: LegalCase, minDias = 60): number | null {
+  if (isCasoEncerrado(c)) return null;
+  const items = listProcessosParados([c], minDias, { includeSemScan: false, onlyConfirmados: true });
+  if (!items.length) return null;
+  return items[0].diasParadoTribunal;
+}

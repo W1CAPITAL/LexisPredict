@@ -1,3 +1,4 @@
+import { useAdmin } from "@/hooks/use-admin";
 "use client";
 
 /**
@@ -151,6 +152,7 @@ function todayBR() {
 
 function WhatsAppTerminalInner() {
   const { toast } = useToast();
+  const { canCopy, canExport, canScan, isViewer } = useAdmin();
   const searchParams = useSearchParams();
   const [deepLinkDone, setDeepLinkDone] = useState(false);
 
@@ -1077,6 +1079,10 @@ function WhatsAppTerminalInner() {
 
   const copyDraft = async () => {
     if (!draft.trim()) return;
+    if (!canCopy) {
+      toast({ title: "Modo visualização", description: "Copiar está desabilitado neste perfil.", variant: "destructive" });
+      return;
+    }
     await navigator.clipboard.writeText(draft);
     toast({ title: "Copiado" });
   };
