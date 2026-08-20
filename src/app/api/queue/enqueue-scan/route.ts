@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-export const preferredRegion = 'gru1';
 
 export async function POST(request: Request) {
   const auth = request.headers.get('Authorization');

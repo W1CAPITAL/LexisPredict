@@ -6,7 +6,6 @@ import { getUserContext } from '@/lib/server-db';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
-export const preferredRegion = 'gru1';
 
 export async function POST(request: Request) {
   try {

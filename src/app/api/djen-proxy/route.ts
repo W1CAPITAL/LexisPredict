@@ -6,7 +6,6 @@ import { NextResponse } from 'next/server';
 import { fetchDjenComunicacoes } from '@/lib/djen';
 
 export const runtime = 'nodejs';
-export const preferredRegion = 'gru1'; // CRÍTICO: São Paulo
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {

@@ -7,7 +7,6 @@ import { getGlobalPendingProcessesSystem } from '@/lib/server-db';
 import { auditCaseCoreSystem } from '@/app/actions/case-actions';
 
 export const dynamic = 'force-dynamic';
-export const preferredRegion = 'gru1';
 export const maxDuration = 60;
 
 /** Lote pequeno + 1 a 1: tribunal responde melhor que paralelismo */

@@ -1,6 +1,6 @@
 {
   "name": "lexispredict",
-  "version": "1.13.1",
+  "version": "1.13.2",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
@@ -75,7 +75,6 @@
   "devDependencies": {
     "@playwright/test": "^1.49.1",
     "@types/file-saver": "^2.0.7",
-    "@types/jszip": "^3.4.1",
     "@types/node": "^24",
     "@types/pdf-parse": "^1.1.4",
     "@types/react": "^19",

@@ -7,7 +7,6 @@ import { NextResponse } from 'next/server';
 import { getUserContext, getScanStatusMetrics } from '@/lib/server-db';
 
 export const dynamic = 'force-dynamic';
-export const preferredRegion = 'gru1';
 
 export async function GET() {
   try {
