@@ -1,100 +1,47 @@
 /**
- * Badges estáveis da carteira — leitura em 2s (Cases + Tarefas)
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * No máximo 1–2 chips (status principal + opcional semana/BA).
+ * O detalhe fica no resumo em linguagem simples, não em bandeirinhas.
  */
 "use client";
 
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LegalCase } from "@/lib/case-logic";
 import { isAtendidoNestaSemana } from "@/lib/atendimento-semana";
-import { scoreCasePriority } from "@/lib/case-priority";
+import { getStatusChip, chipClass } from "@/lib/case-status-chip";
 
 type Props = {
   c: LegalCase;
-  /** mostra badge de prioridade operacional */
   showPriority?: boolean;
   className?: string;
 };
 
-export function CaseBadges({ c, showPriority = false, className }: Props) {
+export function CaseBadges({ c, className }: Props) {
   if (!c) return null;
-  const prio = showPriority ? scoreCasePriority(c) : null;
-  const ur = (c as any).ultimoRetorno || (c as any).ultimo_retorno;
+  const chip = getStatusChip(c);
+  const semana = isAtendidoNestaSemana(
+    (c as any).ultimoRetorno || (c as any).ultimo_retorno
+  );
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
-      {prio && prio.band !== "normal" && (
+      <Badge
+        className={cn(
+          "h-5 px-2 rounded-md font-black uppercase text-[8px] border",
+          chipClass(chip.tone)
+        )}
+      >
+        {chip.label}
+      </Badge>
+      {semana && chip.tone !== "danger" && (
         <Badge
-          className={cn(
-            "h-5 px-2 rounded-md font-black uppercase text-[8px] border-none",
-            prio.band === "ba" && "bg-red-600 text-white animate-pulse",
-            prio.band === "encerrado_tribunal" && "bg-slate-800 text-white",
-            prio.band === "novidade" && "bg-rose-600 text-white",
-            prio.band === "cumprimento" && "bg-amber-500 text-black",
-            prio.band === "vencido" && "bg-red-50 text-red-700 border border-red-200",
-            prio.band === "hoje" && "bg-orange-100 text-orange-800",
-            prio.band === "atencao" && "bg-yellow-100 text-yellow-800",
-            prio.band === "sem_retorno" && "bg-zinc-100 text-zinc-700"
-          )}
+          variant="outline"
+          className="h-5 px-2 rounded-md text-[8px] font-bold uppercase border-emerald-600/40 text-emerald-700"
         >
-          {prio.label}
-        </Badge>
-      )}
-
-      {(c as any).indicio_busca_apreensao && (
-        <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-semibold uppercase text-[8px]">
-          B.A.
-        </Badge>
-      )}
-
-      {(c as any).datajud_encerrado_tribunal && (
-        <Badge className="h-5 px-2 rounded-md bg-slate-800 text-white font-semibold uppercase text-[8px] max-w-[140px] truncate">
-          Encerrado
-        </Badge>
-      )}
-
-      {!!(
-        (c as any).tem_novo_andamento ||
-        (c as any).tem_atualizacao_pos_retorno ||
-        (c as any).djen_nova_comunicacao
-      ) && (
-        <Badge
-          variant="destructive"
-          className="h-5 px-2 rounded-md font-black uppercase text-[8px] animate-pulse"
-        >
-          Novo andamento
-        </Badge>
-      )}
-
-      {(c.em_cumprimento_sentenca || (c as any).cumprimento_sentenca) && (
-        <Badge className="h-5 px-2 rounded-md bg-amber-500 text-black font-black uppercase text-[8px]">
-          Cumprimento
-        </Badge>
-      )}
-
-      {isAtendidoNestaSemana(ur) && (
-        <Badge className="badge-semana h-5 px-2 rounded-md font-black uppercase text-[8px]">
           Atendido semana
         </Badge>
       )}
-
-      {(c as any).ai_engine && (
-        <Badge
-          variant="outline"
-          className="h-5 px-2 rounded-md font-black uppercase text-[7px] border-primary/40 text-primary"
-        >
-          IA {String((c as any).ai_engine).split(":")[0]}
-        </Badge>
-      )}
-
-      {(c as any).sinal_numopede || (c as any).sinal_predatoria ? (
-        <Badge className="h-5 px-2 rounded-md bg-violet-700 text-white font-black uppercase text-[8px] tracking-wide">
-          NUMOPEDE
-        </Badge>
-      ) : null}
     </div>
   );
 }

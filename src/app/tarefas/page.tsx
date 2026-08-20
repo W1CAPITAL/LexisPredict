@@ -1016,33 +1016,11 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
           {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <UserCheck size={24} />}
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
-          {group.hasBA ? <Badge className="bg-red-600 text-white text-[8px] font-black uppercase">CRÍTICO: B.A.</Badge> : null}
-          {group.hasAttendedWeek ? <Badge className="badge-semana text-[8px] font-black uppercase">Atendido semana</Badge> : null}
-          {group.cases.some((c: any) => isAtendimentoRecente(c.ultimoRetorno || c.ultimo_retorno, 36)) ? (
-            <Badge variant="outline" className="text-[8px] font-black uppercase border-emerald-600 text-emerald-700">Retorno recente</Badge>
-          ) : null}
-          {groupFilaLista(group.cases as any) === 'tratamento' ? (
-            <Badge className="bg-amber-500 text-black text-[8px] font-black uppercase">Em tratamento</Badge>
-          ) : null}
-          {groupFilaLista(group.cases as any) === 'blacklist' ? (
-            <Badge className="bg-slate-900 text-white text-[8px] font-black uppercase">Blacklist</Badge>
-          ) : null}
           {group.cases?.[0] ? (
-            <Badge variant="outline" className="text-[7px] font-black uppercase border-black/20">
-              {rotuloPrioridade(group.cases[0] as any)} · {faixaPrioridade(group.cases[0] as any)}
-              {' · pred ' + scorePreditivo(group.cases[0] as any) + '%'}
-            </Badge>
-          ) : null}
-          {group.hasClosedCourt ? <Badge className="bg-black text-red-500 border-2 border-red-500 text-[8px] font-black uppercase">BAIXA TRIBUNAL</Badge> : null}
-          {group.cases?.some((x: any) => x.em_cumprimento_sentenca || x.cumprimento_sentenca) ? <Badge className="bg-amber-500 text-black text-[8px] font-black uppercase">CUMPRIMENTO</Badge> : null}
-          {group.cases?.some((x: any) => x.sentenca_procedente || x.merito_resultado === 'procedente') ? <Badge className="bg-emerald-600 text-white text-[8px] font-black uppercase">PROCEDENTE</Badge> : null}
-          {group.cases?.some((x: any) => x.sentenca_improcedente || x.merito_resultado === 'improcedente') ? <Badge className="bg-slate-700 text-white text-[8px] font-black uppercase">IMPROCEDENTE</Badge> : null}
-          {group.cases?.some((x: any) => x.alerta_ia) ? <Badge className="bg-red-700 text-white text-[8px] font-black uppercase animate-pulse">ALERTA IA</Badge> : null}
-          {group.hasUpdate && !group.hasBA ? <Badge variant="destructive" className="text-[7px] font-black uppercase animate-pulse">NOVIDADE IDENTIFICADA</Badge> : null}
-          {(group as any).hasAudiencia ? <Badge className="bg-blue-600 text-white text-[7px] font-black uppercase">AUDIÊNCIA PENDENTE</Badge> : null}
-          {(group as any).hasCumprimento ? <Badge className="bg-purple-700 text-white text-[7px] font-black uppercase">CUMPRIMENTO</Badge> : null}
-          {!group.hasBA && !group.hasClosedCourt && !group.hasUpdate ? <Badge variant="outline" className="text-[8px] font-black uppercase">Monitoramento</Badge> : null}
-        </div>
+            <CaseBadges c={group.cases[0] as any} />
+          ) : group.hasBA ? (
+            <Badge className="bg-red-600 text-white text-[8px] font-black uppercase">B.A.</Badge>
+          ) : null}        </div>
       </div>
       <div className="space-y-1 flex-1">
         <h3 className="font-black text-sm text-foreground uppercase tracking-tight truncate group-hover:text-primary transition-colors">{group.cliente}</h3>
@@ -1051,14 +1029,6 @@ function TaskCard({ group, isFocus = false, onMarkContacted, onScan, onSuggest }
            <Building2 size={12} className="text-black/30" />
            <span className="text-[9px] font-black uppercase text-black/40">{group.escritorio || 'GERAL'}</span>
         </div>
-        {(group.eventoUnificadoResumo || group.hasUpdate) && (
-          <div className={cn("mt-4 p-3 rounded-xl border", group.hasUpdate ? "bg-blue-50 border-blue-100" : "bg-blue-50 border-blue-100")}>
-            <p className={cn("text-[10px] font-black uppercase mb-1", "text-blue-700")}>Novidade Identificada</p>
-            <p className={cn("text-foreground/80 leading-relaxed italic line-clamp-3 uppercase font-bold text-[11px]", ui.readable)}>
-              {group.eventoUnificadoResumo || "Identificada novidade técnica no processo."}
-            </p>
-          </div>
-        )}
       </div>
       {group.cases[0] && (
         <div className="mt-4">
