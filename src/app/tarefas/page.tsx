@@ -809,7 +809,6 @@ const handleSaveAttendance = async () => {
               <span className="ml-2">Silêncio {opsKpis.silencio45}</span>
               <span className="ml-2 text-[9px] font-bold">J/K próximo caso</span>
             </span>
-            </span>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">Audit Híbrida Ativa</Badge>
