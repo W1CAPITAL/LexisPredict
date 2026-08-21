@@ -46,7 +46,8 @@ export async function getUserContext() {
   const isMasterView = isSuperAdmin || isSupervisor || isViewer;
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
-  const isEmpresaWide = isMasterView; // Supervisor / Superadmin / Visualizador — NÃO Administrador
+  // Administrador também vê a carteira da empresa (fila web/PWA não fica vazia).
+  const isEmpresaWide = isMasterView || isAdministrador;
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -125,12 +126,12 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   const context = await getUserContext();
   const { auth_id, isMasterView, isEmpresaWide } = context as any;
-  const useAdmin = isAdmin || isMasterView === true;
+  const useAdmin = isAdmin || isMasterView === true || isEmpresaWide === true;
   let client = useAdmin ? await getSupabaseAdmin() : supabase;
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
 
-  const fetchPages = async (cli: any, filterByCreator: boolean) => {
+  const fetchPages = async (cli: any, mode: 'all' | 'mine' | 'mine_or_orphan') => {
     let allData: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -142,8 +143,11 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
-      if (filterByCreator && auth_id) {
+      if (mode === 'mine' && auth_id) {
         query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
+      } else if (mode === 'mine_or_orphan' && auth_id) {
+        // Import legado sem dono + meus — evita fila web vazia
+        query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id},created_by.is.null`);
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -159,20 +163,24 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   };
 
   try {
-    // Operador comum: só os seus. Master/admin: empresa inteira.
-    const filterByCreator = !useAdmin && !!auth_id;
-    let allData = await fetchPages(client, filterByCreator);
+    // Master / admin / supervisor: empresa inteira. Operador: seus + órfãos se vazio.
+    const mode = useAdmin ? 'all' : (auth_id ? 'mine' : 'all');
+    let allData = await fetchPages(client, mode);
 
-    // Fallback: se master/admin veio vazio (service key ausente / RLS), tenta anon+master sem created_by
-    if (allData.length === 0 && useAdmin && client === supabase) {
+    if (allData.length === 0 && mode === 'mine') {
       try {
-        const admin = await getSupabaseAdmin();
-        if (admin) allData = await fetchPages(admin, false);
+        allData = await fetchPages(client, 'mine_or_orphan');
       } catch { /* ignore */ }
     }
 
-    // Fallback operador: se created_by não bate (import antigo com null), não deixar tela zerada à toa —
-    // só quando isMasterView (supervisor) já coberto; para admin de empresa use isAdmin=true nas actions.
+    // Fallback: se master/admin veio vazio (service key ausente / RLS), tenta service role
+    if (allData.length === 0 && useAdmin && client === supabase) {
+      try {
+        const admin = await getSupabaseAdmin();
+        if (admin) allData = await fetchPages(admin, 'all');
+      } catch { /* ignore */ }
+    }
+
     return allData.map((item) => {
       try {
         return toLegalCase(item);

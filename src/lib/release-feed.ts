@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas. */
 
-export const RELEASE_VERSION = "9.66.0";
+export const RELEASE_VERSION = "9.68.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.68 — Fila web: Admin vê empresa; operador com órfãos; empty state + limpar filtros/recarregar.",
   "9.66 — Lote ops: prioridade 0–100 nas 5 telas do dia (carteira, processos, fila, relatório, dashboard). Réplica, silêncio 45/60d e BA real no mesmo número.",
   "9.65 — Lote F: CPF/CNPJ reais, banco omitido sem placeholder, habilitação sem réu vazio.",
   "9.64 — Lote E: régua com totais, forma de pagamento e visão admin.",

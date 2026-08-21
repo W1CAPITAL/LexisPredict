@@ -81,7 +81,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { appendScanLog } from '@/lib/scan-event-log';
-import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
+import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -256,8 +256,10 @@ export default function TarefasPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const empId = (profile as any)?.empresa_id || null;
       const _pack = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
+        empresaId: empId,
         onShow: (data) => { if (Array.isArray(data)) setCases(data); },
         allowStaleKpiFallback: false,
       });
@@ -267,8 +269,12 @@ export default function TarefasPage() {
         if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
       } catch { /* */ }
       if (Array.isArray(data)) setCases(data);
+      // Cache de outra sessão/empresa zerando a fila no browser: força rede limpa
+      if (Array.isArray(data) && data.length === 0) {
+        try { invalidateCarteiraCache(); } catch { /* */ }
+      }
     } finally { setLoading(false); }
-  }, []);
+  }, [profile]);
 
   useEffect(() => { if (mounted) loadData(); }, [loadData, mounted]);
 
@@ -950,6 +956,48 @@ const handleSaveAttendance = async () => {
                 <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
               ))}
             </div>
+            {!loading && taskData.focus.length === 0 && (
+              <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-3">
+                <p className="text-sm font-black uppercase tracking-wide text-foreground">
+                  {cases.length === 0
+                    ? 'Nenhum processo na carteira desta sessão'
+                    : 'Nenhum caso na fila com os filtros atuais'}
+                </p>
+                <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
+                  {cases.length === 0
+                    ? 'No browser (fora do app instalado) a sessão usa o cookie do login. Recarregue, entre de novo ou limpe o cache da carteira.'
+                    : `Há ${cases.length} processo(s) carregados, mas filtros (escritório, advogado, fila, “meus hoje” ou contatados) esconderam todos.`}
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 text-[10px] font-black uppercase"
+                    onClick={() => {
+                      setSearch('');
+                      setOfficeFilter('all');
+                      setLawyerFilter('all');
+                      setFilaFiltro('all');
+                      setSoMeusHoje(false);
+                      setSomenteMeta(false);
+                      try {
+                        localStorage.removeItem('lexis_tarefas_filters_v1');
+                        localStorage.setItem('lexis_tarefas_somente_meta', '0');
+                      } catch { /* */ }
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-9 text-[10px] font-black uppercase"
+                    onClick={() => { try { invalidateCarteiraCache(); } catch { /* */ } loadData(); }}
+                  >
+                    Recarregar carteira
+                  </Button>
+                </div>
+              </div>
+            )}
             {taskData.focus.length > listVisible && (
               <div className="flex flex-col items-center gap-2 py-4">
                 <Button
