@@ -41,6 +41,7 @@ import {
   Search,
   Zap,
   Calculator,
+  Crown,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils"
@@ -211,6 +212,7 @@ function SidebarNavBody({
       );
       if (isSuperAdmin) {
         rest.push({ label: "Segurança", href: "/security", icon: ShieldAlert });
+        rest.push({ label: "Superadmin", href: "/superadmin", icon: Crown });
       }
     }
     rest.push(
