@@ -22,7 +22,9 @@ import { gerarPixCopiaCola, qrCodeUrl } from "@/lib/pix-emv";
 import {
   criarPedido,
   confirmarPedidoPago,
+  marcarPagamentoInformado,
   loadPedidos,
+  statusLabel,
   type UpgradePedido,
 } from "@/lib/upgrade-pedidos";
 import {
@@ -126,7 +128,7 @@ export function PlanosEmpresaPanel() {
     setPedidos(loadPedidos().filter((x) => x.empresaId === empresaId).slice(0, 5));
     toast({
       title: "Pix gerado",
-      description: `Pague ${formatBRL(pixData.valor)} e confirme abaixo para liberar o plano.`,
+      description: `Pague ${formatBRL(pixData.valor)}. Use a ref. do pedido no comprovante. Só Superadmin libera após ver o extrato.`,
     });
   };
 
@@ -143,23 +145,55 @@ export function PlanosEmpresaPanel() {
     }
   };
 
-  const confirmarELiberar = async () => {
+  /** Cliente: só avisa que pagou — NÃO libera plano. */
+  const informarPagamento = () => {
+    if (!pedido) {
+      toast({
+        title: "Gere o Pix antes",
+        description: "Crie o pedido Pix para ter uma referência única no extrato.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const p = marcarPagamentoInformado(pedido.id);
+    if (p) {
+      setPedido(p);
+      setPedidos(loadPedidos().filter((x) => x.empresaId === empresaId).slice(0, 8));
+    }
+    toast({
+      title: "Pagamento informado",
+      description: `Ref. ${pedido.ref}. O plano só libera quando o Superadmin confirmar o crédito no extrato (${PIX_RECEBEDOR.chave}).`,
+    });
+  };
+
+  /** Superadmin: viu o Pix no extrato → libera de verdade. */
+  const confirmarNoExtratoELiberar = async () => {
+    if (!isSuperAdmin) {
+      toast({
+        title: "Sem permissão",
+        description: "Só Superadmin confirma pagamento e libera plano.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!checkoutPlan || !empresaId) return;
     setConfirming(true);
     try {
-      if (pedido) confirmarPedidoPago(pedido.id);
+      if (pedido) {
+        confirmarPedidoPago(pedido.id, profile?.email || profile?.nome || "superadmin");
+      }
       savePlanoEmpresa(empresaId, checkoutPlan);
       const res = await salvarPlanoEmpresaAction(empresaId, checkoutPlan);
       setPlanAtual(checkoutPlan);
       toast({
         title: `Plano ${PLAN_LABEL[checkoutPlan]} liberado`,
         description: res.persisted
-          ? `${empresaNome} atualizada no banco.`
-          : "Salvo neste navegador. Rode a migration para persistir em empresas.plano.",
+          ? `${empresaNome} atualizada no banco. Ref. ${pedido?.ref || "—"}.`
+          : "Salvo neste navegador. Confira migration empresas.plano.",
       });
       setCheckoutPlan(null);
       setPedido(null);
-      setPedidos(loadPedidos().filter((x) => x.empresaId === empresaId).slice(0, 5));
+      setPedidos(loadPedidos().filter((x) => x.empresaId === empresaId).slice(0, 8));
     } catch (e: any) {
       toast({ title: "Falha ao liberar plano", description: e?.message, variant: "destructive" });
     } finally {
@@ -195,8 +229,9 @@ export function PlanosEmpresaPanel() {
               Pacotes por empresa
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Escolha o plano, gere o <strong className="text-foreground">Pix</strong> e libere os
-              módulos na hora. Máximo desbloqueia todos os pacotes.
+              Gere o <strong className="text-foreground">Pix</strong> com valor e referência.
+              A liberação do plano é <strong className="text-foreground">manual</strong>: só após
+              crédito no extrato (Superadmin). Não basta clicar em “já paguei”.
             </p>
           </div>
           <div className="flex flex-col items-stretch sm:items-end gap-2">
@@ -321,7 +356,7 @@ export function PlanosEmpresaPanel() {
                   onClick={() => aplicarDireto(id)}
                   disabled={loading}
                 >
-                  Aplicar sem Pix (admin)
+                  Aplicar sem Pix (só Superadmin) (admin)
                 </button>
               )}
             </div>
@@ -388,7 +423,7 @@ export function PlanosEmpresaPanel() {
               <Button
                 type="button"
                 className="w-full sm:w-auto h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest gap-2"
-                onClick={confirmarELiberar}
+                onClick={informarPagamento}
                 disabled={confirming}
               >
                 {confirming ? (
@@ -396,11 +431,23 @@ export function PlanosEmpresaPanel() {
                 ) : (
                   <ShieldCheck size={16} />
                 )}
-                Já paguei — liberar plano
+                Informei o pagamento (não libera sozinho)
               </Button>
+              {isSuperAdmin && (
+                <Button
+                  type="button"
+                  className="w-full h-11 font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={confirming || !checkoutPlan}
+                  onClick={confirmarNoExtratoELiberar}
+                >
+                  {confirming ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                  Superadmin: confirmar no extrato e liberar
+                </Button>
+              )}
+
               <p className="text-[10px] text-muted-foreground leading-snug max-w-md">
-                Após o Pix, clique em <strong>Já paguei</strong> para gravar o plano na empresa.
-                Confirme o crédito no extrato da chave {PIX_RECEBEDOR.chave}.
+                “Informei o pagamento” só registra o pedido. O plano só muda depois que o
+                Superadmin confirmar o valor no extrato da chave {PIX_RECEBEDOR.chave}.
               </p>
             </div>
 
