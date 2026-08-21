@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Se a sessão morrer, não deixa a UI “travada” no cache:
- * mostra bloqueio claro + botão para entrar de novo.
+ * Não bloqueia a UI inteira em "Validando sessão…".
+ * Só redireciona se realmente não houver user após o boot.
  */
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -17,37 +17,44 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const router = useRouter();
   const [retrying, setRetrying] = useState(false);
+  const [waited, setWaited] = useState(false);
 
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
+  // Depois de 2s sem user, permite tela de sessão encerrada (evita flash no boot)
+  useEffect(() => {
+    if (!loading && !user && !isPublic) {
+      const t = window.setTimeout(() => setWaited(true), 400);
+      return () => window.clearTimeout(t);
+    }
+    setWaited(false);
+  }, [loading, user, isPublic]);
+
   useEffect(() => {
     if (loading) return;
-    if (!user && !isPublic) {
-      // soft redirect; overlay cobre se a navegação atrasar
+    if (!user && !isPublic && waited) {
       router.replace("/login?reason=session");
     }
-  }, [user, loading, isPublic, router, pathname]);
+  }, [user, loading, isPublic, router, pathname, waited]);
 
   if (isPublic) return <>{children}</>;
 
-  if (loading) {
+  // Boot curto: mostra o app (sidebar etc.) mesmo com loading — não congela
+  if (loading && !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background text-foreground">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          Validando sessão…
-        </p>
+      <div className="min-h-[40vh] flex flex-col items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin opacity-60" />
+        <span className="text-[10px] font-bold uppercase tracking-widest">Abrindo…</span>
       </div>
     );
   }
 
-  if (!user) {
+  if (!user && waited) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background text-foreground p-6">
         <h1 className="text-lg font-black uppercase tracking-tight">Sessão encerrada</h1>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
-          {sessionError ||
-            "O login expirou ou foi interrompido. Entre de novo para continuar — o cache local não substitui a sessão."}
+          {sessionError || "Entre de novo para continuar."}
         </p>
         <div className="flex flex-wrap gap-2 justify-center">
           <Button
@@ -66,10 +73,7 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
           <Button
             variant="outline"
             className="font-black uppercase text-[10px] tracking-widest"
-            onClick={() => {
-              signOut();
-              router.replace("/login");
-            }}
+            onClick={() => signOut()}
           >
             Ir para o login
           </Button>
@@ -78,5 +82,6 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // user existe OU ainda no boot com user já setado → libera filhos (fila, sidebar)
   return <>{children}</>;
 }
