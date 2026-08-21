@@ -12,7 +12,6 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
-import { fetchCarteiraDeduped } from "@/lib/carteira-fetch-client";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
@@ -136,8 +135,6 @@ export default function ProcessosEmpresaPage() {
     !!(profile as any)?.isSuperAdmin;
 
   const [cases, setCases] = useState<LegalCase[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [ativosCount, setAtivosCount] = useState(0);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,8 +163,6 @@ export default function ProcessosEmpresaPage() {
     const res = await fetchCompanyProcessosAction();
     // REPLACE (não concatena com cache antigo)
     const list = res.cases || [];
-    setTotalCount(Number((res as any)?.totalCount) || list.length);
-    setAtivosCount(Number((res as any)?.ativosCount) || 0);
     setCases(list);
     writeCarteiraCache(list);
     setAudit(res.audit || []);
@@ -479,8 +474,8 @@ export default function ProcessosEmpresaPage() {
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : (totalCount || cases.length)} tone="primary" />
-              <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : (ativosCount || ativos.length)} />
+              <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : cases.length} tone="primary" />
+              <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : ativos.length} />
               <Kpi icon={<CalendarClock size={16} />} label="Atendidos semana" value={loading ? "…" : atendidosSemana} tone="ok" hint={labelSemanaAtual()} />
               <Kpi icon={<FileSearch size={16} />} label="Editados app" value={loading ? "…" : auditadosSemana} tone="ok" hint="salvamentos no app" />
               <Kpi icon={<Gavel size={16} />} label="Tribunal (sem.)" value={loading ? "…" : auditadosTribunal} hint="DataJud/DJEN" />

@@ -34,7 +34,7 @@ export async function getUserContext() {
 
   const { data: profile } = await supabase
     .from('usuarios')
-    .select('id, empresa_id, cargo, role, email, auth_user_id')
+    .select('id, empresa_id, cargo, email, auth_user_id')
     .eq('email', userEmail.toLowerCase().trim())
     .maybeSingle();
     
@@ -43,8 +43,7 @@ export async function getUserContext() {
   const isSupervisor = checkIfSupervisor(profile) || /supervisor/i.test(String(profile?.cargo || ''));
   // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
-  // SOMENTE Superadmin e Supervisor veem todos os casos (em qualquer tela).
-  // Administrador, Operador e Visualizador: carteira pessoal (created_by / atendido_por).
+  // REGRA: só Superadmin e Supervisor veem todos os casos em qualquer tela.
   const isMasterView = isSuperAdmin || isSupervisor;
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
@@ -127,43 +126,36 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   const context = await getUserContext();
   const { auth_id, isMasterView, isEmpresaWide, isSuperAdmin, isSupervisor } = context as any;
-  // isAdmin do caller NÃO amplia escopo sozinho — só Superadmin/Supervisor veem tudo.
-  const canSeeAll = !!(isSuperAdmin || isSupervisor || isMasterView === true || isEmpresaWide === true);
-  const useAdmin = canSeeAll && (isAdmin || isMasterView === true || isEmpresaWide === true);
+  // Caller isAdmin não amplia sozinho — só Superadmin/Supervisor.
+  const canSeeAll = !!(isSuperAdmin || isSupervisor);
+  const useAdmin = canSeeAll;
   let client = useAdmin ? await getSupabaseAdmin() : supabase;
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
 
-  // Teto anti-timeout/egress. select('*') estável (colunas variam entre deploys).
-  const MAX_ROWS = 15000;
   const fetchPages = async (cli: any, mode: 'all' | 'mine' | 'mine_or_orphan') => {
     let allData: any[] = [];
     let page = 0;
     const pageSize = 1000;
     let hasMore = true;
-    while (hasMore && allData.length < MAX_ROWS) {
-      const take = Math.min(pageSize, MAX_ROWS - allData.length);
-      const from = page * pageSize;
-      const to = from + take - 1;
+    while (hasMore) {
       let query = cli
         .from('processos')
         .select('*')
         .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false })
-        .range(from, to);
+        .range(page * pageSize, (page + 1) * pageSize - 1);
       if (mode === 'mine' && auth_id) {
         query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
       } else if (mode === 'mine_or_orphan' && auth_id) {
+        // Import legado sem dono + meus — evita fila web vazia
         query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id},created_by.is.null`);
       }
       const { data, error } = await query;
-      if (error) {
-        console.error('[fetchPages processos]', error.message || error);
-        throw error;
-      }
+      if (error) throw error;
       if (data && data.length > 0) {
-        allData = allData.concat(data);
-        hasMore = data.length === take;
+        allData = [...allData, ...data];
+        hasMore = data.length === pageSize;
         page++;
       } else {
         hasMore = false;
@@ -204,7 +196,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     try {
       const admin = await getSupabaseAdmin();
       if (!admin) return [];
-      const allData = await fetchPages(admin, 'all');
+      const allData = await fetchPages(admin, false);
       return allData.map((item) => {
         try { return toLegalCase(item); } catch { return null; }
       }).filter(Boolean) as LegalCase[];
@@ -713,9 +705,7 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
 
 export async function listAllEmpresasSystem() {
   const admin = await getSupabaseAdmin();
-  const { data } = await admin.from('empresas').select(
-    'id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo'
-  );
+  const { data } = await admin.from('empresas').select('id, nome');
   return data || [];
 }
 

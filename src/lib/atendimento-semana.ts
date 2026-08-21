@@ -178,7 +178,13 @@ export function countAtendimentosPorUsuario(
   users: Array<{ auth_user_id: string; nome: string }>,
   ref = new Date()
 ): AtendimentoPorUsuario[] {
-  const userMap = new Map(users.map((u) => [String(u.auth_user_id), u.nome]));
+  const userMap = new Map<string, string>();
+  for (const u of users || []) {
+    const nome = String((u as any).nome || (u as any).email || '').trim();
+    if (!nome) continue;
+    if ((u as any).auth_user_id) userMap.set(String((u as any).auth_user_id).toLowerCase(), nome);
+    if ((u as any).id) userMap.set(String((u as any).id).toLowerCase(), nome);
+  }
   const { start: weekStart, end: weekEnd } = weekBounds(ref);
   const hojeYmd = hojeBrasilYmd(ref);
   const [yy, mm] = hojeYmd.split('-').map((n) => parseInt(n, 10));
@@ -202,27 +208,32 @@ export function countAtendimentosPorUsuario(
         ''
     ).trim();
     if (!userId) continue;
+    const uidKey = userId; // mantém original; lookup de nome é case-insensitive
 
-    const entry = userCounts.get(userId) || { dia: 0, semana: 0, mes: 0 };
+    const entry = userCounts.get(uidKey) || userCounts.get(userId.toLowerCase()) || { dia: 0, semana: 0, mes: 0 };
 
     if (isAtendidoHoje(raw, ref)) entry.dia += 1;
     if (isWithinInterval(d, { start: weekStart, end: weekEnd })) entry.semana += 1;
     if (isWithinInterval(d, { start: monthStart, end: monthEnd })) entry.mes += 1;
 
-    userCounts.set(userId, entry);
+    userCounts.set(uidKey, entry);
   }
 
   // Garante linha zerada para usuários da empresa (ranking estável)
   for (const u of users || []) {
-    const id = String(u.auth_user_id);
-    if (!userCounts.has(id)) userCounts.set(id, { dia: 0, semana: 0, mes: 0 });
+    const id = String((u as any).auth_user_id || (u as any).id || '');
+    if (id && !userCounts.has(id)) userCounts.set(id, { dia: 0, semana: 0, mes: 0 });
   }
 
   const result: AtendimentoPorUsuario[] = [];
   for (const [userId, counts] of userCounts.entries()) {
+    const nome =
+      userMap.get(userId) ||
+      userMap.get(userId.toLowerCase()) ||
+      userId;
     result.push({
       userId,
-      userNome: userMap.get(userId) || userId,
+      userNome: nome,
       dia: counts.dia,
       semana: counts.semana,
       mes: counts.mes,

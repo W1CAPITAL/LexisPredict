@@ -15,7 +15,7 @@ import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashb
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
-import React, { useState, useEffect, useMemo, useCallback, memo, startTransition } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card'
@@ -65,9 +65,7 @@ import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
-import { fetchCarteiraCountsAction } from '@/app/actions/carteira-counts-actions';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
-import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
@@ -94,7 +92,6 @@ export default function Dashboard() {
   const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
-  const [totalEmpresa, setTotalEmpresa] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
@@ -114,15 +111,11 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const cachedRun = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
+        fetchNetwork: async () => (await fetchRepoCases()) || [],
         onShow: (caseData) => { if (Array.isArray(caseData)) setCases(caseData); },
         allowStaleKpiFallback: false,
       });
       const caseData = cachedRun.cases;
-      try {
-        const counts = await fetchCarteiraCountsAction();
-        if (counts?.total) setTotalEmpresa(counts.total);
-      } catch { /* */ }
         try {
           const baRes = await fetchBaHitProtocolosAction();
           if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
@@ -329,7 +322,7 @@ export default function Dashboard() {
               <section className="rounded-2xl border border-border/50 bg-card/50 p-3 sm:p-5 shadow-sm backdrop-blur-sm">
                 <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Indicadores</p>
                 <EfferdPanel
-                  totalProcessos={totalEmpresa > 0 ? totalEmpresa : cases.length}
+                  totalProcessos={cases.length}
                   ativos={metrics.activeTotal}
                   pendentes={metrics.countNovoAndamento + metrics.countHoje}
                   vencidos={metrics.countVencido}

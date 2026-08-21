@@ -10,7 +10,7 @@
  */
 const CARTEIRA_KEY = 'lexis_carteira_sessao_v2';
 const SCAN_KEY = 'lexis_scan_progress_v1';
-const TTL_MS = 10 * 60 * 1000; // 10 min — menos egress ao trocar de aba
+const TTL_MS = 4 * 60 * 1000; // 4 min — lista ok; KPI revalida em background
 
 export type CacheSource = 'cache' | 'network' | 'empty';
 
@@ -60,7 +60,7 @@ export function writeCarteiraCache(cases: unknown[], empresaId?: string | null) 
       at: Date.now(),
       empresaId: empresaId || null,
       // não guarda 10k blobs: o array já deve vir enxuto do servidor
-      cases: Array.isArray(cases) ? cases : [],
+      cases: Array.isArray(cases) ? cases.slice(0, 5000) : [],
     };
     sessionStorage.setItem(CARTEIRA_KEY, JSON.stringify(payload));
   } catch {
@@ -72,11 +72,6 @@ export function invalidateCarteiraCache() {
   if (!canUse()) return;
   try {
     sessionStorage.removeItem(CARTEIRA_KEY);
-  } catch {
-    /* */
-  }
-  try {
-    import('@/lib/carteira-fetch-client').then((m) => m.invalidateCarteiraClientCache()).catch(() => {});
   } catch {
     /* */
   }
@@ -129,19 +124,8 @@ export async function loadCarteiraComCache(opts: {
   /** KPIs / gráficos — só rede por padrão */
   onKpiSafe?: (cases: any[], source: 'network' | 'stale-fallback') => void;
   allowStaleKpiFallback?: boolean;
-  /** força rede mesmo com cache fresco */
-  force?: boolean;
 }): Promise<{ cases: any[]; source: CacheSource }> {
   const cached = readCarteiraCache(opts.empresaId);
-
-  // Cache fresco (TTL): mostra e NÃO refaz a rede — evita reload do zero a cada troca de aba
-  if (!opts.force && cached?.cases?.length && !cached.stale) {
-    opts.onShow(cached.cases, 'cache');
-    opts.onKpiSafe?.(cached.cases, 'stale-fallback');
-    return { cases: cached.cases, source: 'cache' };
-  }
-
-  // Cache velho: mostra na hora, atualiza em background
   if (cached?.cases?.length) {
     opts.onShow(cached.cases, 'cache');
   }
@@ -149,6 +133,7 @@ export async function loadCarteiraComCache(opts: {
   try {
     const remote = await opts.fetchNetwork();
     const list = Array.isArray(remote) ? remote : [];
+    // REPLACE total — nunca [...cache, ...remote]
     writeCarteiraCache(list, opts.empresaId);
     opts.onShow(list, list.length ? 'network' : 'empty');
     opts.onKpiSafe?.(list, 'network');

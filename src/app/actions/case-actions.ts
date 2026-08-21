@@ -108,8 +108,7 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  // SOMENTE Superadmin e Supervisor — carteira da empresa inteira.
-  // Administrador / Operador / Visualizador: só os próprios (mine).
+  // Só Superadmin e Supervisor — empresa inteira. Demais: carteira pessoal.
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
   return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
@@ -978,51 +977,23 @@ export async function fetchCompanyProcessosAction() {
     getStoredCasesForEmpresa,
     getUserContext,
     fetchAuditoriaLogsAction,
-    getSupabaseAdmin,
   } = await import('@/lib/server-db');
   const ctx = await getUserContext();
   const empresa_id = ctx.empresa_id;
-  if (!empresa_id) return { cases: [], audit: [], users: [], totalCount: 0, ativosCount: 0 };
-  // Visão empresa: só Superadmin e Supervisor
+  if (!empresa_id) return { cases: [], audit: [], users: [] };
+  // Visão da empresa: somente Superadmin e Supervisor
   const canCompany = !!(ctx.isSuperAdmin || ctx.isSupervisor);
   if (!canCompany) {
     const mine = await getStoredCasesForEmpresa(empresa_id, false);
-    return { cases: mine, audit: [], users: [], totalCount: mine.length, ativosCount: 0, forbiddenWide: true };
+    const users = await getEmpresaUsers();
+    return { cases: mine, audit: [], users };
   }
-
-  const countPromise = (async () => {
-    try {
-      const admin = await getSupabaseAdmin();
-      if (!admin) return { total: 0, ativos: 0 };
-      const { count: total } = await admin
-        .from('processos')
-        .select('id', { count: 'exact', head: true })
-        .eq('empresa_id', empresa_id);
-      const { count: enc } = await admin
-        .from('processos')
-        .select('id', { count: 'exact', head: true })
-        .eq('empresa_id', empresa_id)
-        .eq('datajud_encerrado_tribunal', true);
-      const t = total ?? 0;
-      return { total: t, ativos: Math.max(0, t - (enc ?? 0)) };
-    } catch {
-      return { total: 0, ativos: 0 };
-    }
-  })();
-
-  const [cases, audit, users, counts] = await Promise.all([
+  const [cases, audit, users] = await Promise.all([
     getStoredCasesForEmpresa(empresa_id, true),
     fetchAuditoriaLogsAction(empresa_id),
     getEmpresaUsers(),
-    countPromise,
   ]);
-  return {
-    cases,
-    audit,
-    users,
-    totalCount: counts.total || (Array.isArray(cases) ? cases.length : 0),
-    ativosCount: counts.ativos || 0,
-  };
+  return { cases, audit, users };
 }
 
 export async function clearDataJudAuditAction(protocolo: string) {
