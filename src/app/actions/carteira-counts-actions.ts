@@ -1,8 +1,8 @@
 "use server";
 
 /**
- * Contagens da empresa INTEIRA — só COUNT no Postgres (sem baixar 2621 linhas).
- * Use no Dashboard para "Ativos" / "Total". A lista continua limitada.
+ * Contagens da empresa INTEIRA via COUNT (head: true).
+ * Não importa `supabase` de server-db (não é exportado).
  */
 
 export type CarteiraCounts = {
@@ -15,12 +15,11 @@ export type CarteiraCounts = {
 export async function fetchCarteiraCountsAction(): Promise<CarteiraCounts> {
   const empty: CarteiraCounts = { total: 0, ativos: 0, encerrados: 0, empresaId: null };
   try {
-    const { getUserContext, getSupabaseAdmin, supabase } = await import("@/lib/server-db");
+    const { getUserContext, getSupabaseAdmin } = await import("@/lib/server-db");
     const ctx = await getUserContext();
     if (!ctx?.empresa_id) return empty;
 
-    let client = await getSupabaseAdmin();
-    if (!client) client = supabase as any;
+    const client = await getSupabaseAdmin();
     if (!client) return empty;
 
     const empresaId = String(ctx.empresa_id);
@@ -50,7 +49,7 @@ export async function fetchCarteiraCountsAction(): Promise<CarteiraCounts> {
         .or("status.ilike.%encerr%,status.ilike.%baix%,status.ilike.%arquiv%");
       encerradosStatus = c3 ?? 0;
     } catch {
-      /* status pode não existir */
+      /* status opcional */
     }
 
     const totalN = total ?? 0;

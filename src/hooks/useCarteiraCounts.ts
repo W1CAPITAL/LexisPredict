@@ -6,7 +6,6 @@ import {
   type CarteiraCounts,
 } from "@/app/actions/carteira-counts-actions";
 
-/** Total/ativos da empresa inteira via COUNT (não via cases.length). */
 export function useCarteiraCounts(enabled = true) {
   const [counts, setCounts] = useState<CarteiraCounts | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,7 +16,7 @@ export function useCarteiraCounts(enabled = true) {
     try {
       setCounts(await fetchCarteiraCountsAction());
     } catch {
-      /* keep */
+      /* */
     } finally {
       setLoading(false);
     }
