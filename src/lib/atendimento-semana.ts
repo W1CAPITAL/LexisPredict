@@ -208,15 +208,14 @@ export function countAtendimentosPorUsuario(
         ''
     ).trim();
     if (!userId) continue;
-    const uidKey = userId; // mantém original; lookup de nome é case-insensitive
 
-    const entry = userCounts.get(uidKey) || userCounts.get(userId.toLowerCase()) || { dia: 0, semana: 0, mes: 0 };
+    const entry = userCounts.get(userId) || { dia: 0, semana: 0, mes: 0 };
 
     if (isAtendidoHoje(raw, ref)) entry.dia += 1;
     if (isWithinInterval(d, { start: weekStart, end: weekEnd })) entry.semana += 1;
     if (isWithinInterval(d, { start: monthStart, end: monthEnd })) entry.mes += 1;
 
-    userCounts.set(uidKey, entry);
+    userCounts.set(userId, entry);
   }
 
   // Garante linha zerada para usuários da empresa (ranking estável)
@@ -229,7 +228,7 @@ export function countAtendimentosPorUsuario(
   for (const [userId, counts] of userCounts.entries()) {
     const nome =
       userMap.get(userId) ||
-      userMap.get(userId.toLowerCase()) ||
+      userMap.get(String(userId).toLowerCase()) ||
       userId;
     result.push({
       userId,

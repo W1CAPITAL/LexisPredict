@@ -35,10 +35,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     const ctx = await getUserContext();
     if (!ctx?.empresa_id) return { ok: false, ranking: [], totalLinhas: 0, error: "sem empresa" };
 
-    if (!(ctx.isSuperAdmin || ctx.isSupervisor)) {
-      return { ok: false, ranking: [], totalLinhas: 0, error: "apenas superadmin/supervisor" };
-    }
-
+    // Processos da Empresa: ranking de toda a empresa para quem acessa a página.
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, ranking: [], totalLinhas: 0, error: "admin client" };
 

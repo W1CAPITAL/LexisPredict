@@ -981,14 +981,7 @@ export async function fetchCompanyProcessosAction() {
   const ctx = await getUserContext();
   const empresa_id = ctx.empresa_id;
   if (!empresa_id) return { cases: [], audit: [], users: [] };
-  // Lote1: visão empresa só Superadmin/Supervisor; demais recebem só os próprios.
-  if (!(ctx.isSuperAdmin || ctx.isSupervisor)) {
-    const [mine, users] = await Promise.all([
-      getStoredCasesForEmpresa(empresa_id, false),
-      getEmpresaUsers(),
-    ]);
-    return { cases: mine, audit: [], users };
-  }
+  // Processos da Empresa = SEMPRE carteira completa + auditoria + usuários.
   const [cases, audit, users] = await Promise.all([
     getStoredCasesForEmpresa(empresa_id, true),
     fetchAuditoriaLogsAction(empresa_id),

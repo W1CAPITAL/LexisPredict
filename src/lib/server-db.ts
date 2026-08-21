@@ -126,8 +126,9 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   const context = await getUserContext();
   const { auth_id, isSuperAdmin, isSupervisor } = context as any;
-  // Lote1: visão completa só Superadmin/Supervisor (ignora isAdmin do caller).
-  const useAdmin = !!(isSuperAdmin || isSupervisor);
+  // isAdmin=true: página "Processos da Empresa" / visão empresa → força carteira completa.
+  // isAdmin=false: Dashboard/Fila/Cases → só Superadmin/Supervisor veem tudo; demais = mine.
+  const useAdmin = isAdmin === true || !!(isSuperAdmin || isSupervisor);
   let client = useAdmin ? await getSupabaseAdmin() : supabase;
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
