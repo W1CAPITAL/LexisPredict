@@ -38,26 +38,36 @@ export function usePlano() {
     };
   }, [empresaId]);
 
-  // Fonte de verdade: banco + revalidação periódica (bloqueio ao vivo)
   useEffect(() => {
     if (!empresaId) return;
     let live = true;
     const pull = async () => {
       const res = await getMinhaAssinaturaAction().catch(() => null);
       if (!live) return;
+
+      // Falha de rede / colunas ausentes: NÃO libera. Mantém estado local.
       if (!res?.ok) {
         setServerLoaded(true);
         return;
       }
+
+      const serverBlocked = !!res.blocked;
       const next: AssinaturaStatus = {
         plan: normalizePlanId(res.plan || "maximo"),
         expiresAt: res.expiresAt ?? null,
-        blocked: !!res.blocked,
+        blocked: serverBlocked,
         blockedReason: res.blockedReason || undefined,
         origem: "server",
       };
+
+      // Só grava local o que o servidor confirmou (não inventa liberação)
       saveAssinatura(empresaId, next);
-      savePlanoEmpresa(empresaId, next.plan, next);
+      savePlanoEmpresa(empresaId, next.plan, {
+        expiresAt: next.expiresAt,
+        blocked: next.blocked,
+        blockedReason: next.blockedReason || "",
+        origem: "server",
+      });
       setPlan(next.plan);
       setAss(next);
       setServerLoaded(true);

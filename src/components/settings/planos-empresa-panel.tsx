@@ -15,10 +15,8 @@ import {
   type PlanId,
 } from "@/lib/planos-pacotes";
 import { planoDaEmpresa, savePlanoEmpresa } from "@/lib/planos-store";
-import {
-  listEmpresasParaPlanosAction,
-  salvarPlanoEmpresaAction,
-} from "@/app/actions/planos-actions";
+import { listEmpresasParaPlanosAction,
+  salvarPlanoEmpresaAction, liberarEmpresaPlanoAction } from "@/app/actions/planos-actions";
 import { PLANOS_PRECOS, PIX_RECEBEDOR, formatBRL } from "@/lib/planos-precos";
 import { gerarPixCopiaCola, qrCodeUrl } from "@/lib/pix-emv";
 import {
@@ -226,10 +224,20 @@ export function PlanosEmpresaPanel() {
         confirmarPedidoPago(pedido.id, profile?.email || profile?.nome || "superadmin");
       }
       const dias = ciclo === "anual" ? PLAN_DIAS_PADRAO.anual : PLAN_DIAS_PADRAO.mensal;
+      const expiresAt = addDaysIso(dias);
+      const resLib = await liberarEmpresaPlanoAction(empresaId, checkoutPlan, expiresAt);
+      if (!resLib?.ok || !(resLib as any).persisted) {
+        toast({
+          title: "Não gravou no banco",
+          description: (resLib as any)?.error || "Rode o SQL das colunas plano_*.",
+          variant: "destructive",
+        });
+        return;
+      }
       savePlanoEmpresa(empresaId, checkoutPlan, {
-        expiresAt: addDaysIso(dias),
+        expiresAt,
         blocked: false,
-        origem: "pix_confirmado",
+        origem: "server",
       });
       const res = await salvarPlanoEmpresaAction(empresaId, checkoutPlan);
       setPlanAtual(checkoutPlan);
