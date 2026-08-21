@@ -977,11 +977,97 @@ export async function fetchCompanyProcessosAction() {
     getUserContext,
     fetchAuditoriaLogsAction,
     getSupabaseAdmin,
+    getEmpresaUsers,
   } = await import('@/lib/server-db');
-  const { fetchRankingAtendentesEmpresaAction } = await import('@/app/actions/ranking-atendentes-action');
-  const ctx = await getUserContext();
-  const empresa_id = ctx.empresa_id;
-  if (!empresa_id) {
+
+  try {
+    const ctx = await getUserContext();
+    const empresa_id = ctx.empresa_id;
+    if (!empresa_id) {
+      return {
+        cases: [],
+        audit: [],
+        users: [],
+        totalCount: 0,
+        ativosCount: 0,
+        atendidosSemana: 0,
+        ranking: [],
+      };
+    }
+
+    // Carrega lista + audit + users; métricas em try separado (não derruba a página)
+    let cases: any[] = [];
+    let audit: any[] = [];
+    let users: any[] = [];
+    try {
+      const packed = await Promise.all([
+        getStoredCasesForEmpresa(empresa_id, true),
+        fetchAuditoriaLogsAction(empresa_id).catch(() => []),
+        getEmpresaUsers().catch(() => []),
+      ]);
+      cases = packed[0] || [];
+      audit = packed[1] || [];
+      users = packed[2] || [];
+    } catch (e: any) {
+      console.error('[fetchCompanyProcessosAction] lista', e?.message || e);
+      cases = [];
+    }
+
+    let totalCount = cases.length;
+    let ativosCount = 0;
+    let atendidosSemana = 0;
+    let ranking: any[] = [];
+
+    try {
+      const { fetchRankingAtendentesEmpresaAction } = await import(
+        '@/app/actions/ranking-atendentes-action'
+      );
+      const metrics = await fetchRankingAtendentesEmpresaAction(10);
+      if (metrics?.ok) {
+        if (typeof metrics.total === 'number' && metrics.total > 0) {
+          totalCount = metrics.total;
+        }
+        if (typeof metrics.ativos === 'number') ativosCount = metrics.ativos;
+        if (typeof metrics.atendidosSemana === 'number') {
+          atendidosSemana = metrics.atendidosSemana;
+        }
+        ranking = metrics.ranking || [];
+      }
+    } catch (e: any) {
+      console.error('[fetchCompanyProcessosAction] metrics', e?.message || e);
+    }
+
+    if (!totalCount || totalCount < cases.length) {
+      try {
+        const admin = await getSupabaseAdmin();
+        const { count } = await admin
+          .from('processos')
+          .select('*', { count: 'exact', head: true })
+          .eq('empresa_id', empresa_id);
+        if (typeof count === 'number' && count > 0) totalCount = count;
+      } catch {
+        totalCount = Math.max(totalCount, cases.length);
+      }
+    }
+
+    if (!ativosCount && cases.length) {
+      ativosCount = cases.filter((c: any) => {
+        const st = String(c?.status || '').toUpperCase();
+        return !/ENCERRAD|ARQUIVAD/.test(st) && !c?.datajud_encerrado_tribunal;
+      }).length;
+    }
+
+    return {
+      cases,
+      audit,
+      users,
+      totalCount,
+      ativosCount,
+      atendidosSemana,
+      ranking,
+    };
+  } catch (e: any) {
+    console.error('[fetchCompanyProcessosAction] fatal', e?.message || e);
     return {
       cases: [],
       audit: [],
@@ -990,39 +1076,9 @@ export async function fetchCompanyProcessosAction() {
       ativosCount: 0,
       atendidosSemana: 0,
       ranking: [],
+      error: e?.message || String(e),
     };
   }
-  // Processos da Empresa = SEMPRE carteira completa (service role) + métricas no servidor.
-  const [cases, audit, users, metrics] = await Promise.all([
-    getStoredCasesForEmpresa(empresa_id, true),
-    fetchAuditoriaLogsAction(empresa_id),
-    getEmpresaUsers(),
-    fetchRankingAtendentesEmpresaAction(10),
-  ]);
-
-  let totalCount = metrics.total ?? 0;
-  if (!totalCount) {
-    try {
-      const admin = await getSupabaseAdmin();
-      const { count } = await admin
-        .from('processos')
-        .select('*', { count: 'exact', head: true })
-        .eq('empresa_id', empresa_id);
-      totalCount = typeof count === 'number' ? count : cases.length;
-    } catch {
-      totalCount = cases.length;
-    }
-  }
-
-  return {
-    cases,
-    audit,
-    users,
-    totalCount,
-    ativosCount: metrics.ativos ?? cases.length,
-    atendidosSemana: metrics.atendidosSemana ?? 0,
-    ranking: metrics.ok ? metrics.ranking : [],
-  };
 }
 
 export async function clearDataJudAuditAction(protocolo: string) {

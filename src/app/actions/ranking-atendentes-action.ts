@@ -75,16 +75,29 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       return { ok: false, ranking: [], totalLinhas: 0, error: "sem empresa" };
     }
 
-    const admin = await getSupabaseAdmin();
+    let admin: any;
+    try {
+      admin = await getSupabaseAdmin();
+    } catch (e: any) {
+      return {
+        ok: false,
+        ranking: [],
+        totalLinhas: 0,
+        error: e?.message || "SUPABASE_SERVICE_ROLE_KEY ausente",
+      };
+    }
     const empresaId = String(ctx.empresa_id);
 
-    // COUNT barato (não depende da lista)
-    const { count: totalCount } = await admin
-      .from("processos")
-      .select("*", { count: "exact", head: true })
-      .eq("empresa_id", empresaId);
-
-    const total = typeof totalCount === "number" ? totalCount : 0;
+    let total = 0;
+    try {
+      const { count: totalCount } = await admin
+        .from("processos")
+        .select("*", { count: "exact", head: true })
+        .eq("empresa_id", empresaId);
+      total = typeof totalCount === "number" ? totalCount : 0;
+    } catch {
+      total = 0;
+    }
 
     // nomes
     const nameById: Record<string, string> = {};

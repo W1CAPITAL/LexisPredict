@@ -165,18 +165,28 @@ export default function ProcessosEmpresaPage() {
 
   const load = async () => {
     setLoading(true);
-    const res = await fetchCompanyProcessosAction();
-    // REPLACE (não concatena com cache antigo)
-    const list = res.cases || [];
-    setCases(list);
-    setTotalCount(Number(res.totalCount) || list.length);
-    setAtivosCount(Number(res.ativosCount) || 0);
-    setAtendidosSemanaSrv(Number(res.atendidosSemana) || 0);
-    setTopAtendentesSrv(Array.isArray(res.ranking) ? res.ranking.slice(0, 5) : []);
-    // não grava cache de "empresa" no mesmo bucket da carteira pessoal
-    setAudit(res.audit || []);
-    setUsers(res.users || []);
-    setLoading(false);
+    try {
+      const res = await fetchCompanyProcessosAction();
+      const list = res?.cases || [];
+      setCases(list);
+      setTotalCount(Number(res?.totalCount) || list.length);
+      setAtivosCount(Number(res?.ativosCount) || 0);
+      setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
+      setTopAtendentesSrv(Array.isArray(res?.ranking) ? res.ranking.slice(0, 5) : []);
+      setAudit(res?.audit || []);
+      setUsers(res?.users || []);
+      if ((res as any)?.error) {
+        console.error('[processos] action error', (res as any).error);
+      }
+    } catch (e) {
+      console.error('[processos] load failed', e);
+      setCases([]);
+      setAudit([]);
+      setUsers([]);
+      setTopAtendentesSrv([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
