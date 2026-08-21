@@ -25,7 +25,8 @@ import {
   Search,
   Monitor,
   Globe,
-  Settings2
+  Settings2,
+  Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -36,6 +37,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from '@/components/ui/label';
 import { APP_VERSION } from '@/lib/app-changelog';
+import { usePlano } from '@/hooks/use-plano';
+import { useAdmin } from '@/hooks/use-admin';
+import { planTemScanner } from '@/lib/planos-pacotes';
 
 export function DataJudScannerPanel() {
   const { 
@@ -46,10 +50,43 @@ export function DataJudScannerPanel() {
     scanMode, setScanMode,
     claudeAiEnabled, setClaudeAiEnabled
   } = useDataJudScanStore();
+  const { isSuperAdmin, canScan: canScanRole } = useAdmin();
+  const { plan, isLocked, isBlocked, isExpired } = usePlano();
+  const allowedByPlan = isSuperAdmin || planTemScanner(plan);
+  const allowed = canScanRole && allowedByPlan && !isLocked;
+
+  React.useEffect(() => {
+    if (!allowed && (status === 'running' || manualStatus === 'running')) {
+      try { pauseCloudScan(); } catch { /* */ }
+      try { pauseManualScan(); } catch { /* */ }
+    }
+  }, [allowed, status, manualStatus, pauseCloudScan, pauseManualScan]);
   
   const isManualRunning = manualStatus === 'running';
   const cloudPct = Math.round((done / (total || 1)) * 100);
   const manualPct = Math.round((manualDone / (manualTotal || 1)) * 100);
+
+  if (!allowed) {
+    if (isMinimized || (status === 'idle' && manualStatus === 'idle')) return null;
+    return (
+      <div className="fixed bottom-6 right-6 z-[200] w-[360px] rounded-2xl border-2 border-red-500/40 bg-card p-4 shadow-2xl space-y-2">
+        <div className="flex items-center gap-2 text-red-600">
+          <Lock size={16} />
+          <p className="text-[10px] font-black uppercase tracking-widest">Scanner indisponível</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isLocked
+            ? (isBlocked ? 'Empresa bloqueada — scanner desligado.' : 'Plano expirado — scanner desligado.')
+            : !allowedByPlan
+              ? `Plano ${String(plan).toUpperCase()} não inclui tribunal/scanner. Use Operacional ou Máximo.`
+              : 'Sem permissão para escanear.'}
+        </p>
+        <Button size="sm" variant="outline" className="w-full text-[10px] font-black uppercase" onClick={resetScan}>
+          Fechar
+        </Button>
+      </div>
+    );
+  }
 
   if (isMinimized && status === 'idle' && manualStatus === 'idle') return null;
 

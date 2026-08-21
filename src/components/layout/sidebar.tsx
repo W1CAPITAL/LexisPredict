@@ -51,6 +51,7 @@ import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
 import { usePlano } from "@/hooks/use-plano";
+import { planTemScanner } from "@/lib/planos-pacotes";
 import { filterNavByPlan } from "@/lib/planos-pacotes";
 import {
   Sheet,
@@ -268,7 +269,7 @@ function SidebarNavBody({
           <SafeIcon icon={Zap} size={16} />
           {!collapsed && (
             <span className="text-[11px] font-bold uppercase tracking-wide">
-              {!canScan ? "Scanner bloqueado (visualização)" : status === "running" ? "Scanner ativo" : "Scanner tribunal"}
+              {!canScan ? "Scanner indisponível (plano/bloqueio)" : status === "running" ? "Scanner ativo" : "Scanner tribunal"}
             </span>
           )}
         </LiquidMetalButton>
@@ -446,12 +447,12 @@ export function Sidebar() {
   const { setDarkMode, isDarkMode, setTutorialActive } = useAppStore();
   const { status, toggleMinimize } = useDataJudScanStore();
   const { canScan, isViewer } = useAdmin();
-  const { plan, canHref } = usePlano();
-
+  const { plan, canHref, isLocked } = usePlano();
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const isSupervisor = checkIfSupervisor(profile);
   const isAdmin =
     profile?.cargo === "Administrador" || isSuperAdmin || isSupervisor;
+  const canScanEffective = canScan && !isLocked && (isSuperAdmin || planTemScanner(plan));
 
   useEffect(() => {
     const savedLocale = localStorage.getItem("lexisPredict_locale") as Locale;
@@ -470,9 +471,9 @@ export function Sidebar() {
     isSuperAdmin,
     profile,
     status: status || "idle",
-    canScan,
+    canScan: canScanEffective,
     plan,
-    onToggleMinimize: () => { if (!canScan) return; toggleMinimize(); },
+    onToggleMinimize: () => { if (!canScanEffective) return; toggleMinimize(); },
     onStartTour: () => {
       setTutorialActive(true);
       setIsMobileOpen(false);

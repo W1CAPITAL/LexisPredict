@@ -122,6 +122,12 @@ export function hrefLiberado(href: string, plan: PlanId): boolean {
   return false;
 }
 
+/** Scanner DataJud/DJEN: Operacional e Máximo (não Essencial nem só Financeiro). */
+export function planTemScanner(plan: PlanId | string): boolean {
+  const p = normalizePlanId(plan);
+  return p === "maximo" || p === "operacional";
+}
+
 export function filterNavByPlan<T extends { href: string }>(items: T[], plan: PlanId): T[] {
   if (plan === "maximo") return items;
   return items.filter((i) => hrefLiberado(i.href, plan));
