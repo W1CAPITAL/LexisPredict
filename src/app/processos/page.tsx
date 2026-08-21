@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
+import { fetchRankingAtendentesEmpresaAction } from "@/app/actions/ranking-atendentes-action";
 import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
@@ -135,6 +136,7 @@ export default function ProcessosEmpresaPage() {
     !!(profile as any)?.isSuperAdmin;
 
   const [cases, setCases] = useState<LegalCase[]>([]);
+  const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,6 +166,12 @@ export default function ProcessosEmpresaPage() {
     // REPLACE (não concatena com cache antigo)
     const list = res.cases || [];
     setCases(list);
+    try {
+      const rank = await fetchRankingAtendentesEmpresaAction(5);
+      setTopAtendentesSrv(rank.ok ? rank.ranking : []);
+    } catch {
+      setTopAtendentesSrv([]);
+    }
     writeCarteiraCache(list);
     setAudit(res.audit || []);
     setUsers(res.users || []);
@@ -376,7 +384,8 @@ export default function ProcessosEmpresaPage() {
   const ativos = useMemo(() => cases.filter((c) => !isCasoEncerrado(c)), [cases]);
   const vencidos = useMemo(() => ativos.filter((c) => c.status === "Vencido" || c.status === "Caso Crítico"), [ativos]);
 
-  const topAtendentes = useMemo(() => getTopAtendentes(cases, users, 5), [cases, users]);
+  // Ranking da EMPRESA vem do servidor (não do array cases, que pode ser parcial/pessoal)
+  const topAtendentes = topAtendentesSrv;
 
   const lastByProtocolo = useMemo(() => {
     const m = new Map<string, AuditEntry>();
