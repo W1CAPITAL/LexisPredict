@@ -4,7 +4,6 @@ import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
 import { changePasswordAction } from "@/app/actions/change-password-action";
 import { PlanosAdminBloqueio } from "@/components/settings/planos-admin-bloqueio";
 import { PlanosEmpresaPanel } from "@/components/settings/planos-empresa-panel";
-import { PlanosAdminBloqueio } from "@/components/settings/planos-admin-bloqueio";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
@@ -535,7 +534,12 @@ export default function SettingsPage() {
         </header>
 
         <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full space-y-8">
-          <PlanosAdminBloqueio />
+          <div className="space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">
+              Superadmin · liberar valores e prazo (bloqueio / 30d / 365d)
+            </p>
+            <PlanosAdminBloqueio />
+          </div>
             <PlanosEmpresaPanel />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             {/* spacer no: injeta acima do grid */}

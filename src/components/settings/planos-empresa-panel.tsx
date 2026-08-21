@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/use-admin";
+import { checkIfSuperAdmin } from "@/lib/supabase";
 import {
   PLAN_IDS,
   PLAN_LABEL,
@@ -55,7 +56,9 @@ import { cn } from "@/lib/utils";
 type Ciclo = "mensal" | "anual";
 
 export function PlanosEmpresaPanel() {
-  const { isSuperAdmin, profile } = useAdmin();
+  const { profile } = useAdmin();
+  /** Nunca confiar só em cargo Administrador — só Superadmin de verdade. */
+  const isSuperAdmin = checkIfSuperAdmin(profile);
   const { toast } = useToast();
   const { daysLeft: diasRestantes, expiresLabel, isExpired, isBlocked, plan: planHook } = usePlano();
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([]);
@@ -257,7 +260,15 @@ export function PlanosEmpresaPanel() {
 
   /** Atalho admin: aplicar sem Pix (legado). */
   const aplicarDireto = async (plan: PlanId) => {
-    if (!empresaId || !isSuperAdmin) return;
+    if (!checkIfSuperAdmin(profile)) {
+      toast({
+        title: "Negado",
+        description: "Só o Superadmin pode aplicar plano sem pagamento. Administrador e outros cargos não têm essa permissão.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!empresaId) return;
     if (isPlanoInferiorOuIgual(planAtual, plan) && plan !== "maximo" && plan !== planAtual) {
       toast({
         title: "Rebaixamento bloqueado",
@@ -442,7 +453,7 @@ export function PlanosEmpresaPanel() {
                   onClick={() => aplicarDireto(id)}
                   disabled={loading}
                 >
-                  Aplicar sem Pix (só Superadmin)
+                  Aplicar sem Pix · somente Superadmin
                 </button>
               )}
             </div>

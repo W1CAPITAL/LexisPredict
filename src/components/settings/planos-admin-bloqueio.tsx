@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAdmin } from "@/hooks/use-admin";
+import { checkIfSuperAdmin } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +31,8 @@ import { savePlanoEmpresa } from "@/lib/planos-store";
 import { Ban, CheckCircle2, Loader2, Shield } from "lucide-react";
 
 export function PlanosAdminBloqueio() {
-  const { isSuperAdmin } = useAdmin();
+  const { profile } = useAdmin();
+  const isSuperAdmin = checkIfSuperAdmin(profile);
   const { toast } = useToast();
   const [rows, setRows] = useState<{ id: string; nome: string; plano?: string }[]>([]);
   const [loading, setLoading] = useState(false);
