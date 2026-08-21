@@ -1,7 +1,7 @@
 /**
- * ESLint sem typescript-eslint (ainda não cobre TypeScript 7).
- * Regras práticas para evitar regressões óbvias de build.
- * https://github.com/typescript-eslint/typescript-eslint/issues/10940
+ * ESLint flat config — TypeScript é validado por `tsc --noEmit` (typecheck).
+ * Espree não parseia TS; por isso .ts/.tsx ficam só com ignore + regras JS.
+ * Evita 500+ "Parsing error: Unexpected token" falsos no CI.
  */
 export default [
   {
@@ -14,15 +14,20 @@ export default [
       "coverage/**",
       "next-env.d.ts",
       "e2e/**",
+      // TS/TSX: use typecheck, não eslint sem typescript-eslint
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.mts",
+      "**/*.cts",
     ],
   },
   {
-    files: ["**/*.{js,mjs,cjs,ts,tsx}"],
+    files: ["**/*.{js,mjs,cjs}"],
     rules: {
       "no-duplicate-imports": "error",
       "no-unreachable": "error",
       "no-unused-expressions": "warn",
-      "eqeqeq": ["warn", "smart"],
+      eqeqeq: ["warn", "smart"],
       "prefer-const": "warn",
       "no-var": "error",
     },

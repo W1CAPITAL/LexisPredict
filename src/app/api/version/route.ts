@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.58.0";
+export const LEXIS_APP_VERSION = "9.58.1";
 
 export const LEXIS_CHANGELOG: string[] = [
   "9.58 — Painel Superadmin completo: liberar, bloquear, prazos e sem Pix por empresa.",

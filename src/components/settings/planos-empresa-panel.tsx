@@ -133,15 +133,6 @@ export function PlanosEmpresaPanel() {
     };
   }, [checkoutPlan, ciclo]);
 
-  if (!isSuperAdmin) return null;
-
-  const /* onPickEmpresa removed */ void = (id: string) => {
-    setEmpresaId(id);
-    setPlanAtual(planoDaEmpresa(id, "maximo"));
-    setCheckoutPlan(null);
-    setPedido(null);
-    setPedidos(loadPedidos().filter((p) => p.empresaId === id).slice(0, 5));
-  };
 
   const iniciarCheckout = (plan: PlanId) => {
     if (isPlanoInferiorOuIgual(planAtual, plan) && plan !== planAtual) {
