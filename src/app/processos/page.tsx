@@ -170,7 +170,15 @@ export default function ProcessosEmpresaPage() {
       const list = res?.cases || [];
       setCases(list);
       setTotalCount(Number(res?.totalCount) || list.length);
-      setAtivosCount(Number(res?.ativosCount) || 0);
+      {
+        let ac = Number(res?.ativosCount) || 0;
+        const tot = Number(res?.totalCount) || list.length;
+        // Se servidor mandou ativos === total (ou 0), recalcula na lista com isCasoEncerrado
+        if (list.length > 0 && (ac <= 0 || ac >= tot)) {
+          ac = list.filter((c: any) => !isCasoEncerrado(c)).length;
+        }
+        setAtivosCount(ac);
+      }
       setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
       setTopAtendentesSrv(Array.isArray(res?.ranking) ? res.ranking.slice(0, 5) : []);
       setAudit(res?.audit || []);
