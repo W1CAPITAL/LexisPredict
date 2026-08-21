@@ -49,7 +49,7 @@ function clearSessionCaches() {
   }
 }
 
-const MIN_REFRESH_GAP_MS = 12 * 60 * 1000; // no máximo 1x a cada 12 min
+const MIN_REFRESH_GAP_MS = 25 * 60 * 1000; // no máximo 1x a cada 25 min
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any | null>(null);
@@ -225,7 +225,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Intervalo longo — o SDK já auto-refresh; isto é só rede de segurança
     const tick = window.setInterval(() => {
       refreshSession(false).catch(() => {});
-    }, 20 * 60 * 1000);
+    }, 45 * 60 * 1000); // rede de segurança a cada 45 min
 
     return () => {
       window.clearTimeout(bootDeadline);

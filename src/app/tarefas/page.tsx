@@ -11,7 +11,7 @@ import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, startTransition } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   CheckCircle, 
@@ -260,7 +260,7 @@ export default function TarefasPage() {
       const _pack = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
         empresaId: empId,
-        onShow: (data) => { if (Array.isArray(data)) setCases(data); },
+        onShow: (data) => { if (Array.isArray(data)) startTransition(() => setCases(data)); },
         allowStaleKpiFallback: false,
       });
       const data = _pack.cases;
@@ -443,7 +443,8 @@ export default function TarefasPage() {
   // Corrige encerrados de HOJE que ficaram sem ultimo_retorno
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    // Depois do paint — não compete com a fila
+    const t = window.setTimeout(async () => {
       try {
         const r = await backfillEncerradosHojeAction();
         if (cancelled || !r?.success || !r.updated) return;
@@ -451,8 +452,8 @@ export default function TarefasPage() {
         if (!cancelled && Array.isArray(fresh)) setCases(fresh);
         toast({ title: 'Encerrados de hoje contabilizados', description: `${r.updated} processo(s)` });
       } catch { /* */ }
-    })();
-    return () => { cancelled = true; };
+    }, 4000);
+    return () => { cancelled = true; window.clearTimeout(t); };
   }, []);
 
 const handleSaveAttendance = async () => {

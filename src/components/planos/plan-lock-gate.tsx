@@ -55,37 +55,7 @@ export function PlanLockGate({ children }: { children: React.ReactNode }) {
     }
   }, [empresaId, isSuperAdmin, isLocked]);
 
-  // Poll leve só quando bloqueado (para detectar liberação do Superadmin)
-  useEffect(() => {
-    if (isSuperAdmin || !empresaId || !isLocked) return;
-    let live = true;
-    const tick = async () => {
-      try {
-        const res = await getMinhaAssinaturaAction();
-        if (!live || !res?.ok) return;
-        saveAssinatura(empresaId, {
-          plan: normalizePlanId(res.plan || "maximo"),
-          expiresAt: res.expiresAt ?? null,
-          blocked: !!res.blocked,
-          blockedReason: res.blockedReason || undefined,
-          origem: "server-poll",
-        });
-        savePlanoEmpresa(empresaId, normalizePlanId(res.plan || "maximo"), {
-          expiresAt: res.expiresAt ?? null,
-          blocked: !!res.blocked,
-          blockedReason: res.blockedReason || "",
-          origem: "server-poll",
-        });
-      } catch {
-        /* */
-      }
-    };
-    const id = window.setInterval(tick, 30_000);
-    return () => {
-      live = false;
-      window.clearInterval(id);
-    };
-  }, [empresaId, isSuperAdmin, isLocked]);
+  
 
   if (isSuperAdmin) return <>{children}</>;
   if (rotaPermitidaSemPlano(pathname)) return <>{children}</>;

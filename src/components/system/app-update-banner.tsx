@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCcw, X, Sparkles } from "lucide-react";
 
 const STORAGE_KEY = "lexis_app_build_id";
-const POLL_MS = 12_000;
+const POLL_MS = 5 * 60 * 1000; // 5 min — menos tráfego
 
 export function AppUpdateBanner() {
   const [visible, setVisible] = useState(false);

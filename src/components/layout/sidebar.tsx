@@ -473,7 +473,11 @@ export function Sidebar() {
     status: status || "idle",
     canScan: canScanEffective,
     plan,
-    onToggleMinimize: () => { if (!canScanEffective) return; toggleMinimize(); },
+    onToggleMinimize: () => {
+      try { window.dispatchEvent(new Event("lexis-need-scanner")); } catch { /* */ }
+      if (!canScanEffective) return;
+      toggleMinimize();
+    },
     onStartTour: () => {
       setTutorialActive(true);
       setIsMobileOpen(false);

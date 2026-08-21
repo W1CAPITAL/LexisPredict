@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin } from "@/hooks/use-admin";
 import { hrefLiberado, type PlanId, normalizePlanId } from "@/lib/planos-pacotes";
 import { planoDaEmpresa, savePlanoEmpresa, subscribeEmpresaPlanos } from "@/lib/planos-store";
@@ -27,18 +27,22 @@ export function usePlano() {
     getAssinatura(empresaId, { plan: "maximo", expiresAt: null, blocked: false })
   );
   const [serverLoaded, setServerLoaded] = useState(false);
+  const blockedRef = useRef(false);
 
   useEffect(() => {
     const local = getAssinatura(empresaId, { plan: "maximo", expiresAt: null, blocked: false });
     setPlan(planoDaEmpresa(empresaId, local.plan || "maximo"));
     setAss(local);
+    blockedRef.current = !!local.blocked;
     const u1 = subscribeEmpresaPlanos(() => {
       setPlan(planoDaEmpresa(empresaId, "maximo"));
       setAss(getAssinatura(empresaId, { plan: "maximo", expiresAt: null, blocked: false }));
     });
     const u2 = subscribeAssinaturas(() => {
-      setAss(getAssinatura(empresaId, { plan: "maximo", expiresAt: null, blocked: false }));
+      const a = getAssinatura(empresaId, { plan: "maximo", expiresAt: null, blocked: false });
+      setAss(a);
       setPlan(planoDaEmpresa(empresaId, "maximo"));
+      blockedRef.current = !!a.blocked;
     });
     return () => {
       u1();
@@ -52,11 +56,14 @@ export function usePlano() {
       return;
     }
     let live = true;
+
     const pull = async () => {
+      // Aba oculta: não gasta rede
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
       const res = await getMinhaAssinaturaAction().catch(() => null);
       if (!live) return;
       if (!res?.ok) {
-        // Mantém local (se estava bloqueado, continua)
         setServerLoaded(true);
         return;
       }
@@ -67,6 +74,7 @@ export function usePlano() {
         blockedReason: res.blockedReason || undefined,
         origem: "server",
       };
+      blockedRef.current = next.blocked;
       if (next.blocked) {
         try {
           invalidateCarteiraCache();
@@ -86,12 +94,26 @@ export function usePlano() {
       setAss(next);
       setServerLoaded(true);
     };
+
     pull();
-    // Poll mais lento se já bloqueado (só para detectar liberação)
-    const id = window.setInterval(pull, 30_000);
+
+    // Só revalida periodicamente se estiver bloqueado (liberação do Superadmin).
+    // Plano ok: só no mount + ao voltar à aba.
+    const id = window.setInterval(() => {
+      if (blockedRef.current || isExpired(getAssinatura(empresaId).expiresAt)) {
+        pull();
+      }
+    }, 60_000);
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") pull();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     return () => {
       live = false;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [empresaId]);
 
