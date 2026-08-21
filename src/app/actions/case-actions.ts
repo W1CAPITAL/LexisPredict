@@ -108,7 +108,7 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  // Só Superadmin e Supervisor — empresa inteira. Demais: carteira pessoal.
+  // Lote1: wide só Superadmin/Supervisor. Admin e demais = carteira própria.
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
   return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
@@ -981,11 +981,12 @@ export async function fetchCompanyProcessosAction() {
   const ctx = await getUserContext();
   const empresa_id = ctx.empresa_id;
   if (!empresa_id) return { cases: [], audit: [], users: [] };
-  // Visão da empresa: somente Superadmin e Supervisor
-  const canCompany = !!(ctx.isSuperAdmin || ctx.isSupervisor);
-  if (!canCompany) {
-    const mine = await getStoredCasesForEmpresa(empresa_id, false);
-    const users = await getEmpresaUsers();
+  // Lote1: visão empresa só Superadmin/Supervisor; demais recebem só os próprios.
+  if (!(ctx.isSuperAdmin || ctx.isSupervisor)) {
+    const [mine, users] = await Promise.all([
+      getStoredCasesForEmpresa(empresa_id, false),
+      getEmpresaUsers(),
+    ]);
     return { cases: mine, audit: [], users };
   }
   const [cases, audit, users] = await Promise.all([

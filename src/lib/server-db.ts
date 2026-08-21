@@ -43,7 +43,7 @@ export async function getUserContext() {
   const isSupervisor = checkIfSupervisor(profile) || /supervisor/i.test(String(profile?.cargo || ''));
   // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
-  // REGRA: só Superadmin e Supervisor veem todos os casos em qualquer tela.
+  // Lote1: só Superadmin e Supervisor veem todos os casos.
   const isMasterView = isSuperAdmin || isSupervisor;
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
@@ -125,10 +125,9 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!empresaId) return [];
 
   const context = await getUserContext();
-  const { auth_id, isMasterView, isEmpresaWide, isSuperAdmin, isSupervisor } = context as any;
-  // Caller isAdmin não amplia sozinho — só Superadmin/Supervisor.
-  const canSeeAll = !!(isSuperAdmin || isSupervisor);
-  const useAdmin = canSeeAll;
+  const { auth_id, isSuperAdmin, isSupervisor } = context as any;
+  // Lote1: visão completa só Superadmin/Supervisor (ignora isAdmin do caller).
+  const useAdmin = !!(isSuperAdmin || isSupervisor);
   let client = useAdmin ? await getSupabaseAdmin() : supabase;
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
@@ -196,7 +195,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     try {
       const admin = await getSupabaseAdmin();
       if (!admin) return [];
-      const allData = await fetchPages(admin, false);
+      const allData = await fetchPages(admin, 'all');
       return allData.map((item) => {
         try { return toLegalCase(item); } catch { return null; }
       }).filter(Boolean) as LegalCase[];
