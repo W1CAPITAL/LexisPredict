@@ -211,7 +211,7 @@ export default function RootLayout({
             <LexisErrorBoundary>
               <>
               <ViewerModeBanner />
-              <SessionGuard><MotionRoot>{children}</MotionRoot></SessionGuard>
+              <SessionGuard><PlanLockGate><MotionRoot>{children}</MotionRoot></PlanLockGate></SessionGuard>
             </>
             </LexisErrorBoundary>
             </div>

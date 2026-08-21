@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.56.0";
+export const LEXIS_APP_VERSION = "9.57.0";
 
 export const LEXIS_CHANGELOG: string[] = [
   "9.56 — Planos: só a empresa do usuário logado; Máximo não permite contratar plano inferior.",

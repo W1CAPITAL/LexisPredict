@@ -29,6 +29,17 @@ import {
   type UpgradePedido,
 } from "@/lib/upgrade-pedidos";
 import {
+  PROPRIETARIO_LABEL,
+  PROPRIETARIO_WHATSAPP,
+  whatsappProprietarioUrl,
+  PLAN_DIAS_PADRAO,
+  addDaysIso,
+  daysLeft,
+  formatExpira,
+  getAssinatura,
+} from "@/lib/planos-assinatura";
+import { usePlano } from "@/hooks/use-plano";
+import {
   Check,
   Copy,
   Crown,
@@ -46,6 +57,7 @@ type Ciclo = "mensal" | "anual";
 export function PlanosEmpresaPanel() {
   const { isSuperAdmin, profile } = useAdmin();
   const { toast } = useToast();
+  const { daysLeft: diasRestantes, expiresLabel, isExpired, isBlocked, plan: planHook } = usePlano();
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([]);
   const [empresaId, setEmpresaId] = useState(profile?.empresa_id || "");
   const [planAtual, setPlanAtual] = useState<PlanId>("maximo");
@@ -219,7 +231,12 @@ export function PlanosEmpresaPanel() {
       if (pedido) {
         confirmarPedidoPago(pedido.id, profile?.email || profile?.nome || "superadmin");
       }
-      savePlanoEmpresa(empresaId, checkoutPlan);
+      const dias = ciclo === "anual" ? PLAN_DIAS_PADRAO.anual : PLAN_DIAS_PADRAO.mensal;
+      savePlanoEmpresa(empresaId, checkoutPlan, {
+        expiresAt: addDaysIso(dias),
+        blocked: false,
+        origem: "pix_confirmado",
+      });
       const res = await salvarPlanoEmpresaAction(empresaId, checkoutPlan);
       setPlanAtual(checkoutPlan);
       toast({
@@ -305,6 +322,17 @@ export function PlanosEmpresaPanel() {
             </div>
             <Badge variant="outline" className="w-fit text-[10px] font-black uppercase">
               Plano atual: {PLAN_LABEL[planAtual]}
+              {(diasRestantes !== null || isBlocked) && (
+                <span className="ml-2 text-[10px] font-bold uppercase tracking-wider">
+                  {isBlocked
+                    ? "· BLOQUEADO"
+                    : isExpired
+                      ? "· EXPIRADO"
+                      : diasRestantes !== null
+                        ? `· ${diasRestantes} dia(s) restantes (até ${expiresLabel})`
+                        : ""}
+                </span>
+              )}
             </Badge>
           </div>
         </div>
@@ -563,6 +591,19 @@ export function PlanosEmpresaPanel() {
           </ul>
         </div>
       )}
+    
+      <div className="mx-5 sm:mx-8 mb-8 rounded-xl border border-border/50 bg-muted/20 p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Suporte comercial</p>
+          <p className="text-sm font-bold">{PROPRIETARIO_LABEL}</p>
+          <p className="text-xs tabular-nums text-muted-foreground">WhatsApp {PROPRIETARIO_WHATSAPP}</p>
+        </div>
+        <Button asChild variant="outline" className="h-10 font-black uppercase text-[10px] tracking-widest">
+          <a href={whatsappProprietarioUrl()} target="_blank" rel="noopener noreferrer">
+            Falar com o proprietário
+          </a>
+        </Button>
+      </div>
     </section>
   );
 }
