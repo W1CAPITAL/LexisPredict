@@ -38,13 +38,14 @@ export function usePlano() {
     };
   }, [empresaId]);
 
-  // Fonte de verdade: banco (todos os usuários da empresa herdam bloqueio/prazo)
+  // Fonte de verdade: banco + revalidação periódica (bloqueio ao vivo)
   useEffect(() => {
     if (!empresaId) return;
     let live = true;
-    (async () => {
+    const pull = async () => {
       const res = await getMinhaAssinaturaAction().catch(() => null);
-      if (!live || !res?.ok) {
+      if (!live) return;
+      if (!res?.ok) {
         setServerLoaded(true);
         return;
       }
@@ -60,9 +61,12 @@ export function usePlano() {
       setPlan(next.plan);
       setAss(next);
       setServerLoaded(true);
-    })();
+    };
+    pull();
+    const id = window.setInterval(pull, 20_000);
     return () => {
       live = false;
+      window.clearInterval(id);
     };
   }, [empresaId]);
 
