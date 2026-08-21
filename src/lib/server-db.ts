@@ -131,18 +131,22 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
 
+  // Lista: colunas necessárias (menos egress que select *) + teto anti-timeout
+  const LIST_COLS = `id, empresa_id, protocolo_ref, status, ultimo_retorno, proximo_retorno, created_at, updated_at, created_by, atendido_por, auditado_em, auditado_por, advogado, escritorio, tribunal, telefone, observacoes, datajud_ultimo_movimento, datajud_ultimo_nome, datajud_consultado_em, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, datajud_hash, indicio_busca_apreensao, busca_apreensao_confianca, busca_apreensao_motivo, busca_apreensao_consultado_em, em_cumprimento_sentenca, cumprimento_sentenca_motivo, cumprimento_sentenca_consultado_em, is_procedente, procedente_motivo, cumprimento_pendente_necessario, cumprimento_ativo, cumprimento_encerrado, status_executivo, detalhes_execucao, data_transito_julgado, djen_nova_comunicacao, djen_ultimo_resumo, djen_ultimo_link, djen_ultima_data, dados`;
+  const MAX_ROWS = 1200; // carrega até 1200; UI pagina o resto visual
   const fetchPages = async (cli: any, mode: 'all' | 'mine' | 'mine_or_orphan') => {
     let allData: any[] = [];
     let page = 0;
-    const pageSize = 1000;
+    const pageSize = 400;
     let hasMore = true;
-    while (hasMore) {
+    while (hasMore && allData.length < MAX_ROWS) {
+      const end = Math.min((page + 1) * pageSize - 1, MAX_ROWS - 1);
       let query = cli
         .from('processos')
-        .select('*')
+        .select(LIST_COLS)
         .eq('empresa_id', empresaId)
-        .order('created_at', { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .order('updated_at', { ascending: false })
+        .range(page * pageSize, end);
       if (mode === 'mine' && auth_id) {
         query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
       } else if (mode === 'mine_or_orphan' && auth_id) {
@@ -224,7 +228,7 @@ export async function getStoredCasesPageForEmpresa(
 
     let query = client
       .from('processos')
-      .select('*')
+      .select('id, empresa_id, protocolo_ref, status, ultimo_retorno, updated_at, created_by, advogado, escritorio, dados, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao')
       .eq('empresa_id', empresaId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);

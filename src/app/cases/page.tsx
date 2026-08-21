@@ -41,6 +41,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { saveOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
@@ -274,7 +275,7 @@ function CasesContent() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchRepoCases();
+      const data = await fetchCarteiraDeduped(() => fetchRepoCases());
       if (Array.isArray(data)) setCases(data);
     } finally { setLoading(false); }
   }, [setCases]);

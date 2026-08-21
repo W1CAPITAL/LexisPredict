@@ -82,6 +82,7 @@ import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -258,7 +259,7 @@ export default function TarefasPage() {
     try {
       const empId = (profile as any)?.empresa_id || null;
       const _pack = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
         empresaId: empId,
         onShow: (data) => { if (Array.isArray(data)) startTransition(() => setCases(data)); },
         allowStaleKpiFallback: false,

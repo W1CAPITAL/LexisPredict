@@ -66,6 +66,7 @@ import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
 import { fetchRepoCases } from '@/app/actions/case-actions';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
@@ -111,7 +112,7 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const cachedRun = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
         onShow: (caseData) => { if (Array.isArray(caseData)) setCases(caseData); },
         allowStaleKpiFallback: false,
       });
