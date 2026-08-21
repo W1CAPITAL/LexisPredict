@@ -973,21 +973,56 @@ export async function registrarAuditoriaEventAction(
  */
 export async function fetchCompanyProcessosAction() {
   const {
-    getEmpresaUsers,
     getStoredCasesForEmpresa,
     getUserContext,
     fetchAuditoriaLogsAction,
+    getSupabaseAdmin,
   } = await import('@/lib/server-db');
+  const { fetchRankingAtendentesEmpresaAction } = await import('@/app/actions/ranking-atendentes-action');
   const ctx = await getUserContext();
   const empresa_id = ctx.empresa_id;
-  if (!empresa_id) return { cases: [], audit: [], users: [] };
-  // Processos da Empresa = SEMPRE carteira completa + auditoria + usuários.
-  const [cases, audit, users] = await Promise.all([
+  if (!empresa_id) {
+    return {
+      cases: [],
+      audit: [],
+      users: [],
+      totalCount: 0,
+      ativosCount: 0,
+      atendidosSemana: 0,
+      ranking: [],
+    };
+  }
+  // Processos da Empresa = SEMPRE carteira completa (service role) + métricas no servidor.
+  const [cases, audit, users, metrics] = await Promise.all([
     getStoredCasesForEmpresa(empresa_id, true),
     fetchAuditoriaLogsAction(empresa_id),
     getEmpresaUsers(),
+    fetchRankingAtendentesEmpresaAction(10),
   ]);
-  return { cases, audit, users };
+
+  let totalCount = metrics.total ?? 0;
+  if (!totalCount) {
+    try {
+      const admin = await getSupabaseAdmin();
+      const { count } = await admin
+        .from('processos')
+        .select('*', { count: 'exact', head: true })
+        .eq('empresa_id', empresa_id);
+      totalCount = typeof count === 'number' ? count : cases.length;
+    } catch {
+      totalCount = cases.length;
+    }
+  }
+
+  return {
+    cases,
+    audit,
+    users,
+    totalCount,
+    ativosCount: metrics.ativos ?? cases.length,
+    atendidosSemana: metrics.atendidosSemana ?? 0,
+    ranking: metrics.ok ? metrics.ranking : [],
+  };
 }
 
 export async function clearDataJudAuditAction(protocolo: string) {

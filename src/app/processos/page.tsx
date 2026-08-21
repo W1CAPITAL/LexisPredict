@@ -137,6 +137,9 @@ export default function ProcessosEmpresaPage() {
 
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [ativosCount, setAtivosCount] = useState(0);
+  const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState(0);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,13 +169,11 @@ export default function ProcessosEmpresaPage() {
     // REPLACE (não concatena com cache antigo)
     const list = res.cases || [];
     setCases(list);
-    try {
-      const rank = await fetchRankingAtendentesEmpresaAction(5);
-      setTopAtendentesSrv(rank.ok ? rank.ranking : []);
-    } catch {
-      setTopAtendentesSrv([]);
-    }
-    writeCarteiraCache(list);
+    setTotalCount(Number(res.totalCount) || list.length);
+    setAtivosCount(Number(res.ativosCount) || 0);
+    setAtendidosSemanaSrv(Number(res.atendidosSemana) || 0);
+    setTopAtendentesSrv(Array.isArray(res.ranking) ? res.ranking.slice(0, 5) : []);
+    // não grava cache de "empresa" no mesmo bucket da carteira pessoal
     setAudit(res.audit || []);
     setUsers(res.users || []);
     setLoading(false);
@@ -483,9 +484,9 @@ export default function ProcessosEmpresaPage() {
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : cases.length} tone="primary" />
-              <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : ativos.length} />
-              <Kpi icon={<CalendarClock size={16} />} label="Atendidos semana" value={loading ? "…" : atendidosSemana} tone="ok" hint={labelSemanaAtual()} />
+              <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : (totalCount || cases.length)} tone="primary" />
+              <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : (ativosCount || ativos.length)} />
+              <Kpi icon={<CalendarClock size={16} />} label="Atendidos semana" value={loading ? "…" : (atendidosSemanaSrv || atendidosSemana)} tone="ok" hint={labelSemanaAtual()} />
               <Kpi icon={<FileSearch size={16} />} label="Editados app" value={loading ? "…" : auditadosSemana} tone="ok" hint="salvamentos no app" />
               <Kpi icon={<Gavel size={16} />} label="Tribunal (sem.)" value={loading ? "…" : auditadosTribunal} hint="DataJud/DJEN" />
               <Kpi icon={<CheckCircle2 size={16} />} label="Editados app" value={loading ? "…" : editadosApp} hint="salvar no app" />

@@ -1,11 +1,13 @@
 "use server";
 
 /**
- * Ranking de atendimentos da EMPRESA INTEIRA.
- * Só Superadmin/Supervisor. Não usa o array `cases` da UI (que pode ser parcial).
+ * Ranking de atendimentos da EMPRESA INTEIRA (Processos da Empresa).
+ * Agrega no servidor — NÃO usa o array `cases` da UI.
  *
- * Critério = mesmo do app: ultimo_retorno na semana/dia/mês + atendido_por
- * (não created_by).
+ * Critério alinhado ao SQL do gabinete:
+ * - data: ultimo_retorno (coluna ou dados.ultimoRetorno)
+ * - quem: atendido_por; se vazio (legado), created_by
+ * - nome: usuarios.id + auth_user_id
  */
 
 import {
@@ -24,22 +26,65 @@ export type RankRow = {
   mes: number;
 };
 
+export type EmpresaMetrics = {
+  total: number;
+  ativos: number;
+  atendidosSemana: number;
+  ranking: RankRow[];
+};
+
+function pickRetorno(row: any): string | null {
+  const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
+  const raw =
+    row?.ultimo_retorno ||
+    d.ultimoRetorno ||
+    d.ultimo_retorno ||
+    d.ULTIMO_RETORNO ||
+    d.ultimoAtendimento ||
+    null;
+  if (raw == null || raw === "") return null;
+  return String(raw);
+}
+
+function pickUserKey(row: any): string {
+  const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
+  const key =
+    row?.atendido_por ||
+    d.atendido_por ||
+    d.atendidoPor ||
+    row?.created_by ||
+    d.created_by ||
+    d.createdBy ||
+    "";
+  return String(key || "").trim();
+}
+
 export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
   ok: boolean;
   ranking: RankRow[];
   totalLinhas: number;
+  total?: number;
+  ativos?: number;
+  atendidosSemana?: number;
   error?: string;
 }> {
   try {
     const { getUserContext, getSupabaseAdmin } = await import("@/lib/server-db");
     const ctx = await getUserContext();
-    if (!ctx?.empresa_id) return { ok: false, ranking: [], totalLinhas: 0, error: "sem empresa" };
+    if (!ctx?.empresa_id) {
+      return { ok: false, ranking: [], totalLinhas: 0, error: "sem empresa" };
+    }
 
-    // Processos da Empresa: ranking de toda a empresa para quem acessa a página.
     const admin = await getSupabaseAdmin();
-    if (!admin) return { ok: false, ranking: [], totalLinhas: 0, error: "admin client" };
-
     const empresaId = String(ctx.empresa_id);
+
+    // COUNT barato (não depende da lista)
+    const { count: totalCount } = await admin
+      .from("processos")
+      .select("*", { count: "exact", head: true })
+      .eq("empresa_id", empresaId);
+
+    const total = typeof totalCount === "number" ? totalCount : 0;
 
     // nomes
     const nameById: Record<string, string> = {};
@@ -54,14 +99,16 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       if (u.auth_user_id) nameById[String(u.auth_user_id).toLowerCase()] = nome;
     }
 
-    // todas as linhas leves (paginado)
+    // todas as linhas leves
     const pageSize = 1000;
     let offset = 0;
     const rows: any[] = [];
     for (;;) {
       const { data, error } = await admin
         .from("processos")
-        .select("atendido_por, ultimo_retorno, dados")
+        .select(
+          "atendido_por, created_by, ultimo_retorno, datajud_encerrado_tribunal, status, situacao, dados"
+        )
         .eq("empresa_id", empresaId)
         .range(offset, offset + pageSize - 1);
       if (error) {
@@ -72,7 +119,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       rows.push(...chunk);
       if (chunk.length < pageSize) break;
       offset += pageSize;
-      if (offset > 20000) break;
+      if (offset > 30000) break;
     }
 
     const ref = new Date();
@@ -83,30 +130,38 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     const monthEnd = endOfDay(new Date(yy, mm, 0));
 
     const counts = new Map<string, { dia: number; semana: number; mes: number }>();
+    let atendidosSemana = 0;
+    let ativos = 0;
 
     for (const row of rows) {
-      const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
-      const raw =
-        row.ultimo_retorno ||
-        d.ultimoRetorno ||
-        d.ultimo_retorno ||
-        d.ULTIMO_RETORNO ||
-        null;
+      const status = String(row.status || row.situacao || "").toUpperCase();
+      const enc =
+        row.datajud_encerrado_tribunal === true ||
+        /ENCERRAD|ARQUIVAD/.test(status);
+      if (!enc) ativos += 1;
+
+      const raw = pickRetorno(row);
       if (!raw) continue;
-      const dt = parseUltimoAtendimento(String(raw));
+      const dt = parseUltimoAtendimento(raw);
       if (!dt) continue;
 
-      const userId = String(
-        row.atendido_por || d.atendido_por || d.atendidoPor || ""
-      ).trim();
+      const inWeek = isWithinInterval(dt, { start: weekStart, end: weekEnd });
+      if (inWeek) atendidosSemana += 1;
+
+      const userId = pickUserKey(row);
       if (!userId) continue;
 
       const entry = counts.get(userId) || { dia: 0, semana: 0, mes: 0 };
-      if (isAtendidoHoje(String(raw), ref)) entry.dia += 1;
-      if (isWithinInterval(dt, { start: weekStart, end: weekEnd })) entry.semana += 1;
+      if (isAtendidoHoje(raw, ref)) entry.dia += 1;
+      if (inWeek) entry.semana += 1;
       if (isWithinInterval(dt, { start: monthStart, end: monthEnd })) entry.mes += 1;
       counts.set(userId, entry);
     }
+
+    // se COUNT falhou, usa rows.length
+    const totalFinal = total > 0 ? total : rows.length;
+    // se ativos veio 0 e total grande, recalcula aproximado
+    const ativosFinal = rows.length ? ativos : totalFinal;
 
     const ranking: RankRow[] = [...counts.entries()]
       .map(([userId, c]) => ({
@@ -123,7 +178,14 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       .sort((a, b) => b.semana - a.semana || b.mes - a.mes || b.dia - a.dia)
       .slice(0, limit);
 
-    return { ok: true, ranking, totalLinhas: rows.length };
+    return {
+      ok: true,
+      ranking,
+      totalLinhas: rows.length,
+      total: totalFinal,
+      ativos: ativosFinal,
+      atendidosSemana,
+    };
   } catch (e: any) {
     console.error("[fetchRankingAtendentesEmpresaAction]", e?.message);
     return { ok: false, ranking: [], totalLinhas: 0, error: e?.message };

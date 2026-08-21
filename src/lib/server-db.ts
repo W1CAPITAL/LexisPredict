@@ -126,11 +126,20 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   const context = await getUserContext();
   const { auth_id, isSuperAdmin, isSupervisor } = context as any;
-  // isAdmin=true: página "Processos da Empresa" / visão empresa → força carteira completa.
+  // isAdmin=true: "Processos da Empresa" → SEMPRE service role, carteira completa (sem RLS).
   // isAdmin=false: Dashboard/Fila/Cases → só Superadmin/Supervisor veem tudo; demais = mine.
   const useAdmin = isAdmin === true || !!(isSuperAdmin || isSupervisor);
-  let client = useAdmin ? await getSupabaseAdmin() : supabase;
-  if (!client && useAdmin) client = supabase;
+  let client: any = null;
+  if (useAdmin) {
+    try {
+      client = await getSupabaseAdmin();
+    } catch (e) {
+      console.error('[getStoredCasesForEmpresa] service role obrigatório para visão empresa', e);
+      // sem service role a visão empresa mentiria (só RLS do usuário) — não degradar
+      if (isAdmin === true) return [];
+    }
+  }
+  if (!client) client = supabase;
   if (!client) return [];
 
   const fetchPages = async (cli: any, mode: 'all' | 'mine' | 'mine_or_orphan') => {
