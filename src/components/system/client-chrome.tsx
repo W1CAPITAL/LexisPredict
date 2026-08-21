@@ -47,7 +47,6 @@ export function ClientChrome() {
     const enableScanner = () => setScannerReady(true);
     window.addEventListener("lexis-need-scanner", enableScanner);
 
-    // Boot leve: tour e scanner só depois do idle
     const idle =
       "requestIdleCallback" in window
         ? (window as any).requestIdleCallback(() => {

@@ -1,15 +1,21 @@
 "use client";
 
 /**
- * Anúncio compacto: gabinete desktop (EXE) mais rápido que o navegador.
- * Some se já estiver no EXE (window.lexisDesktop) ou se o usuário dispensou.
+ * Anúncio compacto do EXE desktop.
+ * Link: NEXT_PUBLIC_DESKTOP_EXE_URL (GitHub Release, Drive, etc.)
+ * Some no EXE ou se dispensado.
  */
 import React, { useEffect, useState } from "react";
-import { Monitor, X, ArrowUpRight } from "lucide-react";
+import { Monitor, X, ArrowUpRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 const DISMISS_KEY = "lexis_desktop_banner_dismissed_v21";
+
+const EXE_URL =
+  (typeof process !== "undefined" &&
+    process.env.NEXT_PUBLIC_DESKTOP_EXE_URL?.trim()) ||
+  "";
 
 declare global {
   interface Window {
@@ -26,7 +32,6 @@ export function DesktopDownloadBanner() {
       if (window.lexisDesktop?.isDesktop) return;
       if (/LexisGabineteDesktop/i.test(navigator.userAgent || "")) return;
       if (localStorage.getItem(DISMISS_KEY) === "1") return;
-      // Só depois do primeiro paint — não compete com boot
       const t = window.setTimeout(() => setVisible(true), 2200);
       return () => window.clearTimeout(t);
     } catch {
@@ -60,16 +65,35 @@ export function DesktopDownloadBanner() {
               Gabinete Desktop
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              EXE nativo com GPU desta máquina — em geral mais rápido e estável
-              que a aba do navegador. As chaves continuam no servidor.
+              EXE com GPU desta máquina — em geral mais rápido que a aba do
+              navegador. Chaves só no servidor.
             </p>
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <Button type="button" size="sm" className="h-8 gap-1.5 text-xs font-semibold" asChild>
-                <Link href="/desktop">
-                  Ver como instalar
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
+              {EXE_URL ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-semibold"
+                  asChild
+                >
+                  <a href={EXE_URL} download target="_blank" rel="noopener noreferrer">
+                    <Download className="h-3.5 w-3.5" />
+                    Baixar EXE
+                  </a>
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-semibold"
+                  asChild
+                >
+                  <Link href="/desktop">
+                    Ver como instalar
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              )}
               <Button
                 type="button"
                 size="sm"
