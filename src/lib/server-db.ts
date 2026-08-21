@@ -43,11 +43,12 @@ export async function getUserContext() {
   const isSupervisor = checkIfSupervisor(profile) || /supervisor/i.test(String(profile?.cargo || ''));
   // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
-  const isMasterView = isSuperAdmin || isSupervisor || isViewer;
+  // SOMENTE Superadmin e Supervisor veem todos os casos (em qualquer tela).
+  // Administrador, Operador e Visualizador: carteira pessoal (created_by / atendido_por).
+  const isMasterView = isSuperAdmin || isSupervisor;
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
-  // Administrador também vê a carteira da empresa (fila web/PWA não fica vazia).
-  const isEmpresaWide = isMasterView || isAdministrador;
+  const isEmpresaWide = isSuperAdmin || isSupervisor;
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -125,8 +126,10 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!empresaId) return [];
 
   const context = await getUserContext();
-  const { auth_id, isMasterView, isEmpresaWide } = context as any;
-  const useAdmin = isAdmin || isMasterView === true || isEmpresaWide === true;
+  const { auth_id, isMasterView, isEmpresaWide, isSuperAdmin, isSupervisor } = context as any;
+  // isAdmin do caller NÃO amplia escopo sozinho — só Superadmin/Supervisor veem tudo.
+  const canSeeAll = !!(isSuperAdmin || isSupervisor || isMasterView === true || isEmpresaWide === true);
+  const useAdmin = canSeeAll && (isAdmin || isMasterView === true || isEmpresaWide === true);
   let client = useAdmin ? await getSupabaseAdmin() : supabase;
   if (!client && useAdmin) client = supabase;
   if (!client) return [];

@@ -129,8 +129,19 @@ export async function loadCarteiraComCache(opts: {
   /** KPIs / gráficos — só rede por padrão */
   onKpiSafe?: (cases: any[], source: 'network' | 'stale-fallback') => void;
   allowStaleKpiFallback?: boolean;
+  /** força rede mesmo com cache fresco */
+  force?: boolean;
 }): Promise<{ cases: any[]; source: CacheSource }> {
   const cached = readCarteiraCache(opts.empresaId);
+
+  // Cache fresco (TTL): mostra e NÃO refaz a rede — evita reload do zero a cada troca de aba
+  if (!opts.force && cached?.cases?.length && !cached.stale) {
+    opts.onShow(cached.cases, 'cache');
+    opts.onKpiSafe?.(cached.cases, 'stale-fallback');
+    return { cases: cached.cases, source: 'cache' };
+  }
+
+  // Cache velho: mostra na hora, atualiza em background
   if (cached?.cases?.length) {
     opts.onShow(cached.cases, 'cache');
   }
@@ -138,7 +149,6 @@ export async function loadCarteiraComCache(opts: {
   try {
     const remote = await opts.fetchNetwork();
     const list = Array.isArray(remote) ? remote : [];
-    // REPLACE total — nunca [...cache, ...remote]
     writeCarteiraCache(list, opts.empresaId);
     opts.onShow(list, list.length ? 'network' : 'empty');
     opts.onKpiSafe?.(list, 'network');

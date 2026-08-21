@@ -108,13 +108,9 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  const wide = !!(
-    ctx.isMasterView ||
-    ctx.isSupervisor ||
-    ctx.isSuperAdmin ||
-    (ctx as any).isAdministrador ||
-    (ctx as any).isEmpresaWide
-  );
+  // SOMENTE Superadmin e Supervisor — carteira da empresa inteira.
+  // Administrador / Operador / Visualizador: só os próprios (mine).
+  const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
   return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
 
@@ -984,8 +980,15 @@ export async function fetchCompanyProcessosAction() {
     fetchAuditoriaLogsAction,
     getSupabaseAdmin,
   } = await import('@/lib/server-db');
-  const { empresa_id } = await getUserContext();
+  const ctx = await getUserContext();
+  const empresa_id = ctx.empresa_id;
   if (!empresa_id) return { cases: [], audit: [], users: [], totalCount: 0, ativosCount: 0 };
+  // Visão empresa: só Superadmin e Supervisor
+  const canCompany = !!(ctx.isSuperAdmin || ctx.isSupervisor);
+  if (!canCompany) {
+    const mine = await getStoredCasesForEmpresa(empresa_id, false);
+    return { cases: mine, audit: [], users: [], totalCount: mine.length, ativosCount: 0, forbiddenWide: true };
+  }
 
   const countPromise = (async () => {
     try {
@@ -1553,7 +1556,7 @@ export async function batchScanExecutivoAction(opts?: {
   const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin, cargo } = ctx;
   if (!empresa_id) return { success: false, done: 0, error: 'Sem sessão' };
 
-  const escopoEmpresa = !!(isMasterView || isSupervisor || isSuperAdmin);
+  const escopoEmpresa = !!(isSuperAdmin || isSupervisor);
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
   const onlyMissing = opts?.onlyMissing !== false;
   const priorizarEncerrados = opts?.priorizarEncerrados !== false;
