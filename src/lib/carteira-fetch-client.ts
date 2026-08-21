@@ -52,7 +52,10 @@ export async function fetchCarteiraDeduped(
     try {
       const raw = (await fetchFn()) || [];
       const cases = Array.isArray(raw) ? raw : [];
-      box = { at: Date.now(), empresaKey: key, cases };
+      // Não cacheia lista vazia (evita "NENHUM CASO" permanente após falha transitória)
+      if (cases.length > 0) {
+        box = { at: Date.now(), empresaKey: key, cases };
+      }
       return cases;
     } finally {
       inflight = null;

@@ -131,33 +131,36 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!client && useAdmin) client = supabase;
   if (!client) return [];
 
-  // Lista: colunas necessárias (menos egress que select *) + teto anti-timeout
-  const LIST_COLS = `id, empresa_id, protocolo_ref, status, ultimo_retorno, proximo_retorno, created_at, updated_at, created_by, atendido_por, auditado_em, auditado_por, advogado, escritorio, tribunal, telefone, observacoes, datajud_ultimo_movimento, datajud_ultimo_nome, datajud_consultado_em, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, datajud_hash, indicio_busca_apreensao, busca_apreensao_confianca, busca_apreensao_motivo, busca_apreensao_consultado_em, em_cumprimento_sentenca, cumprimento_sentenca_motivo, cumprimento_sentenca_consultado_em, is_procedente, procedente_motivo, cumprimento_pendente_necessario, cumprimento_ativo, cumprimento_encerrado, status_executivo, detalhes_execucao, data_transito_julgado, djen_nova_comunicacao, djen_ultimo_resumo, djen_ultimo_link, djen_ultima_data, dados`;
-  const MAX_ROWS = 1200; // carrega até 1200; UI pagina o resto visual
+  // Teto anti-timeout/egress. select('*') estável (colunas variam entre deploys).
+  const MAX_ROWS = 2000;
   const fetchPages = async (cli: any, mode: 'all' | 'mine' | 'mine_or_orphan') => {
     let allData: any[] = [];
     let page = 0;
-    const pageSize = 400;
+    const pageSize = 500;
     let hasMore = true;
     while (hasMore && allData.length < MAX_ROWS) {
-      const end = Math.min((page + 1) * pageSize - 1, MAX_ROWS - 1);
+      const take = Math.min(pageSize, MAX_ROWS - allData.length);
+      const from = page * pageSize;
+      const to = from + take - 1;
       let query = cli
         .from('processos')
-        .select(LIST_COLS)
+        .select('*')
         .eq('empresa_id', empresaId)
-        .order('updated_at', { ascending: false })
-        .range(page * pageSize, end);
+        .order('created_at', { ascending: false })
+        .range(from, to);
       if (mode === 'mine' && auth_id) {
         query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
       } else if (mode === 'mine_or_orphan' && auth_id) {
-        // Import legado sem dono + meus — evita fila web vazia
         query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id},created_by.is.null`);
       }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error('[fetchPages processos]', error.message || error);
+        throw error;
+      }
       if (data && data.length > 0) {
-        allData = [...allData, ...data];
-        hasMore = data.length === pageSize;
+        allData = allData.concat(data);
+        hasMore = data.length === take;
         page++;
       } else {
         hasMore = false;
@@ -228,7 +231,7 @@ export async function getStoredCasesPageForEmpresa(
 
     let query = client
       .from('processos')
-      .select('id, empresa_id, protocolo_ref, status, ultimo_retorno, updated_at, created_by, advogado, escritorio, dados, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao')
+      .select('*')
       .eq('empresa_id', empresaId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
