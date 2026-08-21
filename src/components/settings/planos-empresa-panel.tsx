@@ -10,6 +10,7 @@ import {
   PLAN_LABEL,
   PLAN_BLURB,
   PLAN_PACOTES,
+  isPlanoInferiorOuIgual,
   type PlanId,
 } from "@/lib/planos-pacotes";
 import { planoDaEmpresa, savePlanoEmpresa } from "@/lib/planos-store";
@@ -59,18 +60,37 @@ export function PlanosEmpresaPanel() {
   useEffect(() => {
     let live = true;
     (async () => {
-      const rows = await listEmpresasParaPlanosAction().catch(() => []);
+      // Sempre a empresa do usuário logado (não lista outras carteiras)
+      const myId = String(profile?.empresa_id || "").trim();
+      if (!myId) {
+        setEmpresas([]);
+        setEmpresaId("");
+        return;
+      }
+      let nome = "Minha empresa";
+      try {
+        const rows = await listEmpresasParaPlanosAction().catch(() => []);
+        const mine = (rows || []).find((r) => String(r.id) === myId);
+        if (mine?.nome) nome = String(mine.nome);
+        // Plano vindo do banco, se a action devolver
+        if (mine && (mine as any).plano) {
+          const p = String((mine as any).plano) as PlanId;
+          if (PLAN_IDS.includes(p as PlanId)) {
+            setPlanAtual(p as PlanId);
+            savePlanoEmpresa(myId, p as PlanId);
+          }
+        }
+      } catch {
+        /* */
+      }
       if (!live) return;
-      const list = rows.length
-        ? rows
-        : profile?.empresa_id
-          ? [{ id: profile.empresa_id, nome: "Empresa atual" }]
-          : [];
-      setEmpresas(list);
-      const id = list[0]?.id || profile?.empresa_id || "";
-      setEmpresaId(id);
-      setPlanAtual(planoDaEmpresa(id, "maximo"));
-      setPedidos(loadPedidos().filter((p) => p.empresaId === id).slice(0, 5));
+      setEmpresas([{ id: myId, nome }]);
+      setEmpresaId(myId);
+      setPlanAtual((prev) => {
+        const local = planoDaEmpresa(myId, prev || "essencial");
+        return local;
+      });
+      setPedidos(loadPedidos().filter((p) => p.empresaId === myId).slice(0, 8));
     })();
     return () => {
       live = false;
@@ -100,7 +120,7 @@ export function PlanosEmpresaPanel() {
 
   if (!isSuperAdmin) return null;
 
-  const onPickEmpresa = (id: string) => {
+  const /* onPickEmpresa removed */ void = (id: string) => {
     setEmpresaId(id);
     setPlanAtual(planoDaEmpresa(id, "maximo"));
     setCheckoutPlan(null);
@@ -109,6 +129,23 @@ export function PlanosEmpresaPanel() {
   };
 
   const iniciarCheckout = (plan: PlanId) => {
+    if (isPlanoInferiorOuIgual(planAtual, plan) && plan !== planAtual) {
+      toast({
+        title: "Plano já coberto",
+        description:
+          planAtual === "maximo"
+            ? "Sua empresa já está no Máximo. Não é necessário (nem possível) contratar um plano inferior."
+            : `O plano ${PLAN_LABEL[plan]} já está incluso ou não é upgrade em relação a ${PLAN_LABEL[planAtual]}.`,
+      });
+      return;
+    }
+    if (plan === planAtual) {
+      toast({
+        title: "Plano atual",
+        description: `Você já utiliza ${PLAN_LABEL[plan]}.`,
+      });
+      return;
+    }
     setCheckoutPlan(plan);
     setPedido(null);
     setCopied(false);
@@ -203,13 +240,25 @@ export function PlanosEmpresaPanel() {
 
   /** Atalho admin: aplicar sem Pix (legado). */
   const aplicarDireto = async (plan: PlanId) => {
-    if (!empresaId) return;
+    if (!empresaId || !isSuperAdmin) return;
+    if (isPlanoInferiorOuIgual(planAtual, plan) && plan !== "maximo" && plan !== planAtual) {
+      toast({
+        title: "Rebaixamento bloqueado",
+        description: "Use suporte interno se precisar reduzir plano. A tela de upgrade só sobe de nível.",
+        variant: "destructive",
+      });
+      return;
+    }
     setLoading(true);
     try {
       savePlanoEmpresa(empresaId, plan);
-      await salvarPlanoEmpresaAction(empresaId, plan);
+      const res = await salvarPlanoEmpresaAction(empresaId, plan);
+      if (!res.ok) {
+        toast({ title: "Falha", description: res.error, variant: "destructive" });
+        return;
+      }
       setPlanAtual(plan);
-      toast({ title: `Plano ${PLAN_LABEL[plan]} aplicado (admin)` });
+      toast({ title: `Plano ${PLAN_LABEL[plan]} aplicado (Superadmin)` });
     } finally {
       setLoading(false);
     }
@@ -229,9 +278,17 @@ export function PlanosEmpresaPanel() {
               Pacotes por empresa
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Gere o <strong className="text-foreground">Pix</strong> com valor e referência.
-              A liberação do plano é <strong className="text-foreground">manual</strong>: só após
-              crédito no extrato (Superadmin). Não basta clicar em “já paguei”.
+              {planAtual === "maximo" ? (
+                <>
+                  Sua empresa já está no <strong className="text-foreground">plano Máximo</strong> —
+                  todos os módulos liberados. Não há upgrade adicional nem planos inferiores para contratar.
+                </>
+              ) : (
+                <>
+                  Upgrade apenas para planos <strong className="text-foreground">superiores</strong> ao atual.
+                  Empresa fixa na conta logada. Liberação do Pix após confirmação (Superadmin / webhook).
+                </>
+              )}
             </p>
           </div>
           <div className="flex flex-col items-stretch sm:items-end gap-2">
@@ -239,17 +296,13 @@ export function PlanosEmpresaPanel() {
               <Building2 size={12} />
               Empresa
             </label>
-            <select
-              className="h-11 min-w-[220px] rounded-xl border border-border bg-background px-3 text-xs font-bold text-foreground shadow-sm"
-              value={empresaId}
-              onChange={(e) => onPickEmpresa(e.target.value)}
-            >
-              {empresas.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nome}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-muted/40 px-3 py-2">
+              <Building2 size={14} className="text-muted-foreground shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Sua empresa</p>
+                <p className="text-sm font-bold truncate">{empresaNome}</p>
+              </div>
+            </div>
             <Badge variant="outline" className="w-fit text-[10px] font-black uppercase">
               Plano atual: {PLAN_LABEL[planAtual]}
             </Badge>
@@ -283,6 +336,9 @@ export function PlanosEmpresaPanel() {
           const preco = PLANOS_PRECOS[id];
           const valor = ciclo === "mensal" ? preco.valorMensal : preco.valorAnual;
           const ativo = planAtual === id;
+          const coberto = isPlanoInferiorOuIgual(planAtual, id);
+          const soUpgrade = !coberto || id === planAtual;
+          const podeComprar = planAtual !== "maximo" && id !== planAtual && !isPlanoInferiorOuIgual(planAtual, id);
           const selecionado = checkoutPlan === id;
           return (
             <div
@@ -339,24 +395,26 @@ export function PlanosEmpresaPanel() {
               </p>
               <Button
                 type="button"
+                disabled={!podeComprar && !selecionado}
                 className={cn(
                   "w-full h-11 rounded-xl font-black uppercase text-[10px] tracking-widest",
-                  selecionado
-                    ? "bg-primary text-black hover:bg-primary/90"
-                    : "bg-black text-white hover:bg-primary hover:text-black"
+                  ativo && "bg-emerald-600 text-white hover:bg-emerald-600 cursor-default",
+                  coberto && !ativo && "opacity-60 cursor-not-allowed",
+                  selecionado && "bg-primary text-black hover:bg-primary/90",
+                  podeComprar && !selecionado && "bg-black text-white hover:bg-primary hover:text-black"
                 )}
-                onClick={() => iniciarCheckout(id)}
+                onClick={() => podeComprar && iniciarCheckout(id)}
               >
-                {preco.cta}
+                {ativo ? "Plano atual" : coberto ? "Já incluso no seu plano" : preco.cta}
               </Button>
-              {isSuperAdmin && (
+              {isSuperAdmin && podeComprar && (
                 <button
                   type="button"
                   className="mt-2 text-[9px] font-bold uppercase text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
                   onClick={() => aplicarDireto(id)}
                   disabled={loading}
                 >
-                  Aplicar sem Pix (só Superadmin) (admin)
+                  Aplicar sem Pix (só Superadmin)
                 </button>
               )}
             </div>
@@ -365,7 +423,7 @@ export function PlanosEmpresaPanel() {
       </div>
 
       {/* Checkout Pix */}
-      {checkoutPlan && pixData && (
+      {checkoutPlan && pixData && planAtual !== "maximo" && !isPlanoInferiorOuIgual(planAtual, checkoutPlan) && (
         <div className="mx-5 sm:mx-8 mb-8 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-6">
           <div className="flex flex-col lg:flex-row gap-6 items-start">
             <div className="flex-1 space-y-3">

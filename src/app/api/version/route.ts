@@ -4,9 +4,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.55.1";
+export const LEXIS_APP_VERSION = "9.56.0";
 
 export const LEXIS_CHANGELOG: string[] = [
+  "9.56 — Planos: só a empresa do usuário logado; Máximo não permite contratar plano inferior.",
+
   "9.55.1 — auth leve: não trava fila/sidebar; refresh só a cada 12+ min em background.",
   "SessionGuard não bloqueia a UI inteira em Validando sessão.",
 

@@ -125,3 +125,33 @@ export function filterNavByPlan<T extends { href: string }>(items: T[], plan: Pl
   if (plan === "maximo") return items;
   return items.filter((i) => hrefLiberado(i.href, plan));
 }
+
+
+/** Ordem comercial: maior = mais completo. Operacional e Financeiro são paralelos. */
+export function planRank(id: PlanId | string): number {
+  const p = String(id || '').toLowerCase();
+  if (p === 'maximo') return 100;
+  if (p === 'operacional') return 50;
+  if (p === 'financeiro') return 50;
+  if (p === 'essencial') return 10;
+  return 0;
+}
+
+/** true se candidate é inferior ou igual ao atual (não faz sentido “comprar” de novo). */
+export function isPlanoInferiorOuIgual(atual: PlanId, candidate: PlanId): boolean {
+  if (atual === 'maximo') return true; // máximo já tem tudo
+  if (candidate === atual) return true;
+  if (candidate === 'maximo') return false;
+  // mesmos “tier” paralelo (op/fin) não é upgrade um do outro
+  if (atual === 'operacional' && candidate === 'financeiro') return false;
+  if (atual === 'financeiro' && candidate === 'operacional') return false;
+  return planRank(candidate) <= planRank(atual);
+}
+
+/** Planos que ainda fazem sentido oferecer como upgrade. */
+export function planosDisponiveisParaUpgrade(atual: PlanId): PlanId[] {
+  if (atual === 'maximo') return [];
+  return PLAN_IDS.filter((id) => !isPlanoInferiorOuIgual(atual, id) || id === 'maximo').filter(
+    (id) => id !== atual
+  );
+}
