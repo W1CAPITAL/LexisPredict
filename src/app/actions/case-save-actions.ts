@@ -320,10 +320,6 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     }
 
     // INSERT (processo novo)
-    const insertClient = (await getAdminClientSafe()).ok
-      ? (await getAdminClientSafe()).client
-      : client;
-    // simplify insert client
     let writerIns = client;
     {
       const adminRes = await getAdminClientSafe();

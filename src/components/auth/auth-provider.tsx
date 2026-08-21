@@ -187,7 +187,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
-      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+      if (event === 'SIGNED_OUT' || (event as string) === 'USER_DELETED') {
         setUser(null);
         setProfile(null);
         lastUserId.current = null;

@@ -4,9 +4,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.58.1";
+export const LEXIS_APP_VERSION = "9.58.2";
 
 export const LEXIS_CHANGELOG: string[] = [
+  "9.58.2 — Fix PlanLockGate import no layout + typecheck (case-save, server-db, modelos, auth).",
+
   "9.58 — Painel Superadmin completo: liberar, bloquear, prazos e sem Pix por empresa.",
 
   "9.56 — Planos: só a empresa do usuário logado; Máximo não permite contratar plano inferior.",

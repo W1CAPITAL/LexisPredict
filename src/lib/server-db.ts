@@ -194,7 +194,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     try {
       const admin = await getSupabaseAdmin();
       if (!admin) return [];
-      const allData = await fetchPages(admin, false);
+      const allData = await fetchPages(admin, 'all');
       return allData.map((item) => {
         try { return toLegalCase(item); } catch { return null; }
       }).filter(Boolean) as LegalCase[];

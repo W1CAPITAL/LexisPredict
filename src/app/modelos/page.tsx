@@ -77,6 +77,7 @@ const CAMPOS_LABEL: Record<keyof PecaMeta, string> = {
   cidade: "Cidade (local)",
   parteContraria: "Parte contrária (nome)",
   cpfParteContraria: "CPF da parte contrária",
+  includeBanco: "Incluir nome/CNPJ do banco no documento",
 };
 
 export default function ModelosPage() {
@@ -363,7 +364,7 @@ export default function ModelosPage() {
                         ) : k === "resumo" ? (
                           <Textarea rows={2} value={meta.resumo || ""} onChange={(e) => atualizarMeta("resumo", e.target.value)} placeholder="Observações / fundamentos" />
                         ) : (
-                          <Input value={meta[k] || ""} onChange={(e) => atualizarMeta(k, e.target.value)} placeholder={CAMPOS_LABEL[k]} />
+                          <Input value={String((meta as any)[k] ?? "")} onChange={(e) => atualizarMeta(k, e.target.value)} placeholder={CAMPOS_LABEL[k]} />
                         )}
                       </div>
                     ))}

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';
 import { SessionGuard } from '@/components/auth/session-guard';
+import { PlanLockGate } from '@/components/planos/plan-lock-gate';
 import Script from 'next/script';
 import { MotionRoot } from "@/components/providers/motion-root";
 import { LexisErrorBoundary } from "@/components/system/error-boundary";
