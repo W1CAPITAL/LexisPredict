@@ -132,7 +132,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!client) return [];
 
   // Teto anti-timeout/egress. select('*') estável (colunas variam entre deploys).
-  const MAX_ROWS = 2000;
+  const MAX_ROWS = 4000;
   const fetchPages = async (cli: any, mode: 'all' | 'mine' | 'mine_or_orphan') => {
     let allData: any[] = [];
     let page = 0;
