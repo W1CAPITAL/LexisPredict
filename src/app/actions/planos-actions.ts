@@ -7,9 +7,10 @@ export async function listEmpresasParaPlanosAction(): Promise<
   { id: string; nome: string; plano?: string; plano_expira_em?: string | null; plano_bloqueado?: boolean }[]
 > {
   const ctx = await getUserContext();
-  if (!ctx?.isSuperAdmin && ctx?.cargo !== "Administrador") {
+  // Lista completa de empresas: SOMENTE Superadmin (Admin comum não vê painel de bloqueio)
+  if (!ctx?.isSuperAdmin) {
     const id = String(ctx?.empresa_id || "");
-    return id ? [{ id, nome: "Minha empresa", plano: "maximo" }] : [];
+    return id ? [{ id, nome: "Minha empresa", plano: undefined }] : [];
   }
   try {
     const { listAllEmpresasSystem } = await import("@/lib/server-db");

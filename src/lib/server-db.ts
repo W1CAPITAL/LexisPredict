@@ -34,7 +34,7 @@ export async function getUserContext() {
 
   const { data: profile } = await supabase
     .from('usuarios')
-    .select('id, empresa_id, cargo, email, auth_user_id')
+    .select('id, empresa_id, cargo, role, email, auth_user_id')
     .eq('email', userEmail.toLowerCase().trim())
     .maybeSingle();
     

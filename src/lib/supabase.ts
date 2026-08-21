@@ -58,7 +58,12 @@ export interface Empresa {
  */
 export function checkIfSuperAdmin(user: any) {
   if (!user) return false;
-  return user.cargo === 'Superadmin' || user.role === 'superadmin';
+  const cargo = String(user.cargo || "").trim();
+  const role = String(user.role || "").trim().toLowerCase();
+  // Só Superadmin real — Administrador NÃO entra
+  if (cargo === "Superadmin") return true;
+  if (role === "superadmin") return true;
+  return false;
 }
 
 /**

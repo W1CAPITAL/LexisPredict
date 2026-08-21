@@ -56,6 +56,10 @@ export function PlanosAdminBloqueio() {
   if (!isSuperAdmin) return null;
 
   const bloquear = async (empresaId: string, nome: string) => {
+    if (!checkIfSuperAdmin(profile)) {
+      toast({ title: "Negado", description: "Só Superadmin bloqueia empresas.", variant: "destructive" });
+      return;
+    }
     const ass = getAssinatura(empresaId);
     saveAssinatura(empresaId, {
       ...ass,
@@ -69,6 +73,10 @@ export function PlanosAdminBloqueio() {
   };
 
   const liberar = async (empresaId: string, nome: string, plan: PlanId, dias: number) => {
+    if (!checkIfSuperAdmin(profile)) {
+      toast({ title: "Negado", description: "Só Superadmin libera planos.", variant: "destructive" });
+      return;
+    }
     const expiresAt = addDaysIso(dias);
     savePlanoEmpresa(empresaId, plan, {
       expiresAt,

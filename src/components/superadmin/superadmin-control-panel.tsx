@@ -151,6 +151,10 @@ export function SuperadminControlPanel() {
   }
 
   const run = async (id: string, fn: () => Promise<void>) => {
+    if (!checkIfSuperAdmin(profile)) {
+      toast({ title: "Negado", description: "Só Superadmin pode liberar ou bloquear.", variant: "destructive" });
+      return;
+    }
     setBusyId(id);
     try {
       await fn();
