@@ -104,11 +104,11 @@ function toRow(
       ultimoRetorno: isoRetorno || c.ultimoRetorno,
       ultimo_retorno: isoRetorno || (c as any).ultimo_retorno,
       atendido_por: (c as any).atendido_por || null,
-      // nunca espalhar created_by errado no JSON como se fosse dono novo
-      created_by: ownerAuthId || (c as any).created_by || null,
+      // dono só via parâmetro ownerAuthId (nunca o editor “herda” o caso no JSON)
+      created_by: ownerAuthId || null,
     },
   };
-  // Só define created_by na linha se temos owner (insert ou preserve)
+  // Coluna created_by só quando há dono conhecido (insert ou preserve)
   if (ownerAuthId) {
     row.created_by = ownerAuthId;
   }
@@ -168,57 +168,102 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     if (!client) client = await getSupabaseAdmin();
     if (!client) return { success: false, message: 'Cliente Supabase indisponível.' };
 
-    // PRESERVAR DONO por padrão; TRANSFERÊNCIA só se explícita + cargo autorizado
-    const { data: existing } = await client
-      .from('processos')
-      .select('id, created_by')
-      .eq('empresa_id', empresa_id)
-      .eq('protocolo_ref', processed.protocolo)
-      .maybeSingle();
+    // ── DONO (created_by) ────────────────────────────────────────────
+    // SEMPRE ler o registro real com service role (RLS do user esconde
+    // processos de outros → existing vinha null → INSERT/UPDATE “roubava” o caso).
+    let existing: { id: string; created_by: string | null; dados?: any } | null = null;
+    try {
+      const adminRes = await getAdminClientSafe();
+      const reader = adminRes.ok ? adminRes.client : client;
+      const { data } = await reader
+        .from('processos')
+        .select('id, created_by, dados')
+        .eq('empresa_id', empresa_id)
+        .eq('protocolo_ref', processed.protocolo)
+        .maybeSingle();
+      existing = data || null;
+    } catch {
+      const { data } = await client
+        .from('processos')
+        .select('id, created_by, dados')
+        .eq('empresa_id', empresa_id)
+        .eq('protocolo_ref', processed.protocolo)
+        .maybeSingle();
+      existing = data || null;
+    }
 
     const profile = auth_id ? await getProfileByAuthId(auth_id) : null;
-    const cargo = String(profile?.cargo || '').toLowerCase();
+    const cargo = String((profile as any)?.cargo || (profile as any)?.role || '').toLowerCase();
     const canTransfer =
       /supervisor|superadmin|super.?admin|administrador|admin|dono|owner/i.test(cargo) ||
-      /admin|supervisor|super/i.test(String((profile as any)?.role || ''));
+      String((profile as any)?.role || '').toLowerCase() === 'superadmin';
 
-    const requestedOwner = String((caseData as any).created_by || (processed as any).created_by || '').trim();
-    const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
+    const requestedOwner = String(
+      (caseData as any).created_by || (processed as any).created_by || ''
+    ).trim();
+    const forceTransfer =
+      !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
 
+    /** Dono final: nunca o editor, a menos que seja transferência explícita. */
     let owner: string | null = null;
     if (existing?.created_by) {
-      if (forceTransfer && canTransfer && requestedOwner && requestedOwner !== String(existing.created_by)) {
+      if (
+        forceTransfer &&
+        canTransfer &&
+        requestedOwner &&
+        requestedOwner !== String(existing.created_by)
+      ) {
         owner = requestedOwner;
       } else {
-        owner = existing.created_by;
+        owner = String(existing.created_by);
       }
-    } else if (requestedOwner) {
-      owner = requestedOwner;
+    } else if (!existing) {
+      // INSERT real: dono = solicitado ou quem cria
+      owner = requestedOwner || auth_id || null;
     } else {
-      owner = auth_id || null;
+      // Linha existe sem dono: só preenche se vazio — preferir manter null a “roubar”
+      // Só atribui auth_id se for criação lógica (sem created_by) e não for edição de carteira alheia
+      owner = requestedOwner || null;
     }
+
     (processed as any).created_by = owner;
 
-    const row = toRow(processed, empresa_id, owner);
     const transferring =
       !!(existing?.created_by) &&
       forceTransfer &&
       canTransfer &&
-      owner &&
+      !!owner &&
       String(existing.created_by) !== String(owner);
 
+    const row = toRow(processed, empresa_id, owner);
+
     if (existing?.id) {
-      // UPDATE: não mexe em created_by EXCETO transferência explícita autorizada
+      // UPDATE: remove created_by do payload salvo se NÃO for transferência
       const { created_by: _drop, ...updateRow } = row;
       if (!transferring) {
         delete (updateRow as any).created_by;
+        // dados.created_by = dono já existente (não o editor)
+        if (updateRow.dados && typeof updateRow.dados === 'object') {
+          const prevDados =
+            existing.dados && typeof existing.dados === 'object' ? existing.dados : {};
+          updateRow.dados = {
+            ...updateRow.dados,
+            created_by: existing.created_by || prevDados.created_by || owner || null,
+          };
+        }
       } else {
         (updateRow as any).created_by = owner;
+        if (updateRow.dados && typeof updateRow.dados === 'object') {
+          updateRow.dados = appendTransferAudit(updateRow.dados, {
+            from: existing.created_by ? String(existing.created_by) : null,
+            to: String(owner),
+            by: String(auth_id || ''),
+            at: new Date().toISOString(),
+            protocolo: processed.protocolo,
+          });
+        }
       }
-      if (updateRow.dados && typeof updateRow.dados === 'object') {
-        updateRow.dados = { ...updateRow.dados, created_by: owner };
-      }
-      // Transferência: OBRIGA service role (RLS do user muitas vezes bloqueia created_by)
+
       let writer = client;
       if (transferring) {
         const adminRes = await getAdminClientSafe();
@@ -226,21 +271,34 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
           return { success: false, message: adminRes.message };
         }
         writer = adminRes.client;
+      } else {
+        // Update de campos operacionais: preferir admin para não falhar RLS em carteira alheia
+        const adminRes = await getAdminClientSafe();
+        if (adminRes.ok) writer = adminRes.client;
       }
+
       const { error } = await writer.from('processos').update(updateRow).eq('id', existing.id);
       if (error) {
         const msg = String(error.message || '');
         if (/edited_at|edited_by|schema cache/i.test(msg)) {
-          const { error: err2 } = await client
+          const keepOwner = existing.created_by || owner;
+          const { error: err2 } = await writer
             .from('processos')
             .update({
               ultimo_retorno: formatDateToISO(processed.ultimoRetorno),
               tem_atualizacao_pos_retorno: false,
               djen_nova_comunicacao: false,
-              dados: { ...processed, created_by: owner },
+              dados: {
+                ...processed,
+                created_by: keepOwner,
+                edited_by: auth_id,
+                edited_at: now,
+                edited_by_name: editorName,
+              },
             })
             .eq('id', existing.id);
           if (err2) return { success: false, message: err2.message };
+          (processed as any).created_by = keepOwner;
           return { success: true, message: 'Salvo.', case: processed };
         }
         return { success: false, message: error.message };
@@ -253,17 +311,31 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
             ultimoRetorno: isoRet,
             atendido_por: auth_id,
           });
-        } catch { /* não bloqueia save */ }
+        } catch {
+          /* não bloqueia save */
+        }
       }
-      return { success: true, message: 'Salvo.', case: processed };
+      (processed as any).created_by = transferring ? owner : existing.created_by || owner;
+      return { success: true, message: transferring ? 'Transferido e salvo.' : 'Salvo.', case: processed };
     }
 
-    // INSERT
-    const { error } = await client.from('processos').insert(row);
+    // INSERT (processo novo)
+    const insertClient = (await getAdminClientSafe()).ok
+      ? (await getAdminClientSafe()).client
+      : client;
+    // simplify insert client
+    let writerIns = client;
+    {
+      const adminRes = await getAdminClientSafe();
+      if (adminRes.ok) writerIns = adminRes.client;
+    }
+    const { error } = await writerIns.from('processos').insert(row);
     if (error) {
-      // race: outro insert — tenta update preservando dono
       if (/duplicate|unique/i.test(String(error.message || ''))) {
-        const { data: again } = await client
+        // Já existia (RLS tinha escondido): UPDATE sem tocar created_by
+        const adminRes = await getAdminClientSafe();
+        const reader = adminRes.ok ? adminRes.client : client;
+        const { data: again } = await reader
           .from('processos')
           .select('id, created_by')
           .eq('empresa_id', empresa_id)
@@ -273,16 +345,22 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
           const keep = again.created_by || owner;
           const { created_by: _d, ...updateRow } = row;
           delete (updateRow as any).created_by;
-          const { error: errU } = await client.from('processos').update(updateRow).eq('id', again.id);
+          if (updateRow.dados && typeof updateRow.dados === 'object') {
+            updateRow.dados = { ...updateRow.dados, created_by: keep };
+          }
+          const { error: errU } = await reader
+            .from('processos')
+            .update(updateRow)
+            .eq('id', again.id);
           if (errU) return { success: false, message: errU.message };
           (processed as any).created_by = keep;
-          return { success: true, message: 'Salvo.', case: processed };
+          return { success: true, message: 'Salvo (dono preservado).', case: processed };
         }
       }
       return { success: false, message: error.message };
     }
 
-    return { success: true, message: 'Salvo.', case: processed };
+    return { success: true, message: 'Criado.', case: processed };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao salvar.' };
   }

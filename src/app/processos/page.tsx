@@ -239,7 +239,12 @@ export default function ProcessosEmpresaPage() {
         ),
       } as LegalCase;
     }
-    const res = await saveOneCaseAction(updated);
+    const payload = { ...updated } as any;
+      // Edição normal NUNCA transfere carteira — só muda campos / atendimento
+      delete payload.force_transfer_owner;
+      delete payload.__transfer_owner;
+      // Se não há UI de transferência neste fluxo, não manda created_by novo
+      const res = await saveOneCaseAction(payload);
     if (res.success) {
       await registrarAuditoriaEventAction("edicao", [editing.protocolo], {
         detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
@@ -312,7 +317,12 @@ export default function ProcessosEmpresaPage() {
         djen_nova_comunicacao: false,
         tem_atualizacao_pos_retorno: false,
       };
-      const res = await saveOneCaseAction(updated);
+      const payload = { ...updated } as any;
+      // Edição normal NUNCA transfere carteira — só muda campos / atendimento
+      delete payload.force_transfer_owner;
+      delete payload.__transfer_owner;
+      // Se não há UI de transferência neste fluxo, não manda created_by novo
+      const res = await saveOneCaseAction(payload);
       if (res.success) {
         await registrarAuditoriaEventAction("encerramento", [c.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
