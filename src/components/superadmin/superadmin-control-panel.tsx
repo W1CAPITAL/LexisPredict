@@ -94,17 +94,15 @@ export function SuperadminControlPanel() {
 
   const enriched = useMemo(() => {
     return rows.map((r) => {
-      const ass = getAssinatura(r.id, {
-        plan: normalizePlanId(r.plano || "maximo"),
-        expiresAt: r.plano_expira_em || null,
-        blocked: !!r.plano_bloqueado,
-      });
-      // Prefer local assinatura (mais recente no browser)
+      // Banco (listEmpresas) é a fonte; local só se servidor não trouxe campo
+      const serverBlocked = !!r.plano_bloqueado;
+      const serverExp = r.plano_expira_em || null;
+      const serverPlan = normalizePlanId(r.plano || "maximo");
       const local = getAssinatura(r.id);
       const merged = {
-        plan: normalizePlanId(local.plan || ass.plan),
-        expiresAt: local.expiresAt ?? ass.expiresAt,
-        blocked: local.blocked || ass.blocked,
+        plan: serverPlan || normalizePlanId(local.plan || "maximo"),
+        expiresAt: serverExp ?? local.expiresAt ?? null,
+        blocked: serverBlocked || !!local.blocked,
       };
       const left = daysLeft(merged.expiresAt);
       const expired = left !== null && left <= 0;
@@ -166,48 +164,80 @@ export function SuperadminControlPanel() {
 
   const bloquear = (r: (typeof enriched)[0]) =>
     run(r.id, async () => {
+      const res = await bloquearEmpresaPlanoAction(r.id, "inadimplencia");
+      if (!res?.ok || !(res as any).persisted) {
+        toast({
+          title: "Bloqueio NÃO gravou no banco",
+          description:
+            (res as any)?.missingColumns
+              ? "Rode o SQL sql/planos-expiracao-bloqueio.sql no Supabase (colunas plano_*)."
+              : (res as any)?.error || "Sem service role ou permissão.",
+          variant: "destructive",
+        });
+        return;
+      }
       const prev = getAssinatura(r.id);
       saveAssinatura(r.id, {
         ...prev,
         plan: normalizePlanId(prev.plan || r.ass.plan),
         blocked: true,
         blockedReason: "inadimplencia",
+        origem: "server",
       });
-      await bloquearEmpresaPlanoAction(r.id, "inadimplencia").catch(() => {});
-      toast({ title: "Empresa bloqueada", description: r.nome });
+      toast({ title: "Empresa bloqueada no banco", description: r.nome });
+      await reload();
     });
 
   const liberar = (r: (typeof enriched)[0], plan: PlanId, dias: number) =>
     run(r.id, async () => {
       const expiresAt = addDaysIso(dias);
+      const res = await liberarEmpresaPlanoAction(r.id, plan, expiresAt);
+      if (!res?.ok || !res.persisted) {
+        toast({
+          title: "Liberação NÃO gravou no banco",
+          description:
+            (res as any)?.missingColumns
+              ? "Rode o SQL planos-expiracao-bloqueio.sql no Supabase."
+              : res?.error || "Falha ao persistir.",
+          variant: "destructive",
+        });
+        return;
+      }
       savePlanoEmpresa(r.id, plan, {
         expiresAt,
         blocked: false,
         blockedReason: "",
-        origem: "superadmin_painel",
+        origem: "server",
       });
-      await liberarEmpresaPlanoAction(r.id, plan, expiresAt).catch(() => {});
-      await salvarPlanoEmpresaAction(r.id, plan).catch(() => {});
       toast({
-        title: "Liberado",
+        title: "Liberado no banco",
         description: `${r.nome} · ${PLAN_LABEL[plan]} · ${dias} dia(s) · até ${formatExpira(expiresAt)}`,
       });
+      await reload();
     });
 
   const aplicarSemPix = (r: (typeof enriched)[0], plan: PlanId) =>
     run(r.id, async () => {
       const expiresAt = addDaysIso(diasPick);
+      const res = await liberarEmpresaPlanoAction(r.id, plan, expiresAt);
+      if (!res?.ok || !(res as any).persisted) {
+        toast({
+          title: "Sem Pix NÃO gravou no banco",
+          description: (res as any)?.error || "Rode o SQL de colunas plano_*.",
+          variant: "destructive",
+        });
+        return;
+      }
       savePlanoEmpresa(r.id, plan, {
         expiresAt,
         blocked: false,
-        origem: "superadmin_sem_pix",
+        origem: "server",
       });
-      await salvarPlanoEmpresaAction(r.id, plan).catch(() => {});
-      await liberarEmpresaPlanoAction(r.id, plan, expiresAt).catch(() => {});
       toast({
-        title: "Aplicado sem Pix (Superadmin)",
+        title: "Aplicado sem Pix (gravado)",
         description: `${r.nome} · ${PLAN_LABEL[plan]} · ${diasPick}d`,
       });
+      await reload();
     });
 
   const sel = enriched.find((r) => r.id === selected) || null;

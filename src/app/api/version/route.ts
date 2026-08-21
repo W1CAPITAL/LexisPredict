@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.58.3";
+export const LEXIS_APP_VERSION = "9.59.0";
 
 export const LEXIS_CHANGELOG: string[] = [
   "9.58.2 — Fix PlanLockGate import no layout + typecheck (case-save, server-db, modelos, auth).",
