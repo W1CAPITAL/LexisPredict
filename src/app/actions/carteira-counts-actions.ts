@@ -7,6 +7,7 @@ export type CarteiraCounts = {
   empresaId: string | null;
 };
 
+/** Total real da empresa — COUNT no Postgres, sem teto de lista. */
 export async function fetchCarteiraCountsAction(): Promise<CarteiraCounts> {
   const empty: CarteiraCounts = { total: 0, ativos: 0, encerrados: 0, empresaId: null };
   try {
@@ -21,8 +22,10 @@ export async function fetchCarteiraCountsAction(): Promise<CarteiraCounts> {
       .from("processos")
       .select("id", { count: "exact", head: true })
       .eq("empresa_id", empresaId);
-    if (error) return { ...empty, empresaId };
-
+    if (error) {
+      console.error("[fetchCarteiraCountsAction]", error.message);
+      return { ...empty, empresaId };
+    }
     const { count: enc } = await client
       .from("processos")
       .select("id", { count: "exact", head: true })

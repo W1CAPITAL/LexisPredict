@@ -60,7 +60,7 @@ export function writeCarteiraCache(cases: unknown[], empresaId?: string | null) 
       at: Date.now(),
       empresaId: empresaId || null,
       // não guarda 10k blobs: o array já deve vir enxuto do servidor
-      cases: Array.isArray(cases) ? cases.slice(0, 1500) : [],
+      cases: Array.isArray(cases) ? cases : [],
     };
     sessionStorage.setItem(CARTEIRA_KEY, JSON.stringify(payload));
   } catch {

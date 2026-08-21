@@ -982,15 +982,44 @@ export async function fetchCompanyProcessosAction() {
     getStoredCasesForEmpresa,
     getUserContext,
     fetchAuditoriaLogsAction,
+    getSupabaseAdmin,
   } = await import('@/lib/server-db');
   const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { cases: [], audit: [], users: [] };
-  const [cases, audit, users] = await Promise.all([
+  if (!empresa_id) return { cases: [], audit: [], users: [], totalCount: 0, ativosCount: 0 };
+
+  const countPromise = (async () => {
+    try {
+      const admin = await getSupabaseAdmin();
+      if (!admin) return { total: 0, ativos: 0 };
+      const { count: total } = await admin
+        .from('processos')
+        .select('id', { count: 'exact', head: true })
+        .eq('empresa_id', empresa_id);
+      const { count: enc } = await admin
+        .from('processos')
+        .select('id', { count: 'exact', head: true })
+        .eq('empresa_id', empresa_id)
+        .eq('datajud_encerrado_tribunal', true);
+      const t = total ?? 0;
+      return { total: t, ativos: Math.max(0, t - (enc ?? 0)) };
+    } catch {
+      return { total: 0, ativos: 0 };
+    }
+  })();
+
+  const [cases, audit, users, counts] = await Promise.all([
     getStoredCasesForEmpresa(empresa_id, true),
     fetchAuditoriaLogsAction(empresa_id),
     getEmpresaUsers(),
+    countPromise,
   ]);
-  return { cases, audit, users };
+  return {
+    cases,
+    audit,
+    users,
+    totalCount: counts.total || (Array.isArray(cases) ? cases.length : 0),
+    ativosCount: counts.ativos || 0,
+  };
 }
 
 export async function clearDataJudAuditAction(protocolo: string) {
