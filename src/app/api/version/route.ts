@@ -4,9 +4,13 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.54.1";
+export const LEXIS_APP_VERSION = "9.55.0";
 
 export const LEXIS_CHANGELOG: string[] = [
+  "9.55 — sessão estável: refresh ao focar a aba, anti-travamento e tela clara se o login expirar.",
+  "Limpa cache da carteira no logout/expiração para não ficar só com dados velhos.",
+  "Timeout de 15s no loading de auth — não trava a UI para sempre.",
+
   "9.54.1 — editar processo de outro usuário NÃO troca o dono (created_by).",
   "Lookup do processo no save usa service role (RLS não esconde mais o dono).",
   "Transferência de carteira só com force_transfer_owner + cargo autorizado.",
