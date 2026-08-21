@@ -31,6 +31,14 @@ const PacmanTrollOverlay = dynamic(
   { ssr: false }
 );
 
+const DesktopDownloadBanner = dynamic(
+  () =>
+    import("@/components/system/desktop-download-banner").then(
+      (m) => m.DesktopDownloadBanner
+    ),
+  { ssr: false }
+);
+
 export function ClientChrome() {
   const [scannerReady, setScannerReady] = useState(false);
   const [tourReady, setTourReady] = useState(false);
@@ -66,6 +74,7 @@ export function ClientChrome() {
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
       <AppUpdateBanner />
+      <DesktopDownloadBanner />
       <PacmanTrollOverlay />
     </>
   );
