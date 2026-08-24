@@ -1,6 +1,5 @@
 /**
- * Validações de geração de peças (prévia e PDF).
- * Impede lixo curto, CPF/OAB claramente inválidos e prévia vazia.
+ * Validações de geração de peças — flexível: OAB 1–2 dígitos ok, edição livre.
  */
 
 import type { PecaMeta, ModeloPeca } from '@/lib/pecas-modelos';
@@ -16,19 +15,16 @@ const NOME_KEYS: (keyof PecaMeta)[] = [
   'parteContraria',
 ];
 
-const ID_KEYS: (keyof PecaMeta)[] = ['oab', 'oab2', 'substabDeOab', 'substabParaOab', 'cpfCliente', 'cpfAdvogado'];
+const OAB_KEYS: (keyof PecaMeta)[] = ['oab', 'oab2', 'substabDeOab', 'substabParaOab'];
+const CPF_KEYS: (keyof PecaMeta)[] = ['cpfCliente', 'cpfAdvogado', 'cpfParteContraria'];
 
 function isJunkName(v: string): boolean {
   const s = v.trim();
-  if (s.length < 3) return true;
-  if (/^[a-zA-Z]{1,2}$/.test(s)) return true;
-  if (/^\[.*\]$/.test(s)) return true;
+  if (!s) return true;
+  if (s.length < 2) return true;
   if (/^(teste|test|xxx|asdf)$/i.test(s)) return true;
+  if (/^\[.*\]$/.test(s)) return true;
   return false;
-}
-
-function onlyDigits(s: string) {
-  return s.replace(/\D/g, '');
 }
 
 export type PecaValidationIssue = {
@@ -43,43 +39,38 @@ export function validatePecaMeta(
 ): PecaValidationIssue[] {
   const issues: PecaValidationIssue[] = [];
   const campos = modelo.campos || [];
-  const strict = opts?.strictRequired !== false;
+  const strict = opts?.strictRequired === true;
 
-  // Nomes obrigatórios do modelo que estão no form
   for (const key of NOME_KEYS) {
     if (!campos.includes(key)) continue;
     const raw = String(meta[key] || '').trim();
     if (!raw) {
       if (strict && (key === 'cliente' || key === 'advogado' || key === 'substabDe' || key === 'substabPara')) {
-        // só exige se o modelo lista o campo
-        if (key === 'cliente' && campos.includes('cliente')) {
-          issues.push({ field: key, message: 'Informe o nome completo do cliente/outorgante (mín. 3 caracteres).' });
-        }
-        if (key === 'advogado' && campos.includes('advogado')) {
-          issues.push({ field: key, message: 'Informe o nome completo do advogado (mín. 3 caracteres).' });
-        }
-        if ((key === 'substabDe' || key === 'substabPara') && campos.includes(key)) {
-          issues.push({ field: key, message: `Informe o nome completo em “${key}”.` });
-        }
+        issues.push({ field: key, message: `Informe o nome em “${key}” (mín. 2 caracteres).` });
       }
       continue;
     }
     if (isJunkName(raw)) {
-      issues.push({ field: key, message: `“${raw}” não é um nome válido. Use nome completo.` });
+      issues.push({ field: key, message: `“${raw}” não parece um nome válido.` });
     }
   }
 
-  for (const key of ID_KEYS) {
+  // OAB: aceita 1+ caracteres (ex.: "12", "3456")
+  for (const key of OAB_KEYS) {
     if (!campos.includes(key)) continue;
     const raw = String(meta[key] || '').trim();
     if (!raw) continue;
-    if (raw.length < 3 || isJunkName(raw)) {
-      issues.push({ field: key, message: `Campo ${key} inválido ou curto demais.` });
+    if (raw.length < 1) {
+      issues.push({ field: key, message: `Informe a OAB.` });
     }
-    if (key.startsWith('cpf')) {
-      if (!cpfValido(raw)) {
-        issues.push({ field: key, message: 'CPF inválido (dígitos verificadores).' });
-      }
+  }
+
+  for (const key of CPF_KEYS) {
+    if (!campos.includes(key)) continue;
+    const raw = String(meta[key] || '').trim();
+    if (!raw) continue;
+    if (!cpfValido(raw)) {
+      issues.push({ field: key, message: 'CPF inválido (dígitos verificadores).' });
     }
   }
 
@@ -102,13 +93,8 @@ export function validatePecaMeta(
 
 export function validatePecaPreview(preview: string): PecaValidationIssue[] {
   const t = (preview || '').trim();
-  if (t.length < 80) {
-    return [{ message: 'Prévia muito curta. Preencha os campos principais e gere o texto de novo.' }];
-  }
-  // Heurística: ainda só placeholders
-  const placeholders = (t.match(/\[[A-ZÁÉÍÓÚÃÕÂÊÔÇ0-9 /]{4,}\]/g) || []).length;
-  if (placeholders >= 4) {
-    return [{ message: 'Ainda há muitos campos em branco (placeholders). Complete nome, OAB e dados essenciais.' }];
+  if (t.length < 40) {
+    return [{ message: 'Prévia muito curta. Edite o texto ou preencha os campos.' }];
   }
   return [];
 }
