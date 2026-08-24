@@ -89,6 +89,8 @@ export default function RevogacaoPoderesPage() {
   const [requireCpf, setRequireCpf] = useState(false);
   /** Se true, preenche CPF automaticamente quando DJEN trouxer */
   const [autoFillCpf, setAutoFillCpf] = useState(true);
+  /** Se true, gera apenas revogação de poderes (sem substabelecimento) */
+  const [somenteRevogacao, setSomenteRevogacao] = useState(false);
   const [cpfByProtocolo, setCpfByProtocolo] = useState<Record<string, string>>({});
   const [emailByProtocolo, setEmailByProtocolo] = useState<Record<string, string>>({});
   const [estadoCivilByProtocolo, setEstadoCivilByProtocolo] = useState<Record<string, string>>({});
@@ -321,7 +323,14 @@ export default function RevogacaoPoderesPage() {
   };
 
   const downloadOne = async (it: RevogacaoCaseItem) => {
-    if (!leavingId || !enteringId || leavingId === enteringId) {
+    if (!leavingId) {
+      toast({
+        title: "Selecione o advogado a revogar",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!somenteRevogacao && (!enteringId || leavingId === enteringId)) {
       toast({
         title: "Selecione dois advogados diferentes na banca",
         variant: "destructive",
@@ -361,6 +370,7 @@ export default function RevogacaoPoderesPage() {
         classeAcao: acaoByProtocolo[it.protocolo] || it.classe_acao || null,
         incluirPartePassivaNoPdf: incluirBancoNoPdf,
         incluirAcaoNoPdf: incluirAcaoNoPdf,
+        somenteRevogacao,
       });
       if (!res.success || !(res as any).base64) {
         toast({
@@ -403,10 +413,10 @@ export default function RevogacaoPoderesPage() {
             </div>
             <div>
               <h1 className="text-sm font-black uppercase tracking-widest">
-                Revogacao + Substabelecimento
+                Revogacao de Poderes
               </h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                Fila 1 a 1 · CPF/e-mail da carteira · banco/acao opcionais no PDF
+                Revogacao (e opcionalmente substabelecimento) · Fila 1 a 1 · CPF/e-mail da carteira
               </p>
             </div>
           </div>
@@ -429,10 +439,12 @@ export default function RevogacaoPoderesPage() {
             </Select>
           </div>
           <div>
-            <Label className="text-[9px] font-black uppercase">Novo patrono</Label>
+            <Label className="text-[9px] font-black uppercase">
+              {somenteRevogacao ? "Novo patrono (opcional)" : "Novo patrono"}
+            </Label>
             <Select value={enteringId} onValueChange={setEnteringId} disabled={loadingBanca}>
               <SelectTrigger className="h-11 rounded-xl mt-1">
-                <SelectValue placeholder="Selecione" />
+                <SelectValue placeholder={somenteRevogacao ? "Opcional - deixe vazio se só revogar" : "Selecione"} />
               </SelectTrigger>
               <SelectContent>
                 {banca.map((a) => (
@@ -519,6 +531,14 @@ export default function RevogacaoPoderesPage() {
           <label className="flex items-center gap-2 ml-auto cursor-pointer">
             <input type="checkbox" checked={onlyElegiveis} onChange={(e) => setOnlyElegiveis(e.target.checked)} />
             <span className="font-bold uppercase text-[9px]">So elegiveis</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={somenteRevogacao}
+              onChange={(e) => setSomenteRevogacao(e.target.checked)}
+            />
+            <span className="font-bold uppercase text-[9px]">Apenas revogacao (sem substabelecimento)</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
