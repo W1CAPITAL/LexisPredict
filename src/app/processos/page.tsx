@@ -627,14 +627,14 @@ export default function ProcessosEmpresaPage() {
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.advogado}</td>
                             <td className="px-4 py-3">
-                              <Badge variant="outline" data-status={c.status || ""} className={cn("text-[8px] font-black uppercase px-2 py-0 border", statusTone(c.status))}>
+                              <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-2 py-0 border", statusTone(c.status))}>
                                 {c.status}
                               </Badge>
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.tribunal}</td>
                             <td className="px-4 py-3 text-center">
                               {isBuscaApreensaoReal(c) ? (
-                                <Badge data-ba="1" className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
+                                <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
                                   <ShieldAlert size={10} className="mr-1" /> B.A.{(c as any).ba_tipo ? ` ${(c as any).ba_tipo}` : ""}
                                 </Badge>
                               ) : (
@@ -836,7 +836,7 @@ export default function ProcessosEmpresaPage() {
         </div>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto bg-card text-card-foreground border-border shadow-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black">
                 <Pencil size={15} className="text-primary" /> Editar processo
@@ -961,7 +961,7 @@ export default function ProcessosEmpresaPage() {
         </Dialog>
 
         <Dialog open={attendingOpen} onOpenChange={setAttendingOpen}>
-          <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
+          <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto bg-card text-card-foreground border-border shadow-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black">
                 <UserCheck size={15} className="text-emerald-500" /> Registrar atendimento
