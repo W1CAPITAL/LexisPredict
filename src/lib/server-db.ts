@@ -127,9 +127,9 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   const context = await getUserContext();
   const { auth_id, isSuperAdmin, isSupervisor } = context as any;
 
-  // isAdmin=true → aba Processos da Empresa: SEMPRE carteira completa
-  // Superadmin/Supervisor em Cases/Dashboard: carteira completa
-  // Operador/Admin em Cases/Tarefas: SOMENTE created_by = eu (não mistura atendido_por)
+  // isAdmin=true → /processos (empresa toda)
+  // Superadmin/Supervisor → carteira completa em Cases/Dashboard
+  // Operador/Admin → SOMENTE created_by = auth_id
   const wantAll = isAdmin === true || !!(isSuperAdmin || isSupervisor);
 
   const mapRows = (rows: any[]): LegalCase[] => {
@@ -152,9 +152,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
               atendido_por: item.atendido_por ?? dados.atendido_por ?? null,
             })
           );
-        } catch {
-          /* ignora linha irrecuperável */
-        }
+        } catch { /* skip */ }
       }
     }
     return out;
@@ -174,7 +172,6 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .range(page * pageSize, (page + 1) * pageSize - 1);
       if (mode === "mine") {
         if (!auth_id) return [];
-        // Apenas dono (created_by). Quem atendeu de outro não "herda" a carteira.
         query = query.eq("created_by", auth_id);
       }
       const { data, error } = await query;
@@ -192,7 +189,6 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   try {
     if (wantAll) {
-      // 1) Service role (ignora RLS) — obrigatório para visão empresa
       try {
         const admin = await getSupabaseAdmin();
         if (admin) {
@@ -202,7 +198,6 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       } catch (e) {
         console.error("[getStoredCasesForEmpresa] admin all", e);
       }
-      // 2) Client do usuário (RLS)
       try {
         if (supabase) {
           const rows = await fetchPages(supabase, "all");
@@ -214,9 +209,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       return [];
     }
 
-    // Operador: só os meus
     if (!auth_id) return [];
-
     try {
       if (supabase) {
         const rows = await fetchPages(supabase, "mine");
@@ -225,8 +218,6 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     } catch (e) {
       console.error("[getStoredCasesForEmpresa] user mine", e);
     }
-
-    // Bypass RLS só para listar OS MEUS (created_by), nunca a empresa toda
     try {
       const admin = await getSupabaseAdmin();
       if (admin) {
@@ -236,7 +227,6 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     } catch (e) {
       console.error("[getStoredCasesForEmpresa] admin mine", e);
     }
-
     return [];
   } catch (error) {
     console.error("[getStoredCasesForEmpresa]", error);
@@ -251,10 +241,7 @@ export async function getStoredCasesPageForEmpresa(
   isAdmin = false
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
-  let client: any = supabase;
-  if (isAdmin) {
-    try { client = await getSupabaseAdmin(); } catch { client = supabase; }
-  }
+  const client = isAdmin ? await getSupabaseAdmin() : supabase;
   if (!client) return [];
 
   try {
@@ -268,7 +255,6 @@ export async function getStoredCasesPageForEmpresa(
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Mesma regra: operador só vê created_by = eu
     if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
       query = query.eq('created_by', auth_id);
     }

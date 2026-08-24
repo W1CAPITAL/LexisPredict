@@ -1,0 +1,57 @@
+/* Contraste legível — Minimal Steel light por padrão. Sem texto branco em fundo claro. */
+:root {
+  --background: 210 40% 98% !important;
+  --foreground: 222 47% 11% !important;
+  --card: 0 0% 100% !important;
+  --card-foreground: 222 47% 11% !important;
+  --popover: 0 0% 100% !important;
+  --popover-foreground: 222 47% 11% !important;
+  --secondary: 210 40% 96% !important;
+  --secondary-foreground: 222 47% 11% !important;
+  --muted: 210 40% 96% !important;
+  --muted-foreground: 215 16% 35% !important;
+  --border: 214 32% 88% !important;
+  --sidebar-background: 0 0% 100% !important;
+  --sidebar-foreground: 222 47% 11% !important;
+}
+
+html:not(.dark) body,
+html:not(.dark) {
+  color: #0f172a !important;
+  background-color: #f8fafc !important;
+}
+
+html:not(.dark) .text-foreground,
+html:not(.dark) .text-card-foreground {
+  color: #0f172a !important;
+}
+
+html:not(.dark) .text-muted-foreground {
+  color: #475569 !important;
+}
+
+html:not(.dark) .bg-card,
+html:not(.dark) [data-radix-dialog-content],
+html:not(.dark) [role="dialog"] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+}
+
+html:not(.dark) .bg-background {
+  background-color: #f8fafc !important;
+}
+
+html:not(.dark) aside,
+html:not(.dark) [data-sidebar] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+}
+
+/* Evita branco sobre branco em badges pastel */
+html:not(.dark) .text-white:not(.bg-black):not(.bg-primary):not([class*="bg-red"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="bg-slate-9"]):not([class*="bg-zinc-9"]) {
+  color: #0f172a !important;
+}
