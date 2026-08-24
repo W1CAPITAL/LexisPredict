@@ -206,6 +206,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
 
     /** Dono final: nunca o editor, a menos que seja transferência explícita. */
     let owner: string | null = null;
+    // FORCED_KEEP_OWNER: atendimento/edição NUNCA altera created_by
     if (existing?.created_by) {
       if (
         forceTransfer &&

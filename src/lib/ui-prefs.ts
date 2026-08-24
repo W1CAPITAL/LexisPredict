@@ -1,6 +1,6 @@
 /**
- * Preferências UI — vidro DESLIGADO por padrão.
- * KEY v2 descarta estado legado com VIDRO ON que quebrava contraste.
+ * Preferências de UI — contraste, densidade e transparência seletiva.
+ * applyUiPrefsToDom injeta CSS real (não só variáveis que o tema pode ignorar).
  */
 export type UiDensity = "compact" | "comfortable" | "wide";
 export type UiFontScale = "90" | "100" | "110";
@@ -20,10 +20,8 @@ export type UiPrefs = {
   glassTabs: boolean;
 };
 
-const KEY = "lexisPredict_ui_prefs_v2";
-const KEY_LEGACY = "lexisPredict_ui_prefs_v1";
+const KEY = "lexisPredict_ui_prefs_v1";
 const STYLE_ID = "lexis-ui-prefs-runtime";
-const MIGRATED = "lexisPredict_ui_solid_migrated_v2";
 
 export const UI_PREFS_DEFAULT: UiPrefs = {
   density: "comfortable",
@@ -33,7 +31,7 @@ export const UI_PREFS_DEFAULT: UiPrefs = {
   colorVencido: "#b91c1c",
   colorHoje: "#1d4ed8",
   colorBa: "#dc2626",
-  wallpaperMinOpacity: 1,
+  wallpaperMinOpacity: 0.85,
   glassSidebar: false,
   glassDialogs: false,
   glassCards: false,
@@ -43,15 +41,6 @@ export const UI_PREFS_DEFAULT: UiPrefs = {
 export function loadUiPrefs(): UiPrefs {
   if (typeof localStorage === "undefined") return { ...UI_PREFS_DEFAULT };
   try {
-    // Uma vez: zera vidro legado
-    if (!localStorage.getItem(MIGRATED)) {
-      localStorage.removeItem(KEY_LEGACY);
-      localStorage.setItem(KEY, JSON.stringify(UI_PREFS_DEFAULT));
-      localStorage.setItem(MIGRATED, "1");
-      localStorage.setItem("lexisPredict_bg_opacity", "1");
-      localStorage.setItem("lexisPredict_sidebar_opacity", "1");
-      localStorage.setItem("lexisPredict_glass_blur", "0");
-    }
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...UI_PREFS_DEFAULT };
     return { ...UI_PREFS_DEFAULT, ...JSON.parse(raw) };
@@ -70,23 +59,6 @@ export function saveUiPrefs(partial: Partial<UiPrefs>): UiPrefs {
     window.dispatchEvent(new Event("lexis-ui-prefs-changed"));
   }
   return next;
-}
-
-/** Reset total: sólido + limpa atmosfera legada */
-export function resetUiSolid(): UiPrefs {
-  if (typeof localStorage !== "undefined") {
-    localStorage.setItem(KEY, JSON.stringify(UI_PREFS_DEFAULT));
-    localStorage.setItem("lexisPredict_bg_opacity", "1");
-    localStorage.setItem("lexisPredict_sidebar_opacity", "1");
-    localStorage.setItem("lexisPredict_glass_blur", "0");
-    localStorage.setItem(MIGRATED, "1");
-  }
-  applyUiPrefsToDom(UI_PREFS_DEFAULT);
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("lexis-ui-prefs-changed"));
-    window.dispatchEvent(new Event("lexis-theme-changed"));
-  }
-  return { ...UI_PREFS_DEFAULT };
 }
 
 function hexToHslComponents(hex: string): string | null {
@@ -133,14 +105,20 @@ export function applyUiPrefsToDom(prefs?: UiPrefs) {
   root.dataset.glassDialogs = p.glassDialogs ? "1" : "0";
   root.dataset.glassCards = p.glassCards ? "1" : "0";
   root.dataset.glassTabs = p.glassTabs ? "1" : "0";
+
   root.style.setProperty("--status-vencido", p.colorVencido);
   root.style.setProperty("--status-hoje", p.colorHoje);
   root.style.setProperty("--status-ba", p.colorBa);
+
   if (p.sidebarHex) {
     const hsl = hexToHslComponents(p.sidebarHex);
-    if (hsl) root.style.setProperty("--sidebar-background", hsl);
+    if (hsl) {
+      root.style.setProperty("--sidebar-background", hsl);
+      root.style.setProperty("--sidebar-bg-solid", p.sidebarHex);
+    }
   }
 
+  // CSS runtime — garante efeito visível
   let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
   if (!el) {
     el = document.createElement("style");
@@ -148,51 +126,29 @@ export function applyUiPrefsToDom(prefs?: UiPrefs) {
     document.head.appendChild(el);
   }
 
-  const solidDlg = `
-    background-color: #ffffff !important;
-    background: hsl(var(--card, 0 0% 100%)) !important;
-    opacity: 1 !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  `;
-  const glassDlg = `
-    background-color: hsl(var(--card) / 0.92) !important;
-    backdrop-filter: blur(12px) !important;
-  `;
+  const sidebarBg = p.sidebarHex || "hsl(var(--sidebar-background, 0 0% 98%))";
+  const glassSide = p.glassSidebar
+    ? `background-color: color-mix(in srgb, ${sidebarBg} 72%, transparent) !important; backdrop-filter: blur(12px) !important;`
+    : `background-color: ${sidebarBg} !important; backdrop-filter: none !important; opacity: 1 !important;`;
+
+  const glassDlg = p.glassDialogs
+    ? `background-color: hsl(var(--card) / 0.85) !important; backdrop-filter: blur(14px) !important;`
+    : `background-color: hsl(var(--card)) !important; backdrop-filter: none !important; opacity: 1 !important;`;
+
+  const glassCard = p.glassCards
+    ? `background-color: hsl(var(--card) / 0.8) !important; backdrop-filter: blur(8px) !important;`
+    : `background-color: hsl(var(--card)) !important; backdrop-filter: none !important;`;
 
   el.textContent = `
     html { font-size: calc(16px * ${font}); }
-    /* MODAIS — sólido por padrão (nunca ver fundo por trás) */
-    [data-radix-dialog-content],
-    [role="dialog"],
-    [data-radix-alert-dialog-content],
-    [data-state][role="dialog"] {
-      ${p.glassDialogs ? glassDlg : solidDlg}
+    html[data-ops-mode="1"] .font-black.uppercase { letter-spacing: 0.04em; }
+    aside.bg-sidebar, [data-sidebar], nav[data-sidebar] { ${glassSide} }
+    [data-radix-dialog-content], [role="dialog"], [data-radix-alert-dialog-content] { ${glassDlg} }
+    .ops-ui .bg-card, [data-admin-card], [data-efferd-kpi] { ${glassCard} }
+    html[data-glass-tabs="0"] header, html[data-glass-tabs="0"] [role="tablist"] {
+      background-color: hsl(var(--card)) !important; backdrop-filter: none !important;
     }
-    /* Overlay escuro legível */
-    [data-radix-dialog-overlay], [data-radix-alert-dialog-overlay] {
-      background-color: rgba(0,0,0,0.55) !important;
-      backdrop-filter: none !important;
-    }
-    /* Cards */
-    .bg-card, [data-admin-card], [data-efferd-kpi] {
-      ${p.glassCards
-        ? "background-color: hsl(var(--card) / 0.88) !important; backdrop-filter: blur(8px) !important;"
-        : "background-color: hsl(var(--card)) !important; backdrop-filter: none !important; opacity: 1 !important;"}
-    }
-    /* Sidebar */
-    aside.bg-sidebar, [data-sidebar] {
-      ${p.glassSidebar
-        ? "background-color: hsl(var(--sidebar-background) / 0.85) !important; backdrop-filter: blur(10px) !important;"
-        : "background-color: hsl(var(--sidebar-background, 0 0% 98%)) !important; backdrop-filter: none !important; opacity: 1 !important;"}
-    }
-    html[data-glass-tabs="0"] header {
-      background-color: hsl(var(--card)) !important;
-      backdrop-filter: none !important;
-    }
-    /* Badges legíveis */
-    .badge-baixa-tribunal, [data-badge="baixa"] {
-      background: #18181b !important; color: #fff !important; border: none !important;
-    }
+    /* Badges de status — nunca pastel ilegível */
+    .badge-semana { background: #0369a1 !important; color: #fff !important; }
   `;
 }

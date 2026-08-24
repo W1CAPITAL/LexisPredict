@@ -409,13 +409,14 @@ export function applyGlobalTheme(
   const m: ThemeMode = mode || getCurrentMode();
   const isLight = m === 'light';
 
+  // Respeita cor escolhida pelo usuário; só corrige se contraste for catastrófico (<2.5)
   let finalForeground = colors.foreground;
-  if (getContrastRatio(colors.background, colors.foreground) < 4.5) {
+  if (getContrastRatio(colors.background, colors.foreground) < 2.5) {
     finalForeground = getIdealTextColor(colors.background);
   }
 
   let finalMuted = colors.fontMuted;
-  if (getContrastRatio(colors.background, colors.fontMuted) < 3.0) {
+  if (getContrastRatio(colors.background, colors.fontMuted) < 2.0) {
     finalMuted = getIdealMutedTextColor(colors.background);
   }
 
@@ -443,6 +444,23 @@ export function applyGlobalTheme(
   root.style.setProperty('--secondary', hexToHsl(colors.bgSecondary));
   root.style.setProperty('--muted', hexToHsl(isLight ? colors.accent : blend(colors.bgSecondary, '#000000', 0.12)));
   root.style.setProperty('--foreground', hexToHsl(finalForeground));
+  root.style.setProperty('--lexis-font-color', finalForeground);
+  // Aplica cor das letras de forma visível (classes hardcoded não vencem)
+  let fontStyle = document.getElementById('lexis-font-color-style') as HTMLStyleElement | null;
+  if (!fontStyle) {
+    fontStyle = document.createElement('style');
+    fontStyle.id = 'lexis-font-color-style';
+    document.head.appendChild(fontStyle);
+  }
+  fontStyle.textContent = `
+    body, .text-foreground, [data-lexis-root] {
+      color: ${finalForeground} !important;
+    }
+    .text-muted-foreground {
+      color: ${finalMuted} !important;
+    }
+  `;
+
   root.style.setProperty('--card-foreground', hexToHsl(finalForeground));
   root.style.setProperty('--popover-foreground', hexToHsl(finalForeground));
   root.style.setProperty('--secondary-foreground', hexToHsl(finalForeground));

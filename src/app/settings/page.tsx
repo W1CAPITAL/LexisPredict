@@ -72,9 +72,8 @@ import {
   loadVisualStateFromStorage,
   saveWallpaperFile,
   persistOpacity,
-  forceSolidAtmosphere,
 } from '@/lib/visual-hardware';
-import { loadUiPrefs, saveUiPrefs, resetUiSolid, type UiPrefs, UI_PREFS_DEFAULT } from "@/lib/ui-prefs";
+import { loadUiPrefs, saveUiPrefs, type UiPrefs, UI_PREFS_DEFAULT } from "@/lib/ui-prefs";
 import {
   getMetalPreferences,
   applyMetalPreferences,
@@ -780,11 +779,57 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <Button type="button" variant="outline" className="h-9 text-[10px] font-bold uppercase"
-                        onClick={() => { setUiPrefs(resetUiSolid()); forceSolidAtmosphere(); toast({ title: 'Contraste solido aplicado' }); }}>
+                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}>
                         Resetar (tudo solido)
                       </Button>
                     </div>
-                  </section>
+
+                    <div className="rounded-xl border border-border bg-card p-6 space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Cores do texto e fundo</Label>
+                          <p className="text-[10px] text-muted-foreground mt-1">Altere a cor das letras e clique em Aplicar. Vale em todo o app.</p>
+                        </div>
+                        <Button type="button" onClick={handleApplyHardware} className="h-9 text-[10px] font-black uppercase bg-black text-white hover:bg-primary hover:text-black">
+                          Aplicar cores
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase">Fundo</Label>
+                          <Input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase">Cards</Label>
+                          <Input type="color" value={bgSecondaryColor} onChange={(e) => setBgSecondaryColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase">Letras</Label>
+                          <Input type="color" value={fontColor} onChange={(e) => {
+                            const v = e.target.value;
+                            setFontColor(v);
+                            try {
+                              document.documentElement.style.setProperty("--lexis-font-color", v);
+                              let el = document.getElementById("lexis-font-color-style") as HTMLStyleElement | null;
+                              if (!el) { el = document.createElement("style"); el.id = "lexis-font-color-style"; document.head.appendChild(el); }
+                              el.textContent = "body, .text-foreground, [data-lexis-root] { color: " + v + " !important; }";
+                            } catch {}
+                          }} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase">Secundario</Label>
+                          <Input type="color" value={fontMutedColor} onChange={(e) => setFontMutedColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase">Primary</Label>
+                          <Input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold uppercase">Accent</Label>
+                          <Input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                      </div>
+                    </div>
 
                   <section className="space-y-6">
                     <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera & Vidro</Label>
@@ -894,7 +939,7 @@ export default function SettingsPage() {
                         type="button"
                         variant="ghost"
                         className="h-9 text-[10px] font-bold uppercase"
-                        onClick={() => { setUiPrefs(resetUiSolid()); forceSolidAtmosphere(); toast({ title: 'Contraste solido aplicado' }); }}
+                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}
                       >
                         Resetar personalização
                       </Button>

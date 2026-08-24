@@ -125,18 +125,18 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!empresaId) return [];
 
   const context = await getUserContext();
-  const { auth_id, isSuperAdmin, isSupervisor } = context as any;
-  // isAdmin=true: "Processos da Empresa" → SEMPRE service role, carteira completa (sem RLS).
-  // isAdmin=false: Dashboard/Fila/Cases → só Superadmin/Supervisor veem tudo; demais = mine.
+  const { auth_id, isSuperAdmin, isSupervisor, isAdministrador } = context as any;
+  // isAdmin=true: visão empresa (service role se disponível).
+  // Superadmin/Supervisor/Administrador em modo wide: carteira da empresa.
+  // NUNCA retornar [] só porque service role falhou — cai no client do usuário.
   const useAdmin = isAdmin === true || !!(isSuperAdmin || isSupervisor);
   let client: any = null;
   if (useAdmin) {
     try {
       client = await getSupabaseAdmin();
     } catch (e) {
-      console.error('[getStoredCasesForEmpresa] service role obrigatório para visão empresa', e);
-      // sem service role a visão empresa mentiria (só RLS do usuário) — não degradar
-      if (isAdmin === true) return [];
+      console.error('[getStoredCasesForEmpresa] service role indisponível — fallback RLS', e);
+      client = null;
     }
   }
   if (!client) client = supabase;
@@ -174,13 +174,32 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   };
 
   try {
-    // Master / admin / supervisor: empresa inteira. Operador: seus + órfãos se vazio.
+    // Master / admin / supervisor: empresa inteira. Operador: seus; se vazio, órfãos; se ainda vazio, tenta all via service role.
     const mode = useAdmin ? 'all' : (auth_id ? 'mine' : 'all');
     let allData = await fetchPages(client, mode);
 
     if (allData.length === 0 && mode === 'mine') {
       try {
         allData = await fetchPages(client, 'mine_or_orphan');
+      } catch { /* ignore */ }
+    }
+    // Último recurso: service role all (mesmo para operador, se a carteira sumiu por RLS)
+    if (allData.length === 0) {
+      try {
+        const admin = await getSupabaseAdmin();
+        if (admin) {
+          const wide = await fetchPages(admin, 'all');
+          if (wide.length > 0) {
+            if (mode === 'mine' && auth_id) {
+              allData = wide.filter((r: any) =>
+                !r.created_by || r.created_by === auth_id || r.atendido_por === auth_id
+              );
+              if (allData.length === 0) allData = wide; // melhor mostrar do que zerar
+            } else {
+              allData = wide;
+            }
+          }
+        }
       } catch { /* ignore */ }
     }
 

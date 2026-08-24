@@ -63,7 +63,12 @@ export function linhaDonoAto(c?: LegalCase | null): string {
   const dono = labelPessoa(rawDono, String(c.advogado || "Equipe").trim() || "Equipe");
   const quando = String(c.ultimoRetorno || (c as any).ultimo_retorno || "").slice(0, 10) || "sem retorno";
   let passo = String(c.evento_resumo || c.datajud_ultimo_nome || "").replace(/\s+/g, " ").trim();
-  // não repetir CNJ inteiro no resumo se já está na linha de cima
+  // Se situacao é "AGUARD.PROTOCOLO..." mas já existe CNJ, não usar isso como se faltasse protocolo
+  const situ = String((c as any).situacao || "").toUpperCase();
+  const protoDigits = String(c.protocolo || "").replace(/\D/g, "");
+  if (protoDigits.length >= 15 && /AGUARD.*PROTOCOLO/.test(situ)) {
+    passo = passo || "protocolo já cadastrado — acompanhar tribunal";
+  }
   passo = passo.slice(0, 72) || "sem último ato";
   return `${dono} · ${quando} · ${passo}`;
 }
