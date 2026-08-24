@@ -73,6 +73,7 @@ import {
   saveWallpaperFile,
   persistOpacity,
 } from '@/lib/visual-hardware';
+import { loadUiPrefs, saveUiPrefs, type UiPrefs, UI_PREFS_DEFAULT } from "@/lib/ui-prefs";
 import {
   getMetalPreferences,
   applyMetalPreferences,
@@ -181,6 +182,7 @@ export default function SettingsPage() {
   const [bgOpacity, setBgOpacity] = useState(100);
   const [sidebarOpacity, setSidebarOpacity] = useState(100);
   const [glassBlur, setGlassBlur] = useState(0);
+  const [uiPrefs, setUiPrefs] = useState<UiPrefs>(UI_PREFS_DEFAULT);
   const [wallpaper, setWallpaper] = useState('');
   const [wallpaperUrlInput, setWallpaperUrlInput] = useState("");
   const wallpaperFileRef = useRef<HTMLInputElement>(null);
@@ -235,6 +237,7 @@ export default function SettingsPage() {
     setBgOpacity(Math.round(visual.bgOpacity01 * 100));
     setSidebarOpacity(Math.round(visual.sidebarOpacity01 * 100));
     setGlassBlur(visual.glassBlur);
+    setUiPrefs(loadUiPrefs());
 
     fetchBanca();
     fetchKnowledge();
@@ -754,7 +757,80 @@ export default function SettingsPage() {
                     <div className="bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl space-y-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Wallpaper & Atmosfera de Fundo</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
+                    {/* LOTE 1 — Personalização segura */}
+                    <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Personalização do gabinete</Label>
+                      <p className="text-[10px] text-muted-foreground">Densidade, fonte, modo operacional e cores de status. Não altera scanner nem dados.</p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Densidade</Label>
+                          <select
+                            className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
+                            value={uiPrefs.density}
+                            onChange={(e) => setUiPrefs(saveUiPrefs({ density: e.target.value as any }))}
+                          >
+                            <option value="compact">Compacta</option>
+                            <option value="comfortable">Confortável</option>
+                            <option value="wide">Larga</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Tamanho da fonte</Label>
+                          <select
+                            className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
+                            value={uiPrefs.fontScale}
+                            onChange={(e) => setUiPrefs(saveUiPrefs({ fontScale: e.target.value as any }))}
+                          >
+                            <option value="90">90%</option>
+                            <option value="100">100%</option>
+                            <option value="110">110%</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Modo operacional</Label>
+                          <button
+                            type="button"
+                            className="w-full h-10 rounded-lg border border-border text-sm font-medium"
+                            onClick={() => setUiPrefs(saveUiPrefs({ opsMode: !uiPrefs.opsMode }))}
+                          >
+                            {uiPrefs.opsMode ? "Ativo (texto sóbrio)" : "Desligado (estilo antigo)"}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Cor da sidebar</Label>
+                          <Input
+                            type="color"
+                            value={uiPrefs.sidebarHex || "#f3f4f6"}
+                            onChange={(e) => setUiPrefs(saveUiPrefs({ sidebarHex: e.target.value }))}
+                            className="h-10 p-1 cursor-pointer"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Vencido</Label>
+                          <Input type="color" value={uiPrefs.colorVencido} onChange={(e) => setUiPrefs(saveUiPrefs({ colorVencido: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">É hoje</Label>
+                          <Input type="color" value={uiPrefs.colorHoje} onChange={(e) => setUiPrefs(saveUiPrefs({ colorHoje: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">B.A.</Label>
+                          <Input type="color" value={uiPrefs.colorBa} onChange={(e) => setUiPrefs(saveUiPrefs({ colorBa: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-9 text-[10px] font-bold uppercase"
+                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}
+                      >
+                        Resetar personalização
+                      </Button>
+                    </div>
+Wallpaper & Atmosfera de Fundo</Label>
                           <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest mt-1">Imagem, URL ou gradiente aplicados atrás de todo o sistema.</p>
                         </div>
                         {wallpaper ? (

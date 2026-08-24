@@ -627,14 +627,14 @@ export default function ProcessosEmpresaPage() {
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.advogado}</td>
                             <td className="px-4 py-3">
-                              <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-2 py-0 border", statusTone(c.status))}>
+                              <Badge variant="outline" data-status={c.status || ""} className={cn("text-[8px] font-black uppercase px-2 py-0 border", statusTone(c.status))}>
                                 {c.status}
                               </Badge>
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.tribunal}</td>
                             <td className="px-4 py-3 text-center">
                               {isBuscaApreensaoReal(c) ? (
-                                <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
+                                <Badge data-ba="1" className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
                                   <ShieldAlert size={10} className="mr-1" /> B.A.{(c as any).ba_tipo ? ` ${(c as any).ba_tipo}` : ""}
                                 </Badge>
                               ) : (

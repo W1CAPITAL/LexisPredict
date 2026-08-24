@@ -46,6 +46,7 @@ import {
 import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic'
 import { linhaFase, linhaDonoAto, linhaDonoPasso } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
+import { ProtocoloChip } from '@/components/ops/protocolo-chip';
 import { computeOpsLinha, computeOpsKpis } from '@/lib/ops-linha';
 import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
 import { scoreGroupPriority } from '@/lib/case-priority';
@@ -1188,7 +1189,7 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
           {linhaDonoPasso(group.cases[0])}
         </p>
         <OpsCaseLine c={group.cases[0]} className="mt-1" />
-        <p className={cn("text-muted-foreground uppercase", ui.cnj)}>{group.protocoloReferencia}</p>
+        <div className="mt-2"><ProtocoloChip protocolo={group.protocoloReferencia} size="md" /></div>
         <div className="mt-4 flex items-center gap-2">
            <Building2 size={12} className="text-black/30" />
            <span className="text-[9px] font-black uppercase text-black/40">{group.escritorio || 'GERAL'}</span>

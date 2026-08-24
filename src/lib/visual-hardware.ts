@@ -26,6 +26,13 @@ export function setCssOpacityVars(
   root.style.setProperty("--bg-opacity", String(bg));
   root.style.setProperty("--sidebar-opacity", String(side));
   root.style.setProperty("--glass-blur", `${blurPx}px`);
+  try {
+    const wp = localStorage.getItem("lexisPredict_wallpaper");
+    if (wp) {
+      const min = parseFloat(getComputedStyle(root).getPropertyValue("--wallpaper-min-opacity") || "0.85");
+      if (bg < min) root.style.setProperty("--bg-opacity", String(min));
+    }
+  } catch {}
 }
 
 export function persistOpacity(

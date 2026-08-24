@@ -31,6 +31,11 @@ const PacmanTrollOverlay = dynamic(
   { ssr: false }
 );
 
+const UiPrefsApplier = dynamic(
+  () => import("@/components/system/ui-prefs-applier").then((m) => m.UiPrefsApplier),
+  { ssr: false }
+);
+
 const LexisCommandPalette = dynamic(
   () =>
     import("@/components/sf-chrome/lexis-command-palette").then(
@@ -78,6 +83,7 @@ export function ClientChrome() {
 
   return (
     <>
+      <UiPrefsApplier />
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
       <AppUpdateBanner />

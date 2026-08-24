@@ -359,3 +359,69 @@ aside.bg-sidebar,
 .font-mono.tabular-nums {
   letter-spacing: -0.01em;
 }
+
+/* ========== LOTE 1 — densidade, fonte, modo ops, status ========== */
+html {
+  font-size: calc(16px * var(--ui-font-scale, 1));
+}
+
+html[data-density="compact"] .ops-ui table tbody td,
+html[data-density="compact"] .ops-ui table thead th {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+html[data-density="wide"] .ops-ui table tbody td,
+html[data-density="wide"] .ops-ui table thead th {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+/* Modo operacional: menos grito visual */
+html[data-ops-mode="1"] .ops-ui h1.font-black.uppercase,
+html[data-ops-mode="1"] .ops-ui h2.font-black.uppercase {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+}
+html[data-ops-mode="1"] .ops-ui .admin-page-subtitle {
+  text-transform: none;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+/* Status com tokens personalizáveis */
+.ops-ui [data-status="Vencido"],
+.ops-ui [data-status="Caso Crítico"] {
+  background-color: color-mix(in srgb, var(--status-vencido, #b91c1c) 18%, transparent);
+  color: var(--status-vencido, #b91c1c);
+  border-color: color-mix(in srgb, var(--status-vencido, #b91c1c) 35%, transparent);
+}
+.ops-ui [data-status="É Hoje"] {
+  background-color: color-mix(in srgb, var(--status-hoje, #1d4ed8) 16%, transparent);
+  color: var(--status-hoje, #1d4ed8);
+  border-color: color-mix(in srgb, var(--status-hoje, #1d4ed8) 35%, transparent);
+}
+.ops-ui [data-status="BA"],
+.ops-ui [data-ba="1"] {
+  background-color: color-mix(in srgb, var(--status-ba, #dc2626) 20%, transparent);
+  color: var(--status-ba, #dc2626);
+}
+
+/* Tabela e inputs: superfície sólida */
+.ops-ui table thead {
+  background-color: hsl(var(--muted) / 0.95) !important;
+}
+.ops-ui table tbody tr:hover {
+  background-color: hsl(var(--muted) / 0.55) !important;
+}
+.ops-ui input,
+.ops-ui textarea,
+.ops-ui select,
+.ops-ui [role="combobox"] {
+  background-color: hsl(var(--background) / max(0.96, var(--bg-opacity, 1))) !important;
+}
+
+/* Wallpaper: respeita opacidade mínima */
+html.lexis-wallpaper-active body {
+  background-color: hsl(var(--background) / max(var(--wallpaper-min-opacity, 0.85), var(--bg-opacity, 1)));
+}
