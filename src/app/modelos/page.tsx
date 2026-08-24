@@ -3,6 +3,7 @@
 /**
  * D3 — Modelos & Peças: biblioteca reutilizável de procurações, habilitações,
  * substabelecimentos, revogações, petições e cartas a bancos.
+ * 100% editável · OAB curta · outra instituição digitável · prévia editável
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -34,7 +35,7 @@ import {
   type ModeloPeca,
   type CategoriaPeca,
 } from "@/lib/pecas-modelos";
-import { validatePecaMeta, validatePecaPreview } from "@/lib/pecas-validacao";
+import { validatePecaMeta } from "@/lib/pecas-validacao";
 
 const CAMPOS_LABEL: Record<keyof PecaMeta, string> = {
   protocolo: "Processo / Contrato nº",
@@ -93,7 +94,6 @@ export default function ModelosPage() {
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Worker do PDF.js via CDN (mesmo padrão da página OCR).
     const v = pdfjsLib.version || "4.10.38";
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       `https://cdn.jsdelivr.net/npm/pdfjs-dist@${v}/build/pdf.worker.min.mjs`;
@@ -107,7 +107,7 @@ export default function ModelosPage() {
     [categoria]
   );
 
-    const selectModelo = (m: ModeloPeca) => {
+  const selectModelo = (m: ModeloPeca) => {
     setSelected(m);
     setMeta({});
     setPreview("");
@@ -168,7 +168,7 @@ export default function ModelosPage() {
     }
   };
 
-    const gerar = () => {
+  const gerar = () => {
     if (!selected) return;
     const issues = validatePecaMeta(selected, meta, { strictRequired: false });
     const text = renderModelo(selected.id, meta) || "";
@@ -179,14 +179,6 @@ export default function ModelosPage() {
         description: issues[0].message,
       });
     } else {
-      toast({ title: "Prévia gerada", description: selected.titulo });
-    }
-  };
-      // ainda mostra prévia para o usuário ver o que falta
-    }
-    const text = renderModelo(selected.id, meta) || "";
-    setPreview(text);
-    if (!issues.length) {
       toast({ title: "Prévia gerada", description: selected.titulo });
     }
   };
@@ -203,31 +195,24 @@ export default function ModelosPage() {
 
   const gerarPDF = async () => {
     if (!selected) return;
-    const metaIssues = validatePecaMeta(selected, meta, { strictRequired: true });
-    if (metaIssues.length) {
-      toast({ title: "Não foi possível gerar o PDF", description: metaIssues[0].message, variant: "destructive" });
-      return;
-    }
     let text = preview;
     if (!text?.trim()) {
       text = renderModelo(selected.id, meta) || "";
       setPreview(text);
     }
-    const prevIssues = validatePecaPreview(text);
-    if (prevIssues.length) {
-      toast({ title: "Prévia incompleta", description: prevIssues[0].message, variant: "destructive" });
+    if (!text.trim()) {
+      toast({
+        title: "Sem texto",
+        description: "Gere ou digite o texto da peça na prévia.",
+        variant: "destructive",
+      });
       return;
     }
     setPdfLoading(true);
     try {
-      const preview = text;
-      const res = await gerarPecaTextoPDFAction({ texto: preview, titulo: selected.titulo });
+      const res = await gerarPecaTextoPDFAction({ texto: text, titulo: selected.titulo });
       if (!res?.success) throw new Error(res?.error || "Falha ao gerar PDF.");
-      downloadBase64File(
-        res.base64,
-        `peca-${selected.id}.pdf`,
-        "application/pdf"
-      );
+      downloadBase64File(res.base64, `peca-${selected.id}.pdf`, "application/pdf");
       toast({ title: "PDF gerado", description: "Peça baixada em PDF." });
     } catch (e: any) {
       toast({ title: "Erro", description: e?.message || "Falha ao gerar PDF.", variant: "destructive" });
@@ -262,7 +247,7 @@ export default function ModelosPage() {
                 <Library className="h-6 w-6 text-primary" /> Modelos & Peças
               </h1>
               <p className="text-xs text-muted-foreground">
-                {MODELOS_DE_PECAS.length} modelos reutilizáveis · {BANCOS_COBERTOS.length} instituições financeiras cobertas
+                {MODELOS_DE_PECAS.length} modelos · prévia 100% editável · outra instituição digitável
               </p>
             </div>
 
@@ -311,7 +296,9 @@ export default function ModelosPage() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <ScrollText className="h-4 w-4 text-primary" /> {selected.titulo}
-                    <Badge variant="outline" className="ml-auto text-[9px] uppercase">{selected.categoria}</Badge>
+                    <Badge variant="outline" className="ml-auto text-[9px] uppercase">
+                      {selected.categoria}
+                    </Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">{selected.descricao}</CardDescription>
                 </CardHeader>
@@ -323,7 +310,7 @@ export default function ModelosPage() {
                           Importar dados de PDF
                         </p>
                         <p className="text-[10px] text-muted-foreground">
-                          Envie uma procuração, contrato ou certidão já preenchida para preencher os campos automaticamente.
+                          Envie uma procuração, contrato ou certidão já preenchida.
                         </p>
                       </div>
                       <Button
@@ -355,95 +342,96 @@ export default function ModelosPage() {
                     {selected.campos.map((k) => (
                       <div key={k} className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                          {CAMPOS_LABEL[k]}
+                          {CAMPOS_LABEL[k] || k}
                         </Label>
                         {k === "banco" ? (
-  <div className="space-y-2">
-    <select
-      value={
-        outraInstituicao ||
-        (meta.banco && !BANCOS_COBERTOS.includes(meta.banco))
-          ? "Outra instituição financeira"
-          : meta.banco || ""
-      }
-      onChange={(e) => {
-        const v = e.target.value;
-        if (v === "Outra instituição financeira") {
-          setOutraInstituicao(true);
-          atualizarMeta("banco", "");
-        } else {
-          setOutraInstituicao(false);
-          atualizarMeta("banco", v);
-        }
-      }}
-      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-    >
-      <option value="">Selecione…</option>
-      {BANCOS_COBERTOS.map((b) => (
-        <option key={b} value={b}>
-          {b}
-        </option>
-      ))}
-    </select>
-    {(outraInstituicao ||
-      (meta.banco && !BANCOS_COBERTOS.includes(meta.banco))) && (
-      <Input
-        value={meta.banco || ""}
-        onChange={(e) => atualizarMeta("banco", e.target.value)}
-        placeholder="Digite o nome da instituição financeira"
-      />
-    )}
-  </div>
-) : k === "resumo" ? (
-                          <select
-                            value={meta.banco || ""}
-                            onChange={(e) => atualizarMeta("banco", e.target.value)}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                          >
-                            <option value="">Selecione…</option>
-                            {BANCOS_COBERTOS.map((b) => (
-                              <option key={b} value={b}>{b}</option>
-                            ))}
-                          </select>
+                          <div className="space-y-2">
+                            <select
+                              value={
+                                outraInstituicao ||
+                                (meta.banco && !BANCOS_COBERTOS.includes(meta.banco))
+                                  ? "Outra instituição financeira"
+                                  : meta.banco || ""
+                              }
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === "Outra instituição financeira") {
+                                  setOutraInstituicao(true);
+                                  atualizarMeta("banco", "");
+                                } else {
+                                  setOutraInstituicao(false);
+                                  atualizarMeta("banco", v);
+                                }
+                              }}
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                            >
+                              <option value="">Selecione…</option>
+                              {BANCOS_COBERTOS.map((b) => (
+                                <option key={b} value={b}>
+                                  {b}
+                                </option>
+                              ))}
+                            </select>
+                            {(outraInstituicao ||
+                              (meta.banco && !BANCOS_COBERTOS.includes(meta.banco))) && (
+                              <Input
+                                value={meta.banco || ""}
+                                onChange={(e) => atualizarMeta("banco", e.target.value)}
+                                placeholder="Digite o nome da instituição financeira"
+                              />
+                            )}
+                          </div>
                         ) : k === "resumo" ? (
-                          <Textarea rows={2} value={meta.resumo || ""} onChange={(e) => atualizarMeta("resumo", e.target.value)} placeholder="Observações / fundamentos" />
+                          <Textarea
+                            rows={2}
+                            value={meta.resumo || ""}
+                            onChange={(e) => atualizarMeta("resumo", e.target.value)}
+                            placeholder="Observações / fundamentos"
+                          />
                         ) : (
-                          <Input value={String((meta as any)[k] ?? "")} onChange={(e) => atualizarMeta(k, e.target.value)} placeholder={CAMPOS_LABEL[k]} />
+                          <Input
+                            value={String((meta as any)[k] ?? "")}
+                            onChange={(e) => atualizarMeta(k, e.target.value)}
+                            placeholder={CAMPOS_LABEL[k] || k}
+                          />
                         )}
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button metal={false} size="sm" onClick={gerar}>
                       <ScrollText className="mr-1.5 h-4 w-4" /> Gerar texto
                     </Button>
-                    {preview && (
+                    {preview ? (
                       <Button metal={false} size="sm" variant="outline" onClick={copy}>
                         <Copy className="mr-1.5 h-4 w-4" /> Copiar
                       </Button>
-                    )}
-                    {preview && (
+                    ) : null}
+                    {preview ? (
                       <Button metal={false} size="sm" onClick={gerarPDF} disabled={pdfLoading}>
-                        {pdfLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} Baixar PDF
+                        {pdfLoading ? (
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-1.5 h-4 w-4" />
+                        )}{" "}
+                        Baixar PDF
                       </Button>
-                    )}
+                    ) : null}
                   </div>
 
-                 {preview !== "" && (
-  <div className="space-y-1.5">
-    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-      Texto da peça (100% editável)
-    </Label>
-    <Textarea
-      value={preview}
-      onChange={(e) => setPreview(e.target.value)}
-      rows={20}
-      className="font-serif text-xs leading-relaxed whitespace-pre-wrap"
-      placeholder="Gere o texto ou escreva livremente aqui…"
-    />
-  </div>
-)}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Texto da peça (100% editável — altere aqui antes do PDF)
+                    </Label>
+                    <Textarea
+                      value={preview}
+                      onChange={(e) => setPreview(e.target.value)}
+                      rows={22}
+                      className="font-serif text-xs leading-relaxed whitespace-pre-wrap"
+                      placeholder="Clique em Gerar texto ou digite/cole o texto completo da peça aqui…"
+                    />
+                  </div>
                 </CardContent>
               </Card>
             )}
