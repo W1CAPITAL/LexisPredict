@@ -1035,7 +1035,7 @@ const handleSaveAttendance = async () => {
         </div>
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col opacity-100">
+          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
             <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
               <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
             </DialogHeader>
@@ -1136,7 +1136,7 @@ const handleSaveAttendance = async () => {
         </Dialog>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
-          <DialogContent className="sm:max-w-[480px] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col opacity-100">
+          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
             <form className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0"><DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle></DialogHeader>
               <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">

@@ -2,24 +2,26 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, MessageCircle, UserCheck, Check } from "lucide-react";
+import { Copy, MessageCircle, UserCheck, Check, Loader2 } from "lucide-react";
 import { formatWhatsAppLink } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 /**
- * Fluxo linear: Copiar → WhatsApp (texto) → Marcar contatado
- * Não altera regra de flags — onMarkContacted deve chamar a action existente.
+ * Fluxo linear Lote 3: Copiar → WhatsApp (texto pronto) → Marcar contatado
+ * Não limpa flag sozinho — onMarkContacted deve chamar a action existente.
  */
 export function AtendimentoActions({
   telefone,
   mensagem,
   onMarkContacted,
   className,
+  compact = false,
 }: {
   telefone?: string | null;
   mensagem: string;
   onMarkContacted?: () => void | Promise<void>;
   className?: string;
+  compact?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [marking, setMarking] = useState(false);
@@ -45,17 +47,18 @@ export function AtendimentoActions({
   };
 
   const wa = formatWhatsAppLink(telefone || "", mensagem || undefined);
+  const h = compact ? "h-8 text-[10px]" : "h-9 text-xs";
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <Button type="button" variant="secondary" size="sm" onClick={copy} className="h-9 gap-1.5 text-xs">
+      <Button type="button" variant="secondary" size="sm" onClick={copy} className={cn(h, "gap-1.5 font-semibold")}>
         {copied ? <Check size={14} /> : <Copy size={14} />}
-        {copied ? "Copiado" : "Copiar mensagem"}
+        {copied ? "Copiado" : "1. Copiar"}
       </Button>
-      <Button type="button" variant="outline" size="sm" asChild className="h-9 gap-1.5 text-xs">
+      <Button type="button" variant="outline" size="sm" asChild className={cn(h, "gap-1.5 font-semibold")}>
         <a href={wa} target="_blank" rel="noopener noreferrer">
           <MessageCircle size={14} />
-          WhatsApp
+          2. WhatsApp
         </a>
       </Button>
       {onMarkContacted && (
@@ -65,10 +68,10 @@ export function AtendimentoActions({
           size="sm"
           disabled={marking}
           onClick={mark}
-          className="h-9 gap-1.5 text-xs"
+          className={cn(h, "gap-1.5 font-semibold")}
         >
-          <UserCheck size={14} />
-          Marcar contatado
+          {marking ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
+          3. Contatado
         </Button>
       )}
     </div>

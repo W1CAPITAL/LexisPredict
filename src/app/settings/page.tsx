@@ -784,6 +784,7 @@ export default function SettingsPage() {
                         Resetar (tudo solido)
                       </Button>
                     </div>
+                  </section>
 
                   <section className="space-y-6">
                     <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera & Vidro</Label>
