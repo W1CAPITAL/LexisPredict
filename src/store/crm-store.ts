@@ -2,9 +2,15 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { v4 as uuid } from "uuid";
 import { Company, Person, Deal, Note, DealStage } from "@/lib/types";
 import { SEED_COMPANIES, SEED_PEOPLE, SEED_DEALS, SEED_NOTES } from "@/lib/seed";
+
+function newId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 interface CrmState {
   companies: Company[];
@@ -43,7 +49,7 @@ export const useCrmStore = create<CrmState>()(
           notes: SEED_NOTES,
         }),
       upsertCompany: (partial) => {
-        const id = partial.id || uuid();
+        const id = partial.id || newId();
         const existing = get().companies.find((c) => c.id === id);
         const row: Company = {
           id,
@@ -70,7 +76,7 @@ export const useCrmStore = create<CrmState>()(
           deals: get().deals.filter((d) => d.companyId !== id),
         }),
       upsertPerson: (partial) => {
-        const id = partial.id || uuid();
+        const id = partial.id || newId();
         const existing = get().people.find((p) => p.id === id);
         const row: Person = {
           id,
@@ -91,7 +97,7 @@ export const useCrmStore = create<CrmState>()(
       },
       deletePerson: (id) => set({ people: get().people.filter((p) => p.id !== id) }),
       upsertDeal: (partial) => {
-        const id = partial.id || uuid();
+        const id = partial.id || newId();
         const existing = get().deals.find((d) => d.id === id);
         const row: Deal = {
           id,
@@ -114,7 +120,7 @@ export const useCrmStore = create<CrmState>()(
       deleteDeal: (id) => set({ deals: get().deals.filter((d) => d.id !== id) }),
       addNote: (n) => {
         const note: Note = {
-          id: uuid(),
+          id: newId(),
           body: n.body,
           companyId: n.companyId,
           personId: n.personId,
