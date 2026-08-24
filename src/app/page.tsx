@@ -82,6 +82,7 @@ import {
   Tooltip as RechartsTooltip
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado'
+import { isNovidadeAberta } from '@/lib/novidade'
 import { countProcessosParados } from '@/lib/processos-parados';
 import { computeCarteiraKpis } from '@/lib/carteira-kpis';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -166,7 +167,7 @@ export default function Dashboard() {
     // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
     // LOTE4: união canônica DataJud ∪ DJEN
     const countNovoAndamento = ativos.filter(c =>
-      !!(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || (c as any).djen_nova_comunicacao)
+      isNovidadeAberta(c as any)
     ).length;
     const countEditadosApp = countEditadosAppSemana(cases as any);
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);

@@ -42,11 +42,11 @@ export function AndamentoLeigoBlock({
   return (
     <div
       className={cn(
-        "ops-leigo-block space-y-1 rounded-lg border border-border/50 bg-background/80 px-2.5 py-2",
+        "ops-leigo-block space-y-1 rounded-lg border border-border bg-background px-2.5 py-2 shadow-sm",
         className
       )}
     >
-      <p className="text-[9px] font-medium text-muted-foreground/80 tracking-wide">Em linguagem simples</p>
+      <p className="text-[9px] font-semibold text-muted-foreground tracking-wide">Em linguagem simples</p>
       <p className="text-[12px] font-medium text-foreground leading-snug">
         {leigo.tituloLeigo || "Atualização no processo"}
       </p>

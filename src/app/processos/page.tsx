@@ -19,6 +19,7 @@ import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBras
 import { linhaDonoPasso, proximoPasso } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
 import { ProtocoloChip } from '@/components/ops/protocolo-chip';
+import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';
 import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
@@ -623,6 +624,9 @@ export default function ProcessosEmpresaPage() {
                                 <p className="text-[12px] font-semibold uppercase leading-tight text-foreground">{c.cliente}</p>
                                 <div className="mt-1"><ProtocoloChip protocolo={c.protocolo} size="md" /></div>
                                 <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{linhaDonoPasso(c)}</p>
+                                {(c.tem_atualizacao_pos_retorno || c.tem_novo_andamento || (c as any).djen_nova_comunicacao) ? (
+                                  <div className="mt-1.5 max-w-sm"><AndamentoLeigoBlock caseData={c} /></div>
+                                ) : null}
                               </Link>
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.advogado}</td>

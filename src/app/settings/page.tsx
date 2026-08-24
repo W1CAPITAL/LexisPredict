@@ -73,6 +73,7 @@ import {
   saveWallpaperFile,
   persistOpacity,
 } from '@/lib/visual-hardware';
+import { loadUiPrefs, saveUiPrefs, UI_PREFS_DEFAULT, type UiPrefs } from '@/lib/ui-prefs';
 import {
   getMetalPreferences,
   applyMetalPreferences,
@@ -181,6 +182,7 @@ export default function SettingsPage() {
   const [bgOpacity, setBgOpacity] = useState(100);
   const [sidebarOpacity, setSidebarOpacity] = useState(100);
   const [glassBlur, setGlassBlur] = useState(0);
+  const [uiPrefs, setUiPrefs] = useState<UiPrefs>(UI_PREFS_DEFAULT);
   const [wallpaper, setWallpaper] = useState('');
   const [wallpaperUrlInput, setWallpaperUrlInput] = useState("");
   const wallpaperFileRef = useRef<HTMLInputElement>(null);
@@ -235,6 +237,7 @@ export default function SettingsPage() {
     setBgOpacity(Math.round(visual.bgOpacity01 * 100));
     setSidebarOpacity(Math.round(visual.sidebarOpacity01 * 100));
     setGlassBlur(visual.glassBlur);
+    setUiPrefs(loadUiPrefs());
 
     fetchBanca();
     fetchKnowledge();
@@ -742,6 +745,100 @@ export default function SettingsPage() {
                     >
                       Restaurar contraste sólido
                     </Button>
+
+                    <div className="bg-card p-6 sm:p-8 border border-border rounded-xl shadow-sm space-y-5">
+                      <div>
+                        <Label className="text-[11px] font-bold text-foreground">Aparência e transparência</Label>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Controle sólido vs vidro por área. Padrão: tudo sólido (recomendado para Processos, Fila e modais).
+                        </p>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {(
+                          [
+                            { key: "glassSidebar", label: "Sidebar / menu" },
+                            { key: "glassDialogs", label: "Modais (atender / editar)" },
+                            { key: "glassCards", label: "Cards e painéis" },
+                            { key: "glassTabs", label: "Abas e cabeçalhos" },
+                          ] as const
+                        ).map((item) => {
+                          const on = !!(uiPrefs as any)[item.key];
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() =>
+                                setUiPrefs(
+                                  saveUiPrefs({ [item.key]: !on } as Partial<UiPrefs>)
+                                )
+                              }
+                              className={
+                                "flex items-center justify-between h-12 px-3 rounded-xl border text-left text-[11px] font-semibold " +
+                                (on
+                                  ? "border-primary bg-primary/10 text-foreground"
+                                  : "border-border bg-background text-foreground")
+                              }
+                            >
+                              <span>{item.label}</span>
+                              <span className="text-[10px] uppercase tracking-wide opacity-80">
+                                {on ? "Vidro ON" : "Sólido"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3 pt-2 border-t border-border">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Densidade</Label>
+                          <select
+                            className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
+                            value={uiPrefs.density}
+                            onChange={(e) =>
+                              setUiPrefs(saveUiPrefs({ density: e.target.value as any }))
+                            }
+                          >
+                            <option value="compact">Compacta</option>
+                            <option value="comfortable">Confortável</option>
+                            <option value="wide">Larga</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Fonte</Label>
+                          <select
+                            className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
+                            value={uiPrefs.fontScale}
+                            onChange={(e) =>
+                              setUiPrefs(saveUiPrefs({ fontScale: e.target.value as any }))
+                            }
+                          >
+                            <option value="90">90%</option>
+                            <option value="100">100%</option>
+                            <option value="110">110%</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Modo operacional</Label>
+                          <button
+                            type="button"
+                            className="w-full h-10 rounded-lg border border-border text-sm font-medium bg-background"
+                            onClick={() =>
+                              setUiPrefs(saveUiPrefs({ opsMode: !uiPrefs.opsMode }))
+                            }
+                          >
+                            {uiPrefs.opsMode ? "Ativo" : "Desligado"}
+                          </button>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 text-[10px] font-bold uppercase"
+                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}
+                      >
+                        Resetar aparência (tudo sólido)
+                      </Button>
+                    </div>
+
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 bg-card p-8 border border-border rounded-lg shadow-xl">
                        <div className="space-y-6">

@@ -456,3 +456,59 @@ header, [data-admin-toolbar], .ops-ui .admin-toolbar {
 .dark [data-efferd-kpi] [data-efferd-label] {
   color: #e2e8f0 !important;
 }
+
+/* ========== TRANSPARÊNCIA SELETIVA (data-glass-* no <html>) ========== */
+/* Padrão glass=0: sempre sólido */
+
+html[data-glass-sidebar="0"] aside.bg-sidebar,
+html[data-glass-sidebar="0"] [data-sidebar] {
+  background-color: hsl(var(--sidebar-background)) !important;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
+}
+html[data-glass-sidebar="1"] aside.bg-sidebar {
+  background-color: hsl(var(--sidebar-background) / 0.72) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+html[data-glass-dialogs="0"] [data-radix-dialog-content],
+html[data-glass-dialogs="0"] [role="dialog"],
+html[data-glass-dialogs="0"] [data-radix-alert-dialog-content] {
+  background-color: hsl(var(--card)) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+}
+html[data-glass-dialogs="1"] [data-radix-dialog-content],
+html[data-glass-dialogs="1"] [role="dialog"] {
+  background-color: hsl(var(--card) / 0.82) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+html[data-glass-cards="0"] .ops-ui [data-admin-card],
+html[data-glass-cards="0"] .ops-ui .bg-card,
+html[data-glass-cards="0"] [data-efferd-kpi] {
+  background-color: hsl(var(--card)) !important;
+  backdrop-filter: none !important;
+}
+html[data-glass-cards="1"] .ops-ui .bg-card {
+  background-color: hsl(var(--card) / 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+html[data-glass-tabs="0"] header,
+html[data-glass-tabs="0"] [role="tablist"],
+html[data-glass-tabs="0"] .ops-ui .admin-toolbar {
+  background-color: hsl(var(--card)) !important;
+  backdrop-filter: none !important;
+}
+html[data-glass-tabs="1"] header {
+  background-color: hsl(var(--card) / 0.7) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+/* Linguagem simples sempre legível */
+.ops-leigo-block {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}

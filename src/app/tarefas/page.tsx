@@ -1,3 +1,4 @@
+import { isNovidadeAberta } from '@/lib/novidade';
 "use client";
 
 import { useAdmin } from '@/hooks/use-admin';
@@ -642,7 +643,7 @@ const handleSaveAttendance = async () => {
         }
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
-        if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
+        if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => isNovidadeAberta(c) || (typeof temNovidadeIdentificada === 'function' && temNovidadeIdentificada(c)));
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
         if (filaFiltro === 'problematicos') return g.cases.some((c: any) => isCasoProblematico(c, baSet)) || g.hasBA || g.hasClosedCourt || g.hasUpdate;
@@ -793,9 +794,9 @@ const handleSaveAttendance = async () => {
             <OpsOrbitalStrip
               nodes={defaultOpsNodes({
                 total: cases.length,
-                pendentes: cases.filter((c: any) => c.status === "É Hoje" || c.tem_novo_andamento).length,
+                pendentes: cases.filter((c: any) => c.status === "É Hoje" || isNovidadeAberta(c)).length,
                 vencidos: cases.filter((c: any) => c.status === "Vencido" || c.status === "Caso Crítico").length,
-                novidades: cases.filter((c: any) => c.tem_novo_andamento).length,
+                novidades: cases.filter((c: any) => isNovidadeAberta(c)).length,
                 ok: cases.filter((c: any) => c.status === "No Prazo").length,
               })}
               className="mb-4"

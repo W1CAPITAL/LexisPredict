@@ -1,6 +1,5 @@
 /**
- * Preferências de UI — Lote 1 (contraste + personalização segura).
- * localStorage por enquanto; estrutura pronta para persistir por usuário no Supabase.
+ * Preferências de UI — contraste, personalização e transparência seletiva.
  */
 export type UiDensity = "compact" | "comfortable" | "wide";
 export type UiFontScale = "90" | "100" | "110";
@@ -8,12 +7,17 @@ export type UiFontScale = "90" | "100" | "110";
 export type UiPrefs = {
   density: UiDensity;
   fontScale: UiFontScale;
-  opsMode: boolean; // menos uppercase / menos “hype”
+  opsMode: boolean;
   sidebarHex: string;
   colorVencido: string;
   colorHoje: string;
   colorBa: string;
-  wallpaperMinOpacity: number; // 0.85 default when wallpaper on
+  wallpaperMinOpacity: number;
+  /** Vidro/transparência. Padrão false = sólido. */
+  glassSidebar: boolean;
+  glassDialogs: boolean;
+  glassCards: boolean;
+  glassTabs: boolean;
 };
 
 const KEY = "lexisPredict_ui_prefs_v1";
@@ -27,6 +31,10 @@ export const UI_PREFS_DEFAULT: UiPrefs = {
   colorHoje: "#1d4ed8",
   colorBa: "#dc2626",
   wallpaperMinOpacity: 0.85,
+  glassSidebar: false,
+  glassDialogs: false,
+  glassCards: false,
+  glassTabs: false,
 };
 
 export function loadUiPrefs(): UiPrefs {
@@ -56,9 +64,9 @@ function hexToHslComponents(hex: string): string | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return null;
   const n = parseInt(m[1], 16);
-  let r = (n >> 16) / 255;
-  let g = ((n >> 8) & 0xff) / 255;
-  let b = (n & 0xff) / 255;
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   let h = 0;
@@ -86,29 +94,28 @@ export function applyUiPrefsToDom(prefs?: UiPrefs) {
   const p = prefs || loadUiPrefs();
   const root = document.documentElement;
 
-  const dens =
-    p.density === "compact" ? "0.85" : p.density === "wide" ? "1.15" : "1";
-  root.style.setProperty("--ui-density", dens);
+  root.style.setProperty(
+    "--ui-density",
+    p.density === "compact" ? "0.85" : p.density === "wide" ? "1.15" : "1"
+  );
   root.style.setProperty(
     "--ui-font-scale",
     p.fontScale === "90" ? "0.9" : p.fontScale === "110" ? "1.1" : "1"
   );
   root.dataset.opsMode = p.opsMode ? "1" : "0";
   root.dataset.density = p.density;
-
   root.style.setProperty("--status-vencido", p.colorVencido);
   root.style.setProperty("--status-hoje", p.colorHoje);
   root.style.setProperty("--status-ba", p.colorBa);
 
+  root.dataset.glassSidebar = p.glassSidebar ? "1" : "0";
+  root.dataset.glassDialogs = p.glassDialogs ? "1" : "0";
+  root.dataset.glassCards = p.glassCards ? "1" : "0";
+  root.dataset.glassTabs = p.glassTabs ? "1" : "0";
+
   if (p.sidebarHex) {
     const hsl = hexToHslComponents(p.sidebarHex);
-    if (hsl) {
-      root.style.setProperty("--sidebar-background", hsl);
-    }
+    if (hsl) root.style.setProperty("--sidebar-background", hsl);
   }
-
-  root.style.setProperty(
-    "--wallpaper-min-opacity",
-    String(p.wallpaperMinOpacity)
-  );
+  root.style.setProperty("--wallpaper-min-opacity", String(p.wallpaperMinOpacity));
 }
