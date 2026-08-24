@@ -61,7 +61,7 @@ export function validatePecaMeta(
     const raw = String(meta[key] || '').trim();
     if (!raw) continue;
     if (raw.length < 1) {
-      issues.push({ field: key, message: `Informe a OAB.` });
+      issues.push({ field: key, message: 'Informe a OAB.' });
     }
   }
 
