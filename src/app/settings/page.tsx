@@ -53,6 +53,8 @@ import {
   Type,
   Database,
   Wand2,
+  Settings,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -1132,7 +1134,7 @@ export default function SettingsPage() {
                   <section className="space-y-4">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-2">
-                        <Image size={14} className="text-primary" />
+                        <ImageIcon size={14} className="text-primary" />
                         <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Wallpaper</Label>
                       </div>
                       {wallpaper ? (

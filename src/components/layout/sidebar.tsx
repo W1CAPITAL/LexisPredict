@@ -242,7 +242,7 @@ function SidebarNavBody({
       {/* Brand */}
       <div className="h-[4.25rem] shrink-0 flex items-center px-3 border-b border-sidebar-border/80">
         <div className="flex items-center gap-2.5 min-w-0 w-full">
-          <div className="w-9 h-9 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
+          <div className="w-9 h-9 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/20 transition-transform duration-200 hover:scale-110">
             <SafeIcon icon={Layers} size={18} />
           </div>
           {!collapsed && (
@@ -297,7 +297,7 @@ function SidebarNavBody({
                 value={navQuery}
                 onChange={(e) => setNavQuery(e.target.value)}
                 placeholder="Buscar no menu…"
-                className="w-full h-9 rounded-lg border border-sidebar-border bg-sidebar-accent/40 pl-8 pr-3 text-[11px] font-medium text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none focus:ring-1 focus:ring-primary"
+                className="w-full h-9 rounded-lg border border-sidebar-border bg-sidebar-accent/40 pl-8 pr-3 text-[11px] font-medium text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200"
                 aria-label="Buscar no menu"
               />
             </div>
@@ -312,7 +312,7 @@ function SidebarNavBody({
           onClick={toggleMoreTools}
           className={cn(
             "mx-2 mb-2 rounded-lg border border-border/60 px-2 py-1.5 text-[10px] font-black uppercase tracking-wide",
-            "text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors",
+            "text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200 hover:shadow-sm",
             collapsed && "mx-1 px-1"
           )}
         >
@@ -330,7 +330,7 @@ function SidebarNavBody({
                   href={item.href}
                   title={item.label}
                   className={cn(
-                    "group flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors",
+                    "group flex items-center gap-2.5 rounded-xl px-2 py-2 transition-all duration-200 ease-out hover:shadow-sm",
                     active
                       ? "bg-primary/15 text-primary"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -338,7 +338,7 @@ function SidebarNavBody({
                 >
                   <span
                     className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 group-hover:scale-105",
                       active
                         ? "border-primary/30 bg-primary/10 text-primary"
                         : "border-sidebar-border/80 bg-sidebar-accent/30 text-sidebar-foreground/70 group-hover:text-sidebar-foreground"
@@ -363,7 +363,7 @@ function SidebarNavBody({
           <button
             type="button"
             onClick={onStartTour}
-            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl text-sidebar-foreground/65 hover:bg-primary/10 hover:text-primary transition-colors"
+            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl text-sidebar-foreground/65 hover:bg-primary/10 hover:text-primary transition-all duration-200 hover:shadow-sm"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-sidebar-border/80">
               <SafeIcon icon={HelpCircle} size={16} />
@@ -379,8 +379,8 @@ function SidebarNavBody({
       <div className="p-3 border-t border-sidebar-border space-y-3 shrink-0 overflow-visible">
         {!collapsed && <InstallAppButton />}
         {!collapsed && (
-          <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sidebar-accent/50 border border-sidebar-border min-w-0">
-            <Avatar className="w-9 h-9 border border-primary/20 shrink-0">
+          <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sidebar-accent/50 border border-sidebar-border min-w-0 transition-all duration-200 hover:bg-sidebar-accent/80 hover:border-primary/20">
+            <Avatar className="w-9 h-9 border-2 border-primary/20 shrink-0 shadow-sm transition-transform duration-200 hover:scale-110 hover:border-primary/40">
               <AvatarImage src={profile?.avatar_url || ""} />
               <AvatarFallback className="bg-primary text-primary-foreground font-bold text-xs">
                 {profile?.nome?.substring(0, 2).toUpperCase() || "??"}
@@ -402,7 +402,7 @@ function SidebarNavBody({
               type="button"
               onClick={onLogout}
               title={t.logout}
-              className="h-9 w-9 text-sidebar-foreground/80 hover:text-destructive hover:bg-destructive/10 rounded-lg flex items-center justify-center"
+              className="h-9 w-9 text-sidebar-foreground/80 hover:text-destructive hover:bg-destructive/10 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110"
             >
               <SafeIcon icon={LogOut} size={16} />
             </button>
@@ -414,7 +414,7 @@ function SidebarNavBody({
               onClick={onToggleCollapsed}
               className={cn(
                 "hidden md:flex items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent/50",
-                "text-sidebar-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary",
+                "text-sidebar-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-200 hover:shadow-md hover:shadow-primary/20",
                 "shrink-0 z-10",
                 collapsed ? "h-10 w-10 mx-auto" : "h-9 w-9"
               )}
