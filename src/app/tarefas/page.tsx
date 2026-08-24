@@ -1,6 +1,6 @@
-import { isNovidadeAberta } from '@/lib/novidade';
 "use client";
 
+import { isNovidadeAberta } from '@/lib/novidade';
 import { useAdmin } from '@/hooks/use-admin';
 
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
