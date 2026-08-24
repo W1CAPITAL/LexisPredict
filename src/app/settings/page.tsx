@@ -178,9 +178,9 @@ export default function SettingsPage() {
   const [accentColor, setAccentColor] = useState('#E5E7EB');
   const [radius, setRadius] = useState(4);
   
-  const [bgOpacity, setBgOpacity] = useState(85);
-  const [sidebarOpacity, setSidebarOpacity] = useState(90);
-  const [glassBlur, setGlassBlur] = useState(8);
+  const [bgOpacity, setBgOpacity] = useState(100);
+  const [sidebarOpacity, setSidebarOpacity] = useState(100);
+  const [glassBlur, setGlassBlur] = useState(0);
   const [wallpaper, setWallpaper] = useState('');
   const [wallpaperUrlInput, setWallpaperUrlInput] = useState("");
   const wallpaperFileRef = useRef<HTMLInputElement>(null);
@@ -716,6 +716,27 @@ export default function SettingsPage() {
                   </section>
                   <section className="space-y-6">
                     <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera & Vidro</Label>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Padrão operacional: fundo e sidebar <strong>sólidos</strong> (100%), blur 0, sem wallpaper.
+                      Opacidade baixa deixa o app ilegível — use só se houver wallpaper ativo.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 text-[10px] font-black uppercase tracking-wider"
+                      onClick={() => {
+                        setBgOpacity(100);
+                        setSidebarOpacity(100);
+                        setGlassBlur(0);
+                        persistOpacity(1, 1, 0);
+                        applyWallpaperStyle("");
+                        setWallpaper("");
+                        toast({ title: "Contraste sólido restaurado", description: "Fundo e menu opacos, sem vidro." });
+                      }}
+                    >
+                      Restaurar contraste sólido
+                    </Button>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl">
                        <div className="space-y-6">
                           <SliderControl label="Opacidade do Fundo" value={bgOpacity} onChange={updateBgOpacity} icon={<Waves size={12}/>} />

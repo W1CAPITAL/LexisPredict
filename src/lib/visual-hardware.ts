@@ -7,6 +7,13 @@ import { browserStorage } from "@/lib/browser-storage";
  * Proprietário: W1 Capital | Fundador: Davi Alves Figueredo
  */
 
+/** Valores legados (quase 0%) quebram contraste — sobe para sólido. */
+function normalizeOpacity01(v: number, fallback = 1): number {
+  if (!Number.isFinite(v)) return fallback;
+  if (v < 0.35) return 1; // 0–34% era “invisível”
+  return Math.min(1, Math.max(0, v));
+}
+
 export function setCssOpacityVars(
   bgOpacity01: number,
   sidebarOpacity01: number,
@@ -14,8 +21,10 @@ export function setCssOpacityVars(
 ) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  root.style.setProperty("--bg-opacity", String(bgOpacity01));
-  root.style.setProperty("--sidebar-opacity", String(sidebarOpacity01));
+  const bg = normalizeOpacity01(bgOpacity01, 1);
+  const side = normalizeOpacity01(sidebarOpacity01, 1);
+  root.style.setProperty("--bg-opacity", String(bg));
+  root.style.setProperty("--sidebar-opacity", String(side));
   root.style.setProperty("--glass-blur", `${blurPx}px`);
 }
 
@@ -109,7 +118,7 @@ export async function saveWallpaperFile(file: File): Promise<string> {
 
 export function loadVisualStateFromStorage() {
   if (typeof localStorage === 'undefined') {
-    return { bgOpacity01: 0.85, sidebarOpacity01: 0.9, glassBlur: 8, wallpaper: "" };
+    return { bgOpacity01: 1, sidebarOpacity01: 1, glassBlur: 0, wallpaper: "" };
   }
   
   const bg = parseFloat(localStorage.getItem("lexisPredict_bg_opacity") || "0.85");
@@ -118,9 +127,9 @@ export function loadVisualStateFromStorage() {
   const wallpaper = localStorage.getItem("lexisPredict_wallpaper") || "";
 
   return {
-    bgOpacity01: Number.isFinite(bg) ? bg : 0.85,
-    sidebarOpacity01: Number.isFinite(side) ? side : 0.9,
-    glassBlur: Number.isFinite(blur) ? blur : 8,
+    bgOpacity01: normalizeOpacity01(Number.isFinite(bg) ? bg : 1, 1),
+    sidebarOpacity01: normalizeOpacity01(Number.isFinite(side) ? side : 1, 1),
+    glassBlur: Number.isFinite(blur) ? (blur > 24 ? 0 : blur) : 0,
     wallpaper,
   };
 }

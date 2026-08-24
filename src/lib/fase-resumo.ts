@@ -1,6 +1,19 @@
 import type { LegalCase } from "@/lib/case-logic";
 import { detectFlagsFase } from "@/lib/processos-parados";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Esconde auth_user_id / uuid na UI; mostra nome legível quando houver. */
+export function labelPessoa(raw?: string | null, fallback = "Equipe"): string {
+  const s = String(raw || "").trim();
+  if (!s) return fallback;
+  if (UUID_RE.test(s)) return fallback;
+  if (/^[0-9a-f]{32}$/i.test(s)) return fallback;
+  return s;
+}
+
+
+
 export type FaseResumo = {
   fase: string;
   falta: string[];
@@ -46,9 +59,12 @@ export function linhaFase(c?: LegalCase | null): string {
 
 export function linhaDonoAto(c?: LegalCase | null): string {
   if (!c) return "—";
-  const dono = String((c as any).atendido_por || c.advogado || "—").trim();
+  const rawDono = String((c as any).atendido_por_nome || (c as any).atendido_por || c.advogado || "").trim();
+  const dono = labelPessoa(rawDono, String(c.advogado || "Equipe").trim() || "Equipe");
   const quando = String(c.ultimoRetorno || (c as any).ultimo_retorno || "").slice(0, 10) || "sem retorno";
-  const passo = String(c.evento_resumo || c.datajud_ultimo_nome || "").slice(0, 80) || "sem último ato";
+  let passo = String(c.evento_resumo || c.datajud_ultimo_nome || "").replace(/\s+/g, " ").trim();
+  // não repetir CNJ inteiro no resumo se já está na linha de cima
+  passo = passo.slice(0, 72) || "sem último ato";
   return `${dono} · ${quando} · ${passo}`;
 }
 

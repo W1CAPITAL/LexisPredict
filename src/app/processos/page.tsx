@@ -18,6 +18,7 @@ import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control"
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { linhaDonoPasso, proximoPasso } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
+import { ProtocoloChip } from '@/components/ops/protocolo-chip';
 import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
@@ -619,10 +620,9 @@ export default function ProcessosEmpresaPage() {
                           <tr key={c.id || c.protocolo} className="hover:bg-secondary/10 transition-colors group">
                             <td className="px-6 py-3">
                               <Link href={`/cases?search=${encodeURIComponent(c.protocolo)}`} className="hover:text-primary transition-colors">
-                                <p className="text-[11px] font-black uppercase leading-tight">{c.cliente}</p>
-                                <p className="text-[8px] font-mono text-muted-foreground/60 mt-0.5 truncate max-w-[240px]">{c.protocolo}</p>
-                                <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{linhaDonoPasso(c)}</p>
-                                <OpsCaseLine c={c} className="mt-1" />
+                                <p className="text-[12px] font-semibold uppercase leading-tight text-foreground">{c.cliente}</p>
+                                <div className="mt-1"><ProtocoloChip protocolo={c.protocolo} size="md" /></div>
+                                <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{linhaDonoPasso(c)}</p>
                               </Link>
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.advogado}</td>
@@ -847,7 +847,16 @@ export default function ProcessosEmpresaPage() {
                 <div className="rounded-xl border border-border bg-secondary/10 p-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] font-black uppercase truncate">{editing.cliente}</p>
-                    <p className="text-[9px] font-mono text-muted-foreground/60 truncate">{editing.protocolo}</p>
+                    <div className="space-y-1 mt-1">
+                      <Label className="text-[9px] font-black uppercase">Número do processo (CNJ)</Label>
+                      <Input
+                        value={editing.protocolo || ""}
+                        onChange={(e) => setEditing({ ...editing, protocolo: e.target.value })}
+                        className="h-11 font-mono text-sm font-semibold tracking-tight"
+                        placeholder="0000000-00.0000.0.00.0000"
+                      />
+                      <p className="text-[9px] text-muted-foreground">Altere com cuidado — o CNJ identifica o processo no tribunal.</p>
+                    </div>
                   </div>
                   <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-2 py-0 border", statusTone(editing.status))}>
                     {editing.status}
@@ -962,7 +971,7 @@ export default function ProcessosEmpresaPage() {
               <div className="space-y-4 py-2">
                 <div className="rounded-xl border border-border bg-secondary/10 p-3">
                   <p className="text-[11px] font-black uppercase truncate">{attending.cliente}</p>
-                  <p className="text-[9px] font-mono text-muted-foreground/60 truncate">{attending.protocolo}</p>
+                  <div className="mt-1"><ProtocoloChip protocolo={attending.protocolo} size="lg" /></div>
                 </div>
 
                 <div>
