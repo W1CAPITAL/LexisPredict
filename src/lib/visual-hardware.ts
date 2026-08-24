@@ -155,4 +155,110 @@ export function applyWallpaperUrl(url: string) {
   setCssOpacityVars(bgN, sideN, blurN);
   ensureWallpaperCss();
   window.dispatchEvent(new Event("lexis-wallpaper-changed"));
-  window.dispatchEvent(new 
+  window.dispatchEvent(new Event("lexis-theme-changed"));
+}
+
+export function applyWallpaperStyle(imageValue: string) {
+  if (!imageValue) {
+    void resetWallpaper();
+    return;
+  }
+  applyWallpaperUrl(imageValue);
+}
+
+export async function resetWallpaper() {
+  if (typeof localStorage === "undefined" || typeof document === "undefined") return;
+  localStorage.removeItem("lexisPredict_wallpaper");
+  const root = document.documentElement;
+  root.classList.remove("lexis-wallpaper-active");
+  root.style.backgroundImage = "none";
+  const layer = document.getElementById("lexis-wallpaper-layer");
+  if (layer) layer.remove();
+  try {
+    await browserStorage.removeAsset("main_wallpaper_blob");
+  } catch {
+    /* */
+  }
+  forceSolidAtmosphere();
+  ensureWallpaperCss();
+  window.dispatchEvent(new Event("lexis-wallpaper-changed"));
+}
+
+export async function saveWallpaperFile(file: File): Promise<string> {
+  await browserStorage.saveAsset("main_wallpaper_blob", file);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      try {
+        localStorage.setItem("lexisPredict_wallpaper", dataUrl);
+      } catch {
+        localStorage.removeItem("lexisPredict_wallpaper");
+      }
+      applyWallpaperUrl(dataUrl);
+      resolve(dataUrl);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+export function loadVisualStateFromStorage() {
+  if (typeof localStorage === "undefined") {
+    return { bgOpacity01: 1, sidebarOpacity01: 1, glassBlur: 0, wallpaper: "" };
+  }
+  let bg = parseFloat(localStorage.getItem("lexisPredict_bg_opacity") || "1");
+  let side = parseFloat(localStorage.getItem("lexisPredict_sidebar_opacity") || "1");
+  let blur = parseFloat(localStorage.getItem("lexisPredict_glass_blur") || "0");
+  if (!Number.isFinite(bg)) bg = 1;
+  if (!Number.isFinite(side)) side = 1;
+  if (!Number.isFinite(blur)) blur = 0;
+  bg = clamp01(bg, 1);
+  side = clamp01(side, 1);
+  blur = Math.max(0, Math.min(24, blur));
+  const wallpaper = localStorage.getItem("lexisPredict_wallpaper") || "";
+  return {
+    bgOpacity01: bg,
+    sidebarOpacity01: side,
+    glassBlur: blur,
+    wallpaper,
+  };
+}
+
+/** Reset visual completo → Minimal Steel light, sem wallpaper. */
+export function resetVisualToFactory() {
+  if (typeof localStorage === "undefined") return;
+  const keys = [
+    "lexis_theme_mode",
+    "lexis_dark_mode",
+    "theme",
+    "lexisPredict_theme_preset",
+    "lexisPredict_custom_theme",
+    "lexisPredict_bg_color",
+    "lexisPredict_bg_secondary_color",
+    "lexisPredict_font_color",
+    "lexisPredict_font_muted_color",
+    "lexisPredict_btn_bg_color",
+    "lexisPredict_wallpaper",
+    "lexisPredict_bg_opacity",
+    "lexisPredict_sidebar_opacity",
+    "lexisPredict_glass_blur",
+    "lexisPredict_ui_prefs_v1",
+    "lexisPredict_ui_prefs_v2",
+  ];
+  keys.forEach((k) => localStorage.removeItem(k));
+  localStorage.setItem("lexis_theme_mode", "light");
+  localStorage.setItem("lexis_dark_mode", "false");
+  localStorage.setItem("lexisPredict_theme_preset", "minimal-steel");
+  localStorage.setItem("lexisPredict_bg_opacity", "1");
+  localStorage.setItem("lexisPredict_sidebar_opacity", "1");
+  localStorage.setItem("lexisPredict_glass_blur", "0");
+  void resetWallpaper();
+  forceSolidAtmosphere();
+  if (typeof document !== "undefined") {
+    document.documentElement.classList.remove("dark", "lexis-wallpaper-active");
+    document.documentElement.classList.add("light");
+  }
+  window.dispatchEvent(new Event("lexis-theme-changed"));
+  window.dispatchEvent(new Event("lexis-ui-prefs-changed"));
+}
