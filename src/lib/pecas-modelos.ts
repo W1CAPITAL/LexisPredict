@@ -82,7 +82,17 @@ function seg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
 
 function nomeSeg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
   const v = typeof m[k] === 'string' ? (m[k] as string).trim() : '';
-  if (!v || v.length < 3 || /^[a-zA-Z]{1,2}$/.test(v)) return fallback;
+  if (!v) return fallback;
+
+  // OAB / UF: aceita qualquer texto (OAB pode ter 1–2 dígitos)
+  const key = String(k);
+  if (/oab/i.test(key) || key === 'uf' || key === 'uf2') {
+    return v;
+  }
+
+  // Nomes: mínimo 2 caracteres
+  if (v.length < 2) return fallback;
+  if (/^(teste|test|xxx|asdf)$/i.test(v)) return fallback;
   return v;
 }
 
