@@ -1,6 +1,5 @@
 /**
- * Preferências UI — vidro DESLIGADO por padrão.
- * KEY v2 descarta estado legado com VIDRO ON que quebrava contraste.
+ * Preferências UI — cards estilo Efferd em todas as abas; reset de fábrica.
  */
 export type UiDensity = "compact" | "comfortable" | "wide";
 export type UiFontScale = "90" | "100" | "110";
@@ -43,14 +42,10 @@ export const UI_PREFS_DEFAULT: UiPrefs = {
 export function loadUiPrefs(): UiPrefs {
   if (typeof localStorage === "undefined") return { ...UI_PREFS_DEFAULT };
   try {
-    // Uma vez: zera vidro legado
     if (!localStorage.getItem(MIGRATED)) {
       localStorage.removeItem(KEY_LEGACY);
       localStorage.setItem(KEY, JSON.stringify(UI_PREFS_DEFAULT));
       localStorage.setItem(MIGRATED, "1");
-      localStorage.setItem("lexisPredict_bg_opacity", "1");
-      localStorage.setItem("lexisPredict_sidebar_opacity", "1");
-      localStorage.setItem("lexisPredict_glass_blur", "0");
     }
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...UI_PREFS_DEFAULT };
@@ -72,7 +67,7 @@ export function saveUiPrefs(partial: Partial<UiPrefs>): UiPrefs {
   return next;
 }
 
-/** Reset total: sólido + limpa atmosfera legada */
+/** Reset UI + visual de fábrica */
 export function resetUiSolid(): UiPrefs {
   if (typeof localStorage !== "undefined") {
     localStorage.setItem(KEY, JSON.stringify(UI_PREFS_DEFAULT));
@@ -80,11 +75,25 @@ export function resetUiSolid(): UiPrefs {
     localStorage.setItem("lexisPredict_sidebar_opacity", "1");
     localStorage.setItem("lexisPredict_glass_blur", "0");
     localStorage.setItem(MIGRATED, "1");
+    localStorage.setItem("lexis_theme_mode", "light");
+    localStorage.setItem("lexis_dark_mode", "false");
+    localStorage.setItem("lexisPredict_theme_preset", "minimal-steel");
+    localStorage.removeItem("lexisPredict_custom_theme");
+    localStorage.removeItem("lexisPredict_wallpaper");
+    localStorage.removeItem("lexisPredict_bg_color");
+    localStorage.removeItem("lexisPredict_font_color");
   }
   applyUiPrefsToDom(UI_PREFS_DEFAULT);
+  if (typeof document !== "undefined") {
+    document.documentElement.classList.remove("dark", "lexis-wallpaper-active");
+    document.documentElement.classList.add("light");
+    const layer = document.getElementById("lexis-wallpaper-layer");
+    if (layer) layer.remove();
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("lexis-ui-prefs-changed"));
     window.dispatchEvent(new Event("lexis-theme-changed"));
+    window.dispatchEvent(new Event("lexis-wallpaper-changed"));
   }
   return { ...UI_PREFS_DEFAULT };
 }
@@ -149,48 +158,91 @@ export function applyUiPrefsToDom(prefs?: UiPrefs) {
   }
 
   const solidDlg = `
-    background-color: #ffffff !important;
-    background: hsl(var(--card, 0 0% 100%)) !important;
+    background-color: hsl(var(--card, 0 0% 100%)) !important;
+    color: hsl(var(--card-foreground, 222 47% 11%)) !important;
     opacity: 1 !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   `;
   const glassDlg = `
     background-color: hsl(var(--card) / 0.92) !important;
+    color: hsl(var(--card-foreground, 222 47% 11%)) !important;
     backdrop-filter: blur(12px) !important;
+  `;
+
+  /* Cards unificados estilo Efferd em TODAS as abas */
+  const cardSolid = `
+    background-color: hsl(var(--card, 0 0% 100%)) !important;
+    color: hsl(var(--card-foreground, 222 47% 11%)) !important;
+    border: 1px solid hsl(var(--border, 214 32% 88%)) !important;
+    border-radius: var(--radius, 0.75rem) !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04) !important;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
+  `;
+  const cardGlass = `
+    background-color: hsl(var(--card) / 0.9) !important;
+    color: hsl(var(--card-foreground, 222 47% 11%)) !important;
+    border: 1px solid hsl(var(--border) / 0.6) !important;
+    border-radius: var(--radius, 0.75rem) !important;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08) !important;
+    backdrop-filter: blur(10px) !important;
   `;
 
   el.textContent = `
     html { font-size: calc(16px * ${font}); }
-    /* MODAIS — sólido por padrão (nunca ver fundo por trás) */
+
     [data-radix-dialog-content],
     [role="dialog"],
     [data-radix-alert-dialog-content],
     [data-state][role="dialog"] {
       ${p.glassDialogs ? glassDlg : solidDlg}
     }
-    /* Overlay escuro legível */
+
     [data-radix-dialog-overlay], [data-radix-alert-dialog-overlay] {
       background-color: rgba(0,0,0,0.55) !important;
       backdrop-filter: none !important;
     }
-    /* Cards */
-    .bg-card, [data-admin-card], [data-efferd-kpi] {
-      ${p.glassCards
-        ? "background-color: hsl(var(--card) / 0.88) !important; backdrop-filter: blur(8px) !important;"
-        : "background-color: hsl(var(--card)) !important; backdrop-filter: none !important; opacity: 1 !important;"}
+
+    /* ===== CARDS GLOBAIS (Efferd quality em todas as abas) ===== */
+    .bg-card,
+    [data-admin-card],
+    [data-efferd-kpi],
+    [data-slot="card"],
+    .rounded-xl.border.bg-card,
+    .rounded-2xl.border.bg-card {
+      ${p.glassCards ? cardGlass : cardSolid}
     }
-    /* Sidebar */
+
+    .bg-card .text-muted-foreground,
+    [data-admin-card] .text-muted-foreground,
+    [data-efferd-kpi] .text-muted-foreground {
+      color: hsl(var(--muted-foreground, 215 16% 35%)) !important;
+      opacity: 1 !important;
+    }
+
+    .bg-card .text-foreground,
+    [data-admin-card] .text-foreground,
+    [data-efferd-kpi] .text-foreground,
+    .bg-card .tabular-nums,
+    [data-efferd-kpi] .tabular-nums {
+      color: hsl(var(--foreground, 222 47% 11%)) !important;
+      opacity: 1 !important;
+    }
+
     aside.bg-sidebar, [data-sidebar] {
-      ${p.glassSidebar
-        ? "background-color: hsl(var(--sidebar-background) / 0.85) !important; backdrop-filter: blur(10px) !important;"
-        : "background-color: hsl(var(--sidebar-background, 0 0% 98%)) !important; backdrop-filter: none !important; opacity: 1 !important;"}
+      ${
+        p.glassSidebar
+          ? "background-color: hsl(var(--sidebar-background) / 0.88) !important; backdrop-filter: blur(10px) !important;"
+          : "background-color: hsl(var(--sidebar-background, 0 0% 98%)) !important; backdrop-filter: none !important; opacity: 1 !important;"
+      }
     }
+
     html[data-glass-tabs="0"] header {
       background-color: hsl(var(--card)) !important;
       backdrop-filter: none !important;
     }
-    /* Badges legíveis */
+
     .badge-baixa-tribunal, [data-badge="baixa"] {
       background: #18181b !important; color: #fff !important; border: none !important;
     }
