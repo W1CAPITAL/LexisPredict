@@ -434,7 +434,7 @@ export async function generateRevogacaoPdfAction(input: {
   tribunal?: string | null;
   uf?: string | null;
   advogadoRevogarId: string;
-  advogadoNovoId: string;
+  advogadoNovoId?: string;
   ultimoAdvogadoDetectado?: string | null;
   advogadosDjen?: string[];
   viabilidade?: string | null;
@@ -451,21 +451,33 @@ export async function generateRevogacaoPdfAction(input: {
   /** Se true, inclui banco/ação no corpo do PDF */
   incluirPartePassivaNoPdf?: boolean;
   incluirAcaoNoPdf?: boolean;
+  /** Se true, gera apenas revogação (sem substabelecimento) */
+  somenteRevogacao?: boolean;
 }) {
   const ctx = await getUserContext();
   if (!ctx?.empresa_id) return { success: false as const, error: 'Sessao expirada' };
 
   const banca = (await listAdvogadosBanca()) || [];
   const leaving = banca.find((a: any) => String(a.id) === String(input.advogadoRevogarId));
-  const entering = banca.find((a: any) => String(a.id) === String(input.advogadoNovoId));
-  if (!leaving || !entering) {
-    return { success: false as const, error: 'Selecione advogados validos da banca' };
+  if (!leaving) {
+    return { success: false as const, error: 'Selecione advogado valido para revogar' };
   }
-  if (String(leaving.id) === String(entering.id)) {
-    return { success: false as const, error: 'Substabelecente e substabelecido devem ser diferentes' };
-  }
-  if (!String(leaving.nome || '').trim() || !String(entering.nome || '').trim()) {
+  if (!String(leaving.nome || '').trim()) {
     return { success: false as const, error: 'Banca incompleta: nome do advogado ausente' };
+  }
+  const entering = input.advogadoNovoId
+    ? banca.find((a: any) => String(a.id) === String(input.advogadoNovoId))
+    : null;
+  if (!input.somenteRevogacao) {
+    if (!entering) {
+      return { success: false as const, error: 'Selecione advogado validos da banca para substabelecimento' };
+    }
+    if (String(leaving.id) === String(entering.id)) {
+      return { success: false as const, error: 'Substabelecente e substabelecido devem ser diferentes' };
+    }
+    if (!String(entering.nome || '').trim()) {
+      return { success: false as const, error: 'Banca incompleta: nome do advogado ausente' };
+    }
   }
   if (!input.protocolo || !input.cliente) {
     return { success: false as const, error: 'Cliente/protocolo obrigatorios' };
@@ -502,13 +514,14 @@ export async function generateRevogacaoPdfAction(input: {
 
   const preferUf = input.uf || undefined;
   const data: RevogacaoPdfData = {
-    comarca: input.comarca || entering.cidade || leaving.cidade || preferUf || 'Sao Paulo',
+    comarca: input.comarca || (entering?.cidade ?? leaving.cidade) || preferUf || 'Sao Paulo',
     dataExtenso: dataExtenso(),
     clienteNome: input.cliente,
     protocolo: input.protocolo,
     tribunal: input.tribunal || undefined,
     revogado: mapAdv(leaving, preferUf),
-    substabelecido: mapAdv(entering, preferUf),
+    substabelecido: entering ? mapAdv(entering, preferUf) : undefined,
+    somenteRevogacao: input.somenteRevogacao,
     ultimoAdvogadoDetectado: input.ultimoAdvogadoDetectado || null,
     advogadosDjen: input.advogadosDjen || [],
     viabilidade: null,
@@ -537,10 +550,11 @@ export async function generateRevogacaoPdfAction(input: {
     }
     const base64 = buf.toString('base64');
     const safeClient = normalizeName(input.cliente).replace(/\s+/g, '_').slice(0, 40);
+    const filenamePrefix = input.somenteRevogacao ? 'Revogacao' : 'Revogacao_Substabelecimento';
     return {
       success: true as const,
       base64,
-      filename: `Revogacao_Substabelecimento_${safeClient}_${input.protocolo.replace(/\D/g, '').slice(0, 20)}.pdf`,
+      filename: `${filenamePrefix}_${safeClient}_${input.protocolo.replace(/\D/g, '').slice(0, 20)}.pdf`,
       mime: 'application/pdf',
       bytes: buf.length,
     };
