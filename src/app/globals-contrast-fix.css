@@ -360,155 +360,80 @@ aside.bg-sidebar,
   letter-spacing: -0.01em;
 }
 
-/* ========== MODAIS E FORMULÁRIOS SEMPRE SÓLIDOS ========== */
-#lexis-wallpaper-layer {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: -1 !important;
-  pointer-events: none !important;
+/* ========== LOTE 1 — densidade, fonte, modo ops, status ========== */
+html {
+  font-size: calc(16px * var(--ui-font-scale, 1));
 }
 
-html,
-body {
-  background-color: hsl(var(--background)) !important;
-  background-image: none !important;
+html[data-density="compact"] .ops-ui table tbody td,
+html[data-density="compact"] .ops-ui table thead th {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+html[data-density="wide"] .ops-ui table tbody td,
+html[data-density="wide"] .ops-ui table thead th {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
 }
 
-/* Radix Dialog / Sheet / Alert */
-[data-radix-dialog-overlay],
-[data-radix-alert-dialog-overlay] {
-  background-color: rgba(0, 0, 0, 0.72) !important;
-  backdrop-filter: none !important;
+/* Modo operacional: menos grito visual */
+html[data-ops-mode="1"] .ops-ui h1.font-black.uppercase,
+html[data-ops-mode="1"] .ops-ui h2.font-black.uppercase {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+}
+html[data-ops-mode="1"] .ops-ui .admin-page-subtitle {
+  text-transform: none;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
 }
 
-[data-radix-dialog-content],
-[data-radix-alert-dialog-content],
-[role="dialog"],
-[role="alertdialog"] {
-  background-color: hsl(var(--card)) !important;
-  color: hsl(var(--card-foreground)) !important;
-  opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid hsl(var(--border)) !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45) !important;
+/* Status com tokens personalizáveis */
+.ops-ui [data-status="Vencido"],
+.ops-ui [data-status="Caso Crítico"] {
+  background-color: color-mix(in srgb, var(--status-vencido, #b91c1c) 18%, transparent);
+  color: var(--status-vencido, #b91c1c);
+  border-color: color-mix(in srgb, var(--status-vencido, #b91c1c) 35%, transparent);
+}
+.ops-ui [data-status="É Hoje"] {
+  background-color: color-mix(in srgb, var(--status-hoje, #1d4ed8) 16%, transparent);
+  color: var(--status-hoje, #1d4ed8);
+  border-color: color-mix(in srgb, var(--status-hoje, #1d4ed8) 35%, transparent);
+}
+.ops-ui [data-status="BA"],
+.ops-ui [data-ba="1"] {
+  background-color: color-mix(in srgb, var(--status-ba, #dc2626) 20%, transparent);
+  color: var(--status-ba, #dc2626);
 }
 
-[data-radix-dialog-content] input,
-[data-radix-dialog-content] textarea,
-[data-radix-dialog-content] select,
-[data-radix-dialog-content] [role="combobox"],
-[role="dialog"] input,
-[role="dialog"] textarea,
-[role="dialog"] select {
-  background-color: hsl(var(--background)) !important;
-  color: hsl(var(--foreground)) !important;
-  opacity: 1 !important;
-  border-color: hsl(var(--border)) !important;
+/* Tabela e inputs: superfície sólida */
+.ops-ui table thead {
+  background-color: hsl(var(--muted) / 0.95) !important;
+}
+.ops-ui table tbody tr:hover {
+  background-color: hsl(var(--muted) / 0.55) !important;
+}
+.ops-ui input,
+.ops-ui textarea,
+.ops-ui select,
+.ops-ui [role="combobox"] {
+  background-color: hsl(var(--background) / max(0.96, var(--bg-opacity, 1))) !important;
 }
 
-/* Painéis principais da carteira */
-.ops-ui main,
-.ops-ui [data-admin-card],
-main .bg-card\/60,
-main .bg-card\/70 {
-  background-color: hsl(var(--card)) !important;
+/* Wallpaper: respeita opacidade mínima */
+html.lexis-wallpaper-active body {
+  background-color: hsl(var(--background) / max(var(--wallpaper-min-opacity, 0.85), var(--bg-opacity, 1)));
 }
-
-/* ========== LOTE CONTRASTE FORÇADO (sem depender do usuário) ========== */
-.bg-card\/10, .bg-card\/20, .bg-card\/30, .bg-card\/40, .bg-card\/50,
-.bg-card\/60, .bg-card\/70, .bg-card\/80, .bg-card\/90 {
-  background-color: hsl(var(--card)) !important;
+/* Badges legíveis — override de outline pastel */
+[class*="badge"], .badge, [data-slot="badge"] {
+  font-weight: 700 !important;
 }
-.bg-background\/10, .bg-background\/20, .bg-background\/30, .bg-background\/40,
-.bg-background\/50, .bg-background\/60, .bg-background\/70 {
-  background-color: hsl(var(--background)) !important;
-}
-.backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-xl, .backdrop-blur-2xl {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* Header / tabs bar */
-header, [data-admin-toolbar], .ops-ui .admin-toolbar {
-  background-color: hsl(var(--card)) !important;
-}
-
-/* Efferd KPI: nunca texto lavado */
-[data-efferd-kpi] {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border: 1px solid #e2e8f0 !important;
-}
-.dark [data-efferd-kpi] {
-  background-color: #020617 !important;
-  color: #f8fafc !important;
-  border-color: #334155 !important;
-}
-[data-efferd-kpi] [data-efferd-value] {
-  color: inherit !important;
-  opacity: 1 !important;
-}
-[data-efferd-kpi] [data-efferd-label] {
-  color: #1e293b !important;
-  opacity: 1 !important;
-}
-.dark [data-efferd-kpi] [data-efferd-label] {
-  color: #e2e8f0 !important;
-}
-
-/* ========== TRANSPARÊNCIA SELETIVA (data-glass-* no <html>) ========== */
-/* Padrão glass=0: sempre sólido */
-
-html[data-glass-sidebar="0"] aside.bg-sidebar,
-html[data-glass-sidebar="0"] [data-sidebar] {
-  background-color: hsl(var(--sidebar-background)) !important;
-  backdrop-filter: none !important;
-  opacity: 1 !important;
-}
-html[data-glass-sidebar="1"] aside.bg-sidebar {
-  background-color: hsl(var(--sidebar-background) / 0.72) !important;
-  backdrop-filter: blur(12px) !important;
-}
-
-html[data-glass-dialogs="0"] [data-radix-dialog-content],
-html[data-glass-dialogs="0"] [role="dialog"],
-html[data-glass-dialogs="0"] [data-radix-alert-dialog-content] {
-  background-color: hsl(var(--card)) !important;
-  opacity: 1 !important;
-  backdrop-filter: none !important;
-}
-html[data-glass-dialogs="1"] [data-radix-dialog-content],
-html[data-glass-dialogs="1"] [role="dialog"] {
-  background-color: hsl(var(--card) / 0.82) !important;
-  backdrop-filter: blur(16px) !important;
-}
-
-html[data-glass-cards="0"] .ops-ui [data-admin-card],
-html[data-glass-cards="0"] .ops-ui .bg-card,
-html[data-glass-cards="0"] [data-efferd-kpi] {
-  background-color: hsl(var(--card)) !important;
-  backdrop-filter: none !important;
-}
-html[data-glass-cards="1"] .ops-ui .bg-card {
-  background-color: hsl(var(--card) / 0.75) !important;
-  backdrop-filter: blur(8px) !important;
-}
-
-html[data-glass-tabs="0"] header,
-html[data-glass-tabs="0"] [role="tablist"],
-html[data-glass-tabs="0"] .ops-ui .admin-toolbar {
-  background-color: hsl(var(--card)) !important;
-  backdrop-filter: none !important;
-}
-html[data-glass-tabs="1"] header {
-  background-color: hsl(var(--card) / 0.7) !important;
-  backdrop-filter: blur(10px) !important;
-}
-
-/* Linguagem simples sempre legível */
-.ops-leigo-block {
-  background-color: hsl(var(--background)) !important;
-  border-color: hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-}
+/* Evita texto claro em fundo claro em chips de status comuns */
+.bg-red-50.text-red-700 { background-color: #b91c1c !important; color: #fff !important; }
+.bg-emerald-50.text-emerald-700 { background-color: #047857 !important; color: #fff !important; }
+.bg-amber-50.text-amber-800,
+.bg-amber-50.text-amber-900 { background-color: #d97706 !important; color: #fff !important; }
+.bg-blue-50.text-blue-700 { background-color: #1d4ed8 !important; color: #fff !important; }
+.bg-orange-100.text-orange-800 { background-color: #c2410c !important; color: #fff !important; }
+.bg-yellow-100.text-yellow-800 { background-color: #ca8a04 !important; color: #111 !important; }

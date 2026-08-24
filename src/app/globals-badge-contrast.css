@@ -1,0 +1,12 @@
+/* Badges legíveis — override de outline pastel */
+[class*="badge"], .badge, [data-slot="badge"] {
+  font-weight: 700 !important;
+}
+/* Evita texto claro em fundo claro em chips de status comuns */
+.bg-red-50.text-red-700 { background-color: #b91c1c !important; color: #fff !important; }
+.bg-emerald-50.text-emerald-700 { background-color: #047857 !important; color: #fff !important; }
+.bg-amber-50.text-amber-800,
+.bg-amber-50.text-amber-900 { background-color: #d97706 !important; color: #fff !important; }
+.bg-blue-50.text-blue-700 { background-color: #1d4ed8 !important; color: #fff !important; }
+.bg-orange-100.text-orange-800 { background-color: #c2410c !important; color: #fff !important; }
+.bg-yellow-100.text-yellow-800 { background-color: #ca8a04 !important; color: #111 !important; }

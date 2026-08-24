@@ -1,5 +1,6 @@
 /**
- * Preferências de UI — contraste, personalização e transparência seletiva.
+ * Preferências de UI — contraste, densidade e transparência seletiva.
+ * applyUiPrefsToDom injeta CSS real (não só variáveis que o tema pode ignorar).
  */
 export type UiDensity = "compact" | "comfortable" | "wide";
 export type UiFontScale = "90" | "100" | "110";
@@ -13,7 +14,6 @@ export type UiPrefs = {
   colorHoje: string;
   colorBa: string;
   wallpaperMinOpacity: number;
-  /** Vidro/transparência. Padrão false = sólido. */
   glassSidebar: boolean;
   glassDialogs: boolean;
   glassCards: boolean;
@@ -21,6 +21,7 @@ export type UiPrefs = {
 };
 
 const KEY = "lexisPredict_ui_prefs_v1";
+const STYLE_ID = "lexis-ui-prefs-runtime";
 
 export const UI_PREFS_DEFAULT: UiPrefs = {
   density: "comfortable",
@@ -94,28 +95,60 @@ export function applyUiPrefsToDom(prefs?: UiPrefs) {
   const p = prefs || loadUiPrefs();
   const root = document.documentElement;
 
-  root.style.setProperty(
-    "--ui-density",
-    p.density === "compact" ? "0.85" : p.density === "wide" ? "1.15" : "1"
-  );
-  root.style.setProperty(
-    "--ui-font-scale",
-    p.fontScale === "90" ? "0.9" : p.fontScale === "110" ? "1.1" : "1"
-  );
+  const dens = p.density === "compact" ? "0.9" : p.density === "wide" ? "1.12" : "1";
+  const font = p.fontScale === "90" ? "0.9" : p.fontScale === "110" ? "1.1" : "1";
+  root.style.setProperty("--ui-density", dens);
+  root.style.setProperty("--ui-font-scale", font);
   root.dataset.opsMode = p.opsMode ? "1" : "0";
   root.dataset.density = p.density;
-  root.style.setProperty("--status-vencido", p.colorVencido);
-  root.style.setProperty("--status-hoje", p.colorHoje);
-  root.style.setProperty("--status-ba", p.colorBa);
-
   root.dataset.glassSidebar = p.glassSidebar ? "1" : "0";
   root.dataset.glassDialogs = p.glassDialogs ? "1" : "0";
   root.dataset.glassCards = p.glassCards ? "1" : "0";
   root.dataset.glassTabs = p.glassTabs ? "1" : "0";
 
+  root.style.setProperty("--status-vencido", p.colorVencido);
+  root.style.setProperty("--status-hoje", p.colorHoje);
+  root.style.setProperty("--status-ba", p.colorBa);
+
   if (p.sidebarHex) {
     const hsl = hexToHslComponents(p.sidebarHex);
-    if (hsl) root.style.setProperty("--sidebar-background", hsl);
+    if (hsl) {
+      root.style.setProperty("--sidebar-background", hsl);
+      root.style.setProperty("--sidebar-bg-solid", p.sidebarHex);
+    }
   }
-  root.style.setProperty("--wallpaper-min-opacity", String(p.wallpaperMinOpacity));
+
+  // CSS runtime — garante efeito visível
+  let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+  if (!el) {
+    el = document.createElement("style");
+    el.id = STYLE_ID;
+    document.head.appendChild(el);
+  }
+
+  const sidebarBg = p.sidebarHex || "hsl(var(--sidebar-background, 0 0% 98%))";
+  const glassSide = p.glassSidebar
+    ? `background-color: color-mix(in srgb, ${sidebarBg} 72%, transparent) !important; backdrop-filter: blur(12px) !important;`
+    : `background-color: ${sidebarBg} !important; backdrop-filter: none !important; opacity: 1 !important;`;
+
+  const glassDlg = p.glassDialogs
+    ? `background-color: hsl(var(--card) / 0.85) !important; backdrop-filter: blur(14px) !important;`
+    : `background-color: hsl(var(--card)) !important; backdrop-filter: none !important; opacity: 1 !important;`;
+
+  const glassCard = p.glassCards
+    ? `background-color: hsl(var(--card) / 0.8) !important; backdrop-filter: blur(8px) !important;`
+    : `background-color: hsl(var(--card)) !important; backdrop-filter: none !important;`;
+
+  el.textContent = `
+    html { font-size: calc(16px * ${font}); }
+    html[data-ops-mode="1"] .font-black.uppercase { letter-spacing: 0.04em; }
+    aside.bg-sidebar, [data-sidebar], nav[data-sidebar] { ${glassSide} }
+    [data-radix-dialog-content], [role="dialog"], [data-radix-alert-dialog-content] { ${glassDlg} }
+    .ops-ui .bg-card, [data-admin-card], [data-efferd-kpi] { ${glassCard} }
+    html[data-glass-tabs="0"] header, html[data-glass-tabs="0"] [role="tablist"] {
+      background-color: hsl(var(--card)) !important; backdrop-filter: none !important;
+    }
+    /* Badges de status — nunca pastel ilegível */
+    .badge-semana { background: #0369a1 !important; color: #fff !important; }
+  `;
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { isNovidadeAberta } from '@/lib/novidade';
 import { useAdmin } from '@/hooks/use-admin';
 
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
@@ -643,7 +642,7 @@ const handleSaveAttendance = async () => {
         }
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
-        if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => isNovidadeAberta(c) || (typeof temNovidadeIdentificada === 'function' && temNovidadeIdentificada(c)));
+        if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
         if (filaFiltro === 'problematicos') return g.cases.some((c: any) => isCasoProblematico(c, baSet)) || g.hasBA || g.hasClosedCourt || g.hasUpdate;
@@ -794,16 +793,16 @@ const handleSaveAttendance = async () => {
             <OpsOrbitalStrip
               nodes={defaultOpsNodes({
                 total: cases.length,
-                pendentes: cases.filter((c: any) => c.status === "É Hoje" || isNovidadeAberta(c)).length,
+                pendentes: cases.filter((c: any) => c.status === "É Hoje" || c.tem_novo_andamento).length,
                 vencidos: cases.filter((c: any) => c.status === "Vencido" || c.status === "Caso Crítico").length,
-                novidades: cases.filter((c: any) => isNovidadeAberta(c)).length,
+                novidades: cases.filter((c: any) => c.tem_novo_andamento).length,
                 ok: cases.filter((c: any) => c.status === "No Prazo").length,
               })}
               className="mb-4"
             />
           </div>
 
-        <header className="h-auto border-b border-border/50 bg-card flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
+        <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg"><CheckCircle size={20} className="text-primary" /></div>
             <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila Crítica de Atendimento</h1>
@@ -871,7 +870,7 @@ const handleSaveAttendance = async () => {
                 </Select>
                 
               <Select value={lawyerFilter} onValueChange={setLawyerFilter}>
-                <SelectTrigger className="h-11 w-48 bg-background border border-border rounded-xl text-[10px] font-semibold uppercase"><SelectValue placeholder="Advogado" /></SelectTrigger>
+                <SelectTrigger className="h-11 w-48 bg-secondary/30 border-none rounded-xl text-[10px] font-semibold uppercase"><SelectValue placeholder="Advogado" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos advogados</SelectItem>
                   {listAdvogados(cases).map((a) => (
@@ -880,7 +879,7 @@ const handleSaveAttendance = async () => {
                 </SelectContent>
               </Select>
               <Select value={sortPrazo} onValueChange={(v: any) => setSortPrazo(v)}>
-                <SelectTrigger className="h-11 w-48 bg-background border border-border rounded-xl text-[10px] font-semibold uppercase"><SelectValue placeholder="Prazo" /></SelectTrigger>
+                <SelectTrigger className="h-11 w-48 bg-secondary/30 border-none rounded-xl text-[10px] font-semibold uppercase"><SelectValue placeholder="Prazo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ops">Score ops</SelectItem>
                   <SelectItem value="mais_vencido">Mais vencido</SelectItem>
@@ -1032,7 +1031,7 @@ const handleSaveAttendance = async () => {
         </div>
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
+          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
             <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
               <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
             </DialogHeader>
@@ -1133,20 +1132,20 @@ const handleSaveAttendance = async () => {
         </Dialog>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
-          <DialogContent className="sm:max-w-[480px] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
             <form className="flex flex-col h-full">
-              <DialogHeader className="p-6 bg-muted border-b border-border shrink-0"><DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle></DialogHeader>
+              <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0"><DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle></DialogHeader>
               <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
-                  <div className="grid gap-2"><Label className={ui.label}>Resultado do Contato</Label><Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}><SelectTrigger className="rounded-xl h-12 bg-background border border-border font-bold text-[11px] uppercase"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter Ativo</SelectItem><SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Caso</SelectItem></SelectContent></Select></div>
-                  <div className="grid gap-2"><Label className={ui.label}>Próximo retorno</Label><Input type="date" value={attendanceForm.proximoRetorno} onChange={(e) => setAttendanceForm({...attendanceForm, proximoRetorno: e.target.value})} disabled={attendanceForm.situacao === 'ENCERRADO'} className="rounded-xl h-12 bg-background border border-border font-bold uppercase" /></div>
-                  <div className="grid gap-2"><Label className={ui.label}>Observações</Label><Textarea placeholder="Histórico de conversa..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-background border border-border font-bold uppercase resize-none" /></div>
+                  <div className="grid gap-2"><Label className={ui.label}>Resultado do Contato</Label><Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}><SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter Ativo</SelectItem><SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Caso</SelectItem></SelectContent></Select></div>
+                  <div className="grid gap-2"><Label className={ui.label}>Próximo retorno</Label><Input type="date" value={attendanceForm.proximoRetorno} onChange={(e) => setAttendanceForm({...attendanceForm, proximoRetorno: e.target.value})} disabled={attendanceForm.situacao === 'ENCERRADO'} className="rounded-xl h-12 bg-secondary/30 border-none font-bold uppercase" /></div>
+                  <div className="grid gap-2"><Label className={ui.label}>Observações</Label><Textarea placeholder="Histórico de conversa..." value={attendanceForm.observacao} onChange={(e) => setAttendanceForm({...attendanceForm, observacao: e.target.value.toUpperCase()})} className="rounded-xl min-h-[100px] bg-secondary/30 border-none font-bold uppercase resize-none" /></div>
                   <div className="grid gap-2">
                     <Label className={ui.label}>Lista da fila</Label>
                     <Select
                       value={attendanceForm.filaLista || "normal"}
                       onValueChange={(val) => setAttendanceForm({ ...attendanceForm, filaLista: val as FilaLista })}
                     >
-                      <SelectTrigger className="rounded-xl h-12 bg-background border border-border font-bold text-[11px] uppercase">
+                      <SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1172,9 +1171,9 @@ const handleSaveAttendance = async () => {
 
 function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, onScan, onSuggest }: { group: TaskGroup, isFocus?: boolean, isKbFocus?: boolean, onMarkContacted: () => void, onScan: (protocolo: string) => void, onSuggest: () => void }) {
   return (
-    <div className={cn("premium-card p-4 sm:p-6 bg-card text-card-foreground flex flex-col border border-border transition-all group border-l-4", isKbFocus ? "ring-2 ring-primary border-l-primary shadow-md" : isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
+    <div className={cn("premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", isKbFocus ? "ring-2 ring-primary border-l-primary shadow-md" : isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
       <div className="flex justify-between items-start mb-6">
-        <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all", group.hasBA ? "bg-red-600 text-white" : group.hasClosedCourt ? "bg-black text-white" : "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white")}>
+        <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all", group.hasBA ? "bg-red-600 text-white" : group.hasClosedCourt ? "bg-zinc-900 text-white" : "bg-slate-200 text-slate-800", /*lote badge*/ false ? "x" : group.hasClosedCourt ? "bg-black text-white" : "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white")}>
           {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <UserCheck size={24} />}
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
