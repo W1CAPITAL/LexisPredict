@@ -2,7 +2,7 @@
  * Biblioteca de modelos — padrão de qualificação e estrutura de
  * Procuração Ad Judicia (outorgante / outorgado / objeto / poderes /
  * poderes excepcionais / finalidade / local e data / assinatura).
- * Especificidade: só detalha o que foi informado; placeholders legíveis se faltar.
+ * OAB aceita 1–2+ caracteres. Edição livre nos formulários.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -80,17 +80,14 @@ function seg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
   return typeof v === 'string' && v.trim() ? v.trim() : fallback;
 }
 
+/** Nomes: mín. 2 chars. OAB/UF: aceita qualquer texto (OAB pode ter 1–2 dígitos). */
 function nomeSeg(m: PecaMeta, k: keyof PecaMeta, fallback: string): string {
   const v = typeof m[k] === 'string' ? (m[k] as string).trim() : '';
   if (!v) return fallback;
-
-  // OAB / UF: aceita qualquer texto (OAB pode ter 1–2 dígitos)
   const key = String(k);
   if (/oab/i.test(key) || key === 'uf' || key === 'uf2') {
     return v;
   }
-
-  // Nomes: mínimo 2 caracteres
   if (v.length < 2) return fallback;
   if (/^(teste|test|xxx|asdf)$/i.test(v)) return fallback;
   return v;
@@ -358,7 +355,7 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     id: 'revogacao-poderes',
     categoria: 'Revogação',
     titulo: 'Revogação de poderes',
-    descricao: 'Revoga mandato anteriormente conferido (art. 686 do Código Civil).',
+    descricao: 'Revoga mandato anteriormente conferido (art. 686 do Código Civil). Sem substabelecimento.',
     campos: ['cliente', 'cpfCliente', 'advogado', 'oab', 'uf', 'protocolo', 'banco', 'resumo', 'cidade', 'data'],
     render: (m) =>
       [
