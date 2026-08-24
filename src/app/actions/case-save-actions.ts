@@ -104,11 +104,11 @@ function toRow(
       ultimoRetorno: isoRetorno || c.ultimoRetorno,
       ultimo_retorno: isoRetorno || (c as any).ultimo_retorno,
       atendido_por: (c as any).atendido_por || null,
-      // dono só via parâmetro ownerAuthId (nunca o editor “herda” o caso no JSON)
-      created_by: ownerAuthId || null,
+      // nunca espalhar created_by errado no JSON como se fosse dono novo
+      created_by: ownerAuthId || (c as any).created_by || null,
     },
   };
-  // Coluna created_by só quando há dono conhecido (insert ou preserve)
+  // Só define created_by na linha se temos owner (insert ou preserve)
   if (ownerAuthId) {
     row.created_by = ownerAuthId;
   }
@@ -168,159 +168,79 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     if (!client) client = await getSupabaseAdmin();
     if (!client) return { success: false, message: 'Cliente Supabase indisponível.' };
 
-    // ── DONO (created_by) ────────────────────────────────────────────
-    // SEMPRE ler com service role. Match por protocolo exato OU só dígitos.
-    // Qualquer cargo pode EDITAR qualquer processo da empresa; created_by não muda.
-    let existing: { id: string; created_by: string | null; dados?: any } | null = null;
-    const protoRaw = String(processed.protocolo || '').trim();
-    const protoDigits = protoRaw.replace(/\D/g, '');
-    try {
-      const adminRes = await getAdminClientSafe();
-      const reader = adminRes.ok ? adminRes.client : client;
-      let data: any = null;
-      {
-        const r1 = await reader
-          .from('processos')
-          .select('id, created_by, dados')
-          .eq('empresa_id', empresa_id)
-          .eq('protocolo_ref', protoRaw)
-          .maybeSingle();
-        data = r1.data || null;
-      }
-      if (!data && protoDigits.length >= 15) {
-        // fallback: busca ampla e filtra por dígitos (protocolo_ref pode estar sem máscara)
-        const r2 = await reader
-          .from('processos')
-          .select('id, created_by, dados, protocolo_ref')
-          .eq('empresa_id', empresa_id)
-          .limit(5000);
-        const hit = (r2.data || []).find(
-          (row: any) => String(row.protocolo_ref || '').replace(/\D/g, '') === protoDigits
-        );
-        if (hit) data = hit;
-      }
-      existing = data || null;
-    } catch {
-      const { data } = await client
-        .from('processos')
-        .select('id, created_by, dados')
-        .eq('empresa_id', empresa_id)
-        .eq('protocolo_ref', protoRaw)
-        .maybeSingle();
-      existing = data || null;
-    }
+    // PRESERVAR DONO por padrão; TRANSFERÊNCIA só se explícita + cargo autorizado
+    const { data: existing } = await client
+      .from('processos')
+      .select('id, created_by')
+      .eq('empresa_id', empresa_id)
+      .eq('protocolo_ref', processed.protocolo)
+      .maybeSingle();
 
     const profile = auth_id ? await getProfileByAuthId(auth_id) : null;
-    const cargo = String((profile as any)?.cargo || (profile as any)?.role || '').toLowerCase();
+    const cargo = String(profile?.cargo || '').toLowerCase();
     const canTransfer =
       /supervisor|superadmin|super.?admin|administrador|admin|dono|owner/i.test(cargo) ||
-      String((profile as any)?.role || '').toLowerCase() === 'superadmin';
+      /admin|supervisor|super/i.test(String((profile as any)?.role || ''));
 
-    const requestedOwner = String(
-      (caseData as any).created_by || (processed as any).created_by || ''
-    ).trim();
-    const forceTransfer =
-      !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
+    const requestedOwner = String((caseData as any).created_by || (processed as any).created_by || '').trim();
+    const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
 
-    /** Dono final: nunca o editor, a menos que seja transferência explícita. */
     let owner: string | null = null;
-    // FORCED_KEEP_OWNER: atendimento/edição NUNCA altera created_by
     if (existing?.created_by) {
-      if (
-        forceTransfer &&
-        canTransfer &&
-        requestedOwner &&
-        requestedOwner !== String(existing.created_by)
-      ) {
+      if (forceTransfer && canTransfer && requestedOwner && requestedOwner !== String(existing.created_by)) {
         owner = requestedOwner;
       } else {
-        owner = String(existing.created_by);
+        owner = existing.created_by;
       }
-    } else if (!existing) {
-      // INSERT real: dono = solicitado ou quem cria
-      owner = requestedOwner || auth_id || null;
+    } else if (requestedOwner) {
+      owner = requestedOwner;
     } else {
-      // Linha existe sem dono: só preenche se vazio — preferir manter null a “roubar”
-      // Só atribui auth_id se for criação lógica (sem created_by) e não for edição de carteira alheia
-      owner = requestedOwner || null;
+      owner = auth_id || null;
     }
-
     (processed as any).created_by = owner;
 
+    const row = toRow(processed, empresa_id, owner);
     const transferring =
       !!(existing?.created_by) &&
       forceTransfer &&
       canTransfer &&
-      !!owner &&
+      owner &&
       String(existing.created_by) !== String(owner);
 
-    const row = toRow(processed, empresa_id, owner);
-
     if (existing?.id) {
-      // UPDATE: remove created_by do payload salvo se NÃO for transferência
+      // UPDATE: não mexe em created_by EXCETO transferência explícita autorizada
       const { created_by: _drop, ...updateRow } = row;
       if (!transferring) {
         delete (updateRow as any).created_by;
-        // dados.created_by = dono já existente (não o editor)
-        if (updateRow.dados && typeof updateRow.dados === 'object') {
-          const prevDados =
-            existing.dados && typeof existing.dados === 'object' ? existing.dados : {};
-          updateRow.dados = {
-            ...updateRow.dados,
-            created_by: existing.created_by || prevDados.created_by || owner || null,
-          };
-        }
       } else {
         (updateRow as any).created_by = owner;
-        if (updateRow.dados && typeof updateRow.dados === 'object') {
-          updateRow.dados = appendTransferAudit(updateRow.dados, {
-            from: existing.created_by ? String(existing.created_by) : null,
-            to: String(owner),
-            by: String(auth_id || ''),
-            at: new Date().toISOString(),
-            protocolo: processed.protocolo,
-          });
-        }
       }
-
-      // SEMPRE service role no UPDATE da aba Processos (qualquer cargo, qualquer dono).
-      // Sem service role o update de linha alheia falha ou “parece” salvar e não grava.
+      if (updateRow.dados && typeof updateRow.dados === 'object') {
+        updateRow.dados = { ...updateRow.dados, created_by: owner };
+      }
+      // Transferência: OBRIGA service role (RLS do user muitas vezes bloqueia created_by)
       let writer = client;
-      {
+      if (transferring) {
         const adminRes = await getAdminClientSafe();
         if (!adminRes.ok) {
-          return {
-            success: false,
-            message:
-              adminRes.message ||
-              'SUPABASE_SERVICE_ROLE_KEY ausente. Configure no Vercel e faça Redeploy.',
-          };
+          return { success: false, message: adminRes.message };
         }
         writer = adminRes.client;
       }
-
       const { error } = await writer.from('processos').update(updateRow).eq('id', existing.id);
       if (error) {
         const msg = String(error.message || '');
         if (/edited_at|edited_by|schema cache/i.test(msg)) {
-          const keepOwner = existing.created_by || owner;
-          const { error: err2 } = await writer
+          const { error: err2 } = await client
             .from('processos')
             .update({
               ultimo_retorno: formatDateToISO(processed.ultimoRetorno),
               tem_atualizacao_pos_retorno: false,
               djen_nova_comunicacao: false,
-              dados: {
-                ...processed,
-                created_by: keepOwner,
-                edited_by: auth_id,
-                edited_at: now,
-                edited_by_name: editorName,
-              },
+              dados: { ...processed, created_by: owner },
             })
             .eq('id', existing.id);
           if (err2) return { success: false, message: err2.message };
-          (processed as any).created_by = keepOwner;
           return { success: true, message: 'Salvo.', case: processed };
         }
         return { success: false, message: error.message };
@@ -333,27 +253,17 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
             ultimoRetorno: isoRet,
             atendido_por: auth_id,
           });
-        } catch {
-          /* não bloqueia save */
-        }
+        } catch { /* não bloqueia save */ }
       }
-      (processed as any).created_by = transferring ? owner : existing.created_by || owner;
-      return { success: true, message: transferring ? 'Transferido e salvo.' : 'Salvo.', case: processed };
+      return { success: true, message: 'Salvo.', case: processed };
     }
 
-    // INSERT (processo novo)
-    let writerIns = client;
-    {
-      const adminRes = await getAdminClientSafe();
-      if (adminRes.ok) writerIns = adminRes.client;
-    }
-    const { error } = await writerIns.from('processos').insert(row);
+    // INSERT
+    const { error } = await client.from('processos').insert(row);
     if (error) {
+      // race: outro insert — tenta update preservando dono
       if (/duplicate|unique/i.test(String(error.message || ''))) {
-        // Já existia (RLS tinha escondido): UPDATE sem tocar created_by
-        const adminRes = await getAdminClientSafe();
-        const reader = adminRes.ok ? adminRes.client : client;
-        const { data: again } = await reader
+        const { data: again } = await client
           .from('processos')
           .select('id, created_by')
           .eq('empresa_id', empresa_id)
@@ -363,22 +273,16 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
           const keep = again.created_by || owner;
           const { created_by: _d, ...updateRow } = row;
           delete (updateRow as any).created_by;
-          if (updateRow.dados && typeof updateRow.dados === 'object') {
-            updateRow.dados = { ...updateRow.dados, created_by: keep };
-          }
-          const { error: errU } = await reader
-            .from('processos')
-            .update(updateRow)
-            .eq('id', again.id);
+          const { error: errU } = await client.from('processos').update(updateRow).eq('id', again.id);
           if (errU) return { success: false, message: errU.message };
           (processed as any).created_by = keep;
-          return { success: true, message: 'Salvo (dono preservado).', case: processed };
+          return { success: true, message: 'Salvo.', case: processed };
         }
       }
       return { success: false, message: error.message };
     }
 
-    return { success: true, message: 'Criado.', case: processed };
+    return { success: true, message: 'Salvo.', case: processed };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao salvar.' };
   }

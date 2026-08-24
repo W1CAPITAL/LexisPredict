@@ -1,8 +1,4 @@
 "use client";
-
-import { AtendimentoActions } from '@/components/ops/atendimento-actions';
-import { PublicacaoDjenBlock } from '@/components/ops/publicacao-djen';
-import { mensagemRapidaCliente } from '@/lib/mensagem-rapida';
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 
@@ -45,7 +41,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
-import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { saveOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
@@ -68,12 +63,6 @@ import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDje
 // djenTextsRecentFirst usado no rascunho;
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
-import { linhaFase, linhaDonoAto, linhaDonoPasso, diasDesdeTribunal } from '@/lib/fase-resumo';
-import { OpsCaseLine } from '@/components/ops/ops-case-line';
-import { ProtocoloChip } from '@/components/ops/protocolo-chip';
-import { FaseFilterBar, filtrarPorFase } from '@/components/cases/fase-filter-bar';
-import type { FiltroFaseParado } from '@/lib/processos-parados';
-import { appendScanLog } from '@/lib/scan-event-log';
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';
 import { descreverPrazo } from '@/lib/prazos-cpc';
 
@@ -130,31 +119,25 @@ const CaseRow = React.memo(({
             )}
           </div>
           <span className={cn("text-[11px] font-mono text-muted-foreground", ui.cnj)}>{c.protocolo}</span>
-          <OpsCaseLine c={c} className="mt-0.5" />
-          {sinal.titulo && !/BUSCA E APREENS/i.test(String(sinal.titulo)) ? (
-            <p className="text-[11px] text-muted-foreground leading-snug line-clamp-1">
-              {sinal.titulo}
+          {(sinal.titulo || sinal.detalhe) && (
+            <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
+              <span className="text-foreground/80 font-medium">
+                {sinal.titulo}
+              </span>
               {sinal.data ? (
-                <span> · {(() => { try { return format(parseISO(sinal.data), 'dd/MM/yy'); } catch { return ''; } })()}</span>
+                <span className="text-muted-foreground/80"> · {(() => { try { return format(parseISO(sinal.data), 'dd/MM/yy'); } catch { return ''; } })()}</span>
+              ) : null}
+              {sinal.detalhe && sinal.detalhe !== sinal.titulo ? (
+                <span className="block text-muted-foreground mt-0.5 line-clamp-1">{sinal.detalhe}</span>
               ) : null}
             </p>
-          ) : null}
+          )}
           <AndamentoLeigoBlock
             caseData={c}
             showPrazo={false}
             showAtividades={false}
             className="!p-0 !border-0 !bg-transparent !shadow-none mt-0.5"
           />
-          <PublicacaoDjenBlock caseData={c} className="mt-2" />
-          <div className="mt-2 rounded-lg border border-border bg-background p-2.5 space-y-2 shadow-sm">
-            <p className="text-[9px] font-semibold text-muted-foreground">Atendimento rápido (1→2→3)</p>
-            <AtendimentoActions
-              compact
-              telefone={c.telefone}
-              mensagem={mensagemRapidaCliente(c)}
-              onMarkContacted={() => onLogReturn(c)}
-            />
-          </div>
              {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <button
@@ -249,8 +232,7 @@ function CasesContent() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
-  const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('ops');
-  const [filtrosFase, setFiltrosFase] = useState<FiltroFaseParado[]>([]);
+  const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -277,7 +259,7 @@ function CasesContent() {
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
-  const { isOperador, profile, isSupervisor, isSuperAdmin, canExport, canCopy, canScan, isViewer } = useAdmin();
+  const { isOperador, profile, isSupervisor, isSuperAdmin } = useAdmin();
   const kpiCarteira = useMemo(
     () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
     [cases, profile]
@@ -290,7 +272,7 @@ function CasesContent() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchCarteiraDeduped(() => fetchRepoCases());
+      const data = await fetchRepoCases();
       if (Array.isArray(data)) setCases(data);
     } finally { setLoading(false); }
   }, [setCases]);
@@ -343,10 +325,6 @@ function CasesContent() {
   };
 
   const handleExportXlsx = async () => {
-    if (!canExport) {
-      toast({ title: 'Modo visualização', description: 'Exportação bloqueada neste perfil.', variant: 'destructive' });
-      return;
-    }
     setExporting(true);
     try {
       await runCasesPlanilhaExport(toast);
@@ -356,10 +334,6 @@ function CasesContent() {
   };
 
   const handleExportCSV = async () => {
-    if (!canExport) {
-      toast({ title: 'Modo visualização', description: 'Exportação bloqueada neste perfil.', variant: 'destructive' });
-      return;
-    }
     setExporting(true);
     try {
       const res = await exportCasesToCSVAction();
@@ -387,7 +361,6 @@ function CasesContent() {
     try {
       // Auditoria 3D: so DJEN (rapido)
       const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: false });
-      appendScanLog({ cnj: c.protocolo, motor: 'djen', ok: (res as any)?.success !== false });
       const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
         case: (res as any).case || c,
@@ -422,7 +395,6 @@ function CasesContent() {
     try {
       // Auditoria unificada: DataJud + DJEN (obrigatorio para Sugerir resposta)
       const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: false });
-      appendScanLog({ cnj: c.protocolo, motor: 'datajud+djen', ok: (res as any)?.success !== false });
       const movimentos = normalizeMovList((res as any).movimentos);
       const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       const caseData = (res as any).case || c;
@@ -609,10 +581,6 @@ function CasesContent() {
   };
 
   const copyScript = (text: string) => {
-    if (!canCopy) {
-      toast({ title: 'Modo visualização', description: 'Copiar está desabilitado neste perfil.', variant: 'destructive' });
-      return;
-    }
     navigator.clipboard.writeText(text);
     toast({ title: "Copiado" });
   };
@@ -719,19 +687,18 @@ function CasesContent() {
       const res = await transferCasesOwnerAction({ protocolos: list, novoOwnerAuthId: bulkOwnerId });
       if (res.success && res.updated > 0) {
         // Remove da lista local se não for mais "meu" (operador) ou atualiza created_by
-        {
-          const next = cases
-            .map((c: LegalCase) =>
+        setCases((prev) =>
+          prev
+            .map((c) =>
               list.includes(String(c.protocolo || ''))
-                ? ({ ...c, created_by: bulkOwnerId } as LegalCase)
+                ? ({ ...c, created_by: bulkOwnerId } as any)
                 : c
             )
-            .filter((c: LegalCase) => {
+            .filter((c) => {
               if (!isOperador) return true;
               return String((c as any).created_by || '') === String((profile as any)?.auth_user_id || '');
-            });
-          setCases(next);
-        }
+            })
+        );
         setSelectedProtos(new Set());
         toast({ title: 'Transferência em massa', description: res.message });
       } else {
@@ -765,17 +732,17 @@ function CasesContent() {
               (profile as any)?.auth_user_id || (profile as any)?.id,
               hojeBrasilYmd()
             ),
-            proximoPrazo: '',
             ultimoRetorno: hojeBrasilYmd(),
+            proximoPrazo: '',
           }
         : isoForm && (isAtendidoHoje(isoForm) || isAtendidoNestaSemana(isoForm))
           ? {
               ...formState,
+              ultimoRetorno: isoForm,
               ...patchAtendimentoComEdicao(
                 (profile as any)?.auth_user_id || (profile as any)?.id,
                 isoForm
               ),
-              ultimoRetorno: isoForm,
             }
           : { ...formState, ultimoRetorno: isoForm || formState.ultimoRetorno };
     if (editingCase) {
@@ -955,9 +922,8 @@ function CasesContent() {
       quick: quickFilter,
       advogado: lawyerFilter,
     });
-    const sorted = sortCasesByPrazo(base, sortPrazo);
-    return filtrarPorFase(sorted, filtrosFase);
-  }, [cases, search, quickFilter, lawyerFilter, sortPrazo, filtrosFase]);
+    return sortCasesByPrazo(base, sortPrazo);
+  }, [cases, search, quickFilter, lawyerFilter, sortPrazo]);
 
   // Lista paginada — só a aba /cases; não afeta dashboard
   useEffect(() => {
@@ -1013,16 +979,18 @@ function CasesContent() {
             <Button
               variant="default"
               size="sm"
-              onClick={handleExportXlsx} disabled={exporting || !canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
+              onClick={handleExportXlsx}
+              disabled={exporting}
               className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-              {canExport ? "Exportar XLSX" : "Exportar (bloqueado)"}
+              Exportar XLSX
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExportCSV} disabled={exporting || !canExport} title={!canExport ? "Modo visualização: download bloqueado" : undefined}
+              onClick={handleExportCSV}
+              disabled={exporting}
               className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
             >
               {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
@@ -1059,7 +1027,6 @@ function CasesContent() {
           <div className="premium-card flex-1 flex flex-col overflow-hidden border-none bg-white">
             <div className="p-4 border-b border-border/30 flex flex-col lg:flex-row items-center justify-between gap-4">
               <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
-              <div className="w-full px-4 sm:px-10 pb-2"><FaseFilterBar value={filtrosFase} onChange={setFiltrosFase} /></div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
                 <SelectTrigger className="h-12 w-44 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
@@ -1086,7 +1053,6 @@ function CasesContent() {
                 <SelectTrigger className="h-12 w-52 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Ordenar prazo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="prioridade" className="font-black uppercase text-[10px]">Prioridade operacional</SelectItem>
-                  <SelectItem value="ops" className="font-black uppercase text-[10px]">Score ops (réplica / silêncio / BA)</SelectItem>
                       <SelectItem value="mais_vencido">Mais vencido → menos</SelectItem>
                   <SelectItem value="menos_vencido">Menos vencido → mais</SelectItem>
                   <SelectItem value="prazo_asc">Próximo prazo (crescente)</SelectItem>
