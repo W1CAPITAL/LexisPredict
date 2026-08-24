@@ -31,6 +31,14 @@ const PacmanTrollOverlay = dynamic(
   { ssr: false }
 );
 
+const LexisCommandPalette = dynamic(
+  () =>
+    import("@/components/sf-chrome/lexis-command-palette").then(
+      (m) => m.LexisCommandPalette
+    ),
+  { ssr: false }
+);
+
 const DesktopDownloadBanner = dynamic(
   () =>
     import("@/components/system/desktop-download-banner").then(
@@ -75,6 +83,7 @@ export function ClientChrome() {
       <AppUpdateBanner />
       <DesktopDownloadBanner />
       <PacmanTrollOverlay />
+      <LexisCommandPalette />
     </>
   );
 }
