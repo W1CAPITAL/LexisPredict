@@ -87,6 +87,7 @@ export default function ModelosPage() {
   const [selected, setSelected] = useState<ModeloPeca | null>(null);
   const [meta, setMeta] = useState<PecaMeta>({});
   const [preview, setPreview] = useState("");
+  const [outraInstituicao, setOutraInstituicao] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [importingPdf, setImportingPdf] = useState(false);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -106,10 +107,11 @@ export default function ModelosPage() {
     [categoria]
   );
 
-  const selectModelo = (m: ModeloPeca) => {
+    const selectModelo = (m: ModeloPeca) => {
     setSelected(m);
     setMeta({});
     setPreview("");
+    setOutraInstituicao(false);
   };
 
   const atualizarMeta = (k: keyof PecaMeta, v: string) => {
@@ -166,15 +168,20 @@ export default function ModelosPage() {
     }
   };
 
-  const gerar = () => {
+    const gerar = () => {
     if (!selected) return;
-    const issues = validatePecaMeta(selected, meta, { strictRequired: true });
+    const issues = validatePecaMeta(selected, meta, { strictRequired: false });
+    const text = renderModelo(selected.id, meta) || "";
+    setPreview(text);
     if (issues.length) {
       toast({
-        title: "Complete os dados",
+        title: "Prévia gerada (revise os campos)",
         description: issues[0].message,
-        variant: "destructive",
       });
+    } else {
+      toast({ title: "Prévia gerada", description: selected.titulo });
+    }
+  };
       // ainda mostra prévia para o usuário ver o que falta
     }
     const text = renderModelo(selected.id, meta) || "";
@@ -351,6 +358,43 @@ export default function ModelosPage() {
                           {CAMPOS_LABEL[k]}
                         </Label>
                         {k === "banco" ? (
+  <div className="space-y-2">
+    <select
+      value={
+        outraInstituicao ||
+        (meta.banco && !BANCOS_COBERTOS.includes(meta.banco))
+          ? "Outra instituição financeira"
+          : meta.banco || ""
+      }
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v === "Outra instituição financeira") {
+          setOutraInstituicao(true);
+          atualizarMeta("banco", "");
+        } else {
+          setOutraInstituicao(false);
+          atualizarMeta("banco", v);
+        }
+      }}
+      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+    >
+      <option value="">Selecione…</option>
+      {BANCOS_COBERTOS.map((b) => (
+        <option key={b} value={b}>
+          {b}
+        </option>
+      ))}
+    </select>
+    {(outraInstituicao ||
+      (meta.banco && !BANCOS_COBERTOS.includes(meta.banco))) && (
+      <Input
+        value={meta.banco || ""}
+        onChange={(e) => atualizarMeta("banco", e.target.value)}
+        placeholder="Digite o nome da instituição financeira"
+      />
+    )}
+  </div>
+) : k === "resumo" ? (
                           <select
                             value={meta.banco || ""}
                             onChange={(e) => atualizarMeta("banco", e.target.value)}
@@ -386,9 +430,20 @@ export default function ModelosPage() {
                     )}
                   </div>
 
-                  {preview && (
-                    <Textarea readOnly value={preview} rows={18} className="font-serif text-xs leading-relaxed whitespace-pre-wrap" />
-                  )}
+                 {preview !== "" && (
+  <div className="space-y-1.5">
+    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+      Texto da peça (100% editável)
+    </Label>
+    <Textarea
+      value={preview}
+      onChange={(e) => setPreview(e.target.value)}
+      rows={20}
+      className="font-serif text-xs leading-relaxed whitespace-pre-wrap"
+      placeholder="Gere o texto ou escreva livremente aqui…"
+    />
+  </div>
+)}
                 </CardContent>
               </Card>
             )}
