@@ -56,7 +56,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: '#333333',
   },
-  /** Primeira linha de parágrafo com recuo (~3cm ≈ 85pt no texto já com margem) */
   para: {
     fontFamily: 'Helvetica',
     fontSize: 12,
@@ -74,7 +73,6 @@ const styles = StyleSheet.create({
     color: '#111111',
     marginBottom: 12,
   },
-  /** Rótulos Outorgante / Poderes etc. — negrito no início */
   labelLine: {
     fontFamily: 'Helvetica',
     fontSize: 12,
@@ -105,7 +103,8 @@ const styles = StyleSheet.create({
     color: '#111111',
   },
   signBlock: {
-    marginTop: 12,
+    marginTop: 24,
+    marginBottom: 8,
     alignItems: 'center',
   },
   signLine: {
@@ -146,7 +145,7 @@ const styles = StyleSheet.create({
 });
 
 const LABEL_RE =
-  /^(Outorgante|Outorgado\(s\)|Outorgado|Objeto|Poderes|Poderes Excepcionais|Poderes Específicos|Finalidade|Substabelecente|Substabelecido|Notificante|Proponente|Reclamante|Reclamado|DOS FATOS|DO DIREITO|DOS PEDIDOS|PROPOSTA|REF\.)\s*:/i;
+  /^(Outorgante|Outorgado\(s\)|Outorgado|Objeto|Poderes|Poderes Excepcionais|Poderes Específicos|Finalidade|Substabelecente|Substabelecido|Notificante|Proponente|Reclamante|Reclamado|DOS FATOS|DO DIREITO|DOS PEDIDOS|PROPOSTA|REF\.|Observações)\s*:/i;
 
 function isMainTitle(line: string): boolean {
   const s = line.trim();
@@ -157,15 +156,38 @@ function isMainTitle(line: string): boolean {
 }
 
 function isLocalData(line: string): boolean {
-  return /,\s*\d{1,2}\/\d{1,2}\/\d{4}\.?$/.test(line.trim()) || /^\[CIDADE\]/i.test(line.trim());
+  const s = line.trim();
+  // 24/08/2026 ou "São Paulo - SP, 24 de agosto de 2026."
+  if (/,\s*\d{1,2}\/\d{1,2}\/\d{4}\.?$/.test(s)) return true;
+  if (/\d{1,2}\s+de\s+[a-zçãéôõáíú]+\s+de\s+\d{4}\.?$/i.test(s)) return true;
+  if (/^\[CIDADE\]/i.test(s)) return true;
+  return false;
+}
+
+function isSignRole(line: string): boolean {
+  return /^(Outorgante|Proponente|Notificante|Requerente|Substabelecente)$/i.test(line.trim());
 }
 
 function isSignName(line: string, index: number, total: number): boolean {
-  if (index < total - 6) return false;
+  // Assinatura só no final do documento
+  if (index < total - 8) return false;
   const s = line.trim();
   if (/^_{5,}/.test(s)) return true;
-  if (s === s.toUpperCase() && s.length > 3 && s.length < 80 && !s.includes('OAB')) return true;
-  if (/^(Outorgante|Proponente|Notificante|Requerente|Substabelecente)$/i.test(s)) return true;
+  if (
+    s === s.toUpperCase() &&
+    s.length > 3 &&
+    s.length < 80 &&
+    !s.includes('OAB') &&
+    !/REVOGA/i.test(s) &&
+    !/PROCURA/i.test(s) &&
+    !/HABILITA/i.test(s) &&
+    !/SUBSTABELE/i.test(s) &&
+    !/NOTIFICA/i.test(s) &&
+    !/PETIÇÃO/i.test(s)
+  ) {
+    return true;
+  }
+  if (isSignRole(s)) return true;
   if (/^OAB\//i.test(s)) return true;
   return false;
 }
@@ -177,7 +199,7 @@ export function PecaTextoPDF({
 }) {
   const tituloDoc = (data?.titulo || 'PEÇA JURÍDICA').trim();
   const sub = (data?.sub || '').trim();
-  const raw = String(data?.texto || '').replace(/\r\n/g, '\n').trim();
+  const raw = String(data?.texto || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   const lines = raw ? raw.split('\n').map((l) => l.trimEnd()) : [];
 
   const nodes: React.ReactNode[] = [];
@@ -191,17 +213,28 @@ export function PecaTextoPDF({
       continue;
     }
 
+    // Bloco de assinatura: _____ + nome + cargo (centralizado)
     if (/^_{5,}/.test(line)) {
+      const name = (lines[i + 1] || '').trim();
+      const role = (lines[i + 2] || '').trim();
+      const hasName = !!(name && !/^_{5,}/.test(name) && !isSignRole(name));
+      const hasRole = !!(role && isSignRole(role));
+
       nodes.push(
-        <View key={`s-${i}`} style={styles.signBlock}>
+        <View key={`s-${i}`} style={styles.signBlock} wrap={false}>
           <View style={styles.signLine} />
+          {hasName ? <Text style={styles.signName}>{name}</Text> : null}
+          {hasRole ? <Text style={styles.signRole}>{role}</Text> : null}
         </View>
       );
-      i++;
+
+      i += 1; // consome _____
+      if (hasName) i += 1;
+      if (hasRole) i += 1;
       continue;
     }
 
-    if (isMainTitle(line) && i < 4) {
+    if (isMainTitle(line) && i < 6) {
       nodes.push(
         <Text key={`t-${i}`} style={styles.titleLine}>
           {line}
@@ -222,7 +255,7 @@ export function PecaTextoPDF({
     }
 
     if (isSignName(line, i, n)) {
-      const roleLike = /^(Outorgante|Proponente|Notificante|Requerente|Substabelecente)$/i.test(line);
+      const roleLike = isSignRole(line);
       const oabLike = /^OAB\//i.test(line);
       nodes.push(
         <Text
@@ -250,7 +283,7 @@ export function PecaTextoPDF({
       continue;
     }
 
-    // Lista a) b) c)
+    // Lista a) b) c) ou "Requer:"
     if (/^[a-c]\)\s/.test(line) || /^Requer:$/i.test(line)) {
       nodes.push(
         <Text key={`p-${i}`} style={styles.paraNoIndent}>
