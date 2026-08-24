@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './force-contrast.css';
 import '@/styles/lexis-responsive.css';
+import '@/styles/glass-liquid.css';
+import './lex-animations.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';

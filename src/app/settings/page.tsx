@@ -519,16 +519,26 @@ export default function SettingsPage() {
         <ThemeToggle />
       </div>
       <main className="flex-1 flex flex-col h-screen overflow-hidden glass-panel">
-        <header className="h-16 border-b border-border bg-background/40 backdrop-blur-xl flex items-center justify-between px-8 shrink-0">
-          <div className="flex items-center gap-4">
-             <h1 className="font-black text-sm tracking-[0.2em] uppercase">Gabinete Mission Control</h1>
+        <header className="shrink-0 border-b p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border-2 border-primary flex items-center justify-center">
+              <Settings className="text-primary" size={20} />
+            </div>
+            <div>
+              <h1 className="text-sm font-black uppercase tracking-widest">
+                Configuracoes
+              </h1>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase">
+                Personalize seu gabinete juridico
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {isSuperadmin && (
               <Button asChild variant="outline" size="sm" className="h-9 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-primary/50">
                 <Link href="/ops">
                   <Database size={12} className="mr-2" />
-                  Operações de dados
+                  Operacoes de dados
                 </Link>
               </Button>
             )}
@@ -547,26 +557,26 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             {/* spacer no: injeta acima do grid */}
             <aside className="space-y-4">
-              <section className="p-6 border border-border rounded-lg bg-background/20 backdrop-blur-xl flex flex-col items-center text-center space-y-4 shadow-xl">
+              <section className="p-4 border border-border/60 rounded-xl bg-card/60 backdrop-blur-xl flex flex-col items-center text-center space-y-3">
                  <div className="relative group">
-                    <Avatar className="w-24 h-24 border-4 border-primary/20">
+                    <Avatar className="w-20 h-20 border-4 border-primary/20 shadow-lg shadow-primary/10">
                        <AvatarImage src={profile?.avatar_url || ''} />
-                       <AvatarFallback className="bg-black text-primary font-black text-xl">{profile?.nome?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                       <AvatarFallback className="bg-primary/10 text-primary font-black text-lg">{profile?.nome?.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <button onClick={() => userAvatarInputRef.current?.click()} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                       {isUploading ? <Loader2 className="animate-spin" /> : <Camera size={24} />}
+                    <button onClick={() => userAvatarInputRef.current?.click()} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
+                       {isUploading ? <Loader2 className="animate-spin" size={20} /> : <Camera size={20} />}
                     </button>
                     <input type="file" className="hidden" ref={userAvatarInputRef} onChange={handleUserAvatarUpload} accept="image/*" />
                  </div>
                  <div>
-                    <p className="font-black text-xs uppercase">{profile?.nome}</p>
+                    <p className="font-black text-xs uppercase tracking-wide">{profile?.nome}</p>
                     <p className="text-[9px] font-bold text-muted-foreground uppercase">{profile?.cargo}</p>
                  </div>
               </section>
 
               <nav className="space-y-1">
                 <NavButton active={activeTab === 'Conta'} onClick={() => setActiveTab('Conta')} icon={<KeyRound size={14}/>} label="Conta e senha" />
-                <NavButton active={activeTab === 'Menu'} onClick={() => setActiveTab('Menu')} icon={<Layout size={14}/>} label="Menu lateral" />
+                <NavButton active={activeTab === 'Personalizacao'} onClick={() => setActiveTab('Personalizacao')} icon={<Wand2 size={14}/>} label="Personalizacao" />
                 <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
                 <NavButton active={activeTab === 'Banca'} onClick={() => setActiveTab('Banca')} icon={<Gavel size={14}/>} label="Banca de Advogados" />
                 <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
@@ -679,8 +689,198 @@ export default function SettingsPage() {
               )}
 
               {activeTab === 'Menu' && (
-                <div className="max-w-2xl">
+                <div className="max-w-2xl space-y-6 animate-in fade-in duration-500">
+                  <div className="flex items-center gap-2">
+                    <Layout size={14} className="text-primary" />
+                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Personalizacao do Menu Lateral</Label>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Organize os itens do menu lateral. Arraste para reordenar, oculte ou mostre conforme sua necessidade.
+                  </p>
                   <NavLayoutPanel />
+                </div>
+              )}
+
+              {activeTab === 'Personalizacao' && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                  <div className="flex items-center gap-2">
+                    <Wand2 size={14} className="text-primary" />
+                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Centro de Personalizacao</Label>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Configure a aparencia do seu gabinete juridico. Alteracoes aplicam em tempo real.
+                  </p>
+
+                  {/* Quick Theme Presets */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Palette size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Temas Rapidos</Label>
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                      {AUTHORITY_PRESETS.map((p) => {
+                        const light = getPresetColors(p, 'light');
+                        const dark = getPresetColors(p, 'dark');
+                        const active = bgColor === light.background || bgColor === dark.background;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              applyPresetById(p.id);
+                              setBgColor(light.background);
+                              setBgSecondaryColor(light.bgSecondary);
+                              setFontColor(light.foreground);
+                              setFontMutedColor(light.fontMuted);
+                              setPrimaryColor(light.primary);
+                              setAccentColor(light.accent);
+                              setRadius(p.radius);
+                              toast({ title: `Tema ${p.name} Ativado` });
+                            }}
+                            className={cn(
+                              "p-3 border border-border hover:border-primary/50 transition-all flex flex-col items-center gap-2 bg-card rounded-xl",
+                              active && "border-primary shadow-md shadow-primary/10"
+                            )}
+                          >
+                            <div className="flex items-center gap-1">
+                              <div className="w-8 h-8 rounded-lg border border-border overflow-hidden" style={{ backgroundColor: light.background }}>
+                                <div className="w-full h-1/2" style={{ backgroundColor: light.primary }} />
+                              </div>
+                              <div className="w-8 h-8 rounded-lg border border-border overflow-hidden" style={{ backgroundColor: dark.background }}>
+                                <div className="w-full h-1/2" style={{ backgroundColor: dark.primary }} />
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-black uppercase tracking-widest">{p.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  {/* Glass Effects */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Layers size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Efeitos de Vidro</Label>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Ative efeitos de vidro em diferentes partes da interface.</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {([
+                        { key: "glassSidebar", label: "Sidebar / menu" },
+                        { key: "glassDialogs", label: "Modais (atender / editar)" },
+                        { key: "glassCards", label: "Cards e paineis" },
+                        { key: "glassTabs", label: "Abas e cabecalhos" },
+                      ] as const).map((item) => {
+                        const on = !!(uiPrefs as any)[item.key];
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={() => setUiPrefs(saveUiPrefs({ [item.key]: !on } as Partial<UiPrefs>))}
+                            className={cn(
+                              "flex items-center justify-between h-11 px-3 rounded-xl border text-[11px] font-semibold transition-all",
+                              on ? "border-primary bg-primary/10" : "border-border bg-background"
+                            )}
+                          >
+                            <span>{item.label}</span>
+                            <span className="text-[10px] uppercase font-black">{on ? "Vidro ON" : "Solido"}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  {/* Density & Font */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Type size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Densidade e Fonte</Label>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-[9px] font-bold uppercase">Densidade</Label>
+                        <select
+                          className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm"
+                          value={uiPrefs.density}
+                          onChange={(e) => setUiPrefs(saveUiPrefs({ density: e.target.value as any }))}
+                        >
+                          <option value="compact">Compacta</option>
+                          <option value="comfortable">Confortavel</option>
+                          <option value="wide">Larga</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[9px] font-bold uppercase">Tamanho da Fonte</Label>
+                        <select
+                          className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm"
+                          value={uiPrefs.fontScale}
+                          onChange={(e) => setUiPrefs(saveUiPrefs({ fontScale: e.target.value as any }))}
+                        >
+                          <option value="90">90% (Pequena)</option>
+                          <option value="100">100% (Normal)</option>
+                          <option value="110">110% (Grande)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Status Colors */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Cores de Status</Label>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Personalize as cores usadas para indicar status nos processos.</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label className="text-[9px] uppercase font-bold">Vencido</Label>
+                        <Input type="color" value={uiPrefs.colorVencido} onChange={(e) => setUiPrefs(saveUiPrefs({ colorVencido: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[9px] uppercase font-bold">E hoje</Label>
+                        <Input type="color" value={uiPrefs.colorHoje} onChange={(e) => setUiPrefs(saveUiPrefs({ colorHoje: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[9px] uppercase font-bold">B.A.</Label>
+                        <Input type="color" value={uiPrefs.colorBa} onChange={(e) => setUiPrefs(saveUiPrefs({ colorBa: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Sidebar Color */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Layout size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Cor da Sidebar</Label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="color"
+                        value={uiPrefs.sidebarHex || "#f3f4f6"}
+                        onChange={(e) => setUiPrefs(saveUiPrefs({ sidebarHex: e.target.value }))}
+                        className="w-16 h-10 p-1 cursor-pointer"
+                      />
+                      <Input
+                        value={uiPrefs.sidebarHex || "#f3f4f6"}
+                        onChange={(e) => setUiPrefs(saveUiPrefs({ sidebarHex: e.target.value }))}
+                        className="h-10 flex-1 font-mono text-[11px] uppercase"
+                        placeholder="#f3f4f6"
+                      />
+                    </div>
+                  </section>
+
+                  {/* Reset Button */}
+                  <section className="pt-4 border-t border-border/40">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 text-[10px] font-bold uppercase rounded-xl"
+                      onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}
+                    >
+                      <RefreshCcw size={12} className="mr-2" />
+                      Restaurar Padrao (tudo solido)
+                    </Button>
+                  </section>
                 </div>
               )}
 
@@ -688,7 +888,10 @@ export default function SettingsPage() {
                 <div className="space-y-10 animate-in fade-in duration-500">
                   <section className="space-y-6">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Authority Presets</Label>
+                      <div className="flex items-center gap-2">
+                        <Palette size={14} className="text-primary" />
+                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Temas Autoridade (Presets)</Label>
+                      </div>
                       <Button variant="ghost" onClick={handleApplyHardware} className="h-8 text-[10px] font-black uppercase hover:bg-primary hover:text-black">
                         <RefreshCcw size={12} className="mr-2" /> Sincronizar Tudo
                       </Button>
@@ -735,7 +938,10 @@ export default function SettingsPage() {
                   </section>
 
                   <section className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Aparencia e transparencia</Label>
+                    <div className="flex items-center gap-2">
+                      <Layers size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Aparencia e Transparencia</Label>
+                    </div>
                     <p className="text-[10px] text-muted-foreground">Padrao: tudo solido (legivel). Alteracoes aplicam na hora.</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {([
@@ -809,7 +1015,10 @@ export default function SettingsPage() {
                   <section className="space-y-4">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div>
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Cores do texto e fundo</Label>
+                        <div className="flex items-center gap-2">
+                          <Palette size={14} className="text-primary" />
+                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Cores do Texto e Fundo</Label>
+                        </div>
                         <p className="text-[10px] text-muted-foreground mt-1">Altere a cor das letras e clique em Aplicar.</p>
                       </div>
                       <Button type="button" onClick={handleApplyHardware} className="h-9 text-[10px] font-black uppercase bg-black text-white hover:bg-primary hover:text-black">
@@ -863,7 +1072,10 @@ export default function SettingsPage() {
                   </section>
 
                   <section className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera e contraste</Label>
+                    <div className="flex items-center gap-2">
+                      <Waves size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Atmosfera e Contraste</Label>
+                    </div>
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
                       Padrao: fundo e sidebar solidos (100%), blur 0, sem wallpaper.
                     </p>
@@ -897,7 +1109,10 @@ export default function SettingsPage() {
                   </section>
 
                   <section className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Cores de status</Label>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Cores de Status</Label>
+                    </div>
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold">Vencido</Label>
@@ -916,7 +1131,10 @@ export default function SettingsPage() {
 
                   <section className="space-y-4">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Wallpaper</Label>
+                      <div className="flex items-center gap-2">
+                        <Image size={14} className="text-primary" />
+                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Wallpaper</Label>
+                      </div>
                       {wallpaper ? (
                         <Button variant="ghost" size="sm" onClick={handleRemoveWallpaper} className="h-8 text-[9px] font-black uppercase text-red-500">
                           <X size={12} className="mr-1" /> Remover
@@ -961,8 +1179,8 @@ export default function SettingsPage() {
 
                   <section className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <Wand2 size={12} className="text-primary" />
-                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Botoes metalicos</Label>
+                      <Zap size={14} className="text-primary" />
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Botoes Metalicos</Label>
                     </div>
                     <div className="bg-card p-6 border border-border rounded-lg space-y-6">
                       <div className="flex items-center justify-between gap-4">
@@ -1347,9 +1565,19 @@ function EngineOption({ id, label, desc, status }: any) {
 
 function NavButton({ active, onClick, icon, label }: any) {
   return (
-    <Button variant="ghost" onClick={onClick} className={cn("w-full justify-start rounded-md font-bold uppercase text-[10px] tracking-widest h-12 mb-1 transition-all", active ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground hover:text-foreground hover:bg-background/20")}>
-      <span className="mr-4">{icon}</span> {label}
-    </Button>
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all duration-200",
+        active
+          ? "bg-primary/10 text-primary border border-primary/20 shadow-sm shadow-primary/10"
+          : "text-muted-foreground hover:text-foreground hover:bg-background/40 border border-transparent"
+      )}
+    >
+      <span className={cn("transition-colors", active ? "text-primary" : "text-muted-foreground")}>{icon}</span>
+      <span>{label}</span>
+      {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+    </button>
   );
 }
 

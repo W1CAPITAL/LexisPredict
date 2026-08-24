@@ -4,13 +4,199 @@
 
 :root {
   color-scheme: light;
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 html, body {
   height: 100%;
   background: #f4f4f6;
   color: #121214;
+  scroll-behavior: smooth;
 }
+
 * { box-sizing: border-box; }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #c8c8d0; border-radius: 8px; }
-:focus-visible { outline: 2px solid #5b5bd6; outline-offset: 2px; }
+
+/* ═══════ SCROLLBAR MODERNA ═══════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { 
+  background: linear-gradient(180deg, #c8c8d0, #a8a8b4); 
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #a0a0ac, #808088); }
+html { scrollbar-width: thin; scrollbar-color: #c8c8d0 transparent; }
+
+/* ═══════ FOCUS MODERNO ═══════ */
+:focus-visible { 
+  outline: 2px solid hsl(var(--primary, 217 91% 60%)); 
+  outline-offset: 2px;
+  border-radius: 4px;
+  transition: outline-color var(--transition-fast);
+}
+
+/* ═══════ SELECAO DE TEXTO ═══════ */
+::selection {
+  background: hsl(var(--primary, 217 91% 60%) / 0.2);
+  color: inherit;
+}
+
+/* ═══════ ANIMACOES GLOBAIS ═══════ */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ═══════ UTILITIES DE ANIMACAO ═══════ */
+.animate-fade-in { animation: fade-in 0.4s var(--transition-normal) forwards; }
+.animate-fade-in-scale { animation: fade-in-scale 0.3s var(--transition-normal) forwards; }
+.animate-slide-up { animation: slide-up 0.4s var(--transition-slow) forwards; }
+.animate-slide-in-right { animation: slide-in-right 0.3s var(--transition-normal) forwards; }
+.animate-pulse-subtle { animation: pulse-subtle 2s ease-in-out infinite; }
+.animate-shimmer { 
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+.animate-float { animation: float 3s ease-in-out infinite; }
+
+/* ═══════ STAGGER DELAYS ═══════ */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+
+/* ═══════ REDUCED MOTION ═══════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
+/* ═══════ HOVER LIFT ═══════ */
+.hover-lift {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* ═══════ GLOW EFFECT ═══════ */
+.glow-primary {
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.1), 0 0 20px -5px hsl(var(--primary) / 0.15);
+}
+.glow-primary:hover {
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.2), 0 0 30px -5px hsl(var(--primary) / 0.25);
+}
+
+/* ═══════ BADGE MODERNO ═══════ */
+.badge-glow {
+  position: relative;
+  overflow: hidden;
+}
+.badge-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.3) 50%, transparent 60%);
+  animation: shimmer 3s infinite;
+}
+
+/* ═══════ INPUT MODERNO ═══════ */
+input, textarea, select {
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 3px hsl(var(--primary, 217 91% 60%) / 0.1);
+}
+
+/* ═══════ SKELETON LOADING ═══════ */
+.skeleton {
+  background: linear-gradient(90deg, 
+    hsl(var(--muted, 210 40% 96%)) 25%, 
+    hsl(var(--muted, 210 40% 96%) / 0.5) 50%, 
+    hsl(var(--muted, 210 40% 96%)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, 
+    hsl(var(--muted, 217 33% 17%)) 25%, 
+    hsl(var(--muted, 217 33% 17%) / 0.5) 50%, 
+    hsl(var(--muted, 217 33% 17%)) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ═══════ TOOLTIP ═══════ */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 4px 10px;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  z-index: 50;
+}
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ═══════ PAGE TRANSITIONS ═══════ */
+.page-enter {
+  animation: fade-in-scale 0.3s var(--transition-normal) forwards;
+}

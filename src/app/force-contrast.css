@@ -1,4 +1,4 @@
-/* Contraste legível SEM bloquear fundo custom / wallpaper */
+/* Contraste legivel SEM bloquear fundo custom / wallpaper — Enhanced */
 
 html:not(.dark) .text-foreground,
 html.light .text-foreground,
@@ -12,7 +12,7 @@ html.light .text-muted-foreground {
   color: hsl(var(--muted-foreground, 215 16% 35%));
 }
 
-/* Só força fundo sólido quando NÃO há wallpaper */
+/* Fundo solido quando NAO ha wallpaper */
 html:not(.dark):not(.lexis-wallpaper-active) body,
 html.light:not(.lexis-wallpaper-active) body {
   color: hsl(var(--foreground, 222 47% 11%));
@@ -52,4 +52,43 @@ html.light [role="dialog"] {
 
 html.dark body {
   color: hsl(var(--foreground, 210 40% 98%));
+}
+
+/* ═══════ ENHANCED CONTRAST ═══════ */
+
+/* Hover states for interactive elements */
+html:not(.dark) button:hover,
+html:not(.dark) a:hover {
+  transition: opacity 150ms ease;
+}
+
+/* Badge contrast fix */
+html:not(.dark) .badge {
+  color: hsl(var(--foreground, 222 47% 11%));
+}
+
+/* Sidebar contrast */
+html:not(.dark) .sidebar-foreground {
+  color: hsl(var(--foreground, 222 47% 11%));
+}
+
+/* Input text contrast */
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select {
+  color: hsl(var(--foreground, 222 47% 11%));
+}
+
+/* Dark mode enhancements */
+html.dark .glass-panel {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+html.dark .glass-card {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Focus ring visibility */
+html.dark :focus-visible {
+  outline-color: hsl(var(--primary, 217 91% 60%));
 }

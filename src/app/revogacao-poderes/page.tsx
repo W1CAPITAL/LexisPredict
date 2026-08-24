@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Revogacao de poderes + substabelecimento
- * Fila 1 a 1 (como BA). Claude so na elegibilidade (nao no PDF).
- * CPF: flag exige CPF; autofill se achar no DJEN; opcao separada de preencher automatico.
+ * Revogacao de poderes — redesigned for clarity.
+ * Two modes:
+ *   1. Revogacao + Substabelecimento (default)
+ *   2. Apenas Revogacao (sem substabelecimento)
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -36,6 +37,9 @@ import {
   Play,
   Pause,
   Square,
+  FileText,
+  ArrowRight,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +75,7 @@ function sleep(ms: number, signal: { cancelled: boolean }) {
 }
 
 type QueueStatus = "idle" | "running" | "paused" | "done";
+type ModoRevogacao = "revogacao-substabelecimento" | "apenas-revogacao";
 
 export default function RevogacaoPoderesPage() {
   const { toast } = useToast();
@@ -83,11 +88,8 @@ export default function RevogacaoPoderesPage() {
   const [loadingBanca, setLoadingBanca] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [onlyElegiveis, setOnlyElegiveis] = useState(true);
-  /** Claude so para classificar elegibilidade na fila — nunca no PDF */
   const [useClaudeElegibilidade, setUseClaudeElegibilidade] = useState(false);
-  /** Exige CPF no PDF / formulario */
   const [requireCpf, setRequireCpf] = useState(false);
-  /** Se true, preenche CPF automaticamente quando DJEN trouxer */
   const [autoFillCpf, setAutoFillCpf] = useState(true);
   const [cpfByProtocolo, setCpfByProtocolo] = useState<Record<string, string>>({});
   const [emailByProtocolo, setEmailByProtocolo] = useState<Record<string, string>>({});
@@ -95,11 +97,13 @@ export default function RevogacaoPoderesPage() {
   const [enderecoByProtocolo, setEnderecoByProtocolo] = useState<Record<string, string>>({});
   const [bancoByProtocolo, setBancoByProtocolo] = useState<Record<string, string>>({});
   const [acaoByProtocolo, setAcaoByProtocolo] = useState<Record<string, string>>({});
-  /** Usuario escolhe se banco/acao entram no PDF */
   const [incluirBancoNoPdf, setIncluirBancoNoPdf] = useState(false);
   const [incluirAcaoNoPdf, setIncluirAcaoNoPdf] = useState(false);
   const [advNome, setAdvNome] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
+
+  // Modo principal: revogacao + substabelecimento OU apenas revogacao
+  const [modoRevogacao, setModoRevogacao] = useState<ModoRevogacao>("apenas-revogacao");
 
   const [qStatus, setQStatus] = useState<QueueStatus>("idle");
   const [qIndex, setQIndex] = useState(0);
@@ -108,15 +112,11 @@ export default function RevogacaoPoderesPage() {
   const itemsRef = useRef<RevogacaoCaseItem[]>([]);
   const cancelRef = useRef({ cancelled: false });
 
-  useEffect(() => {
-    statusRef.current = qStatus;
-  }, [qStatus]);
-  useEffect(() => {
-    indexRef.current = qIndex;
-  }, [qIndex]);
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
+  const somenteRevogacao = modoRevogacao === "apenas-revogacao";
+
+  useEffect(() => { statusRef.current = qStatus; }, [qStatus]);
+  useEffect(() => { indexRef.current = qIndex; }, [qIndex]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
 
   const addLog = (line: string) => {
     setLogs((prev) => [line, ...prev].slice(0, 80));
@@ -160,7 +160,6 @@ export default function RevogacaoPoderesPage() {
       setItems(res.items);
       setAdvNome(res.advogadoNome || "");
       setQIndex(0);
-      // Prefill a partir da carteira (Processos)
       const cpfMap: Record<string, string> = {};
       const emailMap: Record<string, string> = {};
       const civilMap: Record<string, string> = {};
@@ -280,7 +279,6 @@ export default function RevogacaoPoderesPage() {
     const list = itemsRef.current;
     let i = from;
     while (i < list.length) {
-      // pause/stop usam cancelRef (evita narrowing TS de statusRef === "paused")
       if (cancelRef.current.cancelled) {
         setQStatus("paused");
         statusRef.current = "paused";
@@ -321,7 +319,11 @@ export default function RevogacaoPoderesPage() {
   };
 
   const downloadOne = async (it: RevogacaoCaseItem) => {
-    if (!leavingId || !enteringId || leavingId === enteringId) {
+    if (!leavingId) {
+      toast({ title: "Selecione o advogado a revogar", variant: "destructive" });
+      return;
+    }
+    if (!somenteRevogacao && (!enteringId || leavingId === enteringId)) {
       toast({
         title: "Selecione dois advogados diferentes na banca",
         variant: "destructive",
@@ -345,7 +347,7 @@ export default function RevogacaoPoderesPage() {
         tribunal: it.tribunal,
         uf: it.uf,
         advogadoRevogarId: leavingId,
-        advogadoNovoId: enteringId,
+        advogadoNovoId: somenteRevogacao ? undefined : enteringId,
         ultimoAdvogadoDetectado: it.ultimoAdvogadoDetectado,
         advogadosDjen: (it as any).advogadosDjen || [],
         viabilidade: (it as any).viabilidade || null,
@@ -361,6 +363,7 @@ export default function RevogacaoPoderesPage() {
         classeAcao: acaoByProtocolo[it.protocolo] || it.classe_acao || null,
         incluirPartePassivaNoPdf: incluirBancoNoPdf,
         incluirAcaoNoPdf: incluirAcaoNoPdf,
+        somenteRevogacao,
       });
       if (!res.success || !(res as any).base64) {
         toast({
@@ -396,6 +399,7 @@ export default function RevogacaoPoderesPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden glass-panel">
+        {/* ═══════ HEADER ═══════ */}
         <header className="shrink-0 border-b p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-primary/10 border-2 border-primary flex items-center justify-center">
@@ -403,101 +407,189 @@ export default function RevogacaoPoderesPage() {
             </div>
             <div>
               <h1 className="text-sm font-black uppercase tracking-widest">
-                Revogacao + Substabelecimento
+                Revogacao de Poderes
               </h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                Fila 1 a 1 · CPF/e-mail da carteira · banco/acao opcionais no PDF
+                {somenteRevogacao
+                  ? "Apenas revogacao · Fila 1 a 1 · CPF/e-mail da carteira"
+                  : "Revogacao + Substabelecimento · Fila 1 a 1 · CPF/e-mail da carteira"}
               </p>
             </div>
           </div>
         </header>
 
-        <div className="shrink-0 p-4 border-b grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 bg-card/40">
-          <div>
-            <Label className="text-[9px] font-black uppercase">Advogado a revogar</Label>
-            <Select value={leavingId} onValueChange={setLeavingId} disabled={loadingBanca}>
-              <SelectTrigger className="h-11 rounded-xl mt-1">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {banca.map((a) => (
-                  <SelectItem key={a.id} value={String(a.id)}>
-                    {a.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[9px] font-black uppercase">Novo patrono</Label>
-            <Select value={enteringId} onValueChange={setEnteringId} disabled={loadingBanca}>
-              <SelectTrigger className="h-11 rounded-xl mt-1">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {banca.map((a) => (
-                  <SelectItem key={a.id} value={String(a.id)}>
-                    {a.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[9px] font-black uppercase">Filtro UF</Label>
-            <Select value={uf} onValueChange={setUf}>
-              <SelectTrigger className="h-11 rounded-xl mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {UFS.map((u) => (
-                  <SelectItem key={u} value={u}>
-                    {u}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <Button metal={false}
-              onClick={runScan}
-              disabled={loadingScan}
-              className="h-11 rounded-xl font-black uppercase text-[10px]"
-            >
-              {loadingScan ? (
-                <Loader2 className="animate-spin mr-2" size={14} />
-              ) : (
-                <Search className="mr-2" size={14} />
+        {/* ═══════ MODO DE OPERACAO ═══════ */}
+        <div className="shrink-0 px-4 py-3 border-b bg-card/40">
+          <Label className="text-[9px] font-black uppercase mb-2 block">
+            Modo de operacao
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setModoRevogacao("revogacao-substabelecimento")}
+              className={cn(
+                "flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left",
+                modoRevogacao === "revogacao-substabelecimento"
+                  ? "border-primary bg-primary/5 shadow-md"
+                  : "border-border/40 hover:border-border/80"
               )}
-              Montar fila
-            </Button>
-            {qStatus === "idle" || qStatus === "done" ? (
-              <Button metal={false}
-                onClick={startQueue}
-                disabled={!items.length}
-                className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600"
+            >
+              <div
+                className={cn(
+                  "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                  modoRevogacao === "revogacao-substabelecimento"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                )}
               >
-                <Play className="mr-2" size={14} /> Fila 1 a 1
-              </Button>
-            ) : null}
-            {qStatus === "running" ? (
-              <Button metal={false} onClick={pauseQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
-                <Pause className="mr-2" size={14} /> Pausar
-              </Button>
-            ) : null}
-            {qStatus === "paused" ? (
-              <>
-                <Button metal={false} onClick={resumeQueue} className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600">
-                  <Play className="mr-2" size={14} /> Continuar
-                </Button>
-                <Button metal={false} onClick={stopQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
-                  <Square className="mr-2" size={14} /> Parar
-                </Button>
-              </>
-            ) : null}
+                {modoRevogacao === "revogacao-substabelecimento" ? (
+                  <Check size={16} />
+                ) : (
+                  <ArrowRight size={16} />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase">
+                  Revogacao + Substabelecimento
+                </p>
+                <p className="text-[9px] text-muted-foreground font-bold">
+                  Revoga advogado E transfere poderes para novo patrono
+                </p>
+              </div>
+            </button>
+            <button
+              onClick={() => setModoRevogacao("apenas-revogacao")}
+              className={cn(
+                "flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left",
+                modoRevogacao === "apenas-revogacao"
+                  ? "border-emerald-500 bg-emerald-500/5 shadow-md"
+                  : "border-border/40 hover:border-border/80"
+              )}
+            >
+              <div
+                className={cn(
+                  "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                  modoRevogacao === "apenas-revogacao"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-muted"
+                )}
+              >
+                {modoRevogacao === "apenas-revogacao" ? (
+                  <Check size={16} />
+                ) : (
+                  <FileText size={16} />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase">
+                  Apenas Revogacao
+                </p>
+                <p className="text-[9px] text-muted-foreground font-bold">
+                  Revoga advogado sem indicar substituto
+                </p>
+              </div>
+            </button>
           </div>
         </div>
 
+        {/* ═══════ FORMULARIO PRINCIPAL ═══════ */}
+        <div className="shrink-0 p-4 border-b bg-card/40">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div>
+              <Label className="text-[9px] font-black uppercase">Advogado a revogar</Label>
+              <Select value={leavingId} onValueChange={setLeavingId} disabled={loadingBanca}>
+                <SelectTrigger className="h-11 rounded-xl mt-1">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {banca.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!somenteRevogacao && (
+              <div>
+                <Label className="text-[9px] font-black uppercase">
+                  Novo patrono (substituto)
+                </Label>
+                <Select value={enteringId} onValueChange={setEnteringId} disabled={loadingBanca}>
+                  <SelectTrigger className="h-11 rounded-xl mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {banca.map((a) => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-[9px] font-black uppercase">Filtro UF</Label>
+              <Select value={uf} onValueChange={setUf}>
+                <SelectTrigger className="h-11 rounded-xl mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {UFS.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-2">
+              <Button
+                metal={false}
+                onClick={runScan}
+                disabled={loadingScan}
+                className="h-11 rounded-xl font-black uppercase text-[10px]"
+              >
+                {loadingScan ? (
+                  <Loader2 className="animate-spin mr-2" size={14} />
+                ) : (
+                  <Search className="mr-2" size={14} />
+                )}
+                Montar fila
+              </Button>
+              {qStatus === "idle" || qStatus === "done" ? (
+                <Button
+                  metal={false}
+                  onClick={startQueue}
+                  disabled={!items.length}
+                  className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600"
+                >
+                  <Play className="mr-2" size={14} /> Fila 1 a 1
+                </Button>
+              ) : null}
+              {qStatus === "running" ? (
+                <Button metal={false} onClick={pauseQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
+                  <Pause className="mr-2" size={14} /> Pausar
+                </Button>
+              ) : null}
+              {qStatus === "paused" ? (
+                <>
+                  <Button metal={false} onClick={resumeQueue} className="h-11 rounded-xl font-black uppercase text-[10px] bg-emerald-600">
+                    <Play className="mr-2" size={14} /> Continuar
+                  </Button>
+                  <Button metal={false} onClick={stopQueue} variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px]">
+                    <Square className="mr-2" size={14} /> Parar
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════ BARRA DE STATUS + OPCOES ═══════ */}
         <div className="shrink-0 px-4 py-2 flex flex-wrap items-center gap-3 border-b text-[11px]">
           <Badge variant="outline" className="font-black uppercase">
             {items.length} na fila
@@ -516,46 +608,68 @@ export default function RevogacaoPoderesPage() {
               Advogado: <strong>{advNome}</strong>
             </span>
           ) : null}
-          <label className="flex items-center gap-2 ml-auto cursor-pointer">
-            <input type="checkbox" checked={onlyElegiveis} onChange={(e) => setOnlyElegiveis(e.target.checked)} />
-            <span className="font-bold uppercase text-[9px]">So elegiveis</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={useClaudeElegibilidade}
-              onChange={(e) => setUseClaudeElegibilidade(e.target.checked)}
-            />
-            <span className="font-bold uppercase text-[9px]">Claude so elegibilidade</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={requireCpf} onChange={(e) => setRequireCpf(e.target.checked)} />
-            <span className="font-bold uppercase text-[9px]">Exigir CPF no PDF</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={autoFillCpf} onChange={(e) => setAutoFillCpf(e.target.checked)} />
-            <span className="font-bold uppercase text-[9px]">Autofill CPF (carteira/DJEN)</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={incluirBancoNoPdf} onChange={(e) => setIncluirBancoNoPdf(e.target.checked)} />
-            <span className="font-bold uppercase text-[9px]">Incluir banco no PDF</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={incluirAcaoNoPdf} onChange={(e) => setIncluirAcaoNoPdf(e.target.checked)} />
-            <span className="font-bold uppercase text-[9px]">Incluir acao no PDF</span>
-          </label>
-          <Button metal={false} size="sm" variant="ghost" className="rounded-xl" onClick={runScan}>
-            <RefreshCcw size={12} />
-          </Button>
+
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={onlyElegiveis} onChange={(e) => setOnlyElegiveis(e.target.checked)} />
+              <span className="font-bold uppercase text-[9px]">So elegiveis</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useClaudeElegibilidade}
+                onChange={(e) => setUseClaudeElegibilidade(e.target.checked)}
+              />
+              <span className="font-bold uppercase text-[9px]">Claude so elegibilidade</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={requireCpf} onChange={(e) => setRequireCpf(e.target.checked)} />
+              <span className="font-bold uppercase text-[9px]">Exigir CPF</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={autoFillCpf} onChange={(e) => setAutoFillCpf(e.target.checked)} />
+              <span className="font-bold uppercase text-[9px]">Autofill CPF</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={incluirBancoNoPdf} onChange={(e) => setIncluirBancoNoPdf(e.target.checked)} />
+              <span className="font-bold uppercase text-[9px]">Banco no PDF</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={incluirAcaoNoPdf} onChange={(e) => setIncluirAcaoNoPdf(e.target.checked)} />
+              <span className="font-bold uppercase text-[9px]">Acao no PDF</span>
+            </label>
+            <Button metal={false} size="sm" variant="ghost" className="rounded-xl" onClick={runScan}>
+              <RefreshCcw size={12} />
+            </Button>
+          </div>
         </div>
 
+        {/* ═══════ CONTEUDO PRINCIPAL ═══════ */}
         <div className="flex-1 overflow-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-2">
             {!items.length && !loadingScan ? (
               <div className="text-center py-16 text-muted-foreground text-sm">
-                Monte a fila (carteira do advogado) e rode a <strong>Fila 1 a 1</strong> para
-                consultar DJEN/DataJud. Claude, se marcado, so classifica elegibilidade — nao entra
-                no PDF.
+                <div className="flex justify-center mb-4">
+                  {somenteRevogacao ? (
+                    <FileText size={48} className="text-emerald-500/40" />
+                  ) : (
+                    <Scale size={48} className="text-primary/40" />
+                  )}
+                </div>
+                <p className="font-bold mb-2">
+                  {somenteRevogacao
+                    ? "Modo: Apenas Revogacao"
+                    : "Modo: Revogacao + Substabelecimento"}
+                </p>
+                <p className="text-xs">
+                  Monte a fila (carteira do advogado) e rode a <strong>Fila 1 a 1</strong> para
+                  consultar DJEN/DataJud.
+                </p>
+                <p className="text-xs mt-1">
+                  {somenteRevogacao
+                    ? "O PDF contera apenas a revogacao de poderes, sem indicar substituto."
+                    : "Selecione dois advogados diferentes: um para revogar e outro para substabelecer."}
+                </p>
               </div>
             ) : null}
             {visible.map((it) => (
@@ -594,7 +708,8 @@ export default function RevogacaoPoderesPage() {
                       {(it as any).viabilidade ? ` · ${(it as any).viabilidade}` : ""}
                     </p>
                   </div>
-                  <Button metal={false}
+                  <Button
+                    metal={false}
                     className="h-10 rounded-xl font-black uppercase text-[10px] bg-emerald-600 hover:bg-emerald-700"
                     disabled={!it.elegivel || downloading === it.protocolo}
                     onClick={() => downloadOne(it)}
@@ -604,7 +719,7 @@ export default function RevogacaoPoderesPage() {
                     ) : (
                       <Download className="mr-2" size={14} />
                     )}
-                    Baixar PDF
+                    {somenteRevogacao ? "Revogacao" : "Revogacao + Subst."}
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/30">

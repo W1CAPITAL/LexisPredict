@@ -1,82 +1,173 @@
-/* Microanimações de ícone — inspiração visual Grok (sutil, não agressiva) */
+/**
+ * LexisPredict — Advanced Animation System
+ * Performance-optimized, GPU-accelerated animations
+ */
 
-@keyframes lex-float {
+/* ═══════ PAGE TRANSITIONS ═══════ */
+@keyframes lex-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lex-slide-up {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lex-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes lex-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes lex-pop-in {
+  0% { opacity: 0; transform: scale(0.8); }
+  70% { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ═══════ MICRO-INTERACTIONS ═══════ */
+@keyframes lex-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes lex-bounce-subtle {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
 
-@keyframes lex-pulse-soft {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.06); }
+@keyframes lex-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-2deg); }
+  75% { transform: rotate(2deg); }
 }
 
-@keyframes lex-glow {
-  0%, 100% {
-    filter: drop-shadow(0 0 0 transparent);
-  }
-  50% {
-    filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.55));
-  }
+@keyframes lex-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
 }
 
-@keyframes lex-spin-slow {
+/* ═══════ LOADING STATES ═══════ */
+@keyframes lex-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-@keyframes lex-bounce-soft {
-  0%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-4px); }
-  60% { transform: translateY(-2px); }
+@keyframes lex-dots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60%, 100% { content: '...'; }
 }
 
-@keyframes lex-shimmer {
-  0% { opacity: 0.7; filter: brightness(1); }
-  50% { opacity: 1; filter: brightness(1.25); }
-  100% { opacity: 0.7; filter: brightness(1); }
+@keyframes lex-progress {
+  0% { width: 0%; }
+  100% { width: 100%; }
 }
 
-@keyframes lex-wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-8deg); }
-  75% { transform: rotate(8deg); }
+/* ═══════ UTILITY CLASSES ═══════ */
+.lex-animate-in {
+  animation: lex-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
 }
 
-.lex-anim-float {
-  animation: lex-float 2.4s ease-in-out infinite;
-}
-.lex-anim-pulse {
-  animation: lex-pulse-soft 2s ease-in-out infinite;
-}
-.lex-anim-glow {
-  animation: lex-glow 2.8s ease-in-out infinite;
-}
-.lex-anim-spin-slow {
-  animation: lex-spin-slow 8s linear infinite;
-}
-.lex-anim-bounce {
-  animation: lex-bounce-soft 1.8s ease-in-out infinite;
-}
-.lex-anim-shimmer {
-  animation: lex-shimmer 2.2s ease-in-out infinite;
-}
-.lex-anim-wiggle {
-  animation: lex-wiggle 1.5s ease-in-out infinite;
+.lex-animate-pop {
+  animation: lex-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  opacity: 0;
 }
 
+.lex-hover-bounce:hover {
+  animation: lex-bounce-subtle 0.4s ease;
+}
+
+.lex-hover-pulse:hover {
+  animation: lex-pulse 0.3s ease;
+}
+
+.lex-hover-wiggle:hover {
+  animation: lex-wiggle 0.4s ease;
+}
+
+.lex-hover-shake:hover {
+  animation: lex-shake 0.5s ease;
+}
+
+/* ═══════ STAGGER CHILDREN ═══════ */
+.lex-stagger > * {
+  opacity: 0;
+  animation: lex-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.lex-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.lex-stagger > *:nth-child(2) { animation-delay: 50ms; }
+.lex-stagger > *:nth-child(3) { animation-delay: 100ms; }
+.lex-stagger > *:nth-child(4) { animation-delay: 150ms; }
+.lex-stagger > *:nth-child(5) { animation-delay: 200ms; }
+.lex-stagger > *:nth-child(6) { animation-delay: 250ms; }
+.lex-stagger > *:nth-child(7) { animation-delay: 300ms; }
+.lex-stagger > *:nth-child(8) { animation-delay: 350ms; }
+
+/* ═══════ SKELETON LOADING ═══════ */
+.lex-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--muted));
+  border-radius: 8px;
+}
+.lex-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+/* ═══════ NUMBER COUNTER ═══════ */
+.lex-counter {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* ═══════ STATUS INDICATORS ═══════ */
+.lex-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+.lex-status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0.3;
+  animation: lex-pulse 2s ease-in-out infinite;
+}
+
+/* ═══════ REDUCED MOTION ═══════ */
 @media (prefers-reduced-motion: reduce) {
-  .lex-anim-float,
-  .lex-anim-pulse,
-  .lex-anim-glow,
-  .lex-anim-spin-slow,
-  .lex-anim-bounce,
-  .lex-anim-shimmer,
-  .lex-anim-wiggle {
+  .lex-animate-in,
+  .lex-animate-pop,
+  .lex-hover-bounce:hover,
+  .lex-hover-pulse:hover,
+  .lex-hover-wiggle:hover,
+  .lex-hover-shake:hover {
     animation: none !important;
+    opacity: 1;
+    transform: none;
   }
-}
-
-/* Hover nos itens do menu: anima só no hover se quiser mais sóbrio */
-.lex-nav-icon-hover:hover .lex-anim-on-hover {
-  animation: lex-glow 1.2s ease-in-out infinite;
+  .lex-stagger > * {
+    animation: none !important;
+    opacity: 1;
+  }
 }
