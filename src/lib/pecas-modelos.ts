@@ -351,26 +351,7 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
         `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabDeOab', '________')}`,
       ].join('\n'),
   },
-  {
-    id: 'revogacao-poderes',
-    categoria: 'Revogação',
-    titulo: 'Revogação de poderes',
-    descricao: 'Revoga mandato anteriormente conferido (art. 686 do Código Civil). Sem substabelecimento.',
-    campos: ['cliente', 'cpfCliente', 'advogado', 'oab', 'uf', 'protocolo', 'banco', 'resumo', 'cidade', 'data'],
-    render: (m) =>
-      [
-        'REVOGAÇÃO DE MANDATO / PODERES',
-        '',
-        `Outorgante: ${qualificaCliente(m)}.`,
-        '',
-        `Pelo presente, REVOGO, nos termos do art. 686 do Código Civil, os poderes anteriormente conferidos ao(à) advogado(a) ${nomeSeg(m, 'advogado', '[ADVOGADO]')}, OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'oab', '________')}${m.protocolo ? `, referentes ao processo/contrato n.º ${seg(m, 'protocolo', '')}` : ''}${m.banco ? `, mantido junto a ${seg(m, 'banco', '')}` : ''}, ficando sem efeito qualquer ato praticado por este(a) a partir da presente data, salvo os já regularmente praticados na vigência do mandato.`,
-        '',
-        m.resumo ? `Observações: ${m.resumo}` : '',
-        '',
-        localData(m),
-        assinatura(m, 'Outorgante'),
-      ].join('\n'),
-  },
+  id: 'revogacao-poderes'
   {
     id: 'peticao-informacoes',
     categoria: 'Petições',
