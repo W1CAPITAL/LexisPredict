@@ -108,7 +108,9 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  // Lote1: wide só Superadmin/Supervisor. Admin e demais = carteira própria.
+  // Cases/Tarefas/Dashboard: só Superadmin/Supervisor veem empresa toda.
+  // Operador e Administrador veem SOMENTE os processos em que created_by = auth_id.
+  // Visão completa da empresa = aba /processos (fetchCompanyProcessosAction com isAdmin=true).
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
   return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }

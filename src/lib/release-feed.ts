@@ -1,42 +1,30 @@
-/** Fonte única: notas, changelog e próximas. */
+/** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.68.0";
+export const RELEASE_VERSION = "9.69.0";
 
 export const RELEASE_CHANGELOG: string[] = [
-  "9.68 — Fila web: Admin vê empresa; operador com órfãos; empty state + limpar filtros/recarregar.",
-  "9.66 — Lote ops: prioridade 0–100 nas 5 telas do dia (carteira, processos, fila, relatório, dashboard). Réplica, silêncio 45/60d e BA real no mesmo número.",
-  "9.65 — Lote F: CPF/CNPJ reais, banco omitido sem placeholder, habilitação sem réu vazio.",
-  "9.64 — Lote E: régua com totais, forma de pagamento e visão admin.",
-  "9.63 — Lote D: atendimento em Processos entra no dashboard/fila/relatório; admin vê empresa; operador vê o que atendeu.",
-  "9.62 — Lote C: pular CNJ 8h, 429/403 em português, log+CSV, backoff no scanner.",
-  "9.61 — Lote B: filtro de fase na carteira, dono/próximo passo no painel, dias desde o ato do tribunal.",
-  "9.60 — Lote A: flags confiáveis (BA, mérito exclusivo, cumprimento, novidade, classe).",
-  "9.59 — B.A. só com classe + mandado; dono e próximo passo nas listas; régua do supervisor.",
-  "9.58 — Filtro de fase na carteira e dono/último ato na visão da empresa.",
-  "9.57 — Notas e avisos de atualização em tempo real; README da operação atual.",
-  "9.56 — Carteira com fase honesta, log de scan em Processos/Fila, caminho do dia.",
-  "9.55 — Fase + o que falta; régua só atrasados; log de scan.",
-  "Parados: filtro de fase, XLSX, scanner com pause/resume.",
-  "Pacotes por empresa (Máximo = todos).",
+  "9.69 — Cases/Tarefas: só meus processos. Processos da Empresa: todos, atendimento sem trocar dono.",
+  "9.68 — Contraste sólido + cor das letras na personalização.",
+  "9.67 — Changelog compacto no menu lateral.",
 ];
 
 export const RELEASE_NOTES: { id: string; titulo: string; corpo: string }[] = [
   {
     id: "n1",
-    titulo: "Filtro de fase",
-    corpo: "Em Processos, os mesmos chips de Parados: sem contestação, sem sentença, sem réplica.",
+    titulo: "Minha carteira",
+    corpo: "Em Processos e Fila você vê só os casos em que você é o responsável (created_by).",
   },
   {
     id: "n2",
-    titulo: "Dono do caso",
-    corpo: "Quem atendeu e o último ato aparecem na carteira e na visão da empresa.",
+    titulo: "Processos da empresa",
+    corpo: "Aba dedicada para ver e editar todos. Atendimento registra quem trabalhou, sem mudar o dono.",
   },
 ];
 
 export const RELEASE_PROXIMAS: { id: string; titulo: string; corpo: string }[] = [
   {
     id: "p1",
-    titulo: "Log no worker DataJud",
-    corpo: "Scan em nuvem entra no mesmo log CNJ · motor · hora.",
+    titulo: "Log de scan",
+    corpo: "Worker DataJud no mesmo feed CNJ · motor · hora.",
   },
 ];

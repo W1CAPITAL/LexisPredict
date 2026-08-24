@@ -125,45 +125,62 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!empresaId) return [];
 
   const context = await getUserContext();
-  const { auth_id, isSuperAdmin, isSupervisor, isAdministrador } = context as any;
-  // isAdmin=true: visão empresa (service role se disponível).
-  // Superadmin/Supervisor/Administrador em modo wide: carteira da empresa.
-  // NUNCA retornar [] só porque service role falhou — cai no client do usuário.
-  const useAdmin = isAdmin === true || !!(isSuperAdmin || isSupervisor);
-  let client: any = null;
-  if (useAdmin) {
-    try {
-      client = await getSupabaseAdmin();
-    } catch (e) {
-      console.error('[getStoredCasesForEmpresa] service role indisponível — fallback RLS', e);
-      client = null;
-    }
-  }
-  if (!client) client = supabase;
-  if (!client) return [];
+  const { auth_id, isSuperAdmin, isSupervisor } = context as any;
 
-  const fetchPages = async (cli: any, mode: 'all' | 'mine' | 'mine_or_orphan') => {
+  // isAdmin=true → aba Processos da Empresa: SEMPRE carteira completa
+  // Superadmin/Supervisor em Cases/Dashboard: carteira completa
+  // Operador/Admin em Cases/Tarefas: SOMENTE created_by = eu (não mistura atendido_por)
+  const wantAll = isAdmin === true || !!(isSuperAdmin || isSupervisor);
+
+  const mapRows = (rows: any[]): LegalCase[] => {
+    const out: LegalCase[] = [];
+    for (const item of rows || []) {
+      try {
+        out.push(toLegalCase(item));
+      } catch {
+        try {
+          const dados = (item?.dados && typeof item.dados === "object") ? item.dados : {};
+          out.push(
+            processarCaso({
+              ...dados,
+              id: String(item.id),
+              db_id: String(item.id),
+              created_by: item.created_by,
+              protocolo: item.protocolo_ref || dados.protocolo || dados.PROTOCOLO || "",
+              cliente: dados.cliente || dados.CLIENTE || "SEM NOME",
+              ultimoRetorno: item.ultimo_retorno ?? dados.ultimoRetorno ?? null,
+              atendido_por: item.atendido_por ?? dados.atendido_por ?? null,
+            })
+          );
+        } catch {
+          /* ignora linha irrecuperável */
+        }
+      }
+    }
+    return out;
+  };
+
+  const fetchPages = async (cli: any, mode: "all" | "mine") => {
     let allData: any[] = [];
     let page = 0;
     const pageSize = 1000;
     let hasMore = true;
     while (hasMore) {
       let query = cli
-        .from('processos')
-        .select('*')
-        .eq('empresa_id', empresaId)
-        .order('created_at', { ascending: false })
+        .from("processos")
+        .select("*")
+        .eq("empresa_id", empresaId)
+        .order("created_at", { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
-      if (mode === 'mine' && auth_id) {
-        query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
-      } else if (mode === 'mine_or_orphan' && auth_id) {
-        // Import legado sem dono + meus — evita fila web vazia
-        query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id},created_by.is.null`);
+      if (mode === "mine") {
+        if (!auth_id) return [];
+        // Apenas dono (created_by). Quem atendeu de outro não "herda" a carteira.
+        query = query.eq("created_by", auth_id);
       }
       const { data, error } = await query;
       if (error) throw error;
       if (data && data.length > 0) {
-        allData = [...allData, ...data];
+        allData = allData.concat(data);
         hasMore = data.length === pageSize;
         page++;
       } else {
@@ -174,70 +191,59 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   };
 
   try {
-    // Master / admin / supervisor: empresa inteira. Operador: seus; se vazio, órfãos; se ainda vazio, tenta all via service role.
-    const mode = useAdmin ? 'all' : (auth_id ? 'mine' : 'all');
-    let allData = await fetchPages(client, mode);
-
-    if (allData.length === 0 && mode === 'mine') {
-      try {
-        allData = await fetchPages(client, 'mine_or_orphan');
-      } catch { /* ignore */ }
-    }
-    // Último recurso: service role all (mesmo para operador, se a carteira sumiu por RLS)
-    if (allData.length === 0) {
+    if (wantAll) {
+      // 1) Service role (ignora RLS) — obrigatório para visão empresa
       try {
         const admin = await getSupabaseAdmin();
         if (admin) {
-          const wide = await fetchPages(admin, 'all');
-          if (wide.length > 0) {
-            if (mode === 'mine' && auth_id) {
-              allData = wide.filter((r: any) =>
-                !r.created_by || r.created_by === auth_id || r.atendido_por === auth_id
-              );
-              if (allData.length === 0) allData = wide; // melhor mostrar do que zerar
-            } else {
-              allData = wide;
-            }
-          }
+          const rows = await fetchPages(admin, "all");
+          if (rows.length > 0) return mapRows(rows);
         }
-      } catch { /* ignore */ }
-    }
-
-    // Fallback: se master/admin veio vazio (service key ausente / RLS), tenta service role
-    if (allData.length === 0 && useAdmin && client === supabase) {
-      try {
-        const admin = await getSupabaseAdmin();
-        if (admin) allData = await fetchPages(admin, 'all');
-      } catch { /* ignore */ }
-    }
-
-    return allData.map((item) => {
-      try {
-        return toLegalCase(item);
-      } catch {
-        return null;
+      } catch (e) {
+        console.error("[getStoredCasesForEmpresa] admin all", e);
       }
-    }).filter(Boolean) as LegalCase[];
-  } catch (error) {
-    console.error('[getStoredCasesForEmpresa]', error);
-    // Última tentativa: service role sem filtro
-    try {
-      const admin = await getSupabaseAdmin();
-      if (!admin) return [];
-      const allData = await fetchPages(admin, 'all');
-      return allData.map((item) => {
-        try { return toLegalCase(item); } catch { return null; }
-      }).filter(Boolean) as LegalCase[];
-    } catch {
+      // 2) Client do usuário (RLS)
+      try {
+        if (supabase) {
+          const rows = await fetchPages(supabase, "all");
+          if (rows.length > 0) return mapRows(rows);
+        }
+      } catch (e) {
+        console.error("[getStoredCasesForEmpresa] user all", e);
+      }
       return [];
     }
+
+    // Operador: só os meus
+    if (!auth_id) return [];
+
+    try {
+      if (supabase) {
+        const rows = await fetchPages(supabase, "mine");
+        if (rows.length > 0) return mapRows(rows);
+      }
+    } catch (e) {
+      console.error("[getStoredCasesForEmpresa] user mine", e);
+    }
+
+    // Bypass RLS só para listar OS MEUS (created_by), nunca a empresa toda
+    try {
+      const admin = await getSupabaseAdmin();
+      if (admin) {
+        const rows = await fetchPages(admin, "mine");
+        if (rows.length > 0) return mapRows(rows);
+      }
+    } catch (e) {
+      console.error("[getStoredCasesForEmpresa] admin mine", e);
+    }
+
+    return [];
+  } catch (error) {
+    console.error("[getStoredCasesForEmpresa]", error);
+    return [];
   }
 }
 
-/**
- * Página da carteira (para Carteira/Supervisão com 1200+ processos):
- * busca UM lote por vez no servidor, evitando travar a UI.
- */
 export async function getStoredCasesPageForEmpresa(
   empresaId: string,
   limit = 250,
@@ -245,7 +251,10 @@ export async function getStoredCasesPageForEmpresa(
   isAdmin = false
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
-  const client = isAdmin ? await getSupabaseAdmin() : supabase;
+  let client: any = supabase;
+  if (isAdmin) {
+    try { client = await getSupabaseAdmin(); } catch { client = supabase; }
+  }
   if (!client) return [];
 
   try {
@@ -259,8 +268,9 @@ export async function getStoredCasesPageForEmpresa(
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
+    // Mesma regra: operador só vê created_by = eu
     if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
-      query = query.or(`created_by.eq.${auth_id},atendido_por.eq.${auth_id}`);
+      query = query.eq('created_by', auth_id);
     }
 
     const { data, error } = await query;

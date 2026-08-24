@@ -106,7 +106,7 @@ export function SystemNotesPanel({ collapsed = false }: Props) {
       </button>
 
       {open && (
-        <div className="mt-1 max-h-[min(48vh,340px)] overflow-y-auto overscroll-contain rounded-lg border border-sidebar-border/40 bg-sidebar-accent/20 px-2 py-2 space-y-3">
+        <div className="mt-1 max-h-[min(28vh,220px)] overflow-y-auto overscroll-contain rounded-lg border border-sidebar-border/40 bg-sidebar-accent/20 px-2 py-2 space-y-3">
           <p className="px-1 text-[8px] font-medium uppercase tracking-wider text-sidebar-foreground/35">
             Em vigor
           </p>
@@ -131,7 +131,7 @@ export function SystemNotesPanel({ collapsed = false }: Props) {
             Log de atualização
           </p>
           <ul className="space-y-1 px-1">
-            {log.slice(0, 8).map((line, i) => (
+            {log.slice(0, 3).map((line, i) => (
               <li
                 key={i}
                 className="text-[9px] leading-snug text-sidebar-foreground/55 pl-2 border-l border-sidebar-border/40"
@@ -144,7 +144,7 @@ export function SystemNotesPanel({ collapsed = false }: Props) {
           <p className="px-1 text-[8px] text-sidebar-foreground/35">
             Histórico interno {formatChangelogDate(latest.date)} · app {APP_VERSION}
           </p>
-          {APP_CHANGELOG.slice(0, 3).map((item) => (
+          {APP_CHANGELOG.slice(0, 2).map((item) => (
             <p key={item.version} className="px-1 text-[8px] text-sidebar-foreground/40">
               v{item.version} · {item.title}
             </p>

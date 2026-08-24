@@ -120,7 +120,7 @@ export function AppUpdateBanner() {
             </div>
             {changelog.length > 0 && (
               <ul className="space-y-1.5 rounded-xl border border-border/60 bg-muted/30 p-3 text-xs">
-                {changelog.map((line, i) => (
+                {changelog.slice(0, 5).map((line, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="text-primary font-black shrink-0">•</span>
                     <span>{line}</span>
