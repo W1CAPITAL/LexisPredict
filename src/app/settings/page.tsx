@@ -72,8 +72,9 @@ import {
   loadVisualStateFromStorage,
   saveWallpaperFile,
   persistOpacity,
+  forceSolidAtmosphere,
 } from '@/lib/visual-hardware';
-import { loadUiPrefs, saveUiPrefs, type UiPrefs, UI_PREFS_DEFAULT } from "@/lib/ui-prefs";
+import { loadUiPrefs, saveUiPrefs, resetUiSolid, type UiPrefs, UI_PREFS_DEFAULT } from "@/lib/ui-prefs";
 import {
   getMetalPreferences,
   applyMetalPreferences,
@@ -779,7 +780,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <Button type="button" variant="outline" className="h-9 text-[10px] font-bold uppercase"
-                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}>
+                        onClick={() => { setUiPrefs(resetUiSolid()); forceSolidAtmosphere(); toast({ title: 'Contraste solido aplicado' }); }}>
                         Resetar (tudo solido)
                       </Button>
                     </div>
@@ -892,7 +893,7 @@ export default function SettingsPage() {
                         type="button"
                         variant="ghost"
                         className="h-9 text-[10px] font-bold uppercase"
-                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}
+                        onClick={() => { setUiPrefs(resetUiSolid()); forceSolidAtmosphere(); toast({ title: 'Contraste solido aplicado' }); }}
                       >
                         Resetar personalização
                       </Button>

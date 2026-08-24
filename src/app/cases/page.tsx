@@ -1,7 +1,8 @@
 "use client";
 
-import { PrazoCpcBadge } from '@/components/ops/prazo-cpc-badge';
-import { AtividadesChecklist } from '@/components/ops/atividades-checklist';
+import { AtendimentoActions } from '@/components/ops/atendimento-actions';
+import { PublicacaoDjenBlock } from '@/components/ops/publicacao-djen';
+import { mensagemRapidaCliente } from '@/lib/mensagem-rapida';
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 
@@ -69,6 +70,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
 import { linhaFase, linhaDonoAto, linhaDonoPasso, diasDesdeTribunal } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
+import { ProtocoloChip } from '@/components/ops/protocolo-chip';
 import { FaseFilterBar, filtrarPorFase } from '@/components/cases/fase-filter-bar';
 import type { FiltroFaseParado } from '@/lib/processos-parados';
 import { appendScanLog } from '@/lib/scan-event-log';
@@ -143,8 +145,16 @@ const CaseRow = React.memo(({
             showAtividades={false}
             className="!p-0 !border-0 !bg-transparent !shadow-none mt-0.5"
           />
-          <PrazoCpcBadge caseData={c} className="mt-1" />
-          <AtividadesChecklist caseData={c} className="mt-1" />
+          <PublicacaoDjenBlock caseData={c} className="mt-2" />
+          <div className="mt-2 rounded-lg border border-border bg-background p-2.5 space-y-2 shadow-sm">
+            <p className="text-[9px] font-semibold text-muted-foreground">Atendimento rápido (1→2→3)</p>
+            <AtendimentoActions
+              compact
+              telefone={c.telefone}
+              mensagem={mensagemRapidaCliente(c)}
+              onMarkContacted={() => onLogReturn(c)}
+            />
+          </div>
              {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <button
@@ -1174,7 +1184,7 @@ function CasesContent() {
         </div>
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
+          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl opacity-100 p-0 overflow-hidden h-[90vh] flex flex-col">
             <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
               <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3">
                 <FileSearch className="text-primary" /> Auditoria Unificada (Audit 3D)
@@ -1338,7 +1348,7 @@ function CasesContent() {
         </Dialog>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
-          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent className="sm:max-w-[480px] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl opacity-100 h-[90vh] overflow-hidden p-0 flex flex-col">
             <form className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
                 <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle>
@@ -1373,7 +1383,7 @@ function CasesContent() {
         </Dialog>
 
         <Dialog open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if (!open) setEditingCase(null); }}>
-          <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl p-0 h-[90vh] flex flex-col overflow-hidden">
+          <DialogContent className="sm:max-w-[600px] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl opacity-100 p-0 h-[90vh] flex flex-col overflow-hidden">
             <form onSubmit={handleSaveCase} className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
                 <DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2">

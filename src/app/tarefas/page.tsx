@@ -1,7 +1,10 @@
 "use client";
 
-import { PrazoCpcBadge } from '@/components/ops/prazo-cpc-badge';
-import { AtividadesChecklist } from '@/components/ops/atividades-checklist';
+import { AtendimentoActions } from '@/components/ops/atendimento-actions';
+import { PublicacaoDjenBlock } from '@/components/ops/publicacao-djen';
+import { mensagemRapidaCliente } from '@/lib/mensagem-rapida';
+import { ProtocoloChip } from '@/components/ops/protocolo-chip';
+import { descreverPrazoForense } from '@/lib/calendario-tj';
 import { useAdmin } from '@/hooks/use-admin';
 
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
@@ -146,7 +149,7 @@ export default function TarefasPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   // filtros persistidos entre abas
-  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'prazo_fatal' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
@@ -644,12 +647,6 @@ const handleSaveAttendance = async () => {
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
-        if (filaFiltro === 'prazo_fatal') {
-          return g.cases.some((c: any) => {
-            const st = String(c.status || '');
-            return st === 'Vencido' || st === 'É Hoje' || st === 'Caso Crítico' || st === 'Atenção';
-          });
-        }
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
         if (filaFiltro === 'problematicos') return g.cases.some((c: any) => isCasoProblematico(c, baSet)) || g.hasBA || g.hasClosedCourt || g.hasUpdate;
@@ -902,7 +899,6 @@ const handleSaveAttendance = async () => {
                    <SelectContent className="bg-white border-2 border-black rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
                       <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
-                      <SelectItem value="prazo_fatal" className="font-black uppercase text-[10px]">Prazo fatal</SelectItem>
                       <SelectItem value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
                       <SelectItem value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
                       <SelectItem value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
@@ -924,7 +920,6 @@ const handleSaveAttendance = async () => {
               { id: 'tratamento', label: 'Críticos em tratamento' },
               { id: 'blacklist', label: 'Blacklist' },
               { id: 'novidade', label: 'Novidades' },
-              { id: 'prazo_fatal', label: 'Prazo fatal' },
               { id: 'ba', label: 'B.A.' },
               { id: 'replica', label: 'Réplica' },
               { id: 'silencio', label: 'Silêncio 45d' },
@@ -1040,7 +1035,7 @@ const handleSaveAttendance = async () => {
         </div>
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
-          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
+          <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col opacity-100">
             <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
               <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
             </DialogHeader>
@@ -1141,7 +1136,7 @@ const handleSaveAttendance = async () => {
         </Dialog>
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
-          <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent className="sm:max-w-[480px] rounded-2xl border border-border bg-card text-card-foreground shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col opacity-100">
             <form className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0"><DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle></DialogHeader>
               <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
@@ -1198,17 +1193,38 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
           {linhaDonoPasso(group.cases[0])}
         </p>
         <OpsCaseLine c={group.cases[0]} className="mt-1" />
-        <p className={cn("text-muted-foreground uppercase", ui.cnj)}>{group.protocoloReferencia}</p>
+        <div className="mt-1"><ProtocoloChip protocolo={group.protocoloReferencia} size="md" /></div>
         <div className="mt-4 flex items-center gap-2">
            <Building2 size={12} className="text-black/30" />
            <span className="text-[9px] font-black uppercase text-black/40">{group.escritorio || 'GERAL'}</span>
         </div>
       </div>
       {group.cases[0] && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-2">
           <AndamentoLeigoBlock caseData={group.cases[0]} showPrazo />
-          <PrazoCpcBadge caseData={group.cases[0]} className="mt-2" />
-          <AtividadesChecklist caseData={group.cases[0]} className="mt-2" />
+          <PublicacaoDjenBlock caseData={group.cases[0]} />
+          {(() => {
+            const msg = mensagemRapidaCliente(group.cases[0], {
+              clienteNome: group.cliente,
+              protocolo: group.protocoloReferencia,
+            });
+            return (
+              <div className="rounded-lg border border-border bg-background p-2.5 space-y-2 shadow-sm">
+                <p className="text-[9px] font-semibold text-muted-foreground tracking-wide">
+                  Atendimento rápido (1 → 2 → 3)
+                </p>
+                <p className="text-[11px] text-foreground leading-snug line-clamp-3 whitespace-pre-wrap">
+                  {msg}
+                </p>
+                <AtendimentoActions
+                  compact
+                  telefone={group.telefone}
+                  mensagem={msg}
+                  onMarkContacted={onMarkContacted}
+                />
+              </div>
+            );
+          })()}
         </div>
       )}
       <div className="mt-6 pt-6 border-t border-border/30 flex items-center justify-between">
