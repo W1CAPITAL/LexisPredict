@@ -52,12 +52,12 @@ type Kpi = {
 };
 
 const toneCls: Record<string, string> = {
-  default: "bg-slate-50 border-slate-200/90 dark:bg-slate-900/60 dark:border-slate-700",
-  danger: "bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:border-rose-800/60",
-  ok: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800/60",
-  warn: "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800/60",
-  info: "bg-sky-50 border-sky-200 dark:bg-sky-950/40 dark:border-sky-800/60",
-  violet: "bg-violet-50 border-violet-200 dark:bg-violet-950/40 dark:border-violet-800/60",
+  default: "bg-white border-slate-200 border-l-4 border-l-slate-800 dark:bg-slate-950 dark:border-slate-700 dark:border-l-slate-200",
+  danger: "bg-white border-slate-200 border-l-4 border-l-rose-600 dark:bg-slate-950 dark:border-slate-700 dark:border-l-rose-500",
+  ok: "bg-white border-slate-200 border-l-4 border-l-emerald-600 dark:bg-slate-950 dark:border-slate-700 dark:border-l-emerald-500",
+  warn: "bg-white border-slate-200 border-l-4 border-l-amber-500 dark:bg-slate-950 dark:border-slate-700 dark:border-l-amber-400",
+  info: "bg-white border-slate-200 border-l-4 border-l-sky-600 dark:bg-slate-950 dark:border-slate-700 dark:border-l-sky-400",
+  violet: "bg-white border-slate-200 border-l-4 border-l-violet-600 dark:bg-slate-950 dark:border-slate-700 dark:border-l-violet-400",
 };
 
 const iconTone: Record<string, string> = {
@@ -91,6 +91,7 @@ function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
         delay: delay * 0.04,
       }}
       whileHover={{ y: -4, transition: { duration: 0.15 } }}
+      data-efferd-kpi
       className={cn(
         "relative overflow-hidden rounded-2xl border p-4 sm:p-5 min-h-[118px]",
         "shadow-[0_8px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_12px_32px_rgba(15,23,42,0.1)]",
@@ -100,7 +101,7 @@ function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
     >
       <div className="relative z-10 flex flex-col h-full gap-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300 leading-tight">
+          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-800 dark:text-slate-100 leading-tight" data-efferd-label>
             {k.label}
           </p>
           <div
@@ -113,11 +114,11 @@ function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
           </div>
         </div>
         <div className="mt-auto">
-          <p className="text-3xl sm:text-4xl font-black tabular-nums tracking-tighter text-slate-900 dark:text-white leading-none">
+          <p className="text-3xl sm:text-4xl font-black tabular-nums tracking-tighter text-slate-950 dark:text-white leading-none" data-efferd-value>
             {k.value}
           </p>
           {k.hint ? (
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 font-medium">
+            <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-2 line-clamp-2 font-medium">
               {k.hint}
             </p>
           ) : null}
@@ -326,7 +327,7 @@ export function Dashboard({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground mb-1">
               Últimos atendimentos na semana
             </p>
@@ -368,7 +369,7 @@ export function Dashboard({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground mb-3">
               Distribuição da carteira
             </p>

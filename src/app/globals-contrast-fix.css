@@ -414,3 +414,45 @@ main .bg-card\/60,
 main .bg-card\/70 {
   background-color: hsl(var(--card)) !important;
 }
+
+/* ========== LOTE CONTRASTE FORÇADO (sem depender do usuário) ========== */
+.bg-card\/10, .bg-card\/20, .bg-card\/30, .bg-card\/40, .bg-card\/50,
+.bg-card\/60, .bg-card\/70, .bg-card\/80, .bg-card\/90 {
+  background-color: hsl(var(--card)) !important;
+}
+.bg-background\/10, .bg-background\/20, .bg-background\/30, .bg-background\/40,
+.bg-background\/50, .bg-background\/60, .bg-background\/70 {
+  background-color: hsl(var(--background)) !important;
+}
+.backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-xl, .backdrop-blur-2xl {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Header / tabs bar */
+header, [data-admin-toolbar], .ops-ui .admin-toolbar {
+  background-color: hsl(var(--card)) !important;
+}
+
+/* Efferd KPI: nunca texto lavado */
+[data-efferd-kpi] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.dark [data-efferd-kpi] {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+[data-efferd-kpi] [data-efferd-value] {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+[data-efferd-kpi] [data-efferd-label] {
+  color: #1e293b !important;
+  opacity: 1 !important;
+}
+.dark [data-efferd-kpi] [data-efferd-label] {
+  color: #e2e8f0 !important;
+}

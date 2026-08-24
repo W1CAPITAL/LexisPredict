@@ -283,7 +283,7 @@ export default function Dashboard() {
         </header>
 
         <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-4 sm:px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
+          <div className="px-4 sm:px-10 py-2 border-b border-border bg-card flex items-center justify-between shrink-0">
              <ScrollArea className="w-full">
                 <TabsList className="bg-transparent h-10 border-none gap-6 sm:gap-8 w-max">
                    <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 font-semibold uppercase text-[11px] tracking-wider h-full text-muted-foreground transition-all">Visão da Carteira</TabsTrigger>
@@ -296,7 +296,7 @@ export default function Dashboard() {
           <ScrollArea className="flex-1 overflow-auto">
             <TabsContent value="overview" className="p-4 sm:p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
             {isEmpty && (
-              <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-border/30 rounded-2xl space-y-6 text-center animate-in fade-in duration-500 bg-card/30">
+              <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-border rounded-2xl space-y-6 text-center animate-in fade-in duration-500 bg-card">
                 <div className="w-20 h-20 rounded-2xl bg-black text-white flex items-center justify-center shadow-[10px_10px_0px_#00D1FF]">
                   <Briefcase size={32} />
                 </div>
@@ -319,7 +319,7 @@ export default function Dashboard() {
             {!isEmpty && (<>
             {/* EFFORD — topo do dashboard */}
             <div className="mb-6">
-              <section className="rounded-2xl border border-border/50 bg-card/50 p-3 sm:p-5 shadow-sm backdrop-blur-sm">
+              <section className="rounded-2xl border border-border bg-card p-3 sm:p-5 shadow-sm ">
                 <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Indicadores</p>
                 <EfferdPanel
                   totalProcessos={cases.length}
@@ -453,7 +453,7 @@ export default function Dashboard() {
                    </section>
 
                    <section className="premium-card overflow-hidden">
-                      <div className="bg-secondary/50 dark:bg-card/70 px-6 sm:px-8 py-5 border-b border-border/30 flex items-center justify-between">
+                      <div className="bg-secondary/50 dark:bg-card px-6 sm:px-8 py-5 border-b border-border flex items-center justify-between">
                          <div className="flex items-center gap-3">
                             <Target size={18} className="text-primary" />
                             <h3 className="text-[11px] font-black uppercase tracking-wide">Fila de contato</h3>
@@ -464,7 +464,7 @@ export default function Dashboard() {
                       </div>
                       <div className={ui.tableWrap}>
                           <table className="w-full text-left min-w-[600px]">
-                            <thead className="bg-secondary/50 dark:bg-card/80 border-b border-border/20">
+                            <thead className="bg-secondary/50 dark:bg-card border-b border-border/20">
                                <tr className="text-[9px] font-black uppercase text-muted-foreground/60 tracking-widest">
                                   <th className="px-8 py-3">Cliente / Protocolo</th>
                                   <th className="px-8 py-3">Natureza do Evento</th>
@@ -643,7 +643,7 @@ export default function Dashboard() {
 </TabsContent>
 
             <TabsContent value="connectivity" className="p-4 sm:p-10 space-y-8 m-0 max-w-[1600px] mx-auto w-full">
-              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 bg-card border border-border/50 p-6 sm:p-8 rounded-2xl shadow-sm">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 bg-card border border-border p-6 sm:p-8 rounded-2xl shadow-sm">
                 <div className="space-y-1">
                   <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight flex items-center gap-3">
                     <Signal size={24} className="text-primary" /> Rede Judicial
@@ -713,7 +713,7 @@ export default function Dashboard() {
         </Tabs>
         
 
-<footer className="hidden sm:flex h-10 border-t border-border/50 bg-card/40 items-center justify-center gap-6 text-[10px] text-muted-foreground/70 font-medium uppercase tracking-[0.18em] shrink-0">
+<footer className="hidden sm:flex h-10 border-t border-border bg-card items-center justify-center gap-6 text-[10px] text-muted-foreground/70 font-medium uppercase tracking-[0.18em] shrink-0">
           <div className="flex items-center gap-2"><Copyright size={10} /> 2026 W1 Capital.</div>
           <span>Monitoramento processual</span>
         </footer>
