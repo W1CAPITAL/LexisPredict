@@ -3,6 +3,7 @@
 export const RELEASE_VERSION = "9.69.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.69 — Processos: save qualquer cargo (service role + match CNJ); reabrir ENCERRADO/AGUARD.PROTOCOLO; status falso-encerrado corrigido.",
   "9.69 — Cases/Tarefas: só meus processos. Processos da Empresa: todos, atendimento sem trocar dono.",
   "9.68 — Contraste sólido + cor das letras na personalização.",
   "9.67 — Changelog compacto no menu lateral.",

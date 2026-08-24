@@ -169,25 +169,43 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     if (!client) return { success: false, message: 'Cliente Supabase indisponível.' };
 
     // ── DONO (created_by) ────────────────────────────────────────────
-    // SEMPRE ler o registro real com service role (RLS do user esconde
-    // processos de outros → existing vinha null → INSERT/UPDATE “roubava” o caso).
+    // SEMPRE ler com service role. Match por protocolo exato OU só dígitos.
+    // Qualquer cargo pode EDITAR qualquer processo da empresa; created_by não muda.
     let existing: { id: string; created_by: string | null; dados?: any } | null = null;
+    const protoRaw = String(processed.protocolo || '').trim();
+    const protoDigits = protoRaw.replace(/\D/g, '');
     try {
       const adminRes = await getAdminClientSafe();
       const reader = adminRes.ok ? adminRes.client : client;
-      const { data } = await reader
-        .from('processos')
-        .select('id, created_by, dados')
-        .eq('empresa_id', empresa_id)
-        .eq('protocolo_ref', processed.protocolo)
-        .maybeSingle();
+      let data: any = null;
+      {
+        const r1 = await reader
+          .from('processos')
+          .select('id, created_by, dados')
+          .eq('empresa_id', empresa_id)
+          .eq('protocolo_ref', protoRaw)
+          .maybeSingle();
+        data = r1.data || null;
+      }
+      if (!data && protoDigits.length >= 15) {
+        // fallback: busca ampla e filtra por dígitos (protocolo_ref pode estar sem máscara)
+        const r2 = await reader
+          .from('processos')
+          .select('id, created_by, dados, protocolo_ref')
+          .eq('empresa_id', empresa_id)
+          .limit(5000);
+        const hit = (r2.data || []).find(
+          (row: any) => String(row.protocolo_ref || '').replace(/\D/g, '') === protoDigits
+        );
+        if (hit) data = hit;
+      }
       existing = data || null;
     } catch {
       const { data } = await client
         .from('processos')
         .select('id, created_by, dados')
         .eq('empresa_id', empresa_id)
-        .eq('protocolo_ref', processed.protocolo)
+        .eq('protocolo_ref', protoRaw)
         .maybeSingle();
       existing = data || null;
     }
@@ -265,17 +283,20 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
         }
       }
 
+      // SEMPRE service role no UPDATE da aba Processos (qualquer cargo, qualquer dono).
+      // Sem service role o update de linha alheia falha ou “parece” salvar e não grava.
       let writer = client;
-      if (transferring) {
+      {
         const adminRes = await getAdminClientSafe();
         if (!adminRes.ok) {
-          return { success: false, message: adminRes.message };
+          return {
+            success: false,
+            message:
+              adminRes.message ||
+              'SUPABASE_SERVICE_ROLE_KEY ausente. Configure no Vercel e faça Redeploy.',
+          };
         }
         writer = adminRes.client;
-      } else {
-        // Update de campos operacionais: preferir admin para não falhar RLS em carteira alheia
-        const adminRes = await getAdminClientSafe();
-        if (adminRes.ok) writer = adminRes.client;
       }
 
       const { error } = await writer.from('processos').update(updateRow).eq('id', existing.id);

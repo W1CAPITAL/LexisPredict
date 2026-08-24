@@ -47,7 +47,7 @@ export async function getUserContext() {
   const isMasterView = isSuperAdmin || isSupervisor;
   const isAdministrador =
     /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
-  const isEmpresaWide = isSuperAdmin || isSupervisor;
+  const isEmpresaWide = isSuperAdmin || isSupervisor || isViewer || isAdministrador;
 
   return { 
     auth_id: profile?.auth_user_id || null,

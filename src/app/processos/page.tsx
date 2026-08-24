@@ -381,6 +381,42 @@ export default function ProcessosEmpresaPage() {
     }
   };
 
+  /** Reabre ENCERRADO / falso AGUARD.PROTOCOLO — qualquer cargo, dono preservado. */
+  const handleReabrir = async (c: LegalCase) => {
+    if (!confirm(`Reabrir "${c.cliente}" na carteira ativa?`)) return;
+    setSaving(true);
+    try {
+      const updated: any = {
+        ...c,
+        situacao: "EM ANDAMENTO",
+        statusManual: "Automatico",
+        datajud_encerrado_tribunal: false,
+        datajud_encerrado_motivo: null,
+        tem_novo_andamento: false,
+        djen_nova_comunicacao: false,
+        tem_atualizacao_pos_retorno: false,
+      };
+      delete updated.force_transfer_owner;
+      delete updated.__transfer_owner;
+      const res = await saveOneCaseAction(updated);
+      if (res.success) {
+        await registrarAuditoriaEventAction("edicao", [c.protocolo], {
+          detalhes: { perfil: profile?.cargo, via: "processos-reabrir", acao: "reabrir" },
+        });
+        await load();
+        toast({ title: "Processo reaberto", description: c.cliente || c.protocolo });
+      } else {
+        toast({
+          title: "Não foi possível reabrir",
+          description: res.message || "Falha desconhecida",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const exportCsv = () => {
     const head = ["cliente", "protocolo", "advogado", "escritorio", "tribunal", "status", "ultimoRetorno", "indicio_busca_apreensao", "criado_por"];
     const lines = cases.map((c) =>
@@ -711,7 +747,7 @@ export default function ProcessosEmpresaPage() {
                                 >
                                   <UserCheck size={13} />
                                 </button>
-                                {!isCasoEncerrado(c) && (
+                                {!isCasoEncerrado(c) ? (
                                   <button
                                     onClick={() => handleEncerrar(c)}
                                     disabled={saving}
@@ -719,6 +755,15 @@ export default function ProcessosEmpresaPage() {
                                     title="Marcar como encerrado"
                                   >
                                     <CheckCircle2 size={13} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleReabrir(c)}
+                                    disabled={saving}
+                                    className="h-8 w-8 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center justify-center transition-colors"
+                                    title="Reabrir processo (volta à carteira ativa)"
+                                  >
+                                    <RefreshCcw size={13} />
                                   </button>
                                 )}
                                 <button
