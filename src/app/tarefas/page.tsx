@@ -1,5 +1,7 @@
 "use client";
 
+import { PrazoCpcBadge } from '@/components/ops/prazo-cpc-badge';
+import { AtividadesChecklist } from '@/components/ops/atividades-checklist';
 import { useAdmin } from '@/hooks/use-admin';
 
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
@@ -46,7 +48,6 @@ import {
 import { LegalCase, processarCaso, formatDateToISO, EventoTipo } from '@/lib/case-logic'
 import { linhaFase, linhaDonoAto, linhaDonoPasso } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
-import { ProtocoloChip } from '@/components/ops/protocolo-chip';
 import { computeOpsLinha, computeOpsKpis } from '@/lib/ops-linha';
 import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
 import { scoreGroupPriority } from '@/lib/case-priority';
@@ -145,7 +146,7 @@ export default function TarefasPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   // filtros persistidos entre abas
-  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'prazo_fatal' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
@@ -643,6 +644,12 @@ const handleSaveAttendance = async () => {
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
+        if (filaFiltro === 'prazo_fatal') {
+          return g.cases.some((c: any) => {
+            const st = String(c.status || '');
+            return st === 'Vencido' || st === 'É Hoje' || st === 'Caso Crítico' || st === 'Atenção';
+          });
+        }
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
         if (filaFiltro === 'problematicos') return g.cases.some((c: any) => isCasoProblematico(c, baSet)) || g.hasBA || g.hasClosedCourt || g.hasUpdate;
@@ -895,6 +902,7 @@ const handleSaveAttendance = async () => {
                    <SelectContent className="bg-white border-2 border-black rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
                       <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
+                      <SelectItem value="prazo_fatal" className="font-black uppercase text-[10px]">Prazo fatal</SelectItem>
                       <SelectItem value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
                       <SelectItem value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
                       <SelectItem value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
@@ -916,6 +924,7 @@ const handleSaveAttendance = async () => {
               { id: 'tratamento', label: 'Críticos em tratamento' },
               { id: 'blacklist', label: 'Blacklist' },
               { id: 'novidade', label: 'Novidades' },
+              { id: 'prazo_fatal', label: 'Prazo fatal' },
               { id: 'ba', label: 'B.A.' },
               { id: 'replica', label: 'Réplica' },
               { id: 'silencio', label: 'Silêncio 45d' },
@@ -1173,7 +1182,7 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
   return (
     <div className={cn("premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", isKbFocus ? "ring-2 ring-primary border-l-primary shadow-md" : isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
       <div className="flex justify-between items-start mb-6">
-        <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all", group.hasBA ? "bg-red-600 text-white" : group.hasClosedCourt ? "bg-zinc-900 text-white" : "bg-slate-200 text-slate-800", /*lote badge*/ false ? "x" : group.hasClosedCourt ? "bg-black text-white" : "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white")}>
+        <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all", group.hasBA ? "bg-red-600 text-white" : group.hasClosedCourt ? "bg-black text-white" : "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white")}>
           {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <UserCheck size={24} />}
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
@@ -1189,7 +1198,7 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
           {linhaDonoPasso(group.cases[0])}
         </p>
         <OpsCaseLine c={group.cases[0]} className="mt-1" />
-        <div className="mt-2"><ProtocoloChip protocolo={group.protocoloReferencia} size="md" /></div>
+        <p className={cn("text-muted-foreground uppercase", ui.cnj)}>{group.protocoloReferencia}</p>
         <div className="mt-4 flex items-center gap-2">
            <Building2 size={12} className="text-black/30" />
            <span className="text-[9px] font-black uppercase text-black/40">{group.escritorio || 'GERAL'}</span>
@@ -1197,7 +1206,9 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
       </div>
       {group.cases[0] && (
         <div className="mt-4">
-          <AndamentoLeigoBlock caseData={group.cases[0]} />
+          <AndamentoLeigoBlock caseData={group.cases[0]} showPrazo />
+          <PrazoCpcBadge caseData={group.cases[0]} className="mt-2" />
+          <AtividadesChecklist caseData={group.cases[0]} className="mt-2" />
         </div>
       )}
       <div className="mt-6 pt-6 border-t border-border/30 flex items-center justify-between">

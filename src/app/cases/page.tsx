@@ -1,4 +1,7 @@
 "use client";
+
+import { PrazoCpcBadge } from '@/components/ops/prazo-cpc-badge';
+import { AtividadesChecklist } from '@/components/ops/atividades-checklist';
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 
@@ -140,6 +143,8 @@ const CaseRow = React.memo(({
             showAtividades={false}
             className="!p-0 !border-0 !bg-transparent !shadow-none mt-0.5"
           />
+          <PrazoCpcBadge caseData={c} className="mt-1" />
+          <AtividadesChecklist caseData={c} className="mt-1" />
              {(c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao) && (
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <button

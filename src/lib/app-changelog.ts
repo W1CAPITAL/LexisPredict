@@ -17,9 +17,22 @@ export type ChangelogItem = {
 };
 
 /** Versão atual embutida na UI */
-export const APP_VERSION = '1.13.3';
+export const APP_VERSION = '1.15.2';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.15.2',
+    date: '2026-08-24',
+    title: 'Lote 4 — prazo CPC + checklist de passos',
+    details: [
+      'Badge de prazo em dias uteis (CPC) com contraste alto na fila e processos.',
+      'Checklist Proximos passos por processo (localStorage, clicavel).',
+      'Filtro prazo_fatal na fila (vencido / hoje / atencao).',
+      'Linguagem simples com prazo solido (sem pastel).',
+    ],
+    tags: ['prazo', 'cpc', 'atividades', 'lote4'],
+  },
+
   {
     version: '1.13.3',
     date: '2026-08-20',

@@ -1,17 +1,17 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { LegalCase } from "@/lib/case-logic";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import type { LegalCase } from "@/lib/case-logic";
 import { traduzirCaso } from "@/lib/traduzir-andamento";
 import { descreverPrazoForense } from "@/lib/calendario-tj";
 import { sugerirAtividades } from "@/lib/atividades-sugeridas";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 
 export function AndamentoLeigoBlock({
   caseData,
-  showPrazo = true,
-  showAtividades = true,
+  showPrazo = false,
+  showAtividades = false,
   className,
 }: {
   caseData: LegalCase;
@@ -46,29 +46,34 @@ export function AndamentoLeigoBlock({
         className
       )}
     >
-      <p className="text-[9px] font-semibold text-muted-foreground tracking-wide">Em linguagem simples</p>
+      <p className="text-[9px] font-semibold text-muted-foreground tracking-wide">
+        Em linguagem simples
+      </p>
       <p className="text-[12px] font-medium text-foreground leading-snug">
-        {leigo.tituloLeigo || "Atualização no processo"}
+        {leigo.tituloLeigo || "Atualizacao no processo"}
       </p>
       {leigo.detalheLeigo && leigo.detalheLeigo !== leigo.tituloLeigo ? (
-        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{leigo.detalheLeigo}</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">
+          {leigo.detalheLeigo}
+        </p>
       ) : null}
       {prazo && prazo.tone !== "vazio" && (
         <div className="space-y-1">
           <Badge
-            variant="outline"
             className={cn(
-              "text-[10px] font-medium",
-              prazo.tone === "vencido" && "border-red-300 text-red-700 bg-red-50",
-              prazo.tone === "hoje" && "border-blue-300 text-blue-700 bg-blue-50",
-              prazo.tone === "atencao" && "border-amber-300 text-amber-900 bg-amber-50",
-              prazo.tone === "ok" && "border-emerald-300 text-emerald-800 bg-emerald-50"
+              "h-6 px-2.5 rounded-md font-bold text-[10px] uppercase border-0 shadow-sm",
+              prazo.tone === "vencido" && "bg-red-700 text-white",
+              prazo.tone === "hoje" && "bg-blue-700 text-white",
+              prazo.tone === "atencao" && "bg-amber-500 text-black",
+              prazo.tone === "ok" && "bg-emerald-700 text-white"
             )}
           >
             {prazo.label}
           </Badge>
           {(prazo as any).recessoAviso && (
-            <p className="text-[10px] text-amber-800 leading-snug">{(prazo as any).recessoAviso}</p>
+            <p className="text-[10px] text-amber-800 leading-snug">
+              {(prazo as any).recessoAviso}
+            </p>
           )}
         </div>
       )}
