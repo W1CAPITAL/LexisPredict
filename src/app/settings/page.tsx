@@ -685,157 +685,187 @@ export default function SettingsPage() {
               )}
 
               {activeTab === 'Hardware' && (
-                <div className="space-y-12 animate-in fade-in duration-500">
+                <div className="space-y-10 animate-in fade-in duration-500">
                   <section className="space-y-6">
-                    <div className="flex items-center justify-between">
-                       <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Authority Presets</Label>
-                       <Button variant="ghost" onClick={handleApplyHardware} className="h-8 text-[10px] font-black uppercase hover:bg-primary hover:text-black"><RefreshCcw size={12} className="mr-2"/> Sincronizar Tudo</Button>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                       {AUTHORITY_PRESETS.map((p) => {
-                         const light = getPresetColors(p, 'light');
-                         const dark = getPresetColors(p, 'dark');
-                         const active = bgColor === light.background || bgColor === dark.background;
-                         return (
-                         <button key={p.id} onClick={() => {
-                             applyPresetById(p.id);
-                             setBgColor(light.background); setBgSecondaryColor(light.bgSecondary); setFontColor(light.foreground); setFontMutedColor(light.fontMuted); setPrimaryColor(light.primary); setAccentColor(light.accent); setRadius(p.radius);
-                             toast({ title: `Tema ${p.name} Ativado` });
-                         }} className={cn("p-4 border border-border hover:border-primary/50 transition-all flex flex-col items-center gap-3 bg-background/20 backdrop-blur-md rounded-lg relative overflow-hidden group", active && "border-primary")}>
-                            <div className="flex items-center gap-2">
-                               <div className="w-10 h-10 rounded-md border border-border group-hover:scale-110 transition-transform shadow-lg overflow-hidden" style={{ backgroundColor: light.background }}>
-                                  <div className="w-full h-1/2 rounded-t-md" style={{ backgroundColor: light.primary }} />
-                               </div>
-                               <div className="w-10 h-10 rounded-md border border-border group-hover:scale-110 transition-transform shadow-lg overflow-hidden" style={{ backgroundColor: dark.background }}>
-                                  <div className="w-full h-1/2 rounded-t-md" style={{ backgroundColor: dark.primary }} />
-                               </div>
-                            </div>
-                            <span className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">{p.name}</span>
-                            <span className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground text-center leading-tight">Light + Dark</span>
-                         </button>
-                         );
-                       })}
-                    </div>
-                  </section>
-                                    <section className="space-y-6">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Aparencia Lexis</Label>
-                    <div className="bg-card p-6 border border-border rounded-xl shadow-sm space-y-4">
-                      <div>
-                        <Label className="text-[11px] font-bold">Aparencia e transparencia</Label>
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          Alteracoes aplicam na hora. Padrao: tudo solido (legivel).
-                        </p>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {([
-                          { key: "glassSidebar", label: "Sidebar / menu" },
-                          { key: "glassDialogs", label: "Modais (atender / editar)" },
-                          { key: "glassCards", label: "Cards e paineis" },
-                          { key: "glassTabs", label: "Abas e cabecalhos" },
-                        ] as const).map((item) => {
-                          const on = !!(uiPrefs as any)[item.key];
-                          return (
-                            <button
-                              key={item.key}
-                              type="button"
-                              onClick={() => setUiPrefs(saveUiPrefs({ [item.key]: !on } as Partial<UiPrefs>))}
-                              className={
-                                "flex items-center justify-between h-11 px-3 rounded-xl border text-[11px] font-semibold " +
-                                (on ? "border-primary bg-primary/10" : "border-border bg-background")
-                              }
-                            >
-                              <span>{item.label}</span>
-                              <span className="text-[10px] uppercase">{on ? "Vidro ON" : "Solido"}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Densidade</Label>
-                          <select className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
-                            value={uiPrefs.density}
-                            onChange={(e) => setUiPrefs(saveUiPrefs({ density: e.target.value as any }))}>
-                            <option value="compact">Compacta</option>
-                            <option value="comfortable">Confortavel</option>
-                            <option value="wide">Larga</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Fonte</Label>
-                          <select className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
-                            value={uiPrefs.fontScale}
-                            onChange={(e) => setUiPrefs(saveUiPrefs({ fontScale: e.target.value as any }))}>
-                            <option value="90">90%</option>
-                            <option value="100">100%</option>
-                            <option value="110">110%</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Sidebar</Label>
-                          <input type="color" className="w-full h-10 rounded-lg border cursor-pointer"
-                            value={uiPrefs.sidebarHex || "#f3f4f6"}
-                            onChange={(e) => setUiPrefs(saveUiPrefs({ sidebarHex: e.target.value }))} />
-                        </div>
-                      </div>
-                      <Button type="button" variant="outline" className="h-9 text-[10px] font-bold uppercase"
-                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}>
-                        Resetar (tudo solido)
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Authority Presets</Label>
+                      <Button variant="ghost" onClick={handleApplyHardware} className="h-8 text-[10px] font-black uppercase hover:bg-primary hover:text-black">
+                        <RefreshCcw size={12} className="mr-2" /> Sincronizar Tudo
                       </Button>
                     </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {AUTHORITY_PRESETS.map((p) => {
+                        const light = getPresetColors(p, 'light');
+                        const dark = getPresetColors(p, 'dark');
+                        const active = bgColor === light.background || bgColor === dark.background;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              applyPresetById(p.id);
+                              setBgColor(light.background);
+                              setBgSecondaryColor(light.bgSecondary);
+                              setFontColor(light.foreground);
+                              setFontMutedColor(light.fontMuted);
+                              setPrimaryColor(light.primary);
+                              setAccentColor(light.accent);
+                              setRadius(p.radius);
+                              toast({ title: `Tema ${p.name} Ativado` });
+                            }}
+                            className={cn(
+                              "p-4 border border-border hover:border-primary/50 transition-all flex flex-col items-center gap-3 bg-card rounded-lg",
+                              active && "border-primary"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 h-10 rounded-md border border-border overflow-hidden" style={{ backgroundColor: light.background }}>
+                                <div className="w-full h-1/2" style={{ backgroundColor: light.primary }} />
+                              </div>
+                              <div className="w-10 h-10 rounded-md border border-border overflow-hidden" style={{ backgroundColor: dark.background }}>
+                                <div className="w-full h-1/2" style={{ backgroundColor: dark.primary }} />
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest">{p.name}</span>
+                            {p.hint ? <span className="text-[8px] text-muted-foreground text-center">{p.hint}</span> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
 
-                    <div className="rounded-xl border border-border bg-card p-6 space-y-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div>
-                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Cores do texto e fundo</Label>
-                          <p className="text-[10px] text-muted-foreground mt-1">Altere a cor das letras e clique em Aplicar. Vale em todo o app.</p>
-                        </div>
-                        <Button type="button" onClick={handleApplyHardware} className="h-9 text-[10px] font-black uppercase bg-black text-white hover:bg-primary hover:text-black">
-                          Aplicar cores
-                        </Button>
+                  <section className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Aparencia e transparencia</Label>
+                    <p className="text-[10px] text-muted-foreground">Padrao: tudo solido (legivel). Alteracoes aplicam na hora.</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {([
+                        { key: "glassSidebar", label: "Sidebar / menu" },
+                        { key: "glassDialogs", label: "Modais (atender / editar)" },
+                        { key: "glassCards", label: "Cards e paineis" },
+                        { key: "glassTabs", label: "Abas e cabecalhos" },
+                      ] as const).map((item) => {
+                        const on = !!(uiPrefs as any)[item.key];
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={() => setUiPrefs(saveUiPrefs({ [item.key]: !on } as Partial<UiPrefs>))}
+                            className={
+                              "flex items-center justify-between h-11 px-3 rounded-xl border text-[11px] font-semibold " +
+                              (on ? "border-primary bg-primary/10" : "border-border bg-background")
+                            }
+                          >
+                            <span>{item.label}</span>
+                            <span className="text-[10px] uppercase">{on ? "Vidro ON" : "Solido"}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Densidade</Label>
+                        <select
+                          className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
+                          value={uiPrefs.density}
+                          onChange={(e) => setUiPrefs(saveUiPrefs({ density: e.target.value as any }))}
+                        >
+                          <option value="compact">Compacta</option>
+                          <option value="comfortable">Confortavel</option>
+                          <option value="wide">Larga</option>
+                        </select>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Fundo</Label>
-                          <Input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Cards</Label>
-                          <Input type="color" value={bgSecondaryColor} onChange={(e) => setBgSecondaryColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Letras</Label>
-                          <Input type="color" value={fontColor} onChange={(e) => {
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Fonte</Label>
+                        <select
+                          className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
+                          value={uiPrefs.fontScale}
+                          onChange={(e) => setUiPrefs(saveUiPrefs({ fontScale: e.target.value as any }))}
+                        >
+                          <option value="90">90%</option>
+                          <option value="100">100%</option>
+                          <option value="110">110%</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Sidebar</Label>
+                        <input
+                          type="color"
+                          className="w-full h-10 rounded-lg border cursor-pointer"
+                          value={uiPrefs.sidebarHex || "#f3f4f6"}
+                          onChange={(e) => setUiPrefs(saveUiPrefs({ sidebarHex: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 text-[10px] font-bold uppercase"
+                      onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}
+                    >
+                      Resetar (tudo solido)
+                    </Button>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Cores do texto e fundo</Label>
+                        <p className="text-[10px] text-muted-foreground mt-1">Altere a cor das letras e clique em Aplicar.</p>
+                      </div>
+                      <Button type="button" onClick={handleApplyHardware} className="h-9 text-[10px] font-black uppercase bg-black text-white hover:bg-primary hover:text-black">
+                        Aplicar cores
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 rounded-xl border border-border bg-card p-4">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Fundo</Label>
+                        <Input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Cards</Label>
+                        <Input type="color" value={bgSecondaryColor} onChange={(e) => setBgSecondaryColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Letras</Label>
+                        <Input
+                          type="color"
+                          value={fontColor}
+                          onChange={(e) => {
                             const v = e.target.value;
                             setFontColor(v);
                             try {
                               document.documentElement.style.setProperty("--lexis-font-color", v);
                               let el = document.getElementById("lexis-font-color-style") as HTMLStyleElement | null;
-                              if (!el) { el = document.createElement("style"); el.id = "lexis-font-color-style"; document.head.appendChild(el); }
+                              if (!el) {
+                                el = document.createElement("style");
+                                el.id = "lexis-font-color-style";
+                                document.head.appendChild(el);
+                              }
                               el.textContent = "body, .text-foreground, [data-lexis-root] { color: " + v + " !important; }";
                             } catch {}
-                          }} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Secundario</Label>
-                          <Input type="color" value={fontMutedColor} onChange={(e) => setFontMutedColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Primary</Label>
-                          <Input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold uppercase">Accent</Label>
-                          <Input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
-                        </div>
+                          }}
+                          className="h-10 p-1 cursor-pointer"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Secundario</Label>
+                        <Input type="color" value={fontMutedColor} onChange={(e) => setFontMutedColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Primary</Label>
+                        <Input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-bold uppercase">Accent</Label>
+                        <Input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-10 p-1 cursor-pointer" />
                       </div>
                     </div>
+                  </section>
 
-                  <section className="space-y-6">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera & Vidro</Label>
+                  <section className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Atmosfera e contraste</Label>
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
-                      Padrão operacional: fundo e sidebar <strong>sólidos</strong> (100%), blur 0, sem wallpaper.
-                      Opacidade baixa deixa o app ilegível — use só se houver wallpaper ativo.
+                      Padrao: fundo e sidebar solidos (100%), blur 0, sem wallpaper.
                     </p>
                     <Button
                       type="button"
@@ -848,176 +878,108 @@ export default function SettingsPage() {
                         persistOpacity(1, 1, 0);
                         applyWallpaperStyle("");
                         setWallpaper("");
-                        toast({ title: "Contraste sólido restaurado", description: "Fundo e menu opacos, sem vidro." });
+                        toast({ title: "Contraste solido restaurado" });
                       }}
                     >
-                      Restaurar contraste sólido
+                      Restaurar contraste solido
                     </Button>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl">
-                       <div className="space-y-6">
-                          <SliderControl label="Opacidade do Fundo" value={bgOpacity} onChange={updateBgOpacity} icon={<Waves size={12}/>} />
-                          <SliderControl label="Opacidade da Sidebar" value={sidebarOpacity} onChange={updateSidebarOpacity} icon={<Layout size={12}/>} />
-                       </div>
-                       <div className="space-y-6">
-                          <SliderControl label="Intensidade Blur" value={glassBlur} max={40} onChange={updateGlassBlur} icon={<RefreshCcw size={12}/>} />
-                          <div className="space-y-4">
-                            <Label className="text-[9px] uppercase font-black flex items-center gap-2 text-foreground"><Layout size={12}/> Raio de Borda: {radius}px</Label>
-                            <Slider value={[radius]} max={24} min={0} step={1} onValueChange={(v) => setRadius(v[0])} />
-                          </div>
-                       </div>
-                    </div>
-
-                    <div className="bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
-                    {/* LOTE 1 — Personalização segura */}
-                    <div className="space-y-4 rounded-xl border border-border bg-card p-4">
-                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Personalização do gabinete</Label>
-                      <p className="text-[10px] text-muted-foreground">Densidade, fonte, modo operacional e cores de status. Não altera scanner nem dados.</p>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold">Densidade</Label>
-                          <select
-                            className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
-                            value={uiPrefs.density}
-                            onChange={(e) => setUiPrefs(saveUiPrefs({ density: e.target.value as any }))}
-                          >
-                            <option value="compact">Compacta</option>
-                            <option value="comfortable">Confortável</option>
-                            <option value="wide">Larga</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold">Tamanho da fonte</Label>
-                          <select
-                            className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm"
-                            value={uiPrefs.fontScale}
-                            onChange={(e) => setUiPrefs(saveUiPrefs({ fontScale: e.target.value as any }))}
-                          >
-                            <option value="90">90%</option>
-                            <option value="100">100%</option>
-                            <option value="110">110%</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold">Modo operacional</Label>
-                          <button
-                            type="button"
-                            className="w-full h-10 rounded-lg border border-border text-sm font-medium"
-                            onClick={() => setUiPrefs(saveUiPrefs({ opsMode: !uiPrefs.opsMode }))}
-                          >
-                            {uiPrefs.opsMode ? "Ativo (texto sóbrio)" : "Desligado (estilo antigo)"}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold">Cor da sidebar</Label>
-                          <Input
-                            type="color"
-                            value={uiPrefs.sidebarHex || "#f3f4f6"}
-                            onChange={(e) => setUiPrefs(saveUiPrefs({ sidebarHex: e.target.value }))}
-                            className="h-10 p-1 cursor-pointer"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold">Vencido</Label>
-                          <Input type="color" value={uiPrefs.colorVencido} onChange={(e) => setUiPrefs(saveUiPrefs({ colorVencido: e.target.value }))} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold">É hoje</Label>
-                          <Input type="color" value={uiPrefs.colorHoje} onChange={(e) => setUiPrefs(saveUiPrefs({ colorHoje: e.target.value }))} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold">B.A.</Label>
-                          <Input type="color" value={uiPrefs.colorBa} onChange={(e) => setUiPrefs(saveUiPrefs({ colorBa: e.target.value }))} className="h-10 p-1 cursor-pointer" />
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-9 text-[10px] font-bold uppercase"
-                        onClick={() => setUiPrefs(saveUiPrefs({ ...UI_PREFS_DEFAULT }))}
-                      >
-                        Resetar personalização
-                      </Button>
-                    </div>
-Wallpaper & Atmosfera de Fundo</Label>
-                          <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest mt-1">Imagem, URL ou gradiente aplicados atrás de todo o sistema.</p>
-                        </div>
-                        {wallpaper ? (
-                          <Button variant="ghost" size="sm" onClick={handleRemoveWallpaper} className="h-8 text-[9px] font-black uppercase text-red-500 hover:text-red-600 hover:bg-red-500/10">
-                            <X size={12} className="mr-1" /> Remover
-                          </Button>
-                        ) : null}
-                      </div>
-
-                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                        {WALLPAPER_PRESETS.map((p) => {
-                          const active = wallpaper === p.css;
-                          return (
-                            <button
-                              key={p.id}
-                              onClick={() => handleWallpaperPreset(p.css)}
-                              title={p.name}
-                              className={cn(
-                                "aspect-[3/4] rounded-xl border-2 overflow-hidden transition-all group",
-                                active ? "border-primary shadow-lg shadow-primary/20" : "border-border hover:border-primary/40"
-                              )}
-                            >
-                              <div className="w-full h-full" style={{ background: p.css }} />
-                              <span className="sr-only">{p.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={wallpaperUrlInput}
-                            onChange={(e) => setWallpaperUrlInput(e.target.value)}
-                            placeholder="https://.../wallpaper.jpg"
-                            className="h-10 flex-1"
-                          />
-                          <Button onClick={handleWallpaperUrlApply} className="h-10 shrink-0 bg-black text-white hover:bg-primary hover:text-black font-black uppercase text-[9px]">
-                            Aplicar
-                          </Button>
-                        </div>
-                        <Button
-                          onClick={() => wallpaperFileRef.current?.click()}
-                          variant="outline"
-                          className="h-10 font-black uppercase text-[9px]"
-                        >
-                          <Camera size={14} className="mr-2" /> Enviar imagem do dispositivo
-                        </Button>
-                        <input type="file" accept="image/*" className="hidden" ref={wallpaperFileRef} onChange={handleWallpaperFile} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-card p-6 border border-border rounded-lg">
+                      <SliderControl label="Opacidade do Fundo" value={bgOpacity} onChange={updateBgOpacity} icon={<Waves size={12} />} />
+                      <SliderControl label="Opacidade da Sidebar" value={sidebarOpacity} onChange={updateSidebarOpacity} icon={<Layout size={12} />} />
+                      <SliderControl label="Intensidade Blur" value={glassBlur} max={40} onChange={updateGlassBlur} icon={<RefreshCcw size={12} />} />
+                      <div className="space-y-4">
+                        <Label className="text-[9px] uppercase font-black flex items-center gap-2 text-foreground">
+                          <Layout size={12} /> Raio de Borda: {radius}px
+                        </Label>
+                        <Slider value={[radius]} max={24} min={0} step={1} onValueChange={(v) => setRadius(v[0])} />
                       </div>
                     </div>
                   </section>
 
-                  <section className="space-y-6 animate-in fade-in duration-500">
+                  <section className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Cores de status</Label>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Vencido</Label>
+                        <Input type="color" value={uiPrefs.colorVencido} onChange={(e) => setUiPrefs(saveUiPrefs({ colorVencido: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">E hoje</Label>
+                        <Input type="color" value={uiPrefs.colorHoje} onChange={(e) => setUiPrefs(saveUiPrefs({ colorHoje: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">B.A.</Label>
+                        <Input type="color" value={uiPrefs.colorBa} onChange={(e) => setUiPrefs(saveUiPrefs({ colorBa: e.target.value }))} className="h-10 p-1 cursor-pointer" />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Wallpaper</Label>
+                      {wallpaper ? (
+                        <Button variant="ghost" size="sm" onClick={handleRemoveWallpaper} className="h-8 text-[9px] font-black uppercase text-red-500">
+                          <X size={12} className="mr-1" /> Remover
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                      {WALLPAPER_PRESETS.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleWallpaperPreset(p.css)}
+                          title={p.name}
+                          className={cn(
+                            "aspect-[3/4] rounded-xl border-2 overflow-hidden transition-all",
+                            wallpaper === p.css ? "border-primary" : "border-border hover:border-primary/40"
+                          )}
+                        >
+                          <div className="w-full h-full" style={{ background: p.css }} />
+                          <span className="sr-only">{p.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={wallpaperUrlInput}
+                          onChange={(e) => setWallpaperUrlInput(e.target.value)}
+                          placeholder="https://.../wallpaper.jpg"
+                          className="h-10 flex-1"
+                        />
+                        <Button onClick={handleWallpaperUrlApply} className="h-10 shrink-0 bg-black text-white font-black uppercase text-[9px]">
+                          Aplicar
+                        </Button>
+                      </div>
+                      <Button onClick={() => wallpaperFileRef.current?.click()} variant="outline" className="h-10 font-black uppercase text-[9px]">
+                        <Camera size={14} className="mr-2" /> Enviar imagem
+                      </Button>
+                      <input type="file" accept="image/*" className="hidden" ref={wallpaperFileRef} onChange={handleWallpaperFile} />
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
                     <div className="flex items-center gap-2">
                       <Wand2 size={12} className="text-primary" />
-                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Botões Metálicos</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Botoes metalicos</Label>
                     </div>
-                    <div className="bg-background/20 backdrop-blur-xl p-8 border border-border rounded-lg shadow-xl space-y-6">
+                    <div className="bg-card p-6 border border-border rounded-lg space-y-6">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Ativar botões metálicos</Label>
-                          <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest mt-1">Aplica o acabamento metálico (CSS) nos CTAs, scanner e destaques. Desligue para visual padrão e maior desempenho em máquinas básicas.</p>
+                          <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Ativar botoes metalicos</Label>
+                          <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest mt-1">
+                            CSS nos CTAs. Desligue em maquinas basicas.
+                          </p>
                         </div>
                         <Switch checked={metalPrefs.enabled} onCheckedChange={handleMetalEnabledChange} />
                       </div>
-
                       <div className={cn("grid grid-cols-1 sm:grid-cols-3 gap-6", !metalPrefs.enabled && "opacity-40 pointer-events-none")}>
                         {(["chromatic", "silver", "gold"] as MetalPresetKey[]).map((key) => (
                           <div key={key} className="space-y-3">
                             <Label className="text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
                               <span className="w-3 h-3 rounded-full border border-border" style={{ background: metalPrefs.colors[key] }} />
-                              {key === "chromatic" ? "Chromático" : key === "silver" ? "Prata" : "Ouro"}
+                              {key === "chromatic" ? "Chromatico" : key === "silver" ? "Prata" : "Ouro"}
                             </Label>
                             <div className="flex items-center gap-2">
                               <input
@@ -1036,10 +998,6 @@ Wallpaper & Atmosfera de Fundo</Label>
                           </div>
                         ))}
                       </div>
-
-                      <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest">
-                        As cores atualizam os gradientes metálicos em todo o app — sem WebGL, sempre visíveis.
-                      </p>
                     </div>
                   </section>
                 </div>
