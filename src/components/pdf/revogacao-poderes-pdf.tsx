@@ -86,7 +86,7 @@ export type RevogacaoPdfData = {
     estadoCivil?: string;
     endereco?: string;
   };
-  substabelecido: {
+  substabelecido?: {
     nome: string;
     oabCompleta: string;
     oabCurta: string;
@@ -96,6 +96,8 @@ export type RevogacaoPdfData = {
     email?: string;
     telefone?: string;
   };
+  /** Se true, gera apenas revogação de poderes (sem substabelecimento) */
+  somenteRevogacao?: boolean;
   ultimoAdvogadoDetectado?: string | null;
   advogadosDjen?: string[];
   viabilidade?: string | null;
@@ -129,6 +131,7 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
     partePassiva,
     partePassivaCnpj,
     classeAcao,
+    somenteRevogacao,
   } = data;
 
   const clienteQualif = qualificacaoCliente(data);
@@ -136,8 +139,8 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <Text style={s.title}>Revogacao de mandato e substabelecimento</Text>
-        <Text style={s.subtitle}>(sem reserva de poderes)</Text>
+        <Text style={s.title}>Revogacao de mandato{somenteRevogacao ? '' : ' e substabelecimento'}</Text>
+        {somenteRevogacao ? null : <Text style={s.subtitle}>(sem reserva de poderes)</Text>}
         <Text style={s.meta}>
           Processo n. {protocolo}
           {clienteCpf ? " · CPF " + clienteCpf : ""}
@@ -191,53 +194,63 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
               </Text>
             ) : null}
             , <Text style={s.bold}>REVOGA</Text> os poderes antes conferidos a si para a
-            pratica de atos neste feito, na medida em que{" "}
-            <Text style={s.bold}>SUBSTABELECE, SEM RESERVA DE PODERES</Text>, na pessoa
-            do(a) advogado(a){" "}
-            <Text style={s.bold}>
-              {String(substabelecido.nome || "").toUpperCase()}
-            </Text>
-            , {substabelecido.nacionalidade || "brasileiro(a)"},{" "}
-            {substabelecido.estadoCivil || "estado civil nao informado"}, inscrito(a)
-            na <Text style={s.bold}>{substabelecido.oabCompleta}</Text>
-            {substabelecido.endereco
-              ? ", com endereco profissional em " + substabelecido.endereco
-              : ""}
-            {substabelecido.email ? ", e-mail " + substabelecido.email : ""}
-            {substabelecido.telefone ? ", telefone " + substabelecido.telefone : ""}
-            , todos os poderes outorgados pela parte acima identificada, para o foro
-            em geral, com a clausula ad judicia et extra, inclusive os especiais de
-            substabelecer, acordar, discordar, transigir, desistir, receber e dar
-            quitacao, firmar compromisso e quanto mais se faca necessario ao bom
-            andamento da causa.
+            pratica de atos neste feito.
           </Text>
         </View>
 
-        <View style={s.p}>
-          <Text>
-            Requer-se a exclusao do(a) advogado(a) substabelecente{" "}
-            <Text style={s.bold}>{String(revogado.nome || "").toUpperCase()}</Text> (
-            <Text style={s.bold}>{revogado.oabCurta}</Text>) da contracapa dos autos e
-            de qualquer cadastro de intimacao, passando as futuras intimacoes e
-            publicacoes a serem dirigidas{" "}
-            <Text style={s.bold}>exclusivamente</Text> ao(a) substabelecido(a){" "}
-            <Text style={s.bold}>
-              {String(substabelecido.nome || "").toUpperCase()}
-            </Text>{" "}
-            (<Text style={s.bold}>{substabelecido.oabCurta}</Text>), nos termos do art.
-            272, paragrafo 5o, do Codigo de Processo Civil, sob pena de nulidade.
-          </Text>
-        </View>
+        {!somenteRevogacao && substabelecido ? (
+          <>
+            <View style={s.p}>
+              <Text>
+                Na medida em que{" "}
+                <Text style={s.bold}>SUBSTABELECE, SEM RESERVA DE PODERES</Text>, na pessoa
+                do(a) advogado(a){" "}
+                <Text style={s.bold}>
+                  {String(substabelecido.nome || "").toUpperCase()}
+                </Text>
+                , {substabelecido.nacionalidade || "brasileiro(a)"},{" "}
+                {substabelecido.estadoCivil || "estado civil nao informado"}, inscrito(a)
+                na <Text style={s.bold}>{substabelecido.oabCompleta}</Text>
+                {substabelecido.endereco
+                  ? ", com endereco profissional em " + substabelecido.endereco
+                  : ""}
+                {substabelecido.email ? ", e-mail " + substabelecido.email : ""}
+                {substabelecido.telefone ? ", telefone " + substabelecido.telefone : ""}
+                , todos os poderes outorgados pela parte acima identificada, para o foro
+                em geral, com a clausula ad judicia et extra, inclusive os especiais de
+                substabelecer, acordar, discordar, transigir, desistir, receber e dar
+                quitacao, firmar compromisso e quanto mais se faca necessario ao bom
+                andamento da causa.
+              </Text>
+            </View>
 
-        <View style={s.p}>
-          <Text>
-            Declara o(a) substabelecente que o presente instrumento e lavrado para
-            regularizacao da representacao processual, sem prejuizo das
-            responsabilidades profissionais ja assumidas ate a data desta assinatura,
-            e que a parte outorgante permanece com a tutela de seus interesses
-            assegurada pelo(a) novo(a) patrono(a).
-          </Text>
-        </View>
+            <View style={s.p}>
+              <Text>
+                Requer-se a exclusao do(a) advogado(a) substabelecente{" "}
+                <Text style={s.bold}>{String(revogado.nome || "").toUpperCase()}</Text> (
+                <Text style={s.bold}>{revogado.oabCurta}</Text>) da contracapa dos autos e
+                de qualquer cadastro de intimacao, passando as futuras intimacoes e
+                publicacoes a serem dirigidas{" "}
+                <Text style={s.bold}>exclusivamente</Text> ao(a) substabelecido(a){" "}
+                <Text style={s.bold}>
+                  {String(substabelecido.nome || "").toUpperCase()}
+                </Text>{" "}
+                (<Text style={s.bold}>{substabelecido.oabCurta}</Text>), nos termos do art.
+                272, paragrafo 5o, do Codigo de Processo Civil, sob pena de nulidade.
+              </Text>
+            </View>
+
+            <View style={s.p}>
+              <Text>
+                Declara o(a) substabelecente que o presente instrumento e lavrado para
+                regularizacao da representacao processual, sem prejuizo das
+                responsabilidades profissionais ja assumidas ate a data desta assinatura,
+                e que a parte outorgante permanece com a tutela de seus interesses
+                assegurada pelo(a) novo(a) patrono(a).
+              </Text>
+            </View>
+          </>
+        ) : null}
 
         <Text style={s.date}>
           {comarca}, {dataExtenso}.
@@ -247,19 +260,23 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
           <View style={s.line} />
           <Text style={s.bold}>{String(revogado.nome || "").toUpperCase()}</Text>
           <Text>{revogado.oabCurta}</Text>
-          <Text style={{ fontSize: 8 }}>Substabelecente</Text>
+          <Text style={{ fontSize: 8 }}>{somenteRevogacao ? 'Advogado(a) revogado(a)' : 'Substabelecente'}</Text>
         </View>
 
-        <View style={{ marginTop: 24 }} />
+        {!somenteRevogacao && substabelecido ? (
+          <>
+            <View style={{ marginTop: 24 }} />
 
-        <View style={s.sig}>
-          <View style={s.line} />
-          <Text style={s.bold}>
-            {String(substabelecido.nome || "").toUpperCase()}
-          </Text>
-          <Text>{substabelecido.oabCurta}</Text>
-          <Text style={{ fontSize: 8 }}>Substabelecido / intimacoes exclusivas</Text>
-        </View>
+            <View style={s.sig}>
+              <View style={s.line} />
+              <Text style={s.bold}>
+                {String(substabelecido.nome || "").toUpperCase()}
+              </Text>
+              <Text>{substabelecido.oabCurta}</Text>
+              <Text style={{ fontSize: 8 }}>Substabelecido / intimacoes exclusivas</Text>
+            </View>
+          </>
+        ) : null}
 
         <Text style={s.footer}>
           LexisPredict - Conferir dados da banca e do tribunal antes do protocolo -{" "}
