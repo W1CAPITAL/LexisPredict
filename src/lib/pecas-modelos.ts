@@ -2,7 +2,7 @@
  * Biblioteca de modelos — padrão de qualificação e estrutura de
  * Procuração Ad Judicia (outorgante / outorgado / objeto / poderes /
  * poderes excepcionais / finalidade / local e data / assinatura).
- * OAB aceita 1–2+ caracteres. Edição livre nos formulários.
+ * OAB aceita 1–2+ caracteres. Quebras de linha preservadas para o PDF.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -104,7 +104,11 @@ function qualificaCliente(m: PecaMeta): string {
   }
   const rg = seg(m, 'rgCliente', '');
   const orgao = seg(m, 'orgaoRgCliente', '');
-  if (rg) parts.push(`portador(a) da cédula de identidade n.º ${rg}${orgao ? ` expedida por ${orgao}` : ''}`);
+  if (rg) {
+    parts.push(
+      `portador(a) da cédula de identidade n.º ${rg}${orgao ? ` expedida por ${orgao}` : ''}`
+    );
+  }
   const cpf = seg(m, 'cpfCliente', '');
   if (cpf) parts.push(`inscrito(a) no CPF sob o n.º ${cpf}`);
   const end = seg(m, 'enderecoCliente', '');
@@ -116,7 +120,12 @@ function qualificaCliente(m: PecaMeta): string {
   return parts.join(', ');
 }
 
-function qualificaAdvogado(m: PecaMeta, nomeKey: keyof PecaMeta, oabKey: keyof PecaMeta, ufKey: keyof PecaMeta): string {
+function qualificaAdvogado(
+  m: PecaMeta,
+  nomeKey: keyof PecaMeta,
+  oabKey: keyof PecaMeta,
+  ufKey: keyof PecaMeta
+): string {
   const nome = nomeSeg(m, nomeKey, '[NOME DO ADVOGADO]');
   const oab = nomeSeg(m, oabKey, '________');
   const uf = nomeSeg(m, ufKey, '__');
@@ -164,27 +173,69 @@ function assinatura(m: PecaMeta, rotulo = 'Outorgante'): string {
 }
 
 export const BANCOS_COBERTOS: string[] = [
-  'Banco do Brasil', 'Banco Itaú Unibanco', 'Banco Bradesco', 'Banco Santander',
-  'Caixa Econômica Federal', 'Nubank', 'Banco Inter', 'Banco Pan', 'Banco BMG',
-  'Banco C6 Bank', 'Banco Safra', 'Banco Original', 'Banco Daycoval',
-  'Banco Votorantim', 'Crefisa', 'Losango', 'Banco Agibank', 'Banrisul',
-  'Sicoob', 'Sicredi', 'PagBank', 'Mercado Pago', 'PicPay',
+  'Banco do Brasil',
+  'Banco Itaú Unibanco',
+  'Banco Bradesco',
+  'Banco Santander',
+  'Caixa Econômica Federal',
+  'Nubank',
+  'Banco Inter',
+  'Banco Pan',
+  'Banco BMG',
+  'Banco C6 Bank',
+  'Banco Safra',
+  'Banco Original',
+  'Banco Daycoval',
+  'Banco Votorantim',
+  'Crefisa',
+  'Losango',
+  'Banco Agibank',
+  'Banrisul',
+  'Sicoob',
+  'Sicredi',
+  'PagBank',
+  'Mercado Pago',
+  'PicPay',
   'Outra instituição financeira',
 ];
 
 export const CATEGORIAS: CategoriaPeca[] = [
-  'Procuração', 'Habilitação', 'Substabelecimento', 'Revogação',
-  'Petições', 'Cartas', 'Extrajudicial', 'PROCON', 'Quitação', 'Limpa Nome',
+  'Procuração',
+  'Habilitação',
+  'Substabelecimento',
+  'Revogação',
+  'Petições',
+  'Cartas',
+  'Extrajudicial',
+  'PROCON',
+  'Quitação',
+  'Limpa Nome',
 ];
 
 const CAMPOS_OUTORGANTE: (keyof PecaMeta)[] = [
-  'cliente', 'nacionalidadeCliente', 'estadoCivilCliente', 'profissaoCliente',
-  'cpfCliente', 'rgCliente', 'orgaoRgCliente', 'enderecoCliente',
-  'telefoneCliente', 'emailCliente', 'cidade', 'data',
+  'cliente',
+  'nacionalidadeCliente',
+  'estadoCivilCliente',
+  'profissaoCliente',
+  'cpfCliente',
+  'rgCliente',
+  'orgaoRgCliente',
+  'enderecoCliente',
+  'telefoneCliente',
+  'emailCliente',
+  'cidade',
+  'data',
 ];
 
 const CAMPOS_ADVOGADO: (keyof PecaMeta)[] = [
-  'advogado', 'oab', 'uf', 'cpfAdvogado', 'enderecoAdvogado', 'advogado2', 'oab2', 'uf2',
+  'advogado',
+  'oab',
+  'uf',
+  'cpfAdvogado',
+  'enderecoAdvogado',
+  'advogado2',
+  'oab2',
+  'uf2',
 ];
 
 export const MODELOS_DE_PECAS: ModeloPeca[] = [
@@ -192,11 +243,18 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     id: 'procuracao-ad-judicia',
     categoria: 'Procuração',
     titulo: 'Procuração Ad Judicia et Extra',
-    descricao: 'Modelo completo: outorgante qualificado, outorgado(s), objeto, poderes, poderes excepcionais e finalidade.',
+    descricao:
+      'Modelo completo: outorgante qualificado, outorgado(s), objeto, poderes, poderes excepcionais e finalidade.',
     campos: [
       ...CAMPOS_OUTORGANTE,
       ...CAMPOS_ADVOGADO,
-      'banco', 'cnpjBanco', 'protocolo', 'tipoAcao', 'classeAcao', 'parteContraria', 'resumo',
+      'banco',
+      'cnpjBanco',
+      'protocolo',
+      'tipoAcao',
+      'classeAcao',
+      'parteContraria',
+      'resumo',
     ],
     render: (m) => {
       const outorgados = [qualificaAdvogado(m, 'advogado', 'oab', 'uf')];
@@ -259,8 +317,22 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     titulo: 'Habilitação nos autos',
     descricao: 'Petição de habilitação com qualificação, fundamento no art. 105 do CPC e pedidos.',
     campos: [
-      'protocolo', 'cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'orgao', 'comarca', 'tribunal',
-      'classeAcao', 'advogado', 'oab', 'uf', 'enderecoAdvogado', 'resumo', 'cidade', 'data',
+      'protocolo',
+      'cliente',
+      'cpfCliente',
+      'banco',
+      'cnpjBanco',
+      'orgao',
+      'comarca',
+      'tribunal',
+      'classeAcao',
+      'advogado',
+      'oab',
+      'uf',
+      'enderecoAdvogado',
+      'resumo',
+      'cidade',
+      'data',
     ],
     render: (m) =>
       [
@@ -301,8 +373,17 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     titulo: 'Substabelecimento sem reserva de poderes',
     descricao: 'Transfere poderes integralmente ao substabelecido.',
     campos: [
-      'substabDe', 'substabDeOab', 'uf', 'substabPara', 'substabParaOab',
-      'cliente', 'protocolo', 'banco', 'cidade', 'data', 'resumo',
+      'substabDe',
+      'substabDeOab',
+      'uf',
+      'substabPara',
+      'substabParaOab',
+      'cliente',
+      'protocolo',
+      'banco',
+      'cidade',
+      'data',
+      'resumo',
     ],
     render: (m) =>
       [
@@ -329,8 +410,17 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     titulo: 'Substabelecimento com reserva de poderes',
     descricao: 'Transfere poderes mantendo reserva ao substabelecente.',
     campos: [
-      'substabDe', 'substabDeOab', 'uf', 'substabPara', 'substabParaOab',
-      'cliente', 'protocolo', 'banco', 'cidade', 'data', 'resumo',
+      'substabDe',
+      'substabDeOab',
+      'uf',
+      'substabPara',
+      'substabParaOab',
+      'cliente',
+      'protocolo',
+      'banco',
+      'cidade',
+      'data',
+      'resumo',
     ],
     render: (m) =>
       [
@@ -351,13 +441,66 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
         `OAB/${nomeSeg(m, 'uf', '__')} ${nomeSeg(m, 'substabDeOab', '________')}`,
       ].join('\n'),
   },
-  id: 'revogacao-poderes'
+  {
+    id: 'revogacao-poderes',
+    categoria: 'Revogação',
+    titulo: 'Revogação de poderes',
+    descricao:
+      'Revoga mandato anteriormente conferido (art. 686 do Código Civil). Sem substabelecimento.',
+    campos: [
+      'cliente',
+      'cpfCliente',
+      'advogado',
+      'oab',
+      'uf',
+      'protocolo',
+      'banco',
+      'resumo',
+      'cidade',
+      'data',
+    ],
+    render: (m) =>
+      [
+        'REVOGAÇÃO DE MANDATO / PODERES',
+        '',
+        `Outorgante: ${qualificaCliente(m)}.`,
+        '',
+        `Pelo presente, REVOGO, nos termos do art. 686 do Código Civil, os poderes anteriormente conferidos ao(à) advogado(a) ${nomeSeg(m, 'advogado', '[ADVOGADO]')}, OAB/${nomeSeg(m, 'uf', '__')} n.º ${nomeSeg(m, 'oab', '________')}${
+          m.protocolo
+            ? `, referentes ao processo/contrato n.º ${seg(m, 'protocolo', '')}`
+            : ''
+        }${
+          m.banco ? `, mantido junto a ${seg(m, 'banco', '')}` : ''
+        }, ficando sem efeito qualquer ato praticado por este(a) a partir da presente data, salvo os já regularmente praticados na vigência do mandato.`,
+        '',
+        m.resumo ? `Observações: ${m.resumo}` : '',
+        '',
+        localData(m),
+        '',
+        '_________________________________',
+        nomeSeg(m, 'cliente', '[NOME DO OUTORGANTE]').toUpperCase(),
+        'Outorgante',
+      ]
+        .filter((l) => l !== undefined && l !== null && l !== '')
+        .join('\n'),
+  },
   {
     id: 'peticao-informacoes',
     categoria: 'Petições',
     titulo: 'Petição de informações / certidão',
     descricao: 'Requer certidão de andamento e cópia dos atos.',
-    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf', 'cidade', 'data'],
+    campos: [
+      'protocolo',
+      'cliente',
+      'banco',
+      'orgao',
+      'comarca',
+      'advogado',
+      'oab',
+      'uf',
+      'cidade',
+      'data',
+    ],
     render: (m) =>
       [
         'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
@@ -383,7 +526,18 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     categoria: 'Petições',
     titulo: 'Petição de juntada',
     descricao: 'Juntada de procuração e documentos de habilitação.',
-    campos: ['protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf', 'cidade', 'data'],
+    campos: [
+      'protocolo',
+      'cliente',
+      'banco',
+      'orgao',
+      'comarca',
+      'advogado',
+      'oab',
+      'uf',
+      'cidade',
+      'data',
+    ],
     render: (m) =>
       [
         'EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO',
@@ -410,8 +564,18 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     titulo: 'Petição — cumprimento de sentença',
     descricao: 'Requer início ou andamento de cumprimento de sentença.',
     campos: [
-      'protocolo', 'cliente', 'banco', 'orgao', 'comarca', 'advogado', 'oab', 'uf',
-      'resumo', 'valorContrato', 'cidade', 'data',
+      'protocolo',
+      'cliente',
+      'banco',
+      'orgao',
+      'comarca',
+      'advogado',
+      'oab',
+      'uf',
+      'resumo',
+      'valorContrato',
+      'cidade',
+      'data',
     ],
     render: (m) =>
       [
@@ -441,7 +605,18 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     categoria: 'Cartas',
     titulo: 'Carta ao banco — documentos',
     descricao: 'Solicita cópia do contrato e demonstrativos.',
-    campos: ['cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'protocolo', 'advogado', 'oab', 'uf', 'cidade', 'data'],
+    campos: [
+      'cliente',
+      'cpfCliente',
+      'banco',
+      'cnpjBanco',
+      'protocolo',
+      'advogado',
+      'oab',
+      'uf',
+      'cidade',
+      'data',
+    ],
     render: (m) =>
       [
         nomeSeg(m, 'banco', '[INSTITUIÇÃO FINANCEIRA]').toUpperCase(),
@@ -466,8 +641,16 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     titulo: 'Carta — proposta de quitação',
     descricao: 'Proposta formal de quitação com valor.',
     campos: [
-      'cliente', 'cpfCliente', 'banco', 'cnpjBanco', 'protocolo',
-      'valorContrato', 'valorProposta', 'resumo', 'cidade', 'data',
+      'cliente',
+      'cpfCliente',
+      'banco',
+      'cnpjBanco',
+      'protocolo',
+      'valorContrato',
+      'valorProposta',
+      'resumo',
+      'cidade',
+      'data',
     ],
     render: (m) =>
       [
@@ -481,7 +664,9 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
         '',
         `PROPOSTA: O proponente oferece a quantia de ${seg(m, 'valorProposta', '[R$ ___]')} para quitação integral do contrato acima, com baixa definitiva de restrições e emissão de termo de quitação no prazo de 5 (cinco) dias úteis após a compensação do pagamento.`,
         '',
-        m.resumo ? `Condições adicionais: ${m.resumo}` : 'A proposta é válida por 10 (dez) dias corridos a contar do recebimento.',
+        m.resumo
+          ? `Condições adicionais: ${m.resumo}`
+          : 'A proposta é válida por 10 (dez) dias corridos a contar do recebimento.',
         '',
         'Solicita-se resposta formal por escrito.',
         '',
@@ -495,8 +680,17 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     titulo: 'Notificação extrajudicial ao credor',
     descricao: 'Notificação formal para revisão/negociação contratual.',
     campos: [
-      'cliente', 'cpfCliente', 'rgCliente', 'enderecoCliente', 'banco', 'cnpjBanco',
-      'protocolo', 'valorContrato', 'resumo', 'cidade', 'data',
+      'cliente',
+      'cpfCliente',
+      'rgCliente',
+      'enderecoCliente',
+      'banco',
+      'cnpjBanco',
+      'protocolo',
+      'valorContrato',
+      'resumo',
+      'cidade',
+      'data',
     ],
     render: (m) =>
       [
@@ -526,8 +720,15 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     titulo: 'Minuta PROCON',
     descricao: 'Estrutura de reclamação/defesa no PROCON.',
     campos: [
-      'cliente', 'cpfCliente', 'enderecoCliente', 'banco', 'protocoloProcon',
-      'protocolo', 'resumo', 'cidade', 'data',
+      'cliente',
+      'cpfCliente',
+      'enderecoCliente',
+      'banco',
+      'protocoloProcon',
+      'protocolo',
+      'resumo',
+      'cidade',
+      'data',
     ],
     render: (m) =>
       [
@@ -559,7 +760,16 @@ export const MODELOS_DE_PECAS: ModeloPeca[] = [
     categoria: 'Limpa Nome',
     titulo: 'Requerimento de baixa em birôs',
     descricao: 'Solicita exclusão de apontamento após quitação ou indevido.',
-    campos: ['cliente', 'cpfCliente', 'enderecoCliente', 'banco', 'protocolo', 'resumo', 'cidade', 'data'],
+    campos: [
+      'cliente',
+      'cpfCliente',
+      'enderecoCliente',
+      'banco',
+      'protocolo',
+      'resumo',
+      'cidade',
+      'data',
+    ],
     render: (m) =>
       [
         'REQUERIMENTO DE BAIXA / EXCLUSÃO DE APONTAMENTO',
