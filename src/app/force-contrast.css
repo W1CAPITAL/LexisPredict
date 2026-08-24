@@ -1,57 +1,133 @@
-/* Contraste legível — Minimal Steel light por padrão. Sem texto branco em fundo claro. */
+/* LexisPredict — Minimal Steel LIGHT: contraste legível obrigatório */
 :root {
-  --background: 210 40% 98% !important;
-  --foreground: 222 47% 11% !important;
-  --card: 0 0% 100% !important;
-  --card-foreground: 222 47% 11% !important;
-  --popover: 0 0% 100% !important;
-  --popover-foreground: 222 47% 11% !important;
-  --secondary: 210 40% 96% !important;
-  --secondary-foreground: 222 47% 11% !important;
-  --muted: 210 40% 96% !important;
-  --muted-foreground: 215 16% 35% !important;
-  --border: 214 32% 88% !important;
-  --sidebar-background: 0 0% 100% !important;
-  --sidebar-foreground: 222 47% 11% !important;
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 222 47% 11%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 35%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 88%;
+  --input: 214 32% 88%;
+  --ring: 222 47% 20%;
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 222 47% 11%;
+  --sidebar-border: 214 32% 90%;
+  --sidebar-accent: 210 40% 96%;
+  --sidebar-accent-foreground: 222 47% 11%;
 }
 
 html:not(.dark) body,
-html:not(.dark) {
+html.light body {
   color: #0f172a !important;
   background-color: #f8fafc !important;
 }
 
 html:not(.dark) .text-foreground,
-html:not(.dark) .text-card-foreground {
+html.light .text-foreground,
+html:not(.dark) .text-card-foreground,
+html.light .text-card-foreground {
   color: #0f172a !important;
 }
 
-html:not(.dark) .text-muted-foreground {
+html:not(.dark) .text-muted-foreground,
+html.light .text-muted-foreground {
   color: #475569 !important;
 }
 
+html:not(.dark) .text-primary,
+html.light .text-primary {
+  color: #0f172a !important;
+}
+
+html:not(.dark) [data-efferd-kpi],
+html:not(.dark) [data-admin-card],
 html:not(.dark) .bg-card,
+html.light [data-efferd-kpi],
+html.light [data-admin-card],
+html.light .bg-card {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html:not(.dark) [data-efferd-kpi] .text-white,
+html:not(.dark) [data-admin-card] .text-white,
+html:not(.dark) .bg-card .text-white,
+html.light [data-efferd-kpi] .text-white,
+html.light [data-admin-card] .text-white,
+html.light .bg-card .text-white {
+  color: #0f172a !important;
+}
+
+html:not(.dark) [data-efferd-kpi] [class*="text-white"],
+html:not(.dark) [data-admin-card] [class*="text-white"],
+html:not(.dark) .bg-card [class*="text-white"],
+html.light [data-efferd-kpi] [class*="text-white"],
+html.light [data-admin-card] [class*="text-white"],
+html.light .bg-card [class*="text-white"] {
+  color: #475569 !important;
+}
+
+html:not(.dark) [data-efferd-kpi] [class*="opacity-"],
+html:not(.dark) [data-admin-card] [class*="opacity-"],
+html.light [data-efferd-kpi] [class*="opacity-"],
+html.light [data-admin-card] [class*="opacity-"] {
+  opacity: 1 !important;
+}
+
+html:not(.dark) [data-efferd-kpi] .uppercase,
+html:not(.dark) [data-admin-card] .uppercase,
+html:not(.dark) [data-efferd-kpi] [class*="tracking"],
+html.light [data-efferd-kpi] .uppercase,
+html.light [data-admin-card] .uppercase {
+  color: #475569 !important;
+}
+
+html:not(.dark) [data-efferd-kpi] .tabular-nums,
+html:not(.dark) [data-admin-card] .tabular-nums,
+html:not(.dark) [data-efferd-kpi] .font-black,
+html:not(.dark) [data-efferd-kpi] .font-bold,
+html.light [data-efferd-kpi] .tabular-nums,
+html.light [data-admin-card] .tabular-nums {
+  color: #0f172a !important;
+}
+
+html:not(.dark) [role="dialog"],
 html:not(.dark) [data-radix-dialog-content],
-html:not(.dark) [role="dialog"] {
-  background-color: #ffffff !important;
+html.light [role="dialog"],
+html.light [data-radix-dialog-content] {
+  background: #ffffff !important;
   color: #0f172a !important;
   opacity: 1 !important;
   backdrop-filter: none !important;
 }
 
-html:not(.dark) .bg-background {
-  background-color: #f8fafc !important;
+html:not(.dark) .border-border,
+html.light .border-border {
+  border-color: #e2e8f0 !important;
 }
 
-html:not(.dark) aside,
-html:not(.dark) [data-sidebar] {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  opacity: 1 !important;
+html:not(.dark) .backdrop-blur,
+html:not(.dark) .backdrop-blur-md,
+html:not(.dark) .backdrop-blur-sm,
+html.light .backdrop-blur,
+html.light .backdrop-blur-md {
   backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-/* Evita branco sobre branco em badges pastel */
-html:not(.dark) .text-white:not(.bg-black):not(.bg-primary):not([class*="bg-red"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="bg-slate-9"]):not([class*="bg-zinc-9"]) {
-  color: #0f172a !important;
+html.dark body {
+  color: #f1f5f9;
 }
