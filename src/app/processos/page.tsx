@@ -253,42 +253,57 @@ export default function ProcessosEmpresaPage() {
   const saveEdit = async () => {
     if (!editing) return;
     setSaving(true);
-    const iso = formatDateToISO(editing.ultimoRetorno) || "";
-    let updated: LegalCase = {
-      ...editing,
-      ultimoRetorno: iso || editing.ultimoRetorno,
-      atendido_por: (profile as any)?.auth_user_id || (profile as any)?.id || (editing as any).atendido_por,
-    } as LegalCase;
-    if (iso && (isAtendidoHoje(iso) || isAtendidoNestaSemana(iso))) {
-      updated = {
-        ...updated,
-        ...patchAtendimentoComEdicao(
-          (profile as any)?.auth_user_id || (profile as any)?.id,
-          iso
-        ),
+    try {
+      const iso = formatDateToISO(editing.ultimoRetorno) || "";
+      let updated: LegalCase = {
+        ...editing,
+        ultimoRetorno: iso || editing.ultimoRetorno,
+        atendido_por:
+          (profile as any)?.auth_user_id ||
+          (profile as any)?.id ||
+          (editing as any).atendido_por,
       } as LegalCase;
-    }
-    const payload = { ...updated } as any;
-      // Edição normal NUNCA transfere carteira — só muda campos / atendimento
+      if (iso && (isAtendidoHoje(iso) || isAtendidoNestaSemana(iso))) {
+        updated = {
+          ...updated,
+          ...patchAtendimentoComEdicao(
+            (profile as any)?.auth_user_id || (profile as any)?.id,
+            iso
+          ),
+        } as LegalCase;
+      }
+      const payload = { ...updated } as any;
       delete payload.force_transfer_owner;
       delete payload.__transfer_owner;
-      // Se não há UI de transferência neste fluxo, não manda created_by novo
+
       const res = await saveOneCaseAction(payload);
-    if (res.success) {
-      await registrarAuditoriaEventAction("edicao", [editing.protocolo], {
-        detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
-      });
-      if (iso && isAtendidoHoje(iso)) {
-        await registrarAtendimentoAction([editing.protocolo], {
-          via: "processos-editar",
-          ultimoRetorno: iso,
+      if (res.success) {
+        await registrarAuditoriaEventAction("edicao", [editing.protocolo], {
+          detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
+        });
+        if (iso && isAtendidoHoje(iso)) {
+          await registrarAtendimentoAction([editing.protocolo], {
+            via: "processos-editar",
+            ultimoRetorno: iso,
+          });
+        }
+        setEditOpen(false);
+        setEditing(null);
+        await load();
+        toast({
+          title: "Processo salvo",
+          description: editing.cliente || editing.protocolo,
+        });
+      } else {
+        toast({
+          title: "Não foi possível salvar",
+          description: res.message || "Falha desconhecida (RLS / service role / trigger).",
+          variant: "destructive",
         });
       }
-      setEditOpen(false);
-      setEditing(null);
-      await load();
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const todayBR = () => hojeBrasilYmd(); // YYYY-MM-DD Brasília
