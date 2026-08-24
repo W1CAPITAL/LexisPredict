@@ -101,7 +101,7 @@ function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
     >
       <div className="relative z-10 flex flex-col h-full gap-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-800 dark:text-slate-100 leading-tight" data-efferd-label>
+          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground leading-tight" data-efferd-label>
             {k.label}
           </p>
           <div
@@ -114,11 +114,11 @@ function KpiCard({ k, delay }: { k: Kpi; delay: number }) {
           </div>
         </div>
         <div className="mt-auto">
-          <p className="text-3xl sm:text-4xl font-black tabular-nums tracking-tighter text-slate-950 dark:text-white leading-none" data-efferd-value>
+          <p className="text-3xl sm:text-4xl font-black tabular-nums tracking-tighter text-foreground leading-none" data-efferd-value>
             {k.value}
           </p>
           {k.hint ? (
-            <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-2 line-clamp-2 font-medium">
+            <p className="text-[10px] text-muted-foreground mt-2 line-clamp-2 font-medium">
               {k.hint}
             </p>
           ) : null}
