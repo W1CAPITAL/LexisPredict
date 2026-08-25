@@ -11,7 +11,8 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
+import { fetchCompanyProcessosAction,
+  fetchCompanyProcessosPageAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { fetchRankingAtendentesEmpresaAction } from "@/app/actions/ranking-atendentes-action";
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
 import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
@@ -172,6 +173,9 @@ export default function ProcessosEmpresaPage() {
     filaLista: "normal" as FilaLista,
   });
   const [visibleCount, setVisibleCount] = useState(80);
+  const [listOffset, setListOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [onlyAtivosList, setOnlyAtivosList] = useState(true);
   const PAGE_SIZE = 80;
 
   const load = async () => {
@@ -180,6 +184,7 @@ export default function ProcessosEmpresaPage() {
       const res = await fetchCompanyProcessosAction();
       const list = res?.cases || [];
       setCases(list);
+      setListOffset(list.length);
       setTotalCount(Number(res?.totalCount) || list.length);
       setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
       let rankList = Array.isArray(res?.ranking) ? res.ranking : [];
@@ -550,8 +555,50 @@ export default function ProcessosEmpresaPage() {
   const hasMore = visibleCount < filtered.length;
   const remaining = filtered.length - visibleCount;
 
-  const showMore = (extra: number) => {
-    setVisibleCount((prev) => Math.min(prev + extra, filtered.length));
+  
+  const loadMoreFromServer = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetchCompanyProcessosPageAction({
+        offset: listOffset,
+        limit: 200,
+        onlyAtivos: onlyAtivosList,
+      });
+      if (res.ok && res.cases?.length) {
+        setCases((prev) => {
+          const seen = new Set(prev.map((c: any) => String(c.id || c.protocolo)));
+          const add = (res.cases || []).filter((c: any) => !seen.has(String(c.id || c.protocolo)));
+          return [...prev, ...add];
+        });
+        setListOffset((o) => o + res.cases.length);
+        setVisibleCount((v) => v + Math.min(80, res.cases.length));
+      } else if (onlyAtivosList) {
+        setOnlyAtivosList(false);
+        const res2 = await fetchCompanyProcessosPageAction({
+          offset: 0,
+          limit: 200,
+          onlyAtivos: false,
+        });
+        if (res2.ok && res2.cases?.length) {
+          setCases((prev) => {
+            const seen = new Set(prev.map((c: any) => String(c.id || c.protocolo)));
+            const add = (res2.cases || []).filter((c: any) => !seen.has(String(c.id || c.protocolo)));
+            return [...prev, ...add];
+          });
+          setListOffset((o) => o + (res2.cases?.length || 0));
+        }
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const showMore = async (extra: number) => {
+    setVisibleCount((prev) => Math.min(prev + extra, Math.max(filtered.length, prev + extra)));
+    if (visibleCount + extra >= cases.length - 20) {
+      await loadMoreFromServer();
+    }
   };
   const showAll = () => setVisibleCount(filtered.length);
   const showLess = () => setVisibleCount(PAGE_SIZE);

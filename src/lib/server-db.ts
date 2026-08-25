@@ -263,7 +263,8 @@ export async function getStoredCasesPageForEmpresa(
   empresaId: string,
   limit = 250,
   offset = 0,
-  isAdmin = false
+  isAdmin = false,
+  opts?: { onlyAtivos?: boolean }
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
   const client = isAdmin ? await getSupabaseAdmin() : supabase;
@@ -272,6 +273,7 @@ export async function getStoredCasesPageForEmpresa(
   try {
     const context = await getUserContext();
     const { auth_id, isMasterView } = context;
+    const onlyAtivos = opts?.onlyAtivos === true;
 
     let query = client
       .from('processos')
@@ -279,6 +281,11 @@ export async function getStoredCasesPageForEmpresa(
       .eq('empresa_id', empresaId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (onlyAtivos) {
+      // PostgREST: not in (Arquivado, ENCERRADO, ...)
+      query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
+    }
 
     if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
       query = query.eq("created_by", auth_id);
@@ -289,6 +296,7 @@ export async function getStoredCasesPageForEmpresa(
 
     return (data || []).map((item: any) => toLegalCase(item));
   } catch (error) {
+    console.error("[getStoredCasesPageForEmpresa]", error);
     return [];
   }
 }

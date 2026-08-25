@@ -1060,8 +1060,8 @@ export async function fetchCompanyProcessosAction() {
         return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
       }),
       // 1ª página — 300 linhas (tabela); total vem do COUNT
-      getStoredCasesPageForEmpresa(empresa_id, 300, 0, true).catch((e: any) => {
-        console.error("[company] page", e?.message);
+      getStoredCasesPageForEmpresa(empresa_id, 400, 0, true, { onlyAtivos: true }).catch((e: any) => {
+        console.error("[company] page ativos", e?.message);
         return [] as any[];
       }),
       fetchAuditoriaLogsAction(empresa_id).catch(() => []),
@@ -1875,5 +1875,32 @@ export async function enriquecerTeorFilaOportunidadeAction(opts?: {
       remaining: 0,
       error: e?.message || 'Falha no enriquecimento seletivo',
     };
+  }
+}
+
+
+/** Próxima página da lista /processos (empresa). onlyAtivos=true por padrão. */
+export async function fetchCompanyProcessosPageAction(opts?: {
+  offset?: number;
+  limit?: number;
+  onlyAtivos?: boolean;
+}) {
+  try {
+    const { getStoredCasesPageForEmpresa, getUserContext } = await import("@/lib/server-db");
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id) return { ok: false, cases: [] as any[] };
+    const limit = Math.min(Math.max(opts?.limit ?? 200, 50), 500);
+    const offset = Math.max(opts?.offset ?? 0, 0);
+    const onlyAtivos = opts?.onlyAtivos !== false;
+    const cases = await getStoredCasesPageForEmpresa(
+      ctx.empresa_id,
+      limit,
+      offset,
+      true,
+      { onlyAtivos }
+    );
+    return { ok: true, cases: cases || [], offset, limit };
+  } catch (e: any) {
+    return { ok: false, cases: [] as any[], error: e?.message };
   }
 }
