@@ -174,8 +174,8 @@ function SidebarNavBody({
   const navItems: NavItem[] = useMemo(() => {
     const primary: NavItem[] = [
       { label: "Painel", href: "/", icon: LayoutDashboard },
-      { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
       { label: "Encerrados a revisar", href: "/encerrados-revisao", icon: ShieldAlert },
+      { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
       { label: "Processos parados", href: "/processos-parados", icon: PauseCircle },
       { label: "Meus processos", href: "/cases", icon: Briefcase },
       { label: "Visão da empresa", href: "/processos", icon: FolderOpen },
@@ -190,7 +190,6 @@ function SidebarNavBody({
       { label: "Radar predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
-      { label: "Auditoria contrato", href: "/tools/auditoria-contrato", icon: FileSearch },
       { label: "CRM Assessoria", href: "/crm", icon: Kanban },
       { label: "Follow-ups CRM", href: "/crm/followups", icon: ListTodo },
       { label: "Finanças", href: "/financas", icon: Wallet },

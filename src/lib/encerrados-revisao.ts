@@ -78,6 +78,10 @@ export function podeConfirmarEncerradoSeguro(c: LegalCase): boolean {
  *   BA, parcial, novidade após "encerrar", ou só baixa tribunal sem confirmação humana)
  */
 export function precisaRevisarEncerramento(c: LegalCase): boolean {
+  const d = (c as any).dados || {};
+  // Operador dispensou desta fila (ainda pode reabrir depois)
+  if (d.revisao_encerrado_dispensada_em || (c as any).revisao_encerrado_dispensada_em) return false;
+
   const encGabinete = isCasoEncerrado(c);
   const encTribunal = baixaTribunal(c);
   if (!encGabinete && !encTribunal) return false;

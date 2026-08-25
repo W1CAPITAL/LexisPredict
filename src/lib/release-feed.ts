@@ -1,9 +1,9 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.78.0";
+export const RELEASE_VERSION = "9.79.0";
 
 export const RELEASE_CHANGELOG: string[] = [
-  "9.78 — Prompts auditoria contrato/SWOT/peça; tela /tools/auditoria-contrato; chat contextType ampliado.",
+  "9.79 — Encerrados a revisar sob o Painel; lote: J/K, Meus/Empresa, dispensar, lote confirmar, copiar CNJ.",
   "9.77 — Aba Encerrados a revisar no sidebar (fila dedicada como contato: flags, reabrir, confirmar).",
   "9.75 — Fila Encerrados a revisar no Painel (procedente/cumprimento/restore); política de auto-encerrar só improcedente limpo.",
   "9.74 — Escopo pessoal em /cases, fila, dashboard e report; empresa só em /processos; SQL rateia sem dono.",

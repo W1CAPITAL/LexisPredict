@@ -1,17 +1,16 @@
 "use client";
 
 /**
- * Fila Encerrados a revisar — mesma lógica operacional da fila de contato,
- * especializada em encerramentos que ainda exigem o fino humano.
+ * Fila Encerrados a revisar — fila de segurança (fino humano).
+ * Posição no menu: abaixo do Painel, acima da Fila de contato.
  */
 import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { fetchRepoCases } from "@/app/actions/case-actions";
+import { fetchRepoCases, fetchCompanyProcessosAction } from "@/app/actions/case-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { loadCarteiraComCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
 import { fetchCarteiraDeduped } from "@/lib/carteira-fetch-client";
@@ -32,6 +31,11 @@ import {
   Loader2,
   ArrowRight,
   ListTodo,
+  Copy,
+  X,
+  Building2,
+  User,
+  Keyboard,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 
@@ -42,14 +46,20 @@ const toneClass: Record<string, string> = {
   info: "border-slate-400/40 bg-slate-500/10 text-slate-700 dark:text-slate-300",
 };
 
+const LS_FILTRO = "lexis_enc_revisao_filtro";
+const LS_ESCOPO = "lexis_enc_revisao_escopo";
+
 type FiltroFlag =
   | "todos"
+  | "critico"
   | "procedente"
   | "cumprimento"
   | "restore"
   | "novidade"
   | "tribunal"
   | "confirmar";
+
+type Escopo = "meus" | "empresa";
 
 export default function EncerradosRevisaoPage() {
   const { toast } = useToast();
@@ -58,45 +68,72 @@ export default function EncerradosRevisaoPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filtro, setFiltro] = useState<FiltroFlag>("todos");
+  const [escopo, setEscopo] = useState<Escopo>("meus");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState(0);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    try {
+      const f = localStorage.getItem(LS_FILTRO) as FiltroFlag | null;
+      if (f) setFiltro(f);
+      const e = localStorage.getItem(LS_ESCOPO) as Escopo | null;
+      if (e === "meus" || e === "empresa") setEscopo(e);
+    } catch { /* */ }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_FILTRO, filtro);
+      localStorage.setItem(LS_ESCOPO, escopo);
+    } catch { /* */ }
+  }, [filtro, escopo]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const empId = profile?.empresa_id || null;
-      const pack = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
-        empresaId: empId,
-        onShow: (data) => {
-          if (Array.isArray(data)) startTransition(() => setCases(data as LegalCase[]));
-        },
-        allowStaleKpiFallback: false,
-      });
-      if (Array.isArray(pack.cases)) setCases(pack.cases as LegalCase[]);
+      if (escopo === "empresa") {
+        const res = await fetchCompanyProcessosAction();
+        const list = Array.isArray((res as any)?.cases)
+          ? (res as any).cases
+          : Array.isArray(res)
+            ? res
+            : [];
+        startTransition(() => setCases(list as LegalCase[]));
+      } else {
+        const pack = await loadCarteiraComCache({
+          fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
+          empresaId: empId,
+          onShow: (data) => {
+            if (Array.isArray(data)) startTransition(() => setCases(data as LegalCase[]));
+          },
+          allowStaleKpiFallback: false,
+        });
+        if (Array.isArray(pack.cases)) setCases(pack.cases as LegalCase[]);
+      }
     } catch (e: any) {
       toast({
-        title: "Falha ao carregar carteira",
+        title: "Falha ao carregar",
         description: e?.message || "Erro",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  }, [profile?.empresa_id, toast]);
+  }, [profile?.empresa_id, toast, escopo]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const filaBase = useMemo(
-    () => buildFilaEncerradosRevisao(cases, 500),
-    [cases]
-  );
+  const filaBase = useMemo(() => buildFilaEncerradosRevisao(cases, 800), [cases]);
 
-  const fila = useMemo(() => {
+  const filaFinal = useMemo(() => {
     const q = search.trim().toLowerCase();
     return filaBase.filter((it) => {
+      if (filtro === "critico" && !it.flags.some((f) => f.tone === "critico")) return false;
       if (filtro === "procedente" && !it.flags.some((f) => f.id === "procedente" || f.id === "parcial"))
         return false;
       if (filtro === "cumprimento" && !it.flags.some((f) => f.id === "cumprimento" || f.id === "instaurar"))
@@ -112,14 +149,40 @@ export default function EncerradosRevisaoPage() {
     });
   }, [filaBase, filtro, search]);
 
+  useEffect(() => {
+    setSelected(0);
+  }, [filtro, search, escopo, filaFinal.length]);
+
+  // Atalhos J/K como na fila de contato
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "j" || e.key === "J" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelected((i) => Math.min(i + 1, Math.max(0, filaFinal.length - 1)));
+      }
+      if (e.key === "k" || e.key === "K" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelected((i) => Math.max(i - 1, 0));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filaFinal.length]);
+
   const kpis = useMemo(() => {
     const all = filaBase;
     return {
       total: all.length,
       critico: all.filter((i) => i.flags.some((f) => f.tone === "critico")).length,
       confirmar: all.filter((i) => i.podeConfirmarAuto).length,
-      cumprimento: all.filter((i) => i.flags.some((f) => f.id === "cumprimento" || f.id === "instaurar")).length,
-      procedente: all.filter((i) => i.flags.some((f) => f.id === "procedente" || f.id === "parcial")).length,
+      cumprimento: all.filter((i) =>
+        i.flags.some((f) => f.id === "cumprimento" || f.id === "instaurar")
+      ).length,
+      procedente: all.filter((i) =>
+        i.flags.some((f) => f.id === "procedente" || f.id === "parcial")
+      ).length,
     };
   }, [filaBase]);
 
@@ -135,12 +198,13 @@ export default function EncerradosRevisaoPage() {
         viaEncerrarHumano: false,
         _situacaoAnterior: c.situacao,
         reopen_reason: "revisao-fila-encerrados",
+        revisao_encerrado_dispensada_em: null,
       } as any);
       if (!res.success) {
         toast({ title: "Não reabriu", description: res.message, variant: "destructive" });
         return;
       }
-      toast({ title: "Reaberto", description: c.protocolo });
+      toast({ title: "Reaberto na carteira ativa", description: c.protocolo });
       invalidateCarteiraCache();
       await loadData();
     } finally {
@@ -153,7 +217,7 @@ export default function EncerradosRevisaoPage() {
     if (!it.podeConfirmarAuto) {
       toast({
         title: "Não confirme às cegas",
-        description: "Há procedente/cumprimento/novidade — revise no processo.",
+        description: "Há procedente/cumprimento/novidade — use Revisar.",
         variant: "destructive",
       });
       return;
@@ -169,6 +233,7 @@ export default function EncerradosRevisaoPage() {
         forceMesmoComValor: false,
         _situacaoAnterior: c.situacao || "EM ANDAMENTO",
         revisao_encerrado_confirmada_em: new Date().toISOString(),
+        revisao_encerrado_dispensada_em: new Date().toISOString(),
       } as any);
       if (!res.success) {
         toast({ title: "Falha ao confirmar", description: res.message, variant: "destructive" });
@@ -182,24 +247,83 @@ export default function EncerradosRevisaoPage() {
     }
   };
 
+  /** Sai da fila sem reabrir nem confirmar (só dispensa revisão) */
+  const dispensar = async (it: ItemEncerradoRevisao) => {
+    const c = it.case;
+    const id = String(c.id || c.protocolo);
+    setBusyId(id);
+    try {
+      const res = await saveOneCaseAction({
+        ...c,
+        viaEncerrarHumano: true,
+        _situacaoAnterior: c.situacao,
+        revisao_encerrado_dispensada_em: new Date().toISOString(),
+        dados: {
+          ...((c as any).dados || {}),
+          revisao_encerrado_dispensada_em: new Date().toISOString(),
+        },
+      } as any);
+      if (!res.success) {
+        toast({ title: "Não dispensou", description: res.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Dispensado da fila", description: "Pode voltar se houver novidade." });
+      invalidateCarteiraCache();
+      await loadData();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const bulkConfirmar = async () => {
+    const list = filaFinal.filter((i) => i.podeConfirmarAuto).slice(0, 25);
+    if (!list.length) {
+      toast({ title: "Nada para confirmar em lote neste filtro" });
+      return;
+    }
+    if (!confirm(`Confirmar ${list.length} encerrado(s) seguros (improcedente limpo)?`)) return;
+    setBulkBusy(true);
+    let ok = 0;
+    try {
+      for (const it of list) {
+        const c = it.case;
+        const res = await saveOneCaseAction({
+          ...c,
+          situacao: "ENCERRADO",
+          statusManual: "Encerrado",
+          viaEncerrarHumano: true,
+          _situacaoAnterior: c.situacao || "EM ANDAMENTO",
+          revisao_encerrado_confirmada_em: new Date().toISOString(),
+          revisao_encerrado_dispensada_em: new Date().toISOString(),
+        } as any);
+        if (res.success) ok++;
+      }
+      toast({ title: `Lote: ${ok}/${list.length} confirmados` });
+      invalidateCarteiraCache();
+      await loadData();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const copyCnj = async (proto?: string) => {
+    if (!proto) return;
+    try {
+      await navigator.clipboard.writeText(proto);
+      toast({ title: "CNJ copiado" });
+    } catch { /* */ }
+  };
+
   const filtros: { id: FiltroFlag; label: string }[] = [
     { id: "todos", label: "Todos" },
-    { id: "critico" as any, label: "Críticos" },
+    { id: "critico", label: "Críticos" },
     { id: "procedente", label: "Procedente" },
     { id: "cumprimento", label: "Cumprimento" },
-    { id: "restore", label: "Restore sistema" },
+    { id: "restore", label: "Restore" },
     { id: "novidade", label: "Novidade" },
     { id: "tribunal", label: "Só tribunal" },
     { id: "confirmar", label: "Pode confirmar" },
   ];
-
-  // fix critico filter - I used invalid type. Handle in filter:
-  const filaFinal = useMemo(() => {
-    if ((filtro as string) === "critico") {
-      return fila.filter((it) => it.flags.some((f) => f.tone === "critico"));
-    }
-    return fila;
-  }, [fila, filtro]);
 
   return (
     <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
@@ -215,15 +339,40 @@ export default function EncerradosRevisaoPage() {
                 <h1 className="font-black text-base sm:text-xl uppercase tracking-tight">
                   Encerrados a revisar
                 </h1>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Fila de segurança · mesmo espírito da fila de contato · fino humano
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  Fino humano · não arquivo cego
+                  <span className="inline-flex items-center gap-1 opacity-70">
+                    <Keyboard size={10} /> J/K navegar
+                  </span>
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-xl border border-border/60 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setEscopo("meus")}
+                  className={cn(
+                    "h-9 px-3 text-[9px] font-black uppercase tracking-widest flex items-center gap-1",
+                    escopo === "meus" ? "bg-amber-600 text-white" : "bg-card text-muted-foreground"
+                  )}
+                >
+                  <User size={12} /> Meus
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEscopo("empresa")}
+                  className={cn(
+                    "h-9 px-3 text-[9px] font-black uppercase tracking-widest flex items-center gap-1",
+                    escopo === "empresa" ? "bg-amber-600 text-white" : "bg-card text-muted-foreground"
+                  )}
+                >
+                  <Building2 size={12} /> Empresa
+                </button>
+              </div>
               <Button asChild variant="outline" size="sm" className="h-9 rounded-xl font-black uppercase text-[9px] tracking-widest">
                 <Link href="/tarefas">
-                  <ListTodo size={14} className="mr-1.5" /> Fila de contato
+                  <ListTodo size={14} className="mr-1.5" /> Contato
                 </Link>
               </Button>
               <Button
@@ -235,6 +384,15 @@ export default function EncerradosRevisaoPage() {
               >
                 {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
                 <span className="ml-1.5">Atualizar</span>
+              </Button>
+              <Button
+                size="sm"
+                disabled={bulkBusy || kpis.confirmar === 0}
+                className="h-9 rounded-xl font-black uppercase text-[9px] tracking-widest bg-emerald-700 hover:bg-emerald-800 text-white"
+                onClick={bulkConfirmar}
+              >
+                {bulkBusy ? <Loader2 size={14} className="animate-spin mr-1" /> : <CheckCircle2 size={14} className="mr-1" />}
+                Lote confirmar
               </Button>
             </div>
           </div>
@@ -269,7 +427,7 @@ export default function EncerradosRevisaoPage() {
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setFiltro(f.id as FiltroFlag)}
+                  onClick={() => setFiltro(f.id)}
                   className={cn(
                     "h-8 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-colors",
                     filtro === f.id
@@ -288,23 +446,24 @@ export default function EncerradosRevisaoPage() {
           {loading && cases.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-muted-foreground gap-2">
               <Loader2 className="animate-spin" size={18} />
-              <span className="text-[11px] font-bold uppercase tracking-widest">Carregando carteira…</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest">Carregando…</span>
             </div>
           ) : filaFinal.length === 0 ? (
             <div className="rounded-2xl border border-border/50 bg-card/50 p-10 text-center">
               <CheckCircle2 className="mx-auto text-emerald-600 mb-3" size={28} />
               <p className="text-[12px] font-black uppercase tracking-widest">Fila limpa neste filtro</p>
               <p className="text-[10px] text-muted-foreground mt-2 max-w-md mx-auto">
-                Nenhum encerrado com os critérios de risco selecionados. Improcedente limpo sem cumprimento
-                não polui esta fila.
+                Nenhum item com os critérios atuais. Improcedente limpo não polui a fila até precisar de
+                confirmação.
               </p>
             </div>
           ) : (
             <div className="rounded-2xl border border-border/40 overflow-hidden bg-card/40">
-              <table className="w-full text-left min-w-[720px]">
-                <thead className="bg-secondary/50 border-b border-border/30">
+              <table className="w-full text-left min-w-[760px]">
+                <thead className="bg-secondary/50 border-b border-border/30 sticky top-0 z-10">
                   <tr className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                    <th className="px-4 sm:px-6 py-3">Prioridade</th>
+                    <th className="px-3 py-3 w-12">#</th>
+                    <th className="px-3 py-3">Pri</th>
                     <th className="px-4 py-3">Cliente / CNJ</th>
                     <th className="px-4 py-3">Motivo</th>
                     <th className="px-4 py-3">Flags</th>
@@ -312,13 +471,22 @@ export default function EncerradosRevisaoPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/15">
-                  {filaFinal.map((it) => {
+                  {filaFinal.map((it, idx) => {
                     const c = it.case;
                     const id = String(c.id || c.protocolo);
                     const busy = busyId === id;
+                    const isSel = idx === selected;
                     return (
-                      <tr key={id} className="hover:bg-amber-500/5 transition-colors">
-                        <td className="px-4 sm:px-6 py-3">
+                      <tr
+                        key={id}
+                        onClick={() => setSelected(idx)}
+                        className={cn(
+                          "transition-colors cursor-pointer",
+                          isSel ? "bg-amber-500/15 ring-1 ring-inset ring-amber-500/30" : "hover:bg-amber-500/5"
+                        )}
+                      >
+                        <td className="px-3 py-3 text-[10px] font-mono text-muted-foreground">{idx + 1}</td>
+                        <td className="px-3 py-3">
                           <span className="text-[11px] font-black tabular-nums text-amber-800 dark:text-amber-300">
                             {it.score}
                           </span>
@@ -326,20 +494,29 @@ export default function EncerradosRevisaoPage() {
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-0.5">
                             <span className="text-[11px] font-black uppercase">{c.cliente || "—"}</span>
-                            <span className="text-[8px] font-mono opacity-50">{c.protocolo}</span>
+                            <button
+                              type="button"
+                              className="text-[8px] font-mono opacity-60 hover:opacity-100 text-left flex items-center gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyCnj(c.protocolo);
+                              }}
+                            >
+                              {c.protocolo} <Copy size={10} />
+                            </button>
                           </div>
                         </td>
-                        <td className="px-4 py-3 max-w-[200px]">
+                        <td className="px-4 py-3 max-w-[220px]">
                           <p className="text-[10px] font-black uppercase text-amber-900 dark:text-amber-200">
                             {it.motivoPrincipal}
                           </p>
                           {it.podeConfirmarAuto ? (
                             <p className="text-[8px] font-bold uppercase text-emerald-700 mt-1">
-                              Pode confirmar (improcedente limpo)
+                              Pode confirmar
                             </p>
                           ) : (
                             <p className="text-[8px] font-bold uppercase text-red-700 mt-1">
-                              Não arquivo cego — passar o fino
+                              Passar o fino
                             </p>
                           )}
                         </td>
@@ -358,14 +535,9 @@ export default function EncerradosRevisaoPage() {
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 sm:px-6 py-3">
-                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="outline"
-                              className="h-8 rounded-xl text-[9px] font-black uppercase tracking-widest"
-                            >
+                        <td className="px-4 sm:px-6 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1 flex-wrap">
+                            <Button asChild size="sm" variant="outline" className="h-8 rounded-xl text-[9px] font-black uppercase">
                               <Link href={`/processos?search=${encodeURIComponent(c.protocolo || "")}`}>
                                 <Eye size={12} className="mr-1" /> Revisar
                               </Link>
@@ -374,17 +546,27 @@ export default function EncerradosRevisaoPage() {
                               size="sm"
                               variant="outline"
                               disabled={busy}
-                              className="h-8 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                              className="h-8 rounded-xl text-[9px] font-black uppercase"
                               onClick={() => reabrir(it)}
                             >
                               {busy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} className="mr-1" />}
                               Reabrir
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy}
+                              className="h-8 rounded-xl text-[9px] font-black uppercase text-muted-foreground"
+                              title="Sai da fila sem reabrir"
+                              onClick={() => dispensar(it)}
+                            >
+                              <X size={12} className="mr-1" /> Dispensar
+                            </Button>
                             {it.podeConfirmarAuto && (
                               <Button
                                 size="sm"
                                 disabled={busy}
-                                className="h-8 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-700 hover:bg-emerald-800 text-white"
+                                className="h-8 rounded-xl text-[9px] font-black uppercase bg-emerald-700 hover:bg-emerald-800 text-white"
                                 onClick={() => confirmarEncerrado(it)}
                               >
                                 <CheckCircle2 size={12} className="mr-1" /> Confirmar
@@ -400,9 +582,9 @@ export default function EncerradosRevisaoPage() {
             </div>
           )}
 
-          <p className="mt-4 text-[9px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <p className="mt-4 text-[9px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 flex-wrap">
             <ArrowRight size={12} />
-            Visão da empresa e edição ampla: /processos · Esta fila usa a carteira do usuário logado
+            Menu: Painel → Encerrados a revisar → Fila de contato · Escopo Empresa usa visão /processos
           </p>
         </div>
       </main>
