@@ -1,13 +1,23 @@
 "use server";
 
 /**
- * Scanner: candidatos = isBaixaTribunal (igual Dashboard ~310), não só coluna datajud (~30).
- * Só pula quem já tem via_scan_auto_encerrar.
+ * AUTO-ENCERRAR = Scanner DataJud + DJEN
+ * + decisão com dados JÁ SALVOS no processo
+ * + só candidatos: baixa/arquivado/encerrado no tribunal (flag ou teor).
+ *
+ * Fluxo por caso:
+ * 1) Motor no banco (flags + resumos salvos)
+ * 2) Se precisar: scanSingleCaseAction (DataJud + DJEN) — mesmo núcleo do scanner tribunal
+ * 3) decidirEncerramentoScan → auto ou revisar
  */
 import { getUserContext, getSupabaseAdmin, updateCaseDataJudSystem } from "@/lib/server-db";
 import { scanSingleCaseAction } from "@/app/actions/case-actions";
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from "@/lib/auto-encerrar-scan";
-import { isBaixaTribunal } from "@/lib/status-encerrado";
+import {
+  isBaixaTribunal,
+  isCandidatoAutoEncerrarTribunal,
+  isCasoEncerrado,
+} from "@/lib/status-encerrado";
 
 const PAGE = 40;
 
@@ -35,27 +45,13 @@ function rowToTarget(row: any) {
     via_scan_auto_encerrar: dados.via_scan_auto_encerrar,
     procedente_motivo: row.procedente_motivo || dados.procedente_motivo,
     datajud_encerrado_motivo: row.datajud_encerrado_motivo || dados.datajud_encerrado_motivo,
+    datajud_ultimo_nome: row.datajud_ultimo_nome || dados.datajud_ultimo_nome,
     djen_ultimo_resumo: row.djen_ultimo_resumo || dados.djen_ultimo_resumo,
     evento_resumo: dados.evento_resumo,
     indicio_busca_apreensao: row.indicio_busca_apreensao ?? dados.indicio_busca_apreensao,
+    operacao_sistema: dados.operacao_sistema,
     dados,
   };
-}
-
-/** Ainda não processado pelo scanner W1 */
-function isCandidatoScanner(row: any): boolean {
-  const dados = row.dados && typeof row.dados === "object" ? row.dados : {};
-  if (truthy(dados.via_scan_auto_encerrar)) return false;
-  if (dados?.operacao_sistema?.tipo === "SCAN_AUTO_ENCERRAR") return false;
-  return true;
-}
-
-function rowIsBaixa(row: any): boolean {
-  try {
-    return isBaixaTribunal(rowToTarget(row));
-  } catch {
-    return !!(row.datajud_encerrado_tribunal);
-  }
 }
 
 export async function countAutoEncerrarPendentesAction() {
@@ -75,7 +71,7 @@ export async function countAutoEncerrarPendentesAction() {
     const { data, error } = await admin
       .from("processos")
       .select(
-        "id, dados, status, status_interno, datajud_encerrado_tribunal, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, cumprimento_encerrado, protocolo_ref, procedente_motivo, datajud_encerrado_motivo, djen_ultimo_resumo, indicio_busca_apreensao"
+        "id, dados, status, status_interno, datajud_encerrado_tribunal, datajud_encerrado_motivo, datajud_ultimo_nome, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, cumprimento_encerrado, protocolo_ref, procedente_motivo, djen_ultimo_resumo, indicio_busca_apreensao"
       )
       .eq("empresa_id", empresa_id)
       .limit(8000);
@@ -90,15 +86,14 @@ export async function countAutoEncerrarPendentesAction() {
       };
     }
 
-    let baixaAtivos = 0;
+    let baixaAtivos = 0; // candidatos ainda não auto-scan
     let outrosAtivos = 0;
     let baixasTribunalTotal = 0;
     for (const row of data || []) {
-      const baixa = rowIsBaixa(row);
-      if (baixa) baixasTribunalTotal++;
-      if (!isCandidatoScanner(row)) continue;
-      if (baixa) baixaAtivos++;
-      else outrosAtivos++;
+      const t = rowToTarget(row);
+      if (isBaixaTribunal(t)) baixasTribunalTotal++;
+      if (isCandidatoAutoEncerrarTribunal(t)) baixaAtivos++;
+      else if (!isCasoEncerrado(t) && !isBaixaTribunal(t)) outrosAtivos++;
     }
     return {
       success: true,
@@ -173,15 +168,14 @@ export async function runAutoEncerrarBatchAction(opts?: {
     const afterId = opts?.afterId ?? null;
     const admin = await getSupabaseAdmin();
 
-    // Busca fatia por id (sem filtrar só coluna datajud — isBaixaTribunal no app)
     let q = admin
       .from("processos")
       .select(
-        "id, protocolo_ref, dados, datajud_encerrado_tribunal, datajud_encerrado_motivo, is_procedente, procedente_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, cumprimento_encerrado, status, status_interno, djen_ultimo_resumo, indicio_busca_apreensao"
+        "id, protocolo_ref, dados, datajud_encerrado_tribunal, datajud_encerrado_motivo, datajud_ultimo_nome, is_procedente, procedente_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, cumprimento_encerrado, status, status_interno, djen_ultimo_resumo, indicio_busca_apreensao"
       )
       .eq("empresa_id", empresa_id)
       .order("id", { ascending: true })
-      .limit(limit * 10);
+      .limit(limit * 12);
 
     if (afterId != null) q = q.gt("id", afterId);
 
@@ -194,9 +188,10 @@ export async function runAutoEncerrarBatchAction(opts?: {
       const rid = typeof row.id === "number" ? row.id : Number(row.id);
       if (Number.isFinite(rid)) nextAfter = Math.max(nextAfter ?? 0, rid);
 
-      if (!isCandidatoScanner(row)) continue;
-      if (soBaixa && !rowIsBaixa(row)) continue;
-
+      const t = rowToTarget(row);
+      if (soBaixa) {
+        if (!isCandidatoAutoEncerrarTribunal(t)) continue;
+      }
       const proto = String(row.protocolo_ref || "").trim();
       if (!proto) continue;
       targets.push(row);
@@ -218,6 +213,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
       try {
         let decided = false;
 
+        // 1) Dados já salvos
         if (fase === "db" || fase === "full") {
           const decisaoDb = decidirEncerramentoScan({
             target,
@@ -230,6 +226,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
               cumprimento_encerrado: target.cumprimento_encerrado,
               indicio_busca_apreensao: target.indicio_busca_apreensao,
               djen_ultimo_resumo: target.djen_ultimo_resumo,
+              datajud_ultimo_nome: target.datajud_ultimo_nome,
             },
           });
           if (decisaoDb.acao === "auto_encerrar" || decisaoDb.acao === "revisao_fila") {
@@ -250,6 +247,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
           }
         }
 
+        // 2) Mesmo scanner DataJud + DJEN
         if (!decided && (fase === "tribunal" || fase === "full")) {
           let scanRes: any = null;
           try {
@@ -300,7 +298,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
     }
 
     const rowsRead = (rows || []).length;
-    const hasMore = rowsRead >= limit * 10;
+    const hasMore = rowsRead >= limit * 12;
 
     return {
       success: true,

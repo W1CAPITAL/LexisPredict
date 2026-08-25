@@ -198,7 +198,7 @@ export function EncerrarScannerPanel({
               Scanner de encerramento · multi-motor
             </span>
             <span className="text-[9px] text-muted-foreground font-medium">
-              Banco → DataJud + DJEN → auto / revisar
+              Dados salvos + DataJud/DJEN → só baixas/arquivados no tribunal → auto / revisar
               {isW1 ? " · W1 CONTROL / Davi Alves Figueredo" : " · W1 CONTROL"}
             </span>
           </div>
@@ -246,7 +246,7 @@ export function EncerrarScannerPanel({
 
       {pendentes != null && (
         <p className="text-[10px] font-semibold text-foreground leading-relaxed">
-          Baixas tribunal (isBaixaTribunal): <span className="tabular-nums">{pendentes.baixasTotal}</span>
+          Baixas tribunal: <span className="tabular-nums">{pendentes.baixasTotal}</span>
           {" · "}ativos com baixa:{" "}
           <span className="tabular-nums text-primary">{pendentes.baixaAtivos}</span>
           {" · "}outros ativos: {pendentes.outros}
