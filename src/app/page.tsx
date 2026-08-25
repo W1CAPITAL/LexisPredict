@@ -80,6 +80,7 @@ import {
   Tooltip as RechartsTooltip
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado'
+import { EncerradosRevisaoQueue } from '@/components/dashboard/encerrados-revisao-queue'
 import { countProcessosParados } from '@/lib/processos-parados';
 import { computeCarteiraKpis } from '@/lib/carteira-kpis';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -504,6 +505,9 @@ export default function Dashboard() {
                          </table>
                       </div>
                    </section>
+
+                   <EncerradosRevisaoQueue cases={cases as any} limit={10} />
+
 
                 <OfficeStats cases={cases} />
                 </div>
