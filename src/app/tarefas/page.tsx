@@ -572,7 +572,18 @@ const handleSaveAttendance = async () => {
     }
     const today = startOfDay(new Date());
 
-    const activeCases = cases.filter(c => !isCasoEncerrado(c));
+    const activeCases = cases.filter(c => {
+      if (!isCasoEncerrado(c)) return true;
+      // Baixa no tribunal com valor residual: continua na fila de contato (prioridade)
+      const d = (c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {};
+      return !!(
+        (c as any).precisa_revisar_encerramento ||
+        d.precisa_revisar_encerramento ||
+        (c as any).prioridade_revisao_encerrado ||
+        d.prioridade_revisao_encerrado ||
+        d.baixa_tribunal_pendente_revisao
+      );
+    });
 
     activeCases.forEach(c => {
       const nome = c.cliente || 'NÃO IDENTIFICADO';

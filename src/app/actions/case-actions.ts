@@ -16,6 +16,7 @@ import {
 import { normalizeMovimentosList } from '@/lib/timeline-normalize';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
 import { fetchDataJud } from '@/lib/datajud';
 
 /** Uma retentativa em timeout/rede para DataJud/DJEN (não multiplica lote). */
@@ -614,6 +615,19 @@ export async function auditCaseCoreSystem(
       source: patch.evento_fonte || undefined,
       payload: { evento_tipo: patch.evento_tipo, resumo: patch.evento_resumo },
     });
+  }
+
+  // Lote: auto-encerrar seguro OU prioridade na fila de contato / revisar encerrados
+  try {
+    const decisao = decidirEncerramentoScan({ target, patch });
+    patch = aplicarDecisaoNoPatch(patch, target, decisao);
+    if (decisao.acao === 'auto_encerrar') {
+      console.info('[scan-auto-encerrar]', protocolo, decisao.motivo);
+    } else if (decisao.acao === 'revisao_fila') {
+      console.info('[scan-revisao-fila]', protocolo, decisao.motivo, decisao.prioridade);
+    }
+  } catch (e: any) {
+    console.warn('[scan-auto-encerrar] skip', e?.message || e);
   }
 
   const saved = await updateCaseDataJudSystem(dbItem.id, patch);

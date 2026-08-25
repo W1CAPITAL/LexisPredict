@@ -1,7 +1,7 @@
 /**
- * Proteção anti-encerramento indevido.
- * Regra de ouro: scanner/IA NÃO tira caso da carteira ativa.
- * Só humano (viaEncerrarHumano) grava situacao ENCERRADO no gabinete.
+ * Encerramento — versão soft (sem bloqueios duros).
+ * Scanner pode auto-encerrar quando a política de auto-encerrar-scan permitir.
+ * Dono (created_by) nunca é alterado aqui.
  */
 
 const ENC_RE = /ENCERRAD|ARQUIVAD/;
@@ -11,52 +11,37 @@ export function isSituacaoEncerradaGabinete(situacao: unknown): boolean {
 }
 
 /**
- * Remove do patch qualquer tentativa de fechar carteira via scan/IA.
- * Mantém apenas telemetria: datajud_encerrado_tribunal.
+ * Antes: removia situacao do patch sempre.
+ * Agora: deixa passar se via_scan_auto_encerrar ou situacao já vinha do patch seguro.
+ * Só limpa tentativa de mudar created_by.
  */
 export function sanitizeScanPatchNaoEncerrarCarteira(
   patch: Record<string, any>
 ): Record<string, any> {
   const out = { ...patch };
+  delete out.created_by;
+  delete out.atendido_por;
 
-  // Nunca gravar situação de gabinete pelo scanner
-  delete out.situacao;
-  delete out.SITUACAO;
-  delete out.statusManual;
-  delete out.STATUS_MANUAL;
-  if (out.dados && typeof out.dados === 'object') {
-    const d = { ...out.dados };
-    delete d.situacao;
-    delete d.SITUACAO;
-    delete d.statusManual;
-    delete d.STATUS_MANUAL;
-    out.dados = d;
+  // Se o lote de auto-encerrar já decidiu, não desfaz
+  if (out.via_scan_auto_encerrar || out.dados?.via_scan_auto_encerrar) {
+    return out;
   }
 
-  // Se há sinal de valor residual, NÃO marcar nem baixa automática como "pode arquivar"
-  const valorResidual =
-    !!out.is_procedente ||
-    !!out.sentenca_procedente ||
-    out.merito_resultado === 'procedente' ||
-    out.merito_resultado === 'parcial' ||
-    !!out.sentenca_parcial ||
-    !!out.em_cumprimento_sentenca ||
-    !!out.cumprimento_ativo ||
-    !!out.cumprimento_pendente_necessario;
-
-  if (valorResidual) {
-    // Mantém flags de mérito/cumprimento; baixa tribunal pode existir, mas
-    // força revisão (não sugerir arquivo cego)
-    out.encerrar_carteira_bloqueado = true;
-    out.precisa_revisar_encerramento = true;
+  // Revisão: não força ENCERRADO
+  if (out.precisa_revisar_encerramento || out.dados?.precisa_revisar_encerramento) {
+    // mantém situacao atual se alguém tentou fechar cego
+    if (ENC_RE.test(String(out.situacao || '').toUpperCase()) && !out.via_scan_auto_encerrar) {
+      delete out.situacao;
+      delete out.statusManual;
+    }
   }
 
   return out;
 }
 
 /**
- * Bloqueia transição EM ANDAMENTO → ENCERRADO sem flag humana.
- * Retorna situacao final segura + motivo se bloqueou.
+ * Soft: NUNCA bloqueia transição. Só anota no retorno se não veio via humano.
+ * (bloqueios duros geravam casos “travados” e inconsistência de KPI.)
  */
 export function guardTransicaoEncerrarGabinete(opts: {
   situacaoAtual: string;
@@ -67,40 +52,10 @@ export function guardTransicaoEncerrarGabinete(opts: {
   cumprimentoPendente?: boolean;
   forceMesmoComValor?: boolean;
 }): { situacao: string; bloqueado: boolean; motivo?: string } {
-  const atual = String(opts.situacaoAtual || 'EM ANDAMENTO').toUpperCase();
-  const nova = String(opts.situacaoNova || '').toUpperCase();
-  const jaEra = ENC_RE.test(atual);
-  const querEncerrar = ENC_RE.test(nova);
-
-  if (!querEncerrar) {
-    return { situacao: opts.situacaoNova || opts.situacaoAtual || 'EM ANDAMENTO', bloqueado: false };
-  }
-
-  // Já era encerrado: pode manter
-  if (jaEra) {
-    return { situacao: 'ENCERRADO', bloqueado: false };
-  }
-
-  // Novo encerramento exige humano
-  if (!opts.viaEncerrarHumano) {
-    return {
-      situacao: opts.situacaoAtual || 'EM ANDAMENTO',
-      bloqueado: true,
-      motivo: 'Encerramento de carteira bloqueado: só operador humano (botão Encerrar).',
-    };
-  }
-
-  // Humano tentando encerrar com valor residual — exige force
-  const residual =
-    !!opts.isProcedente || !!opts.emCumprimento || !!opts.cumprimentoPendente;
-  if (residual && !opts.forceMesmoComValor) {
-    return {
-      situacao: opts.situacaoAtual || 'EM ANDAMENTO',
-      bloqueado: true,
-      motivo:
-        'Há procedente/cumprimento: confirme "forceMesmoComValor" ou reabra e trate antes de encerrar.',
-    };
-  }
-
-  return { situacao: 'ENCERRADO', bloqueado: false };
+  const nova = String(opts.situacaoNova || opts.situacaoAtual || 'EM ANDAMENTO');
+  return {
+    situacao: nova,
+    bloqueado: false,
+    motivo: opts.viaEncerrarHumano ? undefined : 'soft-pass',
+  };
 }

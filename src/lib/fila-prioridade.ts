@@ -173,6 +173,14 @@ export function rotuloPreditivo(score: number): string {
 }
 
 /** Peso maior = mais urgente */
+export function boostRevisaoEncerrado(c: any): number {
+  const d = c?.dados && typeof c.dados === 'object' ? c.dados : {};
+  const p = Number(c?.prioridade_revisao_encerrado ?? d.prioridade_revisao_encerrado ?? 0);
+  if (p > 0) return Math.min(100, p);
+  if (c?.precisa_revisar_encerramento || d.precisa_revisar_encerramento) return 75;
+  return 0;
+}
+
 export function pesoFila(c: LegalCase): number {
   const W = PRIORITY_WEIGHTS;
   let w = 0;
