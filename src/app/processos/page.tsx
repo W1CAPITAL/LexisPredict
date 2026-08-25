@@ -25,6 +25,7 @@ import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
+import { isEmpresaW1Principal } from "@/lib/w1-empresa";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase, formatDateToISO } from "@/lib/case-logic";
 import {
@@ -570,7 +571,9 @@ export default function ProcessosEmpresaPage() {
             <EncerrarScannerPanel
               cases={cases}
               authUserId={(profile as any)?.auth_user_id || (profile as any)?.id || null}
+              empresaId={(profile as any)?.empresa_id || null}
               visaoEmpresa
+              onDone={() => { try { void load(); } catch { /* */ } }}
             />
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -585,9 +588,11 @@ export default function ProcessosEmpresaPage() {
                     value={a.semana}
                     tone="ok"
                     hint={
-                      isW1
+                      isW1 && isEmpresaW1Principal((profile as any)?.empresa_id)
                         ? `Feito por Davi Alves Figueredo · Dia: ${a.dia} • Mês: ${a.mes}`
-                        : `Dia: ${a.dia} • Mês: ${a.mes}`
+                        : isW1
+                          ? `Scanner · Dia: ${a.dia} • Mês: ${a.mes}`
+                          : `Dia: ${a.dia} • Mês: ${a.mes}`
                     }
                   />
                 );

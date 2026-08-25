@@ -8,41 +8,117 @@ import {
   collectScanEncerrarLogs,
 } from "@/lib/encerrar-scanner-stats";
 import { isEncerradoPeloScanner, getOperacaoSistemaLabel } from "@/lib/operacao-sistema";
-import { Archive, Bot, List, X } from "lucide-react";
+import { isEmpresaW1Principal } from "@/lib/w1-empresa";
+import { runAutoEncerrarBatchAction } from "@/app/actions/auto-encerrar-actions";
+import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
+import { Archive, Bot, List, X, Radar, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 type Props = {
   cases: any[];
   authUserId?: string | null;
+  empresaId?: string | null;
   visaoEmpresa?: boolean;
+  onDone?: () => void;
 };
 
-export function EncerrarScannerPanel({ cases, authUserId }: Props) {
+export function EncerrarScannerPanel({
+  cases,
+  authUserId,
+  empresaId,
+  onDone,
+}: Props) {
   const [openLogs, setOpenLogs] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState<string | null>(null);
+  const { toast } = useToast();
+  const startManualScan = useDataJudScanStore((s) => s.startManualScan);
+  const setScanMode = useDataJudScanStore((s) => s.setScanMode);
+  const isW1 = isEmpresaW1Principal(empresaId);
+
   const stats = useMemo(
     () => computeEncerrarScannerStats(cases, { authUserId }),
     [cases, authUserId]
   );
   const logs = useMemo(() => collectScanEncerrarLogs(cases, 400), [cases]);
 
+  const runBatch = async () => {
+    if (running) return;
+    setRunning(true);
+    try {
+      // 1) Lote focado em baixa tribunal ainda ativos
+      const res = await runAutoEncerrarBatchAction({ limit: 40, soBaixaTribunal: true });
+      const msg = res.success
+        ? `Escaneados ${res.scanned} · auto ${res.autoEncerrados} · revisar ${res.revisao} · falhas ${res.failed}`
+        : res.error || "Falha no lote";
+      setLastRun(msg);
+      toast({
+        title: res.success ? "Lote auto-encerrar" : "Erro no lote",
+        description: msg,
+        variant: res.success ? "default" : "destructive",
+      });
+
+      // 2) Dispara scanner local BOTH na carteira (continua em background)
+      try {
+        setScanMode("both");
+        void startManualScan({ resume: false });
+      } catch {
+        /* painel global pode estar restrito por plano */
+      }
+      onDone?.();
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: e?.message || String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-border bg-card text-card-foreground p-3 space-y-3 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <Bot className="h-4 w-4 text-primary shrink-0" />
-          <span className="text-[10px] font-black uppercase tracking-widest">
-            Encerrados · scanner W1 CONTROL
-          </span>
+          <div className="min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-widest block">
+              Encerrados · scanner W1 CONTROL
+            </span>
+            {isW1 && (
+              <span className="text-[9px] text-muted-foreground font-medium">
+                Davi Alves Figueredo · empresa principal W1
+              </span>
+            )}
+          </div>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="h-8 text-[10px] font-black uppercase tracking-widest"
-          onClick={() => setOpenLogs(true)}
-        >
-          <List className="h-3.5 w-3.5 mr-1" />
-          Ver logs completos
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 text-[10px] font-black uppercase tracking-widest"
+            disabled={running}
+            onClick={() => void runBatch()}
+          >
+            {running ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <Radar className="h-3.5 w-3.5 mr-1" />
+            )}
+            {running ? "Rodando…" : "Rodar auto-encerrar"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-8 text-[10px] font-black uppercase tracking-widest"
+            onClick={() => setOpenLogs(true)}
+          >
+            <List className="h-3.5 w-3.5 mr-1" />
+            Ver logs
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -57,24 +133,18 @@ export function EncerrarScannerPanel({ cases, authUserId }: Props) {
         <Kpi
           label="Scanner auto (total)"
           value={stats.scannerAutoTotal}
-          hint={`hoje ${stats.scannerAutoHoje} · humano ${stats.humanoEncerrados} · revisar ${stats.revisaoPendente}`}
+          hint={`hoje ${stats.scannerAutoHoje} · humano ${stats.humanoEncerrados ?? 0} · revisar ${stats.revisaoPendente}`}
           tone="ok"
         />
       </div>
 
       <p className="text-[10px] text-muted-foreground leading-relaxed">
-        Auto-encerrar = <strong className="text-foreground">W1 CONTROL</strong> (Davi Alves
-        Figueredo · scanner), não atendimento de operador. Ativos na lista:{" "}
-        <strong className="text-foreground">{stats.empresaAtivos}</strong>
+        Baixa limpa no tribunal → arquiva no gabinete (não fica ativo). Residual
+        (procedente/CS/B.A.) → <strong className="text-foreground">Encerrados a revisar</strong>.
+        Ativos na lista: <strong className="text-foreground">{stats.empresaAtivos}</strong>
         {" · "}Baixas tribunal: {stats.empresaBaixasTribunal}.
-        {stats.scannerAutoTotal === 0 && (
-          <>
-            {" "}
-            <span className="text-amber-700 dark:text-amber-400 font-semibold">
-              Ainda 0 auto-scanner: rode Scanner BOTH de novo após este deploy (baixa limpa sem
-              procedente/CS).
-            </span>
-          </>
+        {lastRun && (
+          <span className="block mt-1 text-foreground font-medium">Última rodada: {lastRun}</span>
         )}
       </p>
 
@@ -111,7 +181,8 @@ export function EncerrarScannerPanel({ cases, authUserId }: Props) {
             >
               {logs.length === 0 ? (
                 <p className="text-muted-foreground text-xs p-4 text-center">
-                  Nenhum processo encerrado na carteira carregada nesta tela.
+                  Nenhum processo encerrado na carteira carregada. Use{" "}
+                  <strong>Rodar auto-encerrar</strong> e depois Atualizar.
                 </p>
               ) : (
                 logs.map((l, i) => (
@@ -121,16 +192,7 @@ export function EncerrarScannerPanel({ cases, authUserId }: Props) {
                     style={{ backgroundColor: "hsl(var(--card))" }}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={
-                          l.acao === "auto_encerrar"
-                            ? "border-emerald-600 text-emerald-800 dark:text-emerald-300"
-                            : l.acao === "revisao_fila"
-                              ? "border-amber-600 text-amber-800 dark:text-amber-300"
-                              : "border-border text-foreground"
-                        }
-                      >
+                      <Badge variant="outline">
                         {l.acao === "auto_encerrar"
                           ? "AUTO W1"
                           : l.acao === "revisao_fila"
@@ -139,15 +201,22 @@ export function EncerrarScannerPanel({ cases, authUserId }: Props) {
                               ? "SISTEMA"
                               : "HUMANO"}
                       </Badge>
-                      <span className="font-mono text-[11px] font-semibold">{l.protocolo || "—"}</span>
+                      <span className="font-mono text-[11px] font-semibold">
+                        {l.protocolo || "—"}
+                      </span>
                       {l.dia && (
                         <span className="text-[10px] text-muted-foreground">{l.dia}</span>
                       )}
                     </div>
-                    <p className="text-xs font-semibold text-foreground">{l.cliente || "—"}</p>
+                    <p className="text-xs font-semibold">{l.cliente || "—"}</p>
                     <p className="text-[11px] text-muted-foreground">{l.motivo}</p>
                     {l.por && (
-                      <p className="text-[10px] font-bold text-primary">{l.por}</p>
+                      <p className="text-[10px] font-bold text-primary">
+                        {isW1 || l.acao === "humano"
+                          ? l.por
+                          : String(l.por).replace(/Davi Alves Figueredo[·\s]*/gi, "").trim() ||
+                            "W1 CONTROL"}
+                      </p>
                     )}
                   </div>
                 ))
@@ -178,16 +247,24 @@ function Kpi({
         (tone === "ok" ? "border-emerald-500/40 bg-emerald-500/10" : "border-border bg-muted/30")
       }
     >
-      <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
+      <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+        {label}
+      </p>
       <p className="text-lg font-black tabular-nums text-foreground">{value}</p>
       {hint && <p className="text-[9px] text-muted-foreground leading-tight">{hint}</p>}
     </div>
   );
 }
 
-export function BadgeEncerradoScanner({ caseData }: { caseData: any }) {
+export function BadgeEncerradoScanner({
+  caseData,
+  empresaId,
+}: {
+  caseData: any;
+  empresaId?: string | null;
+}) {
   if (!isEncerradoPeloScanner(caseData)) return null;
-  const legenda = getOperacaoSistemaLabel(caseData);
+  const legenda = getOperacaoSistemaLabel(caseData, empresaId);
   return (
     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-600/50 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
       <Archive className="h-3 w-3" />
