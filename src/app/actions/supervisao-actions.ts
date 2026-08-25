@@ -58,6 +58,10 @@ export type SupervisaoSnapshot = {
   auditadosTribunalSemana: number;
   editadosAppSemana: number;
   semRetorno: number;
+  /** % processos com ao menos um retorno (0–100) */
+  taxaRetornoPct: number;
+  /** % ativos com retorno no período selecionado */
+  taxaRetornoPeriodoPct: number;
   operadores: {
     nome: string;
     total: number;
@@ -95,6 +99,8 @@ function emptySnapshot(periodoLabel = "Esta semana"): SupervisaoSnapshot {
     auditadosTribunalSemana: 0,
     editadosAppSemana: 0,
     semRetorno: 0,
+    taxaRetornoPct: 0,
+    taxaRetornoPeriodoPct: 0,
     operadores: [],
     porUsuario: [],
     timelineSemanal: [],
@@ -190,13 +196,25 @@ export async function getSupervisaoSnapshotAction(
       if (c.indicio_busca_apreensao || c.evento_tipo === 'ba') ba++;
       if (c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca') cumprimento++;
 
-      const retorno = String(c.ultimoRetorno || c.ultimo_retorno || '').trim();
-      const retornoDate = retorno ? parseUltimoAtendimento(retorno) : null;
-      if (retornoDate) {
+      const retorno = String(
+        c.ultimoRetorno || c.ultimo_retorno || (c as any).dados?.ultimoRetorno || ''
+      ).trim();
+      const temTextoRetorno =
+        !!retorno &&
+        retorno !== '-' &&
+        retorno.toLowerCase() !== 'null' &&
+        retorno !== '0';
+      const retornoDate = temTextoRetorno ? parseUltimoAtendimento(retorno) : null;
+      // Taxa de retorno = processos COM retorno (texto ou data válida), não volume de eventos
+      if (temTextoRetorno) {
         atendimentosTotais++;
-        if (retornoDate >= semana.start && retornoDate <= semana.end) atendidosSemana++;
-        for (const wk of weekBuckets) {
-          if (retornoDate >= wk.start && retornoDate <= wk.end) wk.atendidos++;
+        if (retornoDate && retornoDate >= semana.start && retornoDate <= semana.end) {
+          atendidosSemana++;
+        }
+        if (retornoDate) {
+          for (const wk of weekBuckets) {
+            if (retornoDate >= wk.start && retornoDate <= wk.end) wk.atendidos++;
+          }
         }
       } else {
         semRetorno++;
@@ -226,9 +244,11 @@ export async function getSupervisaoSnapshotAction(
       if (/vencido|cr[ií]tico/i.test(status)) op.vencidos++;
       if (isNov) op.novidades++;
       if (c.indicio_busca_apreensao) op.ba++;
-      if (retornoDate) {
+      if (temTextoRetorno) {
         op.atendimentos++;
-        if (retornoDate >= semana.start && retornoDate <= semana.end) op.atendidosSemana++;
+        if (retornoDate && retornoDate >= semana.start && retornoDate <= semana.end) {
+          op.atendidosSemana++;
+        }
       } else {
         op.semRetorno++;
       }
@@ -327,6 +347,14 @@ export async function getSupervisaoSnapshotAction(
       editadosAppSemana: countEditadosAppSemana(cases as any),
       
         semRetorno,
+        taxaRetornoPct:
+          cases.length > 0
+            ? Math.min(100, Math.round((atendimentosTotais / cases.length) * 100))
+            : 0,
+        taxaRetornoPeriodoPct: (() => {
+          const base = Math.max(1, cases.filter((c: any) => !isCasoEncerrado(c)).length || cases.length);
+          return Math.min(100, Math.round((atendidosSemana / base) * 100));
+        })(),
         operadores: [...opMap.values()].sort((a, b) => b.total - a.total),
         porUsuario: [...userMap.values()].sort((a, b) => b.total - a.total),
         timelineSemanal: weekBuckets.map((w) => ({ label: w.label, atendidos: w.atendidos })),

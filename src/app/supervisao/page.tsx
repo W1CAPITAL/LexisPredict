@@ -265,9 +265,16 @@ export default function SupervisaoPage() {
                   <KpiCard
                     icon={<TrendingUp size={16} />}
                     label="Taxa retorno"
-                    value={`${snap.total > 0 ? Math.round((snap.atendimentosTotais / snap.total) * 100) : 0}%`}
+                    value={`${snap.taxaRetornoPct ?? (snap.total > 0 ? Math.min(100, Math.round(((snap.total - (snap.semRetorno || 0)) / snap.total) * 100)) : 0)}%`}
                     tone="ok"
-                    hint="processos com pelo menos um retorno registrado"
+                    hint={`Com retorno: ${(snap.total || 0) - (snap.semRetorno || 0)} de ${snap.total || 0} · nunca contata: ${snap.semRetorno || 0}`}
+                  />
+                  <KpiCard
+                    icon={<TrendingUp size={16} />}
+                    label="Retorno no período"
+                    value={`${snap.taxaRetornoPeriodoPct ?? 0}%`}
+                    tone="primary"
+                    hint={`${snap.atendidosSemana || 0} atend. no período / ativos (cobertura)`}
                   />
                   <KpiCard
                     icon={<Clock size={16} />}
