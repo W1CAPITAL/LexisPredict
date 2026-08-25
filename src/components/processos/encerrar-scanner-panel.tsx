@@ -12,6 +12,7 @@ import { isEmpresaW1Principal } from "@/lib/w1-empresa";
 import {
   runAutoEncerrarBatchAction,
   countAutoEncerrarPendentesAction,
+  resetViaScanFlagsBaixasAction,
 } from "@/app/actions/auto-encerrar-actions";
 import { Archive, List, X, Loader2, Building2, Radar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -47,7 +48,9 @@ export function EncerrarScannerPanel({
     baixaAtivos: number;
     baixasTotal: number;
     outros: number;
+    bloqueadosViaScan: number;
   } | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [lastRun, setLastRun] = useState<string | null>(null);
   const stopRef = useRef(false);
   const { toast } = useToast();
@@ -66,6 +69,7 @@ export function EncerrarScannerPanel({
         baixaAtivos: r.baixaAtivos,
         baixasTotal: r.baixasTribunalTotal,
         outros: r.outrosAtivos,
+        bloqueadosViaScan: (r as any).bloqueadosViaScan || 0,
       });
     }
   };
@@ -73,6 +77,25 @@ export function EncerrarScannerPanel({
   useEffect(() => {
     void refreshCount();
   }, [cases.length]);
+
+  const resetFlags = async () => {
+    if (resetting) return;
+    setResetting(true);
+    try {
+      const r = await resetViaScanFlagsBaixasAction();
+      if (r.success) {
+        toast({
+          title: "Fila reaberta",
+          description: `${r.updated} processos liberados para scan real (DataJud+DJEN).`,
+        });
+        await refreshCount();
+      } else {
+        toast({ title: "Erro", description: r.error || "Falha", variant: "destructive" });
+      }
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const runEmpresaToda = async () => {
     if (running) return;
@@ -87,7 +110,7 @@ export function EncerrarScannerPanel({
     let failed = 0;
     let skipped = 0;
     let pages = 0;
-    const maxPages = 200;
+    const maxPages = 500;
     const allSamples: string[] = [];
     let lastPct = 0;
     let lastFonte = "db+datajud+djen";
@@ -113,6 +136,16 @@ export function EncerrarScannerPanel({
         });
         pages++;
 
+        if (batch?.error && String(batch.error).startsWith("FILA_BLOQUEADA")) {
+          const n = String(batch.error).split(":")[1] || "?";
+          setLastRun(`Fila bloqueada: ${n} com via_scan_auto`);
+          toast({
+            title: "Fila bloqueada por via_scan_auto",
+            description: `${n} baixas já marcadas (muitas vezes por scan falso). Clique em "Reabrir fila" para escanear de verdade.`,
+            variant: "destructive",
+          });
+          break;
+        }
         if (!batch || !batch.success) {
           const errMsg = batch?.error || "Erro no lote";
           setLastRun(errMsg);
@@ -161,7 +194,7 @@ export function EncerrarScannerPanel({
         if (!batch.hasMore) break;
         // sem avanço de cursor = fim
         if (batch.afterId == null) break;
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 200));
       }
 
       setProgress((p) => (p ? { ...p, percentDone: 100, percentLeft: 0 } : p));
@@ -170,11 +203,19 @@ export function EncerrarScannerPanel({
         `Auto ${auto} · Revisar ${revisao} · Falhas ${failed} · Escaneados ${scanned}` +
         (allSamples.length ? ` · ${allSamples.slice(0, 6).join(" | ")}` : "");
       setLastRun(msg);
-      toast({
-        title: auto > 0 ? `${auto} auto-encerrados (DataJud+DJEN)` : scanned > 0 ? "Lote real concluído" : "Fila vazia",
-        description: msg,
-        variant: auto > 0 ? "default" : undefined,
-      });
+      if (scanned === 0) {
+        toast({
+          title: "Nenhum candidato na fila",
+          description:
+            "Não há processos com baixa/arquivado no tribunal pendentes de auto-scan (ou todos já têm via_scan_auto). Confira o contador de baixas acima.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: auto > 0 ? `${auto} auto-encerrados` : "Lote concluído",
+          description: msg,
+        });
+      }
       await refreshCount();
       onDone?.();
     } catch (e: any) {
@@ -251,7 +292,7 @@ export function EncerrarScannerPanel({
           <span className="tabular-nums text-primary">{pendentes.baixaAtivos}</span>
           {" · "}outros ativos: {pendentes.outros}
           <span className="block text-muted-foreground font-medium mt-0.5">
-            Até 5 scans REAIS (DataJud+DJEN) por rodada (sem teto de 8 no DJEN). Cada caso: dados salvos → se precisar,
+            Lote de 40 por rodada (sem teto de 8 no DJEN). Cada caso: dados salvos → se precisar,
             tribunal completo → motor auto ou revisar.
           </span>
         </p>
