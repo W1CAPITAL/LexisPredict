@@ -70,6 +70,24 @@ export async function getStoredCases(): Promise<LegalCase[]> {
   return getStoredCasesForEmpresa(empresa_id);
 }
 
+function dedupeByProtocolo(cases: LegalCase[]): LegalCase[] {
+  const seen = new Map<string, LegalCase>();
+  for (const c of cases) {
+    const key = String(c.protocolo || '').replace(/\D/g, '') || String(c.id || '');
+    if (!key) continue;
+    const prev = seen.get(key);
+    if (!prev) {
+      seen.set(key, c);
+      continue;
+    }
+    // mantém o que tem mais sinal de atendimento/atualização
+    const score = (x: any) =>
+      (x.ultimoRetorno ? 10 : 0) + (x.tem_novo_andamento ? 5 : 0) + (x.created_by ? 2 : 0);
+    if (score(c) >= score(prev)) seen.set(key, c);
+  }
+  return Array.from(seen.values());
+}
+
 function toLegalCase(item: any): LegalCase {
   const dados = (item.dados && typeof item.dados === 'object') ? item.dados : {};
   // Colunas tipadas vencem o JSON dados (evita atendimento "congelado" com data velha no blob)
@@ -78,6 +96,9 @@ function toLegalCase(item: any): LegalCase {
     id: item.id.toString(),
     db_id: item.id.toString(),
     created_by: item.created_by,
+    // situacao/statusManual do JSON — NÃO sobrescrever com coluna status de prazo
+    situacao: dados.situacao || dados.SITUACAO || 'EM ANDAMENTO',
+    statusManual: dados.statusManual || dados.STATUS_MANUAL || 'Automatico',
     protocolo: item.protocolo_ref || dados.protocolo || dados.PROTOCOLO,
     advogado: item.advogado ?? dados.advogado,
     escritorio: item.escritorio ?? dados.escritorio,
@@ -194,7 +215,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         const admin = await getSupabaseAdmin();
         if (admin) {
           const rows = await fetchPages(admin, "all");
-          if (rows.length > 0) return mapRows(rows);
+          if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
         }
       } catch (e) {
         console.error("[getStoredCasesForEmpresa] admin all", e);
@@ -202,7 +223,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       try {
         if (supabase) {
           const rows = await fetchPages(supabase, "all");
-          if (rows.length > 0) return mapRows(rows);
+          if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
         }
       } catch (e) {
         console.error("[getStoredCasesForEmpresa] user all", e);
@@ -214,7 +235,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     try {
       if (supabase) {
         const rows = await fetchPages(supabase, "mine");
-        if (rows.length > 0) return mapRows(rows);
+        if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
       }
     } catch (e) {
       console.error("[getStoredCasesForEmpresa] user mine", e);
@@ -223,7 +244,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
       const admin = await getSupabaseAdmin();
       if (admin) {
         const rows = await fetchPages(admin, "mine");
-        if (rows.length > 0) return mapRows(rows);
+        if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
       }
     } catch (e) {
       console.error("[getStoredCasesForEmpresa] admin mine", e);

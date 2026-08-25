@@ -103,10 +103,13 @@ export function statusEfetivo(c: {
   situacao?: string | null;
 }): CaseStatus {
   const manual = String(c.statusManual || 'Automatico');
+  const sit = String(c.situacao || '').toUpperCase();
+  if (/ENCERRAD|ARQUIVAD|EXTINT|BAIXA DEFINITIVA|FINALIZAD|SUSPENS/.test(sit)) {
+    return 'Arquivado';
+  }
   const fixed = ['Caso Crítico', 'Arquivado', 'Encerrado'];
   if (manual && manual !== 'Automatico' && fixed.includes(manual)) {
     return manual as CaseStatus;
   }
-  // Se status gravado parece de prazo, sempre recalcula (evita cache velho)
   return statusPorPrazo(c.proximoPrazo, { situacao: c.situacao });
 }

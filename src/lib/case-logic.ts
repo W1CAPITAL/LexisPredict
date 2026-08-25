@@ -270,15 +270,28 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const protocolo = (data.PROTOCOLO || data.protocolo || '').trim();
   const advogado = fixEncoding(data.ADVOGADO || data.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
   const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
-  const situacao = (data.SITUACAO || data.situacao || data.STATUS || 'EM ANDAMENTO').toUpperCase();
+  // NÃO usar coluna status (Vencido/No Prazo) como situacao — isso transformava arquivado em vencido
+  let situacao = String(data.SITUACAO || data.situacao || 'EM ANDAMENTO').toUpperCase().trim();
+  if (!situacao) situacao = 'EM ANDAMENTO';
   
   const proximoPrazoRaw = sanitizeDateCell(data.PROXIMO_RETORNO || data.PROXIMO_PRAZO || data.proximoPrazo || '');
   const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || data.ultimo_retorno || data.ULTIMORETORNO || '');
   
-  const statusManual = data.STATUS_MANUAL || data.statusManual || 'Automatico';
+  let statusManual = String(data.STATUS_MANUAL || data.statusManual || 'Automatico');
 
   const tribunalData = extrairTribunal(protocolo);
-  const statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3);
+  let statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3);
+
+  // Encerrado/arquivado no cadastro: NUNCA vira Vencido por prazo antigo
+  const sitEnc =
+    /ENCERRAD|ARQUIVAD|EXTINT|BAIXA DEFINITIVA|FINALIZAD|SUSPENS/.test(situacao) ||
+    /encerrado|arquivado/i.test(statusManual);
+  if (sitEnc) {
+    statusCalculado = 'Arquivado';
+    if (/automatico/i.test(statusManual) || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(statusManual)) {
+      statusManual = /ARQUIV/.test(situacao) ? 'Arquivado' : 'Encerrado';
+    }
+  }
 
   let observacao = fixEncoding(data.OBSERVACAO || data.OBSERVACOES || data.observacao || '');
   const produtos = data.PRODUTOS || data.produtos || '';
@@ -306,10 +319,12 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     situacao,
     proximoPrazo: proximoPrazoRaw, 
     ultimoRetorno: ultimoRetornoRaw,
-    status: (statusManual === 'Automatico' || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(String(statusManual)))
-      ? statusCalculado
-      : statusManual,
-    risco: (statusCalculado === 'Vencido' || statusManual === 'Caso Crítico') ? "Crítico" : "Normal",
+    status: sitEnc
+      ? 'Arquivado'
+      : (statusManual === 'Automatico' || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(String(statusManual)))
+        ? statusCalculado
+        : (statusManual as any),
+    risco: sitEnc ? 'Normal' : ((statusCalculado === 'Vencido' || statusManual === 'Caso Crítico') ? "Crítico" : "Normal"),
     diasFaltando: calcularDiasFaltando(formatDateToISO(proximoPrazoRaw)),
     statusManual,
     tribunal: tribunalData.tribunal,

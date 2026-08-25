@@ -8,7 +8,7 @@
  * 4) Após save/atendimento: invalidate + opcional write do estado novo.
  * 5) Scanner: progresso em chave separada; fila usa store já hidratada, não soma contadores.
  */
-const CARTEIRA_KEY = 'lexis_carteira_sessao_v2';
+const CARTEIRA_KEY = 'lexis_carteira_sessao_v3';
 const SCAN_KEY = 'lexis_scan_progress_v1';
 const TTL_MS = 4 * 60 * 1000; // 4 min — lista ok; KPI revalida em background
 
