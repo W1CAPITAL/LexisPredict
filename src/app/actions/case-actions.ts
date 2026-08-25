@@ -846,15 +846,26 @@ export async function registrarAtendimentoCompletoAction(input: {
     try {
       const admin = await getSupabaseAdmin();
       if (admin && digits.length >= 15) {
-        const { data: rows } = await admin
+        // tenta match exato em protocolo_ref (evita varrer 3000 e perder o CNJ)
+        let hit: any = null;
+        const { data: exact } = await admin
           .from('processos')
           .select('*')
           .eq('empresa_id', empresa_id)
-          .limit(3000);
-        const hit = (rows || []).find((r: any) => {
-          const ref = String(r.protocolo_ref || r.dados?.protocolo || '').replace(/\D/g, '');
-          return ref === digits || ref.endsWith(digits) || digits.endsWith(ref);
-        });
+          .eq('protocolo_ref', String(input.protocolo).trim())
+          .limit(1);
+        hit = exact?.[0] || null;
+        if (!hit) {
+          const { data: rows } = await admin
+            .from('processos')
+            .select('*')
+            .eq('empresa_id', empresa_id)
+            .limit(5000);
+          hit = (rows || []).find((r: any) => {
+            const ref = String(r.protocolo_ref || r.dados?.protocolo || '').replace(/\D/g, '');
+            return ref === digits || (ref.length >= 15 && (ref.endsWith(digits) || digits.endsWith(ref)));
+          });
+        }
         if (hit) {
           const { processarCaso: pc } = await import('@/lib/case-logic');
           const dados = hit.dados && typeof hit.dados === 'object' ? hit.dados : {};
@@ -863,7 +874,7 @@ export async function registrarAtendimentoCompletoAction(input: {
             id: String(hit.id),
             db_id: String(hit.id),
             created_by: hit.created_by,
-            protocolo: hit.protocolo_ref || dados.protocolo,
+            protocolo: (String(hit.protocolo_ref || '').replace(/\D/g, '').length >= 15 ? hit.protocolo_ref : null) || (String(dados.protocolo || '').replace(/\D/g, '').length >= 15 ? dados.protocolo : null) || hit.protocolo_ref || dados.protocolo || input.protocolo,
             advogado: hit.advogado ?? dados.advogado,
             escritorio: hit.escritorio ?? dados.escritorio,
             status: hit.status ?? dados.status,

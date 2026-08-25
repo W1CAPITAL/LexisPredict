@@ -117,13 +117,45 @@ function toRow(
 }
 
 
-/** CNJ mínimo: 15–25 dígitos; rejeita placeholders tipo SOLICITAR Nº PROCESSO */
+/** CNJ: 15–25 dígitos. Placeholder só invalida se NÃO houver dígitos suficientes. */
 function isProtocoloCnjValido(p: string | undefined | null): boolean {
   const s = String(p || '').trim();
   if (!s) return false;
-  if (/SOLICITAR|SEM\s*PROTOCOLO|PENDENTE|N[ºO]\s*PROCESS/i.test(s)) return false;
   const digits = s.replace(/\D/g, '');
-  return digits.length >= 15 && digits.length <= 25;
+  // CNJ oficial = 20 dígitos; aceita 15–25 (variações de formatação)
+  if (digits.length >= 15 && digits.length <= 25) return true;
+  // sem dígitos suficientes: rejeita placeholder / texto solto
+  if (/SOLICITAR|SEM\s*PROTOCOLO|PENDENTE|N[ºO]\s*PROCESS/i.test(s)) return false;
+  return false;
+}
+
+/** Escolhe o melhor CNJ entre protocolo, protocolo_ref e dados. */
+function resolveProtocoloCnj(caseData: any): string {
+  const candidates = [
+    caseData?.protocolo,
+    caseData?.protocolo_ref,
+    caseData?.dados?.protocolo,
+    caseData?.dados?.protocolo_ref,
+  ];
+  let best = '';
+  let bestLen = 0;
+  for (const c of candidates) {
+    const s = String(c || '').trim();
+    if (!s) continue;
+    const d = s.replace(/\D/g, '');
+    if (d.length >= 15 && d.length <= 25 && d.length > bestLen) {
+      best = s;
+      bestLen = d.length;
+    }
+  }
+  // se nenhum passou, devolve o primeiro não vazio (validação falhará depois)
+  if (!best) {
+    for (const c of candidates) {
+      const s = String(c || '').trim();
+      if (s) return s;
+    }
+  }
+  return best;
 }
 
 export async function saveOneCaseAction(caseData: LegalCase): Promise<{
@@ -134,14 +166,17 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
   try {
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id) return { success: false, message: 'Sessão expirada.' };
-    if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
-    if (!isProtocoloCnjValido(caseData.protocolo)) {
+    const protocoloResolvido = resolveProtocoloCnj(caseData);
+    if (!protocoloResolvido) return { success: false, message: 'Protocolo obrigatório.' };
+    if (!isProtocoloCnjValido(protocoloResolvido)) {
       return {
         success: false,
         message:
           'Protocolo inválido (ex.: SOLICITAR Nº PROCESSO). Informe o CNJ completo antes de salvar/atender.',
       };
     }
+    // garante que o restante do fluxo usa o CNJ resolvido (não placeholder)
+    (caseData as any).protocolo = protocoloResolvido;
 
     let processed = processarCaso(caseData as any);
 
