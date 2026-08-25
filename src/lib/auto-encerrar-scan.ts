@@ -1,18 +1,9 @@
 /**
- * Encerramento automático no scanner — política CONSERVADORA.
- *
- * SÓ auto-encerra se:
- *   1) baixa/trânsito no tribunal (datajud_encerrado_tribunal)
- *   2) sinal explícito de IMPROCEDENTE (ou extinção sem mérito útil)
- *   3) SEM procedente / parcial
- *   4) SEM cumprimento ativo, encerrado-fase ou pendente de instaurar
- *   5) SEM indício B.A.
- *   6) SEM oportunidade de honorários elegível
- *
- * Qualquer dúvida → REVISÃO (fica na fila de contato + Encerrados a revisar).
- * Nunca mexe em created_by / atendido_por.
- *
- * Desligar: SCAN_AUTO_ENCERRAR=0 no ambiente Vercel.
+ * Auto-encerrar no scanner.
+ * AUTO: baixa tribunal + SEM residual (procedente/CS/B.A./oportunidade).
+ * REVISÃO: baixa + residual → fila + Encerrados a revisar (não arquiva).
+ * Nunca mexe created_by / atendido_por.
+ * SCAN_AUTO_ENCERRAR=0 desliga.
  */
 
 export type DecisaoEncerrarScan =
@@ -48,6 +39,11 @@ export function decidirEncerramentoScan(ctx: {
   );
   if (!baixaTribunal) return { acao: 'nenhuma' };
 
+  // Já auto-encerrado antes
+  if (t.via_scan_auto_encerrar || d.via_scan_auto_encerrar) {
+    return { acao: 'nenhuma' };
+  }
+
   const text = blob(
     p.procedente_motivo,
     t.procedente_motivo,
@@ -60,13 +56,13 @@ export function decidirEncerramentoScan(ctx: {
     d.procedente_motivo
   );
 
-  const procedente = truthy(p.is_procedente ?? t.is_procedente ?? d.is_procedente) ||
-    /PROCEDENTE(?!\s*EM\s*PARTE)/.test(text) && !/IMPROCEDENTE/.test(text);
-  // parcial explícito
+  const procedente =
+    truthy(p.is_procedente ?? t.is_procedente ?? d.is_procedente) ||
+    (/PROCEDENTE/.test(text) && !/IMPROCEDENTE/.test(text) && !/PARCIAL/.test(text));
   const parcial =
     p.merito_resultado === 'parcial' ||
     truthy(p.sentenca_parcial ?? t.sentenca_parcial) ||
-    /PARCIALMENTE\s+PROCEDENTE|PROCEDENTE\s+EM\s+PARTE|PROVIMENTO\s+EM\s+PARTE/.test(text);
+    /PARCIALMENTE\s+PROCEDENTE|PROCEDENTE\s+EM\s+PARTE/.test(text);
   const cumprimento = truthy(
     p.em_cumprimento_sentenca ??
       t.em_cumprimento_sentenca ??
@@ -81,67 +77,42 @@ export function decidirEncerramentoScan(ctx: {
     p.oportunidade_elegivel ?? t.oportunidade_elegivel ?? d.oportunidade_elegivel
   );
 
-  const improcedente =
-    p.merito_resultado === 'improcedente' ||
-    t.merito_resultado === 'improcedente' ||
-    /IMPROCEDENTE/.test(text);
-
-  const extincaoSemMeritoUtil =
-    /EXTIN[CÇ][AÃ]O|CANCELAMENTO\s+DA\s+DISTRIBUI[CÇ][AÃ]O|BAIXA\s+DEFINITIVA|ARQUIVAMENTO\s+DEFINITIVO/.test(
-      text
-    ) && !procedente && !parcial && !cumprimento;
-
-  // ——— residual: NÃO auto-encerra ———
   if (procedente || parcial || cumprimento || ba || oportunidade) {
-    let prioridade = 70;
     const bits: string[] = [];
+    let prioridade = 70;
     if (ba) {
-      prioridade = 95;
       bits.push('B.A.');
+      prioridade = 95;
     }
     if (cumprimento) {
-      prioridade = Math.max(prioridade, 90);
       bits.push('cumprimento');
+      prioridade = Math.max(prioridade, 90);
     }
     if (procedente) {
-      prioridade = Math.max(prioridade, 88);
       bits.push('procedente');
+      prioridade = Math.max(prioridade, 88);
     }
     if (parcial) {
-      prioridade = Math.max(prioridade, 85);
       bits.push('parcial');
+      prioridade = Math.max(prioridade, 85);
     }
     if (oportunidade) {
-      prioridade = Math.max(prioridade, 80);
       bits.push('oportunidade');
+      prioridade = Math.max(prioridade, 80);
     }
     return {
       acao: 'revisao_fila',
-      motivo: `Baixa no tribunal + residual (${bits.join(', ')}) — fila de contato + Encerrados a revisar`,
+      motivo: `Baixa no tribunal + residual (${bits.join(', ')})`,
       prioridade,
     };
   }
 
-  // ——— AUTO só com improcedente explícito OU extinção limpa ———
-  if (improcedente || extincaoSemMeritoUtil) {
-    return {
-      acao: 'auto_encerrar',
-      motivo:
-        (improcedente
-          ? 'Improcedente + baixa tribunal'
-          : 'Extinção/baixa definitiva sem residual') +
-        (p.datajud_encerrado_motivo || t.datajud_encerrado_motivo
-          ? ` · ${p.datajud_encerrado_motivo || t.datajud_encerrado_motivo}`
-          : ''),
-    };
-  }
-
-  // Baixa tribunal sem classificação de mérito → revisão (não fecha no escuro)
-  return {
-    acao: 'revisao_fila',
-    motivo: 'Baixa no tribunal sem mérito claro — revisar antes de arquivar',
-    prioridade: 72,
-  };
+  // Baixa limpa → AUTO (não exige texto "improcedente")
+  const motivo =
+    p.datajud_encerrado_motivo ||
+    t.datajud_encerrado_motivo ||
+    'Baixa/trânsito no tribunal sem residual — auto gabinete';
+  return { acao: 'auto_encerrar', motivo: String(motivo) };
 }
 
 export function aplicarDecisaoNoPatch(
@@ -159,7 +130,9 @@ export function aplicarDecisaoNoPatch(
 
   if (decisao.acao === 'auto_encerrar') {
     const nowIso = new Date().toISOString();
-    const nowBr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 10);
+    const nowBr = new Date()
+      .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+      .slice(0, 10);
     out.situacao = 'ENCERRADO';
     out.status = 'Arquivado';
     out.statusManual = 'Encerrado';
@@ -170,7 +143,6 @@ export function aplicarDecisaoNoPatch(
     out.datajud_encerrado_tribunal = true;
     out.scan_auto_encerrado_em = nowIso;
     out.scan_auto_encerrado_dia = nowBr;
-    // Contabilização W1 CONTROL (não é atendimento de operador)
     out.operacao_sistema = {
       origem: 'W1_CONTROL',
       perfil: 'W1 CONTROL',
@@ -179,6 +151,7 @@ export function aplicarDecisaoNoPatch(
     };
     out.auditado_por_nome = 'W1 CONTROL';
     out.auditado_legenda = 'Feito por Davi Alves Figueredo · scanner automático';
+
     dadosBase.situacao = 'ENCERRADO';
     dadosBase.statusManual = 'Encerrado';
     dadosBase.status = 'Arquivado';

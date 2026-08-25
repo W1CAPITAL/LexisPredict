@@ -575,14 +575,35 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   // evento_tipo, tem_novo_andamento, etc. ficam no JSON dados
   // Preserva ultimoRetorno / atendido_por já gravados no blob
   const prevDados = (current.dados && typeof current.dados === 'object' ? current.dados : {}) as any;
+  const nestedDados =
+    safePatch.dados && typeof safePatch.dados === 'object' ? { ...safePatch.dados } : {};
+  const flatPatch = { ...safePatch };
+  delete flatPatch.dados;
   const updatedDados: Record<string, any> = {
     ...prevDados,
-    ...safePatch,
+    ...flatPatch,
+    ...nestedDados,
   };
   for (const k of ATENDIMENTO_KEYS) {
     if (prevDados[k] != null && prevDados[k] !== '' && (updatedDados[k] == null || updatedDados[k] === '')) {
       updatedDados[k] = prevDados[k];
     }
+  }
+  // Auto-encerrar scanner: grava situacao legível + flag W1
+  if (flatPatch.via_scan_auto_encerrar || nestedDados.via_scan_auto_encerrar || updatedDados.via_scan_auto_encerrar) {
+    updatedDados.situacao = 'ENCERRADO';
+    updatedDados.statusManual = 'Encerrado';
+    updatedDados.status = 'Arquivado';
+    updatedDados.via_scan_auto_encerrar = true;
+    if (!updatedDados.operacao_sistema) {
+      updatedDados.operacao_sistema = {
+        origem: 'W1_CONTROL',
+        perfil: 'W1 CONTROL',
+        tipo: 'SCAN_AUTO_ENCERRAR',
+        legenda: 'Feito por Davi Alves Figueredo · scanner automático',
+      };
+    }
+    if (!updatedDados.auditado_por_nome) updatedDados.auditado_por_nome = 'W1 CONTROL';
   }
 
   const row: Record<string, any> = {
