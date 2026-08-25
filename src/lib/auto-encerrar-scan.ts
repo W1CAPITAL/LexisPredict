@@ -158,16 +158,27 @@ export function aplicarDecisaoNoPatch(
         : {};
 
   if (decisao.acao === 'auto_encerrar') {
+    const nowIso = new Date().toISOString();
+    const nowBr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 10);
     out.situacao = 'ENCERRADO';
     out.status = 'Arquivado';
     out.statusManual = 'Encerrado';
-    out.proximoPrazo = '';
-    out.proximo_retorno = null;
     out.diasFaltando = null;
     out.precisa_revisar_encerramento = false;
     out.prioridade_revisao_encerrado = 0;
     out.via_scan_auto_encerrar = true;
     out.datajud_encerrado_tribunal = true;
+    out.scan_auto_encerrado_em = nowIso;
+    out.scan_auto_encerrado_dia = nowBr;
+    // Contabilização W1 CONTROL (não é atendimento de operador)
+    out.operacao_sistema = {
+      origem: 'W1_CONTROL',
+      perfil: 'W1 CONTROL',
+      tipo: 'SCAN_AUTO_ENCERRAR',
+      legenda: 'Feito por Davi Alves Figueredo · scanner automático',
+    };
+    out.auditado_por_nome = 'W1 CONTROL';
+    out.auditado_legenda = 'Feito por Davi Alves Figueredo · scanner automático';
     dadosBase.situacao = 'ENCERRADO';
     dadosBase.statusManual = 'Encerrado';
     dadosBase.status = 'Arquivado';
@@ -175,7 +186,12 @@ export function aplicarDecisaoNoPatch(
     dadosBase.diasFaltando = null;
     dadosBase.via_scan_auto_encerrar = true;
     dadosBase.scan_auto_encerrar_motivo = decisao.motivo;
+    dadosBase.scan_auto_encerrado_em = nowIso;
+    dadosBase.scan_auto_encerrado_dia = nowBr;
     dadosBase.precisa_revisar_encerramento = false;
+    dadosBase.operacao_sistema = out.operacao_sistema;
+    dadosBase.auditado_por_nome = 'W1 CONTROL';
+    dadosBase.auditado_legenda = 'Feito por Davi Alves Figueredo · scanner automático';
     delete dadosBase.prioridade_revisao_encerrado;
     delete dadosBase.baixa_tribunal_pendente_revisao;
   } else if (decisao.acao === 'revisao_fila') {

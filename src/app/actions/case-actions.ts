@@ -644,6 +644,35 @@ export async function auditCaseCoreSystem(
   }
 
 
+  // Log visível: auto-encerrar / revisão
+  try {
+    if (patch.via_scan_auto_encerrar || patch.dados?.via_scan_auto_encerrar) {
+      await logAlertEvent({
+        empresaId,
+        protocolo: protoSafe || protocolo,
+        eventType: 'scan_auto_encerrar',
+        source: 'scanner',
+        payload: {
+          motivo: patch.scan_auto_encerrar_motivo || patch.dados?.scan_auto_encerrar_motivo,
+          por: 'W1 CONTROL',
+          legenda: 'Feito por Davi Alves Figueredo · scanner automático',
+          quando: patch.scan_auto_encerrado_em || new Date().toISOString(),
+        },
+      });
+    } else if (patch.precisa_revisar_encerramento || patch.dados?.precisa_revisar_encerramento) {
+      await logAlertEvent({
+        empresaId,
+        protocolo: protoSafe || protocolo,
+        eventType: 'scan_revisao_encerrar',
+        source: 'scanner',
+        payload: {
+          motivo: patch.dados?.scan_revisao_motivo || patch.evento_resumo,
+          prioridade: patch.prioridade_revisao_encerrado,
+        },
+      });
+    }
+  } catch { /* não bloqueia */ }
+
   try {
     await logAlertEvent({
       empresaId,

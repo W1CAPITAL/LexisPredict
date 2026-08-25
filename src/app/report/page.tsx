@@ -1,3 +1,4 @@
+import { EncerrarKpisStrip } from "@/components/dashboard/encerrar-kpis-strip";
 "use client";
 
 import { useAdmin } from "@/hooks/use-admin";
