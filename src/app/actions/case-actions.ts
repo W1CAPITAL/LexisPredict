@@ -630,6 +630,14 @@ export async function auditCaseCoreSystem(
     console.warn('[scan-auto-encerrar] skip', e?.message || e);
   }
 
+  // Motor parados + falta instaurar (DataJud/DJEN, worker, cron, lote)
+  try {
+    const { mergeMotorParadosIntoPatch } = await import('@/lib/motor-parados-instaurar');
+    patch = mergeMotorParadosIntoPatch(target, patch);
+  } catch (e: any) {
+    console.warn('[motor-parados-instaurar] skip', e?.message || e);
+  }
+
   const saved = await updateCaseDataJudSystem(dbItem.id, patch);
   if (!saved.success) {
     console.error('[auditCaseCoreSystem] persist failed', protocolo, saved.error);
@@ -1574,8 +1582,26 @@ export async function reclassificarExecutivoCarteiraAction() {
           !!row.em_cumprimento_sentenca !== r.em_cumprimento_sentenca ||
           !!row.cumprimento_pendente_necessario !== r.cumprimento_pendente_necessario;
 
+        // Motor parados + falta instaurar (scan local / reclass carteira)
+        try {
+          const { mergeMotorParadosIntoPatch } = await import('@/lib/motor-parados-instaurar');
+          const targetLocal = {
+            ...row,
+            dados,
+            protocolo: row.protocolo_ref,
+            is_procedente: row.is_procedente,
+            em_cumprimento_sentenca: row.em_cumprimento_sentenca,
+            cumprimento_pendente_necessario: row.cumprimento_pendente_necessario,
+          };
+          const mergedPatch = mergeMotorParadosIntoPatch(targetLocal, { ...patch });
+          Object.assign(patch, mergedPatch);
+          if (mergedPatch.dados) Object.assign(patch, { dados: mergedPatch.dados });
+        } catch (e: any) {
+          console.warn('[motor-parados reclass]', e?.message || e);
+        }
+
         // sempre grava flags atuais + merge dados
-        const newDados = { ...dados, ...patch };
+        const newDados = { ...dados, ...patch, ...(patch.dados || {}) };
         let upErr = (
           await admin
             .from('processos')

@@ -1,23 +1,22 @@
 /**
- * @fileOverview Rota de Automação de Varredura DataJud v2.0
- * Executa auditoria programada via agendadores externos (Vercel Cron / GitHub Actions).
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
+ * Cron 24h — varredura DataJud/DJEN por empresa.
+ * auditCaseCoreSystem já aplica motor parados + falta instaurar.
  */
+import { NextResponse } from "next/server";
+import { runDataJudScanAction } from "@/app/actions/case-actions";
+import { listAllEmpresasSystem } from "@/lib/server-db";
 
-import { NextResponse } from 'next/server';
-import { runDataJudScanAction } from '@/app/actions/case-actions';
-import { listAllEmpresasSystem } from '@/lib/server-db';
-
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const targetId = searchParams.get('empresa_id');
-  
-  // 1. Validação de Token de Segurança (CRON_SECRET)
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return new Response('Unauthorized: Token Inválido', { status: 401 });
+  const targetId = searchParams.get("empresa_id");
+
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return new Response("Unauthorized: Token Inválido", { status: 401 });
   }
 
   try {
@@ -26,32 +25,34 @@ export async function GET(request: Request) {
     let totalAlertas = 0;
     const logs: any[] = [];
 
-    // 2. Definição do Escopo de Varredura
-    const empresas = targetId ? [{ id: targetId, nome: 'Alvo Específico' }] : await listAllEmpresasSystem();
+    const empresas = targetId
+      ? [{ id: targetId, nome: "Alvo Específico" }]
+      : await listAllEmpresasSystem();
 
-    // 3. Execução em Lote por Empresa (Modo Sistema)
-    // Nota: Limitamos a execução para não exceder o timeout do servidor (geralmente 60s)
-    // Recomenda-se rodar uma empresa por chamada se a carteira for muito grande
     for (const emp of empresas) {
       const result = await runDataJudScanAction(emp.id);
       if (result.success) {
         totalProcessados += result.scanned || 0;
         totalAlertas += result.updated || 0;
-        logs.push({ empresa: emp.nome, status: 'SUCCESS', count: result.scanned });
+        logs.push({
+          empresa: emp.nome,
+          status: "SUCCESS",
+          count: result.scanned,
+          motor: "parados+instaurar via auditCaseCoreSystem",
+        });
       } else {
-        logs.push({ empresa: emp.nome, status: 'FAIL', error: result.error });
+        logs.push({ empresa: emp.nome, status: "FAIL", error: result.error });
       }
-      
-      // Se estivermos perto do timeout (45s), interrompemos e retornamos o progresso
       if (Date.now() - start > 45000) break;
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       processados: totalProcessados,
       alertas: totalAlertas,
       duration: `${Date.now() - start}ms`,
-      logs
+      motor: "parados_instaurar",
+      logs,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
