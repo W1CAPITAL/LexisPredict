@@ -6,7 +6,11 @@
  * Export só roda quando o usuário pedir (não no boot do app).
  */
 
-import { fetchPlanoBFromUrl, planoBToCsv, type PlanoBRow } from "@/lib/plano-b-sheets";
+import {
+  fetchPlanoBFromUrl,
+  planoBToCsv,
+  type PlanoBRow,
+} from "@/lib/plano-b-sheets";
 
 export async function loadPlanoBFromSheetsAction(url: string): Promise<{
   success: boolean;
@@ -38,6 +42,8 @@ export async function exportCarteiraSnapshotCsvAction(opts?: {
     if (!ctx.empresa_id) return { success: false, error: "Sem sessão" };
 
     const admin = await getSupabaseAdmin();
+    if (!admin) return { success: false, error: "Supabase indisponível (service role / sessão)" };
+
     const maxRows = Math.min(Math.max(opts?.maxRows ?? 5000, 100), 8000);
     const pageSize = 500;
     const all: PlanoBRow[] = [];
@@ -57,10 +63,11 @@ export async function exportCarteiraSnapshotCsvAction(opts?: {
       if (!data?.length) break;
 
       for (const row of data) {
-        const d = row.dados && typeof row.dados === "object" ? row.dados : {};
+        const d = row.dados && typeof row.dados === "object" ? (row.dados as any) : {};
         all.push({
           protocolo: String(row.protocolo_ref || d.protocolo || ""),
           cliente: String(d.cliente || d.CLIENTE || ""),
+          telefone: String(d.telefone || d.phone || ""),
           advogado: String(d.advogado || d.ADVOGADO || ""),
           escritorio: String(d.escritorio || d.ESCRITORIO || ""),
           tribunal: String(d.tribunal || d.TRIBUNAL || ""),
@@ -69,7 +76,9 @@ export async function exportCarteiraSnapshotCsvAction(opts?: {
           ultimoRetorno: String(row.ultimo_retorno || d.ultimoRetorno || ""),
           proximoRetorno: String(row.proximo_retorno || d.proximoRetorno || ""),
           criado_por: String(row.created_by || ""),
-          observacoes: String(d.observacoes || row.observacoes || ""),
+          observacoes: String(d.observacoes || (row as any).observacoes || ""),
+          andamento: String(d.ultimoAndamento || d.andamento || ""),
+          evento_tipo: String(d.evento_tipo || ""),
           raw: {},
         });
         if (all.length >= maxRows) break;

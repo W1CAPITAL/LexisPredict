@@ -1,13 +1,15 @@
 /**
- * Plano B — carteira em Google Sheets / CSV.
- * NÃO substitui Supabase por padrão. Só entra se o operador ativar.
+ * Plano B — carteira em Google Sheets / CSV / XLSX local.
+ * NÃO substitui Supabase por padrão. Só entra se o operador usar /plano-b.
  * Inspirado no SyncCRM (aliases de coluna), sem OAuth obrigatório:
- * use "Publicar na web" → CSV ou link export?format=csv.
+ * - Upload XLSX/CSV no browser (funciona mesmo com planilha privada)
+ * - Ou URL "Publicar na web" → CSV / export?format=csv
  */
 
 export type PlanoBRow = {
   protocolo: string;
   cliente: string;
+  telefone: string;
   advogado: string;
   escritorio: string;
   tribunal: string;
@@ -17,21 +19,58 @@ export type PlanoBRow = {
   proximoRetorno: string;
   criado_por: string;
   observacoes: string;
+  andamento: string;
+  evento_tipo: string;
   raw: Record<string, string>;
 };
 
 const ALIASES: Record<keyof Omit<PlanoBRow, "raw">, string[]> = {
-  protocolo: ["protocolo", "processo", "cnj", "numero", "nº processo", "numero processo", "proc", "protocolo_ref"],
+  protocolo: [
+    "protocolo",
+    "processo",
+    "cnj",
+    "numero",
+    "nº processo",
+    "numero processo",
+    "proc",
+    "protocolo_ref",
+    "n processo",
+  ],
   cliente: ["cliente", "nome", "parte", "autor", "requerente", "beneficiario", "beneficiário"],
+  telefone: ["telefone", "fone", "celular", "whatsapp", "tel", "phone"],
   advogado: ["advogado", "responsavel", "responsável", "analista", "operador", "atendente"],
   escritorio: ["escritorio", "escritório", "empresa", "parceiro", "unidade"],
   tribunal: ["tribunal", "tj", "comarca", "orgao", "órgão"],
-  status: ["status", "situacao_prazo", "situacao", "situação", "fase", "estado"],
-  situacao: ["situacao_gabinete", "situacao", "situação", "gabinete", "situacao_prazo"],
-  ultimoRetorno: ["ultimo_retorno", "último retorno", "ultimo retorno", "retorno", "atendido_em"],
-  proximoRetorno: ["proximo_retorno", "próximo retorno", "proximo retorno", "proximo_retorno", "prazo", "proximo prazo"],
-  criado_por: ["criado_por", "criado por", "dono", "owner", "created_by", "assistente", "responsavel carteira"],
-  observacoes: ["observacoes", "observações", "obs", "notas", "comentario"],
+  status: ["status", "situacao_prazo", "situação prazo", "fase", "estado"],
+  situacao: ["situacao_gabinete", "situacao", "situação", "gabinete"],
+  ultimoRetorno: [
+    "ultimo_retorno",
+    "último retorno",
+    "ultimo retorno",
+    "retorno",
+    "atendido_em",
+    "data retorno",
+  ],
+  proximoRetorno: [
+    "proximo_retorno",
+    "próximo retorno",
+    "proximo retorno",
+    "prazo",
+    "proximo prazo",
+    "proximo_prazo",
+  ],
+  criado_por: [
+    "criado_por",
+    "criado por",
+    "dono",
+    "owner",
+    "created_by",
+    "assistente",
+    "responsavel carteira",
+  ],
+  observacoes: ["observacoes", "observações", "obs", "notas", "comentario", "comentário"],
+  andamento: ["andamento", "movimento", "movimentacao", "movimentação", "ultimo andamento"],
+  evento_tipo: ["evento_tipo", "evento tipo", "tipo evento", "evento"],
 };
 
 function normHeader(h: string): string {
@@ -52,13 +91,23 @@ function pick(headers: string[], row: string[], keys: string[]): string {
   return "";
 }
 
-/** CSV simples com suporte a aspas */
+/** Detecta delimitador: ; (BR) ou , */
+function detectDelimiter(sample: string): "," | ";" {
+  const first = sample.split(/\r?\n/).find((l) => l.trim()) || "";
+  const semi = (first.match(/;/g) || []).length;
+  const comma = (first.match(/,/g) || []).length;
+  return semi > comma ? ";" : ",";
+}
+
+/** CSV com suporte a aspas e delimitador ; ou , */
 export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+  const src = text.replace(/^\uFEFF/, "");
+  const delim = detectDelimiter(src);
   const lines: string[][] = [];
   let cur: string[] = [];
   let cell = "";
   let inQ = false;
-  const src = text.replace(/^\uFEFF/, "");
+
   for (let i = 0; i < src.length; i++) {
     const c = src[i];
     if (inQ) {
@@ -70,7 +119,7 @@ export function parseCsv(text: string): { headers: string[]; rows: string[][] } 
       } else cell += c;
     } else {
       if (c === '"') inQ = true;
-      else if (c === ",") {
+      else if (c === delim) {
         cur.push(cell);
         cell = "";
       } else if (c === "\n" || c === "\r") {
@@ -104,6 +153,7 @@ export function mapRowsToPlanoB(headers: string[], rows: string[][]): PlanoBRow[
     out.push({
       protocolo,
       cliente: pick(headers, row, ALIASES.cliente),
+      telefone: pick(headers, row, ALIASES.telefone),
       advogado: pick(headers, row, ALIASES.advogado),
       escritorio: pick(headers, row, ALIASES.escritorio),
       tribunal: pick(headers, row, ALIASES.tribunal),
@@ -113,6 +163,8 @@ export function mapRowsToPlanoB(headers: string[], rows: string[][]): PlanoBRow[
       proximoRetorno: pick(headers, row, ALIASES.proximoRetorno),
       criado_por: pick(headers, row, ALIASES.criado_por),
       observacoes: pick(headers, row, ALIASES.observacoes),
+      andamento: pick(headers, row, ALIASES.andamento),
+      evento_tipo: pick(headers, row, ALIASES.evento_tipo),
       raw,
     });
   }
@@ -124,6 +176,7 @@ export function mapRowsToPlanoB(headers: string[], rows: string[][]): PlanoBRow[
  * - CSV cru
  * - URL docs.google.com/.../export?format=csv
  * - URL docs.google.com/.../pub?output=csv
+ * - edit?usp=sharing → converte para export
  */
 export function normalizeSheetsCsvUrl(input: string): string {
   const u = String(input || "").trim();
@@ -158,7 +211,7 @@ export async function fetchPlanoBFromUrl(url: string): Promise<{
       return {
         ok: false,
         rows: [],
-        error: `HTTP ${res.status} — planilha precisa estar publicada (CSV) ou link export público`,
+        error: `HTTP ${res.status} — planilha privada. Use Arquivo → Compartilhar → Publicar na web → CSV, OU faça upload do .xlsx nesta tela.`,
       };
     }
     const text = await res.text();
@@ -166,7 +219,8 @@ export async function fetchPlanoBFromUrl(url: string): Promise<{
       return {
         ok: false,
         rows: [],
-        error: "Resposta HTML (planilha privada). Use Arquivo → Compartilhar → Publicar na web → CSV.",
+        error:
+          "Resposta HTML (planilha privada). Publique CSV ou use o botão Upload XLSX/CSV nesta página.",
       };
     }
     const { headers, rows } = parseCsv(text);
@@ -177,10 +231,19 @@ export async function fetchPlanoBFromUrl(url: string): Promise<{
   }
 }
 
+/** Matriz (header + linhas) → PlanoB — preferir aba Processos no XLSX */
+export function mapMatrixToPlanoB(aoa: string[][]): PlanoBRow[] {
+  if (!aoa.length) return [];
+  const headers = aoa[0].map((h) => String(h ?? "").trim());
+  const rows = aoa.slice(1).map((r) => r.map((c) => String(c ?? "")));
+  return mapRowsToPlanoB(headers, rows);
+}
+
 export function planoBToCsv(rows: PlanoBRow[]): string {
   const head = [
     "protocolo",
     "cliente",
+    "telefone",
     "advogado",
     "escritorio",
     "tribunal",
@@ -190,6 +253,8 @@ export function planoBToCsv(rows: PlanoBRow[]): string {
     "proximo_retorno",
     "criado_por",
     "observacoes",
+    "andamento",
+    "evento_tipo",
   ];
   const esc = (v: string) => {
     const s = String(v ?? "");
@@ -202,6 +267,7 @@ export function planoBToCsv(rows: PlanoBRow[]): string {
       [
         r.protocolo,
         r.cliente,
+        r.telefone,
         r.advogado,
         r.escritorio,
         r.tribunal,
@@ -211,10 +277,28 @@ export function planoBToCsv(rows: PlanoBRow[]): string {
         r.proximoRetorno,
         r.criado_por,
         r.observacoes,
+        r.andamento,
+        r.evento_tipo,
       ]
         .map(esc)
         .join(",")
     );
   }
   return lines.join("\n");
+}
+
+export function computePlanoBKpis(rows: PlanoBRow[]) {
+  const total = rows.length;
+  const byStatus: Record<string, number> = {};
+  let vencidos = 0;
+  let arquivados = 0;
+  let semTel = 0;
+  for (const r of rows) {
+    const st = (r.status || "Sem Prazo").trim() || "Sem Prazo";
+    byStatus[st] = (byStatus[st] || 0) + 1;
+    if (/vencido|crítico|critico/i.test(st)) vencidos++;
+    if (/arquiv|encerr/i.test(st) || /encerr/i.test(r.situacao || "")) arquivados++;
+    if (!r.telefone?.trim()) semTel++;
+  }
+  return { total, byStatus, vencidos, arquivados, semTel, ativos: total - arquivados };
 }
