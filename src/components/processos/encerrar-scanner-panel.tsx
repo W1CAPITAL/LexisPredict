@@ -87,7 +87,7 @@ export function EncerrarScannerPanel({
     let failed = 0;
     let skipped = 0;
     let pages = 0;
-    const maxPages = 500;
+    const maxPages = 200;
     const allSamples: string[] = [];
     let lastPct = 0;
     let lastFonte = "db+datajud+djen";
@@ -104,11 +104,10 @@ export function EncerrarScannerPanel({
       while (!stopRef.current && pages < maxPages) {
         // fase full: tenta DB primeiro; se não decidir, tribunal no mesmo item
         const batch = await runAutoEncerrarBatchAction({
-          limit: 30,
+          limit: 5,
           offset,
           afterId,
           soBaixaTribunal: true,
-          soColunaDatajud: true,
           fase: "full",
           fast: true,
         });
@@ -162,7 +161,7 @@ export function EncerrarScannerPanel({
         if (!batch.hasMore) break;
         // sem avanço de cursor = fim
         if (batch.afterId == null) break;
-        await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 800));
       }
 
       setProgress((p) => (p ? { ...p, percentDone: 100, percentLeft: 0 } : p));
@@ -171,19 +170,11 @@ export function EncerrarScannerPanel({
         `Auto ${auto} · Revisar ${revisao} · Falhas ${failed} · Escaneados ${scanned}` +
         (allSamples.length ? ` · ${allSamples.slice(0, 6).join(" | ")}` : "");
       setLastRun(msg);
-      if (scanned === 0) {
-        toast({
-          title: "Nenhum candidato na fila",
-          description:
-            "Não há processos com baixa/arquivado no tribunal pendentes de auto-scan (ou todos já têm via_scan_auto). Confira o contador de baixas acima.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: auto > 0 ? `${auto} auto-encerrados` : "Lote concluído",
-          description: msg,
-        });
-      }
+      toast({
+        title: auto > 0 ? `${auto} auto-encerrados (DataJud+DJEN)` : scanned > 0 ? "Lote real concluído" : "Fila vazia",
+        description: msg,
+        variant: auto > 0 ? "default" : undefined,
+      });
       await refreshCount();
       onDone?.();
     } catch (e: any) {
@@ -260,7 +251,7 @@ export function EncerrarScannerPanel({
           <span className="tabular-nums text-primary">{pendentes.baixaAtivos}</span>
           {" · "}outros ativos: {pendentes.outros}
           <span className="block text-muted-foreground font-medium mt-0.5">
-            Lote de 40 por rodada (sem teto de 8 no DJEN). Cada caso: dados salvos → se precisar,
+            Até 5 scans REAIS (DataJud+DJEN) por rodada (sem teto de 8 no DJEN). Cada caso: dados salvos → se precisar,
             tribunal completo → motor auto ou revisar.
           </span>
         </p>
