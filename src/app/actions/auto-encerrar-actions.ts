@@ -44,14 +44,13 @@ function rowToTarget(row: any) {
   };
 }
 
+/** Candidato ao scanner: ainda NÃO foi auto-encerrado pelo W1.
+ *  Não usa isCasoEncerrado (senão Arquivado no gabinete some da fila e scanned=0). */
 function isAtivoRow(row: any): boolean {
   const dados = row.dados && typeof row.dados === "object" ? row.dados : {};
   if (truthy(dados.via_scan_auto_encerrar)) return false;
-  try {
-    if (isCasoEncerrado(processarCaso(rowToTarget(row)))) return false;
-  } catch {
-    /* */
-  }
+  if (truthy(row.via_scan_auto_encerrar)) return false;
+  if (dados?.operacao_sistema?.tipo === "SCAN_AUTO_ENCERRAR") return false;
   return true;
 }
 
@@ -319,13 +318,16 @@ export async function runAutoEncerrarBatchAction(opts?: {
     }
 
     const rowsRead = (rows || []).length;
-    const nextAfter = maxIdInBatch ?? lastSeenId;
-    const hasMore = rowsRead > 0 && targets.length > 0 && nextAfter != null;
-    // se leu menos que o pedido de fetch, acabou a tabela
-    const hasMoreFinal = rowsRead >= limit * 8 ? true : rowsRead > 0 && (targets.length >= limit || (rows || []).some((r) => isAtivoRow(r) && Number(r.id) > (afterId ?? 0)));
+    // Cursor: último id LIDO (mesmo sem candidato), para não ficar preso
+    let nextAfter = afterId;
+    for (const row of rows || []) {
+      const rid = typeof row.id === "number" ? row.id : Number(row.id);
+      if (Number.isFinite(rid)) nextAfter = Math.max(nextAfter ?? 0, rid);
+    }
+    if (maxIdInBatch != null) nextAfter = Math.max(nextAfter ?? 0, maxIdInBatch);
 
-    // hasMore: ainda há linhas depois do cursor
-    const hasMore2 = rowsRead > 0 && nextAfter != null && rowsRead >= limit * 4;
+    // Ainda há página se lemos o máximo pedido
+    const hasMore = rowsRead >= limit * 8 || (rowsRead > 0 && targets.length >= limit);
 
     return {
       success: true,
@@ -335,11 +337,11 @@ export async function runAutoEncerrarBatchAction(opts?: {
       skipped: Math.max(0, rowsRead - targets.length),
       failed,
       offset: opts?.offset ?? 0,
-      nextOffset: (opts?.offset ?? 0) + Math.max(scanned, 1),
+      nextOffset: (opts?.offset ?? 0) + Math.max(scanned, rowsRead, 1),
       afterId: nextAfter,
       totalCandidates,
-      hasMore: hasMore2 || (targets.length >= limit && rowsRead > 0),
-      percentDone: 0, // cliente calcula pela meta
+      hasMore,
+      percentDone: 0,
       percentLeft: 100,
       fonte: fase === "db" ? "supabase" : fase === "tribunal" ? "datajud+djen" : "db+datajud+djen",
       samples,

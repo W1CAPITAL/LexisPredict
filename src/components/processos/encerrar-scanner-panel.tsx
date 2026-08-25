@@ -158,6 +158,7 @@ export function EncerrarScannerPanel({
         });
 
         if ((batch.scanned || 0) === 0 && !batch.hasMore) break;
+        // 0 scanned mas cursor avançou: continua buscando candidatos
         if (!batch.hasMore) break;
         // sem avanço de cursor = fim
         if (batch.afterId == null) break;

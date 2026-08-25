@@ -1,8 +1,8 @@
 "use server";
 
 /**
- * Métricas + ranking da empresa — colunas leves (SEM dados JSON).
- * Evita timeout em carteiras 2k+.
+ * Ranking Top Atendentes — empresa inteira.
+ * Fonte: coluna atendido_por + ultimo_retorno (não amostra da UI).
  */
 
 import {
@@ -36,17 +36,13 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     if (!ctx?.empresa_id) {
       return { ok: false, ranking: [], totalLinhas: 0, error: "sem empresa" };
     }
-
-    let admin: any;
-    try {
-      admin = await getSupabaseAdmin();
-    } catch (e: any) {
-      return { ok: false, ranking: [], totalLinhas: 0, error: e?.message || "admin" };
+    const admin = await getSupabaseAdmin();
+    if (!admin) {
+      return { ok: false, ranking: [], totalLinhas: 0, error: "admin" };
     }
 
     const empresaId = String(ctx.empresa_id);
 
-    // COUNT total (rápido)
     let total = 0;
     try {
       const { count } = await admin
@@ -58,21 +54,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       total = 0;
     }
 
-    // Encerrados por flag (aproximação rápida de ativos)
-    let encerrados = 0;
-    try {
-      const { count } = await admin
-        .from("processos")
-        .select("id", { count: "exact", head: true })
-        .eq("empresa_id", empresaId)
-        .eq("datajud_encerrado_tribunal", true);
-      encerrados = count ?? 0;
-    } catch {
-      encerrados = 0;
-    }
-    const ativos = Math.max(0, total - encerrados);
-
-    // Nomes
+    // nomes
     const nameById: Record<string, string> = {};
     try {
       const { data: users } = await admin
@@ -92,26 +74,27 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     nameById[W1] = nameById[W1] || "W1 CONTROL";
     nameById[W1.toLowerCase()] = nameById[W1];
 
-    // Só colunas de ranking — SEM dados
+    // Pagina todos os que têm retorno (pode ser DATE ou text)
     const pageSize = 1000;
     let offset = 0;
-    const rows: any[] = [];
+    const rows: { atendido_por: any; ultimo_retorno: any }[] = [];
     for (;;) {
       const { data, error } = await admin
         .from("processos")
         .select("atendido_por, ultimo_retorno")
         .eq("empresa_id", empresaId)
         .not("ultimo_retorno", "is", null)
+        .not("atendido_por", "is", null)
         .range(offset, offset + pageSize - 1);
       if (error) {
-        console.error("[ranking] select", error.message);
+        console.error("[ranking]", error.message);
         break;
       }
       const chunk = data || [];
       rows.push(...chunk);
       if (chunk.length < pageSize) break;
       offset += pageSize;
-      if (offset > 20000) break;
+      if (offset > 30000) break;
     }
 
     const ref = new Date();
@@ -125,7 +108,10 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     const counts = new Map<string, { dia: number; semana: number; mes: number }>();
 
     for (const row of rows) {
-      const raw = row.ultimo_retorno != null ? String(row.ultimo_retorno) : null;
+      const raw =
+        row.ultimo_retorno != null
+          ? String(row.ultimo_retorno).slice(0, 10) // DATE ou ISO
+          : null;
       if (!raw) continue;
       const dt = parseUltimoAtendimento(raw);
       if (!dt) continue;
@@ -160,7 +146,6 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       ranking,
       totalLinhas: rows.length,
       total,
-      ativos,
       atendidosSemana,
     };
   } catch (e: any) {
