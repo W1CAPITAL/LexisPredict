@@ -98,6 +98,9 @@ export function precisaRevisarEncerramento(c: LegalCase): boolean {
   if ((c as any).indicio_busca_apreensao) return true;
   if (foiRestauradoSistema(c)) return true;
   if (encTribunal && !encGabinete) return true; // tribunal fechou, gabinete ainda não confirmou
+  // "Sem Prazo" + baixa no tribunal = falso ativo na carteira → fino obrigatório
+  const st = String((c as any).status || (c as any).statusManual || '').toUpperCase();
+  if (encTribunal && (/SEM PRAZO|SEM_PRAZO|ARQUIV/.test(st) || !(c as any).proximoPrazo)) return true;
   if (encGabinete && !(c as any).ultimoRetorno) return true; // encerrado sem atendimento registrado
   if ((c as any).tem_novo_andamento || (c as any).tem_atualizacao_pos_retorno) return true;
   if ((c as any).oportunidade_elegivel || (c as any).cumprimento_pendente_necessario) return true;
@@ -126,6 +129,10 @@ export function flagsEncerradoRevisao(c: LegalCase): FlagRevisao[] {
   }
   if (baixaTribunal(c)) {
     flags.push({ id: 'baixa_tj', label: 'BAIXA / TRÂNSITO (tribunal)', tone: 'medio' });
+  }
+  const stFlag = String((c as any).status || '').toUpperCase();
+  if (baixaTribunal(c) && /SEM PRAZO|SEM_PRAZO/.test(stFlag)) {
+    flags.push({ id: 'falso_ativo', label: 'SEM PRAZO (falso ativo)', tone: 'alto' });
   }
   if (isCasoEncerrado(c)) {
     flags.push({ id: 'gabinete', label: 'ENCERRADO NO GABINETE', tone: 'medio' });

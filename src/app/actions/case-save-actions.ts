@@ -9,6 +9,7 @@
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { createClient } from '@/lib/supabase/server';
+import { guardTransicaoEncerrarGabinete } from '@/lib/protect-encerrar';
 
 /** Service role sem throw opaco — mensagem acionável para o operador. */
 async function getAdminClientSafe(): Promise<
@@ -132,7 +133,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     const g = guardTransicaoEncerrarGabinete({
       situacaoAtual: String((caseData as any)._situacaoAnterior || (caseData as any).situacaoAnterior || 'EM ANDAMENTO'),
       situacaoNova: String(processed.situacao || ''),
-      viaEncerrarHumano: viaHumano || String((caseData as any).situacao || '').toUpperCase() === 'ENCERRADO' && !!(caseData as any).ultimoRetorno,
+      viaEncerrarHumano: viaHumano || (String((caseData as any).situacao || '').toUpperCase() === 'ENCERRADO' && !!(caseData as any).ultimoRetorno),
       isProcedente: !!(processed as any).is_procedente || (processed as any).merito_resultado === 'procedente',
       emCumprimento: !!(processed as any).em_cumprimento_sentenca,
       cumprimentoPendente: !!(processed as any).cumprimento_pendente_necessario,
