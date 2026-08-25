@@ -1,14 +1,21 @@
 "use server";
 
 /**
- * Fila: datajud_encerrado_tribunal = true e SEM via_scan_auto.
- * Cada scanned = 1 scanSingleCaseAction (DataJud+DJEN) real.
+ * Scanner real DataJud+DJEN — select SEM colunas inexistentes.
+ * Erro anterior: processos.cumprimento_encerrado does not exist
  */
 import { getUserContext, getSupabaseAdmin, updateCaseDataJudSystem } from "@/lib/server-db";
 import { scanSingleCaseAction } from "@/app/actions/case-actions";
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from "@/lib/auto-encerrar-scan";
 
 const MAX_SCANS = 5;
+
+/** Colunas seguras (existem no schema em uso) */
+const SELECT_SAFE =
+  "id, protocolo_ref, dados, status, status_interno, " +
+  "datajud_encerrado_tribunal, datajud_encerrado_motivo, datajud_ultimo_nome, " +
+  "is_procedente, procedente_motivo, em_cumprimento_sentenca, " +
+  "djen_ultimo_resumo, indicio_busca_apreensao";
 
 function truthy(v: unknown): boolean {
   if (v === true || v === 1) return true;
@@ -44,8 +51,8 @@ function rowToTarget(row: any) {
     is_procedente: row.is_procedente ?? dados.is_procedente,
     em_cumprimento_sentenca: row.em_cumprimento_sentenca ?? dados.em_cumprimento_sentenca,
     cumprimento_pendente_necessario:
-      row.cumprimento_pendente_necessario ?? dados.cumprimento_pendente_necessario,
-    cumprimento_encerrado: row.cumprimento_encerrado ?? dados.cumprimento_encerrado,
+      dados.cumprimento_pendente_necessario ?? row.cumprimento_pendente_necessario,
+    cumprimento_encerrado: dados.cumprimento_encerrado ?? false,
     situacao: dados.situacao || row.status_interno,
     status: row.status,
     procedente_motivo: row.procedente_motivo || dados.procedente_motivo,
@@ -86,12 +93,24 @@ export async function countAutoEncerrarPendentesAction() {
       baixasTribunalTotal = 0;
     }
 
-    const { data: rows } = await admin
+    const { data: rows, error } = await admin
       .from("processos")
       .select("id, dados, protocolo_ref")
       .eq("empresa_id", empresa_id)
       .eq("datajud_encerrado_tribunal", true)
       .limit(5000);
+
+    if (error) {
+      return {
+        success: false,
+        baixaAtivos: 0,
+        outrosAtivos: 0,
+        totalPendentes: 0,
+        baixasTribunalTotal,
+        bloqueadosViaScan: 0,
+        error: error.message,
+      };
+    }
 
     let baixaAtivos = 0;
     let bloqueadosViaScan = 0;
@@ -228,9 +247,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
     async function fetchPage(after: number | null, lim: number) {
       let q = admin
         .from("processos")
-        .select(
-          "id, protocolo_ref, dados, datajud_encerrado_tribunal, datajud_encerrado_motivo, datajud_ultimo_nome, is_procedente, procedente_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, cumprimento_encerrado, status, status_interno, djen_ultimo_resumo, indicio_busca_apreensao"
-        )
+        .select(SELECT_SAFE)
         .eq("empresa_id", empresa_id)
         .eq("datajud_encerrado_tribunal", true)
         .order("id", { ascending: true })
@@ -241,7 +258,6 @@ export async function runAutoEncerrarBatchAction(opts?: {
       return q;
     }
 
-    // Busca páginas até achar candidatos (máx. 8 páginas de 50)
     const targets: any[] = [];
     let nextAfter: number | null = afterId;
     let skipped = 0;
@@ -274,15 +290,13 @@ export async function runAutoEncerrarBatchAction(opts?: {
         targets.push(row);
         if (targets.length >= maxScans) break;
       }
-
-      // Se a página veio cheia mas sem candidatos, continua com cursor
       if (list.length < 50) break;
     }
 
-    // Se afterId inicial “pulou” tudo, tenta do zero uma vez
-    if (targets.length === 0 && afterId != null && pages > 0) {
+    if (targets.length === 0 && afterId != null) {
       nextAfter = null;
-      const { data: rows2 } = await fetchPage(null, 80);
+      const { data: rows2, error: e2 } = await fetchPage(null, 80);
+      if (e2) return { ...empty, error: e2.message, debug: `retry: ${e2.message}` };
       for (const row of rows2 || []) {
         const rid = typeof row.id === "number" ? row.id : Number(row.id);
         if (Number.isFinite(rid)) nextAfter = Math.max(nextAfter ?? 0, rid);
@@ -290,8 +304,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
           skipped++;
           continue;
         }
-        const proto = protocoloOf(row);
-        if (!proto) continue;
+        if (!protocoloOf(row)) continue;
         targets.push(row);
         if (targets.length >= maxScans) break;
       }
@@ -379,7 +392,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
       }
     }
 
-    const debug = `pages=${pages} rowsRead=${rowsReadTotal} targets=${targets.length} skipped=${skipped} after=${nextAfter}`;
+    const debug = `pages=${pages} rowsRead=${rowsReadTotal} targets=${targets.length} skipped=${skipped}`;
 
     return {
       success: true,
@@ -400,10 +413,6 @@ export async function runAutoEncerrarBatchAction(opts?: {
       lastError: lastError || undefined,
       tribunalCalls,
       debug,
-      error:
-        scanned === 0 && targets.length === 0
-          ? `SEM_CANDIDATOS:${debug}`
-          : undefined,
     };
   } catch (e: any) {
     return { ...empty, error: e?.message || String(e) };
