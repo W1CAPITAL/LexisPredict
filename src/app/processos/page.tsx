@@ -24,8 +24,6 @@ import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
-import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
-;
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase, formatDateToISO } from "@/lib/case-logic";
 import {
@@ -175,11 +173,13 @@ export default function ProcessosEmpresaPage() {
       setCases(list);
       setTotalCount(Number(res?.totalCount) || list.length);
       {
-        let ac = Number(res?.ativosCount) || 0;
+        let ac = list.filter((c: any) => !isCasoEncerrado(c)).length;
+        if (!list.length && Number(res?.ativosCount) > 0) ac = Number(res.ativosCount);
         const tot = Number(res?.totalCount) || list.length;
         // Se servidor mandou ativos === total (ou 0), recalcula na lista com isCasoEncerrado
         if (list.length > 0 && (ac <= 0 || ac >= tot)) {
           ac = list.filter((c: any) => !isCasoEncerrado(c)).length;
+        setAtivosCount(ac);
         }
         setAtivosCount(ac);
       }
@@ -567,14 +567,7 @@ export default function ProcessosEmpresaPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="mb-3 col-span-full">
-              <EncerrarScannerPanel
-                cases={cases}
-                authUserId={(profile as any)?.auth_user_id || (profile as any)?.id || null}
-                visaoEmpresa
-              />
-            </div>
-            <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint={`${topAtendentes.length} no ranking (máx. 5)`} />
+              <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint={`${topAtendentes.length} no ranking (máx. 5)`} />
               {topAtendentes.slice(0, 5).map((a, i) => {
                 const isW1 = /W1\s*CONTROL/i.test(String(a.userNome || "")) || String(a.userId || "") === "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
                 return (

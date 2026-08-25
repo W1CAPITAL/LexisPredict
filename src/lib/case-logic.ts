@@ -271,8 +271,16 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const advogado = fixEncoding(data.ADVOGADO || data.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
   const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
   // NÃO usar coluna status (Vencido/No Prazo) como situacao — isso transformava arquivado em vencido
-  let situacao = String(data.SITUACAO || data.situacao || 'EM ANDAMENTO').toUpperCase().trim();
+  let situacao = String(data.SITUACAO || data.situacao || data.status_interno || 'EM ANDAMENTO').toUpperCase().trim();
   if (!situacao) situacao = 'EM ANDAMENTO';
+  if (data.via_scan_auto_encerrar || data.dados?.via_scan_auto_encerrar) {
+    situacao = 'ENCERRADO';
+  }
+  if (/^(VENCIDO|É HOJE|E HOJE|ATENÇÃO|ATENCAO|NO PRAZO|SEM PRAZO|CASO CR[IÍ]TICO)$/.test(situacao)) {
+    // status de prazo vazou para situacao — corrige
+    const alt = String(data.status_interno || data.dados?.situacao || '').toUpperCase();
+    situacao = /ENCERRAD|ARQUIVAD|EXTINT|SUSPENS|FINALIZ/.test(alt) ? alt : 'EM ANDAMENTO';
+  }
   
   const proximoPrazoRaw = sanitizeDateCell(data.PROXIMO_RETORNO || data.PROXIMO_PRAZO || data.proximoPrazo || '');
   const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || data.ultimo_retorno || data.ULTIMORETORNO || '');

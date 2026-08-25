@@ -2,6 +2,7 @@
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor, checkIfViewer } from './supabase';
 import { LegalCase, formatDateToISO, processarCaso } from './case-logic';
+import { resolveSituacaoFromRow, resolveStatusManualFromRow } from './resolve-situacao';
 import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
@@ -96,9 +97,11 @@ function toLegalCase(item: any): LegalCase {
     id: item.id.toString(),
     db_id: item.id.toString(),
     created_by: item.created_by,
-    // situacao/statusManual do JSON — NÃO sobrescrever com coluna status de prazo
-    situacao: dados.situacao || dados.SITUACAO || 'EM ANDAMENTO',
-    statusManual: dados.statusManual || dados.STATUS_MANUAL || 'Automatico',
+    // situacao operacional (gabinete) — nunca status de prazo
+    situacao: resolveSituacaoFromRow(item, dados),
+    statusManual: resolveStatusManualFromRow(item, dados),
+    status_interno: item.status_interno || dados.status_interno || resolveSituacaoFromRow(item, dados),
+    via_scan_auto_encerrar: !!(dados.via_scan_auto_encerrar),
     protocolo: item.protocolo_ref || dados.protocolo || dados.PROTOCOLO,
     advogado: item.advogado ?? dados.advogado,
     escritorio: item.escritorio ?? dados.escritorio,
@@ -352,12 +355,19 @@ export async function searchKnowledgeChunksSystem(keywords: string[], empresaId:
 }
 
 function mapProcessoRow(item: any): LegalCase {
+  const dados = (item.dados && typeof item.dados === 'object') ? item.dados : {};
+  const situacao = resolveSituacaoFromRow(item, dados);
+  const statusManual = resolveStatusManualFromRow(item, dados, situacao);
   return processarCaso({
-    ...(item.dados as any),
+    ...dados,
     id: item.id.toString(),
     db_id: item.id.toString(),
     empresa_id: item.empresa_id,
     created_by: item.created_by,
+    situacao,
+    statusManual,
+    status_interno: item.status_interno || dados.status_interno || situacao,
+    via_scan_auto_encerrar: !!(dados.via_scan_auto_encerrar),
     ultimoRetorno: item.ultimo_retorno,
     datajud_ultimo_movimento: item.datajud_ultimo_movimento,
     datajud_ultimo_nome: item.datajud_ultimo_nome,
@@ -565,22 +575,10 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   // evento_tipo, tem_novo_andamento, etc. ficam no JSON dados
   // Preserva ultimoRetorno / atendido_por já gravados no blob
   const prevDados = (current.dados && typeof current.dados === 'object' ? current.dados : {}) as any;
-  const nestedDados =
-    safePatch.dados && typeof safePatch.dados === 'object' ? { ...safePatch.dados } : {};
-  const flatPatch = { ...safePatch };
-  delete flatPatch.dados;
   const updatedDados: Record<string, any> = {
     ...prevDados,
-    ...flatPatch,
-    ...nestedDados,
+    ...safePatch,
   };
-  // Auto-encerrar: garante situacao legível por isCasoEncerrado
-  if (flatPatch.via_scan_auto_encerrar || nestedDados.via_scan_auto_encerrar) {
-    updatedDados.situacao = 'ENCERRADO';
-    updatedDados.statusManual = 'Encerrado';
-    updatedDados.status = 'Arquivado';
-    updatedDados.via_scan_auto_encerrar = true;
-  }
   for (const k of ATENDIMENTO_KEYS) {
     if (prevDados[k] != null && prevDados[k] !== '' && (updatedDados[k] == null || updatedDados[k] === '')) {
       updatedDados[k] = prevDados[k];
