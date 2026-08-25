@@ -26,11 +26,11 @@ const ALIASES: Record<keyof Omit<PlanoBRow, "raw">, string[]> = {
   advogado: ["advogado", "responsavel", "responsável", "analista", "operador", "atendente"],
   escritorio: ["escritorio", "escritório", "empresa", "parceiro", "unidade"],
   tribunal: ["tribunal", "tj", "comarca", "orgao", "órgão"],
-  status: ["status", "situacao", "situação", "fase", "estado"],
-  situacao: ["situacao_gabinete", "situacao", "situação", "gabinete"],
+  status: ["status", "situacao_prazo", "situacao", "situação", "fase", "estado"],
+  situacao: ["situacao_gabinete", "situacao", "situação", "gabinete", "situacao_prazo"],
   ultimoRetorno: ["ultimo_retorno", "último retorno", "ultimo retorno", "retorno", "atendido_em"],
-  proximoRetorno: ["proximo_retorno", "próximo retorno", "proximo retorno", "prazo", "proximo prazo"],
-  criado_por: ["criado_por", "criado por", "dono", "owner", "created_by", "responsavel carteira"],
+  proximoRetorno: ["proximo_retorno", "próximo retorno", "proximo retorno", "proximo_retorno", "prazo", "proximo prazo"],
+  criado_por: ["criado_por", "criado por", "dono", "owner", "created_by", "assistente", "responsavel carteira"],
   observacoes: ["observacoes", "observações", "obs", "notas", "comentario"],
 };
 
