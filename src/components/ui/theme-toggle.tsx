@@ -57,13 +57,13 @@ export function selectThemePreset(id: string | null) {
 
 export function ThemeToggle({ className }: { className?: string }) {
   const { setDarkMode } = useAppStore();
-  const [mode, setMode] = useState<LexisThemeMode>("system");
+  const [mode, setMode] = useState<LexisThemeMode>("light");
   const [presetId, setPresetId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const savedMode = (localStorage.getItem("lexis_theme_mode") as LexisThemeMode) || "system";
+    const savedMode = (localStorage.getItem("lexis_theme_mode") as LexisThemeMode) || "light";
     setMode(savedMode);
     setDarkMode(applyLexisThemeMode(savedMode));
     setPresetId(getSavedPresetId());

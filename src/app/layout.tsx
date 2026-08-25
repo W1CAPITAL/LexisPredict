@@ -86,13 +86,16 @@ export default function RootLayout({
                   root.style.setProperty(name, hexToHsl(hex));
                 };
 
-                // Modo: light | dark | system
+                // Modo: light (padrão) | dark | system — NÃO segue o SO se não houver escolha salva
                 var mode = localStorage.getItem('lexis_theme_mode');
+                if (!mode) {
+                  mode = 'light';
+                  localStorage.setItem('lexis_theme_mode', 'light');
+                }
                 var isDark;
-                if (mode === 'light') isDark = false;
-                else if (mode === 'dark') isDark = true;
+                if (mode === 'dark') isDark = true;
                 else if (mode === 'system') isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                else isDark = localStorage.getItem('lexis_dark_mode') === 'true';
+                else isDark = false; // light e qualquer valor desconhecido
                 root.classList.toggle('dark', isDark);
                 root.classList.toggle('light', !isDark);
                 localStorage.setItem('lexis_dark_mode', String(isDark));

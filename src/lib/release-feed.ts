@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.79.0";
+export const RELEASE_VERSION = "9.80.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.80 — Tema padrão claro (nao segue SO); contraste AAA leve; README 25/08 (encerrados, escopo, auditoria).",
   "9.79 — Encerrados a revisar sob o Painel; lote: J/K, Meus/Empresa, dispensar, lote confirmar, copiar CNJ.",
   "9.77 — Aba Encerrados a revisar no sidebar (fila dedicada como contato: flags, reabrir, confirmar).",
   "9.75 — Fila Encerrados a revisar no Painel (procedente/cumprimento/restore); política de auto-encerrar só improcedente limpo.",

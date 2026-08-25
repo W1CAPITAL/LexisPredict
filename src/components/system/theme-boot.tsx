@@ -18,6 +18,8 @@ export function ThemeBoot() {
         localStorage.setItem(FORCE_LIGHT_KEY, "1");
         localStorage.setItem("lexisPredict_theme_preset", "minimal-steel");
         localStorage.setItem("theme", "light");
+        localStorage.setItem("lexis_theme_mode", "light");
+        localStorage.setItem("lexis_dark_mode", "false");
         localStorage.removeItem("lexisPredict_custom_theme");
         // limpa cores quebradas (branco em branco)
         localStorage.setItem("lexisPredict_bg_color", "#F8FAFC");
