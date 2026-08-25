@@ -146,12 +146,13 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!empresaId) return [];
 
   const context = await getUserContext();
-  const { auth_id, isSuperAdmin, isSupervisor } = context as any;
+  const { auth_id, isSuperAdmin, isSupervisor, isViewer, isAdministrador, isEmpresaWide } = context as any;
 
-  // isAdmin=true → /processos (empresa toda)
-  // Superadmin/Supervisor → carteira completa em Cases/Dashboard
-  // Operador/Admin → SOMENTE created_by = auth_id
-  const wantAll = isAdmin === true || !!(isSuperAdmin || isSupervisor);
+  // Empresa toda: /processos (isAdmin), superadmin, supervisor, administrador, viewer, isEmpresaWide
+  // Operador: SOMENTE created_by = auth_id (NÃO soma órfãos — isso inflava 485+837=1322)
+  const wantAll =
+    isAdmin === true ||
+    !!(isSuperAdmin || isSupervisor || isViewer || isAdministrador || isEmpresaWide);
 
   const mapRows = (rows: any[]): LegalCase[] => {
     const out: LegalCase[] = [];
@@ -182,9 +183,10 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   const fetchPages = async (cli: any, mode: "all" | "mine") => {
     let allData: any[] = [];
     let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-    while (hasMore) {
+    // 500 evita teto silencioso de alguns projetos Supabase em range 1000
+    const pageSize = 500;
+    const maxPages = 40; // até 20k linhas
+    while (page < maxPages) {
       let query = cli
         .from("processos")
         .select("*")
@@ -193,18 +195,15 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .range(page * pageSize, (page + 1) * pageSize - 1);
       if (mode === "mine") {
         if (!auth_id) return [];
-        // Meus + órfãos (created_by null) — evita carteira/fila sem dono invisível
-        query = query.or(`created_by.eq.${auth_id},created_by.is.null`);
+        // SOMENTE meus — órfãos entram só em wantAll (supervisor/admin)
+        query = query.eq("created_by", auth_id);
       }
       const { data, error } = await query;
       if (error) throw error;
-      if (data && data.length > 0) {
-        allData = allData.concat(data);
-        hasMore = data.length === pageSize;
-        page++;
-      } else {
-        hasMore = false;
-      }
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      page++;
     }
     return allData;
   };
@@ -278,7 +277,7 @@ export async function getStoredCasesPageForEmpresa(
       .range(offset, offset + limit - 1);
 
     if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
-      query = query.or(`created_by.eq.${auth_id},created_by.is.null`);
+      query = query.eq("created_by", auth_id); // só meus — órfãos só no wantAll (supervisor)
     }
 
     const { data, error } = await query;
@@ -776,7 +775,7 @@ export async function getStoredNotes(): Promise<any[]> {
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (!hasFullAccess) {
-        query = query.or(`created_by.eq.${auth_id},created_by.is.null`);
+        query = query.eq("created_by", auth_id); // só meus — órfãos só no wantAll (supervisor)
       }
 
       const { data, error } = await query;

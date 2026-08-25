@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.72.0";
+export const RELEASE_VERSION = "9.73.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.73 — Total empresa estável: operador não soma órfãos; paginação 500; supervisor vê carteira completa.",
   "9.72 — Encerrado/arquivado não vira Vencido; dedupe CNJ; cache v3; SQL restaura encerrados e remove duplicatas.",
   "9.71 — Dashboard restaurado (não mais Configurações); encerrado/arquivado volta a contar; órfãos (sem dono) visíveis.",
   "9.69 — Processos: save qualquer cargo (service role + match CNJ); reabrir ENCERRADO/AGUARD.PROTOCOLO; status falso-encerrado corrigido.",
