@@ -80,6 +80,7 @@ export function EncerrarScannerPanel({
     stopRef.current = false;
 
     let offset = 0;
+    let afterId: number | null = null;
     let scanned = 0;
     let auto = 0;
     let revisao = 0;
@@ -103,32 +104,35 @@ export function EncerrarScannerPanel({
       while (!stopRef.current && pages < maxPages) {
         // fase full: tenta DB primeiro; se não decidir, tribunal no mesmo item
         const batch = await runAutoEncerrarBatchAction({
-          limit: 25,
+          limit: 40,
           offset,
+          afterId,
           soBaixaTribunal: true,
           fase: "full",
           fast: true,
         });
         pages++;
 
-        if (!batch.success) {
-          setLastRun(batch.error || "Erro no lote");
+        if (!batch || !batch.success) {
+          const errMsg = batch?.error || "Erro no lote";
+          setLastRun(errMsg);
           toast({
             title: "Erro no lote",
-            description: batch.error || "Falha",
+            description: errMsg,
             variant: "destructive",
           });
           break;
         }
 
-        scanned += batch.scanned;
-        auto += batch.autoEncerrados;
-        revisao += batch.revisao;
-        failed += batch.failed;
+        scanned += batch.scanned || 0;
+        auto += batch.autoEncerrados || 0;
+        revisao += batch.revisao || 0;
+        failed += batch.failed || 0;
         skipped += batch.skipped || 0;
-        offset = batch.nextOffset;
+        offset = batch.nextOffset ?? offset + 1;
+        if (batch.afterId != null) afterId = batch.afterId;
         lastFonte = batch.fonte || lastFonte;
-        if (batch.samples?.length) allSamples.push(...batch.samples.slice(0, 8));
+        if (batch.samples?.length) allSamples.push(...batch.samples.slice(0, 12));
         if (batch.lastError) console.warn("[encerrar-scan]", batch.lastError);
 
         const workPct =
@@ -153,8 +157,10 @@ export function EncerrarScannerPanel({
           fonte: lastFonte,
         });
 
-        if (batch.scanned === 0 && !batch.hasMore) break;
+        if ((batch.scanned || 0) === 0 && !batch.hasMore) break;
         if (!batch.hasMore) break;
+        // sem avanço de cursor = fim
+        if (batch.afterId == null) break;
         await new Promise((r) => setTimeout(r, 200));
       }
 
