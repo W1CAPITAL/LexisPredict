@@ -1,9 +1,18 @@
 /**
- * Política de encerramento no scanner (lote operacional).
+ * Encerramento automático no scanner — política CONSERVADORA.
  *
- * - AUTO: baixa tribunal + improcedente + sem CS/BA/procedente → encerra gabinete
- * - REVISÃO: há valor residual → NÃO some da fila; prioridade na fila de contato + Encerrados a revisar
- * - Nunca altera created_by (dono)
+ * SÓ auto-encerra se:
+ *   1) baixa/trânsito no tribunal (datajud_encerrado_tribunal)
+ *   2) sinal explícito de IMPROCEDENTE (ou extinção sem mérito útil)
+ *   3) SEM procedente / parcial
+ *   4) SEM cumprimento ativo, encerrado-fase ou pendente de instaurar
+ *   5) SEM indício B.A.
+ *   6) SEM oportunidade de honorários elegível
+ *
+ * Qualquer dúvida → REVISÃO (fica na fila de contato + Encerrados a revisar).
+ * Nunca mexe em created_by / atendido_por.
+ *
+ * Desligar: SCAN_AUTO_ENCERRAR=0 no ambiente Vercel.
  */
 
 export type DecisaoEncerrarScan =
@@ -11,14 +20,25 @@ export type DecisaoEncerrarScan =
   | { acao: 'revisao_fila'; motivo: string; prioridade: number }
   | { acao: 'nenhuma' };
 
+function on(): boolean {
+  const v = String(process.env.SCAN_AUTO_ENCERRAR ?? '1').trim().toLowerCase();
+  return v !== '0' && v !== 'false' && v !== 'off' && v !== 'no';
+}
+
 function truthy(v: unknown): boolean {
   return !!v;
+}
+
+function blob(...parts: unknown[]): string {
+  return parts.map((p) => String(p || '')).join(' ').toUpperCase();
 }
 
 export function decidirEncerramentoScan(ctx: {
   target: any;
   patch: Record<string, any>;
 }): DecisaoEncerrarScan {
+  if (!on()) return { acao: 'nenhuma' };
+
   const t = ctx.target || {};
   const p = ctx.patch || {};
   const d = (t.dados && typeof t.dados === 'object' ? t.dados : {}) as any;
@@ -28,70 +48,102 @@ export function decidirEncerramentoScan(ctx: {
   );
   if (!baixaTribunal) return { acao: 'nenhuma' };
 
-  const procedente = truthy(
-    p.is_procedente ?? t.is_procedente ?? d.is_procedente
+  const text = blob(
+    p.procedente_motivo,
+    t.procedente_motivo,
+    p.datajud_encerrado_motivo,
+    t.datajud_encerrado_motivo,
+    p.evento_resumo,
+    t.evento_resumo,
+    p.merito_resultado,
+    t.merito_resultado,
+    d.procedente_motivo
   );
+
+  const procedente = truthy(p.is_procedente ?? t.is_procedente ?? d.is_procedente) ||
+    /PROCEDENTE(?!\s*EM\s*PARTE)/.test(text) && !/IMPROCEDENTE/.test(text);
+  // parcial explícito
   const parcial =
     p.merito_resultado === 'parcial' ||
     truthy(p.sentenca_parcial ?? t.sentenca_parcial) ||
-    String(p.procedente_motivo || t.procedente_motivo || '').toUpperCase().includes('PARCIAL');
+    /PARCIALMENTE\s+PROCEDENTE|PROCEDENTE\s+EM\s+PARTE|PROVIMENTO\s+EM\s+PARTE/.test(text);
   const cumprimento = truthy(
     p.em_cumprimento_sentenca ??
       t.em_cumprimento_sentenca ??
       p.cumprimento_ativo ??
       t.cumprimento_ativo ??
       p.cumprimento_pendente_necessario ??
-      t.cumprimento_pendente_necessario
+      t.cumprimento_pendente_necessario ??
+      d.em_cumprimento_sentenca
   );
   const ba = truthy(p.indicio_busca_apreensao ?? t.indicio_busca_apreensao);
   const oportunidade = truthy(
     p.oportunidade_elegivel ?? t.oportunidade_elegivel ?? d.oportunidade_elegivel
   );
+
   const improcedente =
     p.merito_resultado === 'improcedente' ||
-    truthy(t.merito_resultado === 'improcedente') ||
-    /IMPROCEDENTE/.test(
-      String(p.procedente_motivo || t.procedente_motivo || p.datajud_encerrado_motivo || t.datajud_encerrado_motivo || '').toUpperCase()
-    );
+    t.merito_resultado === 'improcedente' ||
+    /IMPROCEDENTE/.test(text);
 
-  // Valor residual → fila de contato prioridade + revisar encerrados
+  const extincaoSemMeritoUtil =
+    /EXTIN[CÇ][AÃ]O|CANCELAMENTO\s+DA\s+DISTRIBUI[CÇ][AÃ]O|BAIXA\s+DEFINITIVA|ARQUIVAMENTO\s+DEFINITIVO/.test(
+      text
+    ) && !procedente && !parcial && !cumprimento;
+
+  // ——— residual: NÃO auto-encerra ———
   if (procedente || parcial || cumprimento || ba || oportunidade) {
     let prioridade = 70;
-    if (ba) prioridade = 95;
-    else if (cumprimento) prioridade = 90;
-    else if (procedente || parcial) prioridade = 85;
-    else if (oportunidade) prioridade = 80;
     const bits: string[] = [];
-    if (ba) bits.push('B.A.');
-    if (cumprimento) bits.push('cumprimento');
-    if (procedente) bits.push('procedente');
-    if (parcial) bits.push('parcial');
-    if (oportunidade) bits.push('oportunidade');
+    if (ba) {
+      prioridade = 95;
+      bits.push('B.A.');
+    }
+    if (cumprimento) {
+      prioridade = Math.max(prioridade, 90);
+      bits.push('cumprimento');
+    }
+    if (procedente) {
+      prioridade = Math.max(prioridade, 88);
+      bits.push('procedente');
+    }
+    if (parcial) {
+      prioridade = Math.max(prioridade, 85);
+      bits.push('parcial');
+    }
+    if (oportunidade) {
+      prioridade = Math.max(prioridade, 80);
+      bits.push('oportunidade');
+    }
     return {
       acao: 'revisao_fila',
-      motivo: `Baixa no tribunal com sinal residual (${bits.join(', ')}) — manter na fila`,
+      motivo: `Baixa no tribunal + residual (${bits.join(', ')}) — fila de contato + Encerrados a revisar`,
       prioridade,
     };
   }
 
-  // Seguro: baixa + (improcedente OU sem sinal de mérito positivo)
-  if (improcedente || (!procedente && !parcial && !cumprimento && !ba)) {
+  // ——— AUTO só com improcedente explícito OU extinção limpa ———
+  if (improcedente || extincaoSemMeritoUtil) {
     return {
       acao: 'auto_encerrar',
       motivo:
-        p.datajud_encerrado_motivo ||
-        t.datajud_encerrado_motivo ||
-        'Baixa no tribunal sem valor residual — auto gabinete',
+        (improcedente
+          ? 'Improcedente + baixa tribunal'
+          : 'Extinção/baixa definitiva sem residual') +
+        (p.datajud_encerrado_motivo || t.datajud_encerrado_motivo
+          ? ` · ${p.datajud_encerrado_motivo || t.datajud_encerrado_motivo}`
+          : ''),
     };
   }
 
-  return { acao: 'nenhuma' };
+  // Baixa tribunal sem classificação de mérito → revisão (não fecha no escuro)
+  return {
+    acao: 'revisao_fila',
+    motivo: 'Baixa no tribunal sem mérito claro — revisar antes de arquivar',
+    prioridade: 72,
+  };
 }
 
-/**
- * Aplica decisão no patch do scanner.
- * Nunca inclui created_by / atendido_por (não rouba dono nem KPI de operador).
- */
 export function aplicarDecisaoNoPatch(
   patch: Record<string, any>,
   target: any,
@@ -124,27 +176,21 @@ export function aplicarDecisaoNoPatch(
     dadosBase.via_scan_auto_encerrar = true;
     dadosBase.scan_auto_encerrar_motivo = decisao.motivo;
     dadosBase.precisa_revisar_encerramento = false;
-    // limpa flag de prioridade de revisão
     delete dadosBase.prioridade_revisao_encerrado;
+    delete dadosBase.baixa_tribunal_pendente_revisao;
   } else if (decisao.acao === 'revisao_fila') {
-    // NÃO encerra gabinete — mantém ativo na fila de contato
     out.precisa_revisar_encerramento = true;
     out.prioridade_revisao_encerrado = decisao.prioridade;
-    out.tem_novo_andamento = true; // sobe na fila
+    out.tem_novo_andamento = true;
     out.evento_tipo = out.evento_tipo || 'REVISAR_ENCERRAMENTO';
-    out.evento_resumo =
-      out.evento_resumo ||
-      decisao.motivo ||
-      'Baixa no tribunal — revisar (valor residual)';
+    out.evento_resumo = out.evento_resumo || decisao.motivo;
     dadosBase.precisa_revisar_encerramento = true;
     dadosBase.prioridade_revisao_encerrado = decisao.prioridade;
     dadosBase.scan_revisao_motivo = decisao.motivo;
-    // força aparecer em Encerrados a revisar mesmo se gabinete ainda "EM ANDAMENTO"
     dadosBase.baixa_tribunal_pendente_revisao = true;
   }
 
   out.dados = dadosBase;
-  // hard guard: nunca dono / atendimento
   delete out.created_by;
   delete out.atendido_por;
   delete out.auditado_por;
