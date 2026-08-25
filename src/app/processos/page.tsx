@@ -25,6 +25,7 @@ import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { fetchProcessosEmpresaKpisAction } from "@/app/actions/processos-kpis-action";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
 import { isEmpresaW1Principal } from "@/lib/w1-empresa";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
@@ -144,6 +145,7 @@ export default function ProcessosEmpresaPage() {
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [ativosCount, setAtivosCount] = useState(0);
+  const [vencidosCount, setVencidosCount] = useState(0);
   const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState(0);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
@@ -176,19 +178,21 @@ export default function ProcessosEmpresaPage() {
       const list = res?.cases || [];
       setCases(list);
       setTotalCount(Number(res?.totalCount) || list.length);
-      {
-        let ac = list.filter((c: any) => !isCasoEncerrado(c)).length;
-        if (!list.length && Number(res?.ativosCount) > 0) ac = Number(res.ativosCount);
-        const tot = Number(res?.totalCount) || list.length;
-        // Se servidor mandou ativos === total (ou 0), recalcula na lista com isCasoEncerrado
-        if (list.length > 0 && (ac <= 0 || ac >= tot)) {
-          ac = list.filter((c: any) => !isCasoEncerrado(c)).length;
-        setAtivosCount(ac);
-        }
-        setAtivosCount(ac);
-      }
       setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
       setTopAtendentesSrv(Array.isArray(res?.ranking) ? res.ranking.slice(0, 5) : []);
+      // KPIs de carteira: mesma regra do Dashboard (empresa inteira), NÃO a amostra da tabela
+      try {
+        const k = await fetchProcessosEmpresaKpisAction();
+        if (k?.ok) {
+          if (k.total > 0) setTotalCount(k.total);
+          setAtivosCount(k.ativos);
+          setVencidosCount(k.vencidos);
+        } else if (Number(res?.ativosCount) > 0) {
+          setAtivosCount(Number(res.ativosCount));
+        }
+      } catch {
+        if (Number(res?.ativosCount) > 0) setAtivosCount(Number(res.ativosCount));
+      }
       setAudit(res?.audit || []);
       setUsers(res?.users || []);
       if ((res as any)?.error) {
@@ -567,7 +571,7 @@ export default function ProcessosEmpresaPage() {
               <Kpi icon={<FileSearch size={16} />} label="Editados app" value={loading ? "…" : auditadosSemana} tone="ok" hint="salvamentos no app" />
               <Kpi icon={<Gavel size={16} />} label="Tribunal (sem.)" value={loading ? "…" : auditadosTribunal} hint="DataJud/DJEN" />
               <Kpi icon={<CheckCircle2 size={16} />} label="Editados app" value={loading ? "…" : editadosApp} hint="salvar no app" />
-              <Kpi icon={<ShieldAlert size={16} />} label="Vencidos" value={loading ? "…" : vencidos.length} tone={vencidos.length > 0 ? "danger" : "default"} />
+              <Kpi icon={<ShieldAlert size={16} />} label="Vencidos" value={loading ? "…" : (vencidosCount || vencidos.length)} tone={(vencidosCount || vencidos.length) > 0 ? "danger" : "default"} />
             </div>
 
             <EncerrarScannerPanel
