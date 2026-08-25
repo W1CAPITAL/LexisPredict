@@ -171,3 +171,15 @@
     opacity: 1;
   }
 }
+
+/* Transição de rota — suave, sem flash branco */
+@keyframes lexis-route-in {
+  from { opacity: 0.72; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lexis-route-enter {
+  animation: lexis-route-in 0.22s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lexis-route-enter { animation: none; }
+}

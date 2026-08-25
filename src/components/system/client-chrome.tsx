@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { NavProgress } from "@/components/system/nav-progress";
 
 const GuidedTour = dynamic(
   () => import("@/components/onboarding/guided-tour").then((m) => m.GuidedTour),
@@ -62,10 +63,13 @@ export function ClientChrome() {
 
     const idle =
       "requestIdleCallback" in window
-        ? (window as any).requestIdleCallback(() => {
-            setTourReady(true);
-            setScannerReady(true);
-          }, { timeout: 8000 })
+        ? (window as any).requestIdleCallback(
+            () => {
+              setTourReady(true);
+              setScannerReady(true);
+            },
+            { timeout: 8000 }
+          )
         : null;
     const fallback = window.setTimeout(() => {
       setTourReady(true);
@@ -83,6 +87,7 @@ export function ClientChrome() {
 
   return (
     <>
+      <NavProgress />
       <UiPrefsApplier />
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
