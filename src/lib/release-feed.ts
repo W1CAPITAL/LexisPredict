@@ -1,9 +1,10 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.76.0";
+export const RELEASE_VERSION = "9.77.0";
 
 export const RELEASE_CHANGELOG: string[] = [
-  "9.76 — Trava: scanner/IA nao encerra carteira; so humano; valor residual bloqueia arquivo cego.",
+  "9.77 — Aba Encerrados a revisar no sidebar (fila dedicada como contato: flags, reabrir, confirmar).",
+  "9.75 — Fila Encerrados a revisar no Painel (procedente/cumprimento/restore); política de auto-encerrar só improcedente limpo.",
   "9.74 — Escopo pessoal em /cases, fila, dashboard e report; empresa só em /processos; SQL rateia sem dono.",
   "9.72 — Encerrado/arquivado não vira Vencido; dedupe CNJ; cache v3; SQL restaura encerrados e remove duplicatas.",
   "9.71 — Dashboard restaurado (não mais Configurações); encerrado/arquivado volta a contar; órfãos (sem dono) visíveis.",

@@ -175,6 +175,7 @@ function SidebarNavBody({
     const primary: NavItem[] = [
       { label: "Painel", href: "/", icon: LayoutDashboard },
       { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
+      { label: "Encerrados a revisar", href: "/encerrados-revisao", icon: ShieldAlert },
       { label: "Processos parados", href: "/processos-parados", icon: PauseCircle },
       { label: "Meus processos", href: "/cases", icon: Briefcase },
       { label: "Visão da empresa", href: "/processos", icon: FolderOpen },
