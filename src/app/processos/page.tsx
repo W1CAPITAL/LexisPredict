@@ -13,6 +13,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
 import { fetchRankingAtendentesEmpresaAction } from "@/app/actions/ranking-atendentes-action";
+import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
 import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
@@ -142,6 +143,8 @@ export default function ProcessosEmpresaPage() {
     !!(profile as any)?.isSuperAdmin;
 
   const [cases, setCases] = useState<LegalCase[]>([]);
+  const [searchHits, setSearchHits] = useState<LegalCase[] | null>(null);
+  const [searching, setSearching] = useState(false);
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [ativosCount, setAtivosCount] = useState(0);
@@ -224,6 +227,31 @@ export default function ProcessosEmpresaPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Busca no banco (empresa inteira) quando há texto — a lista local só tem ~300
+  useEffect(() => {
+    const q = qDebounced.trim();
+    if (!q || q.length < 3) {
+      setSearchHits(null);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    (async () => {
+      try {
+        const res = await searchCompanyProcessosAction(q);
+        if (cancelled) return;
+        if (res.ok) setSearchHits(res.cases as any);
+        else setSearchHits([]);
+      } catch {
+        if (!cancelled) setSearchHits([]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [qDebounced]);
+
 
   useEffect(() => {
     try {
@@ -494,7 +522,9 @@ export default function ProcessosEmpresaPage() {
 
   const filtered = useMemo(() => {
     const query = qDebounced.toLowerCase().trim();
-    let list = cases.filter((c) => {
+    // Com busca: prioriza resultado do servidor (empresa inteira)
+    const base = query && searchHits != null ? searchHits : cases;
+    let list = base.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;
       if (silencioOnly) {
@@ -502,13 +532,14 @@ export default function ProcessosEmpresaPage() {
         if (d == null || d < 45) return false;
       }
       if (!query) return true;
+      if (searchHits != null) return true; // já filtrado no servidor
       return [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, String(c.status)]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(query));
     });
     if (sortOps) list = [...list].sort(compareOps);
     return list;
-  }, [cases, qDebounced, statusFilter, baOnly, silencioOnly, sortOps]);
+  }, [cases, searchHits, qDebounced, statusFilter, baOnly, silencioOnly, sortOps]);
 
   // Ao mudar filtro/busca, volta a mostrar só a 1ª página (não afeta dashboard)
   useEffect(() => {
@@ -694,7 +725,7 @@ export default function ProcessosEmpresaPage() {
               ) : filtered.length === 0 ? (
                 <div className="py-24 text-center space-y-3 opacity-60">
                   <Briefcase className="mx-auto" size={40} />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Nenhum processo encontrado.</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest">{searching ? "Buscando na empresa…" : "Nenhum processo encontrado"}.</p>
                 </div>
               ) : (
                 <div className="max-h-[min(70vh,640px)] min-h-[200px] overflow-y-auto overflow-x-auto overscroll-contain border border-border/40 rounded-xl">
