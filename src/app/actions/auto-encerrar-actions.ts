@@ -310,6 +310,41 @@ export async function runAutoEncerrarBatchAction(opts?: {
       }
     }
 
+    // Baixas só no teor (sem coluna datajud) — os que o app "não localizou" na coluna
+    if (targets.length === 0) {
+      let qTeor = admin
+        .from("processos")
+        .select(SELECT_SAFE)
+        .eq("empresa_id", empresa_id)
+        .or("datajud_encerrado_tribunal.is.null,datajud_encerrado_tribunal.eq.false")
+        .order("id", { ascending: true })
+        .limit(120);
+      if (afterId != null && Number.isFinite(afterId) && afterId > 0) {
+        qTeor = qTeor.gt("id", afterId);
+      }
+      const { data: rowsTeor } = await qTeor;
+      try {
+        const { textoBaixaOuArquivoTribunal } = await import("@/lib/status-encerrado");
+        for (const row of rowsTeor || []) {
+          const rid = typeof row.id === "number" ? row.id : Number(row.id);
+          if (Number.isFinite(rid)) nextAfter = Math.max(nextAfter ?? 0, rid);
+          if (jaAutoScan(row)) { skipped++; continue; }
+          const proto = protocoloOf(row);
+          if (!proto) continue;
+          const d = dadosOf(row);
+          const blob = [
+            row.datajud_encerrado_motivo, row.datajud_ultimo_nome, row.djen_ultimo_resumo,
+            d.evento_resumo, d.situacao, row.status, d.procedente_motivo, row.procedente_motivo,
+          ].map((x) => String(x || "")).join(" ");
+          if (!textoBaixaOuArquivoTribunal(blob)) continue;
+          targets.push(row);
+          if (targets.length >= maxScans) break;
+        }
+      } catch {
+        /* status-encerrado helper */
+      }
+    }
+
     let autoEncerrados = 0;
     let revisao = 0;
     let failed = 0;

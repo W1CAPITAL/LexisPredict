@@ -109,7 +109,7 @@ export default function CumprimentosProcedentesPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [filtro, setFiltro] = useState<FiltroAtivo>("todos");
+  const [filtro, setFiltro] = useState<FiltroAtivo>("pendente");
   const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [scanCursor, setScanCursor] = useState(0);
@@ -166,10 +166,18 @@ const filtered = useMemo(() => {
       base = base.filter((c) => {
         const nome = String(c.cliente || "").toLowerCase();
         const proto = String(c.protocolo || "").toLowerCase();
-        return nome.includes(term) || proto.includes(term);
+        const adv = String(c.advogado || (c as any).dados?.advogado || "").toLowerCase();
+        const esc = String(c.escritorio || (c as any).dados?.escritorio || (c as any).dados?.ESCRITORIO || "").toLowerCase();
+        return nome.includes(term) || proto.includes(term) || adv.includes(term) || esc.includes(term);
       });
     }
-    if (filtro === "honorarios") {
+    // "Todos" = fila de AÇÃO (não lista quem já está em cumprimento ativo)
+    if (filtro === "todos") {
+      base = base.filter((c) => {
+        const s = statusExecutivo(c);
+        return s !== "ativo" && s !== "encerrado";
+      });
+    } else if (filtro === "honorarios") {
       base = base.filter((c) => {
         const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
         const op =
@@ -515,7 +523,7 @@ const filtered = useMemo(() => {
                 <Input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Cliente ou CNJ"
+                  placeholder="Cliente, CNJ, advogado ou escritório"
                   className="pl-9 h-10 rounded-xl bg-background border-border/60"
                 />
               </div>
@@ -523,7 +531,7 @@ const filtered = useMemo(() => {
             <ScrollArea className="flex-1">
               <div className="p-2 space-y-1">
                 {[
-                  { key: "todos" as FiltroAtivo, label: "Todos", icon: Scale, count: stats.total, color: "" },
+                  { key: "todos" as FiltroAtivo, label: "Ação (sem ativos)", icon: Scale, count: Math.max(0, stats.total - stats.ativos - stats.encerrados), color: "" },
                   { key: "honorarios" as FiltroAtivo, label: "Instaurar (honorários)", icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
                   { key: "pendente" as FiltroAtivo, label: "Falta instaurar", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
                   { key: "ativo" as FiltroAtivo, label: "Cumprimento ativo", icon: Clock, count: stats.ativos, color: "text-amber-600" },
@@ -644,6 +652,29 @@ const filtered = useMemo(() => {
                         </div>
 
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+                          <span className="font-semibold text-foreground/80">
+                            Adv: {String(c.advogado || (c as any).dados?.advogado || "—")}
+                          </span>
+                          <span>
+                            Esc: {String(c.escritorio || (c as any).dados?.escritorio || (c as any).dados?.ESCRITORIO || "—")}
+                          </span>
+                          {(() => {
+                            const s = statusExecutivo(c);
+                            if (s === "pendente" || c.cumprimento_pendente_necessario) {
+                              return (
+                                <span className="text-red-700 dark:text-red-400 font-bold">
+                                  Falta instaurar cumprimento?
+                                </span>
+                              );
+                            }
+                            if (s === "ativo") {
+                              return <span className="text-amber-700">Cumprimento já ativo</span>;
+                            }
+                            if (c.is_procedente && s !== "ativo") {
+                              return <span className="text-emerald-700">Procedente · avaliar execução</span>;
+                            }
+                            return null;
+                          })()}
                           {(() => {
                             const op = oportunidadeOf(c);
                             if (!op?.riscos?.length) return null;
