@@ -104,10 +104,11 @@ export function EncerrarScannerPanel({
       while (!stopRef.current && pages < maxPages) {
         // fase full: tenta DB primeiro; se não decidir, tribunal no mesmo item
         const batch = await runAutoEncerrarBatchAction({
-          limit: 40,
+          limit: 30,
           offset,
           afterId,
           soBaixaTribunal: true,
+          soColunaDatajud: true,
           fase: "full",
           fast: true,
         });
@@ -170,11 +171,19 @@ export function EncerrarScannerPanel({
         `Auto ${auto} · Revisar ${revisao} · Falhas ${failed} · Escaneados ${scanned}` +
         (allSamples.length ? ` · ${allSamples.slice(0, 6).join(" | ")}` : "");
       setLastRun(msg);
-      toast({
-        title: auto > 0 ? `${auto} auto-encerrados` : "Lote concluído",
-        description: msg,
-        variant: auto > 0 ? "default" : undefined,
-      });
+      if (scanned === 0) {
+        toast({
+          title: "Nenhum candidato na fila",
+          description:
+            "Não há processos com baixa/arquivado no tribunal pendentes de auto-scan (ou todos já têm via_scan_auto). Confira o contador de baixas acima.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: auto > 0 ? `${auto} auto-encerrados` : "Lote concluído",
+          description: msg,
+        });
+      }
       await refreshCount();
       onDone?.();
     } catch (e: any) {
