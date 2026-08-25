@@ -154,7 +154,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   // isAdmin=true → /processos (empresa toda)
   // Superadmin/Supervisor → carteira completa em Cases/Dashboard
   // Operador/Admin → SOMENTE created_by = auth_id
-  const wantAll = isAdmin === true; // só /processos (fetchCompanyProcessos). Dashboard/cases/tarefas/report = meus.
+  const wantAll = isAdmin === true || !!(isSuperAdmin || isSupervisor);
 
   const mapRows = (rows: any[]): LegalCase[] => {
     const out: LegalCase[] = [];

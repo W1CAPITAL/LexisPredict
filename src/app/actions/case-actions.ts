@@ -109,9 +109,9 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  // Sempre carteira do usuário logado (created_by = auth_id).
-  // Empresa inteira: somente /processos via fetchCompanyProcessosAction (isAdmin=true).
-  return await getStoredCasesForEmpresa(ctx.empresa_id, false);
+  // Superadmin / Supervisor: todos. Demais cargos: só os próprios.
+  const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
+  return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
 
 export async function syncRepoCases(cases: LegalCase[]) {
