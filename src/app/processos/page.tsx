@@ -354,7 +354,7 @@ export default function ProcessosEmpresaPage() {
     try {
       const updated: LegalCase = {
         ...c,
-        situacao: "ENCERRADO",
+        situacao: "ENCERRADO", viaEncerrarHumano: true as any,
         ultimoRetorno: todayBR(),
         proximoPrazo: "",
         tem_novo_andamento: false,

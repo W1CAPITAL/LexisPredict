@@ -3,6 +3,7 @@
  * Aplica flags Claude/OmniRoute sobre o patch do scanner.
  */
 import type { AiCaseClassification } from '@/lib/ai/case-event-classifier';
+import { sanitizeScanPatchNaoEncerrarCarteira } from '@/lib/protect-encerrar';
 
 /** Aplica classificação AI sobre patch heurístico (não apaga flags já true). */
 export function mergeAiIntoScanPatch(
@@ -23,9 +24,11 @@ export function mergeAiIntoScanPatch(
 
   // Encerrado / baixa
   if (f.encerrado) {
+    // SOMENTE telemetria de tribunal — NÃO grava situacao ENCERRADO na carteira
     out.datajud_encerrado_tribunal = true;
     out.datajud_encerrado_motivo =
       out.datajud_encerrado_motivo || ai.evento_resumo || 'IA: encerrado/baixa';
+    out.precisa_revisar_encerramento = true;
   }
 
   // Cumprimento de sentença
@@ -136,39 +139,4 @@ export function mergeAiIntoScanPatch(
     bits.length ? ` | ${bits.join(' · ')}` : ''
   }`;
 
-  return out;
-}
-
-function formatEngineLabel(engine: string): string {
-  const e = String(engine || '').toLowerCase();
-  if (e.includes('omni') || e.includes('claude') || e.includes('anthropic')) {
-    return 'Claude (OmniRoute)';
-  }
-  if (e.includes('groq')) return 'Groq Llama';
-  if (e.includes('openrouter')) return 'OpenRouter';
-  if (e.includes('xai') || e.includes('grok')) return 'xAI Grok';
-  if (e.includes('gemini')) return 'Gemini';
-  if (e.includes('puter')) return 'Puter';
-  return engine || 'IA';
-}
-
-/** Lista curta de flags ativas para UI */
-export function listAiFlagBadges(c: any): Array<{ key: string; label: string; tone: string }> {
-  const out: Array<{ key: string; label: string; tone: string }> = [];
-  if (c?.indicio_busca_apreensao) out.push({ key: 'ba', label: c.ba_tipo ? `B.A. ${c.ba_tipo}` : 'B.A.', tone: 'red' });
-  if (c?.datajud_encerrado_tribunal) out.push({ key: 'enc', label: 'Encerrado', tone: 'black' });
-  if (c?.em_cumprimento_sentenca || c?.cumprimento_sentenca)
-    out.push({ key: 'cump', label: 'Cumprimento', tone: 'amber' });
-  if (c?.sentenca_procedente || c?.merito_resultado === 'procedente')
-    out.push({ key: 'proc', label: 'Procedente', tone: 'emerald' });
-  if (c?.sentenca_improcedente || c?.merito_resultado === 'improcedente')
-    out.push({ key: 'imp', label: 'Improcedente', tone: 'slate' });
-  if (c?.sentenca_parcial || c?.merito_resultado === 'parcial')
-    out.push({ key: 'par', label: 'Parcial', tone: 'blue' });
-  if (c?.tem_liminar) out.push({ key: 'lim', label: 'Liminar', tone: 'violet' });
-  if (c?.tem_audiencia) out.push({ key: 'aud', label: 'Audiência', tone: 'cyan' });
-  if (c?.tem_custas) out.push({ key: 'cus', label: 'Custas', tone: 'orange' });
-  if (c?.alerta_ia) out.push({ key: 'ai', label: 'Alerta IA', tone: 'red' });
-  if (c?.ai_engine) out.push({ key: 'eng', label: String(c.ai_engine).split(':')[0], tone: 'muted' });
-  return out;
-}
+  return sanitizeScanPatchNaoEncerrarCarteira(out);

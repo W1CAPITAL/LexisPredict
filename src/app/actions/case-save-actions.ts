@@ -127,6 +127,26 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
 
     let processed = processarCaso(caseData as any);
 
+    // Proteção: não encerrar carteira sem viaEncerrarHumano (scanner/sync não passa)
+    const viaHumano = !!(caseData as any).viaEncerrarHumano || !!(caseData as any).forceMesmoComValor;
+    const g = guardTransicaoEncerrarGabinete({
+      situacaoAtual: String((caseData as any)._situacaoAnterior || (caseData as any).situacaoAnterior || 'EM ANDAMENTO'),
+      situacaoNova: String(processed.situacao || ''),
+      viaEncerrarHumano: viaHumano || String((caseData as any).situacao || '').toUpperCase() === 'ENCERRADO' && !!(caseData as any).ultimoRetorno,
+      isProcedente: !!(processed as any).is_procedente || (processed as any).merito_resultado === 'procedente',
+      emCumprimento: !!(processed as any).em_cumprimento_sentenca,
+      cumprimentoPendente: !!(processed as any).cumprimento_pendente_necessario,
+      forceMesmoComValor: !!(caseData as any).forceMesmoComValor,
+    });
+    if (g.bloqueado) {
+      processed.situacao = g.situacao;
+      (processed as any).statusManual =
+        /ENCERRAD|ARQUIVAD/i.test(String(g.situacao)) ? (processed as any).statusManual : 'Automatico';
+    } else if (/ENCERRAD/i.test(g.situacao)) {
+      processed.situacao = 'ENCERRADO';
+      (processed as any).statusManual = 'Encerrado';
+    }
+
     // Último retorno hoje/semana = atendimento (Editar em Processos/Tarefas/Cases)
     const isoRet = formatDateToISO(
       processed.ultimoRetorno ||
