@@ -116,6 +116,16 @@ function toRow(
   return row;
 }
 
+
+/** CNJ mínimo: 15–25 dígitos; rejeita placeholders tipo SOLICITAR Nº PROCESSO */
+function isProtocoloCnjValido(p: string | undefined | null): boolean {
+  const s = String(p || '').trim();
+  if (!s) return false;
+  if (/SOLICITAR|SEM\s*PROTOCOLO|PENDENTE|N[ºO]\s*PROCESS/i.test(s)) return false;
+  const digits = s.replace(/\D/g, '');
+  return digits.length >= 15 && digits.length <= 25;
+}
+
 export async function saveOneCaseAction(caseData: LegalCase): Promise<{
   success: boolean;
   message: string;
@@ -125,6 +135,13 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id) return { success: false, message: 'Sessão expirada.' };
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
+    if (!isProtocoloCnjValido(caseData.protocolo)) {
+      return {
+        success: false,
+        message:
+          'Protocolo inválido (ex.: SOLICITAR Nº PROCESSO). Informe o CNJ completo antes de salvar/atender.',
+      };
+    }
 
     let processed = processarCaso(caseData as any);
 

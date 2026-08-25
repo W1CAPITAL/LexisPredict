@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.81.0";
+export const RELEASE_VERSION = "9.82.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.82 — Guard CNJ no save; SQL limpa SOLICITAR protocolo; SCHEMA-SUPABASE.md (diagrama multi-tenant).",
   "9.81 — Fix guardTransicaoEncerrarGabinete no save (atender /processos); Dialog a11y; Sem Prazo+baixa → fila revisao.",
   "9.79 — Encerrados a revisar sob o Painel; lote: J/K, Meus/Empresa, dispensar, lote confirmar, copiar CNJ.",
   "9.77 — Aba Encerrados a revisar no sidebar (fila dedicada como contato: flags, reabrir, confirmar).",
