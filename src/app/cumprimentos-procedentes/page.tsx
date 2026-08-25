@@ -36,6 +36,7 @@ import {
   reclassificarExecutivoCarteiraAction,
   batchScanExecutivoAction,
 } from "@/app/actions/case-actions";
+import { scanInstaurarComParadosBatchAction } from "@/app/actions/scan-instaurar-parados-action";
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { computeKpiExecutivo } from "@/lib/kpi-executivo";
@@ -114,6 +115,7 @@ export default function CumprimentosProcedentesPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [scanCursor, setScanCursor] = useState(0);
   const [enrichBusy, setEnrichBusy] = useState(false);
+  const [paradosScanBusy, setParadosScanBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,6 +133,43 @@ export default function CumprimentosProcedentesPage() {
     }
   }, [toast]);
 
+
+  
+  const handleScanParadosInstaurar = useCallback(async () => {
+    if (paradosScanBusy) return;
+    setParadosScanBusy(true);
+    try {
+      let afterId: number | null = null;
+      let scanned = 0;
+      let refined = 0;
+      let failed = 0;
+      const samples: string[] = [];
+      for (let i = 0; i < 15; i++) {
+        const r = await scanInstaurarComParadosBatchAction({ limit: 5, afterId });
+        if (!r.success) {
+          toast({ title: "Erro no scan", description: r.error, variant: "destructive" });
+          break;
+        }
+        scanned += r.scanned;
+        refined += r.refined;
+        failed += r.failed;
+        samples.push(...(r.samples || []).slice(0, 3));
+        if (r.afterId != null) afterId = r.afterId;
+        if (!r.hasMore || r.scanned === 0) break;
+        await new Promise((x) => setTimeout(x, 500));
+      }
+      toast({
+        title: "Tribunal + parados",
+        description: `Escaneados ${scanned} · refinados ${refined} · falhas ${failed}` +
+          (samples.length ? ` · ${samples.slice(0, 2).join(" | ")}` : ""),
+      });
+      await load();
+    } catch {
+      toast({ title: "Falha no scan parados", variant: "destructive" });
+    } finally {
+      setParadosScanBusy(false);
+    }
+  }, [paradosScanBusy, toast, load]);
 
   const handleEnriquecerTeor = useCallback(async () => {
     setEnrichBusy(true);
@@ -485,6 +524,19 @@ const filtered = useMemo(() => {
             <Button
               type="button"
               size="sm"
+              variant="default"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
+              disabled={paradosScanBusy || bulkBusy}
+              onClick={() => void handleScanParadosInstaurar()}
+              title="DataJud+DJEN + motor Processos Parados · só pendentes de instaurar (não ativos)"
+            >
+              {paradosScanBusy ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
+              Scan + parados
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
               variant="outline"
               className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
               disabled={!cases.length}
@@ -664,6 +716,15 @@ const filtered = useMemo(() => {
                               return (
                                 <span className="text-red-700 dark:text-red-400 font-bold">
                                   Falta instaurar cumprimento?
+                                </span>
+                              );
+                            }
+                            const mp = (c as any).dados?.motor_parados || (c as any).motor_parados;
+                            if (mp?.score_acao != null) {
+                              return (
+                                <span className="text-violet-700 dark:text-violet-300">
+                                  Parados score {mp.score_acao}
+                                  {mp.dias_parado_tribunal != null ? ` · ${mp.dias_parado_tribunal}d trib.` : ""}
                                 </span>
                               );
                             }
