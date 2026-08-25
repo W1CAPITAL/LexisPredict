@@ -158,7 +158,6 @@ export function EncerrarScannerPanel({
         });
 
         if ((batch.scanned || 0) === 0 && !batch.hasMore) break;
-        // 0 scanned mas cursor avançou: continua buscando candidatos
         if (!batch.hasMore) break;
         // sem avanço de cursor = fim
         if (batch.afterId == null) break;
@@ -247,12 +246,12 @@ export function EncerrarScannerPanel({
 
       {pendentes != null && (
         <p className="text-[10px] font-semibold text-foreground leading-relaxed">
-          Baixas no banco: <span className="tabular-nums">{pendentes.baixasTotal}</span>
+          Baixas tribunal (isBaixaTribunal): <span className="tabular-nums">{pendentes.baixasTotal}</span>
           {" · "}ativos com baixa:{" "}
           <span className="tabular-nums text-primary">{pendentes.baixaAtivos}</span>
           {" · "}outros ativos: {pendentes.outros}
           <span className="block text-muted-foreground font-medium mt-0.5">
-            Lote de 25 por rodada (sem teto de 8 no DJEN). Cada caso: dados salvos → se precisar,
+            Lote de 40 por rodada (sem teto de 8 no DJEN). Cada caso: dados salvos → se precisar,
             tribunal completo → motor auto ou revisar.
           </span>
         </p>
