@@ -176,6 +176,7 @@ export default function ProcessosEmpresaPage() {
   const [listOffset, setListOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [onlyAtivosList, setOnlyAtivosList] = useState(true);
+  const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 80;
 
   const load = async () => {
@@ -491,16 +492,24 @@ export default function ProcessosEmpresaPage() {
     URL.revokeObjectURL(url);
   };
 
-  const nomeByAuth = useMemo(() => {
+    const nomeByAuth = useMemo(() => {
     const m = new Map<string, string>();
-    for (const u of users) m.set(u.auth_user_id, u.nome);
+    for (const u of users as any[]) {
+      const nome = String(u.nome || u.email || "").trim();
+      if (!nome) continue;
+      if (u.auth_user_id) m.set(String(u.auth_user_id).toLowerCase(), nome);
+      if (u.id) m.set(String(u.id).toLowerCase(), nome);
+    }
     return m;
   }, [users]);
 
-  const avatarByAuth = useMemo(() => {
-    const m = new Map<string, string | null>();
-    for (const u of users) {
-      if (u.auth_user_id) m.set(u.auth_user_id, u.avatar_url || null);
+    const avatarByAuth = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of users as any[]) {
+      const av = u.avatar_url || null;
+      if (!av) continue;
+      if (u.auth_user_id) m.set(String(u.auth_user_id).toLowerCase(), av);
+      if (u.id) m.set(String(u.id).toLowerCase(), av);
     }
     return m;
   }, [users]);
@@ -557,46 +566,66 @@ export default function ProcessosEmpresaPage() {
 
   
   const loadMoreFromServer = async () => {
-    if (loadingMore) return;
+    if (loadingMore || !hasServerMore) return;
     setLoadingMore(true);
     try {
       const res = await fetchCompanyProcessosPageAction({
         offset: listOffset,
-        limit: 200,
+        limit: 300,
         onlyAtivos: onlyAtivosList,
       });
-      if (res.ok && res.cases?.length) {
+      const batch = res.ok ? res.cases || [] : [];
+      if (batch.length > 0) {
         setCases((prev) => {
           const seen = new Set(prev.map((c: any) => String(c.id || c.protocolo)));
-          const add = (res.cases || []).filter((c: any) => !seen.has(String(c.id || c.protocolo)));
+          const add = batch.filter((c: any) => !seen.has(String(c.id || c.protocolo)));
           return [...prev, ...add];
         });
-        setListOffset((o) => o + res.cases.length);
-        setVisibleCount((v) => v + Math.min(80, res.cases.length));
+        setListOffset((o) => o + batch.length);
+        setVisibleCount((v) => v + Math.min(100, batch.length));
+        if (batch.length < 300) {
+          // página incompleta: se estava só ativos, passa a todos
+          if (onlyAtivosList) {
+            setOnlyAtivosList(false);
+            setListOffset(0);
+            setHasServerMore(true);
+          } else {
+            setHasServerMore(false);
+          }
+        }
       } else if (onlyAtivosList) {
         setOnlyAtivosList(false);
+        setListOffset(0);
         const res2 = await fetchCompanyProcessosPageAction({
           offset: 0,
-          limit: 200,
+          limit: 300,
           onlyAtivos: false,
         });
-        if (res2.ok && res2.cases?.length) {
+        const batch2 = res2.ok ? res2.cases || [] : [];
+        if (batch2.length > 0) {
           setCases((prev) => {
             const seen = new Set(prev.map((c: any) => String(c.id || c.protocolo)));
-            const add = (res2.cases || []).filter((c: any) => !seen.has(String(c.id || c.protocolo)));
+            const add = batch2.filter((c: any) => !seen.has(String(c.id || c.protocolo)));
             return [...prev, ...add];
           });
-          setListOffset((o) => o + (res2.cases?.length || 0));
+          setListOffset(batch2.length);
+          setVisibleCount((v) => v + Math.min(100, batch2.length));
+        } else {
+          setHasServerMore(false);
         }
+      } else {
+        setHasServerMore(false);
       }
     } finally {
       setLoadingMore(false);
     }
   };
 
+  /** Ver mais: sempre tenta servidor se ainda há carteira além do carregado */
   const showMore = async (extra: number) => {
-    setVisibleCount((prev) => Math.min(prev + extra, Math.max(filtered.length, prev + extra)));
-    if (visibleCount + extra >= cases.length - 20) {
+    const nextVis = Math.min(visibleCount + extra, filtered.length + extra);
+    setVisibleCount(nextVis);
+    if (cases.length < (totalCount || 99999) && hasServerMore) {
       await loadMoreFromServer();
     }
   };
@@ -835,8 +864,8 @@ export default function ProcessosEmpresaPage() {
                               />
                             </td>
                             <td className="px-4 py-3 text-[10px] font-bold uppercase">{(() => {
-                              const nm = nomeByAuth.get(String(c.created_by || "")) || "";
-                              const av = avatarByAuth.get(String(c.created_by || ""));
+                              const nm = nomeByAuth.get(String(c.created_by || "").toLowerCase()) || nomeByAuth.get(String((c as any).atendido_por || "").toLowerCase()) || "";
+                              const av = avatarByAuth.get(String(c.created_by || "").toLowerCase());
                               if (!nm) return "—";
                               return (
                                 <span className="inline-flex items-center gap-2 justify-start">
@@ -919,8 +948,29 @@ export default function ProcessosEmpresaPage() {
                       </span>{" "}
                       de{" "}
                       <span className="text-foreground tabular-nums">{filtered.length}</span>
+                      {" "}carregados
+                      {totalCount > filtered.length && (
+                        <>
+                          {" · "}
+                          <span className="text-primary tabular-nums">{totalCount}</span>
+                          {" na empresa"}
+                        </>
+                      )}
+                      {loadingMore && " · carregando…"}
                     </p>
                     <div className="flex items-center gap-2">
+                      {(hasServerMore || cases.length < totalCount) && (
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          disabled={loadingMore}
+                          onClick={() => void loadMoreFromServer()}
+                          className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider"
+                        >
+                          {loadingMore ? "Carregando…" : "Carregar mais da empresa"}
+                        </Button>
+                      )}
                       {hasMore && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

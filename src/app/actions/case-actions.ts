@@ -1060,7 +1060,7 @@ export async function fetchCompanyProcessosAction() {
         return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
       }),
       // 1ª página — 300 linhas (tabela); total vem do COUNT
-      getStoredCasesPageForEmpresa(empresa_id, 400, 0, true, { onlyAtivos: true }).catch((e: any) => {
+      getStoredCasesPageForEmpresa(empresa_id, 500, 0, true, { onlyAtivos: true }).catch((e: any) => {
         console.error("[company] page ativos", e?.message);
         return [] as any[];
       }),
