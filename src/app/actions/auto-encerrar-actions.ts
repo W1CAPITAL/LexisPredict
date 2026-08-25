@@ -1,31 +1,36 @@
 'use server';
 
 /**
- * Auto-encerrar em lotes — PRIORIDADE: dados já no Supabase.
- * NÃO chama DataJud (lento). DJEN só sob demanda e se faltar sinal de baixa.
+ * Auto-encerrar: prioriza ARQUIVAR baixa limpa no banco (sem DataJud).
+ * Residual FORTE (CS ativo / B.A. real) → só revisar.
+ * is_procedente sozinho NÃO bloqueia auto (flag costuma ficar suja após baixa).
  */
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
-import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
+import { aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { processarCaso } from '@/lib/case-logic';
-import { fetchDjenComunicacoes, classifyEventFromText } from '@/lib/djen';
+import { fetchDjenComunicacoes } from '@/lib/djen';
 
-const PAGE = 50;
+const PAGE = 60;
+
+function truthyFlag(v: unknown): boolean {
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0 || v == null) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'sim' || s === 'yes';
+}
 
 function isJaEncerradoRow(row: any, dados: any): boolean {
-  if (dados?.via_scan_auto_encerrar) return true;
+  if (truthyFlag(dados?.via_scan_auto_encerrar)) return true;
   const sit = String(dados?.situacao || row.status_interno || '').toUpperCase();
-  if (/ENCERRAD|ARQUIVAD|EXTINT|FINALIZ/.test(sit)) return true;
+  if (/^ENCERRAD|^ARQUIVAD|EXTINT|FINALIZ/.test(sit)) return true;
   const st = String(row.status || dados?.status || '').toUpperCase();
-  if (/ARQUIVAD|ENCERRAD/.test(st)) return true;
+  if (/^ARQUIVAD|^ENCERRAD/.test(st)) return true;
   try {
     const c = processarCaso({
       ...dados,
       protocolo: row.protocolo_ref || dados?.protocolo,
       datajud_encerrado_tribunal: row.datajud_encerrado_tribunal,
-      is_procedente: row.is_procedente,
-      em_cumprimento_sentenca: row.em_cumprimento_sentenca,
-      cumprimento_pendente_necessario: row.cumprimento_pendente_necessario,
       situacao: dados?.situacao || row.status_interno,
       status: row.status,
       via_scan_auto_encerrar: dados?.via_scan_auto_encerrar,
@@ -37,46 +42,35 @@ function isJaEncerradoRow(row: any, dados: any): boolean {
   return false;
 }
 
-function temResidualForte(row: any, dados: any): boolean {
-  if (row.is_procedente || dados?.is_procedente) return true;
-  if (row.em_cumprimento_sentenca || dados?.em_cumprimento_sentenca) return true;
-  if (row.cumprimento_pendente_necessario || dados?.cumprimento_pendente_necessario) return true;
-  if (dados?.indicio_busca_apreensao || row.indicio_busca_apreensao) return true;
-  if (dados?.oportunidade_elegivel) return true;
-  const text = [
-    dados?.procedente_motivo,
-    dados?.merito_resultado,
-    dados?.evento_resumo,
-    row.procedente_motivo,
-  ]
-    .map((x) => String(x || '').toUpperCase())
-    .join(' ');
-  if (/PROCEDENTE/.test(text) && !/IMPROCEDENTE/.test(text)) return true;
-  if (/PARCIALMENTE\s+PROCEDENTE|CUMPRIMENTO\s+DE\s+SENTEN[CÇ]A|BUSCA\s+E\s+APREEN/.test(text))
-    return true;
-  return false;
-}
-
-/** DJEN: sinal de baixa/extinção/trânsito no texto já publicado (rápido vs DataJud). */
-function djenSugereEncerrado(items: any[]): { ok: boolean; motivo: string } {
-  if (!items?.length) return { ok: false, motivo: '' };
-  const blob = items
-    .slice(0, 8)
-    .map((i) => String(i?.texto || i?.conteudo || i?.resumo || ''))
-    .join(' ')
-    .toUpperCase();
-  const baixa =
-    /BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|ARQUIVAMENTO|TRANSITO\s+EM\s+JULGADO|TRÂNSITO\s+EM\s+JULGADO|EXTIN[CÇ][AÃ]O\s+DO\s+PROCESSO|PROCESSO\s+EXTINTO|IMPROCEDENTE|JULGO\s+IMPROCEDENTE/.test(
-      blob
-    );
-  const residual =
-    /PROCEDENTE/.test(blob) && !/IMPROCEDENTE/.test(blob)
-      ? true
-      : /CUMPRIMENTO\s+DE\s+SENTEN|BUSCA\s+E\s+APREEN|MANDADO\s+DE\s+BUSCA/.test(blob);
-  if (baixa && !residual) {
-    return { ok: true, motivo: 'DJEN: baixa/extinção/trânsito sem residual' };
+/**
+ * Só impede auto-encerrar se ainda há trabalho operacional claro.
+ * NÃO usa is_procedente isolado (gera 0 auto na prática).
+ */
+function residualImpedeAuto(row: any, dados: any): { impede: boolean; motivo: string; prioridade: number } {
+  if (truthyFlag(row.em_cumprimento_sentenca) || truthyFlag(dados?.em_cumprimento_sentenca)) {
+    return { impede: true, motivo: 'Cumprimento de sentença ativo', prioridade: 92 };
   }
-  return { ok: false, motivo: residual ? 'DJEN residual' : '' };
+  if (truthyFlag(dados?.cumprimento_ativo) || truthyFlag(row.cumprimento_ativo)) {
+    return { impede: true, motivo: 'Cumprimento ativo (flag)', prioridade: 90 };
+  }
+  if (truthyFlag(dados?.indicio_busca_apreensao) || truthyFlag(row.indicio_busca_apreensao)) {
+    return { impede: true, motivo: 'Indício B.A.', prioridade: 95 };
+  }
+  // cumprimento pendente + oportunidade alta
+  if (
+    truthyFlag(row.cumprimento_pendente_necessario) ||
+    truthyFlag(dados?.cumprimento_pendente_necessario)
+  ) {
+    const score = Number(dados?.oportunidade_score ?? dados?.oportunidade_instaurar?.score ?? 0);
+    if (score >= 55 || truthyFlag(dados?.oportunidade_elegivel)) {
+      return {
+        impede: true,
+        motivo: 'Falta instaurar cumprimento (oportunidade)',
+        prioridade: 88,
+      };
+    }
+  }
+  return { impede: false, motivo: '', prioridade: 0 };
 }
 
 export async function countAutoEncerrarPendentesAction(): Promise<{
@@ -84,6 +78,7 @@ export async function countAutoEncerrarPendentesAction(): Promise<{
   baixaLimpaPendentes: number;
   revisaoPendentes: number;
   totalPendentes: number;
+  baixasTribunalTotal: number;
   error?: string;
 }> {
   try {
@@ -94,13 +89,14 @@ export async function countAutoEncerrarPendentesAction(): Promise<{
         baixaLimpaPendentes: 0,
         revisaoPendentes: 0,
         totalPendentes: 0,
+        baixasTribunalTotal: 0,
         error: 'Sem sessão',
       };
     const admin = await getSupabaseAdmin();
     const { data, error } = await admin
       .from('processos')
       .select(
-        'id, dados, status, status_interno, datajud_encerrado_tribunal, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario'
+        'id, dados, status, status_interno, datajud_encerrado_tribunal, em_cumprimento_sentenca, cumprimento_pendente_necessario'
       )
       .eq('empresa_id', empresa_id)
       .eq('datajud_encerrado_tribunal', true)
@@ -111,15 +107,19 @@ export async function countAutoEncerrarPendentesAction(): Promise<{
         baixaLimpaPendentes: 0,
         revisaoPendentes: 0,
         totalPendentes: 0,
+        baixasTribunalTotal: 0,
         error: error.message,
       };
 
     let limpa = 0;
     let revisao = 0;
+    let totalBaixa = 0;
     for (const row of data || []) {
+      totalBaixa++;
       const d = row.dados && typeof row.dados === 'object' ? row.dados : {};
       if (isJaEncerradoRow(row, d)) continue;
-      if (temResidualForte(row, d)) revisao++;
+      const r = residualImpedeAuto(row, d);
+      if (r.impede) revisao++;
       else limpa++;
     }
     return {
@@ -127,6 +127,7 @@ export async function countAutoEncerrarPendentesAction(): Promise<{
       baixaLimpaPendentes: limpa,
       revisaoPendentes: revisao,
       totalPendentes: limpa + revisao,
+      baixasTribunalTotal: totalBaixa,
     };
   } catch (e: any) {
     return {
@@ -134,6 +135,7 @@ export async function countAutoEncerrarPendentesAction(): Promise<{
       baixaLimpaPendentes: 0,
       revisaoPendentes: 0,
       totalPendentes: 0,
+      baixasTribunalTotal: 0,
       error: e?.message || String(e),
     };
   }
@@ -145,7 +147,7 @@ async function persistAuto(
   row: any,
   dados: any,
   motivo: string
-): Promise<boolean> {
+): Promise<{ ok: boolean; err?: string }> {
   const nowIso = new Date().toISOString();
   const target = {
     ...dados,
@@ -153,14 +155,10 @@ async function persistAuto(
     protocolo: row.protocolo_ref || dados.protocolo,
     datajud_encerrado_tribunal: true,
   };
-  const decisao = {
-    acao: 'auto_encerrar' as const,
-    motivo,
-  };
   const patch = aplicarDecisaoNoPatch(
     { datajud_encerrado_tribunal: true },
     target,
-    decisao
+    { acao: 'auto_encerrar', motivo }
   );
   const newDados = {
     ...dados,
@@ -171,7 +169,7 @@ async function persistAuto(
     via_scan_auto_encerrar: true,
     scan_auto_encerrado_em: nowIso,
     scan_auto_encerrar_motivo: motivo,
-    scan_auto_fonte: 'db_ou_djen', // nunca datajud neste fluxo
+    scan_auto_fonte: 'db',
     operacao_sistema: patch.operacao_sistema || {
       origem: 'W1_CONTROL',
       perfil: 'W1 CONTROL',
@@ -180,8 +178,9 @@ async function persistAuto(
     },
     proximoPrazo: '',
     diasFaltando: null,
+    precisa_revisar_encerramento: false,
   };
-  const base = {
+  const base: Record<string, any> = {
     dados: newDados,
     status: 'Arquivado',
     datajud_encerrado_tribunal: true,
@@ -192,13 +191,9 @@ async function persistAuto(
     .eq('id', row.id)
     .eq('empresa_id', empresa_id);
   if (error) {
-    ({ error } = await admin
-      .from('processos')
-      .update(base)
-      .eq('id', row.id)
-      .eq('empresa_id', empresa_id));
+    ({ error } = await admin.from('processos').update(base).eq('id', row.id).eq('empresa_id', empresa_id));
   }
-  return !error;
+  return { ok: !error, err: error?.message };
 }
 
 async function persistRevisao(
@@ -223,17 +218,28 @@ async function persistRevisao(
   return !error;
 }
 
-/**
- * Lote sem DataJud.
- * 1) Usa flags já no banco (datajud_encerrado_tribunal + residual).
- * 2) Opcional: DJEN leve só se `usarDjenSeIncerto` e ainda sem decisão clara.
- */
+function djenSugereEncerrado(items: any[]): { ok: boolean; motivo: string } {
+  if (!items?.length) return { ok: false, motivo: '' };
+  const blob = items
+    .slice(0, 10)
+    .map((i) => String(i?.texto || i?.conteudo || i?.resumo || ''))
+    .join(' ')
+    .toUpperCase();
+  const baixa =
+    /BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|ARQUIVAMENTO|TRANSITO\s+EM\s+JULGADO|TRÂNSITO\s+EM\s+JULGADO|EXTIN[CÇ][AÃ]O\s+DO\s+PROCESSO|PROCESSO\s+EXTINTO|JULGO\s+IMPROCEDENTE|IMPROCED[EÊ]NCIA/.test(
+      blob
+    );
+  const residualForte =
+    /CUMPRIMENTO\s+DE\s+SENTEN|BUSCA\s+E\s+APREEN|MANDADO\s+DE\s+BUSCA|PENHORA/.test(blob);
+  if (baixa && !residualForte) return { ok: true, motivo: 'DJEN: baixa/extinção/trânsito' };
+  return { ok: false, motivo: residualForte ? 'DJEN residual forte' : '' };
+}
+
 export async function runAutoEncerrarBatchAction(opts?: {
   limit?: number;
   offset?: number;
   soBaixaTribunal?: boolean;
   marcarRevisao?: boolean;
-  /** DJEN só para confirmar baixa quando o banco está ambíguo — NUNCA DataJud */
   usarDjenSeIncerto?: boolean;
 }): Promise<{
   success: boolean;
@@ -252,6 +258,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
   fonte: string;
   error?: string;
   samples?: string[];
+  lastError?: string;
 }> {
   const empty = {
     success: false,
@@ -273,23 +280,23 @@ export async function runAutoEncerrarBatchAction(opts?: {
     const { empresa_id } = await getUserContext();
     if (!empresa_id) return { ...empty, error: 'Sem sessão' };
 
-    const limit = Math.min(Math.max(opts?.limit ?? PAGE, 5), 80);
+    const limit = Math.min(Math.max(opts?.limit ?? PAGE, 5), 100);
     const offset = Math.max(0, opts?.offset ?? 0);
     const soBaixa = opts?.soBaixaTribunal !== false;
     const marcarRevisao = opts?.marcarRevisao !== false;
-    // DJEN opcional e limitado (máx. 8 por lote) — nunca DataJud
     const usarDjen = opts?.usarDjenSeIncerto === true;
     const admin = await getSupabaseAdmin();
 
+    // Busca só quem ainda NÃO está Arquivado (candidatos reais)
     let q = admin
       .from('processos')
       .select(
-        'id, protocolo_ref, dados, datajud_encerrado_tribunal, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, status, status_interno, procedente_motivo',
+        'id, protocolo_ref, dados, datajud_encerrado_tribunal, is_procedente, em_cumprimento_sentenca, cumprimento_pendente_necessario, status, status_interno',
         { count: 'exact' }
       )
       .eq('empresa_id', empresa_id)
       .order('id', { ascending: true })
-      .range(offset, offset + limit * 5 - 1);
+      .range(offset, offset + limit * 4 - 1);
 
     if (soBaixa) q = q.eq('datajud_encerrado_tribunal', true);
 
@@ -306,6 +313,7 @@ export async function runAutoEncerrarBatchAction(opts?: {
     let failed = 0;
     let scanned = 0;
     let djenConsultas = 0;
+    let lastError = '';
     const samples: string[] = [];
     let djenBudget = usarDjen ? 8 : 0;
 
@@ -318,93 +326,62 @@ export async function runAutoEncerrarBatchAction(opts?: {
       }
 
       const temBaixaDb = !!(row.datajud_encerrado_tribunal || dados.datajud_encerrado_tribunal);
-      if (!temBaixaDb && !usarDjen) {
+      if (!temBaixaDb) {
         skipped++;
         continue;
       }
 
       scanned++;
+      const residual = residualImpedeAuto(row, dados);
 
-      // --- Caminho A: já temos baixa no banco ---
-      if (temBaixaDb) {
-        if (temResidualForte(row, dados)) {
-          if (marcarRevisao) {
-            const ok = await persistRevisao(
-              admin,
-              empresa_id,
-              row,
-              dados,
-              'Baixa no tribunal + residual (procedente/CS/B.A.) — sem DataJud',
-              85
-            );
-            if (ok) {
-              revisao++;
-              if (samples.length < 8) samples.push(`${row.protocolo_ref} · REVISAR`);
-            } else failed++;
-          } else skipped++;
-          continue;
-        }
-
-        const ok = await persistAuto(
-          admin,
-          empresa_id,
-          row,
-          dados,
-          String(
-            dados.datajud_encerrado_motivo ||
-              row.procedente_motivo ||
-              'Baixa limpa no banco — auto gabinete (sem DataJud)'
-          )
-        );
-        if (ok) {
-          autoEncerrados++;
-          if (samples.length < 8) samples.push(`${row.protocolo_ref} · AUTO/DB`);
-        } else failed++;
-        continue;
-      }
-
-      // --- Caminho B: sem baixa no DB → só DJEN (se habilitado e budget) ---
-      if (djenBudget <= 0) {
-        skipped++;
-        continue;
-      }
-      const proto = String(row.protocolo_ref || dados.protocolo || '').trim();
-      if (!proto) {
-        skipped++;
-        continue;
-      }
-      try {
-        djenBudget--;
-        djenConsultas++;
-        const djenRes = await fetchDjenComunicacoes(proto, { limit: 12 } as any);
-        const items = (djenRes as any)?.items || (djenRes as any)?.comunicacoes || [];
-        const sug = djenSugereEncerrado(items);
-        if (sug.ok) {
-          const ok = await persistAuto(admin, empresa_id, row, dados, sug.motivo);
-          if (ok) {
-            autoEncerrados++;
-            if (samples.length < 8) samples.push(`${proto} · AUTO/DJEN`);
-          } else failed++;
-        } else if (sug.motivo.includes('residual') && marcarRevisao) {
-          const ok = await persistRevisao(admin, empresa_id, row, dados, sug.motivo, 80);
+      if (residual.impede) {
+        if (marcarRevisao) {
+          const ok = await persistRevisao(
+            admin,
+            empresa_id,
+            row,
+            dados,
+            residual.motivo,
+            residual.prioridade
+          );
           if (ok) {
             revisao++;
-            if (samples.length < 8) samples.push(`${proto} · REVISAR/DJEN`);
+            if (samples.length < 10) samples.push(`${row.protocolo_ref} · REVISAR:${residual.motivo}`);
           } else failed++;
-        } else {
-          skipped++;
-        }
-      } catch {
-        failed++;
+        } else skipped++;
+        continue;
       }
+
+      // AUTO — baixa no tribunal + ainda ativo no app
+      const res = await persistAuto(
+        admin,
+        empresa_id,
+        row,
+        dados,
+        String(
+          dados.datajud_encerrado_motivo ||
+            'Baixa no tribunal — auto gabinete W1 (sem DataJud)'
+        )
+      );
+      if (res.ok) {
+        autoEncerrados++;
+        if (samples.length < 10) samples.push(`${row.protocolo_ref} · AUTO`);
+      } else {
+        failed++;
+        lastError = res.err || 'update fail';
+      }
+    }
+
+    // DJEN opcional: só se budget e offset já passou baixas sem decisão
+    if (usarDjen && djenBudget > 0 && autoEncerrados === 0 && scanned < limit) {
+      /* reserved — lote principal já cobre baixa DB */
     }
 
     const rowsRead = (rows || []).length;
     const nextOffset = offset + Math.max(rowsRead, 1);
-    const hasMore = rowsRead >= limit || (rowsRead > 0 && nextOffset < totalCandidates);
+    const hasMore = nextOffset < totalCandidates && rowsRead > 0;
     const denom = Math.max(totalCandidates, 1);
     const percentDone = Math.min(100, Math.round((nextOffset / denom) * 100));
-    const percentLeft = Math.max(0, 100 - percentDone);
 
     return {
       success: true,
@@ -419,9 +396,10 @@ export async function runAutoEncerrarBatchAction(opts?: {
       totalCandidates,
       hasMore,
       percentDone,
-      percentLeft,
-      fonte: djenConsultas > 0 ? 'supabase+djen' : 'supabase',
+      percentLeft: Math.max(0, 100 - percentDone),
+      fonte: 'supabase',
       samples,
+      lastError: lastError || undefined,
     };
   } catch (e: any) {
     return {

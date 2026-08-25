@@ -17,6 +17,7 @@ import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
  */
 
 import React, { useState, useEffect, useMemo, useCallback, startTransition } from 'react';
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   CheckCircle, 
@@ -148,6 +149,7 @@ export default function TarefasPage() {
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const searchDebounced = useDebouncedValue(search, 300);
   // filtros persistidos entre abas
   const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
@@ -247,10 +249,10 @@ export default function TarefasPage() {
     try {
       localStorage.setItem(
         'lexis_tarefas_filters_v1',
-        JSON.stringify({ search, officeFilter, lawyerFilter, filaFiltro, sortPrazo })
+        JSON.stringify({ search: searchDebounced, officeFilter, lawyerFilter, filaFiltro, sortPrazo })
       );
     } catch { /* ignore */ }
-  }, [search, officeFilter, lawyerFilter, filaFiltro, sortPrazo]);
+  }, [searchDebounced, officeFilter, lawyerFilter, filaFiltro, sortPrazo]);
 
 
   const adjustMeta = (amount: number) => {
@@ -631,7 +633,7 @@ const handleSaveAttendance = async () => {
 
     const sortedAll = Object.values(groups)
       .filter(g => {
-        const matchSearch = (g.cliente.toLowerCase().includes(search.toLowerCase()) || g.protocoloReferencia.includes(search));
+        const matchSearch = (g.cliente.toLowerCase().includes(searchDebounced.toLowerCase()) || g.protocoloReferencia.includes(searchDebounced));
         const officeKey = officeFilter === 'all' ? '' : String(officeFilter).trim().toUpperCase();
         const lawyerKey = lawyerFilter === 'all' ? '' : String(lawyerFilter).trim().toUpperCase();
         const matchOffice =
@@ -747,7 +749,7 @@ const handleSaveAttendance = async () => {
 
     const pending = sortedAll.filter(g => !contactedSet.has(String(g.cliente || '').trim().toUpperCase()));
     return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
-  }, [cases, search, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
+  }, [cases, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -776,7 +778,7 @@ const handleSaveAttendance = async () => {
 
   useEffect(() => {
     setKbIndex(0);
-  }, [filaFiltro, search, officeFilter, lawyerFilter, sortPrazo]);
+  }, [filaFiltro, searchDebounced, officeFilter, lawyerFilter, sortPrazo]);
 
   const autoTarefas = useMemo(() => {
     try {

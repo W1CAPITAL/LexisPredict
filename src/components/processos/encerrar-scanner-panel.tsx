@@ -49,6 +49,7 @@ export function EncerrarScannerPanel({
     limpa: number;
     revisao: number;
     total: number;
+    baixas?: number;
   } | null>(null);
   const [lastRun, setLastRun] = useState<string | null>(null);
   const stopRef = useRef(false);
@@ -68,6 +69,7 @@ export function EncerrarScannerPanel({
         limpa: r.baixaLimpaPendentes,
         revisao: r.revisaoPendentes,
         total: r.totalPendentes,
+        baixas: (r as any).baixasTribunalTotal ?? r.totalPendentes,
       });
     }
   };
@@ -88,6 +90,7 @@ export function EncerrarScannerPanel({
     let skipped = 0;
     let djen = 0;
     let pages = 0;
+    const allSamples: string[] = [];
     const maxPages = 300;
     let lastPct = 0;
 
@@ -126,6 +129,8 @@ export function EncerrarScannerPanel({
         failed += res.failed;
         skipped += res.skipped || 0;
         djen += res.djenConsultas || 0;
+        if (res.samples?.length) allSamples.push(...res.samples.slice(0, 4));
+        if ((res as any).lastError) console.warn("[auto-encerrar]", (res as any).lastError);
         offset = res.nextOffset;
 
         const byOffset = res.percentDone;
@@ -171,7 +176,11 @@ export function EncerrarScannerPanel({
             }
       );
 
-      const msg = `Auto ${auto} · Revisar ${revisao} · DJEN ${djen} · pulados ${skipped} · falhas ${failed} (sem DataJud)`;
+      const sampleLine = (res as any)?.samples?.length ? ` · ex: ${(res as any).samples.slice(0,3).join(", ")}` : "";
+      const msg = `Auto ${auto} · Revisar ${revisao} · DJEN ${djen} · pulados ${skipped} · falhas ${failed}` + (allSamples.length ? ` · ${allSamples.slice(0, 4).join(" | ")}` : "");
+      if (failed > 0) {
+        /* last batch error may surface on samples */
+      }
       setLastRun(msg);
       toast({ title: "Lote concluído", description: msg });
       await refreshCount();
@@ -257,12 +266,15 @@ export function EncerrarScannerPanel({
 
       {pendentes != null && (
         <p className="text-[10px] font-semibold text-foreground leading-relaxed">
-          Candidatos no banco:{" "}
-          <span className="text-primary tabular-nums">{pendentes.limpa}</span> baixa limpa ·{" "}
+          Baixas tribunal no banco:{" "}
+          <span className="tabular-nums">{pendentes.baixas ?? "—"}</span>
+          {" · "}ainda ativos para auto:{" "}
+          <span className="text-primary tabular-nums">{pendentes.limpa}</span>
+          {" · "}revisar (CS/B.A.):{" "}
           <span className="tabular-nums text-amber-600 dark:text-amber-400">
             {pendentes.revisao}
-          </span>{" "}
-          residual · total <span className="tabular-nums">{pendentes.total}</span>
+          </span>
+          {" · "}fila: <span className="tabular-nums">{pendentes.total}</span>
         </p>
       )}
 

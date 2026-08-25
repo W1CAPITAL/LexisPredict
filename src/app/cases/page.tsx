@@ -8,6 +8,7 @@ import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-st
  */
 
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   Search, Trash2, Edit2, CheckCircle2, Zap, Loader2, CalendarDays, Sparkles, 
@@ -230,6 +231,7 @@ function CasesContent() {
 
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
+  const searchDebounced = useDebouncedValue(search, 300);
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
   const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
@@ -918,17 +920,17 @@ function CasesContent() {
 
   const filtered = useMemo(() => {
     const base = filterCases(cases, {
-      search,
+      search: searchDebounced,
       quick: quickFilter,
       advogado: lawyerFilter,
     });
     return sortCasesByPrazo(base, sortPrazo);
-  }, [cases, search, quickFilter, lawyerFilter, sortPrazo]);
+  }, [cases, searchDebounced, quickFilter, lawyerFilter, sortPrazo]);
 
   // Lista paginada — só a aba /cases; não afeta dashboard
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, quickFilter, lawyerFilter, sortPrazo, cases.length]);
+  }, [searchDebounced, quickFilter, lawyerFilter, sortPrazo, cases.length]);
 
   const visibleItems = useMemo(
     () => filtered.slice(0, visibleCount),

@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -148,6 +149,7 @@ export default function ProcessosEmpresaPage() {
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const qDebounced = useDebouncedValue(q, 300);
   const [statusFilter, setStatusFilter] = useState("");
   const [baOnly, setBaOnly] = useState(false);
   const [silencioOnly, setSilencioOnly] = useState(false);
@@ -223,7 +225,7 @@ export default function ProcessosEmpresaPage() {
         JSON.stringify({ q, statusFilter, baOnly })
       );
     } catch { /* ignore */ }
-  }, [q, statusFilter, baOnly]);
+  }, [qDebounced, statusFilter, baOnly]);
 
 
   useEffect(() => {
@@ -473,7 +475,7 @@ export default function ProcessosEmpresaPage() {
   }, [audit]);
 
   const filtered = useMemo(() => {
-    const query = q.toLowerCase().trim();
+    const query = qDebounced.toLowerCase().trim();
     let list = cases.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;
@@ -488,12 +490,12 @@ export default function ProcessosEmpresaPage() {
     });
     if (sortOps) list = [...list].sort(compareOps);
     return list;
-  }, [cases, q, statusFilter, baOnly, silencioOnly, sortOps]);
+  }, [cases, qDebounced, statusFilter, baOnly, silencioOnly, sortOps]);
 
   // Ao mudar filtro/busca, volta a mostrar só a 1ª página (não afeta dashboard)
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [q, statusFilter, baOnly, silencioOnly, sortOps, cases.length]);
+  }, [qDebounced, statusFilter, baOnly, silencioOnly, sortOps, cases.length]);
 
   const visibleItems = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
