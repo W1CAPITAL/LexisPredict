@@ -1,8 +1,8 @@
 "use server";
 
 /**
- * Ranking Top Atendentes — empresa inteira.
- * Fonte: coluna atendido_por + ultimo_retorno (não amostra da UI).
+ * Top Atendentes = mesma lógica do SQL de conferência:
+ * COUNT por atendido_por onde ultimo_retorno na semana/dia/mês (Brasília).
  */
 
 import {
@@ -21,12 +21,14 @@ export type RankRow = {
   mes: number;
 };
 
+/** UUID usado no bulk W1 / sistema (SQL ranking) */
+const SISTEMA_AUTH = "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
+
 export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
   ok: boolean;
   ranking: RankRow[];
   totalLinhas: number;
   total?: number;
-  ativos?: number;
   atendidosSemana?: number;
   error?: string;
 }> {
@@ -54,7 +56,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       total = 0;
     }
 
-    // nomes
+    // Nomes (auth_user_id e id)
     const nameById: Record<string, string> = {};
     try {
       const { data: users } = await admin
@@ -70,11 +72,10 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     } catch {
       /* */
     }
-    const W1 = "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
-    nameById[W1] = nameById[W1] || "W1 CONTROL";
-    nameById[W1.toLowerCase()] = nameById[W1];
+    // Força legenda do SQL de conferência
+    nameById[SISTEMA_AUTH] = "SISTEMA INTERNO";
+    nameById[SISTEMA_AUTH.toLowerCase()] = "SISTEMA INTERNO";
 
-    // Pagina todos os que têm retorno (pode ser DATE ou text)
     const pageSize = 1000;
     let offset = 0;
     const rows: { atendido_por: any; ultimo_retorno: any }[] = [];
@@ -108,15 +109,17 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     const counts = new Map<string, { dia: number; semana: number; mes: number }>();
 
     for (const row of rows) {
-      const raw =
-        row.ultimo_retorno != null
-          ? String(row.ultimo_retorno).slice(0, 10) // DATE ou ISO
-          : null;
+      // DATE ou timestamptz → YYYY-MM-DD
+      let raw: string | null = null;
+      if (row.ultimo_retorno != null) {
+        const s = String(row.ultimo_retorno);
+        raw = /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+      }
       if (!raw) continue;
       const dt = parseUltimoAtendimento(raw);
       if (!dt) continue;
 
-      const userId = String(row.atendido_por || "").trim();
+      const userId = String(row.atendido_por || "").trim().toLowerCase();
       if (!userId) continue;
 
       const entry = counts.get(userId) || { dia: 0, semana: 0, mes: 0 };
@@ -132,14 +135,17 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     const ranking: RankRow[] = [...counts.entries()]
       .map(([userId, c]) => ({
         userId,
-        userNome: nameById[userId.toLowerCase()] || nameById[userId] || userId,
+        userNome:
+          nameById[userId] ||
+          nameById[userId.toLowerCase()] ||
+          (userId === SISTEMA_AUTH.toLowerCase() ? "SISTEMA INTERNO" : userId),
         dia: c.dia,
         semana: c.semana,
         mes: c.mes,
       }))
       .filter((r) => r.semana > 0 || r.dia > 0 || r.mes > 0)
       .sort((a, b) => b.semana - a.semana || b.mes - a.mes || b.dia - a.dia)
-      .slice(0, Math.max(1, limit));
+      .slice(0, Math.max(5, limit));
 
     return {
       ok: true,

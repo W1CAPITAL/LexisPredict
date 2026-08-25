@@ -179,7 +179,21 @@ export default function ProcessosEmpresaPage() {
       setCases(list);
       setTotalCount(Number(res?.totalCount) || list.length);
       setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
-      setTopAtendentesSrv(Array.isArray(res?.ranking) ? res.ranking.slice(0, 5) : []);
+      let rankList = Array.isArray(res?.ranking) ? res.ranking : [];
+      if (!rankList.length) {
+        try {
+          const rank = await fetchRankingAtendentesEmpresaAction(5);
+          if (rank?.ok && rank.ranking?.length) rankList = rank.ranking;
+        } catch { /* */ }
+      }
+      setTopAtendentesSrv(rankList.slice(0, 5));
+      if (typeof (res as any)?.atendidosSemana !== 'number' || !(res as any).atendidosSemana) {
+        try {
+          const rank2 = rankList.length ? null : await fetchRankingAtendentesEmpresaAction(5);
+          const at = (res as any)?.atendidosSemana ?? rank2?.atendidosSemana;
+          if (typeof at === 'number' && at > 0) setAtendidosSemanaSrv(at);
+        } catch { /* */ }
+      }
       // KPIs de carteira: mesma regra do Dashboard (empresa inteira), NÃO a amostra da tabela
       try {
         const k = await fetchProcessosEmpresaKpisAction();
@@ -585,20 +599,22 @@ export default function ProcessosEmpresaPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint={`${topAtendentes.length} no ranking (máx. 5)`} />
               {topAtendentes.slice(0, 5).map((a, i) => {
-                const isW1 = /W1\s*CONTROL/i.test(String(a.userNome || "")) || String(a.userId || "") === "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
+                const uid = String(a.userId || "").toLowerCase();
+                const isSistema =
+                  /SISTEMA\s*INTERNO/i.test(String(a.userNome || "")) ||
+                  /W1\s*CONTROL/i.test(String(a.userNome || "")) ||
+                  uid === "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
                 return (
                   <Kpi
                     key={a.userId || i}
                     icon={<UserCheck size={16} />}
-                    label={isW1 ? "W1 CONTROL" : a.userNome}
+                    label={isSistema ? "SISTEMA INTERNO" : a.userNome}
                     value={a.semana}
                     tone="ok"
                     hint={
-                      isW1 && isEmpresaW1Principal((profile as any)?.empresa_id)
+                      isSistema
                         ? `Feito por Davi Alves Figueredo · Dia: ${a.dia} • Mês: ${a.mes}`
-                        : isW1
-                          ? `Scanner · Dia: ${a.dia} • Mês: ${a.mes}`
-                          : `Dia: ${a.dia} • Mês: ${a.mes}`
+                        : `Dia: ${a.dia} • Mês: ${a.mes}`
                     }
                   />
                 );
