@@ -5,7 +5,7 @@
 
 import { AIRequest, AIResponse, ChatMessage, AIProvider } from './types';
 import { callProvider } from './provider';
-import { SYSTEM_PROMPTS } from './prompts';
+import { resolveSystemPrompt } from './prompts';
 import { buildDynamicContext } from './context';
 import { optimizeHistory } from './memory';
 import { validateAIResponse, cleanResponse } from './validator';
@@ -17,7 +17,7 @@ export async function processChat(request: AIRequest): Promise<AIResponse> {
   const providers: AIProvider[] = ['xai', 'airforce', 'groq'];
   
   // 1. Orquestração de Prompt
-  const basePrompt = SYSTEM_PROMPTS.STRATEGIC_CONSULTANT;
+  const basePrompt = resolveSystemPrompt(request.contextType);
   const context = await buildDynamicContext();
   const history = optimizeHistory(request.history || []);
 

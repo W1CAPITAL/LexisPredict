@@ -190,6 +190,7 @@ function SidebarNavBody({
       { label: "Radar predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
+      { label: "Auditoria contrato", href: "/tools/auditoria-contrato", icon: FileSearch },
       { label: "CRM Assessoria", href: "/crm", icon: Kanban },
       { label: "Follow-ups CRM", href: "/crm/followups", icon: ListTodo },
       { label: "Finanças", href: "/financas", icon: Wallet },

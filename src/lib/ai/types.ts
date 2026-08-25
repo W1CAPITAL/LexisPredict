@@ -16,7 +16,7 @@ export interface AIRequest {
   preferredProvider?: AIProvider;
   temperature?: number;
   responseFormat?: 'text' | 'json';
-  contextType?: 'general' | 'legal' | 'whatsapp' | 'verdict';
+  contextType?: 'general' | 'legal' | 'whatsapp' | 'verdict' | 'contract_audit' | 'case_swot' | 'peca' | 'extract';
 }
 
 export interface AIResponse {
