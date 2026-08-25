@@ -222,6 +222,13 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       }
     }
 
+        // Alias operacional: bulk SQL / gabinete
+    const W1_AUTH = "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
+    if (!nameById[W1_AUTH] && !nameById[W1_AUTH.toLowerCase()]) {
+      nameById[W1_AUTH] = "W1 CONTROL";
+      nameById[W1_AUTH.toLowerCase()] = "W1 CONTROL";
+    }
+
     const ranking: RankRow[] = [...counts.entries()]
       .map(([userId, c]) => ({
         userId,

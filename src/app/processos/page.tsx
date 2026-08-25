@@ -566,9 +566,23 @@ export default function ProcessosEmpresaPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint={`${topAtendentes.length} no ranking (máx. 5)`} />
-              {topAtendentes.slice(0, 5).map((a, i) => (
-                <Kpi key={a.userId || i} icon={<UserCheck size={16} />} label={a.userNome} value={a.semana} tone="ok" hint={`Dia: ${a.dia} • Mês: ${a.mes}`} />
-              ))}
+              {topAtendentes.slice(0, 5).map((a, i) => {
+                const isW1 = /W1\s*CONTROL/i.test(String(a.userNome || "")) || String(a.userId || "") === "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
+                return (
+                  <Kpi
+                    key={a.userId || i}
+                    icon={<UserCheck size={16} />}
+                    label={isW1 ? "W1 CONTROL" : a.userNome}
+                    value={a.semana}
+                    tone="ok"
+                    hint={
+                      isW1
+                        ? `Feito por Davi Alves Figueredo · Dia: ${a.dia} • Mês: ${a.mes}`
+                        : `Dia: ${a.dia} • Mês: ${a.mes}`
+                    }
+                  />
+                );
+              })}
             </div>
 
             <div className="premium-card overflow-hidden">
