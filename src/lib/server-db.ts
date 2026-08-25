@@ -589,11 +589,14 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
       updatedDados[k] = prevDados[k];
     }
   }
-  // Auto-encerrar scanner: grava situacao legível + flag W1
+  // Auto-encerrar scanner: grava situacao legível + flag W1 + coluna status
+  let forceArquivado = false;
   if (flatPatch.via_scan_auto_encerrar || nestedDados.via_scan_auto_encerrar || updatedDados.via_scan_auto_encerrar) {
+    forceArquivado = true;
     updatedDados.situacao = 'ENCERRADO';
     updatedDados.statusManual = 'Encerrado';
     updatedDados.status = 'Arquivado';
+    updatedDados.status_interno = 'ENCERRADO';
     updatedDados.via_scan_auto_encerrar = true;
     if (!updatedDados.operacao_sistema) {
       updatedDados.operacao_sistema = {
@@ -609,6 +612,10 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   const row: Record<string, any> = {
     dados: updatedDados,
   };
+  if (forceArquivado) {
+    row.status = 'Arquivado';
+    try { row.status_interno = 'ENCERRADO'; } catch { /* coluna pode não existir */ }
+  }
 
   const colunasReais = [
     'tem_atualizacao_pos_retorno',

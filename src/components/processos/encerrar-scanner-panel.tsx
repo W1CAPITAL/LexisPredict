@@ -13,7 +13,7 @@ import {
   runAutoEncerrarBatchAction,
   countAutoEncerrarPendentesAction,
 } from "@/app/actions/auto-encerrar-actions";
-import { Archive, Bot, List, X, Loader2, Building2, Zap } from "lucide-react";
+import { Archive, Bot, List, X, Loader2, Building2, Radar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Props = {
@@ -32,24 +32,21 @@ export function EncerrarScannerPanel({
 }: Props) {
   const [openLogs, setOpenLogs] = useState(false);
   const [running, setRunning] = useState(false);
-  const [usarDjen, setUsarDjen] = useState(false);
   const [progress, setProgress] = useState<{
     scanned: number;
     auto: number;
     revisao: number;
     failed: number;
     skipped: number;
-    djen: number;
     percentDone: number;
     percentLeft: number;
     total: number;
     fonte: string;
   } | null>(null);
   const [pendentes, setPendentes] = useState<{
-    limpa: number;
-    revisao: number;
-    total: number;
-    baixas?: number;
+    baixaAtivos: number;
+    baixasTotal: number;
+    outros: number;
   } | null>(null);
   const [lastRun, setLastRun] = useState<string | null>(null);
   const stopRef = useRef(false);
@@ -66,10 +63,9 @@ export function EncerrarScannerPanel({
     const r = await countAutoEncerrarPendentesAction();
     if (r.success) {
       setPendentes({
-        limpa: r.baixaLimpaPendentes,
-        revisao: r.revisaoPendentes,
-        total: r.totalPendentes,
-        baixas: (r as any).baixasTribunalTotal ?? r.totalPendentes,
+        baixaAtivos: r.baixaAtivos,
+        baixasTotal: r.baixasTribunalTotal,
+        outros: r.outrosAtivos,
       });
     }
   };
@@ -88,34 +84,29 @@ export function EncerrarScannerPanel({
     let revisao = 0;
     let failed = 0;
     let skipped = 0;
-    let djen = 0;
     let pages = 0;
+    const maxPages = 400;
     const allSamples: string[] = [];
-    const maxPages = 300;
-    let lastPct = 0;
 
     const initial = await countAutoEncerrarPendentesAction();
-    const totalMeta = initial.success ? initial.totalPendentes : pendentes?.total || 0;
+    const totalMeta = initial.success ? initial.baixaAtivos : pendentes?.baixaAtivos || 0;
 
     toast({
-      title: "Auto-encerrar · sem DataJud",
-      description: usarDjen
-        ? "Banco primeiro; DJEN só se faltar sinal (máx. 8/lote)."
-        : "Só dados já no app (baixa tribunal). Rápido.",
+      title: "Scanner de encerramento (tribunal)",
+      description: `DataJud + DJEN · ~${totalMeta} ativos com baixa. Lotes de 12 — não feche a aba.`,
     });
 
     try {
       while (!stopRef.current && pages < maxPages) {
         const res = await runAutoEncerrarBatchAction({
-          limit: 50,
+          limit: 12,
           offset,
           soBaixaTribunal: true,
-          marcarRevisao: true,
-          usarDjenSeIncerto: usarDjen,
+          fast: true,
         });
         pages++;
         if (!res.success) {
-          setLastRun(res.error || "Erro no lote");
+          setLastRun(res.error || "Erro");
           toast({
             title: "Erro no lote",
             description: res.error || "Falha",
@@ -128,18 +119,16 @@ export function EncerrarScannerPanel({
         revisao += res.revisao;
         failed += res.failed;
         skipped += res.skipped || 0;
-        djen += res.djenConsultas || 0;
-        if (res.samples?.length) allSamples.push(...res.samples.slice(0, 4));
-        if ((res as any).lastError) console.warn("[auto-encerrar]", (res as any).lastError);
         offset = res.nextOffset;
+        if (res.samples?.length) allSamples.push(...res.samples.slice(0, 6));
+        if (res.lastError) console.warn("[encerrar-scan]", res.lastError);
 
-        const byOffset = res.percentDone;
-        const byWork =
+        // % pelo trabalho real em candidatos ativos, não só offset bruto
+        const workPct =
           totalMeta > 0
-            ? Math.min(99, Math.round(((auto + revisao) / totalMeta) * 100))
-            : byOffset;
-        const percentDone = Math.max(byOffset, byWork, lastPct);
-        lastPct = percentDone;
+            ? Math.min(99, Math.round(((auto + revisao + failed + Math.max(0, scanned - auto - revisao - failed)) / totalMeta) * 100))
+            : res.percentDone;
+        const percentDone = Math.max(workPct, Math.min(99, res.percentDone));
 
         setProgress({
           scanned,
@@ -147,42 +136,27 @@ export function EncerrarScannerPanel({
           revisao,
           failed,
           skipped,
-          djen,
-          percentDone,
-          percentLeft: Math.max(0, 100 - percentDone),
+          percentDone: res.hasMore ? percentDone : 100,
+          percentLeft: res.hasMore ? Math.max(0, 100 - percentDone) : 0,
           total: totalMeta || res.totalCandidates,
-          fonte: res.fonte || "supabase",
+          fonte: res.fonte || "datajud+djen",
         });
 
         if (res.scanned === 0 && !res.hasMore) break;
         if (!res.hasMore) break;
-        await new Promise((r) => setTimeout(r, 120));
+        await new Promise((r) => setTimeout(r, 250));
       }
 
-      setProgress((p) =>
-        p
-          ? { ...p, percentDone: 100, percentLeft: 0 }
-          : {
-              scanned,
-              auto,
-              revisao,
-              failed,
-              skipped,
-              djen,
-              percentDone: 100,
-              percentLeft: 0,
-              total: totalMeta,
-              fonte: "supabase",
-            }
-      );
-
-      const sampleLine = (res as any)?.samples?.length ? ` · ex: ${(res as any).samples.slice(0,3).join(", ")}` : "";
-      const msg = `Auto ${auto} · Revisar ${revisao} · DJEN ${djen} · pulados ${skipped} · falhas ${failed}` + (allSamples.length ? ` · ${allSamples.slice(0, 4).join(" | ")}` : "");
-      if (failed > 0) {
-        /* last batch error may surface on samples */
-      }
+      setProgress((p) => (p ? { ...p, percentDone: 100, percentLeft: 0 } : p));
+      const msg =
+        `Tribunal: Auto ${auto} · Revisar ${revisao} · Falhas ${failed} · Escaneados ${scanned}` +
+        (allSamples.length ? ` · ${allSamples.slice(0, 5).join(" | ")}` : "");
       setLastRun(msg);
-      toast({ title: "Lote concluído", description: msg });
+      toast({
+        title: auto > 0 ? `Encerrados ${auto}` : "Lote concluído",
+        description: msg,
+        variant: auto > 0 ? "default" : "destructive",
+      });
       await refreshCount();
       onDone?.();
     } catch (e: any) {
@@ -200,15 +174,14 @@ export function EncerrarScannerPanel({
     <div className="rounded-xl border border-border bg-card text-card-foreground p-3 space-y-3 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Bot className="h-4 w-4 text-primary shrink-0" />
+          <Radar className="h-4 w-4 text-primary shrink-0" />
           <div className="min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest block">
-              Encerrados · scanner W1 CONTROL
+              Scanner de encerramento · tribunal
             </span>
-            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-              <Zap className="h-3 w-3" />
-              Sem DataJud · usa o que já está no app
-              {isW1 ? " · Davi Alves Figueredo" : ""}
+            <span className="text-[9px] text-muted-foreground font-medium">
+              DataJud + DJEN (mesmo núcleo do Scanner Tribunal)
+              {isW1 ? " · W1 CONTROL / Davi Alves Figueredo" : " · W1 CONTROL"}
             </span>
           </div>
         </div>
@@ -238,7 +211,7 @@ export function EncerrarScannerPanel({
             ) : (
               <Building2 className="h-3.5 w-3.5 mr-1" />
             )}
-            {running ? "Rodando…" : "Rodar empresa toda"}
+            {running ? "Escaneando…" : "Rodar empresa (tribunal)"}
           </Button>
           <Button
             type="button"
@@ -253,28 +226,17 @@ export function EncerrarScannerPanel({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer select-none">
-        <input
-          type="checkbox"
-          className="rounded border-border"
-          checked={usarDjen}
-          disabled={running}
-          onChange={(e) => setUsarDjen(e.target.checked)}
-        />
-        Completar com DJEN se faltar sinal (máx. 8/lote) — ainda assim <strong>sem DataJud</strong>
-      </label>
-
       {pendentes != null && (
         <p className="text-[10px] font-semibold text-foreground leading-relaxed">
-          Baixas tribunal no banco:{" "}
-          <span className="tabular-nums">{pendentes.baixas ?? "—"}</span>
-          {" · "}ainda ativos para auto:{" "}
-          <span className="text-primary tabular-nums">{pendentes.limpa}</span>
-          {" · "}revisar (CS/B.A.):{" "}
-          <span className="tabular-nums text-amber-600 dark:text-amber-400">
-            {pendentes.revisao}
+          Baixas no banco:{" "}
+          <span className="tabular-nums">{pendentes.baixasTotal}</span>
+          {" · "}ainda <strong className="text-primary">ativos com baixa</strong>:{" "}
+          <span className="tabular-nums text-primary">{pendentes.baixaAtivos}</span>
+          {" · "}outros ativos: {pendentes.outros}
+          <span className="block text-muted-foreground font-medium mt-0.5">
+            Cada caso passa por DataJud + DJEN; depois AUTO (arquiva) ou REVISAR (CS/B.A./oportunidade).
+            Mais lento que o atalho só-banco — mas correto.
           </span>
-          {" · "}fila: <span className="tabular-nums">{pendentes.total}</span>
         </p>
       )}
 
@@ -298,8 +260,10 @@ export function EncerrarScannerPanel({
             />
           </div>
           <p className="tabular-nums text-foreground">
-            Auto {progress.auto} · Revisar {progress.revisao} · DJEN {progress.djen} · Pulados{" "}
-            {progress.skipped} · Falhas {progress.failed}
+            Auto <strong className="text-emerald-600 dark:text-emerald-400">{progress.auto}</strong>
+            {" · "}Revisar {progress.revisao} · Falhas {progress.failed} · Escaneados{" "}
+            {progress.scanned}
+            {progress.total > 0 ? ` / meta ~${progress.total}` : ""}
           </p>
         </div>
       )}
@@ -311,13 +275,9 @@ export function EncerrarScannerPanel({
         <Kpi label="Scanner auto (total)" value={stats.scannerAutoTotal} tone="ok" />
       </div>
 
-      <p className="text-[10px] text-muted-foreground leading-relaxed">
-        Os <code className="text-[9px]">scan_datajud</code> na atividade recente vêm do{" "}
-        <strong>Scanner tribunal</strong> normal — não deste botão.
-        {lastRun && (
-          <span className="block mt-1 text-foreground font-medium">Última: {lastRun}</span>
-        )}
-      </p>
+      {lastRun && (
+        <p className="text-[10px] text-foreground font-medium">Última: {lastRun}</p>
+      )}
 
       {openLogs && (
         <div
@@ -334,7 +294,7 @@ export function EncerrarScannerPanel({
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 shrink-0"
+              className="flex items-center justify-between gap-2 border-b border-border px-4 py-3"
               style={{ backgroundColor: "hsl(var(--card))" }}
             >
               <p className="text-xs font-black uppercase tracking-widest">
@@ -347,29 +307,20 @@ export function EncerrarScannerPanel({
             <div className="overflow-y-auto p-3 space-y-2 text-sm flex-1">
               {logs.length === 0 ? (
                 <p className="text-muted-foreground text-xs p-4 text-center">
-                  Vazio. Rode o lote e Atualizar.
+                  Rode o scanner e Atualizar.
                 </p>
               ) : (
                 logs.map((l, i) => (
                   <div
                     key={`${l.protocolo}-${i}`}
-                    className="rounded-lg border border-border px-3 py-2 space-y-1"
+                    className="rounded-lg border border-border px-3 py-2"
                     style={{ backgroundColor: "hsl(var(--card))" }}
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">
-                        {l.acao === "auto_encerrar"
-                          ? "AUTO W1"
-                          : l.acao === "revisao_fila"
-                            ? "REVISAR"
-                            : "HUMANO"}
-                      </Badge>
-                      <span className="font-mono text-[11px] font-semibold">
-                        {l.protocolo || "—"}
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold">{l.cliente || "—"}</p>
-                    <p className="text-[11px] text-muted-foreground">{l.motivo}</p>
+                    <Badge variant="outline">
+                      {l.acao === "auto_encerrar" ? "AUTO W1" : l.acao === "revisao_fila" ? "REVISAR" : "HUMANO"}
+                    </Badge>{" "}
+                    <span className="font-mono text-[11px] font-semibold">{l.protocolo}</span>
+                    <p className="text-[11px] text-muted-foreground mt-1">{l.motivo}</p>
                   </div>
                 ))
               )}
@@ -381,15 +332,7 @@ export function EncerrarScannerPanel({
   );
 }
 
-function Kpi({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "ok";
-}) {
+function Kpi({ label, value, tone }: { label: string; value: number; tone?: "ok" }) {
   return (
     <div
       className={

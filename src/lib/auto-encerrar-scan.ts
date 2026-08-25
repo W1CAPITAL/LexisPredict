@@ -1,8 +1,9 @@
 /**
- * Auto-encerrar no scanner.
- * AUTO: baixa tribunal + SEM residual (procedente/CS/B.A./oportunidade).
- * REVISÃO: baixa + residual → fila + Encerrados a revisar (não arquiva).
- * Nunca mexe created_by / atendido_por.
+ * Auto-encerrar após scan tribunal (DataJud + DJEN).
+ * Política operacional (não certidão):
+ * - AUTO: baixa/trânsito no tribunal sem residual FORTE (CS ativo / B.A.)
+ * - REVISÃO: residual forte → fila + Encerrados a revisar
+ * - is_procedente sozinho NÃO bloqueia (flag costuma ficar suja após baixa)
  * SCAN_AUTO_ENCERRAR=0 desliga.
  */
 
@@ -17,11 +18,26 @@ function on(): boolean {
 }
 
 function truthy(v: unknown): boolean {
-  return !!v;
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0 || v == null) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'sim' || s === 'yes';
 }
 
 function blob(...parts: unknown[]): string {
   return parts.map((p) => String(p || '')).join(' ').toUpperCase();
+}
+
+/** Sinais fortes de encerramento no teor / motivo do patch. */
+function textoEncerradoForte(text: string): boolean {
+  const t = text.toUpperCase();
+  return (
+    /BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|ARQUIVAMENTO|TRANSITO\s+EM\s+JULGADO|TRÂNSITO\s+EM\s+JULGADO/.test(
+      t
+    ) ||
+    /EXTIN[CÇ][AÃ]O\s+DO\s+PROCESSO|PROCESSO\s+EXTINTO|JULGO\s+IMPROCEDENTE|IMPROCED[EÊ]NCIA/.test(t) ||
+    /CANCELAMENTO\s+DA\s+DISTRIBUI[CÇ][AÃ]O|DESER[CÇ][AÃ]O/.test(t)
+  );
 }
 
 export function decidirEncerramentoScan(ctx: {
@@ -35,14 +51,8 @@ export function decidirEncerramentoScan(ctx: {
   const d = (t.dados && typeof t.dados === 'object' ? t.dados : {}) as any;
 
   const baixaTribunal = truthy(
-    p.datajud_encerrado_tribunal ?? t.datajud_encerrado_tribunal
+    p.datajud_encerrado_tribunal ?? t.datajud_encerrado_tribunal ?? d.datajud_encerrado_tribunal
   );
-  if (!baixaTribunal) return { acao: 'nenhuma' };
-
-  // Já auto-encerrado antes
-  if (t.via_scan_auto_encerrar || d.via_scan_auto_encerrar) {
-    return { acao: 'nenhuma' };
-  }
 
   const text = blob(
     p.procedente_motivo,
@@ -53,65 +63,74 @@ export function decidirEncerramentoScan(ctx: {
     t.evento_resumo,
     p.merito_resultado,
     t.merito_resultado,
-    d.procedente_motivo
+    d.procedente_motivo,
+    d.datajud_encerrado_motivo,
+    d.evento_resumo,
+    p.djen_ultimo_resumo,
+    t.djen_ultimo_resumo
   );
 
-  const procedente =
-    truthy(p.is_procedente ?? t.is_procedente ?? d.is_procedente) ||
-    (/PROCEDENTE/.test(text) && !/IMPROCEDENTE/.test(text) && !/PARCIAL/.test(text));
-  const parcial =
-    p.merito_resultado === 'parcial' ||
-    truthy(p.sentenca_parcial ?? t.sentenca_parcial) ||
-    /PARCIALMENTE\s+PROCEDENTE|PROCEDENTE\s+EM\s+PARTE/.test(text);
-  const cumprimento = truthy(
-    p.em_cumprimento_sentenca ??
-      t.em_cumprimento_sentenca ??
-      p.cumprimento_ativo ??
-      t.cumprimento_ativo ??
-      p.cumprimento_pendente_necessario ??
-      t.cumprimento_pendente_necessario ??
-      d.em_cumprimento_sentenca
-  );
-  const ba = truthy(p.indicio_busca_apreensao ?? t.indicio_busca_apreensao);
-  const oportunidade = truthy(
-    p.oportunidade_elegivel ?? t.oportunidade_elegivel ?? d.oportunidade_elegivel
+  const baixaPorTexto = textoEncerradoForte(text);
+  if (!baixaTribunal && !baixaPorTexto) return { acao: 'nenhuma' };
+
+  // Já auto-encerrado
+  if (truthy(t.via_scan_auto_encerrar) || truthy(d.via_scan_auto_encerrar) || truthy(p.via_scan_auto_encerrar)) {
+    return { acao: 'nenhuma' };
+  }
+
+  // Residual FORTE — só estes bloqueiam auto
+  const cumprimentoAtivo =
+    truthy(p.em_cumprimento_sentenca ?? t.em_cumprimento_sentenca ?? d.em_cumprimento_sentenca) ||
+    truthy(p.cumprimento_ativo ?? t.cumprimento_ativo ?? d.cumprimento_ativo);
+
+  const cumprimentoEncerrado = truthy(
+    p.cumprimento_encerrado ?? t.cumprimento_encerrado ?? d.cumprimento_encerrado
   );
 
-  if (procedente || parcial || cumprimento || ba || oportunidade) {
-    const bits: string[] = [];
-    let prioridade = 70;
-    if (ba) {
-      bits.push('B.A.');
-      prioridade = 95;
-    }
-    if (cumprimento) {
-      bits.push('cumprimento');
-      prioridade = Math.max(prioridade, 90);
-    }
-    if (procedente) {
-      bits.push('procedente');
-      prioridade = Math.max(prioridade, 88);
-    }
-    if (parcial) {
-      bits.push('parcial');
-      prioridade = Math.max(prioridade, 85);
-    }
-    if (oportunidade) {
-      bits.push('oportunidade');
-      prioridade = Math.max(prioridade, 80);
-    }
+  const ba =
+    truthy(p.indicio_busca_apreensao ?? t.indicio_busca_apreensao ?? d.indicio_busca_apreensao) &&
+    !/FALSO|JURISPRUD|CITAD/.test(text);
+
+  if (cumprimentoAtivo && !cumprimentoEncerrado) {
     return {
       acao: 'revisao_fila',
-      motivo: `Baixa no tribunal + residual (${bits.join(', ')})`,
-      prioridade,
+      motivo: 'Baixa no conhecimento mas cumprimento ainda ativo',
+      prioridade: 92,
     };
   }
 
-  // Baixa limpa → AUTO (não exige texto "improcedente")
+  if (ba) {
+    return {
+      acao: 'revisao_fila',
+      motivo: 'Indício real de B.A. — não auto-arquivar',
+      prioridade: 95,
+    };
+  }
+
+  // oportunidade alta de instaurar: revisa, não some da fila comercial
+  const oppScore = Number(
+    p.oportunidade_score ?? d.oportunidade_score ?? d.oportunidade_instaurar?.score ?? 0
+  );
+  if (
+    (truthy(p.cumprimento_pendente_necessario ?? t.cumprimento_pendente_necessario) ||
+      truthy(d.cumprimento_pendente_necessario)) &&
+    (oppScore >= 60 || truthy(p.oportunidade_elegivel ?? d.oportunidade_elegivel))
+  ) {
+    return {
+      acao: 'revisao_fila',
+      motivo: 'Oportunidade de instaurar cumprimento (honorários) — revisar',
+      prioridade: 88,
+    };
+  }
+
+  // AUTO — is_procedente NÃO bloqueia
   const motivo =
     p.datajud_encerrado_motivo ||
     t.datajud_encerrado_motivo ||
-    'Baixa/trânsito no tribunal sem residual — auto gabinete';
+    d.datajud_encerrado_motivo ||
+    (baixaPorTexto ? 'Teor indica baixa/extinção/trânsito' : null) ||
+    'Baixa/trânsito no tribunal — auto gabinete W1';
+
   return { acao: 'auto_encerrar', motivo: String(motivo) };
 }
 
@@ -136,6 +155,7 @@ export function aplicarDecisaoNoPatch(
     out.situacao = 'ENCERRADO';
     out.status = 'Arquivado';
     out.statusManual = 'Encerrado';
+    out.status_interno = 'ENCERRADO';
     out.diasFaltando = null;
     out.precisa_revisar_encerramento = false;
     out.prioridade_revisao_encerrado = 0;
@@ -143,6 +163,7 @@ export function aplicarDecisaoNoPatch(
     out.datajud_encerrado_tribunal = true;
     out.scan_auto_encerrado_em = nowIso;
     out.scan_auto_encerrado_dia = nowBr;
+    out.scan_auto_encerrar_motivo = decisao.motivo;
     out.operacao_sistema = {
       origem: 'W1_CONTROL',
       perfil: 'W1 CONTROL',
@@ -155,33 +176,29 @@ export function aplicarDecisaoNoPatch(
     dadosBase.situacao = 'ENCERRADO';
     dadosBase.statusManual = 'Encerrado';
     dadosBase.status = 'Arquivado';
+    dadosBase.status_interno = 'ENCERRADO';
     dadosBase.proximoPrazo = '';
     dadosBase.diasFaltando = null;
     dadosBase.via_scan_auto_encerrar = true;
-    dadosBase.scan_auto_encerrar_motivo = decisao.motivo;
     dadosBase.scan_auto_encerrado_em = nowIso;
     dadosBase.scan_auto_encerrado_dia = nowBr;
+    dadosBase.scan_auto_encerrar_motivo = decisao.motivo;
     dadosBase.precisa_revisar_encerramento = false;
     dadosBase.operacao_sistema = out.operacao_sistema;
     dadosBase.auditado_por_nome = 'W1 CONTROL';
-    dadosBase.auditado_legenda = 'Feito por Davi Alves Figueredo · scanner automático';
-    delete dadosBase.prioridade_revisao_encerrado;
-    delete dadosBase.baixa_tribunal_pendente_revisao;
-  } else if (decisao.acao === 'revisao_fila') {
+    out.dados = dadosBase;
+    return out;
+  }
+
+  if (decisao.acao === 'revisao_fila') {
     out.precisa_revisar_encerramento = true;
     out.prioridade_revisao_encerrado = decisao.prioridade;
-    out.tem_novo_andamento = true;
-    out.evento_tipo = out.evento_tipo || 'REVISAR_ENCERRAMENTO';
-    out.evento_resumo = out.evento_resumo || decisao.motivo;
     dadosBase.precisa_revisar_encerramento = true;
     dadosBase.prioridade_revisao_encerrado = decisao.prioridade;
     dadosBase.scan_revisao_motivo = decisao.motivo;
-    dadosBase.baixa_tribunal_pendente_revisao = true;
+    out.dados = dadosBase;
+    return out;
   }
 
-  out.dados = dadosBase;
-  delete out.created_by;
-  delete out.atendido_por;
-  delete out.auditado_por;
   return out;
 }
