@@ -172,7 +172,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
         .range(page * pageSize, (page + 1) * pageSize - 1);
       if (mode === "mine") {
         if (!auth_id) return [];
-        query = query.eq("created_by", auth_id);
+        // Meus + órfãos (created_by null) — evita carteira/fila sem dono invisível
+        query = query.or(`created_by.eq.${auth_id},created_by.is.null`);
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -256,7 +257,7 @@ export async function getStoredCasesPageForEmpresa(
       .range(offset, offset + limit - 1);
 
     if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
-      query = query.eq('created_by', auth_id);
+      query = query.or(`created_by.eq.${auth_id},created_by.is.null`);
     }
 
     const { data, error } = await query;
@@ -754,7 +755,7 @@ export async function getStoredNotes(): Promise<any[]> {
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (!hasFullAccess) {
-        query = query.eq('created_by', auth_id);
+        query = query.or(`created_by.eq.${auth_id},created_by.is.null`);
       }
 
       const { data, error } = await query;
