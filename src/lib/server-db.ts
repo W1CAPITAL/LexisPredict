@@ -614,7 +614,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   };
   if (forceArquivado) {
     row.status = 'Arquivado';
-    try { row.status_interno = 'ENCERRADO'; } catch { /* coluna pode não existir */ }
+    row.status_interno = 'ENCERRADO';
   }
 
   const colunasReais = [

@@ -13,7 +13,7 @@ import {
   runAutoEncerrarBatchAction,
   countAutoEncerrarPendentesAction,
 } from "@/app/actions/auto-encerrar-actions";
-import { Archive, Bot, List, X, Loader2, Building2, Radar } from "lucide-react";
+import { Archive, List, X, Loader2, Building2, Radar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Props = {
@@ -78,6 +78,7 @@ export function EncerrarScannerPanel({
     if (running) return;
     setRunning(true);
     stopRef.current = false;
+
     let offset = 0;
     let scanned = 0;
     let auto = 0;
@@ -85,50 +86,60 @@ export function EncerrarScannerPanel({
     let failed = 0;
     let skipped = 0;
     let pages = 0;
-    const maxPages = 400;
+    const maxPages = 500;
     const allSamples: string[] = [];
+    let lastPct = 0;
+    let lastFonte = "db+datajud+djen";
 
     const initial = await countAutoEncerrarPendentesAction();
     const totalMeta = initial.success ? initial.baixaAtivos : pendentes?.baixaAtivos || 0;
 
     toast({
-      title: "Scanner de encerramento (tribunal)",
-      description: `DataJud + DJEN · ~${totalMeta} ativos com baixa. Lotes de 12 — não feche a aba.`,
+      title: "Scanner de encerramento completo",
+      description: `Banco + DataJud + DJEN + motores auto/revisar · ~${totalMeta} ativos com baixa. Não feche a aba.`,
     });
 
     try {
       while (!stopRef.current && pages < maxPages) {
-        const res = await runAutoEncerrarBatchAction({
-          limit: 12,
+        // fase full: tenta DB primeiro; se não decidir, tribunal no mesmo item
+        const batch = await runAutoEncerrarBatchAction({
+          limit: 25,
           offset,
           soBaixaTribunal: true,
+          fase: "full",
           fast: true,
         });
         pages++;
-        if (!res.success) {
-          setLastRun(res.error || "Erro");
+
+        if (!batch.success) {
+          setLastRun(batch.error || "Erro no lote");
           toast({
             title: "Erro no lote",
-            description: res.error || "Falha",
+            description: batch.error || "Falha",
             variant: "destructive",
           });
           break;
         }
-        scanned += res.scanned;
-        auto += res.autoEncerrados;
-        revisao += res.revisao;
-        failed += res.failed;
-        skipped += res.skipped || 0;
-        offset = res.nextOffset;
-        if (res.samples?.length) allSamples.push(...res.samples.slice(0, 6));
-        if (res.lastError) console.warn("[encerrar-scan]", res.lastError);
 
-        // % pelo trabalho real em candidatos ativos, não só offset bruto
+        scanned += batch.scanned;
+        auto += batch.autoEncerrados;
+        revisao += batch.revisao;
+        failed += batch.failed;
+        skipped += batch.skipped || 0;
+        offset = batch.nextOffset;
+        lastFonte = batch.fonte || lastFonte;
+        if (batch.samples?.length) allSamples.push(...batch.samples.slice(0, 8));
+        if (batch.lastError) console.warn("[encerrar-scan]", batch.lastError);
+
         const workPct =
           totalMeta > 0
-            ? Math.min(99, Math.round(((auto + revisao + failed + Math.max(0, scanned - auto - revisao - failed)) / totalMeta) * 100))
-            : res.percentDone;
-        const percentDone = Math.max(workPct, Math.min(99, res.percentDone));
+            ? Math.min(
+                99,
+                Math.round(((auto + revisao + Math.max(0, scanned - auto - revisao)) / totalMeta) * 100)
+              )
+            : batch.percentDone;
+        const percentDone = Math.max(lastPct, workPct, Math.min(99, batch.percentDone));
+        lastPct = percentDone;
 
         setProgress({
           scanned,
@@ -136,26 +147,27 @@ export function EncerrarScannerPanel({
           revisao,
           failed,
           skipped,
-          percentDone: res.hasMore ? percentDone : 100,
-          percentLeft: res.hasMore ? Math.max(0, 100 - percentDone) : 0,
-          total: totalMeta || res.totalCandidates,
-          fonte: res.fonte || "datajud+djen",
+          percentDone: batch.hasMore ? percentDone : 100,
+          percentLeft: batch.hasMore ? Math.max(0, 100 - percentDone) : 0,
+          total: totalMeta || batch.totalCandidates,
+          fonte: lastFonte,
         });
 
-        if (res.scanned === 0 && !res.hasMore) break;
-        if (!res.hasMore) break;
-        await new Promise((r) => setTimeout(r, 250));
+        if (batch.scanned === 0 && !batch.hasMore) break;
+        if (!batch.hasMore) break;
+        await new Promise((r) => setTimeout(r, 200));
       }
 
       setProgress((p) => (p ? { ...p, percentDone: 100, percentLeft: 0 } : p));
+
       const msg =
-        `Tribunal: Auto ${auto} · Revisar ${revisao} · Falhas ${failed} · Escaneados ${scanned}` +
-        (allSamples.length ? ` · ${allSamples.slice(0, 5).join(" | ")}` : "");
+        `Auto ${auto} · Revisar ${revisao} · Falhas ${failed} · Escaneados ${scanned}` +
+        (allSamples.length ? ` · ${allSamples.slice(0, 6).join(" | ")}` : "");
       setLastRun(msg);
       toast({
-        title: auto > 0 ? `Encerrados ${auto}` : "Lote concluído",
+        title: auto > 0 ? `${auto} auto-encerrados` : "Lote concluído",
         description: msg,
-        variant: auto > 0 ? "default" : "destructive",
+        variant: auto > 0 ? "default" : undefined,
       });
       await refreshCount();
       onDone?.();
@@ -177,10 +189,10 @@ export function EncerrarScannerPanel({
           <Radar className="h-4 w-4 text-primary shrink-0" />
           <div className="min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest block">
-              Scanner de encerramento · tribunal
+              Scanner de encerramento · multi-motor
             </span>
             <span className="text-[9px] text-muted-foreground font-medium">
-              DataJud + DJEN (mesmo núcleo do Scanner Tribunal)
+              Banco → DataJud + DJEN → auto / revisar
               {isW1 ? " · W1 CONTROL / Davi Alves Figueredo" : " · W1 CONTROL"}
             </span>
           </div>
@@ -211,7 +223,7 @@ export function EncerrarScannerPanel({
             ) : (
               <Building2 className="h-3.5 w-3.5 mr-1" />
             )}
-            {running ? "Escaneando…" : "Rodar empresa (tribunal)"}
+            {running ? "Escaneando…" : "Rodar empresa (completo)"}
           </Button>
           <Button
             type="button"
@@ -228,14 +240,13 @@ export function EncerrarScannerPanel({
 
       {pendentes != null && (
         <p className="text-[10px] font-semibold text-foreground leading-relaxed">
-          Baixas no banco:{" "}
-          <span className="tabular-nums">{pendentes.baixasTotal}</span>
-          {" · "}ainda <strong className="text-primary">ativos com baixa</strong>:{" "}
+          Baixas no banco: <span className="tabular-nums">{pendentes.baixasTotal}</span>
+          {" · "}ativos com baixa:{" "}
           <span className="tabular-nums text-primary">{pendentes.baixaAtivos}</span>
           {" · "}outros ativos: {pendentes.outros}
           <span className="block text-muted-foreground font-medium mt-0.5">
-            Cada caso passa por DataJud + DJEN; depois AUTO (arquiva) ou REVISAR (CS/B.A./oportunidade).
-            Mais lento que o atalho só-banco — mas correto.
+            Lote de 25 por rodada (sem teto de 8 no DJEN). Cada caso: dados salvos → se precisar,
+            tribunal completo → motor auto ou revisar.
           </span>
         </p>
       )}
@@ -243,9 +254,7 @@ export function EncerrarScannerPanel({
       {progress && (
         <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[10px] space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="font-black uppercase tracking-widest">
-              Progresso · {progress.fonte}
-            </p>
+            <p className="font-black uppercase tracking-widest">Progresso · {progress.fonte}</p>
             <p className="tabular-nums font-black text-sm text-primary">
               {progress.percentDone}%
               <span className="text-muted-foreground font-semibold text-[10px] ml-1">
@@ -260,7 +269,8 @@ export function EncerrarScannerPanel({
             />
           </div>
           <p className="tabular-nums text-foreground">
-            Auto <strong className="text-emerald-600 dark:text-emerald-400">{progress.auto}</strong>
+            Auto{" "}
+            <strong className="text-emerald-600 dark:text-emerald-400">{progress.auto}</strong>
             {" · "}Revisar {progress.revisao} · Falhas {progress.failed} · Escaneados{" "}
             {progress.scanned}
             {progress.total > 0 ? ` / meta ~${progress.total}` : ""}
@@ -317,7 +327,11 @@ export function EncerrarScannerPanel({
                     style={{ backgroundColor: "hsl(var(--card))" }}
                   >
                     <Badge variant="outline">
-                      {l.acao === "auto_encerrar" ? "AUTO W1" : l.acao === "revisao_fila" ? "REVISAR" : "HUMANO"}
+                      {l.acao === "auto_encerrar"
+                        ? "AUTO W1"
+                        : l.acao === "revisao_fila"
+                          ? "REVISAR"
+                          : "HUMANO"}
                     </Badge>{" "}
                     <span className="font-mono text-[11px] font-semibold">{l.protocolo}</span>
                     <p className="text-[11px] text-muted-foreground mt-1">{l.motivo}</p>

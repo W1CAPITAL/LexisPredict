@@ -1,9 +1,8 @@
 /**
- * Auto-encerrar após scan tribunal (DataJud + DJEN).
- * Política operacional (não certidão):
- * - AUTO: baixa/trânsito no tribunal sem residual FORTE (CS ativo / B.A.)
- * - REVISÃO: residual forte → fila + Encerrados a revisar
- * - is_procedente sozinho NÃO bloqueia (flag costuma ficar suja após baixa)
+ * Auto-encerrar após dados salvos e/ou scan tribunal (DataJud + DJEN).
+ * AUTO: baixa/trânsito sem residual FORTE (CS ativo / B.A.)
+ * REVISÃO: residual forte → fila + Encerrados a revisar
+ * is_procedente sozinho NÃO bloqueia (flag costuma ficar suja após baixa)
  * SCAN_AUTO_ENCERRAR=0 desliga.
  */
 
@@ -28,13 +27,10 @@ function blob(...parts: unknown[]): string {
   return parts.map((p) => String(p || '')).join(' ').toUpperCase();
 }
 
-/** Sinais fortes de encerramento no teor / motivo do patch. */
 function textoEncerradoForte(text: string): boolean {
   const t = text.toUpperCase();
   return (
-    /BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|ARQUIVAMENTO|TRANSITO\s+EM\s+JULGADO|TRÂNSITO\s+EM\s+JULGADO/.test(
-      t
-    ) ||
+    /BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|ARQUIVAMENTO|TRANSITO\s+EM\s+JULGADO|TRÂNSITO\s+EM\s+JULGADO/.test(t) ||
     /EXTIN[CÇ][AÃ]O\s+DO\s+PROCESSO|PROCESSO\s+EXTINTO|JULGO\s+IMPROCEDENTE|IMPROCED[EÊ]NCIA/.test(t) ||
     /CANCELAMENTO\s+DA\s+DISTRIBUI[CÇ][AÃ]O|DESER[CÇ][AÃ]O/.test(t)
   );
@@ -73,20 +69,16 @@ export function decidirEncerramentoScan(ctx: {
   const baixaPorTexto = textoEncerradoForte(text);
   if (!baixaTribunal && !baixaPorTexto) return { acao: 'nenhuma' };
 
-  // Já auto-encerrado
   if (truthy(t.via_scan_auto_encerrar) || truthy(d.via_scan_auto_encerrar) || truthy(p.via_scan_auto_encerrar)) {
     return { acao: 'nenhuma' };
   }
 
-  // Residual FORTE — só estes bloqueiam auto
   const cumprimentoAtivo =
     truthy(p.em_cumprimento_sentenca ?? t.em_cumprimento_sentenca ?? d.em_cumprimento_sentenca) ||
     truthy(p.cumprimento_ativo ?? t.cumprimento_ativo ?? d.cumprimento_ativo);
-
   const cumprimentoEncerrado = truthy(
     p.cumprimento_encerrado ?? t.cumprimento_encerrado ?? d.cumprimento_encerrado
   );
-
   const ba =
     truthy(p.indicio_busca_apreensao ?? t.indicio_busca_apreensao ?? d.indicio_busca_apreensao) &&
     !/FALSO|JURISPRUD|CITAD/.test(text);
@@ -98,7 +90,6 @@ export function decidirEncerramentoScan(ctx: {
       prioridade: 92,
     };
   }
-
   if (ba) {
     return {
       acao: 'revisao_fila',
@@ -107,7 +98,6 @@ export function decidirEncerramentoScan(ctx: {
     };
   }
 
-  // oportunidade alta de instaurar: revisa, não some da fila comercial
   const oppScore = Number(
     p.oportunidade_score ?? d.oportunidade_score ?? d.oportunidade_instaurar?.score ?? 0
   );
@@ -118,12 +108,12 @@ export function decidirEncerramentoScan(ctx: {
   ) {
     return {
       acao: 'revisao_fila',
-      motivo: 'Oportunidade de instaurar cumprimento (honorários) — revisar',
+      motivo: 'Oportunidade de instaurar cumprimento — revisar',
       prioridade: 88,
     };
   }
 
-  // AUTO — is_procedente NÃO bloqueia
+  // AUTO — is_procedente sozinho NÃO bloqueia
   const motivo =
     p.datajud_encerrado_motivo ||
     t.datajud_encerrado_motivo ||
