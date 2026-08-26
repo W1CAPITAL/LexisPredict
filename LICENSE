@@ -1,116 +1,76 @@
-================================================================================
-                     PROPRIETARY SOFTWARE LICENSE
-                              LexisPredict
-================================================================================
-
+PROPRIETARY SOFTWARE LICENSE — LexisPredict
 Copyright (c) 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
 All rights reserved.
 
-================================================================================
-1. PROPRIEDADE
-================================================================================
+A versão formatada para leitura (Markdown) está em LICENSE.md.
+O texto vinculante segue abaixo e em LICENSE.md (mesmo conteúdo jurídico).
 
+--------------------------------------------------------------------------------
+1. PROPRIEDADE
+--------------------------------------------------------------------------------
 Este software, incluindo código-fonte, binários, documentação, marcas,
 interfaces, fluxos, modelos de dados e materiais associados (“Software”),
-é de propriedade exclusiva de:
-
-    • Davi Alves Figueredo
-    • W1 Capital Assessoria Financeira Ltda.
+é de propriedade exclusiva de Davi Alves Figueredo e
+W1 Capital Assessoria Financeira Ltda.
 
 Nenhum direito de propriedade intelectual é transferido ao usuário, cliente
 ou parceiro, salvo autorização escrita expressa.
 
-================================================================================
+--------------------------------------------------------------------------------
 2. LICENÇA DE USO
-================================================================================
-
+--------------------------------------------------------------------------------
 O uso do Software é permitido somente:
+  (a) mediante contrato, assinatura ou autorização escrita dos titulares; e
+  (b) nos termos, prazos, ambientes e limites definidos nessa autorização.
 
-    (a) mediante contrato, assinatura ou autorização escrita dos titulares; e
-    (b) nos termos, prazos, ambientes e limites definidos nessa autorização.
+Acesso a demonstração, staging ou produção não implica cessão de código-fonte
+nem licença perpétua.
 
-Acesso a instâncias de demonstração, staging ou produção não implica
-cessão de direitos sobre o código-fonte nem licença perpétua.
-
-================================================================================
+--------------------------------------------------------------------------------
 3. RESTRIÇÕES
-================================================================================
+--------------------------------------------------------------------------------
+Sem autorização prévia e por escrito é proibido: copiar; modificar; distribuir;
+sublicenciar; vender; engenharia reversa (salvo onde a lei vedar a restrição);
+criar produto concorrente; remover avisos de copyright; expor segredos,
+prompts, chaves ou schemas internos.
 
-É estritamente proibido, sem autorização prévia e por escrito:
-
-    • copiar, reproduzir ou republicar o Software, no todo ou em parte;
-    • modificar, adaptar, traduzir ou criar obras derivadas;
-    • distribuir, sublicenciar, alugar, vender ou ceder o Software a terceiros;
-    • fazer engenharia reversa, descompilar, desmontar ou tentar obter o
-      código-fonte, salvo na medida em que a lei aplicável expressamente
-      proíba essa restrição;
-    • usar o Software para desenvolver produto concorrente ou
-      substancialmente similar;
-    • remover avisos de copyright, marcas ou proprietários;
-    • expor, publicar ou compartilhar segredos de negócio, prompts, chaves,
-      schemas ou configurações internas sem autorização.
-
-================================================================================
+--------------------------------------------------------------------------------
 4. DADOS E OPERAÇÃO
-================================================================================
+--------------------------------------------------------------------------------
+Dados de clientes e processos: responsabilidade do contratante (LGPD quando
+cabível). Titulares não se apropriam da carteira jurídica pelo mero uso,
+ressalvados logs técnicos, métricas agregadas e obrigações legais.
 
-Dados de clientes, processos e operações inseridos pelos usuários permanecem
-sob a responsabilidade do contratante, observadas as leis aplicáveis
-(incluindo LGPD, quando cabível).
-
-Os titulares do Software não se apropriam da carteira jurídica do cliente
-pelo mero uso da plataforma, ressalvados logs técnicos, métricas agregadas
-e obrigações legais.
-
-================================================================================
+--------------------------------------------------------------------------------
 5. MARCAS
-================================================================================
+--------------------------------------------------------------------------------
+“LexisPredict” e identidade visual: sinais dos titulares. Uso comercial
+exige autorização escrita.
 
-“LexisPredict”, logotipos e identidade visual relacionados são sinais
-distintivos dos titulares. Uso comercial da marca exige autorização escrita.
-
-================================================================================
+--------------------------------------------------------------------------------
 6. ISENÇÃO DE GARANTIAS
-================================================================================
+--------------------------------------------------------------------------------
+SOFTWARE “COMO ESTÁ” (AS IS), sem garantias. Não substitui advogado, parecer,
+decisão judicial nem certidão oficial. Automação e scanners podem errar.
 
-O SOFTWARE É FORNECIDO “COMO ESTÁ” (“AS IS”), SEM GARANTIAS DE QUALQUER
-TIPO, EXPRESSAS OU IMPLÍCITAS, INCLUINDO, ENTRE OUTRAS, COMERCIALIZAÇÃO,
-ADEQUAÇÃO A UM PROPÓSITO ESPECÍFICO E NÃO VIOLAÇÃO.
-
-Em especial, o Software não substitui advogado, parecer jurídico, decisão
-judicial nem certidão oficial de tribunal. Saídas de automação, scanners
-e sugestões são apoio operacional e podem conter imprecisões.
-
-================================================================================
+--------------------------------------------------------------------------------
 7. LIMITAÇÃO DE RESPONSABILIDADE
-================================================================================
+--------------------------------------------------------------------------------
+Sem responsabilidade por danos indiretos, lucros cessantes, perda de dados,
+interrupção de negócio ou falhas de terceiros, na máxima extensão legal.
 
-Na máxima extensão permitida pela lei, os titulares não respondem por
-danos indiretos, lucros cessantes, perda de dados, interrupção de negócio
-ou falhas de terceiros (tribunais, APIs públicas, provedores de nuvem),
-ainda que avisados da possibilidade.
-
-================================================================================
+--------------------------------------------------------------------------------
 8. RESCISÃO
-================================================================================
+--------------------------------------------------------------------------------
+Uso irregular encerra a autorização. Pode-se exigir cessação e medidas legais.
 
-Qualquer uso fora desta licença ou do contrato vigente encerra
-automaticamente a autorização de uso. Os titulares podem exigir cessação
-imediata do uso e adoção das medidas legais cabíveis.
-
-================================================================================
-9. CONTATO — LICENCIAMENTO E PARCERIAS
-================================================================================
-
+--------------------------------------------------------------------------------
+9. CONTATO
+--------------------------------------------------------------------------------
 W1 Capital Assessoria Financeira Ltda.
-E-mail: w1capitalassessoria@protonmail.com
+w1capitalassessoria@protonmail.com
 
-================================================================================
+--------------------------------------------------------------------------------
 10. LEI APLICÁVEL
-================================================================================
-
-Salvo disposição contratual em contrário, aplica-se a legislação brasileira.
-
-================================================================================
-                         END OF LICENSE TERMS
-================================================================================
+--------------------------------------------------------------------------------
+Legislação brasileira, salvo contrato em contrário.
