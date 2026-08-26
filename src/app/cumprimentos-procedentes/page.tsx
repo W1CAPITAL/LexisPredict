@@ -62,7 +62,7 @@ import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { computeKpiExecutivo } from "@/lib/kpi-executivo";
 import { getLimiarCobranca, LIMIAR_OPORTUNIDADE_COBRANCA } from "@/lib/oportunidade-cumprimento";
 import { extrairDispositivoBullets, scriptWhatsAppCumprimentoSemValor, podeExibirValorMonetario } from "@/lib/dispositivo-sentenca";
-import { CHECKLIST_LABELS, loadChecklist, saveChecklist, type ChecklistCumprimento, checklistAprovado } from "@/lib/checklist-cumprimento";
+import { CHECKLIST_LABELS, loadChecklist, saveChecklist, type ChecklistCumprimento, checklistAprovado, checklistFromCase, mergeChecklist } from "@/lib/checklist-cumprimento";
 import { analisarContratoCumprimentoAction } from "@/app/actions/cumprimento-contrato-actions";
 import type { CamposContratoFinanciamento } from "@/lib/contrato-financiamento-extract";
 import { reconciliarFlagsCumprimento } from "@/lib/reconciliar-cumprimento-flags";
@@ -75,6 +75,8 @@ import {
   statusExecutivo,
   temConflitoFlags,
 } from "@/lib/cumprimento-page-helpers";
+import { computeKpiConversao } from "@/lib/kpi-conversao-cumprimento";
+import { saveChecklistCumprimentoAction } from "@/app/actions/checklist-cumprimento-actions";
 
 type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "hon_receber" | "parceiro" | "conflito" | "especial";
 
@@ -137,6 +139,18 @@ export default function CumprimentosProcedentesPage() {
       const res = await getCumprimentosEProcedentesAction();
       if (res.success) {
         setCases(res.data);
+        // Lote 1: hidrata checklist do servidor (dados) + localStorage
+        setChecklistByProto((prev) => {
+          const next = { ...prev };
+          for (const c of res.data || []) {
+            const proto = String(c.protocolo || "");
+            if (!proto) continue;
+            const remote = checklistFromCase(c as any);
+            const local = prev[proto] || loadChecklist(proto);
+            next[proto] = mergeChecklist(local, remote);
+          }
+          return next;
+        });
       } else {
         setCases([]);
       }
@@ -384,6 +398,12 @@ export default function CumprimentosProcedentesPage() {
     return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios, conflitos, parceiro, honReceber, kpiEspecial };
   }, [cases, limiar]);
 
+  /** Lote 1 — KPI conversão (forte → checklist OK) */
+  const kpiConversao = useMemo(
+    () => computeKpiConversao(cases, limiar, checklistByProto),
+    [cases, limiar, checklistByProto]
+  );
+
   /** Lote 9 — colunas Kanban por estágio comercial (rankearCasoEspecial) */
   const kanbanCols = useMemo(() => {
     const cols: Record<string, { title: string; color: string; items: typeof cases }> = {
@@ -465,11 +485,24 @@ export default function CumprimentosProcedentesPage() {
   };
 
   const toggleChecklist = (protocolo: string, key: keyof ChecklistCumprimento) => {
-    if (key === "updatedAt") return;
+    if (key === "updatedAt" || key === "updatedBy") return;
     setChecklistByProto((prev) => {
       const cur = prev[protocolo] || loadChecklist(protocolo);
-      const next = { ...cur, [key]: cur[key] === true ? false : true } as ChecklistCumprimento;
+      const next = {
+        ...cur,
+        [key]: cur[key] === true ? false : true,
+        updatedAt: new Date().toISOString(),
+      } as ChecklistCumprimento;
       saveChecklist(protocolo, next);
+      // Lote 1: espelho no Supabase (best-effort)
+      void saveChecklistCumprimentoAction({ protocolo, checklist: next }).then((r) => {
+        if (!r.success && r.error && !/localStorage/i.test(r.error)) {
+          /* silencioso se admin ausente; toast só se caso não encontrado */
+          if (/não encontrado/i.test(r.error)) {
+            toast({ title: "Checklist local ok", description: r.error, variant: "destructive" });
+          }
+        }
+      });
       return { ...prev, [protocolo]: next };
     });
   };
@@ -897,6 +930,9 @@ export default function CumprimentosProcedentesPage() {
               { k: "Teor fraco", v: stats.kpiEspecial?.teorFraco ?? 0, c: "border-orange-500/40 text-orange-900" },
               { k: "Em cumprimento", v: stats.kpiEspecial?.emCumprimento ?? 0, c: "border-amber-500/40 text-amber-900" },
               { k: "Bloqueados", v: stats.kpiEspecial?.bloqueados ?? 0, c: "border-slate-400/40 text-slate-700" },
+              { k: "Checklist OK", v: kpiConversao?.checklistOk ?? 0, c: "border-emerald-700/50 text-emerald-900" },
+              { k: "Prontos operação", v: kpiConversao?.prontosOperacao ?? 0, c: "border-violet-700/50 text-violet-900" },
+              { k: "% hon na carteira", v: `${kpiConversao?.taxaHonReceber ?? 0}%`, c: "border-blue-500/40 text-blue-900" },
             ].map((x) => (
               <div key={x.k} className={cn("rounded-xl border bg-card/80 px-3 py-2", x.c)}>
                 <p className="text-[8px] font-black uppercase tracking-wider opacity-70">{x.k}</p>
