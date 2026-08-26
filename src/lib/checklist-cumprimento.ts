@@ -1,62 +1,71 @@
 /**
- * Checklist "vale a pena instaurar?" — gravado no browser por CNJ.
+ * Checklist operacional — “vale instaurar cumprimento / honorários?”
+ * Persistência local (localStorage) por CNJ. Não inventa R$; só gates humanos.
  */
 
 export type ChecklistCumprimento = {
-  meritoComQuantiaOuHonorarios: boolean | null;
-  transitoOuTitulo: boolean | null;
-  naoHaCumprimentoAtivo: boolean | null;
-  naoSucumbenciaRuim: boolean | null;
-  teorSuficiente: boolean | null;
-  reuExecutavel: boolean | null;
-  revisadoHumano: boolean | null;
+  teorLido: boolean;
+  dispositivoClaro: boolean;
+  honorariosIdentificados: boolean;
+  semReciproca: boolean;
+  clienteOriginalBanca: boolean;
+  revisadoHumano: boolean;
   updatedAt?: string;
 };
 
-export const CHECKLIST_LABELS: Record<keyof Omit<ChecklistCumprimento, 'updatedAt'>, string> = {
-  meritoComQuantiaOuHonorarios: 'Mérito com quantia ou honorários a cargo do réu',
-  transitoOuTitulo: 'Há trânsito / título executivo formado',
-  naoHaCumprimentoAtivo: 'Ainda não há cumprimento ativo',
-  naoSucumbenciaRuim: 'Sem sucumbência recíproca / a cargo do autor',
-  teorSuficiente: 'Teor da decisão legível o bastante',
-  reuExecutavel: 'Réu com solvência prática (ex.: banco)',
-  revisadoHumano: 'Revisão humana concluída',
+export const CHECKLIST_LABELS: Record<Exclude<keyof ChecklistCumprimento, "updatedAt">, string> = {
+  teorLido: "Teor da sentença / DJEN lido pela equipe",
+  dispositivoClaro: "Dispositivo legível (quantia, art. 523 ou sucumbência)",
+  honorariosIdentificados: "Honorários a receber identificados (não inventados)",
+  semReciproca: "Sem sucumbência recíproca / bloqueio",
+  clienteOriginalBanca: "Cliente da carteira original (sem captação fria)",
+  revisadoHumano: "Revisão humana antes de qualquer valor ao cliente",
 };
 
-const KEY = 'lexis_checklist_cumprimento_v1';
+const PREFIX = "lexis_checklist_cumprimento_v1:";
+
+function empty(): ChecklistCumprimento {
+  return {
+    teorLido: false,
+    dispositivoClaro: false,
+    honorariosIdentificados: false,
+    semReciproca: false,
+    clienteOriginalBanca: true,
+    revisadoHumano: false,
+  };
+}
 
 export function loadChecklist(protocolo: string): ChecklistCumprimento {
-  const empty: ChecklistCumprimento = {
-    meritoComQuantiaOuHonorarios: null,
-    transitoOuTitulo: null,
-    naoHaCumprimentoAtivo: null,
-    naoSucumbenciaRuim: null,
-    teorSuficiente: null,
-    reuExecutavel: null,
-    revisadoHumano: null,
-  };
+  if (typeof window === "undefined") return empty();
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return empty;
-    const all = JSON.parse(raw) as Record<string, ChecklistCumprimento>;
-    return { ...empty, ...(all[protocolo] || {}) };
+    const raw = localStorage.getItem(PREFIX + String(protocolo || "").trim());
+    if (!raw) return empty();
+    const parsed = JSON.parse(raw) as ChecklistCumprimento;
+    return { ...empty(), ...parsed };
   } catch {
-    return empty;
+    return empty();
   }
 }
 
-export function saveChecklist(protocolo: string, data: ChecklistCumprimento) {
+export function saveChecklist(protocolo: string, data: ChecklistCumprimento): void {
+  if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(KEY);
-    const all = raw ? (JSON.parse(raw) as Record<string, ChecklistCumprimento>) : {};
-    all[protocolo] = { ...data, updatedAt: new Date().toISOString() };
-    localStorage.setItem(KEY, JSON.stringify(all));
+    const next = { ...data, updatedAt: new Date().toISOString() };
+    localStorage.setItem(PREFIX + String(protocolo || "").trim(), JSON.stringify(next));
   } catch {
-    /* ignore */
+    /* quota / private mode */
   }
 }
 
-export function checklistAprovado(c: ChecklistCumprimento): boolean {
-  const keys = Object.keys(CHECKLIST_LABELS) as (keyof typeof CHECKLIST_LABELS)[];
-  return keys.every((k) => c[k] === true);
+/** Aprovado para operação comercial (sem liberar R$ sozinho — precisa também teor+contrato). */
+export function checklistAprovado(c: ChecklistCumprimento | null | undefined): boolean {
+  if (!c) return false;
+  return (
+    c.teorLido === true &&
+    c.dispositivoClaro === true &&
+    c.honorariosIdentificados === true &&
+    c.semReciproca === true &&
+    c.clienteOriginalBanca === true &&
+    c.revisadoHumano === true
+  );
 }

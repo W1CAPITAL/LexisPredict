@@ -67,10 +67,12 @@ const BLOQUEIO = [
 const FORTE = [
   /condeno\s+o\s+r[eé]u\s+.{0,60}honor[aá]rios/i,
   /condenado\s+o\s+r[eé]u\s+.{0,40}honor[aá]rios/i,
+  /conden[oa]\s+(?:a\s+)?(?:parte\s+)?r[eé]\s+.{0,50}honor[aá]rios/i,
   /r[eé]u\s+a\s+pagar\s+honor[aá]rios/i,
   /r[eé]u\s+arcar[aá]?\s+com\s+(?:os\s+)?honor[aá]rios/i,
   /honor[aá]rios\s+(?:advocat[ií]cios\s+)?a\s+cargo\s+d[oa]\s+r[eé]u/i,
   /honor[aá]rios\s+(?:advocat[ií]cios\s+)?pelo\s+r[eé]u/i,
+  /honor[aá]rios\s+(?:advocat[ií]cios\s+)?(?:a\s+serem\s+)?pagos?\s+pel[oa]\s+r[eé]u/i,
   /sucumb[eê]ncia\s+a\s+cargo\s+d[oa]\s+r[eé]u/i,
   /sucumb[eê]ncia\s+do\s+r[eé]u/i,
   /r[eé]u\s+sucumbente/i,
@@ -79,12 +81,17 @@ const FORTE = [
   /pagar\s+ao\s+autor\s+(?:os\s+)?honor[aá]rios/i,
   /pagar\s+aos?\s+advogados?\s+d[oa]\s+autor/i,
   /honor[aá]rios\s+em\s+favor\s+d[oa]\s+(?:autor|patrono|advogado)/i,
+  /honor[aá]rios\s+(?:advocat[ií]cios\s+)?em\s+favor\s+d[oa]\s+parte\s+autora/i,
   /arbitro\s+os\s+honor[aá]rios.{0,50}(?:r[eé]u|10\s*%|tabela)/i,
   /fixo\s+(?:os\s+)?honor[aá]rios.{0,50}(?:r[eé]u|10\s*%|sobre)/i,
   /condeno\s+.{0,20}ao\s+pagamento\s+de\s+honor[aá]rios/i,
   /art\.?\s*85.{0,60}honor[aá]rios/i,
   /honor[aá]rios\s+advocat[ií]cios\s+de\s+10\s*%/i,
   /honor[aá]rios\s+de\s+10\s*%\s+sobre/i,
+  /honor[aá]rios\s+advocat[ií]cios\s+no\s+patamar\s+de\s+\d{1,2}\s*%/i,
+  /conden[oa]\s+.{0,40}honor[aá]rios\s+advocat[ií]cios\s+de\s+\d{1,2}\s*%/i,
+  /r[eé]u\s+responder[aá]\s+pelos?\s+honor[aá]rios/i,
+  /parte\s+r[eé]\s+arcar[aá]?\s+com\s+(?:as\s+)?custas\s+e\s+honor/i,
 ];
 
 // --- MÉDIO: fixação sem destinatário explícito, mas contexto procedente ---
@@ -99,6 +106,11 @@ const MEDIO = [
   /verba\s+de\s+sucumb[eê]ncia/i,
   /condena[cç][aã]o\s+em\s+honor[aá]rios\s+advocat/i,
   /custas\s+processuais\s+e\s+honor[aá]rios/i,
+  /honor[aá]rios\s+advocat[ií]cios\s+fixados?\s+em/i,
+  /fixados?\s+os\s+honor[aá]rios\s+em\s+\d{1,2}\s*%/i,
+  /com\s+base\s+no\s+art\.?\s*85\s+do\s+cpc/i,
+  /aplica[cç][aã]o\s+do\s+art\.?\s*85/i,
+  /sucumb[eê]ncia\s+da\s+parte\s+r[eé]/i,
 ];
 
 // --- FRACO: só menção genérica ---

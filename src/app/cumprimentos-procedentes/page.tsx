@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ações Procedentes e Cumprimentos de Sentença — aba exclusiva do módulo executivo.
+ * Ações Procedentes · Especial e Cumprimentos de Sentença — aba exclusiva do módulo executivo.
  * Mapeia: procedências, cumprimentos ativos e cumprimentos pendentes omitidos.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import {
+import { Sparkles,
   Scale,
   Loader2,
   Search,
@@ -44,6 +44,17 @@ import {
 import { exportDemonstrativoCumprimentoAction } from "@/app/actions/export-cumprimento-demonstrativo";
 import { extrairCreditoSentenca } from "@/lib/credito-sentenca-extract";
 import { analisarHonorariosAReceber } from "@/lib/honorarios-receber";
+import { simularLiquidacaoCumprimento, formatBRL } from "@/lib/liquidacao-cumprimento";
+import {
+  buildHandoffLegalcloud,
+  handoffToClipboardText,
+  urlCalculadoraLegalcloud,
+} from "@/lib/legalcloud-bridge";
+import {
+  rankearCasoEspecial,
+  ordenarFilaEspecial,
+  kpiFilaEspecial,
+} from "@/lib/pipeline-honorarios-especial";
 import { scriptWhatsAppAposTeor } from "@/lib/script-cumprimento-whatsapp";
 import { scanInstaurarComParadosBatchAction } from "@/app/actions/scan-instaurar-parados-action";
 import { type LegalCase } from "@/lib/case-logic";
@@ -57,7 +68,7 @@ import type { CamposContratoFinanciamento } from "@/lib/contrato-financiamento-e
 import { reconciliarFlagsCumprimento } from "@/lib/reconciliar-cumprimento-flags";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
-type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "hon_receber" | "parceiro" | "conflito";
+type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "hon_receber" | "parceiro" | "conflito" | "especial";
 
 function casePhone(c?: LegalCase | null): string {
   if (!c) return "";
@@ -130,6 +141,34 @@ function temConflitoFlags(c: LegalCase): boolean {
   return pend && (em || enc);
 }
 
+/**
+ * Blob de teor para motor de honorários / crédito / dispositivo.
+ * MODULE-LEVEL — evita TDZ (Cannot access before initialization):
+ * filtered + stats useMemo chamam blobDoCaso antes de qualquer const no body do componente.
+ * Amplia fontes (DJEN textos, movimentos) para melhor detecção de sucumbência a receber.
+ */
+function blobDoCaso(c: LegalCase): string {
+  const d = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
+  return [
+    (c as any).evento_resumo,
+    c.datajud_ultimo_nome,
+    (c as any).datajud_ultimo_nome,
+    (c as any).procedente_motivo,
+    (c as any).cumprimento_sentenca_motivo,
+    d.evento_resumo,
+    d.djen_ultimo_resumo,
+    (c as any).djen_ultimo_resumo,
+    d.datajud_ultimo_nome,
+    d.procedente_motivo,
+    ...(Array.isArray(d.djen_textos) ? d.djen_textos.slice(0, 12) : []),
+    ...(Array.isArray(d.movimentos)
+      ? d.movimentos.slice(0, 40).map((m: any) => `${m.nome || ""} ${m.complemento || ""}`)
+      : []),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export default function CumprimentosProcedentesPage() {
   const { toast } = useToast();
   const {
@@ -147,7 +186,8 @@ export default function CumprimentosProcedentesPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [filtro, setFiltro] = useState<FiltroAtivo>("honorarios");
+  const [filtro, setFiltro] = useState<FiltroAtivo>("todos");
+  const [vista, setVista] = useState<"lista" | "kanban">("lista");
   const [limiar, setLimiar] = useState(() => {
     try {
       const v = localStorage.getItem("lexis_limiar_cumprimento");
@@ -166,6 +206,16 @@ export default function CumprimentosProcedentesPage() {
   }>>({});
   const [contratoBusy, setContratoBusy] = useState<string | null>(null);
   const [checklistByProto, setChecklistByProto] = useState<Record<string, ChecklistCumprimento>>({});
+  /** Lote 10 — inputs de liquidação (só UI interna; R$ não vai ao cliente) */
+  const [liqByProto, setLiqByProto] = useState<Record<string, {
+    principal: string;
+    fator: string;
+    jurosAa: string;
+    abatimentos: string;
+    custas: string;
+    honPct: string;
+    art523: boolean;
+  }>>({});
   const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [scanCursor, setScanCursor] = useState(0);
@@ -280,7 +330,7 @@ export default function CumprimentosProcedentesPage() {
 
   const kpiExecutivo = useMemo(() => computeKpiExecutivo((cases || []) as any), [cases]);
 
-const filtered = useMemo(() => {
+  const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     let base = [...cases];
     if (term) {
@@ -319,7 +369,6 @@ const filtered = useMemo(() => {
         const sb = Number((b as any).oportunidade_score ?? (b as any).detalhes_execucao?.oportunidade_instaurar?.score ?? 0);
         return sb - sa;
       });
-    
     } else if (filtro === "hon_receber") {
       base = base.filter((c) => {
         const blob = blobDoCaso(c);
@@ -335,6 +384,19 @@ const filtered = useMemo(() => {
         const rank = (n: string) => (n === "forte" ? 0 : n === "medio" ? 1 : 2);
         return rank(ha.nivel) - rank(hb.nivel) || hb.confianca - ha.confianca;
       });
+    } else if (filtro === "especial") {
+      // Versão Especial: pronto parceiro + honorários forte/médio, ordenados por prioridade
+      base = ordenarFilaEspecial(
+        base.filter((c) => {
+          const r = rankearCasoEspecial(c, limiar);
+          return (
+            r.estagio === "pronto_parceiro" ||
+            r.estagio === "hon_receber" ||
+            (r.estagio === "teor_ok" && r.scoreOportunidade >= limiar * 0.7)
+          );
+        }),
+        limiar
+      );
     } else if (filtro === "parceiro") {
       // Empresa por fora: elegível + score ≥ limiar + sucumbência ou ambos (não cliente puro)
       base = base.filter((c) => {
@@ -409,8 +471,42 @@ const filtered = useMemo(() => {
       const tipo = String(op.tipo || "").toLowerCase();
       return tipo === "sucumbencia" || tipo === "ambos";
     }).length;
-    return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios, conflitos, parceiro, honReceber };
+    const kpiEspecial = kpiFilaEspecial(cases, limiar);
+    return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios, conflitos, parceiro, honReceber, kpiEspecial };
   }, [cases, limiar]);
+
+  /** Lote 9 — colunas Kanban por estágio comercial (rankearCasoEspecial) */
+  const kanbanCols = useMemo(() => {
+    const cols: Record<string, { title: string; color: string; items: typeof cases }> = {
+      pronto_parceiro: { title: "★ Pronto parceiro", color: "border-violet-500/50 bg-violet-500/5", items: [] },
+      hon_receber: { title: "Honorários a receber", color: "border-emerald-500/50 bg-emerald-500/5", items: [] },
+      teor_ok: { title: "Teor OK", color: "border-blue-500/40 bg-blue-500/5", items: [] },
+      triagem: { title: "Triagem", color: "border-orange-500/40 bg-orange-500/5", items: [] },
+      em_cumprimento: { title: "Em cumprimento", color: "border-amber-500/40 bg-amber-500/5", items: [] },
+      bloqueado: { title: "Bloqueados", color: "border-slate-400/40 bg-slate-500/5", items: [] },
+    };
+    for (const c of filtered) {
+      try {
+        const r = rankearCasoEspecial(c, limiar);
+        const key =
+          r.estagio === "pronto_parceiro"
+            ? "pronto_parceiro"
+            : r.estagio === "hon_receber"
+              ? "hon_receber"
+              : r.estagio === "teor_ok"
+                ? "teor_ok"
+                : r.estagio === "em_cumprimento"
+                  ? "em_cumprimento"
+                  : r.estagio === "bloqueado"
+                    ? "bloqueado"
+                    : "triagem";
+        cols[key].items.push(c);
+      } catch {
+        cols.triagem.items.push(c);
+      }
+    }
+    return cols;
+  }, [filtered, limiar]);
 
 
   const copyProtocolo = async (proto: string) => {
@@ -424,20 +520,7 @@ const filtered = useMemo(() => {
   };
 
 
-  const blobDoCaso = (c: LegalCase) => {
-    const d = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
-    return [
-      (c as any).evento_resumo,
-      c.datajud_ultimo_nome,
-      (c as any).procedente_motivo,
-      (c as any).cumprimento_sentenca_motivo,
-      d.evento_resumo,
-      d.djen_ultimo_resumo,
-      d.datajud_ultimo_nome,
-    ]
-      .filter(Boolean)
-      .join(" \n ");
-  };
+  // blobDoCaso está no escopo de módulo (acima do componente) — não redefinir aqui
 
   const handleAnexoContrato = async (protocolo: string, file: File | null) => {
     if (!file) return;
@@ -876,6 +959,45 @@ const filtered = useMemo(() => {
         </header>
 
         
+        
+        {/* VERSÃO ESPECIAL — Radar Honorários */}
+        <div className="mx-4 sm:mx-6 mt-3 rounded-2xl border-2 border-violet-700/40 bg-gradient-to-br from-violet-50 via-white to-emerald-50 dark:from-violet-950/40 dark:via-background dark:to-emerald-950/20 p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-900 dark:text-violet-200 flex items-center gap-1.5">
+                <Sparkles size={14} /> Radar Honorários · Versão Especial
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 max-w-xl">
+                Prioriza casos com honorários a receber (forte/médio) e score ≥ limiar para a esteira comercial.
+                Não inventa R$ — só sinal de teor + score.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 rounded-xl text-[10px] font-black uppercase bg-violet-700 hover:bg-violet-800 text-white gap-1"
+              onClick={() => setFiltro("especial")}
+            >
+              <Sparkles size={12} /> Abrir fila especial
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {[
+              { k: "Pronto parceiro", v: stats.kpiEspecial?.prontoParceiro ?? 0, c: "border-violet-600/50 text-violet-900" },
+              { k: "Hon. forte", v: stats.kpiEspecial?.honReceberForte ?? 0, c: "border-emerald-600/50 text-emerald-900" },
+              { k: "Hon. médio", v: stats.kpiEspecial?.honReceberMedio ?? 0, c: "border-emerald-500/40 text-emerald-800" },
+              { k: "Teor fraco", v: stats.kpiEspecial?.teorFraco ?? 0, c: "border-orange-500/40 text-orange-900" },
+              { k: "Em cumprimento", v: stats.kpiEspecial?.emCumprimento ?? 0, c: "border-amber-500/40 text-amber-900" },
+              { k: "Bloqueados", v: stats.kpiEspecial?.bloqueados ?? 0, c: "border-slate-400/40 text-slate-700" },
+            ].map((x) => (
+              <div key={x.k} className={cn("rounded-xl border bg-card/80 px-3 py-2", x.c)}>
+                <p className="text-[8px] font-black uppercase tracking-wider opacity-70">{x.k}</p>
+                <p className="text-xl font-black tabular-nums tracking-tighter">{x.v}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {stats.conflitos > 0 && (
           <div className="mx-4 sm:mx-6 mt-2 rounded-xl border-2 border-red-600/40 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] font-semibold text-red-900 dark:text-red-100">
@@ -930,6 +1052,7 @@ const filtered = useMemo(() => {
               <div className="p-2 space-y-1">
                 {[
                   { key: "todos" as FiltroAtivo, label: "Ação (sem ativos)", icon: Scale, count: Math.max(0, stats.total - stats.ativos - stats.encerrados), color: "" },
+                  { key: "especial" as FiltroAtivo, label: "★ Versão Especial", icon: Sparkles, count: (stats.kpiEspecial?.prontoParceiro || 0) + (stats.kpiEspecial?.honReceberForte || 0), color: "text-violet-900" },
                   { key: "parceiro" as FiltroAtivo, label: "Empresa por fora", icon: Scale, count: stats.parceiro || 0, color: "text-violet-700" },
                   { key: "hon_receber" as FiltroAtivo, label: "Honorários a receber", icon: Scale, count: stats.honReceber || 0, color: "text-emerald-700" },
                   { key: "honorarios" as FiltroAtivo, label: `Score ≥${limiar}`, icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
@@ -961,8 +1084,35 @@ const filtered = useMemo(() => {
             </ScrollArea>
           </aside>
 
-          {/* Lista principal */}
+          {/* Lista principal · Lote 9 lista | kanban */}
           <section className="lg:col-span-9 flex flex-col min-h-0">
+            <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1 shrink-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                {filtered.length} na fila · vista
+              </p>
+              <div className="flex rounded-lg border border-border/60 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setVista("lista")}
+                  className={cn(
+                    "px-3 py-1.5 text-[10px] font-black uppercase tracking-wide",
+                    vista === "lista" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted/50"
+                  )}
+                >
+                  Lista
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVista("kanban")}
+                  className={cn(
+                    "px-3 py-1.5 text-[10px] font-black uppercase tracking-wide",
+                    vista === "kanban" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted/50"
+                  )}
+                >
+                  Kanban
+                </button>
+              </div>
+            </div>
             {loading ? (
               <div className="flex-1 flex items-center justify-center">
                 <Loader2 className="animate-spin text-muted-foreground" />
@@ -973,6 +1123,58 @@ const filtered = useMemo(() => {
                   ? "Nenhum caso com procedência ou cumprimento detectado. Use “Varrer só cumprimento” (DataJud+DJEN) ou o scanner em escopo Cumprimento. Depois Reclassificar se precisar."
                   : "Nenhum caso para este filtro."}
               </div>
+            ) : vista === "kanban" ? (
+              <ScrollArea className="flex-1">
+                <div className="p-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 min-w-0">
+                  {(["pronto_parceiro", "hon_receber", "teor_ok", "triagem", "em_cumprimento", "bloqueado"] as const).map((key) => {
+                    const col = kanbanCols[key];
+                    if (!col) return null;
+                    return (
+                      <div key={key} className={cn("rounded-xl border p-2 space-y-2 min-h-[120px]", col.color)}>
+                        <div className="flex items-center justify-between gap-1 px-1">
+                          <p className="text-[10px] font-black uppercase tracking-wide truncate">{col.title}</p>
+                          <Badge variant="outline" className="text-[9px] font-black tabular-nums shrink-0">
+                            {col.items.length}
+                          </Badge>
+                        </div>
+                        <div className="space-y-1.5 max-h-[55vh] overflow-y-auto pr-0.5">
+                          {col.items.length === 0 && (
+                            <p className="text-[10px] text-muted-foreground px-1 py-4 text-center">—</p>
+                          )}
+                          {col.items.map((c) => {
+                            let rkLabel = "";
+                            try {
+                              const rk = rankearCasoEspecial(c, limiar);
+                              rkLabel = rk.label;
+                            } catch {
+                              rkLabel = "";
+                            }
+                            return (
+                              <button
+                                key={c.protocolo || c.id}
+                                type="button"
+                                onClick={() => {
+                                  setExpandedProto(c.protocolo);
+                                  setVista("lista");
+                                  setFiltro("todos");
+                                  setQ(String(c.protocolo || ""));
+                                }}
+                                className="w-full text-left rounded-lg border border-border/50 bg-card px-2.5 py-2 hover:border-primary/40 transition-colors"
+                              >
+                                <p className="text-[11px] font-black uppercase truncate">{c.cliente}</p>
+                                <p className="text-[10px] font-mono tabular-nums text-muted-foreground truncate">{c.protocolo}</p>
+                                {rkLabel && (
+                                  <p className="text-[9px] font-semibold text-foreground/80 mt-0.5 truncate">{rkLabel}</p>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             ) : (
               <ScrollArea className="flex-1">
                 <div className="p-3 space-y-2">
@@ -1048,6 +1250,47 @@ const filtered = useMemo(() => {
                                 Procedente
                               </Badge>
                             )}
+                            {(() => {
+                              // Lote 8.1 — estágio comercial (honorários a receber)
+                              try {
+                                const rk = rankearCasoEspecial(c, limiar);
+                                if (
+                                  rk.estagio === "pronto_parceiro" ||
+                                  rk.estagio === "hon_receber" ||
+                                  rk.honorariosNivel === "forte" ||
+                                  rk.honorariosNivel === "medio"
+                                ) {
+                                  return (
+                                    <Badge
+                                      className={
+                                        rk.estagio === "pronto_parceiro"
+                                          ? "bg-violet-700 text-[8px] font-black uppercase"
+                                          : rk.honorariosNivel === "forte"
+                                            ? "bg-emerald-700 text-[8px] font-black uppercase"
+                                            : "bg-emerald-600/90 text-[8px] font-black uppercase"
+                                      }
+                                      title={rk.motivos?.slice(0, 3).join(" · ") || rk.label}
+                                    >
+                                      {rk.estagio === "pronto_parceiro"
+                                        ? "★ Pronto parceiro"
+                                        : rk.honorariosNivel === "forte"
+                                          ? "Hon. a receber · forte"
+                                          : "Hon. a receber · médio"}
+                                    </Badge>
+                                  );
+                                }
+                                if (rk.estagio === "bloqueado" || rk.honorariosNivel === "bloqueado") {
+                                  return (
+                                    <Badge className="bg-slate-600 text-[8px] font-black uppercase" title="Sucumbência recíproca / a cargo do autor">
+                                      Hon. bloqueados
+                                    </Badge>
+                                  );
+                                }
+                              } catch {
+                                /* ignore */
+                              }
+                              return null;
+                            })()}
                             {(() => {
                               const op = oportunidadeOf(c);
                               if (!op || op.score <= 0) return null;
@@ -1399,6 +1642,130 @@ const filtered = useMemo(() => {
                                       <span>{CHECKLIST_LABELS[key]}</span>
                                     </label>
                                   ))}
+                                </div>
+                              )}
+
+                              {open && (
+                                <div className="rounded-lg border border-violet-600/30 bg-violet-500/5 px-2.5 py-2 space-y-2">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-900 dark:text-violet-200">
+                                    Liquidação · Lexis + handoff Legalcloud
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Simulação interna (art. 85 / 523). Não inventa principal — digite ou use referência do teor.
+                                    Índices oficiais: confirme no Legalcloud Premium.
+                                  </p>
+                                  {(() => {
+                                    const proto = String(c.protocolo || "");
+                                    const liq = liqByProto[proto] || {
+                                      principal: credito.valoresDetectados?.[0] ? String(credito.valoresDetectados[0]).replace(/[^\d,.-]/g, "") : "",
+                                      fator: "1",
+                                      jurosAa: "0",
+                                      abatimentos: "0",
+                                      custas: "0",
+                                      honPct: credito.honorariosPercentual != null ? String(credito.honorariosPercentual) : (credito.honorariosAReceber ? "10" : "0"),
+                                      art523: true,
+                                    };
+                                    const setLiq = (patch: Partial<typeof liq>) =>
+                                      setLiqByProto((prev) => ({ ...prev, [proto]: { ...liq, ...patch } }));
+                                    const parseBR = (s: string) => {
+                                      const t = String(s || "").trim().replace(/\./g, "").replace(",", ".");
+                                      const v = parseFloat(t);
+                                      return Number.isFinite(v) ? v : 0;
+                                    };
+                                    const sim = simularLiquidacaoCumprimento({
+                                      valorPrincipal: parseBR(liq.principal),
+                                      fatorCorrecao: parseBR(liq.fator) || 1,
+                                      jurosAaPercent: parseBR(liq.jurosAa),
+                                      abatimentos: parseBR(liq.abatimentos),
+                                      custas: parseBR(liq.custas),
+                                      honorariosConhecimentoPct: parseBR(liq.honPct) || null,
+                                      aplicarArt523: !!liq.art523,
+                                      dataBase: c.data_transito_julgado || null,
+                                    });
+                                    return (
+                                      <div className="space-y-2">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                          {[
+                                            ["principal", "Principal R$", liq.principal],
+                                            ["fator", "Fator correção", liq.fator],
+                                            ["jurosAa", "Juros % a.a.", liq.jurosAa],
+                                            ["abatimentos", "Abatimentos", liq.abatimentos],
+                                            ["custas", "Custas", liq.custas],
+                                            ["honPct", "Hon. art.85 %", liq.honPct],
+                                          ].map(([k, lab, val]) => (
+                                            <label key={k} className="text-[10px] space-y-0.5">
+                                              <span className="text-muted-foreground font-semibold">{lab}</span>
+                                              <Input
+                                                className="h-8 text-[11px]"
+                                                value={String(val)}
+                                                onChange={(e) => setLiq({ [k]: e.target.value } as any)}
+                                              />
+                                            </label>
+                                          ))}
+                                        </div>
+                                        <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={!!liq.art523}
+                                            onChange={(e) => setLiq({ art523: e.target.checked })}
+                                          />
+                                          Aplicar art. 523 §1º (multa 10% + hon. 10%)
+                                        </label>
+                                        {sim.erros.length > 0 && (
+                                          <p className="text-[10px] text-red-700 font-semibold">{sim.erros[0]}</p>
+                                        )}
+                                        {sim.ok && (
+                                          <div className="rounded border border-border/60 bg-card px-2 py-1.5 space-y-0.5">
+                                            {sim.linhas.map((ln, i) => (
+                                              <div key={i} className="flex justify-between text-[10px] tabular-nums">
+                                                <span className={ln.label === "TOTAL SIMULADO" ? "font-black" : ""}>{ln.label}</span>
+                                                <span className={ln.label === "TOTAL SIMULADO" ? "font-black text-violet-800" : ""}>
+                                                  {formatBRL(ln.valor)}
+                                                </span>
+                                              </div>
+                                            ))}
+                                            <p className="text-[9px] text-amber-800 font-semibold pt-1">
+                                              Uso interno · hard block ao cliente permanece até checklist + teor + revisão.
+                                            </p>
+                                          </div>
+                                        )}
+                                        {sim.avisos[0] && (
+                                          <p className="text-[9px] text-muted-foreground">{sim.avisos[0]}</p>
+                                        )}
+                                        <div className="flex flex-wrap gap-1.5">
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-[10px] h-8"
+                                            onClick={() => {
+                                              const h = buildHandoffLegalcloud({
+                                                protocolo: proto,
+                                                cliente: String(c.cliente || ""),
+                                                valorPrincipal: parseBR(liq.principal) || null,
+                                                dataBase: c.data_transito_julgado || null,
+                                                honorariosPct: parseBR(liq.honPct) || null,
+                                                aplicarArt523: !!liq.art523,
+                                                observacoes: sim.ok ? `Total simulado Lexis: ${formatBRL(sim.total)}` : undefined,
+                                              });
+                                              void navigator.clipboard.writeText(handoffToClipboardText(h));
+                                              toast({ title: "Handoff copiado", description: "Cole no Legalcloud ou no briefing da equipe." });
+                                            }}
+                                          >
+                                            Copiar handoff Legalcloud
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            className="text-[10px] h-8"
+                                            onClick={() => window.open(urlCalculadoraLegalcloud(), "_blank", "noopener,noreferrer")}
+                                          >
+                                            Abrir calculadora Legalcloud
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               )}
                             </div>
