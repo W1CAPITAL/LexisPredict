@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Aviso periódico (não bloqueia): banco de dados desativado a partir de 07/09/2026 21:00 BRT.
+ * Aviso periódico (não bloqueia): banco de dados desativado a partir de 17/09/2026 21:00 BRT.
  * Fecha e reaparece depois de algumas horas — não trava o operador.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
-const DEADLINE = new Date("2026-09-07T21:00:00-03:00");
+const DEADLINE = new Date("2026-09-17T21:00:00-03:00");
 const LS_DISMISS_UNTIL = "lexis_db_sunset_dismiss_until_v2";
 /** Quanto tempo o aviso fica oculto após fechar (ms) — 4 horas */
 const DISMISS_MS = 4 * 60 * 60 * 1000;
@@ -65,14 +65,14 @@ export function DbSunsetBanner() {
           {expired ? (
             <>
               <strong className="font-black uppercase tracking-wide">Banco de dados desativado.</strong>{" "}
-              Desde <strong>07/09/2026 às 21:00</strong> (Brasília) os serviços de base não estão disponíveis.
+              Desde <strong>17/09/2026 às 21:00</strong> (Brasília) os serviços de base não estão disponíveis.
               O aplicativo não opera mais com a base atual.
             </>
           ) : (
             <>
               <strong className="font-black uppercase tracking-wide">Aviso.</strong> Os serviços do{" "}
               <strong>banco de dados</strong> serão desativados em{" "}
-              <strong>07/09/2026 – 21:00:00</strong> (Brasília). Após esse horário não será possível utilizar o
+              <strong>17/09/2026 – 21:00:00</strong> (Brasília). Após esse horário não será possível utilizar o
               aplicativo com a base atual. Restam cerca de <strong>{restante}</strong>.
             </>
           )}
