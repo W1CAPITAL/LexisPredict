@@ -25,10 +25,13 @@ export async function POST(request: Request) {
   const empresa_id = searchParams.get('empresa_id');
   let mode = (searchParams.get('mode') as 'datajud' | 'djen' | 'both') || 'both';
   if (!['datajud', 'djen', 'both'].includes(mode)) mode = 'both';
+  let scope = (searchParams.get('scope') as 'full' | 'cumprimento') || 'full';
+  if (!['full', 'cumprimento'].includes(scope)) scope = 'full';
 
   try {
     const body = await request.clone().json().catch(() => ({}));
     if (body?.mode && ['datajud', 'djen', 'both'].includes(body.mode)) mode = body.mode;
+    if (body?.scope && ['full', 'cumprimento'].includes(body.scope)) scope = body.scope;
   } catch {
     /* ignore */
   }
@@ -44,10 +47,10 @@ export async function POST(request: Request) {
   }
 
   const start = Date.now();
-  console.log(`[Omni Worker] Empresa ${empresa_id} mode=${mode} sequential`);
+  console.log(`[Omni Worker] Empresa ${empresa_id} mode=${mode} scope=${scope} sequential`);
 
   try {
-    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE, empresa_id);
+    const casesToAudit = await getGlobalPendingProcessesSystem(BATCH_SIZE, empresa_id, { scope });
     if (casesToAudit.length === 0) {
       return NextResponse.json({ success: true, processed: 0, message: 'Fila limpa.' });
     }
@@ -75,6 +78,7 @@ export async function POST(request: Request) {
       successCount,
       failedCount,
       mode,
+      scope,
       sequential: true,
       duration: `${Date.now() - start}ms`,
     });

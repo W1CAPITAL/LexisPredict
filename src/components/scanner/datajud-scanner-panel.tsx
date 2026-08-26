@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { useDataJudScanStore, ScanLog } from '@/store/use-datajud-scan-store';
+import type { ScanScope } from '@/lib/scan-scope-cumprimento';
 import { 
   Zap, 
   X, 
@@ -48,6 +49,7 @@ export function DataJudScannerPanel() {
     isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
     startManualScan, resumeManualScan, pauseManualScan, resetScan,
     scanMode, setScanMode,
+    scanScope, setScanScope,
     claudeAiEnabled, setClaudeAiEnabled
   } = useDataJudScanStore();
   const { isSuperAdmin, canScan: canScanRole } = useAdmin();
@@ -159,6 +161,39 @@ export function DataJudScannerPanel() {
              </RadioGroup>
           </section>
 
+          <section className="px-5 py-4 bg-amber-50/80 border-y-2 border-amber-600/20 space-y-3">
+             <p className="text-[9px] font-black uppercase tracking-widest text-amber-900">Escopo da fila</p>
+             <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setScanScope('full')}
+                  disabled={manualStatus === 'running' || status === 'running'}
+                  className={cn(
+                    "h-11 rounded-xl border-2 text-[10px] font-black uppercase transition-colors",
+                    scanScope === 'full' ? "border-black bg-black text-white" : "border-black/15 bg-white text-black hover:bg-muted"
+                  )}
+                >
+                  Carteira full
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanScope('cumprimento')}
+                  disabled={manualStatus === 'running' || status === 'running'}
+                  className={cn(
+                    "h-11 rounded-xl border-2 text-[10px] font-black uppercase transition-colors",
+                    scanScope === 'cumprimento' ? "border-amber-700 bg-amber-600 text-white" : "border-black/15 bg-white text-black hover:bg-muted"
+                  )}
+                >
+                  Só cumprimento
+                </button>
+             </div>
+             <p className="text-[9px] font-medium text-amber-950/70 leading-snug">
+               {scanScope === 'cumprimento'
+                 ? 'Somente candidatos a procedência, falta instaurar, fase executiva ou baixa no tribunal. Atualiza a aba Ações Procedentes.'
+                 : 'Carteira completa (ativos + encerrados para checagem de cumprimento).'}
+             </p>
+          </section>
+
           <section className="p-5 bg-violet-50 border-2 border-violet-600/30 space-y-3">
              <div className="flex items-center justify-between gap-3">
                 <div>
@@ -235,7 +270,7 @@ export function DataJudScannerPanel() {
           <section className="p-5 bg-white border-2 border-black space-y-6 shadow-[6px_6px_0px_rgba(0,0,0,0.05)]">
              <div className="flex items-center gap-2">
                 <Terminal className={cn("text-primary", manualStatus === 'running' && "animate-pulse")} size={16} />
-                <p className="text-[10px] font-black uppercase">Scanner Local ({scanMode.toUpperCase()})</p>
+                <p className="text-[10px] font-black uppercase">Scanner Local ({scanMode.toUpperCase()} · {scanScope === "cumprimento" ? "CUMPRIMENTO" : "FULL"})</p>
              </div>
 
              {manualStatus === 'idle' ? (
@@ -245,7 +280,7 @@ export function DataJudScannerPanel() {
                   </p>
                   <Button
                     onClick={() => {
-                      void startManualScan();
+                      void startManualScan({ scope: scanScope });
                     }}
                     disabled={false}
                     className="w-full h-11 bg-white text-black font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all"

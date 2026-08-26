@@ -7,6 +7,7 @@ import { scanSingleCaseAction } from '@/app/actions/case-actions';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { prioritizeScanQueue } from '@/lib/case-filters';
+import { filterQueueByScanScope, type ScanScope } from '@/lib/scan-scope-cumprimento';
 import { readScanProgress, writeScanProgress, clearScanProgress, readCarteiraCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { isScanFresh, scanDelayMs, sleepMs } from '@/lib/parados-scan-queue';
@@ -14,6 +15,7 @@ import { mensagemScanHttp } from '@/lib/scan-http-pt';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
+export type { ScanScope } from '@/lib/scan-scope-cumprimento';
 
 interface CourtHealth {
   id: string;
@@ -56,6 +58,9 @@ interface DataJudScanState {
 
   scanMode: ScanMode;
   setScanMode: (mode: ScanMode) => void;
+  /** full = carteira; cumprimento = só procedentes / falta instaurar / fase executiva */
+  scanScope: ScanScope;
+  setScanScope: (scope: ScanScope) => void;
   /** Claude via OmniRoute no scanner — só após o operador ativar */
   claudeAiEnabled: boolean;
   setClaudeAiEnabled: (on: boolean) => void;
@@ -65,7 +70,7 @@ interface DataJudScanState {
   toggleMinimize: () => void;
   startCloudScan: () => void;
   pauseCloudScan: () => void;
-  startManualScan: (opts?: { resume?: boolean }) => Promise<void>;
+  startManualScan: (opts?: { resume?: boolean; scope?: ScanScope }) => Promise<void>;
   resumeManualScan: () => Promise<void>;
   pauseManualScan: () => void;
   resetScan: () => void;
@@ -99,6 +104,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
   scanMode: 'both',
   setScanMode: (scanMode) => set({ scanMode }),
+  scanScope: 'full',
+  setScanScope: (scanScope) => set({ scanScope }),
   claudeAiEnabled: false,
   setClaudeAiEnabled: (claudeAiEnabled) => set({ claudeAiEnabled }),
   isMinimized: true,
@@ -183,8 +190,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
    * - djen = só diário
    * - both = DataJud + DJEN (mesmo núcleo auditCaseCoreSystem)
    */
-  startManualScan: async (opts?: { resume?: boolean }) => {
+  startManualScan: async (opts?: { resume?: boolean; scope?: ScanScope }) => {
     const mode = get().scanMode || 'both';
+    const scope: ScanScope = opts?.scope || get().scanScope || 'full';
+    if (opts?.scope) set({ scanScope: opts.scope });
     const resume = opts?.resume === true;
     const savedProg = readScanProgress();
     const startFrom = resume
@@ -223,6 +232,21 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     const allLocal = useAppStore.getState().cases || [];
     const nEnc = allLocal.filter((c) => isCasoEncerrado(c)).length;
     let cases = prioritizeScanQueue(allLocal);
+    const scoped = filterQueueByScanScope(cases, scope);
+    cases = scoped.queue;
+    if (scope === 'cumprimento') {
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message: cases.length
+          ? `Escopo CUMPRIMENTO: ${cases.length} candidato(s) · ${scoped.filteredOut} fora da fila (carteira completa disponível no escopo Full)`
+          : 'Escopo CUMPRIMENTO: nenhum candidato ainda — rode Full uma vez ou use “Reclassificar” na aba Ações Procedentes',
+        latency: 0,
+        success: true,
+        type: 'ok',
+        engine: 'Local',
+        source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
+      });
+    }
     if (nEnc > 0) {
       get().addLog({
         protocolo: 'SISTEMA',
@@ -246,6 +270,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           writeCarteiraCache(remote);
           const nEncR = remote.filter((c: any) => isCasoEncerrado(c)).length;
           cases = prioritizeScanQueue(remote);
+          const scopedR = filterQueueByScanScope(cases, scope);
+          cases = scopedR.queue;
+          if (scope === 'cumprimento') {
+            get().addLog({
+              protocolo: 'SISTEMA',
+              message: `Escopo CUMPRIMENTO (remoto): ${cases.length} candidato(s)`,
+              latency: 0,
+              success: true,
+              type: 'ok',
+              engine: 'Local',
+            });
+          }
           if (nEncR > 0) {
             get().addLog({
               protocolo: 'SISTEMA',
@@ -491,7 +527,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
   resumeManualScan: async () => {
     if (get().manualStatus === 'running') return;
-    await get().startManualScan({ resume: true });
+    await get().startManualScan({ resume: true, scope: get().scanScope });
   },
 
   pauseManualScan: () => set({ manualStatus: 'paused' }),
@@ -532,10 +568,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       set((s) => ({ cycles: s.cycles + 1 }));
 
       // Fire-and-forget: worker mode=both
+      const mode = get().scanMode || 'both';
+      const scope = get().scanScope || 'full';
       fetch('/api/datajud-trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'both' }),
+        body: JSON.stringify({ mode, scope }),
       }).catch(() => {});
 
       const res = await fetch('/api/datajud-status');

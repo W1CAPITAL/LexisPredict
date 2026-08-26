@@ -40,6 +40,7 @@ import { scanInstaurarComParadosBatchAction } from "@/app/actions/scan-instaurar
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { computeKpiExecutivo } from "@/lib/kpi-executivo";
+import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
 type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios";
 
@@ -107,6 +108,18 @@ function statusExecutivo(c: LegalCase): string {
 
 export default function CumprimentosProcedentesPage() {
   const { toast } = useToast();
+  const {
+    startManualScan,
+    setScanScope,
+    setScanMode,
+    scanScope,
+    manualStatus,
+    manualDone,
+    manualTotal,
+    lastLogs,
+    isMinimized,
+    toggleMinimize,
+  } = useDataJudScanStore();
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -284,6 +297,18 @@ const filtered = useMemo(() => {
     }).length;
     return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios };
   }, [cases]);
+
+
+  const handleScanCumprimento = async () => {
+    setScanMode("both");
+    setScanScope("cumprimento");
+    if (isMinimized) toggleMinimize();
+    toast({
+      title: "Scanner · só cumprimento",
+      description: "DataJud + DJEN nos candidatos a proceder / instaurar. A lista atualiza ao terminar.",
+    });
+    await startManualScan({ scope: "cumprimento" });
+  };
 
   const handleEnriquecer = async (protocolo: string) => {
     setEnriquecendo(protocolo);
@@ -566,6 +591,24 @@ const filtered = useMemo(() => {
           </div>
         </header>
 
+        {manualStatus === "running" && (
+          <div className="mx-4 sm:mx-6 mt-3 rounded-xl border-2 border-amber-600/40 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Loader2 className="animate-spin text-amber-700 shrink-0" size={16} />
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase text-amber-950 tracking-wide">
+                  Scanner cumprimento · DataJud ∪ DJEN
+                </p>
+                <p className="text-[10px] text-amber-900/70 truncate">
+                  {manualDone}/{manualTotal || "…"} · escopo {scanScope} · a lista atualiza ao finalizar
+                </p>
+              </div>
+            </div>
+            <Badge className="bg-amber-600 text-white text-[9px] font-black uppercase">Ao vivo</Badge>
+          </div>
+        )}
+
+
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12">
           {/* Filtros laterais */}
           <aside className="lg:col-span-3 border-r border-border/50 flex flex-col min-h-0 bg-card/40">
@@ -621,7 +664,7 @@ const filtered = useMemo(() => {
             ) : filtered.length === 0 ? (
               <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-6 text-center">
                 {cases.length === 0
-                  ? "Nenhum caso com procedência ou cumprimento detectado. Execute um scan em Tarefas/Processos para enriquecer os dados."
+                  ? "Nenhum caso com procedência ou cumprimento detectado. Use “Varrer só cumprimento” (DataJud+DJEN) ou o scanner em escopo Cumprimento. Depois Reclassificar se precisar."
                   : "Nenhum caso para este filtro."}
               </div>
             ) : (

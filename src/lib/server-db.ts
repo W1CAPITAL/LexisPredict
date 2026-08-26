@@ -402,7 +402,13 @@ function mapProcessoRow(item: any): LegalCase {
   });
 }
 
-export async function getGlobalPendingProcessesSystem(limit: number, empresaId: string): Promise<LegalCase[]> {
+export async function getGlobalPendingProcessesSystem(
+  limit: number,
+  empresaId: string,
+  opts?: { scope?: 'full' | 'cumprimento' }
+): Promise<LegalCase[]> {
+  const scope = opts?.scope === 'cumprimento' ? 'cumprimento' : 'full';
+
   const admin = await getSupabaseAdmin();
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
   const statusFilter = `(${statusExcluidos.map(s => `"${s}"`).join(',')})`;
@@ -466,6 +472,13 @@ export async function getGlobalPendingProcessesSystem(limit: number, empresaId: 
       if (ids.has(String(item.id))) continue;
       out.push(mapProcessoRow(item));
     }
+  }
+
+  if (scope === 'cumprimento') {
+    const { isCandidatoCumprimentoScan } = await import('@/lib/scan-scope-cumprimento');
+    const filtered = out.filter((c) => isCandidatoCumprimentoScan(c));
+    // Primeira rodada sem flags: mantém lote bruto para descobrir procedentes
+    return filtered.length > 0 ? filtered : out;
   }
 
   return out;
