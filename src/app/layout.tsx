@@ -7,6 +7,7 @@ import './lex-animations.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';
+import { DbSunsetBanner } from '@/components/layout/db-sunset-banner';
 import { SessionGuard } from '@/components/auth/session-guard';
 import { PlanLockGate } from '@/components/planos/plan-lock-gate';
 import Script from 'next/script';
@@ -221,6 +222,7 @@ export default function RootLayout({
             <ClientChrome />
             <LexisErrorBoundary>
               <>
+              <DbSunsetBanner />
               <ViewerModeBanner />
               <SessionGuard><PlanLockGate><MotionRoot>{children}</MotionRoot></PlanLockGate></SessionGuard>
             </>
