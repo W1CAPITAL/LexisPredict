@@ -76,6 +76,9 @@ import {
   temConflitoFlags,
 } from "@/lib/cumprimento-page-helpers";
 import { computeKpiConversao } from "@/lib/kpi-conversao-cumprimento";
+import { montarTimelineArt523, sinaisArt523DoCaso } from "@/lib/timeline-art523";
+import { estimarFaixaHonorariosInterna, formatFaixaBRL } from "@/lib/faixa-estimativa-interna";
+import { buildExportProntoParceiroCsv } from "@/app/actions/export-pronto-parceiro-action";
 import { saveChecklistCumprimentoAction } from "@/app/actions/checklist-cumprimento-actions";
 
 type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "hon_receber" | "parceiro" | "conflito" | "especial";
@@ -437,6 +440,26 @@ export default function CumprimentosProcedentesPage() {
     return cols;
   }, [filtered, limiar]);
 
+
+  const handleExportProntoParceiro = async () => {
+    try {
+      const r = await buildExportProntoParceiroCsv(cases, limiar);
+      if (!r.success) {
+        toast({ title: "Export falhou", description: r.error, variant: "destructive" });
+        return;
+      }
+      const blob = new Blob([r.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lexis-pronto-parceiro-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Export pronto parceiro", description: `${r.count} linhas (estágio + confiança)` });
+    } catch (e: any) {
+      toast({ title: "Export falhou", description: e?.message || "erro", variant: "destructive" });
+    }
+  };
 
   const copyProtocolo = async (proto: string) => {
     try {
@@ -1030,10 +1053,22 @@ export default function CumprimentosProcedentesPage() {
 
           {/* Lista principal · Lote 9 lista | kanban */}
           <section className="lg:col-span-9 flex flex-col min-h-0">
-            <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1 shrink-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                {filtered.length} na fila · vista
-              </p>
+            <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1 shrink-0 flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground truncate">
+                  {filtered.length} na fila · vista
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[9px] font-black uppercase shrink-0"
+                  onClick={() => void handleExportProntoParceiro()}
+                  title="CSV da fila especial: estágio, confiança, checklist (pipeline comercial)"
+                >
+                  <Download size={12} className="mr-1" /> Export parceiro
+                </Button>
+              </div>
               <div className="flex rounded-lg border border-border/60 overflow-hidden">
                 <button
                   type="button"
@@ -1586,6 +1621,68 @@ export default function CumprimentosProcedentesPage() {
                                       <span>{CHECKLIST_LABELS[key]}</span>
                                     </label>
                                   ))}
+                                </div>
+                              )}
+
+                              {open && (
+                                <div className="rounded-lg border border-blue-600/30 bg-blue-500/5 px-2.5 py-2 space-y-1.5">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-900 dark:text-blue-200">
+                                    Timeline art. 523 · fase (estilo calculadoras/CRM)
+                                  </p>
+                                  {(() => {
+                                    const sinais = sinaisArt523DoCaso(c);
+                                    sinais.temArt523NoTeor = sinais.temArt523NoTeor || !!credito.art523;
+                                    const etapas = montarTimelineArt523(sinais);
+                                    const baseVal =
+                                      credito.valoresDetectados?.[0] != null
+                                        ? credito.valoresDetectados[0]
+                                        : null;
+                                    const faixa = estimarFaixaHonorariosInterna({
+                                      baseValor: baseVal,
+                                      pctHonorarios: credito.honorariosPercentual ?? null,
+                                      aplicarArt523Referencia: !!credito.art523,
+                                    });
+                                    return (
+                                      <>
+                                        <ol className="space-y-1">
+                                          {etapas.map((e) => (
+                                            <li key={e.id} className="flex items-start gap-2 text-[10px]">
+                                              <span
+                                                className={
+                                                  e.status === "ok"
+                                                    ? "text-emerald-700 font-black"
+                                                    : e.status === "ativo"
+                                                      ? "text-amber-700 font-black"
+                                                      : e.status === "bloqueado"
+                                                        ? "text-red-700 font-black"
+                                                        : "text-muted-foreground font-bold"
+                                                }
+                                              >
+                                                {e.status === "ok" ? "●" : e.status === "ativo" ? "◉" : "○"}
+                                              </span>
+                                              <span className="min-w-0">
+                                                <span className="font-semibold">{e.label}</span>
+                                                {e.detalhe && (
+                                                  <span className="text-muted-foreground"> — {e.detalhe}</span>
+                                                )}
+                                              </span>
+                                            </li>
+                                          ))}
+                                        </ol>
+                                        <div className="rounded border border-border/50 bg-card px-2 py-1.5 mt-1">
+                                          <p className="text-[9px] font-black uppercase text-muted-foreground">
+                                            Faixa hon. interna (nunca no WhatsApp)
+                                          </p>
+                                          <p className="text-[11px] font-semibold tabular-nums">
+                                            {faixa.disponivel ? formatFaixaBRL(faixa) : faixa.motivo || "—"}
+                                          </p>
+                                          {faixa.disponivel && (
+                                            <p className="text-[9px] text-muted-foreground">{faixa.label}</p>
+                                          )}
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               )}
 
