@@ -94,5 +94,6 @@
   },
   "engines": {
     "node": "24.x"
-  }
+  },
+  "description": "LexisPredict — Suite operacional de carteira jurídica. Processos, prazos, atendimento, DataJud/DJEN e filas de ação. Não é CRM de vendas genérico."
 }

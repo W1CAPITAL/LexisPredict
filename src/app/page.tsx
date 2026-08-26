@@ -21,6 +21,7 @@ import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card'
 import { BiCompliancePanel } from '@/components/dashboard/bi-compliance-panel';
+import { SuiteIdentityStrip } from '@/components/dashboard/suite-identity-strip';
 
 const EfferdPanel = memo(EfferdPanelRaw);
 const OfficeStats = dynamic(() => import('@/components/dashboard/office-stats').then((m) => m.OfficeStats), {
@@ -298,7 +299,11 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
+        
+        <div className="px-4 sm:px-6 pt-4 shrink-0">
+          <SuiteIdentityStrip />
+        </div>
+<Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
           <div className="px-4 sm:px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
              <ScrollArea className="w-full">
                 <TabsList className="bg-transparent h-10 border-none gap-6 sm:gap-8 w-max">

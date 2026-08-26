@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils"
 import { flattenNavItems, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
+import { PRODUCT } from "@/lib/product-identity";
 import { Button } from "@/components/ui/button";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -173,12 +174,12 @@ function SidebarNavBody({
 
   const navItems: NavItem[] = useMemo(() => {
     const primary: NavItem[] = [
-      { label: "Painel", href: "/", icon: LayoutDashboard },
+      { label: "Painel da carteira", href: "/", icon: LayoutDashboard },
       { label: "Encerrados a revisar", href: "/encerrados-revisao", icon: ShieldAlert },
-      { label: "Fila de contato", href: "/tarefas", icon: ListTodo },
+      { label: "Fila de atendimento", href: "/tarefas", icon: ListTodo },
       { label: "Processos parados", href: "/processos-parados", icon: PauseCircle },
       { label: "Meus processos", href: "/cases", icon: Briefcase },
-      { label: "Visão da empresa", href: "/processos", icon: FolderOpen },
+      { label: "Processos da empresa", href: "/processos", icon: FolderOpen },
       { label: "Importar", href: "/import", icon: Upload },
       { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList },
     ];
@@ -190,8 +191,8 @@ function SidebarNavBody({
       { label: "Radar predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
-      { label: "CRM Assessoria", href: "/crm", icon: Kanban },
-      { label: "Follow-ups CRM", href: "/crm/followups", icon: ListTodo },
+      { label: "Assessoria (comercial)", href: "/crm", icon: Kanban },
+      { label: "Follow-ups comerciais", href: "/crm/followups", icon: ListTodo },
       { label: "Finanças", href: "/financas", icon: Wallet },
       { label: "Cálculos judiciais", href: "/calculos", icon: Calculator },
       // Peças/modelos (procuração, substabelecimento, habilitação, revogação, modelos)
@@ -201,7 +202,7 @@ function SidebarNavBody({
       { label: "Assistente", href: "/chat", icon: Bot },
       { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
       { label: "Indicadores", href: "/analytics", icon: BarChart3 },
-      { label: "IA Preditiva", href: "/insights", icon: BrainCircuit },
+      { label: "Insights da carteira", href: "/insights", icon: BrainCircuit },
       { label: "Urgências", href: "/urgency", icon: ShieldAlert },
     ];
 
@@ -252,7 +253,7 @@ function SidebarNavBody({
                 LexisPredict
               </span>
               <span className="text-[10px] text-primary font-semibold mt-1">
-                Gabinete operacional
+                {PRODUCT.tagline}
               </span>
             </div>
           )}
