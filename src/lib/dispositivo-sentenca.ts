@@ -1,3 +1,4 @@
+import { analisarHonorariosAReceber } from '@/lib/honorarios-receber';
 /**
  * Extrai "O que o juiz determinou" a partir do blob DataJud/DJEN (heurístico).
  * LLM opcional fica fora deste lote — só texto já indexado.
@@ -45,11 +46,21 @@ export function extrairDispositivoBullets(blob: string | null | undefined): Disp
   const temQuantia = QUANTIA.test(text);
   if (temQuantia) bullets.push('Há indício de condenação em quantia / restituição / indenização.');
 
-  const temHonorariosReu = HON_REU.test(text) && !RECIPROCA.test(text);
-  if (temHonorariosReu) bullets.push('Honorários com sinal a cargo do réu (possível sucumbência cobrável).');
+  const hon = analisarHonorariosAReceber(text);
+  const temHonorariosReu = hon.temHonorariosAReceber && hon.nivel !== 'bloqueado';
+  if (temHonorariosReu) {
+    bullets.push(
+      hon.nivel === 'forte'
+        ? 'Honorários a receber (sinal forte — sucumbência do réu).'
+        : hon.nivel === 'medio'
+          ? 'Honorários a receber (sinal médio — validar dispositivo).'
+          : 'Possível fixação de honorários — confirmar no teor.'
+    );
+    if (hon.percentual != null) bullets.push(`Percentual de honorários ~${hon.percentual}%.`);
+  }
 
-  const sucumbenciaReciproca = RECIPROCA.test(text);
-  if (sucumbenciaReciproca) bullets.push('Atenção: sucumbência recíproca ou a cargo do autor — revisar antes de cobrar.');
+  const sucumbenciaReciproca = RECIPROCA.test(text) || hon.nivel === 'bloqueado';
+  if (sucumbenciaReciproca) bullets.push('Atenção: sucumbência recíproca ou a cargo do autor — honorários não cobráveis automaticamente.');
 
   const encontroContas = ENCONTRO.test(text);
   if (encontroContas) {

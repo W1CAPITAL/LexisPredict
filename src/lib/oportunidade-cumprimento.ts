@@ -270,13 +270,19 @@ export function scoreOportunidadeCumprimentoHonorarios(
   score = Math.max(0, Math.min(100, score));
 
   // Lote6: extrato de crédito no blob ANTES da elegibilidade final
-  const extrato = extrairCreditoSentenca(blob);
+  const extrato = extrairCreditoSentenca(blob, {
+    isProcedente: input.is_procedente,
+    meritoTipo: input.merito_tipo,
+  });
   const temQuantiaEff = temQuantia || extrato.quantiaCliente;
   const temSucumbenciaEff =
-    temSucumbenciaCredito || (extrato.sucumbenciaReu && !extrato.sucumbenciaReciproca);
+    temSucumbenciaCredito ||
+    (extrato.honorariosAReceber && extrato.honorariosNivel !== 'bloqueado') ||
+    (extrato.sucumbenciaReu && !extrato.sucumbenciaReciproca);
   if (temQuantiaEff && temSucumbenciaEff) tipo = 'ambos';
   else if (temSucumbenciaEff && (tipo === 'incerto' || tipo === 'cliente'))
     tipo = tipo === 'cliente' ? 'ambos' : 'sucumbencia';
+  else if (extrato.honorariosAReceber && !temQuantiaEff) tipo = 'sucumbencia';
   else if (temQuantiaEff && tipo === 'incerto') tipo = 'cliente';
 
   const boost = boostOportunidadeComExtrato(score, extrato);

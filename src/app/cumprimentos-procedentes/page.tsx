@@ -43,6 +43,7 @@ import {
 } from "@/app/actions/case-actions";
 import { exportDemonstrativoCumprimentoAction } from "@/app/actions/export-cumprimento-demonstrativo";
 import { extrairCreditoSentenca } from "@/lib/credito-sentenca-extract";
+import { analisarHonorariosAReceber } from "@/lib/honorarios-receber";
 import { scriptWhatsAppAposTeor } from "@/lib/script-cumprimento-whatsapp";
 import { scanInstaurarComParadosBatchAction } from "@/app/actions/scan-instaurar-parados-action";
 import { type LegalCase } from "@/lib/case-logic";
@@ -56,7 +57,7 @@ import type { CamposContratoFinanciamento } from "@/lib/contrato-financiamento-e
 import { reconciliarFlagsCumprimento } from "@/lib/reconciliar-cumprimento-flags";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
-type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "parceiro" | "conflito";
+type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "hon_receber" | "parceiro" | "conflito";
 
 function casePhone(c?: LegalCase | null): string {
   if (!c) return "";
@@ -319,6 +320,21 @@ const filtered = useMemo(() => {
         return sb - sa;
       });
     
+    } else if (filtro === "hon_receber") {
+      base = base.filter((c) => {
+        const blob = blobDoCaso(c);
+        const h = analisarHonorariosAReceber(blob, {
+          isProcedente: !!c.is_procedente,
+          meritoTipo: (c as any).merito_tipo || (c as any).dados?.merito_tipo,
+        });
+        return h.temHonorariosAReceber && h.nivel !== "bloqueado";
+      });
+      base.sort((a, b) => {
+        const ha = analisarHonorariosAReceber(blobDoCaso(a), { isProcedente: !!a.is_procedente });
+        const hb = analisarHonorariosAReceber(blobDoCaso(b), { isProcedente: !!b.is_procedente });
+        const rank = (n: string) => (n === "forte" ? 0 : n === "medio" ? 1 : 2);
+        return rank(ha.nivel) - rank(hb.nivel) || hb.confianca - ha.confianca;
+      });
     } else if (filtro === "parceiro") {
       // Empresa por fora: elegível + score ≥ limiar + sucumbência ou ambos (não cliente puro)
       base = base.filter((c) => {
@@ -382,6 +398,10 @@ const filtered = useMemo(() => {
       return elegivel && score >= limiar;
     }).length;
     const conflitos = cases.filter((c) => temConflitoFlags(c)).length;
+    const honReceber = cases.filter((c) => {
+      const h = analisarHonorariosAReceber(blobDoCaso(c), { isProcedente: !!c.is_procedente });
+      return h.temHonorariosAReceber && h.nivel !== "bloqueado";
+    }).length;
     const parceiro = cases.filter((c) => {
       const op = oportunidadeOf(c);
       if (!op?.elegivel || op.score < limiar) return false;
@@ -389,7 +409,7 @@ const filtered = useMemo(() => {
       const tipo = String(op.tipo || "").toLowerCase();
       return tipo === "sucumbencia" || tipo === "ambos";
     }).length;
-    return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios, conflitos, parceiro };
+    return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios, conflitos, parceiro, honReceber };
   }, [cases, limiar]);
 
 
@@ -911,7 +931,8 @@ const filtered = useMemo(() => {
                 {[
                   { key: "todos" as FiltroAtivo, label: "Ação (sem ativos)", icon: Scale, count: Math.max(0, stats.total - stats.ativos - stats.encerrados), color: "" },
                   { key: "parceiro" as FiltroAtivo, label: "Empresa por fora", icon: Scale, count: stats.parceiro || 0, color: "text-violet-700" },
-                  { key: "honorarios" as FiltroAtivo, label: `Honorários ≥${limiar}`, icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
+                  { key: "hon_receber" as FiltroAtivo, label: "Honorários a receber", icon: Scale, count: stats.honReceber || 0, color: "text-emerald-700" },
+                  { key: "honorarios" as FiltroAtivo, label: `Score ≥${limiar}`, icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
                   { key: "conflito" as FiltroAtivo, label: "Flags em conflito", icon: ShieldAlert, count: stats.conflitos || 0, color: "text-red-700" },
                   { key: "pendente" as FiltroAtivo, label: "Falta instaurar", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
                   { key: "ativo" as FiltroAtivo, label: "Cumprimento ativo", icon: Clock, count: stats.ativos, color: "text-amber-600" },
@@ -1175,6 +1196,21 @@ const filtered = useMemo(() => {
                                   )}
                                   {disp.temHonorariosReu && (
                                     <Badge className="bg-violet-700 text-[8px] font-black uppercase">Honorários réu</Badge>
+                                  )}
+                                  {credito.honorariosAReceber && (
+                                    <Badge className={
+                                      credito.honorariosNivel === "forte"
+                                        ? "bg-emerald-700 text-[8px] font-black uppercase"
+                                        : credito.honorariosNivel === "medio"
+                                          ? "bg-emerald-600/90 text-[8px] font-black uppercase"
+                                          : "bg-amber-600 text-[8px] font-black uppercase"
+                                    }>
+                                      Honorários a receber
+                                      {credito.honorariosNivel === "forte" ? " · forte" : credito.honorariosNivel === "medio" ? " · médio" : ""}
+                                    </Badge>
+                                  )}
+                                  {credito.honorariosNivel === "bloqueado" && (
+                                    <Badge className="bg-slate-600 text-[8px] font-black uppercase">Hon. bloqueados</Badge>
                                   )}
                                   {credito.art523 && (
                                     <Badge variant="outline" className="text-[8px] font-black uppercase border-blue-500/50 text-blue-800">Art. 523</Badge>

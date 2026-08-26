@@ -612,11 +612,18 @@ export async function auditCaseCoreSystem(
           patch.teor_blob_chars = blobLen;
           try {
             const blobCred = djenTextos2.join('\n') + ' ' + (movs2 || []).map((m: any) => String(m.nome || '')).join(' ');
-            const cred = extrairCreditoSentenca(blobCred);
+            const cred = extrairCreditoSentenca(blobCred, {
+              isProcedente: !!patch.is_procedente || !!target.is_procedente,
+            });
             patch.credito_sentenca = cred;
+            patch.honorarios_a_receber = !!cred.honorariosAReceber;
+            patch.honorarios_nivel = cred.honorariosNivel;
+            patch.honorarios_confianca = cred.honorariosConfianca;
             patch.detalhes_execucao = {
               ...(patch.detalhes_execucao || {}),
               credito_sentenca: cred,
+              honorarios_a_receber: !!cred.honorariosAReceber,
+              honorarios_nivel: cred.honorariosNivel,
             };
           } catch { /* */ }
           // se blob grande e ainda "pobre", não é falha de índice — é ausência de quantia/sucumbência

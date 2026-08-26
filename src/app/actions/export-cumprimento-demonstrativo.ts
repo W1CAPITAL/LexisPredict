@@ -52,6 +52,8 @@ export async function exportDemonstrativoCumprimentoAction(opts?: {
       'encontro_contas',
       'valores_no_teor',
       'honorarios_pct',
+      'honorarios_a_receber',
+      'honorarios_nivel',
       'ultimo_retorno',
       'telefone',
     ];
@@ -104,7 +106,7 @@ export async function exportDemonstrativoCumprimentoAction(opts?: {
       ]
         .filter(Boolean)
         .join('\n');
-      const extrato = extrairCreditoSentenca(blob);
+      const extrato = extrairCreditoSentenca(blob, { isProcedente: !!c.is_procedente });
 
       rows.push([
         c.protocolo || '',
@@ -124,6 +126,8 @@ export async function exportDemonstrativoCumprimentoAction(opts?: {
         extrato.encontroContas ? '1' : '0',
         extrato.valoresDetectados.join(' | '),
         extrato.honorariosPercentual ?? '',
+        extrato.honorariosAReceber ? '1' : '0',
+        extrato.honorariosNivel || '',
         (c as any).ultimoRetorno || '',
         (c as any).telefone || '',
       ]);
