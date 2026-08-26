@@ -7,6 +7,9 @@ import { emptyTermoCiencia, termoCienciaCompleto } from "@/lib/termo-ciencia-ris
 import type { DiagnosticoContrato } from "@/lib/diagnostico-contrato-etica";
 import type { ProtocoloExtrajudicial } from "@/lib/protocolo-extrajudicial";
 import { protocoloExtraDocumentado } from "@/lib/protocolo-extrajudicial";
+import type { TicketOuvidoria } from "@/lib/ouvidoria-interna";
+import type { NpsDiagnostico } from "@/lib/nps-pos-diagnostico";
+import type { RegistroSubstabelecimento } from "@/lib/substabelecimento-transparente";
 
 export async function saveEticaCasoAction(input: {
   protocolo: string;
@@ -14,6 +17,10 @@ export async function saveEticaCasoAction(input: {
   termo?: TermoCienciaState;
   diagnostico?: DiagnosticoContrato;
   protocoloExtra?: ProtocoloExtrajudicial;
+  ouvidoria?: TicketOuvidoria[];
+  nps?: NpsDiagnostico;
+  substabelecimento?: RegistroSubstabelecimento;
+  cartaDesistenciaTexto?: string | null;
   updatedBy?: string | null;
 }): Promise<{ success: true } | { success: false; error: string }> {
   const protocolo = String(input.protocolo || "").trim();
@@ -64,18 +71,21 @@ export async function saveEticaCasoAction(input: {
 
     let fluxo = input.fluxo ? normalizeEstadoFluxo(input.fluxo) : eticaPrev.fluxo;
     if (fluxo) {
+      const sub = input.substabelecimento || eticaPrev.substabelecimento;
       fluxo = {
         ...fluxo,
         termoCienciaRiscosAssinado:
           termoCienciaCompleto(termoFinal) || !!fluxo.termoCienciaRiscosAssinado,
         diagnosticoEntregue:
-          !!input.diagnostico?.parecer || !!fluxo.diagnosticoEntregue || !!eticaPrev.diagnostico?.parecer,
+          !!input.diagnostico?.parecer ||
+          !!fluxo.diagnosticoEntregue ||
+          !!eticaPrev.diagnostico?.parecer,
         extrajudicialDocumentado:
-          (input.protocoloExtra
-            ? protocoloExtraDocumentado(input.protocoloExtra)
-            : false) ||
+          (input.protocoloExtra ? protocoloExtraDocumentado(input.protocoloExtra) : false) ||
           !!fluxo.extrajudicialDocumentado ||
           protocoloExtraDocumentado(eticaPrev.protocolo_extrajudicial),
+        contratoHonorariosAdvogadoEntregue:
+          !!sub?.contratoHonorariosEntregue || !!fluxo.contratoHonorariosAdvogadoEntregue,
         updatedAt: new Date().toISOString(),
       };
     }
@@ -86,9 +96,12 @@ export async function saveEticaCasoAction(input: {
         ...eticaPrev,
         fluxo: fluxo || eticaPrev.fluxo,
         termo_ciencia: termoFinal,
-        diagnostico: input.diagnostico || eticaPrev.diagnostico || null,
-        protocolo_extrajudicial:
-          input.protocoloExtra || eticaPrev.protocolo_extrajudicial || null,
+        diagnostico: input.diagnostico ?? eticaPrev.diagnostico ?? null,
+        protocolo_extrajudicial: input.protocoloExtra ?? eticaPrev.protocolo_extrajudicial ?? null,
+        ouvidoria: input.ouvidoria ?? eticaPrev.ouvidoria ?? [],
+        nps: input.nps ?? eticaPrev.nps ?? null,
+        substabelecimento: input.substabelecimento ?? eticaPrev.substabelecimento ?? null,
+        carta_desistencia: input.cartaDesistenciaTexto ?? eticaPrev.carta_desistencia ?? null,
         updated_at: new Date().toISOString(),
         updated_by: input.updatedBy || null,
       },

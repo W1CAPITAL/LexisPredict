@@ -50,7 +50,15 @@ import {
   resumoProtocoloExtra,
   type ProtocoloExtrajudicial,
 } from "@/lib/protocolo-extrajudicial";
-import { copiarWhatsAppSeEtico } from "@/lib/whatsapp-etica-guard";
+import { criarTicketOuvidoria, responderTicket, ticketAtrasado, type TicketOuvidoria } from "@/lib/ouvidoria-interna";
+import { emptyNps, registrarNps, type NpsDiagnostico } from "@/lib/nps-pos-diagnostico";
+import { gerarCartaDesistencia } from "@/lib/carta-desistencia";
+import {
+  emptySubstabelecimento,
+  substabelecimentoValido,
+  textoResumoSubstabelecimento,
+  type RegistroSubstabelecimento,
+} from "@/lib/substabelecimento-transparente";
 
 export default function EticaOperacionalPage() {
   const { toast } = useToast();
@@ -68,6 +76,15 @@ export default function EticaOperacionalPage() {
   const [protoExtra, setProtoExtra] = useState<ProtocoloExtrajudicial>(emptyProtocoloExtra());
   const [houveMov, setHouveMov] = useState(false);
   const [resumoMov, setResumoMov] = useState("");
+  const [tickets, setTickets] = useState<TicketOuvidoria[]>([]);
+  const [ouvAssunto, setOuvAssunto] = useState("");
+  const [ouvDesc, setOuvDesc] = useState("");
+  const [npsNota, setNpsNota] = useState(8);
+  const [npsEntC, setNpsEntC] = useState(false);
+  const [npsEntR, setNpsEntR] = useState(false);
+  const [nps, setNps] = useState<NpsDiagnostico>(emptyNps());
+  const [sub, setSub] = useState<RegistroSubstabelecimento>(emptySubstabelecimento());
+  const [cartaTxt, setCartaTxt] = useState("");
 
   const auditoria = useMemo(() => auditarTextoEtica(rascunho), [rascunho]);
   const gates = useMemo(() => gatesParaJudicial(fluxo), [fluxo]);
@@ -114,6 +131,10 @@ export default function EticaOperacionalPage() {
         termo,
         diagnostico: diagnostico.parecer ? diagnostico : undefined,
         protocoloExtra: protoExtra,
+        ouvidoria: tickets,
+        nps: nps.coletadoEm ? nps : undefined,
+        substabelecimento: sub.advogado.nome ? sub : undefined,
+        cartaDesistenciaTexto: cartaTxt || undefined,
       });
       if (!r.success) {
         toast({ title: "Não gravou no Supabase", description: r.error, variant: "destructive" });
@@ -410,17 +431,154 @@ export default function EticaOperacionalPage() {
                         });
                         return;
                       }
-                      const ok = await copiarWhatsAppSeEtico(r.texto, (m) =>
-                        toast({ title: "Compliance", description: m, variant: "destructive" })
-                      );
-                      if (ok) toast({ title: "Relatório copiado", description: "Linguagem ética OK" });
+                      try {
+                        await navigator.clipboard.writeText(r.texto);
+                        toast({ title: "Relatório copiado", description: "Linguagem ética OK" });
+                      } catch {
+                        toast({ title: "Falha ao copiar", variant: "destructive" });
+                      }
                     }}
                   >
                     Gerar e copiar relatório (ético)
                   </Button>
                 </div>
 
-                <div className="rounded-xl border border-border/60 p-3 space-y-1">
+                
+                <div className="rounded-xl border border-rose-600/30 bg-rose-500/5 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase text-rose-900">Ouvidoria interna (5 dias úteis)</p>
+                  <Input className="h-8 text-[11px]" placeholder="Assunto" value={ouvAssunto} onChange={(e) => setOuvAssunto(e.target.value)} />
+                  <Input className="h-8 text-[11px]" placeholder="Descrição" value={ouvDesc} onChange={(e) => setOuvDesc(e.target.value)} />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-[10px]"
+                    onClick={() => {
+                      if (!ouvAssunto.trim()) {
+                        toast({ title: "Informe o assunto", variant: "destructive" });
+                        return;
+                      }
+                      const tk = criarTicketOuvidoria({ assunto: ouvAssunto, descricao: ouvDesc });
+                      setTickets((arr) => [tk, ...arr]);
+                      setOuvAssunto("");
+                      setOuvDesc("");
+                      toast({ title: "Ticket aberto", description: `Prazo ${new Date(tk.prazoRespostaEm).toLocaleDateString("pt-BR")}` });
+                    }}
+                  >
+                    Abrir ticket
+                  </Button>
+                  {tickets.slice(0, 5).map((tk) => (
+                    <div key={tk.id} className="text-[10px] border border-border/40 rounded-lg p-2 space-y-1">
+                      <p className="font-semibold">
+                        {tk.assunto}{" "}
+                        {ticketAtrasado(tk) ? (
+                          <span className="text-red-700">ATRASADO</span>
+                        ) : (
+                          <span className="text-muted-foreground">{tk.status}</span>
+                        )}
+                      </p>
+                      {tk.status !== "respondido" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[9px]"
+                          onClick={() => {
+                            const resp = window.prompt("Resposta da ouvidoria:");
+                            if (!resp) return;
+                            setTickets((arr) => arr.map((x) => (x.id === tk.id ? responderTicket(x, resp) : x)));
+                          }}
+                        >
+                          Responder
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-xl border border-indigo-600/30 bg-indigo-500/5 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase text-indigo-900">NPS pós-diagnóstico</p>
+                  <label className="text-[10px] block">Nota 0–10: {npsNota}
+                    <input type="range" min={0} max={10} value={npsNota} onChange={(e) => setNpsNota(Number(e.target.value))} className="w-full" />
+                  </label>
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input type="checkbox" checked={npsEntC} onChange={(e) => setNpsEntC(e.target.checked)} />
+                    Entendeu o contrato
+                  </label>
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input type="checkbox" checked={npsEntR} onChange={(e) => setNpsEntR(e.target.checked)} />
+                    Entendeu custos e riscos
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-[10px]"
+                    onClick={() => {
+                      const r = registrarNps({
+                        nota: npsNota,
+                        entendeuContrato: npsEntC,
+                        entendeuCustosRiscos: npsEntR,
+                      });
+                      setNps(r);
+                      toast({ title: "NPS registrado", description: `Nota ${r.nota}` });
+                    }}
+                  >
+                    Registrar NPS
+                  </Button>
+                  {nps.coletadoEm && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Último: nota {nps.nota} · contrato {nps.entendeuContrato ? "sim" : "não"} · riscos {nps.entendeuCustosRiscos ? "sim" : "não"}
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-600/30 bg-slate-500/5 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase">Substabelecimento / advogado</p>
+                  <Input className="h-8 text-[11px]" placeholder="Nome do advogado" value={sub.advogado.nome} onChange={(e) => setSub((s) => ({ ...s, advogado: { ...s.advogado, nome: e.target.value } }))} />
+                  <Input className="h-8 text-[11px]" placeholder="OAB (ex. OAB/SP 123456)" value={sub.advogado.oab} onChange={(e) => setSub((s) => ({ ...s, advogado: { ...s.advogado, oab: e.target.value } }))} />
+                  <Input className="h-8 text-[11px]" placeholder="Resumo honorários do advogado" value={sub.honorariosResumo} onChange={(e) => setSub((s) => ({ ...s, honorariosResumo: e.target.value }))} />
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input type="checkbox" checked={sub.contratoHonorariosEntregue} onChange={(e) => setSub((s) => ({ ...s, contratoHonorariosEntregue: e.target.checked }))} />
+                    Contrato de honorários entregue ao cliente
+                  </label>
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input type="checkbox" checked={sub.comReserva} onChange={(e) => setSub((s) => ({ ...s, comReserva: e.target.checked }))} />
+                    Com reserva de poderes
+                  </label>
+                  <p className="text-[10px] text-muted-foreground">{textoResumoSubstabelecimento(sub)}</p>
+                  {substabelecimentoValido(sub) && (
+                    <Button type="button" size="sm" variant="outline" className="w-full text-[10px]" onClick={() => setFluxo((f) => ({ ...f, contratoHonorariosAdvogadoEntregue: true }))}>
+                      Validar gate honorários advogado
+                    </Button>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border/60 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground">Carta de desistência</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-[10px]"
+                    onClick={() => {
+                      const txt = gerarCartaDesistencia({
+                        nomeCliente: nomeCliente || "cliente",
+                        protocolo: protocolo || null,
+                        empresa,
+                      });
+                      setCartaTxt(txt);
+                      toast({ title: "Carta gerada", description: "Revise e entregue ao cliente" });
+                    }}
+                  >
+                    Gerar carta
+                  </Button>
+                  {cartaTxt && (
+                    <textarea className="w-full min-h-[120px] text-[10px] rounded-lg border border-border/50 p-2 font-mono" value={cartaTxt} onChange={(e) => setCartaTxt(e.target.value)} />
+                  )}
+                </div>
+
+<div className="rounded-xl border border-border/60 p-3 space-y-1">
                   <p className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1">
                     <Ban size={12} /> Docs que NUNCA cobramos
                   </p>
