@@ -461,7 +461,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       try {
         res = await scanSingleCaseAction(c.protocolo, {
           mode,
-          fast: true,
+          // Lote5: cumprimento precisa de teor completo (DJEN) — não fast
+          fast: scope === 'cumprimento' ? false : true,
           useClaudeAi: useClaude,
         });
       } catch (err: any) {
@@ -513,12 +514,20 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const baseMsg =
         (patch.evento_resumo as string) ||
         (res.success ? 'Monitoramento Regular' : (res as any).error || 'Falha na Fonte');
+      const teorNote =
+        scope === 'cumprimento' && patch.teor_enriquecido_em
+          ? patch.texto_pobre && patch.teor_indice_ok
+            ? ' · teor ampliado (sem quantia no índice)'
+            : patch.texto_pobre
+              ? ' · teor ainda limitado'
+              : ' · teor enriquecido'
+          : '';
       const message = aiLine
         ? aiLine
         : aiEng
-          ? `[IA: ${aiEng}] ${labelCumpr} · ${baseMsg}${patch.ai_flags_label ? ` | ${patch.ai_flags_label}` : ''}`
+          ? `[IA: ${aiEng}] ${labelCumpr} · ${baseMsg}${patch.ai_flags_label ? ` | ${patch.ai_flags_label}` : ''}${teorNote}`
           : scope === 'cumprimento'
-            ? `${labelCumpr} · ${baseMsg}`
+            ? `${labelCumpr} · ${baseMsg}${teorNote}`
             : baseMsg;
 
       get().addLog({

@@ -528,6 +528,111 @@ export async function auditCaseCoreSystem(
       if (analise2.procedente_motivo) {
         patch.procedente_motivo = analise2.procedente_motivo;
       }
+
+      // Lote5: se ainda "teor fraco", amplia DJEN (2 anos) + DataJud e reanalisa 1x
+      const precisaTeor =
+        !!patch.texto_pobre ||
+        !!patch.precisa_enriquecer_teor ||
+        !!(analise2 as any).oportunidade_instaurar?.texto_pobre ||
+        !!(analise2 as any).oportunidade_instaurar?.precisa_enriquecer_teor;
+      if (precisaTeor && (mode === 'both' || mode === 'djen' || mode === 'datajud')) {
+        try {
+          const wideStart = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0];
+          let movs2 = movimentos;
+          let djen2 = comunicacoes || [];
+          if (mode !== 'djen') {
+            try {
+              const dj2 = await fetchDataJud(protoSafe || protocolo, 3, { fast: false });
+              if (dj2 && !dj2.error && Array.isArray(dj2.movimentos) && dj2.movimentos.length) {
+                movs2 = normalizeMovimentosList(dj2.movimentos);
+                movimentos = movs2;
+                datajudOk = true;
+              }
+            } catch { /* */ }
+          }
+          if (mode !== 'datajud') {
+            try {
+              const djr = await fetchDjenComunicacoes(protoSafe || protocolo, {
+                dataInicio: wideStart,
+              });
+              if (djr?.success && Array.isArray(djr.items) && djr.items.length) {
+                djen2 = djr.items;
+                comunicacoes = djen2;
+                djenOk = true;
+              }
+            } catch { /* */ }
+          }
+          const djenTextos2 = (djen2 || [])
+            .slice(0, 80)
+            .map((c: any) =>
+              String(c.texto || c.conteudo || c.resumo || c.teor || '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+            )
+            .filter((s: string) => s.length > 20);
+          const blobLen = djenTextos2.reduce((n: number, s: string) => n + s.length, 0)
+            + (movs2 || []).map((m: any) => String(m.nome || m.complemento || '')).join(' ').length;
+          const analise3 = analisarProcedenciaECumprimento(
+            movs2,
+            classeCod ?? null,
+            patch.datajud_ultimo_nome || target.datajud_ultimo_nome || null,
+            djenTextos2
+          );
+          if (analise3.is_procedente) patch.is_procedente = true;
+          if (analise3.em_cumprimento_sentenca || analise3.cumprimento_encerrado) {
+            patch.em_cumprimento_sentenca = true;
+            patch.cumprimento_pendente_necessario = false;
+          }
+          patch.cumprimento_ativo = !!analise3.cumprimento_ativo;
+          patch.cumprimento_encerrado = !!analise3.cumprimento_encerrado;
+          if (analise3.status_executivo) patch.status_executivo = analise3.status_executivo;
+          if (analise3.cumprimento_pendente_necessario && !patch.em_cumprimento_sentenca) {
+            patch.cumprimento_pendente_necessario = true;
+          }
+          if (analise3.data_transito_julgado) patch.data_transito_julgado = analise3.data_transito_julgado;
+          if (analise3.procedente_motivo) patch.procedente_motivo = analise3.procedente_motivo;
+          const op3 = (analise3 as any).oportunidade_instaurar;
+          if (op3) {
+            patch.oportunidade_instaurar = op3;
+            patch.oportunidade_score = op3.score;
+            patch.oportunidade_elegivel = !!op3.elegivel;
+            patch.oportunidade_tipo_credito = op3.tipo_credito;
+            patch.texto_pobre = !!op3.texto_pobre;
+            patch.precisa_enriquecer_teor = !!op3.precisa_enriquecer_teor;
+          } else {
+            patch.texto_pobre = false;
+            patch.precisa_enriquecer_teor = false;
+          }
+          patch.teor_enriquecido_em = new Date().toISOString();
+          patch.teor_blob_chars = blobLen;
+          // se blob grande e ainda "pobre", não é falha de índice — é ausência de quantia/sucumbência
+          if (blobLen >= 800 && patch.texto_pobre) {
+            patch.precisa_enriquecer_teor = false;
+            patch.teor_indice_ok = true;
+            patch.teor_sem_credito_detectavel = true;
+          } else if (!patch.texto_pobre) {
+            patch.precisa_enriquecer_teor = false;
+            patch.teor_indice_ok = true;
+            patch.teor_sem_credito_detectavel = false;
+          }
+          patch.detalhes_execucao = {
+            ...(patch.detalhes_execucao || {}),
+            ...analise3.detalhes_execucao,
+            oportunidade_instaurar: op3 || null,
+            merito_tipo: analise3.merito_tipo,
+            teor_enriquecido_em: patch.teor_enriquecido_em,
+            teor_blob_chars: blobLen,
+            scanned_at: new Date().toISOString(),
+          };
+          console.info('[scan-teor-auto]', protocolo, 'blob', blobLen, 'pobre', !!patch.texto_pobre);
+        } catch (e2: any) {
+          console.warn('[scan-teor-auto] skip', e2?.message || e2);
+        }
+      }
     }
   } catch (e: any) {
     console.error('[auditCaseCoreSystem] reanalise DJEN exec', e?.message || e);
@@ -1453,37 +1558,27 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
   if (!empresa_id) return { success: false };
 
   try {
-    const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
-    const res = await auditCaseCoreSystem(protocolo, empresa_id, 'datajud', { fast: false });
-    const movimentos = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
-    const classeCodigo = (res as any)?.classe?.codigo || null;
-    const ultimoNome = (res as any)?.datajud_ultimo_nome || null;
-
-    const resultado = analisarProcedenciaECumprimento(movimentos, classeCodigo, ultimoNome);
-
-    // Atualiza no banco
-    const admin = await getSupabaseAdmin();
-    const { data: row } = await admin
-      .from('processos')
-      .select('id')
-      .eq('protocolo_ref', protocolo)
-      .eq('empresa_id', empresa_id)
-      .maybeSingle();
-
-    if (row) {
-      const { data: cur } = await admin.from('processos').select('dados').eq('id', row.id).maybeSingle();
-      const dados = { ...(cur?.dados || {}), ...resultado, status_executivo: resultado.status_executivo };
-      await admin.from('processos').update({
-        dados,
-        is_procedente: resultado.is_procedente,
-        procedente_motivo: resultado.procedente_motivo,
-        em_cumprimento_sentenca: resultado.em_cumprimento_sentenca,
-        cumprimento_pendente_necessario: resultado.cumprimento_pendente_necessario,
-        data_transito_julgado: resultado.data_transito_julgado,
-      }).eq('id', row.id);
+    // Lote5: BOTH + fast:false — DJEN carrega teor da sentença (DataJud sozinho = texto pobre)
+    const res = await auditCaseCoreSystem(protocolo, empresa_id, 'both', {
+      fast: false,
+    });
+    if (!res || (res as any).success === false) {
+      return { success: false, error: (res as any)?.error || 'Falha na auditoria' };
     }
-
-    return { success: true, ...resultado };
+    const patch = (res as any).casePatch || {};
+    return {
+      success: true,
+      is_procedente: !!patch.is_procedente,
+      em_cumprimento_sentenca: !!patch.em_cumprimento_sentenca,
+      cumprimento_pendente_necessario: !!patch.cumprimento_pendente_necessario,
+      texto_pobre: !!patch.texto_pobre,
+      precisa_enriquecer_teor: !!patch.precisa_enriquecer_teor,
+      teor_enriquecido_em: patch.teor_enriquecido_em || null,
+      teor_blob_chars: patch.teor_blob_chars || null,
+      oportunidade_score: patch.oportunidade_score ?? null,
+      status_executivo: patch.status_executivo || null,
+      casePatch: patch,
+    };
   } catch (e: any) {
     return { success: false, error: e?.message };
   }
@@ -1901,7 +1996,7 @@ export async function enriquecerTeorFilaOportunidadeAction(opts?: {
       const proto = String(c.protocolo || '').trim();
       if (!proto) continue;
       try {
-        const r = await scanSingleCaseAction(proto, { mode: 'both', fast: true });
+        const r = await scanSingleCaseAction(proto, { mode: 'both', fast: false });
         done++;
         if (r && (r as any).success !== false) enriched++;
       } catch {

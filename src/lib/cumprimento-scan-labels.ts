@@ -37,6 +37,14 @@ export function labelResultadoCumprimentoScan(patch: Record<string, any> | null 
     const tipo = String(patch.oportunidade_tipo_credito || d.oportunidade_tipo_credito || patch.oportunidade_instaurar?.tipo_credito || '').toLowerCase();
     return `ELEGÍVEL HONORÁRIOS · score ${score}${tipo && tipo !== 'incerto' ? ` · ${tipo}` : ''}`;
   }
+  if (patch.teor_enriquecido_em || d.teor_enriquecido_em) {
+    if (patch.teor_indice_ok || d.teor_indice_ok) {
+      if (patch.teor_sem_credito_detectavel || d.teor_sem_credito_detectavel) {
+        return 'TEOR AMPLIADO · sem quantia/sucumbência no índice';
+      }
+      return 'TEOR AMPLIADO · reavaliado';
+    }
+  }
   if (patch.is_procedente || d.is_procedente || merito === 'procedente' || merito === 'parcial') {
     return `PROCEDENTE${score > 0 ? ` · score ${score}` : ''} · triagem`;
   }

@@ -466,7 +466,8 @@ const filtered = useMemo(() => {
     if (isMinimized) toggleMinimize();
     toast({
       title: "Scanner · só cumprimento",
-      description: "DataJud + DJEN nos candidatos a proceder / instaurar. A lista atualiza ao terminar.",
+      description:
+        "DataJud + DJEN (BOTH). Se o teor vier fraco, amplia automaticamente DJEN 2 anos e reanalisa — some o alerta de teor fraco quando o índice estiver ok.",
     });
     await startManualScan({ scope: "cumprimento" });
   };
@@ -1067,8 +1068,10 @@ const filtered = useMemo(() => {
                           const ctr = contratoByProto[String(c.protocolo)];
                           const chk = checklistByProto[String(c.protocolo)] || loadChecklist(String(c.protocolo));
                           const open = expandedProto === c.protocolo;
+                          // Lote5: teor ampliado no scan conta como índice OK (não “fraco”)
+                          const teorOkUi = disp.teorOk || !!op?.teorIndiceOk;
                           const podeR$ = podeExibirValorMonetario({
-                            teorSentencaOk: disp.teorOk,
+                            teorSentencaOk: teorOkUi && (disp.temQuantia || disp.temHonorariosReu || !!op?.elegivel),
                             contratoCamposMinimos: !!ctr?.camposMinimos,
                             aprovadoHumano: chk.revisadoHumano === true,
                           });
@@ -1085,12 +1088,27 @@ const filtered = useMemo(() => {
                               <div className="rounded-lg border border-border/60 bg-card px-2.5 py-2 space-y-1">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                                   O que o juiz determinou
-                                  {!disp.teorOk && (
+                                  {!teorOkUi && op?.precisaEnriquecer && (
                                     <span className="ml-2 text-orange-600 normal-case font-bold">· teor fraco</span>
                                   )}
+                                  {teorOkUi && op?.teorSemCredito && (
+                                    <span className="ml-2 text-slate-600 normal-case font-bold">· índice ampliado · sem quantia/sucumbência detectável</span>
+                                  )}
+                                  {teorOkUi && !op?.teorSemCredito && disp.teorOk && (
+                                    <span className="ml-2 text-emerald-700 normal-case font-bold">· teor ok</span>
+                                  )}
                                 </p>
+                                {!teorOkUi && op?.precisaEnriquecer && (
+                                  <p className="text-[10px] text-orange-800 dark:text-orange-200">
+                                    Teor ainda fraco — o próximo &quot;Varrer só cumprimento&quot; amplia DJEN (2 anos) + DataJud automaticamente.
+                                  </p>
+                                )}
                                 {disp.bullets.length === 0 ? (
-                                  <p className="text-[11px] text-muted-foreground">Sem dispositivo legível no índice.</p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {op?.teorSemCredito
+                                      ? "Teor lido; dispositivo sem quantia/honorários explícitos no índice."
+                                      : "Sem dispositivo legível no índice."}
+                                  </p>
                                 ) : (
                                   <ul className="list-disc pl-4 space-y-0.5">
                                     {disp.bullets.map((b, i) => (
@@ -1111,7 +1129,11 @@ const filtered = useMemo(() => {
                                     </Badge>
                                   )}
                                   {!podeR$ && (
-                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-red-400 text-red-700">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[8px] font-black uppercase border-red-400 text-red-700"
+                                      title="R$ só após teor + contrato + revisão humana — nunca promete valor só pelo índice"
+                                    >
                                       R$ bloqueado
                                     </Badge>
                                   )}
