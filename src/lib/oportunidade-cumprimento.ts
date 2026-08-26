@@ -330,3 +330,11 @@ export function scoreOportunidadeCumprimentoHonorarios(
 }
 
 export const LIMIAR_OPORTUNIDADE_COBRANCA = LIMIAR_COBRANCA;
+
+
+/** Limiar comercial (honorários / empresa por fora). Override futuro via prefs da empresa. */
+export function getLimiarCobranca(override?: number | null): number {
+  const n = Number(override);
+  if (Number.isFinite(n) && n >= 30 && n <= 95) return Math.round(n);
+  return LIMIAR_COBRANCA;
+}

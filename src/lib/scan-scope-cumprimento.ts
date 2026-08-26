@@ -79,12 +79,30 @@ export function filterQueueByScanScope(
   const rank = (c: LegalCase) => {
     const d = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
     if (c.cumprimento_pendente_necessario || d.cumprimento_pendente_necessario) return 0;
-    if (c.is_procedente || d.is_procedente) return 1;
-    if (c.em_cumprimento_sentenca || d.em_cumprimento_sentenca) return 2;
-    if (isCasoEncerrado(c) || c.datajud_encerrado_tribunal) return 3;
-    return 4;
+    const score = Number((c as any).oportunidade_score ?? d.oportunidade_score ?? 0);
+    if (score >= 55) return 1;
+    if (c.is_procedente || d.is_procedente) return 2;
+    if (c.em_cumprimento_sentenca || d.em_cumprimento_sentenca) return 3;
+    if (isCasoEncerrado(c) || c.datajud_encerrado_tribunal) return 4;
+    return 5;
   };
-  hit.sort((a, b) => rank(a) - rank(b));
+  const scoreOf = (c: LegalCase) => {
+    const d = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
+    return Number((c as any).oportunidade_score ?? d.oportunidade_score ?? 0);
+  };
+  const transitoOf = (c: LegalCase) => String((c as any).data_transito_julgado || dSafe(c) || '');
+  function dSafe(c: LegalCase) {
+    const d = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
+    return d.data_transito_julgado || '';
+  }
+  hit.sort((a, b) => {
+    const d = rank(a) - rank(b);
+    if (d !== 0) return d;
+    const sd = scoreOf(b) - scoreOf(a);
+    if (sd !== 0) return sd;
+    // trânsito mais antigo primeiro (oportunidade parada)
+    return transitoOf(a).localeCompare(transitoOf(b));
+  });
 
   return {
     queue: hit,

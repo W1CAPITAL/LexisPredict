@@ -12,6 +12,7 @@ import { readScanProgress, writeScanProgress, clearScanProgress, readCarteiraCac
 import { appendScanLog } from '@/lib/scan-event-log';
 import { isScanFresh, scanDelayMs, sleepMs } from '@/lib/parados-scan-queue';
 import { mensagemScanHttp } from '@/lib/scan-http-pt';
+import { labelResultadoCumprimentoScan, cumprimentoPendenteIndefinido } from '@/lib/cumprimento-scan-labels';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -373,7 +374,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       const djFresh = mode !== 'djen' && isScanFresh((c as any).datajud_consultado_em);
       const djenFresh = mode !== 'datajud' && isScanFresh((c as any).djen_consultado_em);
-      const skip = mode === 'both' ? djFresh && djenFresh : mode === 'datajud' ? djFresh : djenFresh;
+      let skip = mode === 'both' ? djFresh && djenFresh : mode === 'datajud' ? djFresh : djenFresh;
+      // Lote1: escopo cumprimento — não pular se pendência ainda indefinida
+      if (skip && scope === 'cumprimento' && cumprimentoPendenteIndefinido(c as any)) {
+        skip = false;
+      }
       if (skip) {
         set((s) => ({ manualDone: s.manualDone + 1 }));
         get().addLog({
@@ -454,14 +459,17 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         (patch.ai_log_line as string) ||
         null;
       const aiEng = (res as any).aiEngine || patch.ai_engine || null;
+      const labelCumpr = labelResultadoCumprimentoScan(patch);
       const baseMsg =
         (patch.evento_resumo as string) ||
         (res.success ? 'Monitoramento Regular' : (res as any).error || 'Falha na Fonte');
       const message = aiLine
         ? aiLine
         : aiEng
-          ? `[IA: ${aiEng}] ${baseMsg}${patch.ai_flags_label ? ` | ${patch.ai_flags_label}` : ''}`
-          : baseMsg;
+          ? `[IA: ${aiEng}] ${labelCumpr} · ${baseMsg}${patch.ai_flags_label ? ` | ${patch.ai_flags_label}` : ''}`
+          : scope === 'cumprimento'
+            ? `${labelCumpr} · ${baseMsg}`
+            : baseMsg;
 
       get().addLog({
         protocolo: c.protocolo,

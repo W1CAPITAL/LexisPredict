@@ -40,6 +40,8 @@ import { scanInstaurarComParadosBatchAction } from "@/app/actions/scan-instaurar
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { computeKpiExecutivo } from "@/lib/kpi-executivo";
+import { getLimiarCobranca, LIMIAR_OPORTUNIDADE_COBRANCA } from "@/lib/oportunidade-cumprimento";
+import { Copy, Check } from "lucide-react";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
 type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios";
@@ -123,7 +125,16 @@ export default function CumprimentosProcedentesPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [filtro, setFiltro] = useState<FiltroAtivo>("pendente");
+  const [filtro, setFiltro] = useState<FiltroAtivo>("honorarios");
+  const [limiar, setLimiar] = useState(() => {
+    try {
+      const v = localStorage.getItem("lexis_limiar_cumprimento");
+      return getLimiarCobranca(v ? Number(v) : null);
+    } catch {
+      return LIMIAR_OPORTUNIDADE_COBRANCA;
+    }
+  });
+  const [copiedProto, setCopiedProto] = useState<string | null>(null);
   const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [scanCursor, setScanCursor] = useState(0);
@@ -208,7 +219,34 @@ export default function CumprimentosProcedentesPage() {
     load();
   }, [load]);
 
-  
+  // Lote1: escopo padrão = cumprimento + híbrido
+  useEffect(() => {
+    try {
+      setScanScope("cumprimento");
+      setScanMode("both");
+    } catch {
+      /* ignore */
+    }
+  }, [setScanScope, setScanMode]);
+
+  // Lote1: atualiza lista a cada 3 CNJs durante a varredura
+  useEffect(() => {
+    if (manualStatus === "running" && manualDone > 0 && manualDone % 3 === 0) {
+      void load();
+    }
+  }, [manualDone, manualStatus, load]);
+
+  // Lote1: ao terminar, recarrega
+  useEffect(() => {
+    if (manualStatus === "done") {
+      void load();
+      toast({
+        title: "Scanner cumprimento finalizado",
+        description: "Ações Procedentes atualizadas (DataJud + DJEN).",
+      });
+    }
+  }, [manualStatus, load, toast]);
+
   const kpiExecutivo = useMemo(() => computeKpiExecutivo((cases || []) as any), [cases]);
 
 const filtered = useMemo(() => {
@@ -242,7 +280,7 @@ const filtered = useMemo(() => {
           !!dados.oportunidade_elegivel ||
           !!op?.elegivel;
         const score = Number((c as any).oportunidade_score ?? op?.score ?? 0);
-        return elegivel && score >= 55;
+        return elegivel && score >= limiar;
       });
       // prioriza score alto
       base.sort((a, b) => {
@@ -277,7 +315,7 @@ const filtered = useMemo(() => {
       return da.localeCompare(db);
     });
     return base;
-  }, [cases, q, filtro]);
+  }, [cases, q, filtro, limiar]);
 
   const stats = useMemo(() => {
     const pendentes = cases.filter((c) => statusExecutivo(c) === "pendente").length;
@@ -293,11 +331,21 @@ const filtered = useMemo(() => {
         dados.detalhes_execucao?.oportunidade_instaurar;
       const elegivel = !!(c as any).oportunidade_elegivel || !!dados.oportunidade_elegivel || !!op?.elegivel;
       const score = Number((c as any).oportunidade_score ?? op?.score ?? 0);
-      return elegivel && score >= 55;
+      return elegivel && score >= limiar;
     }).length;
     return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios };
-  }, [cases]);
+  }, [cases, limiar]);
 
+
+  const copyProtocolo = async (proto: string) => {
+    try {
+      await navigator.clipboard.writeText(proto);
+      setCopiedProto(proto);
+      setTimeout(() => setCopiedProto(null), 1500);
+    } catch {
+      toast({ title: "Não foi possível copiar", variant: "destructive" });
+    }
+  };
 
   const handleScanCumprimento = async () => {
     setScanMode("both");
@@ -522,7 +570,41 @@ const filtered = useMemo(() => {
                 {stats.pendentes} pendente(s)
               </Badge>
             )}
+            
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 h-8">
+              <span className="text-[9px] font-black uppercase text-muted-foreground">Limiar</span>
+              <input
+                type="number"
+                min={30}
+                max={95}
+                value={limiar}
+                onChange={(e) => {
+                  const v = getLimiarCobranca(Number(e.target.value));
+                  setLimiar(v);
+                  try { localStorage.setItem("lexis_limiar_cumprimento", String(v)); } catch { /* */ }
+                }}
+                className="w-12 h-7 text-[11px] font-bold bg-transparent border-0 focus:outline-none tabular-nums"
+                title="Score mínimo para fila de honorários / empresa por fora"
+              />
+            </div>
             <Button
+              type="button"
+              size="sm"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1 bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={manualStatus === "running" || bulkBusy}
+              onClick={() => void handleScanCumprimento()}
+              title="DataJud + DJEN só em candidatos a cumprimento/procedência"
+            >
+              {manualStatus === "running" ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Gavel size={12} />
+              )}
+              {manualStatus === "running"
+                ? `Varrendo ${manualDone}/${manualTotal || "…"}`
+                : "Varrer só cumprimento"}
+            </Button>
+<Button
               type="button"
               size="sm"
               variant="outline"
@@ -627,7 +709,7 @@ const filtered = useMemo(() => {
               <div className="p-2 space-y-1">
                 {[
                   { key: "todos" as FiltroAtivo, label: "Ação (sem ativos)", icon: Scale, count: Math.max(0, stats.total - stats.ativos - stats.encerrados), color: "" },
-                  { key: "honorarios" as FiltroAtivo, label: "Instaurar (honorários)", icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
+                  { key: "honorarios" as FiltroAtivo, label: `Honorários ≥${limiar}`, icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
                   { key: "pendente" as FiltroAtivo, label: "Falta instaurar", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
                   { key: "ativo" as FiltroAtivo, label: "Cumprimento ativo", icon: Clock, count: stats.ativos, color: "text-amber-600" },
                   { key: "encerrado" as FiltroAtivo, label: "Cumprimento encerrado", icon: Gavel, count: stats.encerrados, color: "text-slate-600" },
@@ -694,9 +776,37 @@ const filtered = useMemo(() => {
                             <p className="font-black uppercase text-sm truncate">
                               {c.cliente}
                             </p>
-                            <p className="text-[10px] text-muted-foreground tabular-nums truncate">
-                              {c.protocolo}
-                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void copyProtocolo(String(c.protocolo || ""))}
+                              className="group flex items-center gap-1.5 max-w-full text-left"
+                              title="Copiar CNJ"
+                            >
+                              <span className="text-[13px] sm:text-sm font-mono font-bold tabular-nums tracking-tight text-foreground truncate">
+                                {c.protocolo}
+                              </span>
+                              {copiedProto === c.protocolo ? (
+                                <Check size={14} className="text-emerald-600 shrink-0" />
+                              ) : (
+                                <Copy size={14} className="opacity-40 group-hover:opacity-100 shrink-0" />
+                              )}
+                            </button>
+                            {(() => {
+                              const op = oportunidadeOf(c);
+                              if (!op || op.score <= 0) return null;
+                              const hot = op.elegivel && op.score >= limiar;
+                              return (
+                                <p className={cn(
+                                  "text-[11px] font-semibold mt-0.5",
+                                  hot ? "text-violet-700 dark:text-violet-300" : "text-muted-foreground"
+                                )}>
+                                  Score {op.score}/{limiar}
+                                  {op.tipo && op.tipo !== "incerto" ? ` · ${op.tipo}` : ""}
+                                  {hot ? " · acima do limiar (honorários)" : op.elegivel ? " · elegível (abaixo do limiar)" : ""}
+                                  {op.riscos?.[0] ? ` · ${op.riscos[0].slice(0, 60)}` : ""}
+                                </p>
+                              );
+                            })()}
                           </div>
                           <div className="flex flex-wrap gap-1 shrink-0">
                             {isPendente && (
@@ -717,7 +827,7 @@ const filtered = useMemo(() => {
                             {(() => {
                               const op = oportunidadeOf(c);
                               if (!op || op.score <= 0) return null;
-                              const hot = op.elegivel && op.score >= 55;
+                              const hot = op.elegivel && op.score >= limiar;
                               return (
                                 <>
                                   <Badge
