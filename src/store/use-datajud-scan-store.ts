@@ -171,7 +171,21 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   startCloudScan: () => {
+    const scope = get().scanScope || 'full';
+    const mode = get().scanMode || 'both';
     set({ status: 'running', isMinimized: false, cycles: 0 });
+    get().addLog({
+      protocolo: 'SISTEMA',
+      message:
+        scope === 'cumprimento'
+          ? `Nuvem Hybrid · escopo CUMPRIMENTO · modo ${String(mode).toUpperCase()} — micro-lotes só de candidatos a proceder/instaurar`
+          : `Nuvem Hybrid · escopo FULL · modo ${String(mode).toUpperCase()} — carteira rotativa`,
+      latency: 0,
+      success: true,
+      type: 'ok',
+      engine: 'Nuvem',
+      source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
+    });
     if (pollTimer) clearInterval(pollTimer);
     get().pollStatus();
     pollTimer = setInterval(() => get().pollStatus(), CLOUD_POLL_MS);
@@ -230,7 +244,30 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     });
 
     // Inclui ENCERRADOS/ARQUIVADOS: scanner verifica se falta instaurar cumprimento ou se está realmente fechado
-    const allLocal = useAppStore.getState().cases || [];
+    let allLocal = useAppStore.getState().cases || [];
+    // Lote4: escopo CUMPRIMENTO — atualiza carteira do servidor antes de filtrar (evita fila vazia)
+    if (scope === 'cumprimento') {
+      try {
+        const { fetchRepoCases } = await import('@/app/actions/case-actions');
+        const remote = await fetchRepoCases();
+        if (Array.isArray(remote) && remote.length > 0) {
+          const setCases = useAppStore.getState().setCases;
+          if (typeof setCases === 'function') setCases(remote);
+          try { writeCarteiraCache(remote); } catch { /* */ }
+          allLocal = remote;
+          get().addLog({
+            protocolo: 'SISTEMA',
+            message: `Carteira sincronizada: ${remote.length} processo(s) para filtrar cumprimento`,
+            latency: 0,
+            success: true,
+            type: 'ok',
+            engine: 'Local',
+          });
+        }
+      } catch (e) {
+        console.warn('[startManualScan] sync cumprimento', e);
+      }
+    }
     const nEnc = allLocal.filter((c) => isCasoEncerrado(c)).length;
     let cases = prioritizeScanQueue(allLocal);
     const scoped = filterQueueByScanScope(cases, scope);
@@ -259,7 +296,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
     }
 
-    // Se a store estiver vazia (ex.: RLS / refresh), tenta buscar no servidor
+    // Lote4: store vazia OU escopo cumprimento sem candidatos na memória → busca servidor
     if (cases.length === 0) {
       try {
         const { fetchRepoCases } = await import('@/app/actions/case-actions');
@@ -375,9 +412,22 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const djFresh = mode !== 'djen' && isScanFresh((c as any).datajud_consultado_em);
       const djenFresh = mode !== 'datajud' && isScanFresh((c as any).djen_consultado_em);
       let skip = mode === 'both' ? djFresh && djenFresh : mode === 'datajud' ? djFresh : djenFresh;
-      // Lote1: escopo cumprimento — não pular se pendência ainda indefinida
-      if (skip && scope === 'cumprimento' && cumprimentoPendenteIndefinido(c as any)) {
-        skip = false;
+      // Lote4: em CUMPRIMENTO, só pula se flags executivas já estão definidas (não só "fresh")
+      if (skip && scope === 'cumprimento') {
+        const d = (c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {};
+        const st = String((c as any).status_executivo || d.status_executivo || '').toLowerCase();
+        const definido =
+          st === 'ativo' ||
+          st === 'encerrado' ||
+          st === 'pendente' ||
+          (c as any).cumprimento_pendente_necessario === true ||
+          (c as any).cumprimento_pendente_necessario === false ||
+          !!(c as any).em_cumprimento_sentenca ||
+          !!d.em_cumprimento_sentenca;
+        // indefinido ou só procedente sem status → reaudita
+        if (!definido || cumprimentoPendenteIndefinido(c as any)) {
+          skip = false;
+        }
       }
       if (skip) {
         set((s) => ({ manualDone: s.manualDone + 1 }));

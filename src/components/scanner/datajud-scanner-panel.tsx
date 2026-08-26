@@ -189,8 +189,8 @@ export function DataJudScannerPanel() {
              </div>
              <p className="text-[9px] font-medium text-amber-950/70 leading-snug">
                {scanScope === 'cumprimento'
-                 ? 'Somente candidatos a procedência, falta instaurar, fase executiva ou baixa no tribunal. Atualiza a aba Ações Procedentes.'
-                 : 'Carteira completa (ativos + encerrados para checagem de cumprimento).'}
+                 ? 'LOCAL e NUVEM usam o mesmo filtro: procedentes, falta instaurar, já em cumprimento ou baixa no tribunal. Não varre a carteira inteira. Atualiza Ações Procedentes.'
+                 : 'Carteira completa (ativos + encerrados). Para honorários/cumprimento, escolha “Só cumprimento”.'}
              </p>
           </section>
 
@@ -231,7 +231,15 @@ export function DataJudScannerPanel() {
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                    <CloudLightning className={cn("text-primary", status === 'running' && "animate-pulse")} size={16} />
-                   <p className="text-[10px] font-black uppercase">Ciclo de Nuvem (Hybrid Audit)</p>
+                   <p className="text-[10px] font-black uppercase">
+                   Ciclo de Nuvem (Hybrid Audit)
+                   {scanScope === "cumprimento" ? " · CUMPRIMENTO" : " · FULL"}
+                 </p>
+                 <p className="text-[8px] font-medium text-muted-foreground mt-1">
+                   {scanScope === "cumprimento"
+                     ? "Micro-lotes só de candidatos a cumprimento (respeita o botão Só cumprimento acima)."
+                     : "Rotação da carteira. Troque para Só cumprimento se quiser focar honorários."}
+                 </p>
                 </div>
              </div>
              
@@ -271,6 +279,11 @@ export function DataJudScannerPanel() {
              <div className="flex items-center gap-2">
                 <Terminal className={cn("text-primary", manualStatus === 'running' && "animate-pulse")} size={16} />
                 <p className="text-[10px] font-black uppercase">Scanner Local ({scanMode.toUpperCase()} · {scanScope === "cumprimento" ? "CUMPRIMENTO" : "FULL"})</p>
+                <p className="text-[8px] text-muted-foreground font-medium mt-0.5">
+                  {scanScope === "cumprimento"
+                    ? "Sincroniza carteira → filtra candidatos → DataJud+DJEN 1 a 1. Use BOTH para teor completo."
+                    : "Varredura sequencial da carteira na tela."}
+                </p>
              </div>
 
              {manualStatus === 'idle' ? (

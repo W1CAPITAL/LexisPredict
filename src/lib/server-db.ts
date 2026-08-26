@@ -476,9 +476,55 @@ export async function getGlobalPendingProcessesSystem(
 
   if (scope === 'cumprimento') {
     const { isCandidatoCumprimentoScan } = await import('@/lib/scan-scope-cumprimento');
-    const filtered = out.filter((c) => isCandidatoCumprimentoScan(c));
-    // Primeira rodada sem flags: mantém lote bruto para descobrir procedentes
-    return filtered.length > 0 ? filtered : out;
+    let filtered = out.filter((c) => isCandidatoCumprimentoScan(c));
+
+    // Lote4: se o micro-lote genérico não trouxe candidatos, busca DIRETO no banco
+    // (flags executivas / procedente / baixa) — não faz fallback silencioso para Full
+    if (filtered.length === 0) {
+      const { data: cand } = await admin
+        .from('processos')
+        .select('*')
+        .eq('empresa_id', empresaId)
+        .or(
+          [
+            'is_procedente.eq.true',
+            'em_cumprimento_sentenca.eq.true',
+            'cumprimento_pendente_necessario.eq.true',
+            'datajud_encerrado_tribunal.eq.true',
+          ].join(',')
+        )
+        .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
+        .limit(limit * 3);
+
+      const mapped = (cand || []).map(mapProcessoRow);
+      filtered = mapped.filter((c) => isCandidatoCumprimentoScan(c));
+      if (filtered.length === 0) {
+        // ainda vazio: prioriza nunca auditados (descoberta de procedência)
+        const { data: never } = await admin
+          .from('processos')
+          .select('*')
+          .eq('empresa_id', empresaId)
+          .is('datajud_consultado_em', null)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        filtered = (never || []).map(mapProcessoRow);
+      }
+    }
+
+    // Prioriza: pendente > procedente sem fase > em cumprimento > resto
+    filtered.sort((a, b) => {
+      const score = (c: any) => {
+        const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
+        if (c.cumprimento_pendente_necessario || d.cumprimento_pendente_necessario) return 0;
+        if ((c.is_procedente || d.is_procedente) && !(c.em_cumprimento_sentenca || d.em_cumprimento_sentenca))
+          return 1;
+        if (c.em_cumprimento_sentenca || d.em_cumprimento_sentenca) return 2;
+        return 3;
+      };
+      return score(a) - score(b);
+    });
+
+    return filtered.slice(0, limit);
   }
 
   return out;

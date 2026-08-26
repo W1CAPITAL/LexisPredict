@@ -684,21 +684,26 @@ const filtered = useMemo(() => {
               </Badge>
             )}
             
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 h-8">
-              <span className="text-[9px] font-black uppercase text-muted-foreground">Limiar</span>
-              <input
-                type="number"
-                min={30}
-                max={95}
-                value={limiar}
-                onChange={(e) => {
-                  const v = getLimiarCobranca(Number(e.target.value));
-                  setLimiar(v);
-                  try { localStorage.setItem("lexis_limiar_cumprimento", String(v)); } catch { /* */ }
-                }}
-                className="w-12 h-7 text-[11px] font-bold bg-transparent border-0 focus:outline-none tabular-nums"
-                title="Score mínimo para fila de honorários / empresa por fora"
-              />
+            <div className="flex flex-col gap-0.5 min-w-[140px]">
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 h-8">
+                <span className="text-[9px] font-black uppercase text-muted-foreground shrink-0">Limiar score</span>
+                <input
+                  type="number"
+                  min={30}
+                  max={95}
+                  value={limiar}
+                  onChange={(e) => {
+                    const v = getLimiarCobranca(Number(e.target.value));
+                    setLimiar(v);
+                    try { localStorage.setItem("lexis_limiar_cumprimento", String(v)); } catch { /* */ }
+                  }}
+                  className="w-12 h-7 text-[11px] font-bold bg-transparent border-0 focus:outline-none tabular-nums"
+                  aria-label="Limiar de score para honorários"
+                />
+              </div>
+              <p className="text-[8px] text-muted-foreground leading-tight max-w-[200px]">
+                Nota 0–100 da oportunidade. Só lista em &quot;Honorários ≥{limiar}&quot; / Empresa por fora quem tem score ≥ este valor (padrão {LIMIAR_OPORTUNIDADE_COBRANCA}). Não altera o scanner.
+              </p>
             </div>
             <Button
               type="button"
