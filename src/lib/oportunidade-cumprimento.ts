@@ -8,6 +8,8 @@
  * Casos "ruins" (improcedente puro, sucumbência recíproca, só compensação)
  * NÃO entram como elegíveis para cobrar instaurar.
  */
+import { extrairCreditoSentenca, boostOportunidadeComExtrato } from '@/lib/credito-sentenca-extract';
+
 export type TipoCreditoOportunidade = 'cliente' | 'sucumbencia' | 'ambos' | 'incerto';
 
 export type OportunidadeInstaurarCumprimento = {
@@ -50,7 +52,7 @@ const LIMIAR_REVISAO_HUMANA = 75;
 
 /** Condenação em quantia / restituição / indenização */
 const QUANTIA_POS =
-  /CONDENO\s+A\s+PAGAR|OBRIGAÇÃO\s+DE\s+PAGAR|OBRIGACAO\s+DE\s+PAGAR|RESTITUI[CÇ][AÃ]O|DEVOLU[CÇ][AÃ]O|INDENIZA[CÇ][AÃ]O|R\$\s*\d|VALOR\s+DE\s+R\$|CUSTAS\s+E\s+HONOR[AÁ]RIOS|PAGAR\s+O\s+VALOR|CONDENAÇÃO\s+EM\s+QUANTIA|CONDENACAO\s+EM\s+QUANTIA|REPETIÇÃO\s+DE\s+IND[EÉ]BITO|REPETICAO\s+DE\s+INDEBITO|OBRIGADO\s+O\s+R[EÉ]U\s+A\s+PAGAR/i;
+  /CONDENO\s+A\s+PAGAR|OBRIGAÇÃO\s+DE\s+PAGAR|OBRIGACAO\s+DE\s+PAGAR|RESTITUI[CÇ][AÃ]O|DEVOLU[CÇ][AÃ]O|INDENIZA[CÇ][AÃ]O|R\$\s*\d|VALOR\s+DE\s+R\$|CUSTAS\s+E\s+HONOR[AÁ]RIOS|PAGAR\s+O\s+VALOR|CONDENAÇÃO\s+EM\s+QUANTIA|CONDENACAO\s+EM\s+QUANTIA|REPETIÇÃO\s+DE\s+IND[EÉ]BITO|REPETICAO\s+DE\s+INDEBITO|OBRIGADO\s+O\s+R[EÉ]U\s+A\s+PAGAR|PAGAR\s+AO\s+AUTOR|VALOR\s+ATUALIZADO|CORRE[CÇ][AÃ]O\s+MONET[AÁ]RIA\s+E\s+JUROS/i;
 
 /**
  * Honorários de sucumbência com crédito real para a banca/autor.
@@ -267,8 +269,22 @@ export function scoreOportunidadeCumprimentoHonorarios(
 
   score = Math.max(0, Math.min(100, score));
 
-  // Crédito cobrável: quantia ou sucumbência com crédito real (não a "ruim")
-  const temCreditoSinal = temQuantia || temSucumbenciaCredito;
+  // Lote6: extrato de crédito no blob ANTES da elegibilidade final
+  const extrato = extrairCreditoSentenca(blob);
+  const temQuantiaEff = temQuantia || extrato.quantiaCliente;
+  const temSucumbenciaEff =
+    temSucumbenciaCredito || (extrato.sucumbenciaReu && !extrato.sucumbenciaReciproca);
+  if (temQuantiaEff && temSucumbenciaEff) tipo = 'ambos';
+  else if (temSucumbenciaEff && (tipo === 'incerto' || tipo === 'cliente'))
+    tipo = tipo === 'cliente' ? 'ambos' : 'sucumbencia';
+  else if (temQuantiaEff && tipo === 'incerto') tipo = 'cliente';
+
+  const boost = boostOportunidadeComExtrato(score, extrato);
+  score = boost.score;
+  for (const m of boost.motivosExtra) motivos.push(m);
+
+  // Crédito cobrável (regex curto + extrato)
+  const temCreditoSinal = temQuantiaEff || temSucumbenciaEff;
   const confiancaOk = confianca >= LIMIAR_CONFIANCA_MIN || (tem523 && confianca >= 50);
   const elegivel =
     (basePendente || baseAlternativa) &&
@@ -276,7 +292,8 @@ export function scoreOportunidadeCumprimentoHonorarios(
     !input.declaratorio_sem_quantia &&
     confiancaOk &&
     !pedidoNegado &&
-    !sucumbenciaRuim;
+    !sucumbenciaRuim &&
+    !extrato.sucumbenciaReciproca;
 
   if (!temCreditoSinal) {
     riscos.push('sem quantia nem sucumbência a favor detectável no texto indexado');
@@ -284,6 +301,8 @@ export function scoreOportunidadeCumprimentoHonorarios(
   if (!elegivel && temCreditoSinal) {
     riscos.push('não elegível — revisar teor antes de cobrar');
   }
+  if (extrato.encontroContas) riscos.push('encontro de contas no teor — validar abatimento');
+  if (extrato.sucumbenciaReciproca) riscos.push('sucumbência recíproca — fora da esteira automatizada');
 
   const acima = elegivel && score >= LIMIAR_COBRANCA;
   const requerRevisao = !elegivel || confianca < LIMIAR_REVISAO_HUMANA || score < 70 || tipo === 'incerto';
@@ -296,11 +315,11 @@ export function scoreOportunidadeCumprimentoHonorarios(
     );
   }
 
-  // Texto pobre = base jurídica de pendência mas sem sinal econômico no índice
+  // Texto pobre = base jurídica sem sinal econômico no índice (após extrato)
   const textoPobre =
     (basePendente || baseAlternativa || input.is_procedente) &&
-    !temQuantia &&
-    !temSucumbenciaCredito &&
+    !temQuantiaEff &&
+    !temSucumbenciaEff &&
     !input.declaratorio_sem_quantia;
 
   // Enriquecer teor só faz sentido se ainda não há fase e há chance de título

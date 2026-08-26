@@ -34,6 +34,7 @@ async function withOneRetry<T>(fn: () => Promise<T>, label: string): Promise<T> 
 }
 
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca, analisarProcedenciaECumprimento } from '@/lib/datajud-sync';
+import { extrairCreditoSentenca } from '@/lib/credito-sentenca-extract';
 import { applyReconciliacaoAoPatch } from '@/lib/reconciliar-cumprimento-flags';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
@@ -609,6 +610,15 @@ export async function auditCaseCoreSystem(
           }
           patch.teor_enriquecido_em = new Date().toISOString();
           patch.teor_blob_chars = blobLen;
+          try {
+            const blobCred = djenTextos2.join('\n') + ' ' + (movs2 || []).map((m: any) => String(m.nome || '')).join(' ');
+            const cred = extrairCreditoSentenca(blobCred);
+            patch.credito_sentenca = cred;
+            patch.detalhes_execucao = {
+              ...(patch.detalhes_execucao || {}),
+              credito_sentenca: cred,
+            };
+          } catch { /* */ }
           // se blob grande e ainda "pobre", não é falha de índice — é ausência de quantia/sucumbência
           if (blobLen >= 800 && patch.texto_pobre) {
             patch.precisa_enriquecer_teor = false;

@@ -41,6 +41,9 @@ import {
   reclassificarExecutivoCarteiraAction,
   batchScanExecutivoAction,
 } from "@/app/actions/case-actions";
+import { exportDemonstrativoCumprimentoAction } from "@/app/actions/export-cumprimento-demonstrativo";
+import { extrairCreditoSentenca } from "@/lib/credito-sentenca-extract";
+import { scriptWhatsAppAposTeor } from "@/lib/script-cumprimento-whatsapp";
 import { scanInstaurarComParadosBatchAction } from "@/app/actions/scan-instaurar-parados-action";
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
@@ -653,7 +656,33 @@ const filtered = useMemo(() => {
     a.click();
     URL.revokeObjectURL(url);
     toast({ title: "Excel exportado", description: `${rows.length} linhas` });
+  
   };
+
+  const downloadDemonstrativo = async (onlyParceiro: boolean) => {
+    try {
+      const res = await exportDemonstrativoCumprimentoAction({
+        limiar,
+        onlyParceiro,
+      });
+      if (!res.success || !res.csv) {
+        toast({ title: "Falha no demonstrativo", description: res.error, variant: "destructive" });
+        return;
+      }
+      const blob = new Blob([res.csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = res.filename || "demonstrativo-cumprimento.csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast({
+        title: onlyParceiro ? "Demonstrativo empresa por fora" : "Demonstrativo operacional",
+        description: `${res.count || 0} linhas · score e flags (sem inventar R$)`,
+      });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e?.message || "export", variant: "destructive" });
+    }
+};
 
 
   return (
@@ -781,6 +810,28 @@ const filtered = useMemo(() => {
               onClick={exportCsv}
             >
               <Download size={12} /> CSV
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
+              disabled={!cases.length}
+              onClick={() => void downloadDemonstrativo(false)}
+              title="Status, score, art.523, sucumbência — sem inventar R$"
+            >
+              <Download size={12} /> Demonstrativo
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1 border-violet-500/40 text-violet-800"
+              disabled={!cases.length}
+              onClick={() => void downloadDemonstrativo(true)}
+              title="Só elegíveis ≥ limiar · sucumbência/ambos (empresa por fora)"
+            >
+              <Download size={12} /> Fila parceiro
             </Button>
             <Button
               type="button"
@@ -1063,7 +1114,9 @@ const filtered = useMemo(() => {
                         </div>
 
                         {(() => {
-                          const disp = extrairDispositivoBullets(blobDoCaso(c));
+                          const blobC = blobDoCaso(c);
+                          const disp = extrairDispositivoBullets(blobC);
+                          const credito = extrairCreditoSentenca(blobC);
                           const op = oportunidadeOf(c);
                           const ctr = contratoByProto[String(c.protocolo)];
                           const chk = checklistByProto[String(c.protocolo)] || loadChecklist(String(c.protocolo));
@@ -1123,11 +1176,48 @@ const filtered = useMemo(() => {
                                   {disp.temHonorariosReu && (
                                     <Badge className="bg-violet-700 text-[8px] font-black uppercase">Honorários réu</Badge>
                                   )}
+                                  {credito.art523 && (
+                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-blue-500/50 text-blue-800">Art. 523</Badge>
+                                  )}
+                                  {credito.honorariosPercentual != null && (
+                                    <Badge variant="outline" className="text-[8px] font-black uppercase">
+                                      Hon. {credito.honorariosPercentual}%
+                                    </Badge>
+                                  )}
+                                  {credito.valoresDetectados.length > 0 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[8px] font-black uppercase border-emerald-600/40"
+                                      title="Valores citados no teor — NÃO usar como promessa sem revisão"
+                                    >
+                                      R$ no teor ({credito.valoresDetectados.length})
+                                    </Badge>
+                                  )}
                                   {op?.tipo && op.tipo !== "incerto" && (
                                     <Badge variant="outline" className="text-[8px] font-black uppercase">
                                       Crédito: {op.tipo}
                                     </Badge>
                                   )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-[9px] font-black uppercase"
+                                    onClick={() => {
+                                      const txt = scriptWhatsAppAposTeor({
+                                        nome: c.cliente || "Cliente",
+                                        protocolo: String(c.protocolo || ""),
+                                        tipo: op?.tipo,
+                                        art523: credito.art523,
+                                        encontroContas: credito.encontroContas || disp.encontroContas,
+                                        jaEmCumprimento: statusExecutivo(c) === "ativo",
+                                      });
+                                      void navigator.clipboard.writeText(txt);
+                                      toast({ title: "Script WhatsApp copiado", description: "Sem valor em R$ — revisar antes de enviar" });
+                                    }}
+                                  >
+                                    Copiar WhatsApp
+                                  </Button>
                                   {!podeR$ && (
                                     <Badge
                                       variant="outline"
@@ -1223,6 +1313,26 @@ const filtered = useMemo(() => {
                                   <p>Valor: <strong>{ctr.campos.valorFinanciado || "—"}</strong></p>
                                   <p>Taxa: <strong>{ctr.campos.taxaJuros || "—"}</strong> · CET: <strong>{ctr.campos.cet || "—"}</strong></p>
                                   <p>Prazo: <strong>{ctr.campos.prazoMeses || "—"}</strong> meses</p>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-[9px] font-black uppercase"
+                                    onClick={() => {
+                                      const txt = scriptWhatsAppAposTeor({
+                                        nome: c.cliente || "Cliente",
+                                        protocolo: String(c.protocolo || ""),
+                                        tipo: op?.tipo,
+                                        art523: credito.art523,
+                                        encontroContas: credito.encontroContas || disp.encontroContas,
+                                        jaEmCumprimento: statusExecutivo(c) === "ativo",
+                                      });
+                                      void navigator.clipboard.writeText(txt);
+                                      toast({ title: "Script WhatsApp copiado", description: "Sem valor em R$ — revisar antes de enviar" });
+                                    }}
+                                  >
+                                    Copiar WhatsApp
+                                  </Button>
                                   {!podeR$ && (
                                     <p className="text-red-700 font-semibold text-[10px]">
                                       Hard block: não exibir R$ ao cliente até teor OK + campos mínimos + revisão humana.
