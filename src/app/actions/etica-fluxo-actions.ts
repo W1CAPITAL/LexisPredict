@@ -1,18 +1,19 @@
 "use server";
 
-/**
- * Persiste estado ético do caso em processos.dados.etica (Supabase via server-db).
- */
-
 import type { EstadoFluxoEtico } from "@/lib/fluxo-etico-fases";
 import { normalizeEstadoFluxo } from "@/lib/fluxo-etico-fases";
 import type { TermoCienciaState } from "@/lib/termo-ciencia-riscos";
 import { emptyTermoCiencia, termoCienciaCompleto } from "@/lib/termo-ciencia-riscos";
+import type { DiagnosticoContrato } from "@/lib/diagnostico-contrato-etica";
+import type { ProtocoloExtrajudicial } from "@/lib/protocolo-extrajudicial";
+import { protocoloExtraDocumentado } from "@/lib/protocolo-extrajudicial";
 
 export async function saveEticaCasoAction(input: {
   protocolo: string;
   fluxo?: EstadoFluxoEtico;
   termo?: TermoCienciaState;
+  diagnostico?: DiagnosticoContrato;
+  protocoloExtra?: ProtocoloExtrajudicial;
   updatedBy?: string | null;
 }): Promise<{ success: true } | { success: false; error: string }> {
   const protocolo = String(input.protocolo || "").trim();
@@ -48,33 +49,46 @@ export async function saveEticaCasoAction(input: {
     if (!row) return { success: false, error: "caso não encontrado" };
 
     const prev = row.dados && typeof row.dados === "object" ? { ...row.dados } : {};
-    const eticaPrev = (prev as any).etica && typeof (prev as any).etica === "object" ? { ...(prev as any).etica } : {};
+    const eticaPrev =
+      (prev as any).etica && typeof (prev as any).etica === "object" ? { ...(prev as any).etica } : {};
 
-    const fluxo = input.fluxo ? normalizeEstadoFluxo(input.fluxo) : eticaPrev.fluxo;
-    let termo = input.termo || eticaPrev.termo_ciencia || emptyTermoCiencia();
-    if (input.termo && termoCienciaCompleto(input.termo) && !termo.assinadoEm) {
-      termo = {
-        ...input.termo,
-        assinadoEm: new Date().toISOString(),
-        assinadoPor: input.updatedBy || null,
+    const termo = input.termo || eticaPrev.termo_ciencia || emptyTermoCiencia();
+    const termoFinal =
+      input.termo && termoCienciaCompleto(input.termo) && !termo.assinadoEm
+        ? {
+            ...input.termo,
+            assinadoEm: new Date().toISOString(),
+            assinadoPor: input.updatedBy || null,
+          }
+        : termo;
+
+    let fluxo = input.fluxo ? normalizeEstadoFluxo(input.fluxo) : eticaPrev.fluxo;
+    if (fluxo) {
+      fluxo = {
+        ...fluxo,
+        termoCienciaRiscosAssinado:
+          termoCienciaCompleto(termoFinal) || !!fluxo.termoCienciaRiscosAssinado,
+        diagnosticoEntregue:
+          !!input.diagnostico?.parecer || !!fluxo.diagnosticoEntregue || !!eticaPrev.diagnostico?.parecer,
+        extrajudicialDocumentado:
+          (input.protocoloExtra
+            ? protocoloExtraDocumentado(input.protocoloExtra)
+            : false) ||
+          !!fluxo.extrajudicialDocumentado ||
+          protocoloExtraDocumentado(eticaPrev.protocolo_extrajudicial),
+        updatedAt: new Date().toISOString(),
       };
     }
-
-    // Sync gates do fluxo a partir do termo
-    const fluxoSync = fluxo
-      ? {
-          ...fluxo,
-          termoCienciaRiscosAssinado: termoCienciaCompleto(termo) || !!fluxo.termoCienciaRiscosAssinado,
-          updatedAt: new Date().toISOString(),
-        }
-      : undefined;
 
     const nextDados = {
       ...prev,
       etica: {
         ...eticaPrev,
-        fluxo: fluxoSync || eticaPrev.fluxo,
-        termo_ciencia: termo,
+        fluxo: fluxo || eticaPrev.fluxo,
+        termo_ciencia: termoFinal,
+        diagnostico: input.diagnostico || eticaPrev.diagnostico || null,
+        protocolo_extrajudicial:
+          input.protocoloExtra || eticaPrev.protocolo_extrajudicial || null,
         updated_at: new Date().toISOString(),
         updated_by: input.updatedBy || null,
       },

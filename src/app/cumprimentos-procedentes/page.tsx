@@ -56,6 +56,7 @@ import {
   kpiFilaEspecial,
 } from "@/lib/pipeline-honorarios-especial";
 import { scriptWhatsAppAposTeor } from "@/lib/script-cumprimento-whatsapp";
+import { copiarWhatsAppSeEtico } from "@/lib/whatsapp-etica-guard";
 import { scanInstaurarComParadosBatchAction } from "@/app/actions/scan-instaurar-parados-action";
 import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
@@ -1512,8 +1513,15 @@ export default function CumprimentosProcedentesPage() {
                                         encontroContas: credito.encontroContas || disp.encontroContas,
                                         jaEmCumprimento: statusExecutivo(c) === "ativo",
                                       });
-                                      void navigator.clipboard.writeText(txt);
-                                      toast({ title: "Script WhatsApp copiado", description: "Sem valor em R$ — revisar antes de enviar" });
+                                      void copiarWhatsAppSeEtico(txt, (motivo) =>
+                                        toast({ title: "WhatsApp bloqueado (ética)", description: motivo, variant: "destructive" })
+                                      ).then((ok) => {
+                                        if (ok)
+                                          toast({
+                                            title: "Script WhatsApp copiado",
+                                            description: "Compliance OK · sem valor em R$ — revisar antes de enviar",
+                                          });
+                                      });
                                     }}
                                   >
                                     Copiar WhatsApp
@@ -1627,8 +1635,15 @@ export default function CumprimentosProcedentesPage() {
                                         encontroContas: credito.encontroContas || disp.encontroContas,
                                         jaEmCumprimento: statusExecutivo(c) === "ativo",
                                       });
-                                      void navigator.clipboard.writeText(txt);
-                                      toast({ title: "Script WhatsApp copiado", description: "Sem valor em R$ — revisar antes de enviar" });
+                                      void copiarWhatsAppSeEtico(txt, (motivo) =>
+                                        toast({ title: "WhatsApp bloqueado (ética)", description: motivo, variant: "destructive" })
+                                      ).then((ok) => {
+                                        if (ok)
+                                          toast({
+                                            title: "Script WhatsApp copiado",
+                                            description: "Compliance OK · sem valor em R$ — revisar antes de enviar",
+                                          });
+                                      });
                                     }}
                                   >
                                     Copiar WhatsApp

@@ -42,6 +42,15 @@ import {
   type TermoCienciaState,
 } from "@/lib/termo-ciencia-riscos";
 import { saveEticaCasoAction } from "@/app/actions/etica-fluxo-actions";
+import { gerarRelatorioTransparencia } from "@/lib/relatorio-transparencia";
+import { calcularDiagnostico, emptyDiagnostico, type DiagnosticoContrato } from "@/lib/diagnostico-contrato-etica";
+import {
+  emptyProtocoloExtra,
+  protocoloExtraDocumentado,
+  resumoProtocoloExtra,
+  type ProtocoloExtrajudicial,
+} from "@/lib/protocolo-extrajudicial";
+import { copiarWhatsAppSeEtico } from "@/lib/whatsapp-etica-guard";
 
 export default function EticaOperacionalPage() {
   const { toast } = useToast();
@@ -53,6 +62,12 @@ export default function EticaOperacionalPage() {
   const [rascunho, setRascunho] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [taxaContrato, setTaxaContrato] = useState("");
+  const [taxaBacen, setTaxaBacen] = useState("");
+  const [diagnostico, setDiagnostico] = useState<DiagnosticoContrato>(emptyDiagnostico());
+  const [protoExtra, setProtoExtra] = useState<ProtocoloExtrajudicial>(emptyProtocoloExtra());
+  const [houveMov, setHouveMov] = useState(false);
+  const [resumoMov, setResumoMov] = useState("");
 
   const auditoria = useMemo(() => auditarTextoEtica(rascunho), [rascunho]);
   const gates = useMemo(() => gatesParaJudicial(fluxo), [fluxo]);
@@ -97,6 +112,8 @@ export default function EticaOperacionalPage() {
         protocolo: protocolo.trim(),
         fluxo: fluxoSync,
         termo,
+        diagnostico: diagnostico.parecer ? diagnostico : undefined,
+        protocoloExtra: protoExtra,
       });
       if (!r.success) {
         toast({ title: "Não gravou no Supabase", description: r.error, variant: "destructive" });
@@ -273,6 +290,134 @@ export default function EticaOperacionalPage() {
                   {termoCienciaCompleto(termo) && (
                     <p className="text-[10px] text-emerald-700 font-semibold">Termo completo — pode marcar no funil.</p>
                   )}
+                </div>
+
+                <div className="rounded-xl border border-blue-600/30 bg-blue-500/5 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase text-blue-900">Diagnóstico taxa × BACEN</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-muted-foreground">Taxa contrato % a.a.</span>
+                      <Input className="h-8 text-[11px]" value={taxaContrato} onChange={(e) => setTaxaContrato(e.target.value)} />
+                    </label>
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-muted-foreground">Média BACEN % a.a.</span>
+                      <Input className="h-8 text-[11px]" value={taxaBacen} onChange={(e) => setTaxaBacen(e.target.value)} />
+                    </label>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-[10px]"
+                    onClick={() => {
+                      const d = calcularDiagnostico({
+                        taxaContratoAa: parseFloat(taxaContrato.replace(",", ".")) || null,
+                        taxaMediaBacenAa: parseFloat(taxaBacen.replace(",", ".")) || null,
+                      });
+                      setDiagnostico(d);
+                      setFluxo((f) => ({ ...f, diagnosticoEntregue: true }));
+                      toast({ title: "Diagnóstico gerado", description: `Indício: ${d.indicioAbusividade}` });
+                    }}
+                  >
+                    Gerar parecer (sem garantia de êxito)
+                  </Button>
+                  {diagnostico.parecer && (
+                    <p className="text-[10px] leading-snug text-foreground/90">{diagnostico.parecer}</p>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-amber-600/30 bg-amber-500/5 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase text-amber-900">Protocolo extrajudicial</p>
+                  <label className="text-[10px] space-y-0.5 block">
+                    <span className="text-muted-foreground">Data envio</span>
+                    <Input
+                      type="date"
+                      className="h-8 text-[11px]"
+                      value={protoExtra.dataEnvio || ""}
+                      onChange={(e) => setProtoExtra((p) => ({ ...p, dataEnvio: e.target.value }))}
+                    />
+                  </label>
+                  <label className="text-[10px] space-y-0.5 block">
+                    <span className="text-muted-foreground">Nº protocolo</span>
+                    <Input
+                      className="h-8 text-[11px]"
+                      value={protoExtra.numeroProtocolo || ""}
+                      onChange={(e) => setProtoExtra((p) => ({ ...p, numeroProtocolo: e.target.value }))}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={protoExtra.bancoRespondeu === true}
+                      onChange={(e) =>
+                        setProtoExtra((p) => ({
+                          ...p,
+                          bancoRespondeu: e.target.checked,
+                          canal: p.canal || "email",
+                        }))
+                      }
+                    />
+                    Banco respondeu
+                  </label>
+                  <p className="text-[10px] text-muted-foreground">{resumoProtocoloExtra(protoExtra)}</p>
+                  {protocoloExtraDocumentado(protoExtra) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-[10px]"
+                      onClick={() =>
+                        setFluxo((f) => ({ ...f, extrajudicialDocumentado: true }))
+                      }
+                    >
+                      Marcar extrajudicial documentado
+                    </Button>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-emerald-600/30 bg-emerald-500/5 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase text-emerald-900">Relatório de transparência</p>
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input type="checkbox" checked={houveMov} onChange={(e) => setHouveMov(e.target.checked)} />
+                    Houve movimentação no período
+                  </label>
+                  {houveMov && (
+                    <Input
+                      className="h-8 text-[11px]"
+                      placeholder="Resumo objetivo da movimentação"
+                      value={resumoMov}
+                      onChange={(e) => setResumoMov(e.target.value)}
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full text-[10px]"
+                    onClick={async () => {
+                      const r = gerarRelatorioTransparencia({
+                        nomeCliente,
+                        empresa,
+                        protocolo,
+                        houveMovimentacao: houveMov,
+                        resumoMovimentacao: resumoMov,
+                        fase: fluxo.fase,
+                      });
+                      if (!r.complianceOk) {
+                        toast({
+                          title: "Relatório bloqueado",
+                          description: r.bloqueios[0],
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      const ok = await copiarWhatsAppSeEtico(r.texto, (m) =>
+                        toast({ title: "Compliance", description: m, variant: "destructive" })
+                      );
+                      if (ok) toast({ title: "Relatório copiado", description: "Linguagem ética OK" });
+                    }}
+                  >
+                    Gerar e copiar relatório (ético)
+                  </Button>
                 </div>
 
                 <div className="rounded-xl border border-border/60 p-3 space-y-1">
