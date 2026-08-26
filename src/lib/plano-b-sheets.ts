@@ -1,9 +1,6 @@
 /**
  * Plano B — carteira em Google Sheets / CSV / XLSX local.
- * NÃO substitui Supabase por padrão. Só entra se o operador usar /plano-b.
- * Inspirado no SyncCRM (aliases de coluna), sem OAuth obrigatório:
- * - Upload XLSX/CSV no browser (funciona mesmo com planilha privada)
- * - Ou URL "Publicar na web" → CSV / export?format=csv
+ * Link "qualquer pessoa com o link" funciona via endpoint gviz (não /export).
  */
 
 export type PlanoBRow = {
@@ -26,15 +23,8 @@ export type PlanoBRow = {
 
 const ALIASES: Record<keyof Omit<PlanoBRow, "raw">, string[]> = {
   protocolo: [
-    "protocolo",
-    "processo",
-    "cnj",
-    "numero",
-    "nº processo",
-    "numero processo",
-    "proc",
-    "protocolo_ref",
-    "n processo",
+    "protocolo", "processo", "cnj", "numero", "nº processo", "numero processo",
+    "proc", "protocolo_ref", "n processo",
   ],
   cliente: ["cliente", "nome", "parte", "autor", "requerente", "beneficiario", "beneficiário"],
   telefone: ["telefone", "fone", "celular", "whatsapp", "tel", "phone"],
@@ -42,31 +32,15 @@ const ALIASES: Record<keyof Omit<PlanoBRow, "raw">, string[]> = {
   escritorio: ["escritorio", "escritório", "empresa", "parceiro", "unidade"],
   tribunal: ["tribunal", "tj", "comarca", "orgao", "órgão"],
   status: ["status", "situacao_prazo", "situação prazo", "fase", "estado"],
-  situacao: ["situacao_gabinete", "situacao", "situação", "gabinete"],
+  situacao: ["situacao_gabinete", "situacao", "situação", "gabinete", "situacao_prazo"],
   ultimoRetorno: [
-    "ultimo_retorno",
-    "último retorno",
-    "ultimo retorno",
-    "retorno",
-    "atendido_em",
-    "data retorno",
+    "ultimo_retorno", "último retorno", "ultimo retorno", "retorno", "atendido_em", "data retorno",
   ],
   proximoRetorno: [
-    "proximo_retorno",
-    "próximo retorno",
-    "proximo retorno",
-    "prazo",
-    "proximo prazo",
-    "proximo_prazo",
+    "proximo_retorno", "próximo retorno", "proximo retorno", "prazo", "proximo prazo", "proximo_prazo",
   ],
   criado_por: [
-    "criado_por",
-    "criado por",
-    "dono",
-    "owner",
-    "created_by",
-    "assistente",
-    "responsavel carteira",
+    "criado_por", "criado por", "dono", "owner", "created_by", "assistente", "responsavel carteira",
   ],
   observacoes: ["observacoes", "observações", "obs", "notas", "comentario", "comentário"],
   andamento: ["andamento", "movimento", "movimentacao", "movimentação", "ultimo andamento"],
@@ -91,7 +65,6 @@ function pick(headers: string[], row: string[], keys: string[]): string {
   return "";
 }
 
-/** Detecta delimitador: ; (BR) ou , */
 function detectDelimiter(sample: string): "," | ";" {
   const first = sample.split(/\r?\n/).find((l) => l.trim()) || "";
   const semi = (first.match(/;/g) || []).length;
@@ -99,7 +72,6 @@ function detectDelimiter(sample: string): "," | ";" {
   return semi > comma ? ";" : ",";
 }
 
-/** CSV com suporte a aspas e delimitador ; ou , */
 export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
   const src = text.replace(/^\uFEFF/, "");
   const delim = detectDelimiter(src);
@@ -136,7 +108,7 @@ export function parseCsv(text: string): { headers: string[]; rows: string[][] } 
     if (cur.some((x) => x.trim())) lines.push(cur);
   }
   if (!lines.length) return { headers: [], rows: [] };
-  const headers = lines[0].map((h) => h.trim());
+  const headers = lines[0].map((h) => h.trim().replace(/^"|"$/g, ""));
   const rows = lines.slice(1);
   return { headers, rows };
 }
@@ -150,6 +122,7 @@ export function mapRowsToPlanoB(headers: string[], rows: string[][]): PlanoBRow[
     });
     const protocolo = pick(headers, row, ALIASES.protocolo);
     if (!protocolo) continue;
+    const statusPrazo = pick(headers, row, ["situacao_prazo", "situação prazo"]);
     out.push({
       protocolo,
       cliente: pick(headers, row, ALIASES.cliente),
@@ -157,8 +130,8 @@ export function mapRowsToPlanoB(headers: string[], rows: string[][]): PlanoBRow[
       advogado: pick(headers, row, ALIASES.advogado),
       escritorio: pick(headers, row, ALIASES.escritorio),
       tribunal: pick(headers, row, ALIASES.tribunal),
-      status: pick(headers, row, ALIASES.status) || "Sem Prazo",
-      situacao: pick(headers, row, ALIASES.situacao),
+      status: pick(headers, row, ALIASES.status) || statusPrazo || "Sem Prazo",
+      situacao: pick(headers, row, ALIASES.situacao) || statusPrazo,
       ultimoRetorno: pick(headers, row, ALIASES.ultimoRetorno),
       proximoRetorno: pick(headers, row, ALIASES.proximoRetorno),
       criado_por: pick(headers, row, ALIASES.criado_por),
@@ -171,26 +144,57 @@ export function mapRowsToPlanoB(headers: string[], rows: string[][]): PlanoBRow[
   return out;
 }
 
+function extractSheetId(input: string): string | null {
+  const m = String(input || "").match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return m?.[1] || null;
+}
+
+function extractGid(input: string): string | null {
+  const m = String(input || "").match(/[?&#]gid=([0-9]+)/);
+  return m?.[1] || null;
+}
+
 /**
- * Aceita:
- * - CSV cru
- * - URL docs.google.com/.../export?format=csv
- * - URL docs.google.com/.../pub?output=csv
- * - edit?usp=sharing → converte para export
+ * Candidatas de URL. gviz funciona com "qualquer pessoa com o link".
+ * /export?format=csv costuma dar HTTP 400 nesses casos.
  */
-export function normalizeSheetsCsvUrl(input: string): string {
+export function buildSheetsFetchCandidates(input: string): string[] {
   const u = String(input || "").trim();
-  if (!u) return "";
-  if (u.includes("docs.google.com/spreadsheets")) {
-    const idMatch = u.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    const gidMatch = u.match(/[?&#]gid=([0-9]+)/);
-    const id = idMatch?.[1];
-    const gid = gidMatch?.[1] || "0";
-    if (id) {
-      return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
-    }
+  if (!u) return [];
+  if (!u.includes("docs.google.com/spreadsheets") && !u.includes("google.com")) {
+    return [u];
   }
-  return u;
+  const id = extractSheetId(u);
+  if (!id) return [u];
+  const gid = extractGid(u) || "86725201"; // aba Processos do relatório Lexis
+  const out: string[] = [];
+  // gid explícito (link que já funcionou) primeiro
+  out.push(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}`);
+  out.push(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Processos`);
+  out.push(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=processos`);
+  out.push(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=0`);
+  out.push(`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid || "0"}`);
+  out.push(`https://docs.google.com/spreadsheets/d/${id}/pub?output=csv`);
+  return out;
+}
+
+export function normalizeSheetsCsvUrl(input: string): string {
+  return buildSheetsFetchCandidates(input)[0] || "";
+}
+
+function looksLikeHtml(text: string): boolean {
+  const t = text.trim().slice(0, 80).toLowerCase();
+  return t.startsWith("<!doctype") || t.startsWith("<html") || t.includes("<head>");
+}
+
+function looksLikeCsvWithProtocolo(text: string): boolean {
+  const head = text.slice(0, 800).toLowerCase();
+  return (
+    head.includes("protocolo") ||
+    head.includes("cliente") ||
+    head.includes("processo") ||
+    head.includes("cnj")
+  );
 }
 
 export async function fetchPlanoBFromUrl(url: string): Promise<{
@@ -198,40 +202,59 @@ export async function fetchPlanoBFromUrl(url: string): Promise<{
   rows: PlanoBRow[];
   error?: string;
   headers?: string[];
+  usedUrl?: string;
 }> {
   try {
-    const finalUrl = normalizeSheetsCsvUrl(url);
-    if (!finalUrl) return { ok: false, rows: [], error: "URL vazia" };
-    const res = await fetch(finalUrl, {
-      cache: "no-store",
-      redirect: "follow",
-      headers: { Accept: "text/csv,text/plain,*/*" },
-    });
-    if (!res.ok) {
-      return {
-        ok: false,
-        rows: [],
-        error: `HTTP ${res.status} — planilha privada. Use Arquivo → Compartilhar → Publicar na web → CSV, OU faça upload do .xlsx nesta tela.`,
-      };
+    const candidates = buildSheetsFetchCandidates(url);
+    if (!candidates.length) return { ok: false, rows: [], error: "URL vazia" };
+
+    let lastErr = "";
+    for (const finalUrl of candidates) {
+      try {
+        const res = await fetch(finalUrl, {
+          cache: "no-store",
+          redirect: "follow",
+          headers: {
+            Accept: "text/csv,text/plain,*/*",
+            "User-Agent": "LexisPredict-PlanoB/1.0",
+          },
+        });
+        if (!res.ok) {
+          lastErr = `HTTP ${res.status}`;
+          continue;
+        }
+        const text = await res.text();
+        if (looksLikeHtml(text)) {
+          lastErr = "Resposta HTML (sem acesso CSV nesta URL)";
+          continue;
+        }
+        if (!looksLikeCsvWithProtocolo(text) && !text.includes(",")) {
+          lastErr = "Conteúdo sem colunas de processo";
+          continue;
+        }
+        const { headers, rows } = parseCsv(text);
+        const mapped = mapRowsToPlanoB(headers, rows);
+        if (!mapped.length) {
+          lastErr = `Aba sem Protocolo (${headers.slice(0, 4).join(", ") || "vazio"})`;
+          continue;
+        }
+        return { ok: true, rows: mapped, headers, usedUrl: finalUrl };
+      } catch (e: any) {
+        lastErr = e?.message || String(e);
+      }
     }
-    const text = await res.text();
-    if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
-      return {
-        ok: false,
-        rows: [],
-        error:
-          "Resposta HTML (planilha privada). Publique CSV ou use o botão Upload XLSX/CSV nesta página.",
-      };
-    }
-    const { headers, rows } = parseCsv(text);
-    const mapped = mapRowsToPlanoB(headers, rows);
-    return { ok: true, rows: mapped, headers };
+    return {
+      ok: false,
+      rows: [],
+      error:
+        lastErr ||
+        'Não foi possível ler a planilha. Mantenha "Qualquer pessoa com o link" e a aba Processos — ou use Upload XLSX.',
+    };
   } catch (e: any) {
     return { ok: false, rows: [], error: e?.message || String(e) };
   }
 }
 
-/** Matriz (header + linhas) → PlanoB — preferir aba Processos no XLSX */
 export function mapMatrixToPlanoB(aoa: string[][]): PlanoBRow[] {
   if (!aoa.length) return [];
   const headers = aoa[0].map((h) => String(h ?? "").trim());
@@ -241,20 +264,9 @@ export function mapMatrixToPlanoB(aoa: string[][]): PlanoBRow[] {
 
 export function planoBToCsv(rows: PlanoBRow[]): string {
   const head = [
-    "protocolo",
-    "cliente",
-    "telefone",
-    "advogado",
-    "escritorio",
-    "tribunal",
-    "status",
-    "situacao",
-    "ultimo_retorno",
-    "proximo_retorno",
-    "criado_por",
-    "observacoes",
-    "andamento",
-    "evento_tipo",
+    "protocolo", "cliente", "telefone", "advogado", "escritorio", "tribunal",
+    "status", "situacao", "ultimo_retorno", "proximo_retorno", "criado_por",
+    "observacoes", "andamento", "evento_tipo",
   ];
   const esc = (v: string) => {
     const s = String(v ?? "");
@@ -265,20 +277,9 @@ export function planoBToCsv(rows: PlanoBRow[]): string {
   for (const r of rows) {
     lines.push(
       [
-        r.protocolo,
-        r.cliente,
-        r.telefone,
-        r.advogado,
-        r.escritorio,
-        r.tribunal,
-        r.status,
-        r.situacao,
-        r.ultimoRetorno,
-        r.proximoRetorno,
-        r.criado_por,
-        r.observacoes,
-        r.andamento,
-        r.evento_tipo,
+        r.protocolo, r.cliente, r.telefone, r.advogado, r.escritorio, r.tribunal,
+        r.status, r.situacao, r.ultimoRetorno, r.proximoRetorno, r.criado_por,
+        r.observacoes, r.andamento, r.evento_tipo,
       ]
         .map(esc)
         .join(",")
