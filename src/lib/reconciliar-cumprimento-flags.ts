@@ -218,3 +218,60 @@ export function reconciliarFlagsCumprimento(input: FlagsCumprimentoInput): Flags
     motivos,
   };
 }
+
+/**
+ * Aplica reconciliação sobre um patch de update (case-actions / scan).
+ * Usado por `applyReconciliacaoAoPatch` em case-actions.ts.
+ */
+export function applyReconciliacaoAoPatch<T extends Record<string, any>>(
+  patch: T,
+  caseLike: Record<string, any> | null | undefined
+): T {
+  const base = caseLike || {};
+  const dadosPatch =
+    patch.dados && typeof patch.dados === "object" ? { ...(patch.dados as object) } : {};
+  const dadosBase =
+    base.dados && typeof base.dados === "object" ? { ...(base.dados as object) } : {};
+  const dados = { ...dadosBase, ...dadosPatch };
+
+  const r = reconciliarFlagsCumprimento({
+    cumprimento_pendente_necessario:
+      patch.cumprimento_pendente_necessario ?? base.cumprimento_pendente_necessario,
+    em_cumprimento_sentenca: patch.em_cumprimento_sentenca ?? base.em_cumprimento_sentenca,
+    cumprimento_ativo: patch.cumprimento_ativo ?? base.cumprimento_ativo,
+    cumprimento_encerrado: patch.cumprimento_encerrado ?? base.cumprimento_encerrado,
+    status_executivo: patch.status_executivo ?? base.status_executivo ?? (dados as any).status_executivo,
+    is_procedente: patch.is_procedente ?? base.is_procedente,
+    dados,
+    blob: [
+      patch.procedente_motivo ?? base.procedente_motivo,
+      patch.cumprimento_sentenca_motivo ?? base.cumprimento_sentenca_motivo,
+      (dados as any).evento_resumo,
+      (dados as any).datajud_ultimo_nome,
+      (dados as any).djen_ultimo_resumo,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    data_transito_julgado: patch.data_transito_julgado ?? base.data_transito_julgado,
+    data_sentenca: (patch as any).data_sentenca ?? base.data_sentenca ?? (dados as any).data_sentenca,
+  });
+
+  const next: T = {
+    ...patch,
+    is_procedente: r.is_procedente,
+    cumprimento_pendente_necessario: r.cumprimento_pendente_necessario,
+    em_cumprimento_sentenca: r.em_cumprimento_sentenca,
+    cumprimento_ativo: r.cumprimento_ativo,
+    cumprimento_encerrado: r.cumprimento_encerrado,
+    status_executivo: r.status_executivo,
+    dados: {
+      ...dados,
+      status_executivo: r.status_executivo,
+      flags_reconciliacao: {
+        motivos: r.motivos,
+        em: new Date().toISOString(),
+      },
+    },
+  };
+  return next;
+}
