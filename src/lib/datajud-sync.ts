@@ -612,14 +612,19 @@ export function analisarProcedenciaECumprimento(
     }
   }
 
+    // Lote3: nunca pendente + em cumprimento ao mesmo tempo
+  if (emCumprimento || cumprimentoEncerrado) {
+    cumprimentoPendente = false;
+  }
   const cumprimentoAtivo = emCumprimento && !cumprimentoEncerrado;
 
   let status_executivo: 'pendente' | 'ativo' | 'encerrado' | 'procedente' | 'nenhum' =
     'nenhum';
-  if (cumprimentoPendente) status_executivo = 'pendente';
-  else if (cumprimentoAtivo) status_executivo = 'ativo';
+  // Ordem: ativo/encerrado antes de pendente (evita foco errado na aba)
+  if (cumprimentoAtivo) status_executivo = 'ativo';
   else if (cumprimentoEncerrado && (emCumprimento || isProcedente))
     status_executivo = 'encerrado';
+  else if (cumprimentoPendente) status_executivo = 'pendente';
   else if (isProcedente) status_executivo = 'procedente';
 
   // Confiança 0–100: TPU/classe > DJEN > heurística

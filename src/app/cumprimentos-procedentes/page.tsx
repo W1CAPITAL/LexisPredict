@@ -50,9 +50,10 @@ import { extrairDispositivoBullets, scriptWhatsAppCumprimentoSemValor, podeExibi
 import { CHECKLIST_LABELS, loadChecklist, saveChecklist, type ChecklistCumprimento, checklistAprovado } from "@/lib/checklist-cumprimento";
 import { analisarContratoCumprimentoAction } from "@/app/actions/cumprimento-contrato-actions";
 import type { CamposContratoFinanciamento } from "@/lib/contrato-financiamento-extract";
+import { reconciliarFlagsCumprimento } from "@/lib/reconciliar-cumprimento-flags";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
-type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios";
+type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "parceiro" | "conflito";
 
 function casePhone(c?: LegalCase | null): string {
   if (!c) return "";
@@ -102,18 +103,27 @@ function oportunidadeOf(c: LegalCase): {
 }
 
 function statusExecutivo(c: LegalCase): string {
-  const dados = ((c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {}) as any;
-  const st =
-    (c as any).status_executivo ||
-    dados.status_executivo ||
-    (c as any).detalhes_execucao?.status_executivo ||
-    dados.detalhes_execucao?.status_executivo;
-  if (st && st !== "nenhum") return String(st);
-  if (c.cumprimento_pendente_necessario) return "pendente";
-  if ((c as any).cumprimento_encerrado) return "encerrado";
-  if ((c as any).cumprimento_ativo || c.em_cumprimento_sentenca) return "ativo";
-  if (c.is_procedente) return "procedente";
-  return "nenhum";
+  const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
+  // Lote3: reconcilia flags antes de classificar (pendente NÃO ganha de ativo)
+  const r = reconciliarFlagsCumprimento({
+    cumprimento_pendente_necessario: c.cumprimento_pendente_necessario ?? dados.cumprimento_pendente_necessario,
+    em_cumprimento_sentenca: c.em_cumprimento_sentenca ?? dados.em_cumprimento_sentenca,
+    cumprimento_ativo: (c as any).cumprimento_ativo ?? dados.cumprimento_ativo,
+    cumprimento_encerrado: (c as any).cumprimento_encerrado ?? dados.cumprimento_encerrado,
+    status_executivo: (c as any).status_executivo || dados.status_executivo,
+    is_procedente: c.is_procedente ?? dados.is_procedente,
+    dados,
+  });
+  return r.status_executivo;
+}
+
+/** true se banco ainda tem as duas flags true (antes da reconciliação visual). */
+function temConflitoFlags(c: LegalCase): boolean {
+  const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
+  const pend = !!(c.cumprimento_pendente_necessario || dados.cumprimento_pendente_necessario);
+  const em = !!(c.em_cumprimento_sentenca || dados.em_cumprimento_sentenca || (c as any).cumprimento_ativo || dados.cumprimento_ativo);
+  const enc = !!((c as any).cumprimento_encerrado || dados.cumprimento_encerrado);
+  return pend && (em || enc);
 }
 
 export default function CumprimentosProcedentesPage() {
@@ -305,8 +315,26 @@ const filtered = useMemo(() => {
         const sb = Number((b as any).oportunidade_score ?? (b as any).detalhes_execucao?.oportunidade_instaurar?.score ?? 0);
         return sb - sa;
       });
+    
+    } else if (filtro === "parceiro") {
+      // Empresa por fora: elegível + score ≥ limiar + sucumbência ou ambos (não cliente puro)
+      base = base.filter((c) => {
+        const op = oportunidadeOf(c);
+        if (!op?.elegivel || op.score < limiar) return false;
+        if (statusExecutivo(c) === "ativo" || statusExecutivo(c) === "encerrado") return false;
+        const tipo = String(op.tipo || "").toLowerCase();
+        return tipo === "sucumbencia" || tipo === "ambos";
+      });
+      base.sort((a, b) => {
+        const sa = oportunidadeOf(a)?.score || 0;
+        const sb = oportunidadeOf(b)?.score || 0;
+        return sb - sa;
+      });
+    } else if (filtro === "conflito") {
+      base = base.filter((c) => temConflitoFlags(c));
     } else if (filtro === "pendente") {
-      base = base.filter((c) => statusExecutivo(c) === "pendente" || c.cumprimento_pendente_necessario);
+      // Só falta instaurar de verdade (sem fase ativa)
+      base = base.filter((c) => statusExecutivo(c) === "pendente");
     } else if (filtro === "ativo") {
       base = base.filter((c) => statusExecutivo(c) === "ativo");
     } else if (filtro === "encerrado") {
@@ -350,7 +378,15 @@ const filtered = useMemo(() => {
       const score = Number((c as any).oportunidade_score ?? op?.score ?? 0);
       return elegivel && score >= limiar;
     }).length;
-    return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios };
+    const conflitos = cases.filter((c) => temConflitoFlags(c)).length;
+    const parceiro = cases.filter((c) => {
+      const op = oportunidadeOf(c);
+      if (!op?.elegivel || op.score < limiar) return false;
+      if (statusExecutivo(c) === "ativo" || statusExecutivo(c) === "encerrado") return false;
+      const tipo = String(op.tipo || "").toLowerCase();
+      return tipo === "sucumbencia" || tipo === "ambos";
+    }).length;
+    return { total: cases.length, pendentes, ativos, encerrados, procedentes, honorarios, conflitos, parceiro };
   }, [cases, limiar]);
 
 
@@ -762,6 +798,25 @@ const filtered = useMemo(() => {
           </div>
         </header>
 
+        
+        {stats.conflitos > 0 && (
+          <div className="mx-4 sm:mx-6 mt-2 rounded-xl border-2 border-red-600/40 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold text-red-900 dark:text-red-100">
+              {stats.conflitos} processo(s) com flags conflitantes (pendente instaurar + já em cumprimento).
+              Use o filtro &quot;Flags em conflito&quot; e rode <strong>Reclassificar local</strong> para limpar.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-[10px] font-black uppercase border-red-600 text-red-800"
+              onClick={() => setFiltro("conflito")}
+            >
+              Ver conflitos
+            </Button>
+          </div>
+        )}
+
         {manualStatus === "running" && (
           <div className="mx-4 sm:mx-6 mt-3 rounded-xl border-2 border-amber-600/40 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -798,7 +853,9 @@ const filtered = useMemo(() => {
               <div className="p-2 space-y-1">
                 {[
                   { key: "todos" as FiltroAtivo, label: "Ação (sem ativos)", icon: Scale, count: Math.max(0, stats.total - stats.ativos - stats.encerrados), color: "" },
+                  { key: "parceiro" as FiltroAtivo, label: "Empresa por fora", icon: Scale, count: stats.parceiro || 0, color: "text-violet-700" },
                   { key: "honorarios" as FiltroAtivo, label: `Honorários ≥${limiar}`, icon: AlertTriangle, count: stats.honorarios, color: "text-violet-600" },
+                  { key: "conflito" as FiltroAtivo, label: "Flags em conflito", icon: ShieldAlert, count: stats.conflitos || 0, color: "text-red-700" },
                   { key: "pendente" as FiltroAtivo, label: "Falta instaurar", icon: AlertTriangle, count: stats.pendentes, color: "text-red-600" },
                   { key: "ativo" as FiltroAtivo, label: "Cumprimento ativo", icon: Clock, count: stats.ativos, color: "text-amber-600" },
                   { key: "encerrado" as FiltroAtivo, label: "Cumprimento encerrado", icon: Gavel, count: stats.encerrados, color: "text-slate-600" },

@@ -34,6 +34,7 @@ async function withOneRetry<T>(fn: () => Promise<T>, label: string): Promise<T> 
 }
 
 import { detectarAtualizacaoPosRetorno, detectarEncerradoNoTribunal, detectarCumprimentoSentenca, analisarProcedenciaECumprimento } from '@/lib/datajud-sync';
+import { applyReconciliacaoAoPatch } from '@/lib/reconciliar-cumprimento-flags';
 import { analisarBuscaApreensao } from '@/lib/busca-apreensao';
 import { fetchDjenComunicacoes, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
 import { detectarNovaComunicacaoDjen } from '@/lib/djen-sync';
@@ -253,11 +254,13 @@ export async function auditCaseCoreSystem(
           // Procedência e cumprimento pendente (módulo executivo)
           is_procedente: analiseExec.is_procedente || target.is_procedente || false,
           procedente_motivo: analiseExec.procedente_motivo || target.procedente_motivo || null,
-          cumprimento_pendente_necessario:
-            analiseExec.cumprimento_pendente_necessario ||
-            (!analiseExec.em_cumprimento_sentenca &&
-              !analiseExec.cumprimento_encerrado &&
-              (target.cumprimento_pendente_necessario || false)),
+          // Lote3: NÃO preservar pendente se já em cumprimento (evita flag dupla)
+          cumprimento_pendente_necessario: !!(
+            analiseExec.cumprimento_pendente_necessario &&
+            !analiseExec.em_cumprimento_sentenca &&
+            !analiseExec.cumprimento_encerrado &&
+            !analiseExec.cumprimento_ativo
+          ),
           data_transito_julgado: analiseExec.data_transito_julgado || target.data_transito_julgado || null,
           detalhes_execucao: {
             ...(typeof target.detalhes_execucao === 'object' && target.detalhes_execucao
@@ -636,6 +639,13 @@ export async function auditCaseCoreSystem(
     patch = mergeMotorParadosIntoPatch(target, patch);
   } catch (e: any) {
     console.warn('[motor-parados-instaurar] skip', e?.message || e);
+  }
+
+  // Lote3: reconcilia pendente vs já em cumprimento antes de gravar
+  try {
+    patch = applyReconciliacaoAoPatch(patch, target as any);
+  } catch (e: any) {
+    console.warn('[reconciliar-cumprimento] skip', e?.message || e);
   }
 
   const saved = await updateCaseDataJudSystem(dbItem.id, patch);
@@ -1598,6 +1608,18 @@ export async function reclassificarExecutivoCarteiraAction() {
           if (mergedPatch.dados) Object.assign(patch, { dados: mergedPatch.dados });
         } catch (e: any) {
           console.warn('[motor-parados reclass]', e?.message || e);
+        }
+
+        // Lote3: resolve pendente × já em cumprimento após motor parados
+        try {
+          patch = applyReconciliacaoAoPatch(patch, {
+            ...row,
+            dados,
+            cumprimento_pendente_necessario: row.cumprimento_pendente_necessario,
+            em_cumprimento_sentenca: row.em_cumprimento_sentenca,
+          });
+        } catch (e: any) {
+          console.warn('[reconciliar reclass]', e?.message || e);
         }
 
         // sempre grava flags atuais + merge dados
