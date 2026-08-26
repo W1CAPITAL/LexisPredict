@@ -29,6 +29,11 @@ import {
   Download,
   Zap,
   Database,
+  Copy,
+  Check,
+  Paperclip,
+  ListChecks,
+  ShieldAlert,
 } from "lucide-react";
 import {
   getCumprimentosEProcedentesAction, enriquecerTeorFilaOportunidadeAction,
@@ -41,7 +46,10 @@ import { type LegalCase } from "@/lib/case-logic";
 import { openWhatsAppClient } from "@/lib/whatsapp-links";
 import { computeKpiExecutivo } from "@/lib/kpi-executivo";
 import { getLimiarCobranca, LIMIAR_OPORTUNIDADE_COBRANCA } from "@/lib/oportunidade-cumprimento";
-import { Copy, Check } from "lucide-react";
+import { extrairDispositivoBullets, scriptWhatsAppCumprimentoSemValor, podeExibirValorMonetario } from "@/lib/dispositivo-sentenca";
+import { CHECKLIST_LABELS, loadChecklist, saveChecklist, type ChecklistCumprimento, checklistAprovado } from "@/lib/checklist-cumprimento";
+import { analisarContratoCumprimentoAction } from "@/app/actions/cumprimento-contrato-actions";
+import type { CamposContratoFinanciamento } from "@/lib/contrato-financiamento-extract";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
 type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios";
@@ -135,6 +143,15 @@ export default function CumprimentosProcedentesPage() {
     }
   });
   const [copiedProto, setCopiedProto] = useState<string | null>(null);
+  const [expandedProto, setExpandedProto] = useState<string | null>(null);
+  const [contratoByProto, setContratoByProto] = useState<Record<string, {
+    campos: CamposContratoFinanciamento;
+    camposMinimos: boolean;
+    provider?: string;
+    textLen?: number;
+  }>>({});
+  const [contratoBusy, setContratoBusy] = useState<string | null>(null);
+  const [checklistByProto, setChecklistByProto] = useState<Record<string, ChecklistCumprimento>>({});
   const [enriquecendo, setEnriquecendo] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [scanCursor, setScanCursor] = useState(0);
@@ -345,6 +362,66 @@ const filtered = useMemo(() => {
     } catch {
       toast({ title: "Não foi possível copiar", variant: "destructive" });
     }
+  };
+
+
+  const blobDoCaso = (c: LegalCase) => {
+    const d = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
+    return [
+      (c as any).evento_resumo,
+      c.datajud_ultimo_nome,
+      (c as any).procedente_motivo,
+      (c as any).cumprimento_sentenca_motivo,
+      d.evento_resumo,
+      d.djen_ultimo_resumo,
+      d.datajud_ultimo_nome,
+    ]
+      .filter(Boolean)
+      .join(" \n ");
+  };
+
+  const handleAnexoContrato = async (protocolo: string, file: File | null) => {
+    if (!file) return;
+    setContratoBusy(protocolo);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("protocolo", protocolo);
+      const res = await analisarContratoCumprimentoAction(fd);
+      if (!res.success || !res.campos) {
+        toast({ title: "Falha no contrato", description: res.error || "erro", variant: "destructive" });
+        return;
+      }
+      setContratoByProto((prev) => ({
+        ...prev,
+        [protocolo]: {
+          campos: res.campos!,
+          camposMinimos: !!res.camposMinimos,
+          provider: res.provider,
+          textLen: res.textLen,
+        },
+      }));
+      toast({
+        title: res.camposMinimos ? "Contrato lido" : "Contrato parcial",
+        description: res.camposMinimos
+          ? `Campos extraídos (${res.provider}). Revise antes de qualquer R$.`
+          : "Poucos campos — revise manualmente. Valores ao cliente continuam bloqueados.",
+      });
+    } catch (e: any) {
+      toast({ title: "Erro no upload", description: e?.message || "falha", variant: "destructive" });
+    } finally {
+      setContratoBusy(null);
+    }
+  };
+
+  const toggleChecklist = (protocolo: string, key: keyof ChecklistCumprimento) => {
+    if (key === "updatedAt") return;
+    setChecklistByProto((prev) => {
+      const cur = prev[protocolo] || loadChecklist(protocolo);
+      const next = { ...cur, [key]: cur[key] === true ? false : true } as ChecklistCumprimento;
+      saveChecklist(protocolo, next);
+      return { ...prev, [protocolo]: next };
+    });
   };
 
   const handleScanCumprimento = async () => {
@@ -603,6 +680,18 @@ const filtered = useMemo(() => {
               {manualStatus === "running"
                 ? `Varrendo ${manualDone}/${manualTotal || "…"}`
                 : "Varrer só cumprimento"}
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[10px] font-black uppercase gap-1"
+              disabled={enrichBusy || loading}
+              onClick={() => void handleEnriquecerTeor()}
+            >
+              {enrichBusy ? <Loader2 size={12} className="animate-spin" /> : <FileSearch size={12} />}
+              Enriquecer teor
             </Button>
 <Button
               type="button"
@@ -910,47 +999,181 @@ const filtered = useMemo(() => {
                           {c.tribunal && <span>{c.tribunal}</span>}
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 rounded-lg text-[10px] font-semibold gap-1"
-                            onClick={() => handleEnriquecer(c.protocolo)}
-                            disabled={enriquecendo === c.protocolo}
-                          >
-                            {enriquecendo === c.protocolo ? (
-                              <Loader2 size={10} className="animate-spin" />
-                            ) : (
-                              <FileSearch size={10} />
-                            )}
-                            Re-scannar
-                          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="h-8 rounded-lg text-[10px] font-bold gap-1"
-            disabled={enrichBusy || loading}
-            onClick={handleEnriquecerTeor}
-          >
-            {enrichBusy ? <Loader2 size={12} className="animate-spin" /> : <FileSearch size={12} />}
-            Enriquecer teor (fila pobre)
-          </Button>
-                          {casePhone(c) && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 rounded-lg text-[10px] gap-1"
-                              onClick={() =>
-                                openWhatsAppClient({ phone: casePhone(c), text: "" })
-                              }
-                            >
-                              <ExternalLink size={10} /> WhatsApp
-                            </Button>
-                          )}
-                        </div>
+                        {(() => {
+                          const disp = extrairDispositivoBullets(blobDoCaso(c));
+                          const op = oportunidadeOf(c);
+                          const ctr = contratoByProto[String(c.protocolo)];
+                          const chk = checklistByProto[String(c.protocolo)] || loadChecklist(String(c.protocolo));
+                          const open = expandedProto === c.protocolo;
+                          const podeR$ = podeExibirValorMonetario({
+                            teorSentencaOk: disp.teorOk,
+                            contratoCamposMinimos: !!ctr?.camposMinimos,
+                            aprovadoHumano: chk.revisadoHumano === true,
+                          });
+                          return (
+                            <div className="space-y-2 pt-1">
+                              {disp.encontroContas && (
+                                <div className="flex items-start gap-2 rounded-lg border border-amber-600/40 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-2 text-[11px] text-amber-950 dark:text-amber-100">
+                                  <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+                                  <span className="font-semibold">
+                                    Encontro de contas / compensação possível — não prometa depósito em conta.
+                                  </span>
+                                </div>
+                              )}
+                              <div className="rounded-lg border border-border/60 bg-card px-2.5 py-2 space-y-1">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                  O que o juiz determinou
+                                  {!disp.teorOk && (
+                                    <span className="ml-2 text-orange-600 normal-case font-bold">· teor fraco</span>
+                                  )}
+                                </p>
+                                {disp.bullets.length === 0 ? (
+                                  <p className="text-[11px] text-muted-foreground">Sem dispositivo legível no índice.</p>
+                                ) : (
+                                  <ul className="list-disc pl-4 space-y-0.5">
+                                    {disp.bullets.map((b, i) => (
+                                      <li key={i} className="text-[11px] leading-snug text-foreground/90">{b}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {disp.temQuantia && (
+                                    <Badge className="bg-emerald-700 text-[8px] font-black uppercase">Quantia</Badge>
+                                  )}
+                                  {disp.temHonorariosReu && (
+                                    <Badge className="bg-violet-700 text-[8px] font-black uppercase">Honorários réu</Badge>
+                                  )}
+                                  {op?.tipo && op.tipo !== "incerto" && (
+                                    <Badge variant="outline" className="text-[8px] font-black uppercase">
+                                      Crédito: {op.tipo}
+                                    </Badge>
+                                  )}
+                                  {!podeR$ && (
+                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-red-400 text-red-700">
+                                      R$ bloqueado
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 rounded-lg text-[10px] font-semibold gap-1"
+                                  onClick={() => handleEnriquecer(c.protocolo)}
+                                  disabled={enriquecendo === c.protocolo}
+                                >
+                                  {enriquecendo === c.protocolo ? (
+                                    <Loader2 size={10} className="animate-spin" />
+                                  ) : (
+                                    <FileSearch size={10} />
+                                  )}
+                                  Re-scannar
+                                </Button>
+                                <label className="inline-flex">
+                                  <input
+                                    type="file"
+                                    accept=".pdf,image/*,.txt,.md"
+                                    className="hidden"
+                                    disabled={contratoBusy === c.protocolo}
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0] || null;
+                                      void handleAnexoContrato(String(c.protocolo), f);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  <span
+                                    className={cn(
+                                      "inline-flex h-7 items-center gap-1 rounded-lg border border-border px-2 text-[10px] font-semibold cursor-pointer hover:bg-muted",
+                                      contratoBusy === c.protocolo && "opacity-50 pointer-events-none"
+                                    )}
+                                  >
+                                    {contratoBusy === c.protocolo ? (
+                                      <Loader2 size={10} className="animate-spin" />
+                                    ) : (
+                                      <Paperclip size={10} />
+                                    )}
+                                    Anexar contrato
+                                  </span>
+                                </label>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 rounded-lg text-[10px] gap-1"
+                                  onClick={() =>
+                                    setExpandedProto(open ? null : String(c.protocolo))
+                                  }
+                                >
+                                  <ListChecks size={10} />
+                                  Vale a pena?
+                                </Button>
+                                {casePhone(c) && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 rounded-lg text-[10px] gap-1"
+                                    onClick={() =>
+                                      openWhatsAppClient({
+                                        phone: casePhone(c),
+                                        text: scriptWhatsAppCumprimentoSemValor(
+                                          String(c.cliente || ""),
+                                          String(c.protocolo || "")
+                                        ),
+                                      })
+                                    }
+                                  >
+                                    <ExternalLink size={10} /> WhatsApp
+                                  </Button>
+                                )}
+                              </div>
+
+                              {ctr && (
+                                <div className="rounded-lg border border-border/60 bg-muted/30 px-2.5 py-2 text-[11px] space-y-1">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                    Contrato ({ctr.provider || "ocr"}) · conf. {ctr.campos.confianca}%
+                                  </p>
+                                  <p>Valor: <strong>{ctr.campos.valorFinanciado || "—"}</strong></p>
+                                  <p>Taxa: <strong>{ctr.campos.taxaJuros || "—"}</strong> · CET: <strong>{ctr.campos.cet || "—"}</strong></p>
+                                  <p>Prazo: <strong>{ctr.campos.prazoMeses || "—"}</strong> meses</p>
+                                  {!podeR$ && (
+                                    <p className="text-red-700 font-semibold text-[10px]">
+                                      Hard block: não exibir R$ ao cliente até teor OK + campos mínimos + revisão humana.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              {open && (
+                                <div className="rounded-lg border border-border bg-card px-2.5 py-2 space-y-1.5">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                                    <ListChecks size={12} /> Checklist · vale instaurar?
+                                    {checklistAprovado(chk) && (
+                                      <Badge className="ml-2 bg-emerald-600 text-[8px]">OK</Badge>
+                                    )}
+                                  </p>
+                                  {(Object.keys(CHECKLIST_LABELS) as (keyof typeof CHECKLIST_LABELS)[]).map((key) => (
+                                    <label
+                                      key={key}
+                                      className="flex items-start gap-2 text-[11px] cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="mt-0.5"
+                                        checked={chk[key] === true}
+                                        onChange={() => toggleChecklist(String(c.protocolo), key)}
+                                      />
+                                      <span>{CHECKLIST_LABELS[key]}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
