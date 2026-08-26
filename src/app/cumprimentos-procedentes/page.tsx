@@ -67,107 +67,16 @@ import { analisarContratoCumprimentoAction } from "@/app/actions/cumprimento-con
 import type { CamposContratoFinanciamento } from "@/lib/contrato-financiamento-extract";
 import { reconciliarFlagsCumprimento } from "@/lib/reconciliar-cumprimento-flags";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
+import {
+  blobDoCaso,
+  casePhone,
+  diasDesdeTransito,
+  oportunidadeOf,
+  statusExecutivo,
+  temConflitoFlags,
+} from "@/lib/cumprimento-page-helpers";
 
 type FiltroAtivo = "todos" | "pendente" | "ativo" | "encerrado" | "procedente" | "honorarios" | "hon_receber" | "parceiro" | "conflito" | "especial";
-
-function casePhone(c?: LegalCase | null): string {
-  if (!c) return "";
-  return String(c.telefone || "").trim();
-}
-
-function diasDesdeTransito(dateStr?: string | null): number | null {
-  if (!dateStr) return null;
-  try {
-    const d = new Date(dateStr);
-    const hoje = new Date();
-    return Math.floor((hoje.getTime() - d.getTime()) / (1000 * 3600 * 24));
-  } catch {
-    return null;
-  }
-}
-
-
-function oportunidadeOf(c: LegalCase): {
-  elegivel: boolean;
-  score: number;
-  tipo: string;
-  riscos: string[];
-  revisao: boolean;
-  textoPobre: boolean;
-  precisaEnriquecer: boolean;
-} | null {
-  const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
-  const op =
-    (c as any).oportunidade_instaurar ||
-    dados.oportunidade_instaurar ||
-    (c as any).detalhes_execucao?.oportunidade_instaurar ||
-    dados.detalhes_execucao?.oportunidade_instaurar;
-  if (!op && !(c as any).oportunidade_score && !dados.oportunidade_score) return null;
-  return {
-    elegivel: !!(c as any).oportunidade_elegivel || !!dados.oportunidade_elegivel || !!op?.elegivel,
-    score: Number((c as any).oportunidade_score ?? op?.score ?? 0),
-    tipo: String((c as any).oportunidade_tipo_credito || op?.tipo_credito || "incerto"),
-    riscos: Array.isArray(op?.riscos) ? op.riscos : [],
-    revisao: op?.requer_revisao_humana !== false,
-    textoPobre: !!(c as any).texto_pobre || !!dados.texto_pobre || !!op?.texto_pobre,
-    precisaEnriquecer:
-      !!(c as any).precisa_enriquecer_teor ||
-      !!dados.precisa_enriquecer_teor ||
-      !!op?.precisa_enriquecer_teor,
-  };
-}
-
-function statusExecutivo(c: LegalCase): string {
-  const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
-  // Lote3: reconcilia flags antes de classificar (pendente NÃO ganha de ativo)
-  const r = reconciliarFlagsCumprimento({
-    cumprimento_pendente_necessario: c.cumprimento_pendente_necessario ?? dados.cumprimento_pendente_necessario,
-    em_cumprimento_sentenca: c.em_cumprimento_sentenca ?? dados.em_cumprimento_sentenca,
-    cumprimento_ativo: (c as any).cumprimento_ativo ?? dados.cumprimento_ativo,
-    cumprimento_encerrado: (c as any).cumprimento_encerrado ?? dados.cumprimento_encerrado,
-    status_executivo: (c as any).status_executivo || dados.status_executivo,
-    is_procedente: c.is_procedente ?? dados.is_procedente,
-    dados,
-  });
-  return r.status_executivo;
-}
-
-/** true se banco ainda tem as duas flags true (antes da reconciliação visual). */
-function temConflitoFlags(c: LegalCase): boolean {
-  const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
-  const pend = !!(c.cumprimento_pendente_necessario || dados.cumprimento_pendente_necessario);
-  const em = !!(c.em_cumprimento_sentenca || dados.em_cumprimento_sentenca || (c as any).cumprimento_ativo || dados.cumprimento_ativo);
-  const enc = !!((c as any).cumprimento_encerrado || dados.cumprimento_encerrado);
-  return pend && (em || enc);
-}
-
-/**
- * Blob de teor para motor de honorários / crédito / dispositivo.
- * MODULE-LEVEL — evita TDZ (Cannot access before initialization):
- * filtered + stats useMemo chamam blobDoCaso antes de qualquer const no body do componente.
- * Amplia fontes (DJEN textos, movimentos) para melhor detecção de sucumbência a receber.
- */
-function blobDoCaso(c: LegalCase): string {
-  const d = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
-  return [
-    (c as any).evento_resumo,
-    c.datajud_ultimo_nome,
-    (c as any).datajud_ultimo_nome,
-    (c as any).procedente_motivo,
-    (c as any).cumprimento_sentenca_motivo,
-    d.evento_resumo,
-    d.djen_ultimo_resumo,
-    (c as any).djen_ultimo_resumo,
-    d.datajud_ultimo_nome,
-    d.procedente_motivo,
-    ...(Array.isArray(d.djen_textos) ? d.djen_textos.slice(0, 12) : []),
-    ...(Array.isArray(d.movimentos)
-      ? d.movimentos.slice(0, 40).map((m: any) => `${m.nome || ""} ${m.complemento || ""}`)
-      : []),
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
 
 export default function CumprimentosProcedentesPage() {
   const { toast } = useToast();
@@ -520,7 +429,6 @@ export default function CumprimentosProcedentesPage() {
   };
 
 
-  // blobDoCaso está no escopo de módulo (acima do componente) — não redefinir aqui
 
   const handleAnexoContrato = async (protocolo: string, file: File | null) => {
     if (!file) return;
