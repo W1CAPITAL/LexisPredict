@@ -61,6 +61,15 @@ const BLOQUEIO = [
   /sem\s+condena[cç][aã]o\s+em\s+honor[aá]rios/i,
   /deixo\s+de\s+condenar\s+em\s+honor[aá]rios/i,
   /honor[aá]rios\s+indevidos/i,
+  // Lote 3 — cliente/autor paga (NÃO é hon. a receber da banca do autor)
+  /(?:cliente|autor|requerente)\s+(?:dever[aá]|deve|ficar[aá]\s+obrigad[oa])\s+(?:a\s+)?pagar\s+(?:os\s+)?honor/i,
+  /honor[aá]rios.{0,40}(?:pagos?\s+pel[oa]\s+autor|a\s+cargo\s+d[oa]\s+(?:cliente|requerente))/i,
+  /autor\s+(?:pagar[aá]|arcar[aá])\s+.{0,30}10\s*%/i,
+  /condeno\s+o\s+autor\s+.{0,50}honor/i,
+  /condena[cç][aã]o\s+d[oa]\s+autor\s+em\s+honor/i,
+  /parte\s+autora\s+(?:arcar|pagar|responder).{0,40}honor/i,
+  /sucumb[eê]ncia\s+(?:a\s+cargo\s+)?d[ao]\s+(?:autor|requerente)/i,
+  /(?:autor|cliente)\s+pagar[aá]\s+10\s*%\s+(?:ao\s+)?(?:advogado|patrono)/i,
 ];
 
 // --- FORTE: réu/banco condenado a pagar honorários ---

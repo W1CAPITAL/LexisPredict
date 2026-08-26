@@ -71,8 +71,12 @@ import {
   blobDoCaso,
   casePhone,
   diasDesdeTransito,
+  diasDesde,
+  dataSentencaOf,
+  dataAguardandoCumprimentoOf,
   oportunidadeOf,
   statusExecutivo,
+  isProcedenteEfetivo,
   temConflitoFlags,
 } from "@/lib/cumprimento-page-helpers";
 import { computeKpiConversao } from "@/lib/kpi-conversao-cumprimento";
@@ -347,9 +351,12 @@ export default function CumprimentosProcedentesPage() {
     } else if (filtro === "encerrado") {
       base = base.filter((c) => statusExecutivo(c) === "encerrado" || !!(c as any).cumprimento_encerrado);
     } else if (filtro === "procedente") {
-      base = base.filter(
-        (c) => statusExecutivo(c) === "procedente" || (c.is_procedente && !c.em_cumprimento_sentenca)
-      );
+      // Lote 3: procedência efetiva (flag OU teor), fora de ativo/encerrado
+      base = base.filter((c) => {
+        const st = statusExecutivo(c);
+        if (st === "ativo" || st === "encerrado") return false;
+        return st === "procedente" || isProcedenteEfetivo(c);
+      });
     }
     const rank = (c: LegalCase) => {
       const s = statusExecutivo(c);
@@ -373,7 +380,11 @@ export default function CumprimentosProcedentesPage() {
     const pendentes = cases.filter((c) => statusExecutivo(c) === "pendente").length;
     const ativos = cases.filter((c) => statusExecutivo(c) === "ativo").length;
     const encerrados = cases.filter((c) => statusExecutivo(c) === "encerrado").length;
-    const procedentes = cases.filter((c) => statusExecutivo(c) === "procedente" || (c.is_procedente && statusExecutivo(c) !== "ativo")).length;
+    const procedentes = cases.filter((c) => {
+      const st = statusExecutivo(c);
+      if (st === "ativo" || st === "encerrado") return false;
+      return st === "procedente" || isProcedenteEfetivo(c);
+    }).length;
     const honorarios = cases.filter((c) => {
       const dados = ((c as any).dados && typeof (c as any).dados === "object" ? (c as any).dados : {}) as any;
       const op =
@@ -1171,7 +1182,7 @@ export default function CumprimentosProcedentesPage() {
                           "rounded-xl border p-3 space-y-2 transition-colors hover:bg-muted/30",
                           isPendente
                             ? "border-red-500/40 bg-red-500/5"
-                            : c.em_cumprimento_sentenca
+                            : isAtivo
                               ? "border-amber-500/30 bg-amber-500/5"
                               : "border-border/50"
                         )}
@@ -1219,14 +1230,19 @@ export default function CumprimentosProcedentesPage() {
                                 Pendente
                               </Badge>
                             )}
-                            {c.em_cumprimento_sentenca && (
+                            {isAtivo && (
                               <Badge className="bg-amber-600 text-[8px] font-black uppercase">
-                                Cumprimento
+                                Cumprimento ativo
                               </Badge>
                             )}
-                            {c.is_procedente && (
+                            {(isProcedenteEfetivo(c) || c.is_procedente) && (
                               <Badge className="bg-emerald-600 text-[8px] font-black uppercase">
                                 Procedente
+                              </Badge>
+                            )}
+                            {statusExecutivo(c) === "ativo" && !c.em_cumprimento_sentenca && (
+                              <Badge variant="outline" className="text-[8px] font-black uppercase border-amber-600/50 text-amber-800">
+                                Ativo (reconciliado)
                               </Badge>
                             )}
                             {(() => {
@@ -1346,6 +1362,18 @@ export default function CumprimentosProcedentesPage() {
                           {c.cumprimento_sentenca_motivo && (
                             <span>Cumprimento: {c.cumprimento_sentenca_motivo}</span>
                           )}
+                          {(() => {
+                            const ds = dataSentencaOf(c);
+                            if (!ds) return null;
+                            const dDias = diasDesde(ds);
+                            return (
+                              <span>
+                                Sentença:{" "}
+                                {new Date(ds).toLocaleDateString("pt-BR")}
+                                {dDias != null ? ` (${dDias}d)` : ""}
+                              </span>
+                            );
+                          })()}
                           {c.data_transito_julgado && (
                             <span>
                               Trânsito:{" "}
@@ -1353,6 +1381,20 @@ export default function CumprimentosProcedentesPage() {
                               {dias !== null ? ` (${dias}d)` : ""}
                             </span>
                           )}
+                          {(() => {
+                            const st = statusExecutivo(c);
+                            if (st !== "pendente" && st !== "procedente") return null;
+                            const da = dataAguardandoCumprimentoOf(c);
+                            if (!da) return null;
+                            const dParado = diasDesde(da);
+                            return (
+                              <span className="text-amber-800 dark:text-amber-200 font-semibold">
+                                Aguardando cumprimento desde{" "}
+                                {new Date(da).toLocaleDateString("pt-BR")}
+                                {dParado != null ? ` · ${dParado}d parado` : ""}
+                              </span>
+                            );
+                          })()}
                           {c.tribunal && <span>{c.tribunal}</span>}
                         </div>
 
