@@ -231,6 +231,143 @@ function formatCarteiraKpis(k: any) {
 }
 
 
+
+/** Responde o pedido do usuário com dados reais (sem inventar rotina genérica). */
+function answerUserPrompt(opts: {
+  prompt: string;
+  agentId: CrmAgentId;
+  agentNome: string;
+  kpis: any;
+  outstanding: { atrasados?: any[]; silencio?: any[] };
+  history?: any;
+}): string {
+  const raw = String(opts.prompt || "").trim();
+  const q = raw.toLowerCase();
+  const k = opts.kpis?.success ? opts.kpis : null;
+  const atrasados = opts.outstanding?.atrasados || [];
+  const silencio = opts.outstanding?.silencio || [];
+  const lines: string[] = [];
+
+  // Sem pedido claro em agente livre
+  if (!raw && (opts.agentId === "livre" || opts.agentId === "anotar-carteira")) {
+    return [
+      "Nenhum pedido foi escrito.",
+      "Digite o que você quer, por exemplo:",
+      "• quantos vencidos temos na carteira?",
+      "• quantos ativos e arquivados?",
+      "• resumo do processo 0000000-00.0000.0.00.0000",
+      "• monte um e-mail curto para o cliente sobre atraso",
+    ].join("\n");
+  }
+
+  lines.push(`## Pedido`);
+  lines.push(raw || `(rotina do agente «${opts.agentNome}»)`);
+  lines.push("");
+
+  // CNJ no texto
+  const cnjMatch = raw.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
+  if (cnjMatch && opts.history?.processo) {
+    const p = opts.history.processo;
+    lines.push("## Processo encontrado");
+    lines.push(`Cliente: ${p.cliente_nome || "—"}`);
+    lines.push(`CNJ: ${p.protocolo_ref || cnjMatch[0]}`);
+    lines.push(`Tribunal: ${p.tribunal || "—"}`);
+    lines.push(`Status: ${p.status || "—"}`);
+    lines.push(`Último retorno: ${p.ultimo_retorno || "—"}`);
+    lines.push(`Próximo retorno: ${p.proximo_retorno || "—"}`);
+    lines.push("");
+  }
+
+  // Respostas focadas (só o que foi perguntado)
+  let answered = false;
+
+  if (k && /vencid/.test(q)) {
+    lines.push(`**Vencidos na carteira:** ${k.vencidos}`);
+    lines.push(`(Ativos ${k.ativos} · total ${k.total} · arquivados/encerrados ${k.arquivados})`);
+    answered = true;
+  }
+  if (k && /(ativo|em andamento)/.test(q) && !/vencid/.test(q)) {
+    lines.push(`**Ativos:** ${k.ativos} de ${k.total} processos`);
+    answered = true;
+  }
+  if (k && /(arquiv|encerr)/.test(q)) {
+    lines.push(`**Arquivados / encerrados:** ${k.arquivados}`);
+    answered = true;
+  }
+  if (k && /(novidade|novo andamento)/.test(q)) {
+    lines.push(`**Com flag de novidade:** ${k.novidades}`);
+    answered = true;
+  }
+  if (k && /(é hoje|e hoje|hoje\b)/.test(q)) {
+    lines.push(`**É hoje:** ${k.hoje}`);
+    answered = true;
+  }
+  if (k && /(aten[cç][aã]o)/.test(q)) {
+    lines.push(`**Atenção (prazo):** ${k.atencao}`);
+    answered = true;
+  }
+  if (k && /(kpi|indicador|resumo da carteira|como est[aá] a carteira)/.test(q)) {
+    lines.push(formatCarteiraKpis(k));
+    answered = true;
+  }
+
+  if (/atraso|cobran[cç]a|t[ií]tulo|receber|r[eé]gua/.test(q) || opts.agentId === "atraso-regua") {
+    lines.push("");
+    lines.push(`## Títulos / atraso CRM: ${atrasados.length}`);
+    if (!atrasados.length) {
+      lines.push("Nenhum título vencido em `crm_receber` (tabela financeira pode estar vazia).");
+    } else {
+      atrasados.slice(0, 15).forEach((r: any, i: number) => {
+        lines.push(
+          `${i + 1}. ${r.cliente_nome || r.descricao || "—"} · R$ ${r.valor ?? "—"} · venc. ${r.data_vencimento || "—"}`
+        );
+      });
+    }
+    answered = true;
+  }
+
+  if (/sil[eê]ncio|sumiu|parad|sem movimento|follow/.test(q) || opts.agentId === "silencio-comercial") {
+    lines.push("");
+    lines.push(`## Silêncio comercial CRM: ${silencio.length}`);
+    if (!silencio.length) {
+      lines.push("Nenhum negócio parado em `crm_negocios` (funil comercial pode estar vazio).");
+    } else {
+      silencio.slice(0, 15).forEach((n: any, i: number) => {
+        lines.push(`${i + 1}. ${n.cliente_nome || "—"} · estágio ${n.estagio || "—"} · ${n.updated_at || ""}`);
+      });
+    }
+    answered = true;
+  }
+
+  // Rotina do agente sem prompt específico
+  if (!raw && opts.agentId === "followup-operacional" && k) {
+    lines.push(formatCarteiraKpis(k));
+    lines.push("");
+    lines.push(`Prioridade jurídica: **${k.vencidos} vencidos**, **${k.hoje} é hoje**.`);
+    lines.push(`CRM: ${atrasados.length} atraso(s), ${silencio.length} silêncio(s).`);
+    answered = true;
+  }
+
+  if (!answered && k) {
+    // Pedido livre sem matcher: responde o pedido + KPIs curtos (não só dump)
+    lines.push("## Leitura com dados da carteira");
+    lines.push(
+      `Não há um relatório automático só para essa frase. Dados atuais: **${k.vencidos} vencidos**, **${k.ativos} ativos**, **${k.total} total**.`
+    );
+    lines.push("");
+    lines.push("Se quiser algo específico, pergunte por número (ex.: vencidos, ativos, novidades) ou informe um CNJ.");
+    if (raw) {
+      lines.push("");
+      lines.push(`_Pedido original mantido:_ «${raw}»`);
+    }
+  } else if (!answered && !k) {
+    lines.push("Não foi possível ler a carteira de processos neste momento.");
+  }
+
+  return lines.join("\n");
+}
+
+
 /** Run com fallback determinístico + timeout na IA */
 export async function runCrmAgentAction(input: {
   agent_id: CrmAgentId;
@@ -271,35 +408,34 @@ export async function runCrmAgentAction(input: {
     at: now(),
   });
 
-  // Perguntas diretas sobre a carteira → resposta imediata (ex.: "quantos vencidos")
-  const q = String(input.prompt || "").toLowerCase();
-  if (
-    /vencid|quantos|carteira|pendente|arquiv|novidade|kpi|indicador/.test(q) ||
-    agentId === "followup-operacional"
-  ) {
-    if (kpis.success && (/vencid|quantos|kpi|indicador|carteira|pendente/.test(q) || agentId === "followup-operacional")) {
-      const base = formatCarteiraKpis(kpis);
-      const extra =
-        agentId === "followup-operacional" || /follow|ligar|whats|prioridade/.test(q)
-          ? "\n\n" + formatOutstanding(outstanding.atrasados || [], outstanding.silencio || [])
-          : "";
-      if (/vencid|quantos|kpi|indicador|carteira/.test(q) || agentId === "followup-operacional") {
-        // ainda tenta IA curta, mas já devolve KPIs se IA falhar
-        if (/vencid/.test(q) && !/follow|ligar/.test(q)) {
-          return {
-            success: true,
-            content: base + `\n\n**Resposta direta:** há **${(kpis as any).vencidos}** processos vencidos na carteira ativa.`,
-            logs,
-          };
-        }
-      }
-    }
+
+  const promptRaw = String(input.prompt || "").trim();
+  const q = promptRaw.toLowerCase();
+
+  // Histórico CNJ / negócio se pedido
+  let history: any = null;
+  if (input.negocioId || input.protocolo || /\d{7}-?\d{2}/.test(promptRaw)) {
+    history = await agentReadHistoryAction({
+      negocioId: input.negocioId,
+      protocolo: input.protocolo || (promptRaw.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/) || [])[0],
+    });
+    logs.push({
+      agent_id: agentId,
+      tool: "read_history",
+      ok: !!history?.success,
+      summary: history?.processo
+        ? `processo=${history.processo.protocolo_ref || history.processo.cliente_nome}`
+        : history?.negocio
+          ? `negocio=${history.negocio.cliente_nome}`
+          : "sem registro",
+      at: now(),
+    });
   }
 
-  // CNPJ enrich
-  if (agentId === "enriquecer-contato" || /\d{14}/.test(String(input.cnpj || input.prompt || "").replace(/\D/g, ""))) {
-    const raw = input.cnpj || input.prompt || "";
-    const cnpj = String(raw).replace(/\D/g, "").slice(0, 14);
+  // CNPJ enrich (só se agente ou CNPJ explícito)
+  if (agentId === "enriquecer-contato" || (/\d{14}/.test(String(input.cnpj || promptRaw).replace(/\D/g, "")) && /cnpj|empresa|raz[aã]o/.test(q))) {
+    const rawC = input.cnpj || promptRaw;
+    const cnpj = String(rawC).replace(/\D/g, "").slice(0, 14);
     if (cnpj.length === 14) {
       const br = await agentBrasilApiCnpjAction(cnpj);
       logs.push({
@@ -313,156 +449,98 @@ export async function runCrmAgentAction(input: {
         return {
           success: true,
           content:
-            "## Contato enriquecido (BrasilAPI)\n\n" +
-            JSON.stringify(br.observed, null, 2) +
-            "\n\nFonte: brasilapi.com.br (público). Não é LinkedIn.",
+            `## Pedido\n${promptRaw || "Enriquecer CNPJ"}\n\n## Contato (BrasilAPI)\n\n` +
+            JSON.stringify(br.observed, null, 2),
           logs,
         };
       }
     }
   }
 
-  let history: any = null;
-  if (input.negocioId || input.protocolo) {
-    history = await agentReadHistoryAction({
-      negocioId: input.negocioId,
-      protocolo: input.protocolo,
-    });
-    logs.push({
+  if (agentId === "recheck" && !input.useIa) {
+    const sch = await agentScheduleRecheckAction({
       agent_id: agentId,
-      tool: "read_crm_history",
-      ok: !!history.success,
-      summary: history?.processo
-        ? `processo=${history.processo.protocolo_ref || history.processo.cliente_nome}`
-        : history?.negocio
-          ? `negocio=${history.negocio.cliente_nome}`
-          : "sem registro",
-      at: now(),
+      subject_type: "empresa",
+      subject_id: "carteira",
+      days: 7,
+      note: promptRaw || "recheck",
     });
+    return {
+      success: !!sch.success,
+      content: sch.success
+        ? `Recheck agendado para ${sch.due_at}. Motivo: ${promptRaw || "recheck semanal"}.`
+        : sch.error || "Falha ao agendar (tabela crm_agent_tasks?).",
+      logs,
+    };
   }
 
-  // Deterministic agents: resposta imediata sem depender de LLM
-  // Se useIa=true, grava base e segue para cascade (MiniMax/Claude/…)
-  if (agent.deterministic && agentId !== "livre" && !input.useIa) {
-    if (agentId === "enriquecer-cnj" && history?.processo) {
-      const p = history.processo;
-      return {
-        success: true,
-        content: [
-          "## Processo na carteira",
-          `Cliente: ${p.cliente_nome || "—"}`,
-          `CNJ: ${p.protocolo_ref || "—"}`,
-          `Tribunal: ${p.tribunal || "—"}`,
-          `Status: ${p.status || "—"}`,
-          `Último retorno: ${p.ultimo_retorno || "—"}`,
-          `Próximo: ${p.proximo_retorno || "—"}`,
-          `Escritório/Adv: ${p.escritorio || "—"} / ${p.advogado || "—"}`,
-          "",
-          "Próximo passo: confirmar com o cliente se já foi orientado sobre o status acima.",
-        ].join("\n"),
-        logs,
-      };
-    }
+  // Resposta determinística SEMPRE alinhada ao pedido
+  const det = answerUserPrompt({
+    prompt: promptRaw,
+    agentId,
+    agentNome: agent.nome,
+    kpis,
+    outstanding,
+    history,
+  });
+  logs.push({
+    agent_id: agentId,
+    tool: "answer_prompt",
+    ok: true,
+    summary: `prompt_len=${promptRaw.length} agent=${agentId}`,
+    at: now(),
+  });
 
-    if (
-      agentId === "silencio-comercial" ||
-      agentId === "atraso-regua" ||
-      agentId === "followup-operacional"
-    ) {
-      return {
-        success: true,
-        content:
-          formatCarteiraKpis(kpis) +
-          "\n\n" +
-          formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []),
-        logs,
-      };
-    }
-
-    if (agentId === "recheck") {
-      const sch = await agentScheduleRecheckAction({
-        agent_id: agentId,
-        subject_type: "empresa",
-        subject_id: "carteira",
-        days: 7,
-        note: input.prompt || "recheck",
-      });
-      return {
-        success: !!sch.success,
-        content: sch.success
-          ? `Recheck agendado para ${sch.due_at}. Motivo: ${input.prompt || "recheck semanal"}.`
-          : sch.error || "Falha ao agendar (tabela crm_agent_tasks?).",
-        logs,
-      };
-    }
-  }
-
-
-  // ── IA opcional (não bloqueia resposta útil) ─────────────────────────
-  // Cascata real do Lexis: MiniMax → Claude → xAI → Omni → Groq → …
-  // Determinísticos já retornaram acima; aqui só livre / e-mail / pedido explícito.
   const wantIa =
     agentId === "livre" ||
     agentId === "email-cliente" ||
     agentId === "brief-negocio" ||
     agentId === "anotar-carteira" ||
     !!input.useIa ||
-    /\b(com ia|use ia|claude|minimax|grok|analise profunda|análise profunda)\b/i.test(
-      String(input.prompt || "")
-    );
+    /\b(com ia|use ia|claude|minimax|grok|analise profunda|análise profunda)\b/i.test(promptRaw);
 
-  const kpiBlock = formatCarteiraKpis(kpis);
-  const baseDet =
-    kpiBlock +
-    "\n\n" +
-    formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []);
-
+  // Sem IA: devolve só a resposta ao pedido (não dump genérico)
   if (!wantIa) {
     logs.push({
       agent_id: agentId,
       tool: "skip_ia",
       ok: true,
-      summary: "resposta determinística (IA não solicitada)",
+      summary: "resposta ao pedido (sem IA)",
       at: now(),
     });
-    return {
-      success: true,
-      content:
-        baseDet +
-        "\n\n_Sem IA neste run. Marque «Enriquecer com IA» ou use Agente livre / diga «com Claude» ou «com MiniMax»._",
-      logs,
-    };
+    return { success: true, content: det, logs };
   }
 
+  // Com IA: obrigar a responder EXATAMENTE o pedido; dados = evidência
   const preferred =
     String(input.preferredEngine || "auto").toLowerCase().trim() || "auto";
-  // auto = MiniMax + Claude + Grok + Omni (runCascade)
+
   const system = [
     ALL_SKILLS,
-    "Você é o agente Lexis do gabinete. Use só os números/KPIs fornecidos.",
-    "Português do Brasil. Objetivo, operacional. Não invente CNJ/telefone/valores.",
+    "Você é um agente operacional do LexisPredict.",
+    "REGRA 1: Responda APENAS o que o usuário pediu. Não invente outra pauta.",
+    "REGRA 2: Use somente os DADOS DE EVIDÊNCIA abaixo (KPIs, listas, processo). Não invente números.",
+    "REGRA 3: Se o pedido for ambíguo, diga o que faltou perguntar em 1 frase.",
+    "REGRA 4: Português do Brasil, curto e acionável.",
   ].join("\n");
 
   const userMsg = [
-    `Agente: ${agent.nome}`,
-    `Função: ${agent.faz}`,
-    `Pedido: ${input.prompt || "(rotina)"}`,
+    `PEDIDO DO USUÁRIO (obrigatório atender):`,
+    promptRaw || `(rotina do agente ${agent.nome}: ${agent.faz})`,
     "",
-    "KPIs carteira (processos reais):",
-    kpis.success ? JSON.stringify(kpis) : "indisponível",
+    `Agente selecionado: ${agent.nome}`,
     "",
-    "CRM financeiro (pode estar vazio):",
-    `atrasados=${(outstanding.atrasados || []).length} silencio=${(outstanding.silencio || []).length}`,
-    JSON.stringify(
-      {
-        atrasados: (outstanding.atrasados || []).slice(0, 8),
-        silencio: (outstanding.silencio || []).slice(0, 8),
-      },
-      null,
-      2
-    ),
-    history
-      ? `Histórico:\n${JSON.stringify(history, null, 2).slice(0, 3500)}`
+    "DADOS DE EVIDÊNCIA (já calculados no servidor):",
+    det,
+    "",
+    kpis.success ? `JSON KPIs: ${JSON.stringify(kpis)}` : "KPIs indisponíveis",
+    history?.processo
+      ? `Processo: ${JSON.stringify({
+          protocolo: history.processo.protocolo_ref,
+          cliente: history.processo.cliente_nome,
+          status: history.processo.status,
+          tribunal: history.processo.tribunal,
+        })}`
       : "",
   ].join("\n");
 
@@ -471,15 +549,11 @@ export async function runCrmAgentAction(input: {
       preferred,
       system,
       messages: [{ role: "user", content: userMsg }],
-      temperature: 0.2,
-      max_tokens: 2048,
+      temperature: 0.15,
+      max_tokens: 1800,
     });
-    const timeout = new Promise<{ text?: string; engineId?: string; error?: string }>(
-      (resolve) =>
-        setTimeout(
-          () => resolve({ error: "timeout_ia_50s" }),
-          50000
-        )
+    const timeout = new Promise<{ text?: string; error?: string }>((resolve) =>
+      setTimeout(() => resolve({ error: "timeout_ia_50s" }), 50000)
     );
     const res = (await Promise.race([iaPromise, timeout])) as any;
 
@@ -488,26 +562,25 @@ export async function runCrmAgentAction(input: {
         agent_id: agentId,
         tool: "cascade_ia",
         ok: true,
-        summary: `engine=${res.engineId || preferred} model=${res.model || "?"} ms=${res.latencyMs || res.latency || "?"}`,
+        summary: `engine=${res.engineId || preferred} model=${res.model || "?"}`,
         at: now(),
       });
       return {
         success: true,
         content:
-          kpiBlock +
-          `\n\n_Motor: **${res.engineId || preferred}**${res.model ? ` · ${res.model}` : ""}_\n\n---\n\n` +
+          `## Pedido\n${promptRaw || agent.nome}\n\n` +
+          `_Motor: **${res.engineId || preferred}**${res.model ? ` · ${res.model}` : ""}_\n\n` +
           String(res.text).trim(),
         logs,
       };
     }
 
-    // Fallback: processChat (xai/groq/airforce) se cascade falhou
     try {
       const fb = await Promise.race([
         processChat({
           message: `${system}\n\n${userMsg}`,
           contextType: "legal",
-          temperature: 0.2,
+          temperature: 0.15,
           preferredProvider: "xai",
         }),
         new Promise<any>((r) =>
@@ -519,14 +592,13 @@ export async function runCrmAgentAction(input: {
           agent_id: agentId,
           tool: "processChat_fallback",
           ok: true,
-          summary: `provider=${fb.provider} model=${fb.model}`,
+          summary: `provider=${fb.provider}`,
           at: now(),
         });
         return {
           success: true,
           content:
-            kpiBlock +
-            `\n\n_Motor: **${fb.provider}** · ${fb.model}_\n\n---\n\n` +
+            `## Pedido\n${promptRaw || agent.nome}\n\n_Motor: **${fb.provider}**_\n\n` +
             fb.content,
           logs,
         };
@@ -543,21 +615,21 @@ export async function runCrmAgentAction(input: {
       at: now(),
     });
 
+    // IA falhou: ainda assim devolve resposta ao pedido (dados)
     return {
       success: true,
-      content:
-        baseDet +
-        "\n\n_IA indisponível no momento (MiniMax/Claude/Grok). Números acima são da carteira real — sem inventar._",
+      content: det + "\n\n_IA indisponível; acima está a resposta com dados reais ao seu pedido._",
       logs,
     };
   } catch (e: any) {
     return {
       success: true,
-      content: baseDet + `\n\n_Erro IA: ${e?.message || e}_`,
+      content: det + `\n\n_Erro IA: ${e?.message || e}_`,
       logs,
     };
   }
 }
+
 
 export async function agentBrasilApiCnpjAction(cnpjRaw: string) {
   const c = await ctx();

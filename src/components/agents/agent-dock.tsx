@@ -184,7 +184,7 @@ export function AgentDock() {
 
           <input
             className="w-full h-9 rounded-md border border-[hsl(0,0%,20%)] bg-[hsl(0,0%,8%)] px-2 text-xs text-[hsl(0,0%,95%)]"
-            placeholder="CNJ (se o agente precisar)"
+            placeholder="Escreva o pedido com clareza — ex.: quantos vencidos? / resumo do CNJ …"
             value={protocolo}
             onChange={(e) => setProtocolo(e.target.value)}
           />
@@ -226,7 +226,7 @@ export function AgentDock() {
               </div>
             ) : null}
             <p className="text-[10px] text-zinc-500 leading-snug">
-              KPI e listas saem sem IA. Claude / MiniMax só quando você marca a opção, usa Agente livre, ou escreve «com Claude» / «com MiniMax».
+              O agente responde o que você escreveu no pedido. Sem texto, só rotina do agente. IA reformula a mesma resposta — não inventa outra pauta.
             </p>
           </div>
           <button
