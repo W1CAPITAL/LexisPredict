@@ -349,10 +349,10 @@ function answerUserPrompt(opts: {
 
   // ── Cliente / ranking mais vencido (prioridade alta) ──
   const asksMaisVencido =
-    /(mais tempo|mais vencid|maior atraso|ha mais tempo|há mais tempo|cliente.*vencid|vencid.*cliente|pior prazo|mais atrasad)/i.test(
+    /(mais\s*tempo|mmais\s*tempo|mais\s*vencid|maior\s*atraso|ha\s*mais\s*tempo|cliente.*vencid|vencid.*cliente|pior\s*prazo|mais\s*atrasad|tempo\s*vencid)/i.test(
       raw
     ) ||
-    /(mais tempo|mais vencid|maior atraso|cliente.*vencid)/i.test(q);
+    /(mais\s*tempo|mmais|mais\s*vencid|cliente.*vencid|tempo\s*vencid)/i.test(q);
 
   const asksTopVencidos =
     /(top\s*\d*|ranking|lista.*vencid|vencidos.*lista|quais.*vencid)/i.test(raw) ||
@@ -580,11 +580,23 @@ export async function runCrmAgentAction(input: {
   });
 
 
-  // Ranking/KPI puro: dados bastam. IA só se marcada, e-mail/brief/anotar, ou pedido explícito.
+  // Ranking/KPI / "cliente mais vencido": SEMPRE dados (mesmo com checkbox IA).
+  // Evita timeout MiniMax e resposta sumir / errada.
   const promptIsPureData =
-    /(mais tempo|mais vencid|top\s*\d*|quantos|kpi|ranking|lista.*vencid|vencidos\??\s*$)/i.test(
+    /(mais\s*tempo|mmais\s*tempo|mais\s*vencid|top\s*\d*|quantos|kpi|ranking|lista.*vencid|cliente.*vencid|vencid.*cliente|tempo\s*vencid)/i.test(
       promptRaw
     );
+  if (promptIsPureData && det && det.length > 15) {
+    logs.push({
+      agent_id: agentId,
+      tool: "pure_data_fast",
+      ok: true,
+      summary: "ranking/KPI só carteira (IA ignorada neste pedido)",
+      at: now(),
+    });
+    return { success: true, content: det, logs };
+  }
+
   const wantIa =
     !!input.useIa ||
     agentId === "email-cliente" ||
