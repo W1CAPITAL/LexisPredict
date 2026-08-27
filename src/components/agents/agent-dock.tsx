@@ -203,6 +203,9 @@ export function AgentDock() {
           {step && !busy ? (
             <p className="text-[10px] text-[hsl(0,0%,55%)]">Status: {step}</p>
           ) : null}
+          <p className="text-[10px] text-[hsl(0,0%,45%)] leading-snug">
+            Motores: Grok / Groq / cascade Lexis. Perguntas de KPI (ex. vencidos) usam a carteira real, sem esperar IA.
+          </p>
 
           {logs.length > 0 && (
             <ul className="text-[10px] text-[hsl(0,0%,55%)] space-y-0.5 border-t border-[hsl(0,0%,18%)] pt-2">

@@ -170,6 +170,66 @@ function formatOutstanding(atrasados: any[], silencio: any[]) {
   return lines.join("\n");
 }
 
+
+/** KPIs reais da carteira jurídica (processos) — não só crm_negocios */
+export async function agentCarteiraKpisAction() {
+  const c = await ctx();
+  if (!c) return { success: false as const, error: "Sessão." };
+  try {
+    const { getStoredCasesForEmpresa } = await import("@/lib/server-db");
+    const { isCasoEncerrado } = await import("@/lib/status-encerrado");
+    const cases = await getStoredCasesForEmpresa(c.empresa_id!, true);
+    let total = cases.length;
+    let vencidos = 0;
+    let hoje = 0;
+    let atencao = 0;
+    let noPrazo = 0;
+    let arquivados = 0;
+    let novidades = 0;
+    for (const raw of cases) {
+      const x: any = raw;
+      if (isCasoEncerrado(x) || /arquiv|encerr/i.test(String(x.status || x.situacao || ""))) {
+        arquivados++;
+        continue;
+      }
+      const st = String(x.status || "");
+      if (st === "Vencido" || /vencid/i.test(st)) vencidos++;
+      else if (st === "É Hoje" || /é hoje|e hoje/i.test(st)) hoje++;
+      else if (st === "Atenção" || /aten/i.test(st)) atencao++;
+      else noPrazo++;
+      if (x.tem_novo_andamento || x.novo_andamento) novidades++;
+    }
+    return {
+      success: true as const,
+      total,
+      ativos: total - arquivados,
+      vencidos,
+      hoje,
+      atencao,
+      noPrazo,
+      arquivados,
+      novidades,
+    };
+  } catch (e: any) {
+    return { success: false as const, error: e?.message || "falha KPIs" };
+  }
+}
+
+function formatCarteiraKpis(k: any) {
+  if (!k?.success) return "Não foi possível ler a carteira de processos.";
+  return [
+    "## Carteira jurídica (processos reais)",
+    `Total: **${k.total}**`,
+    `Ativos: **${k.ativos}** · Arquivados/encerrados: **${k.arquivados}**`,
+    `Vencidos: **${k.vencidos}**`,
+    `É hoje: **${k.hoje}** · Atenção: **${k.atencao}** · No prazo: **${k.noPrazo}**`,
+    `Novidades (flag): **${k.novidades}**`,
+    "",
+    "Fonte: tabela processos / processarCaso (mesma base do Dashboard).",
+  ].join("\n");
+}
+
+
 /** Run com fallback determinístico + timeout na IA */
 export async function runCrmAgentAction(input: {
   agent_id: CrmAgentId;
@@ -194,6 +254,42 @@ export async function runCrmAgentAction(input: {
     summary: `atrasados=${(outstanding.atrasados || []).length} silencio=${(outstanding.silencio || []).length}`,
     at: now(),
   });
+
+  const kpis = await agentCarteiraKpisAction();
+  logs.push({
+    agent_id: agentId,
+    tool: "carteira_kpis",
+    ok: !!kpis.success,
+    summary: kpis.success
+      ? `total=${kpis.total} vencidos=${kpis.vencidos} ativos=${kpis.ativos}`
+      : (kpis as any).error || "falha",
+    at: now(),
+  });
+
+  // Perguntas diretas sobre a carteira → resposta imediata (ex.: "quantos vencidos")
+  const q = String(input.prompt || "").toLowerCase();
+  if (
+    /vencid|quantos|carteira|pendente|arquiv|novidade|kpi|indicador/.test(q) ||
+    agentId === "followup-operacional"
+  ) {
+    if (kpis.success && (/vencid|quantos|kpi|indicador|carteira|pendente/.test(q) || agentId === "followup-operacional")) {
+      const base = formatCarteiraKpis(kpis);
+      const extra =
+        agentId === "followup-operacional" || /follow|ligar|whats|prioridade/.test(q)
+          ? "\n\n" + formatOutstanding(outstanding.atrasados || [], outstanding.silencio || [])
+          : "";
+      if (/vencid|quantos|kpi|indicador|carteira/.test(q) || agentId === "followup-operacional") {
+        // ainda tenta IA curta, mas já devolve KPIs se IA falhar
+        if (/vencid/.test(q) && !/follow|ligar/.test(q)) {
+          return {
+            success: true,
+            content: base + `\n\n**Resposta direta:** há **${(kpis as any).vencidos}** processos vencidos na carteira ativa.`,
+            logs,
+          };
+        }
+      }
+    }
+  }
 
   // CNPJ enrich
   if (agentId === "enriquecer-contato" || /\d{14}/.test(String(input.cnpj || input.prompt || "").replace(/\D/g, ""))) {
@@ -269,7 +365,10 @@ export async function runCrmAgentAction(input: {
     ) {
       return {
         success: true,
-        content: formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []),
+        content:
+          formatCarteiraKpis(kpis) +
+          "\n\n" +
+          formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []),
         logs,
       };
     }
@@ -292,59 +391,74 @@ export async function runCrmAgentAction(input: {
     }
   }
 
-  // IA com timeout 25s
+    // IA: cascade xai → airforce → groq (processChat), timeout 45s
   const userMsg = [
     `Agente: ${agent.nome}`,
     `O que este agente faz: ${agent.faz}`,
     `Pedido: ${input.prompt || "(rotina padrão)"}`,
     "",
-    "Atrasados:",
+    "KPIs carteira (processos):",
+    kpis.success ? JSON.stringify(kpis) : "indisponível",
+    "",
+    "Atrasados CRM financeiro:",
     JSON.stringify((outstanding.atrasados || []).slice(0, 10), null, 2),
-    "Silêncio:",
+    "Silêncio CRM:",
     JSON.stringify((outstanding.silencio || []).slice(0, 10), null, 2),
     history ? `Histórico:\n${JSON.stringify(history, null, 2).slice(0, 4000)}` : "",
     "",
-    "Responda em português: diagnóstico, lista priorizada, brief curto.",
+    "Responda em português com números reais dos KPIs. Diagnóstico + lista + brief.",
   ].join("\n");
+
+  const kpiBlock = formatCarteiraKpis(kpis);
 
   try {
     const iaPromise = processChat({
       message: `${ALL_SKILLS}\n\n${userMsg}`,
-      contextType: "case_swot",
-      temperature: 0.25,
+      contextType: "legal",
+      temperature: 0.2,
+      preferredProvider: "groq", // rápido; processChat ainda faz fallback xai/airforce
     });
     const timeout = new Promise<{ success: false; error: string; content?: string }>((resolve) =>
-      setTimeout(() => resolve({ success: false, error: "timeout_ia_25s" }), 25000)
+      setTimeout(() => resolve({ success: false, error: "timeout_ia_45s" }), 45000)
     );
-    const res = await Promise.race([iaPromise, timeout]);
+    const res = (await Promise.race([iaPromise, timeout])) as any;
 
-    if (res.success && (res as any).content) {
-      logs.push({ agent_id: agentId, tool: "write_brief", ok: true, summary: "brief IA", at: now() });
-      return { success: true, content: (res as any).content, logs };
+    if (res.success && res.content) {
+      logs.push({
+        agent_id: agentId,
+        tool: "write_brief",
+        ok: true,
+        summary: `IA ok provider=${res.provider || "?"} model=${res.model || "?"}`,
+        at: now(),
+      });
+      return {
+        success: true,
+        content: kpiBlock + "\n\n---\n\n" + res.content,
+        logs,
+      };
     }
 
     logs.push({
       agent_id: agentId,
       tool: "write_brief",
       ok: false,
-      summary: (res as any).error || "falha IA",
+      summary: res.error || "falha IA",
       at: now(),
     });
 
-    // Fallback: nunca deixar só "carregando"
     return {
       success: true,
       content:
+        kpiBlock +
+        "\n\n" +
         formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []) +
-        "\n\n_Nota: IA indisponível ou lenta; acima está a leitura direta do CRM (tools)._",
+        "\n\n_Motores de IA não responderam a tempo; números acima são da carteira real._",
       logs,
     };
   } catch (e: any) {
     return {
       success: true,
-      content:
-        formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []) +
-        `\n\n_Erro IA: ${e?.message || e}_`,
+      content: kpiBlock + `\n\n_Erro IA: ${e?.message || e}_`,
       logs,
     };
   }
