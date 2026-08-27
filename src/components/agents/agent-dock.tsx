@@ -28,6 +28,8 @@ export function AgentDock() {
   const [mailSubject, setMailSubject] = useState("");
   const [mailBody, setMailBody] = useState("");
   const [showAllAgents, setShowAllAgents] = useState(true);
+  const [useIa, setUseIa] = useState(false);
+  const [preferredEngine, setPreferredEngine] = useState("auto");
 
   useEffect(() => {
     if (!open) return;
@@ -47,6 +49,8 @@ export function AgentDock() {
         prompt: prompt || undefined,
         protocolo: protocolo || undefined,
         cnpj: cnpj || undefined,
+        useIa,
+        preferredEngine,
       });
       setOut(res.content || res.error || "Sem saída");
       setLogs(res.logs || []);
@@ -191,6 +195,40 @@ export function AgentDock() {
             onChange={(e) => setPrompt(e.target.value)}
           />
 
+          <div className="space-y-2 rounded-lg border border-white/10 bg-black/30 p-2.5">
+            <label className="flex items-center gap-2 text-[11px] text-zinc-200 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useIa}
+                onChange={(e) => setUseIa(e.target.checked)}
+                className="rounded border-zinc-600"
+              />
+              <span>
+                Enriquecer com IA{" "}
+                <span className="text-zinc-500">(opcional — padrão é só dados reais)</span>
+              </span>
+            </label>
+            {useIa || agentId === "livre" || agentId === "email-cliente" || agentId === "brief-negocio" ? (
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-500">Motor IA</span>
+                <select
+                  value={preferredEngine}
+                  onChange={(e) => setPreferredEngine(e.target.value)}
+                  className="w-full rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100"
+                >
+                  <option value="auto">Auto (MiniMax → Claude → Grok → Omni)</option>
+                  <option value="minimax">MiniMax M3</option>
+                  <option value="claude">Claude (Anthropic / Omni)</option>
+                  <option value="xai">xAI Grok</option>
+                  <option value="groq">Groq Llama</option>
+                  <option value="omni">OmniRoute cascade</option>
+                </select>
+              </div>
+            ) : null}
+            <p className="text-[10px] text-zinc-500 leading-snug">
+              KPI e listas saem sem IA. Claude / MiniMax só quando você marca a opção, usa Agente livre, ou escreve «com Claude» / «com MiniMax».
+            </p>
+          </div>
           <button
             type="button"
             disabled={busy}
@@ -203,9 +241,7 @@ export function AgentDock() {
           {step && !busy ? (
             <p className="text-[10px] text-[hsl(0,0%,55%)]">Status: {step}</p>
           ) : null}
-          <p className="text-[10px] text-[hsl(0,0%,45%)] leading-snug">
-            Motores: Grok / Groq / cascade Lexis. Perguntas de KPI (ex. vencidos) usam a carteira real, sem esperar IA.
-          </p>
+          
 
           {logs.length > 0 && (
             <ul className="text-[10px] text-[hsl(0,0%,55%)] space-y-0.5 border-t border-[hsl(0,0%,18%)] pt-2">

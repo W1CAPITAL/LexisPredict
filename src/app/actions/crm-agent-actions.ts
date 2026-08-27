@@ -9,6 +9,7 @@ import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
 import { ALL_SKILLS, AGENT_CATALOG } from "@/lib/crm-agent/skills";
 import type { CrmAgentId, CrmAgentRunLog } from "@/lib/crm-agent/types";
 import { processChat } from "@/lib/ai/chat-service";
+import { runCascade } from "@/lib/ai/cascade";
 
 async function ctx() {
   const c = await getUserContext();
@@ -237,6 +238,10 @@ export async function runCrmAgentAction(input: {
   negocioId?: string;
   protocolo?: string;
   cnpj?: string;
+  /** Se true, chama MiniMax/Claude/Grok mesmo em agente determinístico */
+  useIa?: boolean;
+  /** auto | minimax | claude | xai | groq | omni */
+  preferredEngine?: string;
 }): Promise<{ success: boolean; content: string; logs: CrmAgentRunLog[]; error?: string }> {
   const c = await ctx();
   const logs: CrmAgentRunLog[] = [];
@@ -337,7 +342,8 @@ export async function runCrmAgentAction(input: {
   }
 
   // Deterministic agents: resposta imediata sem depender de LLM
-  if (agent.deterministic && agentId !== "livre") {
+  // Se useIa=true, grava base e segue para cascade (MiniMax/Claude/…)
+  if (agent.deterministic && agentId !== "livre" && !input.useIa) {
     if (agentId === "enriquecer-cnj" && history?.processo) {
       const p = history.processo;
       return {
@@ -391,74 +397,163 @@ export async function runCrmAgentAction(input: {
     }
   }
 
-    // IA: cascade xai → airforce → groq (processChat), timeout 45s
-  const userMsg = [
-    `Agente: ${agent.nome}`,
-    `O que este agente faz: ${agent.faz}`,
-    `Pedido: ${input.prompt || "(rotina padrão)"}`,
-    "",
-    "KPIs carteira (processos):",
-    kpis.success ? JSON.stringify(kpis) : "indisponível",
-    "",
-    "Atrasados CRM financeiro:",
-    JSON.stringify((outstanding.atrasados || []).slice(0, 10), null, 2),
-    "Silêncio CRM:",
-    JSON.stringify((outstanding.silencio || []).slice(0, 10), null, 2),
-    history ? `Histórico:\n${JSON.stringify(history, null, 2).slice(0, 4000)}` : "",
-    "",
-    "Responda em português com números reais dos KPIs. Diagnóstico + lista + brief.",
-  ].join("\n");
+
+  // ── IA opcional (não bloqueia resposta útil) ─────────────────────────
+  // Cascata real do Lexis: MiniMax → Claude → xAI → Omni → Groq → …
+  // Determinísticos já retornaram acima; aqui só livre / e-mail / pedido explícito.
+  const wantIa =
+    agentId === "livre" ||
+    agentId === "email-cliente" ||
+    agentId === "brief-negocio" ||
+    agentId === "anotar-carteira" ||
+    !!input.useIa ||
+    /\b(com ia|use ia|claude|minimax|grok|analise profunda|análise profunda)\b/i.test(
+      String(input.prompt || "")
+    );
 
   const kpiBlock = formatCarteiraKpis(kpis);
+  const baseDet =
+    kpiBlock +
+    "\n\n" +
+    formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []);
+
+  if (!wantIa) {
+    logs.push({
+      agent_id: agentId,
+      tool: "skip_ia",
+      ok: true,
+      summary: "resposta determinística (IA não solicitada)",
+      at: now(),
+    });
+    return {
+      success: true,
+      content:
+        baseDet +
+        "\n\n_Sem IA neste run. Marque «Enriquecer com IA» ou use Agente livre / diga «com Claude» ou «com MiniMax»._",
+      logs,
+    };
+  }
+
+  const preferred =
+    String(input.preferredEngine || "auto").toLowerCase().trim() || "auto";
+  // auto = MiniMax + Claude + Grok + Omni (runCascade)
+  const system = [
+    ALL_SKILLS,
+    "Você é o agente Lexis do gabinete. Use só os números/KPIs fornecidos.",
+    "Português do Brasil. Objetivo, operacional. Não invente CNJ/telefone/valores.",
+  ].join("\n");
+
+  const userMsg = [
+    `Agente: ${agent.nome}`,
+    `Função: ${agent.faz}`,
+    `Pedido: ${input.prompt || "(rotina)"}`,
+    "",
+    "KPIs carteira (processos reais):",
+    kpis.success ? JSON.stringify(kpis) : "indisponível",
+    "",
+    "CRM financeiro (pode estar vazio):",
+    `atrasados=${(outstanding.atrasados || []).length} silencio=${(outstanding.silencio || []).length}`,
+    JSON.stringify(
+      {
+        atrasados: (outstanding.atrasados || []).slice(0, 8),
+        silencio: (outstanding.silencio || []).slice(0, 8),
+      },
+      null,
+      2
+    ),
+    history
+      ? `Histórico:\n${JSON.stringify(history, null, 2).slice(0, 3500)}`
+      : "",
+  ].join("\n");
 
   try {
-    const iaPromise = processChat({
-      message: `${ALL_SKILLS}\n\n${userMsg}`,
-      contextType: "legal",
+    const iaPromise = runCascade({
+      preferred,
+      system,
+      messages: [{ role: "user", content: userMsg }],
       temperature: 0.2,
-      preferredProvider: "groq", // rápido; processChat ainda faz fallback xai/airforce
+      max_tokens: 2048,
     });
-    const timeout = new Promise<{ success: false; error: string; content?: string }>((resolve) =>
-      setTimeout(() => resolve({ success: false, error: "timeout_ia_45s" }), 45000)
+    const timeout = new Promise<{ text?: string; engineId?: string; error?: string }>(
+      (resolve) =>
+        setTimeout(
+          () => resolve({ error: "timeout_ia_50s" }),
+          50000
+        )
     );
     const res = (await Promise.race([iaPromise, timeout])) as any;
 
-    if (res.success && res.content) {
+    if (res?.text && !res?.error) {
       logs.push({
         agent_id: agentId,
-        tool: "write_brief",
+        tool: "cascade_ia",
         ok: true,
-        summary: `IA ok provider=${res.provider || "?"} model=${res.model || "?"}`,
+        summary: `engine=${res.engineId || preferred} model=${res.model || "?"} ms=${res.latencyMs || res.latency || "?"}`,
         at: now(),
       });
       return {
         success: true,
-        content: kpiBlock + "\n\n---\n\n" + res.content,
+        content:
+          kpiBlock +
+          `\n\n_Motor: **${res.engineId || preferred}**${res.model ? ` · ${res.model}` : ""}_\n\n---\n\n` +
+          String(res.text).trim(),
         logs,
       };
     }
 
+    // Fallback: processChat (xai/groq/airforce) se cascade falhou
+    try {
+      const fb = await Promise.race([
+        processChat({
+          message: `${system}\n\n${userMsg}`,
+          contextType: "legal",
+          temperature: 0.2,
+          preferredProvider: "xai",
+        }),
+        new Promise<any>((r) =>
+          setTimeout(() => r({ success: false, error: "timeout_processChat" }), 35000)
+        ),
+      ]);
+      if (fb?.success && fb?.content) {
+        logs.push({
+          agent_id: agentId,
+          tool: "processChat_fallback",
+          ok: true,
+          summary: `provider=${fb.provider} model=${fb.model}`,
+          at: now(),
+        });
+        return {
+          success: true,
+          content:
+            kpiBlock +
+            `\n\n_Motor: **${fb.provider}** · ${fb.model}_\n\n---\n\n` +
+            fb.content,
+          logs,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+
     logs.push({
       agent_id: agentId,
-      tool: "write_brief",
+      tool: "cascade_ia",
       ok: false,
-      summary: res.error || "falha IA",
+      summary: res?.error || "falha cascade",
       at: now(),
     });
 
     return {
       success: true,
       content:
-        kpiBlock +
-        "\n\n" +
-        formatOutstanding(outstanding.atrasados || [], outstanding.silencio || []) +
-        "\n\n_Motores de IA não responderam a tempo; números acima são da carteira real._",
+        baseDet +
+        "\n\n_IA indisponível no momento (MiniMax/Claude/Grok). Números acima são da carteira real — sem inventar._",
       logs,
     };
   } catch (e: any) {
     return {
       success: true,
-      content: kpiBlock + `\n\n_Erro IA: ${e?.message || e}_`,
+      content: baseDet + `\n\n_Erro IA: ${e?.message || e}_`,
       logs,
     };
   }
