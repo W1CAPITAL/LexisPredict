@@ -193,6 +193,7 @@ function SidebarNavBody({
       { label: "OCR", href: "/tools/ocr", icon: FileText },
       { label: "Assessoria (comercial)", href: "/crm", icon: Kanban },
       { label: "Follow-ups comerciais", href: "/crm/followups", icon: ListTodo },
+      { label: "Agentes CRM", href: "/crm/agentes", icon: Bot },
       { label: "Finanças", href: "/financas", icon: Wallet },
       { label: "Cálculos judiciais", href: "/calculos", icon: Calculator },
       // Peças/modelos (procuração, substabelecimento, habilitação, revogação, modelos)

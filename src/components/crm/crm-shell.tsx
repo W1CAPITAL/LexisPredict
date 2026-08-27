@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Scale,
   ListTodo,
+  Bot,
   ArrowLeft,
 } from "lucide-react";
 
