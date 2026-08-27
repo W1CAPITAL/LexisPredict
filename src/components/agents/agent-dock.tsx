@@ -313,12 +313,14 @@ export function AgentDock() {
                 ) : null}
               </div>
               <div
-                className={cn(
-                  "min-h-[100px] max-h-[280px] overflow-y-auto rounded-xl border p-3 text-sm leading-relaxed whitespace-pre-wrap break-words",
-                  out
-                    ? "border-emerald-700/50 bg-zinc-900 text-zinc-50"
-                    : "border-zinc-700 bg-zinc-900/50 text-zinc-500"
-                )}
+                className="min-h-[120px] max-h-[320px] overflow-y-auto rounded-xl border p-3 text-[13px] leading-relaxed whitespace-pre-wrap break-words shadow-inner"
+                style={{
+                  backgroundColor: out ? "#09090b" : "#18181b",
+                  color: out ? "#fafafa" : "#a1a1aa",
+                  borderColor: out ? "#059669" : "#3f3f46",
+                  WebkitTextFillColor: out ? "#fafafa" : "#a1a1aa",
+                  opacity: 1,
+                }}
               >
                 {out || "A resposta aparece aqui após executar."}
               </div>

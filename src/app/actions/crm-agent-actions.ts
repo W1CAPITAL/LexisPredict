@@ -255,6 +255,12 @@ export async function agentCarteiraKpisAction() {
       /** Mais tempo vencido primeiro */
       topVencidos: vencidosList.slice(0, 25),
       maisVencido: vencidosList[0] || null,
+      menosVencido: vencidosList.length
+        ? [...vencidosList].sort((a, b) => a.diasVencido - b.diasVencido)[0]
+        : null,
+      topMenosVencidos: [...vencidosList]
+        .sort((a, b) => a.diasVencido - b.diasVencido)
+        .slice(0, 25),
     };
   } catch (e: any) {
     return { success: false as const, error: e?.message || "falha KPIs" };
@@ -301,6 +307,31 @@ function formatMaisVencido(k: any): string {
   return lines.join("\n");
 }
 
+function formatMenosVencido(k: any): string {
+  const m = k?.menosVencido;
+  if (!m) return "Nenhum processo vencido ativo encontrado na carteira carregada.";
+  const lines = [
+    "## Cliente com menos tempo vencido (ainda em atraso)",
+    `**${m.cliente}**`,
+    `CNJ: ${m.protocolo}`,
+    `Prazo: ${m.prazo} · **${m.diasVencido} dia(s) em atraso**`,
+    `Tribunal: ${m.tribunal}`,
+    `Adv/Escritório: ${m.advogado} / ${m.escritorio}`,
+    m.telefone && m.telefone !== "—" ? `Telefone: ${m.telefone}` : "",
+  ].filter(Boolean);
+  const top = (k.topMenosVencidos || []).slice(0, 10);
+  if (top.length > 1) {
+    lines.push("");
+    lines.push("### Ranking (top 10 — menos dias em atraso)");
+    top.forEach((r: any, i: number) => {
+      lines.push(
+        `${i + 1}. **${r.cliente}** · ${r.protocolo} · ${r.diasVencido}d · prazo ${r.prazo}`
+      );
+    });
+  }
+  return lines.join("\n");
+}
+
 /** Responde o pedido do usuário com dados reais (sem inventar rotina genérica). */
 function answerUserPrompt(opts: {
   prompt: string;
@@ -321,9 +352,11 @@ function answerUserPrompt(opts: {
     return [
       "Nenhum pedido foi escrito.",
       "Exemplos:",
+      "• qual cliente está há menos tempo vencido?",
       "• qual cliente está há mais tempo vencido?",
       "• top 10 vencidos",
       "• quantos vencidos temos?",
+      "• quantos ativos?",
       "• resumo do processo 0000000-00.0000.0.00.0000",
     ].join("\n");
   }
@@ -347,29 +380,48 @@ function answerUserPrompt(opts: {
 
   let answered = false;
 
-  // ── Cliente / ranking mais vencido (prioridade alta) ──
+  // ── Vencidos: distingue MENOS vs MAIS tempo em atraso ──
+  const asksMenosVencido =
+    /(menos\s*tempo|menor\s*atraso|menos\s*vencid|menos\s*dias|menos\s*atrasad|vencid.*menos|mais\s*recente.*venc)/i.test(
+      q
+    ) ||
+    /(menos\s*tempo|menor\s*atraso|menos\s*vencid)/i.test(raw);
+
   const asksMaisVencido =
-    /(mais\s*tempo|mmais\s*tempo|mais\s*vencid|maior\s*atraso|ha\s*mais\s*tempo|cliente.*vencid|vencid.*cliente|pior\s*prazo|mais\s*atrasad|tempo\s*vencid)/i.test(
+    !asksMenosVencido &&
+    (/(mais\s*tempo|mmais\s*tempo|mais\s*vencid|maior\s*atraso|ha\s*mais\s*tempo|pior\s*prazo|mais\s*atrasad|tempo\s*vencid)/i.test(
       raw
     ) ||
-    /(mais\s*tempo|mmais|mais\s*vencid|cliente.*vencid|tempo\s*vencid)/i.test(q);
+      /(mais\s*tempo|mmais|mais\s*vencid|tempo\s*vencid)/i.test(q) ||
+      (/(qual|quem|cliente).*(vencid|atras)/i.test(q) && !/quantos|qtd|quantidade/.test(q)));
 
   const asksTopVencidos =
     /(top\s*\d*|ranking|lista.*vencid|vencidos.*lista|quais.*vencid)/i.test(raw) ||
-    /(top|ranking|lista)/i.test(q) && /vencid/.test(q);
+    (/(top|ranking|lista)/i.test(q) && /vencid/.test(q));
 
-  if (k && (asksMaisVencido || asksTopVencidos || (opts.agentId === "followup-operacional" && /vencid/.test(q)))) {
+  if (k && asksMenosVencido) {
+    lines.push(formatMenosVencido(k));
+    answered = true;
+  } else if (
+    k &&
+    (asksMaisVencido || asksTopVencidos || (opts.agentId === "followup-operacional" && /vencid/.test(q)))
+  ) {
     lines.push(formatMaisVencido(k));
     answered = true;
   }
 
-  if (k && /vencid/.test(q) && !asksMaisVencido && !asksTopVencidos) {
+  if (k && /vencid/.test(q) && !answered) {
     lines.push(`**Vencidos na carteira:** ${k.vencidos}`);
     lines.push(`(Ativos ${k.ativos} · total ${k.total} · arquivados/encerrados ${k.arquivados})`);
     if (k.maisVencido) {
       lines.push("");
       lines.push(
-        `O de maior atraso: **${k.maisVencido.cliente}** (${k.maisVencido.diasVencido}d) · ${k.maisVencido.protocolo}`
+        `Maior atraso: **${k.maisVencido.cliente}** (${k.maisVencido.diasVencido}d) · ${k.maisVencido.protocolo}`
+      );
+    }
+    if (k.menosVencido) {
+      lines.push(
+        `Menor atraso (ainda vencido): **${k.menosVencido.cliente}** (${k.menosVencido.diasVencido}d) · ${k.menosVencido.protocolo}`
       );
     }
     answered = true;
@@ -434,7 +486,11 @@ function answerUserPrompt(opts: {
   if (!answered && k) {
     // pedido livre: se mencionar cliente/vencido de qualquer forma, ranking
     if (/cliente|vencid|prazo|atras/.test(q)) {
-      lines.push(formatMaisVencido(k));
+      if (/(menos\s*tempo|menor\s*atraso|menos\s*vencid)/i.test(q)) {
+        lines.push(formatMenosVencido(k));
+      } else {
+        lines.push(formatMaisVencido(k));
+      }
     } else {
       lines.push("## Dados atuais");
       lines.push(
@@ -583,7 +639,7 @@ export async function runCrmAgentAction(input: {
   // Ranking/KPI / "cliente mais vencido": SEMPRE dados (mesmo com checkbox IA).
   // Evita timeout MiniMax e resposta sumir / errada.
   const promptIsPureData =
-    /(mais\s*tempo|mmais\s*tempo|mais\s*vencid|top\s*\d*|quantos|kpi|ranking|lista.*vencid|cliente.*vencid|vencid.*cliente|tempo\s*vencid)/i.test(
+    /(mais\s*tempo|menos\s*tempo|mmais\s*tempo|mais\s*vencid|menos\s*vencid|menor\s*atraso|maior\s*atraso|top\s*\d*|quantos|kpi|ranking|lista.*vencid|cliente.*vencid|vencid.*cliente|tempo\s*vencid|quem.*(vencid|atras)|qual.*(vencid|atras))/i.test(
       promptRaw
     );
   if (promptIsPureData && det && det.length > 15) {
