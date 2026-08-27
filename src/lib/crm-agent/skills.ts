@@ -1,98 +1,110 @@
-/**
- * Skills em prosa (estilo CompAI) — o agente lê antes de agir.
- * Nada sobre pessoa é inventado: só evidência observada.
- */
 import type { CrmAgentId } from './types';
 
-export const SKILL_EVIDENCE = `SKILL evidence
-- Nunca invente telefone, e-mail, CPF, endereço ou status de pagamento.
-- Cada fato gravado precisa de evidence_kind (crm.*, processo.*, web.*, operador.*).
-- Evidência fraca vira sugestão para o operador — não grava como verdade.`;
+export const ALL_SKILLS = `SKILL evidence
+- Nunca invente telefone, e-mail, CPF ou valor.
+- Fato grava só com evidência observada.
 
-export const SKILL_IDENTITY = `SKILL identity-matching
-- Combine pessoa por CNJ + nome + telefone; se divergir, peça confirmação humana.
-- Não use "confiança %" da IA. Ferramentas reportam o que observaram.`;
+SKILL identity-matching
+- Combine por CNJ + nome + telefone; divergência pede humano.
 
-export const SKILL_BOUNDARIES = `SKILL data-boundaries
-- Não envie e-mail automático sem rascunho revisável pelo operador (salvo RESEND com flag explícita).
-- Não invente perfil LinkedIn. Alternativa: URL colada pelo operador ou dados públicos CNPJ (BrasilAPI).
-- Escopo: carteira da empresa_id da sessão.`;
+SKILL data-boundaries
+- E-mail: rascunho sempre; envio só com confirmação/Resend.
+- LinkedIn só se URL colada; CNPJ via BrasilAPI.
 
-export const SKILL_BRIEF = `SKILL writing-a-brief
-- Brief curto: situação → risco → próxima ação → o que NÃO fazer sozinho.
-- Tom institucional; nunca cite nomes de softwares concorrentes desnecessariamente.`;
+SKILL writing-a-brief
+- Situação → risco → próxima ação → o que não fazer sozinho.
 
-export const SKILL_EMAIL = `SKILL email-cliente
-- Rascunho em português claro, 2ª pessoa, WhatsApp/e-mail curto.
-- Cite só o ato/processo que o operador informou ou que a ferramenta leu.
-- Assunto + corpo separados. Sem ameaça indevida.`;
+SKILL email-cliente
+- Português, 2ª pessoa, curto. Não invente prazo.
 
-export const SKILL_ENRICH = `SKILL enriquecer-contato
-- CNPJ → BrasilAPI (razão social, CNAE, situação). Não é LinkedIn.
-- LinkedIn: apenas se o operador colar URL; registre como operador.declaracao.
-- RapidAPI não é obrigatório: use DataJud/DJEN/BrasilAPI já no Lexis.`;
+SKILL enriquecer-contato
+- CNPJ BrasilAPI; não chute perfil social.`;
 
-export const ALL_SKILLS = [
-  SKILL_EVIDENCE,
-  SKILL_IDENTITY,
-  SKILL_BOUNDARIES,
-  SKILL_BRIEF,
-  SKILL_EMAIL,
-  SKILL_ENRICH,
-].join('\n\n');
+export type AgentMeta = {
+  nome: string;
+  descricao: string;
+  faz: string;
+  precisa: string;
+  tools: string[];
+  /** Se true, pode responder só com tools (sem LLM) */
+  deterministic?: boolean;
+};
 
-export const AGENT_CATALOG: Record<
-  CrmAgentId,
-  { nome: string; descricao: string; tools: string[] }
-> = {
+export const AGENT_CATALOG: Record<CrmAgentId, AgentMeta> = {
   'silencio-comercial': {
     nome: 'Silêncio comercial',
-    descricao: 'Negócios sem atualização >14d — prioriza retorno.',
-    tools: ['list_outstanding_work', 'read_crm_history', 'write_brief'],
+    descricao: 'Quem sumiu no funil de assessoria há mais de 14 dias.',
+    faz: 'Lista negócios sem movimento, ordena por tempo parado e sugere o que falar em cada retorno.',
+    precisa: 'Nada obrigatório. Opcional: digite um filtro (nome/escritório).',
+    tools: ['list_outstanding_work', 'write_brief'],
+    deterministic: true,
   },
   'atraso-regua': {
     nome: 'Régua de atraso',
     descricao: 'Títulos a receber vencidos — ordem de cobrança educada.',
-    tools: ['list_outstanding_work', 'write_brief', 'draft_email'],
+    faz: 'Mostra pendências/atrasos do CRM financeiro e monta sequência de cobrança (D+0, D+3, D+7).',
+    precisa: 'Nada. Opcional: nome do cliente no pedido.',
+    tools: ['list_outstanding_work', 'draft_email'],
+    deterministic: true,
   },
   'brief-negocio': {
     nome: 'Brief de negócio',
-    descricao: 'Resumo executivo de um negócio/CNJ.',
+    descricao: 'Resumo executivo de um caso/negócio para handoff.',
+    faz: 'Lê histórico CRM + processo e devolve brief de 1 tela.',
+    precisa: 'CNJ ou nome do cliente no campo Protocolo/Pedido.',
     tools: ['read_crm_history', 'write_brief'],
   },
   'enriquecer-cnj': {
     nome: 'Enriquecer CNJ',
-    descricao: 'Lê processo na carteira e monta contexto processual.',
+    descricao: 'Contexto processual do número na carteira Lexis.',
+    faz: 'Busca o processo no Supabase e resume status, tribunal, retornos.',
+    precisa: 'CNJ no campo Protocolo.',
     tools: ['read_crm_history', 'write_brief'],
+    deterministic: true,
   },
   'enriquecer-contato': {
-    nome: 'Enriquecer contato',
-    descricao: 'CNPJ via BrasilAPI + notas; LinkedIn só com URL informada.',
-    tools: ['brasilapi_cnpj', 'record_fact', 'write_brief'],
+    nome: 'Enriquecer contato (CNPJ)',
+    descricao: 'Dados públicos de empresa — alternativa a LinkedIn pago.',
+    faz: 'Consulta BrasilAPI (razão social, CNAE, situação, cidade/UF).',
+    precisa: 'CNPJ no pedido ou no campo dedicado.',
+    tools: ['brasilapi_cnpj'],
+    deterministic: true,
   },
   'email-cliente': {
     nome: 'E-mail ao cliente',
-    descricao: 'Rascunho de e-mail/WhatsApp; envio só com confirmação.',
-    tools: ['read_crm_history', 'draft_email', 'send_email_optional'],
+    descricao: 'Rascunho de e-mail/WhatsApp revisável.',
+    faz: 'Gera assunto + corpo; você confirma e envia por mailto ou Resend.',
+    precisa: 'E-mail destino + contexto (ou CNJ). Nunca envia sozinho sem você clicar.',
+    tools: ['draft_email', 'send_email_optional'],
   },
   'followup-operacional': {
     nome: 'Follow-up operacional',
-    descricao: 'Cruza fila crítica + silêncio comercial (carteira jurídica).',
-    tools: ['list_outstanding_work', 'search_processos', 'write_brief'],
+    descricao: 'Cruza fila jurídica (silêncio/atraso comercial) com prioridade do dia.',
+    faz: 'Lista o que está parado e propõe ordem de ligação/WhatsApp.',
+    precisa: 'Nada. Roda na carteira da sua empresa.',
+    tools: ['list_outstanding_work', 'write_brief'],
+    deterministic: true,
   },
   'anotar-carteira': {
     nome: 'Anotar carteira',
-    descricao: 'Propõe anotação estruturada para notes/facts.',
-    tools: ['read_crm_history', 'record_fact', 'write_brief'],
+    descricao: 'Transforma o que você descreveu em anotação estruturada.',
+    faz: 'Propõe texto de nota (quem / o quê / próximo passo) para colar no caso.',
+    precisa: 'Descreva o que aconteceu no pedido.',
+    tools: ['write_brief'],
   },
   recheck: {
     nome: 'Recheck agendado',
-    descricao: 'Reagenda revisão com motivo explícito (estilo CompAI).',
+    descricao: 'Agenda revisão daqui a N dias com motivo explícito (CompAI).',
+    faz: 'Grava tarefa due na fila crm_agent_tasks.',
+    precisa: 'Motivo no pedido. Use o botão Recheck 7d.',
     tools: ['schedule_recheck'],
+    deterministic: true,
   },
   livre: {
     nome: 'Agente livre',
-    descricao: 'Pergunta aberta com todas as skills + tools.',
-    tools: ['list_outstanding_work', 'read_crm_history', 'write_brief', 'draft_email'],
+    descricao: 'Pergunta aberta com todas as skills.',
+    faz: 'Responde com base nas ferramentas + IA (pode demorar mais).',
+    precisa: 'Escreva a pergunta com clareza.',
+    tools: ['list_outstanding_work', 'write_brief'],
   },
 };

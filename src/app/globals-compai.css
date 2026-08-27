@@ -1,118 +1,213 @@
 /**
- * CompAI-inspired surfaces — Lexis inteiro (não só /crm)
- * Espaçamento generoso, cards limpos, tipografia legível, sem chrome excessivo.
+ * CompAI Dark + surfaces — Lexis inteiro
+ * Tokens adaptados do trycompai/crm (packages/ui globals .dark)
+ * Lexis usa HSL sem hsl() no token: --background: H S% L%;
  */
-:root {
-  --compai-radius: 0.75rem;
-  --compai-gap: 0.75rem;
-  --compai-border: hsl(var(--border) / 0.85);
+
+/* === COMPAI DARK (força contraste forte quando .dark) === */
+html.dark,
+.dark {
+  --background: 0 0% 5.9%;
+  --foreground: 0 0% 96%;
+  --card: 0 0% 9%;
+  --card-foreground: 0 0% 96%;
+  --popover: 0 0% 9%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 164 100% 21%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 63%;
+  --accent: 0 0% 16%;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 4 66% 41%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 16.5%;
+  --input: 0 0% 16.5%;
+  --ring: 158 50% 50%;
+  --sidebar-background: 0 0% 9%;
+  --sidebar-foreground: 0 0% 96%;
+  --sidebar-primary: 164 100% 21%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 16%;
+  --sidebar-accent-foreground: 0 0% 96%;
+  --sidebar-border: 0 0% 16.5%;
+  --sidebar-ring: 158 50% 50%;
 }
 
-/* Cards e painéis */
-.ops-ui .rounded-xl,
-.admin-ui .rounded-xl {
-  border-radius: var(--compai-radius);
+/* Superfícies legíveis */
+html.dark body,
+.dark body {
+  background-color: hsl(0 0% 5.9%) !important;
+  color: hsl(0 0% 96%);
+}
+
+html.dark .bg-background,
+.dark .bg-background {
+  background-color: hsl(0 0% 5.9%) !important;
+}
+
+html.dark .bg-card,
+.dark .bg-card,
+html.dark .premium-card,
+.dark .premium-card {
+  background-color: hsl(0 0% 9%) !important;
+  border-color: hsl(0 0% 16.5%) !important;
+  color: hsl(0 0% 96%);
+}
+
+html.dark .text-muted-foreground,
+.dark .text-muted-foreground {
+  color: hsl(0 0% 68%) !important;
+}
+
+html.dark .border-border,
+.dark .border,
+.dark [class*="border-"] {
+  border-color: hsl(0 0% 16.5%);
+}
+
+/* Primary CompAI teal */
+html.dark .bg-primary,
+.dark .bg-primary {
+  background-color: hsl(164 100% 21%) !important;
+  color: #fff !important;
+}
+
+html.dark .text-primary,
+.dark .text-primary {
+  color: hsl(158 55% 55%) !important;
+}
+
+html.dark .border-primary,
+.dark .border-primary {
+  border-color: hsl(158 50% 40%) !important;
+}
+
+/* Tabelas / KPIs */
+html.dark table thead,
+.dark table thead {
+  background: hsl(0 0% 11%) !important;
+  color: hsl(0 0% 70%);
+}
+
+html.dark table td,
+.dark table td {
+  border-color: hsl(0 0% 14%);
+  color: hsl(0 0% 92%);
 }
 
 .compai-card {
   background: hsl(var(--card));
-  border: 1px solid var(--compai-border);
-  border-radius: var(--compai-radius);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.65rem;
   padding: 1rem 1.15rem;
-  box-shadow: 0 1px 0 hsl(var(--foreground) / 0.03);
 }
 
 .compai-card-title {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: hsl(var(--muted-foreground));
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .compai-kpi {
-  font-size: 1.5rem;
+  font-size: 1.55rem;
   font-weight: 900;
   letter-spacing: -0.03em;
-  line-height: 1.1;
   font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
 }
 
-/* Tabelas mais respiráveis */
-.ops-ui table th {
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 800;
-  color: hsl(var(--muted-foreground));
-}
-
-.ops-ui table td {
-  padding-top: 0.7rem;
-  padding-bottom: 0.7rem;
-}
-
-/* Agent dock */
+/* Agent dock — painel grande */
 .lexis-agent-dock {
   position: fixed;
   right: 1rem;
   bottom: 1rem;
-  z-index: 60;
+  z-index: 70;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
-  max-width: min(420px, calc(100vw - 2rem));
+  max-width: min(440px, calc(100vw - 1.5rem));
   pointer-events: none;
 }
-.lexis-agent-dock > * {
-  pointer-events: auto;
-}
+.lexis-agent-dock > * { pointer-events: auto; }
 
 .lexis-agent-panel {
-  width: min(400px, calc(100vw - 2rem));
-  max-height: min(70vh, 560px);
+  width: min(420px, calc(100vw - 1.5rem));
+  max-height: min(82vh, 640px);
   overflow: auto;
-  background: hsl(var(--card));
-  border: 1px solid var(--compai-border);
-  border-radius: 1rem;
-  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.25);
-  padding: 0.85rem;
+  background: hsl(0 0% 9%);
+  color: hsl(0 0% 96%);
+  border: 1px solid hsl(0 0% 18%);
+  border-radius: 0.85rem;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.55);
+  padding: 0.9rem;
 }
 
 .lexis-agent-fab {
   height: 3rem;
-  padding: 0 1.1rem;
+  padding: 0 1.15rem;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  border: none;
-  box-shadow: 0 8px 24px hsl(var(--primary) / 0.35);
+  background: hsl(164 100% 21%);
+  color: #fff;
+  border: 1px solid hsl(158 50% 35%);
+  box-shadow: 0 8px 28px rgb(0 107 79 / 0.45);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
-.lexis-agent-fab:hover {
-  filter: brightness(1.06);
-}
 
-/* Melhor legibilidade de inputs em temas */
-.ops-ui input,
-.ops-ui textarea,
-.ops-ui select {
+.lexis-agent-card {
+  border: 1px solid hsl(0 0% 18%);
+  background: hsl(0 0% 11%);
   border-radius: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: border-color 0.15s, background 0.15s;
+}
+.lexis-agent-card:hover {
+  border-color: hsl(158 40% 35%);
+  background: hsl(0 0% 13%);
+}
+.lexis-agent-card.active {
+  border-color: hsl(158 50% 40%);
+  background: hsl(164 40% 12%);
+  box-shadow: inset 0 0 0 1px hsl(158 50% 30% / 0.35);
+}
+.lexis-agent-card .name {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: hsl(0 0% 96%);
+}
+.lexis-agent-card .desc {
+  font-size: 0.65rem;
+  line-height: 1.35;
+  color: hsl(0 0% 68%);
+  margin-top: 0.2rem;
+}
+.lexis-agent-card .does {
+  font-size: 0.6rem;
+  color: hsl(158 45% 55%);
+  margin-top: 0.3rem;
+  font-weight: 600;
 }
 
-/* Evita chrome metálico ilegível em botões de gráfico (já tratado; reforço) */
+/* Tooltips gráficos */
 .recharts-default-tooltip {
-  background: hsl(var(--card)) !important;
-  border: 1px solid var(--compai-border) !important;
+  background: hsl(0 0% 11%) !important;
+  border: 1px solid hsl(0 0% 20%) !important;
+  color: hsl(0 0% 96%) !important;
   border-radius: 0.5rem !important;
-  color: hsl(var(--foreground)) !important;
 }
