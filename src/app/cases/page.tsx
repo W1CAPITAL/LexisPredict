@@ -40,11 +40,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
-import { saveOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
+import { saveOneCaseAction, saveManyCasesAction, deleteOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction, slimCaseForSave } from '@/app/actions/case-save-actions';
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
@@ -550,18 +550,18 @@ function CasesContent() {
         }
         return c;
       });
-      const res = await syncRepoCases(updatedCases);
-      if (res.success) {
+      const touchedCases = updatedCases.filter((c) =>
+        attendanceForm.applyToAll
+          ? c.cliente === activeGroup.cliente
+          : c.protocolo === activeGroup.protocolo
+      );
+      // NÃO enviar carteira inteira (HTTP 413). Só os casos tocados, payload slim.
+      const res = await saveManyCasesAction(touchedCases.map((c) => slimCaseForSave(c) as any));
+      if (res.success || res.saved > 0) {
         setCases(updatedCases);
         setIsAttendanceOpen(false);
         setActiveGroup(null);
-        const touched = updatedCases
-          .filter((c) =>
-            attendanceForm.applyToAll
-              ? c.cliente === activeGroup.cliente
-              : c.protocolo === activeGroup.protocolo
-          )
-          .map((c) => c.protocolo);
+        const touched = touchedCases.map((c) => c.protocolo);
         const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
         try {
           if (isEncerrado) {
@@ -790,7 +790,7 @@ function CasesContent() {
         const res = await updateCaseCnjAction(String(editingCase.protocolo || ''), updatedCase);
         if (res?.success) {
           if ((updatedCase as any).force_transfer_owner) {
-            await saveOneCaseAction(updatedCase as any);
+            await saveOneCaseAction(slimCaseForSave(updatedCase) as any);
           }
           const updatedList = cases.map(c => (c.id === editingCase.id ? updatedCase : c));
           setCases(updatedList);
@@ -822,7 +822,7 @@ function CasesContent() {
         }
       }
       // 2) Demais campos do processo
-      const res = await saveOneCaseAction(updatedCase as any);
+      const res = await saveOneCaseAction(slimCaseForSave(updatedCase) as any);
       if (res.success) {
         const saved = { ...(res as any).case, ...updatedCase, created_by: nextOwner || (updatedCase as any).created_by };
         const updatedList = cases.map(c => (c.id === editingCase.id ? { ...c, ...saved } : c));
@@ -876,9 +876,9 @@ function CasesContent() {
     if (canAssignOwner && ownerAuthId && ownerAuthId !== 'self') {
       (novo as any).created_by = ownerAuthId;
     }
-    const updatedList = [novo, ...cases];
-    const res = await syncRepoCases(updatedList);
+    const res = await saveOneCaseAction(slimCaseForSave(novo) as any);
     if (res.success) {
+      const updatedList = [res.case || novo, ...cases];
       setCases(updatedList);
       setIsModalOpen(false);
       setEditingCase(null);
@@ -892,11 +892,17 @@ function CasesContent() {
 
   const handleDelete = async (id: string) => {
     if (confirm('Deseja remover este processo permanentemente do gabinete?')) {
-      const updatedList = cases.filter(c => c.id !== id);
-      const res = await syncRepoCases(updatedList);
+      const target = cases.find(c => c.id === id);
+      const proto = String(target?.protocolo || '');
+      const res = proto
+        ? await deleteOneCaseAction(proto)
+        : { success: false, message: 'Protocolo não encontrado' };
       if (res.success) {
         removeCase(id);
+        setCases((prev) => prev.filter((c) => c.id !== id));
         toast({ title: 'Processo removido' });
+      } else {
+        toast({ title: 'Falha ao remover', description: (res as any).message, variant: 'destructive' });
       }
     }
   };

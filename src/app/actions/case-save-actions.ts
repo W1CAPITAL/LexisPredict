@@ -62,6 +62,48 @@ function appendTransferAudit(
 import { hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { patchAtendimentoComEdicao } from '@/lib/processos-auditados';
 
+
+/** Remove blobs pesados do payload (movimentos/DJEN) — evita HTTP 413 no Vercel (~4.5MB). */
+export function slimCaseForSave(caseData: any): any {
+  if (!caseData || typeof caseData !== 'object') return caseData;
+  const HEAVY = [
+    'movimentos', 'datajud_movimentos', 'djen_textos', 'comunicacoes',
+    'historico', 'historico_completo', 'timeline', 'raw_datajud', 'raw_djen',
+    'ai_log', 'scan_log', 'pecas_texto', 'ocr_text', 'teor_completo',
+  ];
+  const out: any = { ...caseData };
+  for (const k of HEAVY) delete out[k];
+  if (out.dados && typeof out.dados === 'object') {
+    const d = { ...out.dados };
+    for (const k of HEAVY) delete d[k];
+    // limita strings gigantes
+    for (const key of Object.keys(d)) {
+      if (typeof d[key] === 'string' && d[key].length > 8000) {
+        d[key] = d[key].slice(0, 8000) + '…';
+      }
+      if (Array.isArray(d[key]) && d[key].length > 30) {
+        d[key] = d[key].slice(0, 30);
+      }
+    }
+    out.dados = d;
+  }
+  return out;
+}
+
+
+/** No update: preserva movimentos/DJEN já salvos se o client mandou payload slim. */
+function mergeDadosPreserveHeavy(existing: any, incoming: any): any {
+  const base = existing && typeof existing === 'object' ? { ...existing } : {};
+  const inc = incoming && typeof incoming === 'object' ? { ...incoming } : {};
+  const HEAVY = ['movimentos', 'datajud_movimentos', 'djen_textos', 'comunicacoes', 'historico_completo', 'raw_datajud', 'raw_djen'];
+  for (const k of HEAVY) {
+    if ((inc[k] == null || (Array.isArray(inc[k]) && !inc[k].length)) && base[k] != null) {
+      inc[k] = base[k];
+    }
+  }
+  return { ...base, ...inc };
+}
+
 function toRow(
   c: LegalCase,
   empresaId: string,
@@ -169,6 +211,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
   case?: LegalCase;
 }> {
   try {
+    caseData = slimCaseForSave(caseData) as LegalCase;
     const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id) return { success: false, message: 'Sessão expirada.' };
     const protocoloResolvido = resolveProtocoloCnj(caseData);
@@ -205,6 +248,28 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     }
 
     let processed = processarCaso(caseData as any);
+
+    try {
+      const adminPeek = await getSupabaseAdmin();
+      if (adminPeek && empresa_id && protocoloResolvido) {
+        const { data: prevRow } = await adminPeek
+          .from('processos')
+          .select('dados')
+          .eq('empresa_id', empresa_id)
+          .eq('protocolo_ref', protocoloResolvido)
+          .maybeSingle();
+        if (prevRow?.dados) {
+          const merged = mergeDadosPreserveHeavy(prevRow.dados, {
+            ...((processed as any).dados && typeof (processed as any).dados === 'object' ? (processed as any).dados : {}),
+            ...Object.fromEntries(
+              Object.entries(processed as any).filter(([k]) => !['id','empresa_id'].includes(k))
+            ),
+          });
+          (processed as any).dados = merged;
+        }
+      }
+    } catch { /* preserve best-effort */ }
+
 
     // Garante coluna/JSON com prazo ISO e status recalculado
     if (isoPrazoIn) {
@@ -613,4 +678,28 @@ export async function reassignCaseOwnerAction(input: {
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao reatribuir.' };
   }
+}
+
+
+/** Salva N casos sem reenviar a carteira inteira (anti-413). */
+export async function saveManyCasesAction(cases: LegalCase[]): Promise<{
+  success: boolean;
+  message: string;
+  saved: number;
+  errors: string[];
+}> {
+  const list = Array.isArray(cases) ? cases.slice(0, 40) : [];
+  let saved = 0;
+  const errors: string[] = [];
+  for (const c of list) {
+    const r = await saveOneCaseAction(slimCaseForSave(c) as LegalCase);
+    if (r.success) saved++;
+    else errors.push(`${c?.protocolo || '?'}: ${r.message}`);
+  }
+  return {
+    success: errors.length === 0,
+    message: errors.length ? errors[0] : `Salvos ${saved}`,
+    saved,
+    errors: errors.slice(0, 8),
+  };
 }

@@ -86,6 +86,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { saveManyCasesAction, slimCaseForSave } from '@/app/actions/case-save-actions';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
@@ -495,7 +496,11 @@ const handleSaveAttendance = async () => {
           tem_novo_andamento: false,
         });
       });
-      const result = await syncRepoCases(updatedCases);
+      const touchedCases = updatedCases.filter((c) => touched.includes(c.protocolo));
+      const result = await saveManyCasesAction(
+        (touchedCases.length ? touchedCases : updatedCases.filter((_, i) => i < 1)).map((c) => slimCaseForSave(c) as any)
+      );
+      if (!(result as any).success && (result as any).saved > 0) (result as any).success = true;
       if (result.success) {
         setCases(updatedCases);
         const updatedContatados = Array.from(new Set([...contatadosHoje, activeGroup.cliente]));
