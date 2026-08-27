@@ -1,16 +1,20 @@
 /**
  * Camada agentic do CRM Lexis — inspirada no CompAI CRM
  * (skills + tools + fila), adaptada à assessoria financeira.
- * Não usa Eve/Vercel Sandbox: roda em Server Actions + Supabase.
+ * Não usa Eve/Vercel Sandbox: Server Actions + Supabase.
+ * Alternativas: LinkedIn→CNPJ/BrasilAPI+URL manual; RapidAPI→APIs BR gratuitas;
+ * Nest/Prisma→Next Server Actions + Supabase (já no Lexis).
  */
 
 export const CRM_EVIDENCE_KINDS = [
   'crm.thread-reply',
   'crm.pagamento',
   'crm.contrato',
+  'crm.email',
   'processo.cnj',
   'processo.datajud',
   'web.cited-claim',
+  'web.brasilapi',
   'operador.declaracao',
   'sistema.derivado',
 ] as const;
@@ -21,6 +25,10 @@ export const CRM_AGENT_IDS = [
   'atraso-regua',
   'brief-negocio',
   'enriquecer-cnj',
+  'enriquecer-contato',
+  'email-cliente',
+  'followup-operacional',
+  'anotar-carteira',
   'recheck',
   'livre',
 ] as const;

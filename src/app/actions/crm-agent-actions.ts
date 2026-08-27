@@ -237,3 +237,162 @@ export async function runCrmAgentAction(input: {
     error: res.error,
   };
 }
+
+/** Alternativa a LinkedIn/RapidAPI: BrasilAPI CNPJ (público, grátis) */
+export async function agentBrasilApiCnpjAction(cnpjRaw: string) {
+  const c = await ctx();
+  if (!c) return { success: false, error: "Sessão." };
+  const cnpj = String(cnpjRaw || "").replace(/\D/g, "");
+  if (cnpj.length !== 14) return { success: false, error: "CNPJ inválido (14 dígitos)." };
+  try {
+    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) return { success: false, error: `BrasilAPI HTTP ${res.status}` };
+    const data = await res.json();
+    return {
+      success: true,
+      observed: {
+        cnpj,
+        razao_social: data.razao_social || data.nome || null,
+        nome_fantasia: data.nome_fantasia || null,
+        situacao: data.descricao_situacao_cadastral || data.situacao_cadastral || null,
+        cnae: data.cnae_fiscal_descricao || null,
+        municipio: data.municipio || null,
+        uf: data.uf || null,
+        source: "brasilapi.com.br",
+      },
+    };
+  } catch (e: any) {
+    return { success: false, error: e?.message || "Falha BrasilAPI" };
+  }
+}
+
+/** Rascunho de e-mail (sempre); envio real só se RESEND_API_KEY + send=true */
+export async function agentDraftEmailAction(input: {
+  to?: string;
+  cliente?: string;
+  protocolo?: string;
+  contexto?: string;
+  tom?: string;
+}) {
+  const c = await ctx();
+  if (!c) return { success: false, error: "Sessão.", subject: "", body: "" };
+
+  const prompt = [
+    ALL_SKILLS,
+    "",
+    "Gere APENAS um e-mail em JSON: {\"subject\":\"...\",\"body\":\"...\"}",
+    `Cliente: ${input.cliente || "—"}`,
+    `Para: ${input.to || "—"}`,
+    `CNJ: ${input.protocolo || "—"}`,
+    `Tom: ${input.tom || "institucional, claro, curto"}`,
+    `Contexto do operador:\n${input.contexto || "(sem contexto extra)"}`,
+    "Corpo em português, 2ª pessoa, sem inventar prazos ou valores.",
+  ].join("\n");
+
+  const res = await processChat({
+    message: prompt,
+    contextType: "case_swot",
+    temperature: 0.3,
+  });
+  if (!res.success) return { success: false, error: res.error || "IA", subject: "", body: "" };
+
+  let subject = `Atualização — ${input.protocolo || input.cliente || "seu processo"}`;
+  let body = res.content || "";
+  try {
+    const m = String(res.content || "").match(/\{[\s\S]*\}/);
+    if (m) {
+      const j = JSON.parse(m[0]);
+      if (j.subject) subject = String(j.subject);
+      if (j.body) body = String(j.body);
+    }
+  } catch {
+    /* texto livre */
+  }
+  return { success: true, subject, body, raw: res.content };
+}
+
+export async function agentSendEmailAction(input: {
+  to: string;
+  subject: string;
+  body: string;
+  /** true = tenta Resend se houver chave */
+  send?: boolean;
+}) {
+  const c = await ctx();
+  if (!c) return { success: false, error: "Sessão." };
+  const to = String(input.to || "").trim();
+  if (!to || !to.includes("@")) return { success: false, error: "E-mail destino inválido." };
+
+  const key = process.env.RESEND_API_KEY || process.env.LEXIS_RESEND_API_KEY;
+  const from =
+    process.env.RESEND_FROM ||
+    process.env.LEXIS_EMAIL_FROM ||
+    "LexisPredict <onboarding@resend.dev>";
+
+  if (!input.send) {
+    return {
+      success: true,
+      mode: "draft_only" as const,
+      mailto: `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(input.subject)}&body=${encodeURIComponent(input.body)}`,
+      message: "Rascunho pronto. Confirme envio ou abra mailto.",
+    };
+  }
+
+  if (!key) {
+    return {
+      success: true,
+      mode: "mailto_fallback" as const,
+      mailto: `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(input.subject)}&body=${encodeURIComponent(input.body)}`,
+      message:
+        "Sem RESEND_API_KEY no Vercel. Use o link mailto ou configure Resend (alternativa gratuita ao RapidAPI de e-mail).",
+    };
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject: input.subject,
+        text: input.body,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, error: data?.message || `Resend HTTP ${res.status}` };
+    }
+    return { success: true, mode: "sent" as const, id: data?.id };
+  } catch (e: any) {
+    return { success: false, error: e?.message || "Falha envio" };
+  }
+}
+
+/** Busca processos na carteira (follow-up operacional em todo o app) */
+export async function agentSearchProcessosAction(q: string) {
+  const c = await ctx();
+  if (!c) return { success: false, rows: [] as any[] };
+  const admin = await getSupabaseAdmin();
+  if (!admin) return { success: false, rows: [] as any[] };
+  const term = String(q || "").trim();
+  if (term.length < 2) return { success: true, rows: [] };
+  const dig = term.replace(/\D/g, "");
+  let query = admin
+    .from("processos")
+    .select("id, protocolo_ref, cliente_nome, status, tribunal, proximo_retorno, ultimo_retorno")
+    .eq("empresa_id", c.empresa_id)
+    .limit(20);
+  if (dig.length >= 8) {
+    query = query.ilike("protocolo_ref", `%${dig}%`);
+  } else {
+    query = query.or(`cliente_nome.ilike.%${term}%,protocolo_ref.ilike.%${term}%`);
+  }
+  const { data } = await query;
+  return { success: true, rows: data || [] };
+}

@@ -1,0 +1,118 @@
+/**
+ * CompAI-inspired surfaces — Lexis inteiro (não só /crm)
+ * Espaçamento generoso, cards limpos, tipografia legível, sem chrome excessivo.
+ */
+:root {
+  --compai-radius: 0.75rem;
+  --compai-gap: 0.75rem;
+  --compai-border: hsl(var(--border) / 0.85);
+}
+
+/* Cards e painéis */
+.ops-ui .rounded-xl,
+.admin-ui .rounded-xl {
+  border-radius: var(--compai-radius);
+}
+
+.compai-card {
+  background: hsl(var(--card));
+  border: 1px solid var(--compai-border);
+  border-radius: var(--compai-radius);
+  padding: 1rem 1.15rem;
+  box-shadow: 0 1px 0 hsl(var(--foreground) / 0.03);
+}
+
+.compai-card-title {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 0.5rem;
+}
+
+.compai-kpi {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tabelas mais respiráveis */
+.ops-ui table th {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: hsl(var(--muted-foreground));
+}
+
+.ops-ui table td {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+}
+
+/* Agent dock */
+.lexis-agent-dock {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-width: min(420px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+.lexis-agent-dock > * {
+  pointer-events: auto;
+}
+
+.lexis-agent-panel {
+  width: min(400px, calc(100vw - 2rem));
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  background: hsl(var(--card));
+  border: 1px solid var(--compai-border);
+  border-radius: 1rem;
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.25);
+  padding: 0.85rem;
+}
+
+.lexis-agent-fab {
+  height: 3rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: none;
+  box-shadow: 0 8px 24px hsl(var(--primary) / 0.35);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.lexis-agent-fab:hover {
+  filter: brightness(1.06);
+}
+
+/* Melhor legibilidade de inputs em temas */
+.ops-ui input,
+.ops-ui textarea,
+.ops-ui select {
+  border-radius: 0.55rem;
+}
+
+/* Evita chrome metálico ilegível em botões de gráfico (já tratado; reforço) */
+.recharts-default-tooltip {
+  background: hsl(var(--card)) !important;
+  border: 1px solid var(--compai-border) !important;
+  border-radius: 0.5rem !important;
+  color: hsl(var(--foreground)) !important;
+}

@@ -45,6 +45,11 @@ const LexisCommandPalette = dynamic(
   { ssr: false }
 );
 
+const AgentDock = dynamic(
+  () => import("@/components/agents/agent-dock").then((m) => m.AgentDock),
+  { ssr: false }
+);
+
 const DesktopDownloadBanner = dynamic(
   () =>
     import("@/components/system/desktop-download-banner").then(
@@ -91,6 +96,7 @@ export function ClientChrome() {
       <UiPrefsApplier />
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
+      <AgentDock />
       <AppUpdateBanner />
       <DesktopDownloadBanner />
       <PacmanTrollOverlay />
