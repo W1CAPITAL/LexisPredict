@@ -10,6 +10,7 @@ import { ALL_SKILLS, AGENT_CATALOG } from "@/lib/crm-agent/skills";
 import type { CrmAgentId, CrmAgentRunLog } from "@/lib/crm-agent/types";
 import { processChat } from "@/lib/ai/chat-service";
 import { runCascade } from "@/lib/ai/cascade";
+import { chatAIFlow } from "@/ai/flows/chat-ai-flow";
 
 async function ctx() {
   const c = await getUserContext();
@@ -173,12 +174,14 @@ function formatOutstanding(atrasados: any[], silencio: any[]) {
 
 
 /** KPIs reais da carteira jurídica (processos) — não só crm_negocios */
+
 export async function agentCarteiraKpisAction() {
   const c = await ctx();
   if (!c) return { success: false as const, error: "Sessão." };
   try {
     const { getStoredCasesForEmpresa } = await import("@/lib/server-db");
     const { isCasoEncerrado } = await import("@/lib/status-encerrado");
+    const { diasAtePrazo } = await import("@/lib/prazo-status");
     const cases = await getStoredCasesForEmpresa(c.empresa_id!, true);
     let total = cases.length;
     let vencidos = 0;
@@ -187,19 +190,58 @@ export async function agentCarteiraKpisAction() {
     let noPrazo = 0;
     let arquivados = 0;
     let novidades = 0;
+    const vencidosList: Array<{
+      cliente: string;
+      protocolo: string;
+      prazo: string;
+      diasVencido: number;
+      tribunal: string;
+      advogado: string;
+      escritorio: string;
+      telefone: string;
+    }> = [];
+
     for (const raw of cases) {
       const x: any = raw;
-      if (isCasoEncerrado(x) || /arquiv|encerr/i.test(String(x.status || x.situacao || ""))) {
+      if (isCasoEncerrado(x) || /arquiv|encerr/i.test(String(x.status || x.situacao || x.statusInterno || ""))) {
         arquivados++;
         continue;
       }
       const st = String(x.status || "");
-      if (st === "Vencido" || /vencid/i.test(st)) vencidos++;
-      else if (st === "É Hoje" || /é hoje|e hoje/i.test(st)) hoje++;
-      else if (st === "Atenção" || /aten/i.test(st)) atencao++;
-      else noPrazo++;
+      const prazo = String(x.proximoPrazo || x.proximo_retorno || x.proximoRetorno || "").slice(0, 10);
+      let dias = typeof x.diasFaltando === "number" ? x.diasFaltando : diasAtePrazo(prazo);
+      if (dias == null && prazo) dias = diasAtePrazo(prazo);
+
+      const isVenc =
+        st === "Vencido" ||
+        /vencid/i.test(st) ||
+        (typeof dias === "number" && dias < 0);
+
+      if (isVenc) {
+        vencidos++;
+        const diasVencido = typeof dias === "number" && dias < 0 ? Math.abs(dias) : 0;
+        vencidosList.push({
+          cliente: String(x.cliente || x.cliente_nome || "—"),
+          protocolo: String(x.protocolo || x.protocolo_ref || "—"),
+          prazo: prazo || "—",
+          diasVencido,
+          tribunal: String(x.tribunal || "—"),
+          advogado: String(x.advogado || "—"),
+          escritorio: String(x.escritorio || "—"),
+          telefone: String(x.telefone || x.phone || "—"),
+        });
+      } else if (st === "É Hoje" || /é hoje|e hoje/i.test(st) || dias === 0) {
+        hoje++;
+      } else if (st === "Atenção" || /aten/i.test(st)) {
+        atencao++;
+      } else {
+        noPrazo++;
+      }
       if (x.tem_novo_andamento || x.novo_andamento) novidades++;
     }
+
+    vencidosList.sort((a, b) => b.diasVencido - a.diasVencido);
+
     return {
       success: true as const,
       total,
@@ -210,6 +252,9 @@ export async function agentCarteiraKpisAction() {
       noPrazo,
       arquivados,
       novidades,
+      /** Mais tempo vencido primeiro */
+      topVencidos: vencidosList.slice(0, 25),
+      maisVencido: vencidosList[0] || null,
     };
   } catch (e: any) {
     return { success: false as const, error: e?.message || "falha KPIs" };
@@ -226,11 +271,35 @@ function formatCarteiraKpis(k: any) {
     `É hoje: **${k.hoje}** · Atenção: **${k.atencao}** · No prazo: **${k.noPrazo}**`,
     `Novidades (flag): **${k.novidades}**`,
     "",
-    "Fonte: tabela processos / processarCaso (mesma base do Dashboard).",
+    "Fonte: tabela processos (mesma base do Dashboard).",
   ].join("\n");
 }
 
+function formatMaisVencido(k: any): string {
+  const m = k?.maisVencido;
+  if (!m) return "Nenhum processo vencido ativo encontrado na carteira carregada.";
+  const lines = [
+    "## Cliente com mais tempo vencido",
+    `**${m.cliente}**`,
+    `CNJ: ${m.protocolo}`,
+    `Prazo: ${m.prazo} · **${m.diasVencido} dia(s) em atraso**`,
+    `Tribunal: ${m.tribunal}`,
+    `Adv/Escritório: ${m.advogado} / ${m.escritorio}`,
+    m.telefone && m.telefone !== "—" ? `Telefone: ${m.telefone}` : "",
+  ].filter(Boolean);
 
+  const top = (k.topVencidos || []).slice(0, 10);
+  if (top.length > 1) {
+    lines.push("");
+    lines.push("### Ranking (top 10 mais vencidos)");
+    top.forEach((r: any, i: number) => {
+      lines.push(
+        `${i + 1}. **${r.cliente}** · ${r.protocolo} · ${r.diasVencido}d · prazo ${r.prazo}`
+      );
+    });
+  }
+  return lines.join("\n");
+}
 
 /** Responde o pedido do usuário com dados reais (sem inventar rotina genérica). */
 function answerUserPrompt(opts: {
@@ -242,21 +311,20 @@ function answerUserPrompt(opts: {
   history?: any;
 }): string {
   const raw = String(opts.prompt || "").trim();
-  const q = raw.toLowerCase();
+  const q = raw.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
   const k = opts.kpis?.success ? opts.kpis : null;
   const atrasados = opts.outstanding?.atrasados || [];
   const silencio = opts.outstanding?.silencio || [];
   const lines: string[] = [];
 
-  // Sem pedido claro em agente livre
   if (!raw && (opts.agentId === "livre" || opts.agentId === "anotar-carteira")) {
     return [
       "Nenhum pedido foi escrito.",
-      "Digite o que você quer, por exemplo:",
-      "• quantos vencidos temos na carteira?",
-      "• quantos ativos e arquivados?",
+      "Exemplos:",
+      "• qual cliente está há mais tempo vencido?",
+      "• top 10 vencidos",
+      "• quantos vencidos temos?",
       "• resumo do processo 0000000-00.0000.0.00.0000",
-      "• monte um e-mail curto para o cliente sobre atraso",
     ].join("\n");
   }
 
@@ -265,27 +333,48 @@ function answerUserPrompt(opts: {
   lines.push("");
 
   // CNJ no texto
-  const cnjMatch = raw.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
-  if (cnjMatch && opts.history?.processo) {
+  if (opts.history?.processo) {
     const p = opts.history.processo;
     lines.push("## Processo encontrado");
-    lines.push(`Cliente: ${p.cliente_nome || "—"}`);
-    lines.push(`CNJ: ${p.protocolo_ref || cnjMatch[0]}`);
+    lines.push(`Cliente: ${p.cliente_nome || p.cliente || "—"}`);
+    lines.push(`CNJ: ${p.protocolo_ref || p.protocolo || "—"}`);
     lines.push(`Tribunal: ${p.tribunal || "—"}`);
     lines.push(`Status: ${p.status || "—"}`);
     lines.push(`Último retorno: ${p.ultimo_retorno || "—"}`);
-    lines.push(`Próximo retorno: ${p.proximo_retorno || "—"}`);
+    lines.push(`Próximo retorno: ${p.proximo_retorno || p.proximoPrazo || "—"}`);
     lines.push("");
   }
 
-  // Respostas focadas (só o que foi perguntado)
   let answered = false;
 
-  if (k && /vencid/.test(q)) {
-    lines.push(`**Vencidos na carteira:** ${k.vencidos}`);
-    lines.push(`(Ativos ${k.ativos} · total ${k.total} · arquivados/encerrados ${k.arquivados})`);
+  // ── Cliente / ranking mais vencido (prioridade alta) ──
+  const asksMaisVencido =
+    /(mais tempo|mais vencid|maior atraso|ha mais tempo|há mais tempo|cliente.*vencid|vencid.*cliente|pior prazo|mais atrasad)/i.test(
+      raw
+    ) ||
+    /(mais tempo|mais vencid|maior atraso|cliente.*vencid)/i.test(q);
+
+  const asksTopVencidos =
+    /(top\s*\d*|ranking|lista.*vencid|vencidos.*lista|quais.*vencid)/i.test(raw) ||
+    /(top|ranking|lista)/i.test(q) && /vencid/.test(q);
+
+  if (k && (asksMaisVencido || asksTopVencidos || (opts.agentId === "followup-operacional" && /vencid/.test(q)))) {
+    lines.push(formatMaisVencido(k));
     answered = true;
   }
+
+  if (k && /vencid/.test(q) && !asksMaisVencido && !asksTopVencidos) {
+    lines.push(`**Vencidos na carteira:** ${k.vencidos}`);
+    lines.push(`(Ativos ${k.ativos} · total ${k.total} · arquivados/encerrados ${k.arquivados})`);
+    if (k.maisVencido) {
+      lines.push("");
+      lines.push(
+        `O de maior atraso: **${k.maisVencido.cliente}** (${k.maisVencido.diasVencido}d) · ${k.maisVencido.protocolo}`
+      );
+    }
+    answered = true;
+  }
+
   if (k && /(ativo|em andamento)/.test(q) && !/vencid/.test(q)) {
     lines.push(`**Ativos:** ${k.ativos} de ${k.total} processos`);
     answered = true;
@@ -298,24 +387,20 @@ function answerUserPrompt(opts: {
     lines.push(`**Com flag de novidade:** ${k.novidades}`);
     answered = true;
   }
-  if (k && /(é hoje|e hoje|hoje\b)/.test(q)) {
+  if (k && /(e hoje|hoje\b)/.test(q) && !/vencid/.test(q)) {
     lines.push(`**É hoje:** ${k.hoje}`);
     answered = true;
   }
-  if (k && /(aten[cç][aã]o)/.test(q)) {
-    lines.push(`**Atenção (prazo):** ${k.atencao}`);
-    answered = true;
-  }
-  if (k && /(kpi|indicador|resumo da carteira|como est[aá] a carteira)/.test(q)) {
+  if (k && /(kpi|indicador|resumo da carteira|como esta a carteira)/.test(q)) {
     lines.push(formatCarteiraKpis(k));
     answered = true;
   }
 
-  if (/atraso|cobran[cç]a|t[ií]tulo|receber|r[eé]gua/.test(q) || opts.agentId === "atraso-regua") {
+  if (/atraso|cobranca|titulo|receber|regua/.test(q) || opts.agentId === "atraso-regua") {
     lines.push("");
     lines.push(`## Títulos / atraso CRM: ${atrasados.length}`);
     if (!atrasados.length) {
-      lines.push("Nenhum título vencido em `crm_receber` (tabela financeira pode estar vazia).");
+      lines.push("Nenhum título em `crm_receber` (funil financeiro vazio ou sem vencidos).");
     } else {
       atrasados.slice(0, 15).forEach((r: any, i: number) => {
         lines.push(
@@ -326,42 +411,45 @@ function answerUserPrompt(opts: {
     answered = true;
   }
 
-  if (/sil[eê]ncio|sumiu|parad|sem movimento|follow/.test(q) || opts.agentId === "silencio-comercial") {
+  if (/silencio|sumiu|parad|sem movimento|follow/.test(q) || opts.agentId === "silencio-comercial") {
     lines.push("");
     lines.push(`## Silêncio comercial CRM: ${silencio.length}`);
     if (!silencio.length) {
-      lines.push("Nenhum negócio parado em `crm_negocios` (funil comercial pode estar vazio).");
+      lines.push("Nenhum negócio parado em `crm_negocios`.");
     } else {
       silencio.slice(0, 15).forEach((n: any, i: number) => {
-        lines.push(`${i + 1}. ${n.cliente_nome || "—"} · estágio ${n.estagio || "—"} · ${n.updated_at || ""}`);
+        lines.push(`${i + 1}. ${n.cliente_nome || "—"} · ${n.estagio || "—"}`);
       });
     }
     answered = true;
   }
 
-  // Rotina do agente sem prompt específico
   if (!raw && opts.agentId === "followup-operacional" && k) {
     lines.push(formatCarteiraKpis(k));
     lines.push("");
-    lines.push(`Prioridade jurídica: **${k.vencidos} vencidos**, **${k.hoje} é hoje**.`);
-    lines.push(`CRM: ${atrasados.length} atraso(s), ${silencio.length} silêncio(s).`);
+    lines.push(formatMaisVencido(k));
     answered = true;
   }
 
   if (!answered && k) {
-    // Pedido livre sem matcher: responde o pedido + KPIs curtos (não só dump)
-    lines.push("## Leitura com dados da carteira");
-    lines.push(
-      `Não há um relatório automático só para essa frase. Dados atuais: **${k.vencidos} vencidos**, **${k.ativos} ativos**, **${k.total} total**.`
-    );
-    lines.push("");
-    lines.push("Se quiser algo específico, pergunte por número (ex.: vencidos, ativos, novidades) ou informe um CNJ.");
-    if (raw) {
+    // pedido livre: se mencionar cliente/vencido de qualquer forma, ranking
+    if (/cliente|vencid|prazo|atras/.test(q)) {
+      lines.push(formatMaisVencido(k));
+    } else {
+      lines.push("## Dados atuais");
+      lines.push(
+        `**${k.vencidos} vencidos**, **${k.ativos} ativos**, **${k.total} total**.`
+      );
+      if (k.maisVencido) {
+        lines.push(
+          `Maior atraso: **${k.maisVencido.cliente}** (${k.maisVencido.diasVencido}d) · ${k.maisVencido.protocolo}`
+        );
+      }
       lines.push("");
-      lines.push(`_Pedido original mantido:_ «${raw}»`);
+      lines.push(`_Pedido:_ «${raw}» — se não for isso, reformule (ex.: «top 5 vencidos»).`);
     }
   } else if (!answered && !k) {
-    lines.push("Não foi possível ler a carteira de processos neste momento.");
+    lines.push("Não foi possível ler a carteira de processos.");
   }
 
   return lines.join("\n");
@@ -491,15 +579,22 @@ export async function runCrmAgentAction(input: {
     at: now(),
   });
 
+
+  // Ranking/KPI puro: dados bastam. IA só se marcada, e-mail/brief/anotar, ou pedido explícito.
+  const promptIsPureData =
+    /(mais tempo|mais vencid|top\s*\d*|quantos|kpi|ranking|lista.*vencid|vencidos\??\s*$)/i.test(
+      promptRaw
+    );
   const wantIa =
-    agentId === "livre" ||
+    !!input.useIa ||
     agentId === "email-cliente" ||
     agentId === "brief-negocio" ||
     agentId === "anotar-carteira" ||
-    !!input.useIa ||
-    /\b(com ia|use ia|claude|minimax|grok|analise profunda|análise profunda)\b/i.test(promptRaw);
+    (agentId === "livre" && !!promptRaw && !promptIsPureData) ||
+    /\b(com ia|use ia|claude|minimax|grok|analise profunda|análise profunda|redija|escreva)\b/i.test(
+      promptRaw
+    );
 
-  // Sem IA: devolve só a resposta ao pedido (não dump genérico)
   if (!wantIa) {
     logs.push({
       agent_id: agentId,
@@ -511,95 +606,94 @@ export async function runCrmAgentAction(input: {
     return { success: true, content: det, logs };
   }
 
-  // Com IA: obrigar a responder EXATAMENTE o pedido; dados = evidência
+  // IA = mesmo pipeline do Assistente (chatAIFlow → cascade MiniMax/Claude/Grok…)
   const preferred =
     String(input.preferredEngine || "auto").toLowerCase().trim() || "auto";
 
-  const system = [
-    ALL_SKILLS,
-    "Você é um agente operacional do LexisPredict.",
-    "REGRA 1: Responda APENAS o que o usuário pediu. Não invente outra pauta.",
-    "REGRA 2: Use somente os DADOS DE EVIDÊNCIA abaixo (KPIs, listas, processo). Não invente números.",
-    "REGRA 3: Se o pedido for ambíguo, diga o que faltou perguntar em 1 frase.",
-    "REGRA 4: Português do Brasil, curto e acionável.",
-  ].join("\n");
-
-  const userMsg = [
-    `PEDIDO DO USUÁRIO (obrigatório atender):`,
-    promptRaw || `(rotina do agente ${agent.nome}: ${agent.faz})`,
-    "",
-    `Agente selecionado: ${agent.nome}`,
-    "",
-    "DADOS DE EVIDÊNCIA (já calculados no servidor):",
+  const evidencia = [
     det,
-    "",
-    kpis.success ? `JSON KPIs: ${JSON.stringify(kpis)}` : "KPIs indisponíveis",
-    history?.processo
-      ? `Processo: ${JSON.stringify({
-          protocolo: history.processo.protocolo_ref,
-          cliente: history.processo.cliente_nome,
-          status: history.processo.status,
-          tribunal: history.processo.tribunal,
-        })}`
+    kpis.success && kpis.maisVencido
+      ? `MAIS_VENCIDO_JSON=${JSON.stringify(kpis.maisVencido)}`
       : "",
+    kpis.success && kpis.topVencidos
+      ? `TOP_VENCIDOS_JSON=${JSON.stringify((kpis.topVencidos || []).slice(0, 10))}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const perguntaAssistente = [
+    "Você é o assistente operacional do Lexis. Responda SOMENTE o pedido do usuário.",
+    "Use os DADOS DE EVIDÊNCIA (já calculados). Não invente cliente/CNJ/dias.",
+    "Se o pedido for 'cliente mais tempo vencido', cite nome, CNJ e dias do MAIS_VENCIDO.",
+    "",
+    `PEDIDO: ${promptRaw || agent.faz}`,
+    "",
+    "DADOS DE EVIDÊNCIA:",
+    evidencia,
   ].join("\n");
 
   try {
-    const iaPromise = runCascade({
+    const chatPromise = chatAIFlow({
+      pergunta: perguntaAssistente,
       preferred,
-      system,
-      messages: [{ role: "user", content: userMsg }],
+      preferredModel: preferred,
       temperature: 0.15,
-      max_tokens: 1800,
+      max_tokens: 1600,
+      showThinking: false,
     });
-    const timeout = new Promise<{ text?: string; error?: string }>((resolve) =>
-      setTimeout(() => resolve({ error: "timeout_ia_50s" }), 50000)
+    const timeout = new Promise<any>((resolve) =>
+      setTimeout(
+        () => resolve({ sucesso: false, resposta: "", engineUtilizada: "timeout" }),
+        55000
+      )
     );
-    const res = (await Promise.race([iaPromise, timeout])) as any;
+    const res = await Promise.race([chatPromise, timeout]);
 
-    if (res?.text && !res?.error) {
+    if (res?.sucesso && res?.resposta) {
       logs.push({
         agent_id: agentId,
-        tool: "cascade_ia",
+        tool: "chatAIFlow",
         ok: true,
-        summary: `engine=${res.engineId || preferred} model=${res.model || "?"}`,
+        summary: `engine=${res.engineUtilizada || preferred} ms=${res.latencia || "?"}`,
         at: now(),
       });
       return {
         success: true,
         content:
           `## Pedido\n${promptRaw || agent.nome}\n\n` +
-          `_Motor: **${res.engineId || preferred}**${res.model ? ` · ${res.model}` : ""}_\n\n` +
-          String(res.text).trim(),
+          `_Motor (assistente Lexis): **${res.engineUtilizada || preferred}**_\n\n` +
+          String(res.resposta).trim(),
         logs,
       };
     }
 
+    // Fallback runCascade direto
     try {
-      const fb = await Promise.race([
-        processChat({
-          message: `${system}\n\n${userMsg}`,
-          contextType: "legal",
+      const cas = await Promise.race([
+        runCascade({
+          preferred,
+          system:
+            "Responda só o pedido. Use evidências. Português BR. Não invente.",
+          messages: [{ role: "user", content: perguntaAssistente }],
           temperature: 0.15,
-          preferredProvider: "xai",
+          max_tokens: 1600,
         }),
-        new Promise<any>((r) =>
-          setTimeout(() => r({ success: false, error: "timeout_processChat" }), 35000)
-        ),
+        new Promise<any>((r) => setTimeout(() => r({ error: "timeout" }), 40000)),
       ]);
-      if (fb?.success && fb?.content) {
+      if (cas?.text) {
         logs.push({
           agent_id: agentId,
-          tool: "processChat_fallback",
+          tool: "runCascade",
           ok: true,
-          summary: `provider=${fb.provider}`,
+          summary: `engine=${cas.engineId || preferred}`,
           at: now(),
         });
         return {
           success: true,
           content:
-            `## Pedido\n${promptRaw || agent.nome}\n\n_Motor: **${fb.provider}**_\n\n` +
-            fb.content,
+            `## Pedido\n${promptRaw || agent.nome}\n\n_Motor: **${cas.engineId}**_\n\n` +
+            String(cas.text).trim(),
           logs,
         };
       }
@@ -609,16 +703,18 @@ export async function runCrmAgentAction(input: {
 
     logs.push({
       agent_id: agentId,
-      tool: "cascade_ia",
+      tool: "chatAIFlow",
       ok: false,
-      summary: res?.error || "falha cascade",
+      summary: res?.engineUtilizada || "falha IA",
       at: now(),
     });
 
-    // IA falhou: ainda assim devolve resposta ao pedido (dados)
+    // Sem crédito de IA: dados reais ainda respondem o pedido
     return {
       success: true,
-      content: det + "\n\n_IA indisponível; acima está a resposta com dados reais ao seu pedido._",
+      content:
+        det +
+        "\n\n_IA indisponível (saldo/modelo). Acima está a resposta com dados reais da carteira._",
       logs,
     };
   } catch (e: any) {
