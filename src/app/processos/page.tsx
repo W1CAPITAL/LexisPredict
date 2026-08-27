@@ -313,8 +313,11 @@ export default function ProcessosEmpresaPage() {
     setSaving(true);
     try {
       const iso = formatDateToISO(editing.ultimoRetorno) || "";
+      const prazoIso = formatDateToISO(editing.proximoPrazo) || editing.proximoPrazo || "";
       let updated: LegalCase = {
         ...editing,
+        proximoPrazo: prazoIso,
+        statusManual: "Automatico" as any,
         ultimoRetorno: iso || editing.ultimoRetorno,
         atendido_por:
           (profile as any)?.auth_user_id ||

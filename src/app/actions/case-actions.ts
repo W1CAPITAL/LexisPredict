@@ -1092,17 +1092,19 @@ export async function registrarAtendimentoCompletoAction(input: {
     const patch = patchAtendimentoComEdicao(auth_id, hoje);
     // Quem atendeu: registra, SEM mudar created_by (dono da carteira)
     const ownerKeep = (found as any).created_by || null;
+    const prazoNovo =
+      situacao === 'ENCERRADO'
+        ? ''
+        : input.proximoPrazo != null
+          ? input.proximoPrazo
+          : found.proximoPrazo;
     const updated = processarCaso({
       ...found,
       ...patch,
       situacao,
       observacao: obs,
-      proximoPrazo:
-        situacao === 'ENCERRADO'
-          ? ''
-          : input.proximoPrazo != null
-            ? input.proximoPrazo
-            : found.proximoPrazo,
+      statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico',
+      proximoPrazo: prazoNovo,
       tem_novo_andamento: false,
       djen_nova_comunicacao: false,
       tem_atualizacao_pos_retorno: false,

@@ -1,4 +1,5 @@
 @import "./globals-compai.css";
+@import "./globals-lexis-premium.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

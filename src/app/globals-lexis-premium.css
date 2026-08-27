@@ -1,0 +1,237 @@
+/**
+ * LexisPredict Premium Shell — UI unificada (cards, KPI, sidebar, gráficos).
+ * Importado em globals.css. Não remove lógica; só aparência.
+ */
+
+:root {
+  --lx-radius: 1rem;
+  --lx-radius-sm: 0.75rem;
+  --lx-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(15 23 42 / 0.06);
+  --lx-shadow-lg: 0 4px 12px rgb(0 0 0 / 0.06), 0 20px 40px rgb(15 23 42 / 0.08);
+  --lx-border: color-mix(in oklab, canvasText 8%, transparent);
+  --lx-surface: color-mix(in oklab, canvas 92%, canvasText 2%);
+  --lx-muted: color-mix(in oklab, canvasText 55%, transparent);
+}
+
+.dark, [data-theme="dark"], html.dark {
+  --lx-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 28px rgb(0 0 0 / 0.35);
+  --lx-shadow-lg: 0 8px 32px rgb(0 0 0 / 0.45);
+  --lx-border: rgb(255 255 255 / 0.08);
+  --lx-surface: rgb(24 24 27);
+  --lx-muted: rgb(161 161 170);
+}
+
+/* ── Page shell ── */
+main .container,
+[data-lexis-page],
+.ops-page,
+.admin-page-shell {
+  animation: lx-fade-in 0.35s ease-out;
+}
+@keyframes lx-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Cards / KPI tiles ── */
+.rounded-2xl.border,
+.rounded-xl.border,
+[class*="rounded-2xl"][class*="border"],
+.card,
+[data-slot="card"] {
+  border-color: var(--lx-border) !important;
+  box-shadow: var(--lx-shadow);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.rounded-2xl.border:hover,
+.card:hover {
+  box-shadow: var(--lx-shadow-lg);
+}
+
+/* KPI numbers — hierarquia */
+.font-black.text-2xl,
+.font-black.text-3xl,
+.text-3xl.font-black,
+.text-2xl.font-black {
+  letter-spacing: -0.03em;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ── Sidebar ── */
+aside,
+[data-sidebar],
+.lexis-sidebar,
+nav[class*="sidebar"] {
+  backdrop-filter: blur(12px);
+}
+aside a,
+.lexis-sidebar a {
+  border-radius: 0.65rem;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+aside a:hover {
+  transform: translateX(2px);
+}
+
+/* ── Buttons ── */
+button.bg-primary,
+.btn-primary,
+button[class*="bg-black"].font-black {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.12) inset, 0 6px 16px rgb(0 0 0 / 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+button.bg-primary:hover,
+button[class*="bg-black"].font-black:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+button.bg-primary:active {
+  transform: translateY(0);
+}
+
+/* ── Inputs ── */
+input, textarea, select,
+[data-slot="input"] {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 3px color-mix(in oklab, hsl(var(--primary)) 25%, transparent);
+}
+
+/* ── Tables ── */
+table thead th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: var(--lx-muted);
+}
+table tbody tr {
+  transition: background 0.12s ease;
+}
+table tbody tr:hover {
+  background: color-mix(in oklab, hsl(var(--primary)) 6%, transparent);
+}
+
+/* ── Badges / chips de status ── */
+.badge, [class*="Badge"],
+span[class*="rounded-full"][class*="text-\[10px\]"] {
+  font-feature-settings: "tnum" 1;
+}
+
+/* ── Charts (Recharts) — contraste legível ── */
+.recharts-default-tooltip {
+  background: #0f172a !important;
+  border: 1px solid rgb(255 255 255 / 0.12) !important;
+  border-radius: 12px !important;
+  color: #f8fafc !important;
+  box-shadow: var(--lx-shadow-lg) !important;
+  padding: 10px 12px !important;
+}
+.recharts-tooltip-label,
+.recharts-tooltip-item {
+  color: #f1f5f9 !important;
+}
+.recharts-cartesian-axis-tick text {
+  fill: var(--lx-muted) !important;
+  font-size: 11px !important;
+}
+.recharts-legend-item-text {
+  color: var(--lx-muted) !important;
+}
+
+/* ── Dialog / sheet ── */
+[role="dialog"],
+[data-radix-dialog-content] {
+  border-radius: 1.25rem !important;
+  box-shadow: var(--lx-shadow-lg) !important;
+  border: 1px solid var(--lx-border) !important;
+}
+
+/* ── Efferd / dashboard strip ── */
+.efferd-panel,
+[data-efferd],
+.suite-identity-strip {
+  border-radius: var(--lx-radius);
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklab, canvas 90%, hsl(var(--primary)) 8%),
+    canvas
+  );
+  border: 1px solid var(--lx-border);
+  box-shadow: var(--lx-shadow);
+}
+
+/* KPI grid denser on desktop */
+@media (min-width: 1024px) {
+  .grid.grid-cols-2.lg\:grid-cols-4,
+  .grid.grid-cols-2.md\:grid-cols-4 {
+    gap: 1rem;
+  }
+}
+
+/* Scroll areas soft */
+.overflow-y-auto,
+.overflow-auto {
+  scrollbar-gutter: stable;
+}
+
+/* Status Vencido / Hoje — legibilidade */
+[data-status="Vencido"],
+.badge-vencido {
+  background: rgb(239 68 68 / 0.12) !important;
+  color: #b91c1c !important;
+  border-color: rgb(239 68 68 / 0.25) !important;
+}
+.dark [data-status="Vencido"],
+.dark .badge-vencido {
+  color: #fca5a5 !important;
+}
+[data-status="É Hoje"],
+.badge-hoje {
+  background: rgb(245 158 11 / 0.15) !important;
+  color: #b45309 !important;
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* StatCard / métricas */
+.lexis-metric {
+  border-radius: var(--lx-radius);
+  border: 1px solid var(--lx-border);
+  background: canvas;
+  padding: 1.1rem 1.15rem;
+  box-shadow: var(--lx-shadow);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.lexis-metric:hover {
+  box-shadow: var(--lx-shadow-lg);
+  transform: translateY(-2px);
+}
+.lexis-metric-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--lx-muted);
+}
+.lexis-metric-value {
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-feature-settings: "tnum" 1;
+  color: inherit;
+}
+
+/* Page title row */
+h1.text-2xl, h1.text-3xl, .page-title {
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}

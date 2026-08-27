@@ -102,8 +102,13 @@ function toRow(
     atendido_por: (c as any).atendido_por || null,
     dados: {
       ...c,
+      proximoPrazo: isoPrazo || c.proximoPrazo || null,
+      proximo_retorno: isoPrazo || null,
+      PROXIMO_RETORNO: isoPrazo || null,
       ultimoRetorno: isoRetorno || c.ultimoRetorno,
       ultimo_retorno: isoRetorno || (c as any).ultimo_retorno,
+      status: c.status || 'Sem Prazo',
+      statusManual: (c as any).statusManual || 'Automatico',
       atendido_por: (c as any).atendido_por || null,
       // nunca espalhar created_by errado no JSON como se fosse dono novo
       created_by: ownerAuthId || (c as any).created_by || null,
@@ -178,7 +183,48 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
     // garante que o restante do fluxo usa o CNJ resolvido (não placeholder)
     (caseData as any).protocolo = protocoloResolvido;
 
+    // Normaliza prazo antes de processar (dd/mm/yyyy ou yyyy-mm-dd → ISO)
+    const prazoIn =
+      (caseData as any).proximoPrazo ??
+      (caseData as any).proximo_retorno ??
+      (caseData as any).PROXIMO_RETORNO ??
+      '';
+    const isoPrazoIn = formatDateToISO(String(prazoIn || '')) || null;
+    if (isoPrazoIn) {
+      (caseData as any).proximoPrazo = isoPrazoIn;
+      (caseData as any).proximo_retorno = isoPrazoIn;
+    }
+
+    // Força recálculo de status de prazo (evita ficar "Vencido" eterno após remarcar retorno)
+    const situacaoHint = String(
+      (caseData as any).situacao || (caseData as any).status_interno || ''
+    ).toUpperCase();
+    const isEncerrarHint = /ENCERRAD|ARQUIVAD|EXTINT/.test(situacaoHint);
+    if (!isEncerrarHint) {
+      (caseData as any).statusManual = 'Automatico';
+    }
+
     let processed = processarCaso(caseData as any);
+
+    // Garante coluna/JSON com prazo ISO e status recalculado
+    if (isoPrazoIn) {
+      processed.proximoPrazo = isoPrazoIn;
+      (processed as any).proximo_retorno = isoPrazoIn;
+    } else if (prazoIn === '' || prazoIn == null) {
+      // limpar prazo de propósito
+      if ((caseData as any).proximoPrazo === '' || (caseData as any).clearProximoPrazo) {
+        processed.proximoPrazo = '';
+        (processed as any).proximo_retorno = null;
+      }
+    }
+    if (!isEncerrarHint && !/Arquivado|ENCERRADO/i.test(String(processed.status || ''))) {
+      // 2ª passagem: status só a partir do prazo novo
+      processed = processarCaso({
+        ...processed,
+        statusManual: 'Automatico',
+        proximoPrazo: processed.proximoPrazo || isoPrazoIn || '',
+      });
+    }
 
     // Proteção: não encerrar carteira sem viaEncerrarHumano (scanner/sync não passa)
     const viaHumano = !!(caseData as any).viaEncerrarHumano || !!(caseData as any).forceMesmoComValor;

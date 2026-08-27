@@ -477,15 +477,19 @@ const handleSaveAttendance = async () => {
           : activeGroup.cases.some(ac => ac.protocolo === c.protocolo);
         if (!isInGroup) return c;
         touched.push(c.protocolo);
+        const prazoAtt = isEncerrado
+          ? ''
+          : (formatDateToISO(attendanceForm.proximoRetorno) || attendanceForm.proximoRetorno || '');
         return processarCaso({
           ...c,
           situacao: attendanceForm.situacao,
+          statusManual: isEncerrado ? 'Encerrado' : 'Automatico',
           ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr),
           observacao: applyFilaListaToObs(
             attendanceForm.observacao || c.observacao,
             attendanceForm.filaLista || 'normal'
           ),
-          proximoPrazo: isEncerrado ? '' : attendanceForm.proximoRetorno,
+          proximoPrazo: prazoAtt,
           tem_atualizacao_pos_retorno: false,
           djen_nova_comunicacao: false,
           tem_novo_andamento: false,
