@@ -9,7 +9,8 @@ import { createClient } from '@/lib/supabase/server';
 import { getUserContext } from '@/lib/server-db';
 import { parse } from 'csv-parse/sync';
 import { processarCaso, formatDateToISO } from '@/lib/case-logic';
-import { mapCsvRowToCanonical, sanitizeDateCell, sanitizeProtocolo } from '@/lib/csv-import-engine';
+import { diagnoseImport, mapCsvRowToCanonical, sanitizeDateCell, sanitizeProtocolo } from '@/lib/csv-import-engine';
+import { mergeImportOverExisting } from '@/lib/import-merge';
 
 /**
  * Motor de Ingestão P0: Padrão Enterprise
@@ -149,7 +150,12 @@ export async function importCsvAction(csvText: string) {
       }
     });
 
-    const uniqueRows = Array.from(byProto.values());
+    let uniqueRows = Array.from(byProto.values());
+
+    const diagnosis = diagnoseImport(
+      records[0] ? Object.keys(records[0]) : [],
+      records
+    );
 
     if (uniqueRows.length === 0) {
       return { 
@@ -157,9 +163,28 @@ export async function importCsvAction(csvText: string) {
         imported: 0, 
         skipped: skippedCount,
         skipReasons: Object.entries(skipReasonsMap).map(([reason, count]) => ({ reason, count })),
-        message: 'Nenhum registro válido identificado no arquivo.'
+        message: `Nenhum registro válido identificado no arquivo. (${diagnosis.summary})`,
+        diagnosis,
       };
     }
+
+    const protoList = uniqueRows.map((r: any) => r.protocolo_ref).filter(Boolean);
+    const existingByProto = new Map<string, any>();
+    for (let i = 0; i < protoList.length; i += 200) {
+      const slice = protoList.slice(i, i + 200);
+      const { data: existing } = await supabase
+        .from('processos')
+        .select('protocolo_ref, created_by, dados, tem_atualizacao_pos_retorno, tem_novo_andamento, datajud_hash, djen_ultimo_resumo, indicio_busca_apreensao, em_cumprimento_sentenca, datajud_encerrado_tribunal, djen_nova_comunicacao')
+        .eq('empresa_id', empresa_id)
+        .in('protocolo_ref', slice);
+      (existing || []).forEach((row: any) => {
+        if (row?.protocolo_ref) existingByProto.set(row.protocolo_ref, row);
+      });
+    }
+
+    uniqueRows = uniqueRows.map((row: any) =>
+      mergeImportOverExisting(row, existingByProto.get(row.protocolo_ref))
+    );
 
     const { data, error } = await supabase
       .from('processos')
@@ -190,7 +215,9 @@ export async function importCsvAction(csvText: string) {
       imported: importedCount,
       skipped: skippedCount,
       skipReasons: Object.entries(skipReasonsMap).map(([reason, count]) => ({ reason, count })),
-      message: `${importedCount} processos sincronizados.${skippedCount > 0 ? ` ${skippedCount} ignorados (${skipSummary}).` : ''}`,
+      message: `${importedCount} processos sincronizados.${skippedCount > 0 ? ` ${skippedCount} ignorados (${skipSummary}).` : ''} ${diagnosis.summary}.`,
+      diagnosis,
+      flagsPreserved: existingByProto.size,
     };
   } catch (err: any) {
     console.error('[Import Critical]', err);
