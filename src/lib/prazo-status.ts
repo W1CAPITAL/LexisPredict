@@ -23,6 +23,19 @@ export function normalizarDataPrazo(raw: string | null | undefined): string | nu
   if (raw == null) return null;
   const s = String(raw).trim();
   if (!s || s === '-' || s === '—' || s === '0' || s === '00/00/0000') return null;
+  if (s.includes('#')) return null;
+
+  if (/^\d{5}(\.\d+)?$/.test(s)) {
+    const n = Math.floor(Number(s));
+    if (n >= 20000 && n <= 80000) {
+      const utc = Date.UTC(1899, 11, 30) + n * 86400000;
+      const d = new Date(utc);
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      if (y >= 1950 && y <= 2110) return `${y}-${m}-${day}`;
+    }
+  }
 
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
 
@@ -103,13 +116,10 @@ export function statusEfetivo(c: {
   situacao?: string | null;
 }): CaseStatus {
   const manual = String(c.statusManual || 'Automatico');
-  const sit = String(c.situacao || '').toUpperCase();
-  if (/ENCERRAD|ARQUIVAD|EXTINT|BAIXA DEFINITIVA|FINALIZAD|SUSPENS/.test(sit)) {
-    return 'Arquivado';
-  }
   const fixed = ['Caso Crítico', 'Arquivado', 'Encerrado'];
   if (manual && manual !== 'Automatico' && fixed.includes(manual)) {
     return manual as CaseStatus;
   }
+  // Se status gravado parece de prazo, sempre recalcula (evita cache velho)
   return statusPorPrazo(c.proximoPrazo, { situacao: c.situacao });
 }

@@ -270,6 +270,31 @@ export function summarizeDjenKeywords(raw: string | null | undefined): string {
   return short ? short + (plain.length > 120 ? '…' : '') : 'Publicação no Diário Oficial';
 }
 
+/** Nunca devolve JSON cru na UI operacional. */
+export function resumoHumanoDjen(raw: unknown): string {
+  if (raw == null) return '';
+  let text = '';
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (t.startsWith('{') || t.startsWith('[')) {
+      try {
+        const obj = JSON.parse(t);
+        const item = Array.isArray(obj) ? obj[0] : obj;
+        text = String(item?.texto || item?.conteudo || item?.mensagem || item?.resumo || '');
+        if (!text) return summarizeDjenKeywords(JSON.stringify(item));
+      } catch {
+        text = t;
+      }
+    } else {
+      text = t;
+    }
+  } else if (typeof raw === 'object') {
+    const item = raw as any;
+    text = String(item?.texto || item?.conteudo || item?.mensagem || item?.resumo || '');
+  }
+  return summarizeDjenForAlert(plainTextFromDjen(text), undefined);
+}
+
 /**
  * Classificação de mérito a partir do texto da comunicação.
  */
@@ -316,7 +341,7 @@ export function classifyEventFromText(
   const temIntima = /(INTIMA[CÇ][AÃ]O|INTIMADO|INTIMEM-SE|CI[EÊ]NCIA)/.test(upper);
   const temJG = /(JUSTI[CÇ]A\s+GRATUITA|GRATUIDADE\s+DA\s+JUSTI[CÇ]A|ASSIST[EÊ]NCIA\s+JUDICI[AÁ]RIA)/.test(upper);
   const temPrazoDocs = /(PRAZO\s+DE\s+\d+|ASSINO\s+[AÀ]\s+PARTE|APRESENTE\(M\)|DECLARA[CÇ][OÕ]ES\s+DE\s+BENS|EXTRATOS\s+BANC[AÁ]RIOS)/.test(upper);
-  const temCustas = /(CUSTAS|PREPARO|RECOLHIMENTO|DESER[CÇ][AÃ]O|GUIA\s+OFICIAL|GUIA\s+GERADA|JUNTADA.{0,40}GUIA|TAXA\s+JUDICI[AÁ]RIA)/.test(upper);
+  const temCustas = /(CUSTAS|PREPARO|RECOLHIMENTO|DESER[CÇ][AÃ]O|GUIA\s+OFICIAL)/.test(upper);
   const temDespacho = /(DESPACHO\/DECIS|DESPACHO|DETERMINO)/.test(upper);
 
   if (temIntima && temJG && temPrazoDocs) {
@@ -436,7 +461,7 @@ async function fetchDjenComunicacoesUncached(
           success: false,
           isGeoBlocked: true,
           error:
-            'DJEN recusou o servidor (403). No Vercel use região gru1 (São Paulo).',
+            'DJEN geo-bloqueou o servidor (403). Região Vercel deve ser gru1 (São Paulo).',
           count: 0,
           items: [],
         };
@@ -447,7 +472,7 @@ async function fetchDjenComunicacoesUncached(
         return {
           success: false,
           isRateLimited: true,
-          error: 'DJEN pediu pausa (429). Esperando um minuto.',
+          error: 'Rate limit DJEN (429). Aguarde 1 minuto.',
           count: 0,
           items: [],
         };
@@ -554,38 +579,4 @@ async function fetchDjenComunicacoesUncached(
     count: 0,
     items: [],
   };
-}
-
-
-/** Ordena comunicações DJEN pela data de disponibilização (mais recente primeiro). */
-export function sortDjenComunicacoesRecentFirst<T extends Record<string, any>>(items: T[]): T[] {
-  const score = (it: any): number => {
-    const raw =
-      it?.data_disponibilizacao ||
-      it?.dataDisponibilizacao ||
-      it?.data_disponibilizacao_dj ||
-      it?.data ||
-      it?.date ||
-      '';
-    const s = String(raw).trim();
-    if (!s) return 0;
-    try {
-      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s).getTime() || 0;
-      if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
-        const [dd, mm, yyyy] = s.slice(0, 10).split('/').map(Number);
-        return new Date(yyyy, mm - 1, dd).getTime() || 0;
-      }
-      return new Date(s).getTime() || 0;
-    } catch {
-      return 0;
-    }
-  };
-  return [...(items || [])].sort((a, b) => score(b) - score(a));
-}
-
-/** Textos DJEN já ordenados + plain text (âncora = índice 0). */
-export function djenTextsRecentFirst(items: any[]): string[] {
-  return sortDjenComunicacoesRecentFirst(items || [])
-    .map((d) => plainTextFromDjen(String(d?.texto || d?.conteudo || d?.inteiroTeor || '')))
-    .filter((t) => t && t.length > 20);
 }

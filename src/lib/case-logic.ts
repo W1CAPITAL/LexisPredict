@@ -3,7 +3,6 @@
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 
-import { applyFlagsTruth } from './flags-truth';
 import { startOfDay, differenceInCalendarDays, parseISO } from 'date-fns';
 import { diasAtePrazo, statusPorPrazo, normalizarDataPrazo, hojeBrasilISO } from './prazo-status';
 import { sanitizeDateCell } from './csv-import-engine';
@@ -119,10 +118,6 @@ export interface LegalCase {
 
   // Auditoria Busca e Apreensão (BA)
   indicio_busca_apreensao?: boolean;
-  /** Menção NUMOPEDE / litigância predatória na carteira */
-  sinal_numopede?: boolean;
-  sinal_predatoria?: boolean;
-  predatoria_marcado_em?: string | null;
   busca_apreensao_confianca?: 'alta' | 'media' | 'baixa' | null;
   busca_apreensao_motivo?: string | null;
   busca_apreensao_consultado_em?: string | null;
@@ -131,19 +126,6 @@ export interface LegalCase {
   em_cumprimento_sentenca?: boolean;
   cumprimento_sentenca_motivo?: string | null;
   cumprimento_sentenca_consultado_em?: string | null;
-
-  // Procedência e Cumprimento Pendente (Módulo Executivo)
-  is_procedente?: boolean;
-  is_improcedente?: boolean;
-  classe_processual?: string;
-  replica_pendente?: boolean;
-  procedente_motivo?: string | null;
-  cumprimento_pendente_necessario?: boolean;
-  data_transito_julgado?: string | null;
-  detalhes_execucao?: Record<string, any> | null;
-  cumprimento_ativo?: boolean;
-  cumprimento_encerrado?: boolean;
-  status_executivo?: 'pendente' | 'ativo' | 'encerrado' | 'procedente' | 'nenhum' | string | null;
 
   // Auditoria DJEN
   djen_consultado_em?: string | null;
@@ -184,7 +166,20 @@ export function formatDateToISO(dateStr: string | null | undefined): string | nu
   if (!dateStr) return null;
   const raw = String(dateStr).trim();
   if (raw === "" || raw === "-" || raw === "—" || raw === "0" || raw === "00/00/0000") return null;
-  
+  if (raw.includes('#')) return null;
+
+  if (/^\d{5}(\.\d+)?$/.test(raw)) {
+    const n = Math.floor(Number(raw));
+    if (n >= 20000 && n <= 80000) {
+      const utc = Date.UTC(1899, 11, 30) + n * 86400000;
+      const d = new Date(utc);
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      if (y >= 1950 && y <= 2110) return `${y}-${m}-${day}`;
+    }
+  }
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
   const parts = raw.split(/[\/\-\.\s,]+/).filter(p => p.length > 0);
@@ -270,36 +265,15 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const protocolo = (data.PROTOCOLO || data.protocolo || '').trim();
   const advogado = fixEncoding(data.ADVOGADO || data.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
   const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
-  // NÃO usar coluna status (Vencido/No Prazo) como situacao — isso transformava arquivado em vencido
-  let situacao = String(data.SITUACAO || data.situacao || data.status_interno || 'EM ANDAMENTO').toUpperCase().trim();
-  if (!situacao) situacao = 'EM ANDAMENTO';
-  if (data.via_scan_auto_encerrar || data.dados?.via_scan_auto_encerrar) {
-    situacao = 'ENCERRADO';
-  }
-  if (/^(VENCIDO|É HOJE|E HOJE|ATENÇÃO|ATENCAO|NO PRAZO|SEM PRAZO|CASO CR[IÍ]TICO)$/.test(situacao)) {
-    // status de prazo vazou para situacao — corrige
-    const alt = String(data.status_interno || data.dados?.situacao || '').toUpperCase();
-    situacao = /ENCERRAD|ARQUIVAD|EXTINT|SUSPENS|FINALIZ/.test(alt) ? alt : 'EM ANDAMENTO';
-  }
+  const situacao = (data.SITUACAO || data.situacao || data.STATUS || 'EM ANDAMENTO').toUpperCase();
   
   const proximoPrazoRaw = sanitizeDateCell(data.PROXIMO_RETORNO || data.PROXIMO_PRAZO || data.proximoPrazo || '');
-  const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || data.ultimo_retorno || data.ULTIMORETORNO || '');
+  const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || '');
   
-  let statusManual = String(data.STATUS_MANUAL || data.statusManual || 'Automatico');
+  const statusManual = data.STATUS_MANUAL || data.statusManual || 'Automatico';
 
   const tribunalData = extrairTribunal(protocolo);
-  let statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3);
-
-  // Encerrado/arquivado no cadastro: NUNCA vira Vencido por prazo antigo
-  const sitEnc =
-    /ENCERRAD|ARQUIVAD|EXTINT|BAIXA DEFINITIVA|FINALIZAD|SUSPENS/.test(situacao) ||
-    /encerrado|arquivado/i.test(statusManual);
-  if (sitEnc) {
-    statusCalculado = 'Arquivado';
-    if (/automatico/i.test(statusManual) || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(statusManual)) {
-      statusManual = /ARQUIV/.test(situacao) ? 'Arquivado' : 'Encerrado';
-    }
-  }
+  const statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3);
 
   let observacao = fixEncoding(data.OBSERVACAO || data.OBSERVACOES || data.observacao || '');
   const produtos = data.PRODUTOS || data.produtos || '';
@@ -317,7 +291,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const temAndamentoDjen = toBool(data.djen_nova_comunicacao);
   const novidadeUnificada = temAndamentoDataJud || temAndamentoDjen || toBool(data.tem_novo_andamento);
 
-  const built = {
+  return {
     id: raw.id || crypto.randomUUID(),
     created_by: data.created_by,
     cliente,
@@ -327,12 +301,10 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     situacao,
     proximoPrazo: proximoPrazoRaw, 
     ultimoRetorno: ultimoRetornoRaw,
-    status: sitEnc
-      ? 'Arquivado'
-      : (statusManual === 'Automatico' || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(String(statusManual)))
-        ? statusCalculado
-        : (statusManual as any),
-    risco: sitEnc ? 'Normal' : ((statusCalculado === 'Vencido' || statusManual === 'Caso Crítico') ? "Crítico" : "Normal"),
+    status: (statusManual === 'Automatico' || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(String(statusManual)))
+      ? statusCalculado
+      : statusManual,
+    risco: (statusCalculado === 'Vencido' || statusManual === 'Caso Crítico') ? "Crítico" : "Normal",
     diasFaltando: calcularDiasFaltando(formatDateToISO(proximoPrazoRaw)),
     statusManual,
     tribunal: tribunalData.tribunal,
@@ -364,9 +336,6 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     datajud_encerrado_motivo: data.datajud_encerrado_motivo,
     datajud_hash: data.datajud_hash || null,
 
-    sinal_numopede: !!(data.sinal_numopede ?? data.sinal_NUMOPEDE),
-    sinal_predatoria: !!(data.sinal_predatoria),
-    predatoria_marcado_em: data.predatoria_marcado_em || null,
     indicio_busca_apreensao: false, // BA desativado — nunca expõe flag legado
     busca_apreensao_confianca: data.busca_apreensao_confianca,
     busca_apreensao_motivo: data.busca_apreensao_motivo,
@@ -375,16 +344,6 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     em_cumprimento_sentenca: toBool(data.em_cumprimento_sentenca),
     cumprimento_sentenca_motivo: data.cumprimento_sentenca_motivo,
     cumprimento_sentenca_consultado_em: data.cumprimento_sentenca_consultado_em,
-
-    // Procedência e Cumprimento Pendente (Módulo Executivo)
-    is_procedente: toBool(data.is_procedente),
-    procedente_motivo: data.procedente_motivo || null,
-    cumprimento_pendente_necessario: toBool(data.cumprimento_pendente_necessario),
-    data_transito_julgado: data.data_transito_julgado || null,
-    detalhes_execucao: data.detalhes_execucao || null,
-    cumprimento_ativo: toBool(data.cumprimento_ativo),
-    cumprimento_encerrado: toBool(data.cumprimento_encerrado),
-    status_executivo: data.status_executivo || data.detalhes_execucao?.status_executivo || null,
 
     // DJEN
     djen_consultado_em: data.djen_consultado_em,
@@ -398,7 +357,5 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     auditado_em: data.auditado_em ?? data.auditadoEm ?? null,
     auditado_por: data.auditado_por ?? data.auditadoPor ?? null,
     atendido_por: data.atendido_por ?? data.atendidoPor ?? null,
-    classe_processual: data.classe_processual || data.datajud_classe || data.classe_acao || data.classe || '',
   };
-  return applyFlagsTruth(built as LegalCase);
 }
