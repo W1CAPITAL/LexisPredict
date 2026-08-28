@@ -69,6 +69,7 @@ import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } fro
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
+import { explainFilaVazia } from '@/lib/fila-empty';
 import { computeKpiExecutivo, flagProcedente } from '@/lib/kpi-executivo';
 import Link from 'next/link';
 import { getTranslation } from '@/lib/i18n';
@@ -245,6 +246,29 @@ export default function Dashboard() {
 
   const isEmpty = !loading && cases.length === 0;
 
+  const filaEmptyExplain = useMemo(() => {
+    try {
+      const ativos = cases.filter((c) => !isCasoEncerrado(c)).length;
+      const comPrazo = cases.filter((c) => {
+        const pr = (c as any).proximoPrazo || (c as any).proximo_retorno;
+        return pr && String(pr).trim();
+      }).length;
+      return explainFilaVazia({
+        totalCarteira: cases.length,
+        ativos,
+        comPrazo,
+        pendingCount: 0,
+        completedToday: 0,
+        filaFiltro: 'all',
+        hasSearch: false,
+        hasOfficeFilter: false,
+        hasLawyerFilter: false,
+      });
+    } catch {
+      return null;
+    }
+  }, [cases]);
+
   const upcomingDeadlines = useMemo(() => {
     return cases
       .filter(c => !isCasoEncerrado(c) && typeof c.diasFaltando === 'number' && c.diasFaltando >= 0 && c.diasFaltando <= 7)
@@ -322,9 +346,11 @@ export default function Dashboard() {
                   <Briefcase size={32} />
                 </div>
                 <div className="space-y-1 px-6">
-                  <h3 className="font-black uppercase tracking-tight text-base sm:text-lg">Nenhum caso carregado</h3>
+                  <h3 className="font-black uppercase tracking-tight text-base sm:text-lg">
+                    {filaEmptyExplain?.title || 'Nenhum caso carregado'}
+                  </h3>
                   <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest max-w-sm mx-auto">
-                    Importe a carteira para liberar a vigilância unificada, o risco global e a fila prioritária.
+                    {filaEmptyExplain?.description || 'Importe a carteira para liberar a vigilância unificada, o risco global e a fila prioritária.'}
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-3">

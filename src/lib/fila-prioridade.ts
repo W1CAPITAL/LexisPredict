@@ -341,7 +341,15 @@ export function ordenarFilaCritica(
     .sort((a, b) => {
       const d = pesoFila(b) - pesoFila(a);
       if (d !== 0) return d;
-      return scorePreditivo(b) - scorePreditivo(a);
+      const s = scorePreditivo(b) - scorePreditivo(a);
+      if (s !== 0) return s;
+      // desempate estável: prazo mais antigo primeiro, depois protocolo
+      const pa = String((a as any).proximoPrazo || (a as any).proximo_retorno || '');
+      const pb = String((b as any).proximoPrazo || (b as any).proximo_retorno || '');
+      if (pa && pb && pa !== pb) return pa < pb ? -1 : 1;
+      const ca = String(a.protocolo || (a as any).protocolo_ref || '');
+      const cb = String(b.protocolo || (b as any).protocolo_ref || '');
+      return ca.localeCompare(cb);
     });
 
   return typeof limit === 'number' ? list.slice(0, limit) : list;

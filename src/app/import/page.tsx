@@ -419,6 +419,25 @@ export default function ImportPage() {
                         </div>
                      )}
 
+                     {importResults?.diagnosis && (
+                        <div className="bg-amber-50 border-2 border-amber-400 p-6 space-y-2">
+                           <h4 className="text-[9px] font-black uppercase tracking-[0.2em]">Diagnóstico de colunas (P0)</h4>
+                           <p className="text-xs font-bold font-mono text-amber-950 break-words">
+                             {importResults.diagnosis.summary}
+                           </p>
+                           <p className="text-[10px] font-bold uppercase text-amber-800/80">
+                             Prazos mapeados: {importResults.diagnosis.prazosPreenchidos ?? 0}
+                             {' · '}Retornos: {importResults.diagnosis.retornosPreenchidos ?? 0}
+                             {' · '}Flags preservadas: {importResults.flagsPreserved ?? 0}
+                           </p>
+                           {(importResults.diagnosis.prazosPreenchidos ?? 0) === 0 && (
+                             <p className="text-[10px] font-black uppercase text-red-600">
+                               Atenção: 0 prazos — confira se a planilha tem coluna PRÓXIMO RETORNO / PRAZO.
+                             </p>
+                           )}
+                        </div>
+                     )}
+
                      <div className="bg-emerald-50 border-2 border-emerald-200 p-6 flex items-start gap-4">
                         <RefreshCcw className="text-emerald-600 shrink-0 mt-1" size={18} />
                         <div>

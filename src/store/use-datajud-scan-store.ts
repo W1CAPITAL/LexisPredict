@@ -1,3 +1,4 @@
+import { loadScanQueue, saveScanQueue, clearScanQueue, remainingProtocolos } from '@/lib/scan-queue-persist';
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * MOTOR DE ESTADO DO SCANNER GLOBAL v10.0 — BOTH real + nuvem contínua (sem Cron)
@@ -215,6 +216,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       ? Math.max(0, get().manualDone || savedProg?.manualDone || 0)
       : 0;
     if (!resume) clearScanProgress();
+      try { clearScanQueue(); } catch { /* */ }
     // Feedback imediato na UI (evita "cliquei e nada acontece")
     set({
       isMinimized: false,
@@ -356,6 +358,17 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       set({ manualStatus: 'idle', manualTotal: 0 });
       return;
     }
+
+    // P0: fila de CNJs persistente (localStorage) — sobrevive a fechar a aba
+    try {
+      const protos = cases.map((c: any) => String(c.protocolo || c.protocolo_ref || '')).filter(Boolean);
+      saveScanQueue({
+        protocolos: protos,
+        cursor: startFrom,
+        mode: mode === 'datajud' ? 'datajud' : mode === 'djen' ? 'djen' : 'both',
+        updatedAt: new Date().toISOString(),
+      });
+    } catch { /* quota */ }
 
     set({ manualTotal: cases.length });
     if (startFrom > 0 && startFrom < cases.length) {
