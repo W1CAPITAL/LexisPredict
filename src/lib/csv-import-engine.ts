@@ -1,3 +1,4 @@
+
 /**
  * Limpa células de data que contenham erros de planilha ou marcadores de texto.
  * Serial Excel → YYYY-MM-DD.
@@ -140,5 +141,5 @@ export function diagnoseImport(
  * Normaliza o protocolo removendo espaços e caracteres de controle invisíveis.
  */
 export function sanitizeProtocolo(value: string): string {
-
-[2 lines collapsed]
+  return String(value || '').trim().replace(/\s+/g, '');
+}
