@@ -92,7 +92,7 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-const DOCK_H = 58;
+const DOCK_H = 72;
 const LS_PIN = "lexis_dock_pinned"; // "1" = fixo (padrão), "0" = auto-ocultar
 
 function useNavItems(opts: {
@@ -189,46 +189,39 @@ function DockItem({
       href={item.href}
       title={item.label}
       className={cn(
-        "group relative flex flex-col items-center justify-end",
-        "h-12 min-w-[52px] px-1.5 rounded-xl",
+        "group relative flex flex-col items-center justify-center gap-0.5",
+        "h-[64px] min-w-[64px] max-w-[88px] px-1 rounded-xl",
         "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        "hover:-translate-y-2 focus-visible:-translate-y-2",
+        "hover:-translate-y-2.5 focus-visible:-translate-y-2.5",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       )}
     >
-      {/* tooltip / nome que sobe no hover */}
       <span
         className={cn(
-          "pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 z-10",
-          "whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide",
-          "bg-foreground/90 text-background shadow-lg",
-          "opacity-0 translate-y-2 scale-95",
+          "flex h-9 w-9 items-center justify-center rounded-xl shrink-0",
           "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-          "group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100",
-          "group-focus-visible:opacity-100 group-focus-visible:translate-y-0"
-        )}
-      >
-        {item.label}
-      </span>
-
-      <span
-        className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-xl",
-          "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-          "group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/25",
+          "group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/30",
           active
-            ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
-            : "bg-white/10 text-foreground/90 group-hover:bg-white/20 dark:bg-white/5"
+            ? "bg-primary text-primary-foreground shadow-md shadow-primary/35"
+            : "bg-white/15 text-foreground group-hover:bg-white/25 dark:bg-white/10"
         )}
       >
         <SafeIcon icon={item.icon} size={18} />
       </span>
-
-      {/* indicador ativo estilo Windows */}
+      {/* nome sempre visível — legível */}
       <span
         className={cn(
-          "mt-0.5 h-[3px] rounded-full transition-all duration-300",
-          active ? "w-4 bg-primary" : "w-0 bg-transparent group-hover:w-2 group-hover:bg-foreground/30"
+          "text-[9px] leading-tight font-bold text-center line-clamp-2 px-0.5 max-w-[80px]",
+          "transition-colors duration-200",
+          active ? "text-primary" : "text-foreground/85 group-hover:text-foreground"
+        )}
+      >
+        {item.label}
+      </span>
+      <span
+        className={cn(
+          "absolute bottom-0.5 h-[3px] rounded-full transition-all duration-300",
+          active ? "w-5 bg-primary" : "w-0 bg-transparent group-hover:w-2.5 group-hover:bg-foreground/35"
         )}
       />
     </Link>
@@ -339,17 +332,30 @@ export function Sidebar() {
 
   const dockInner = (
     <div className="flex items-center gap-0.5 min-w-0 h-full px-1">
-      {/* logo */}
-      <div className="flex items-center gap-1.5 px-2 shrink-0 border-r border-white/10 mr-1">
-        <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/25">
-          <SafeIcon icon={Layers} size={16} />
-        </div>
-        <span className="hidden lg:block text-[11px] font-black tracking-tight max-w-[88px] truncate">
-          {PRODUCT.name}
+      {/* logo oficial do app */}
+      <Link
+        href="/"
+        className="flex items-center gap-2 px-2.5 shrink-0 border-r border-white/10 mr-1.5 hover:opacity-90 transition-opacity"
+        title="LexisPredict"
+      >
+        <img
+          src="/logo.png"
+          alt="LexisPredict"
+          width={36}
+          height={36}
+          className="h-9 w-9 rounded-xl object-contain shadow-md shadow-primary/20 bg-white/90 dark:bg-white/10 p-0.5"
+        />
+        <span className="hidden md:flex flex-col min-w-0">
+          <span className="text-[12px] font-black tracking-tight leading-none truncate text-foreground">
+            LexisPredict
+          </span>
+          <span className="text-[8px] font-semibold text-muted-foreground leading-none mt-0.5 truncate max-w-[100px]">
+            Gabinete
+          </span>
         </span>
-      </div>
+      </Link>
 
-      {/* scanner */}
+      {/* scanner DataJud + DJEN — destaque arco-íris */}
       <button
         type="button"
         onClick={() => {
@@ -360,26 +366,30 @@ export function Sidebar() {
           }
           if (canScanEffective) toggleMinimize();
         }}
-        title={!canScanEffective ? "Scanner indisponível" : status === "running" ? "Scanner ativo" : "Scanner tribunal"}
+        title={!canScanEffective ? "Scanner indisponível" : status === "running" ? "Scanner ativo" : "DataJud + DJEN"}
         className={cn(
-          "group relative flex flex-col items-center justify-end h-12 min-w-[48px] px-1 rounded-xl",
-          "transition-transform duration-300 hover:-translate-y-2"
+          "group relative flex flex-col items-center justify-center gap-0.5",
+          "h-[64px] min-w-[78px] max-w-[96px] px-1.5 mx-0.5 rounded-xl",
+          "transition-transform duration-300 hover:-translate-y-2.5",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50"
         )}
       >
-        <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-foreground/90 text-background px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-          Scanner
-        </span>
         <span
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110",
-            status === "running"
-              ? "bg-amber-500/90 text-white animate-pulse"
-              : "bg-white/10 group-hover:bg-white/20"
+            "relative flex h-10 w-10 items-center justify-center rounded-xl shrink-0",
+            "transition-all duration-300 group-hover:scale-110",
+            "bg-gradient-to-br from-rose-500 via-amber-400 to-violet-600",
+            "shadow-lg shadow-fuchsia-500/40",
+            "ring-2 ring-white/30",
+            status === "running" && "animate-pulse ring-amber-300"
           )}
         >
-          <SafeIcon icon={Zap} size={17} />
+          <span className="absolute inset-[2px] rounded-[10px] bg-background/25 backdrop-blur-[2px]" />
+          <SafeIcon icon={Zap} size={18} className="relative z-[1] text-white drop-shadow" />
         </span>
-        <span className="mt-0.5 h-[3px] w-0 group-hover:w-2 rounded-full bg-foreground/30 transition-all" />
+        <span className="text-[9px] leading-tight font-black text-center bg-gradient-to-r from-rose-500 via-amber-500 to-violet-600 bg-clip-text text-transparent">
+          DataJud+DJEN
+        </span>
       </button>
 
       {/* nav scroll */}
@@ -392,13 +402,24 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => setShowMore((v) => !v)}
-          className="h-12 min-w-[44px] px-1 flex flex-col items-center justify-end text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors"
+          className={cn(
+            "h-[64px] min-w-[72px] max-w-[92px] px-1 flex flex-col items-center justify-center gap-0.5 rounded-xl",
+            "transition-all duration-300 hover:-translate-y-2",
+            showMore ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-white/10"
+          )}
           title={showMore ? "Recolher ferramentas" : "Mais ferramentas"}
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/15 transition-all">
+          <span
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black",
+              "bg-gradient-to-br from-sky-500/30 to-violet-500/30 border border-white/20"
+            )}
+          >
             {showMore ? "−" : "+"}
           </span>
-          <span className="h-[3px]" />
+          <span className="text-[9px] font-black leading-tight text-center text-foreground/90 line-clamp-2 max-w-[84px]">
+            {showMore ? "Recolher" : "Mais ferramentas"}
+          </span>
         </button>
       </div>
 
@@ -474,7 +495,7 @@ export function Sidebar() {
         className={cn(
           "hidden md:flex fixed left-1/2 -translate-x-1/2 z-[55]",
           "w-[min(1100px,calc(100vw-1.5rem))]",
-          "h-[58px] items-center",
+          "h-[72px] items-center",
           "rounded-2xl border border-white/15",
           "bg-background/55 dark:bg-background/45",
           "backdrop-blur-xl backdrop-saturate-150",
@@ -491,7 +512,7 @@ export function Sidebar() {
 
       {/* busca flutuante */}
       {searchOpen && (
-        <div className="hidden md:block fixed bottom-[4.75rem] left-1/2 -translate-x-1/2 z-[56] w-[min(360px,90vw)]">
+        <div className="hidden md:block fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-[56] w-[min(360px,90vw)]">
           <input
             autoFocus
             value={query}

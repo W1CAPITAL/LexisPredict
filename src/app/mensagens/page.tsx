@@ -45,6 +45,7 @@ import {
   criarGrupoChatAction,
   listarMembrosGrupoAction,
   removerMembroGrupoAction,
+  apagarGrupoChatAction,
   ocultarMembroListaAction,
   listarOcultosListaAction,
 } from "@/app/actions/chat-empresa-actions";
@@ -136,6 +137,8 @@ export default function MensagensPage() {
   const [newTitle, setNewTitle] = useState("");
   const [pickIds, setPickIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isAdmUi, setIsAdmUi] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -450,28 +453,19 @@ export default function MensagensPage() {
               <MessageSquare size={16} className="text-primary shrink-0" />
               <h2 className="font-black text-sm truncate">{title}</h2>
             </div>
-            {active !== "geral" && groupMembers.length > 0 && (
-              <div className="flex items-center gap-1 overflow-x-auto max-w-[50%]">
-                {groupMembers.map((m) => (
-                  <div
-                    key={m.auth_user_id}
-                    className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] shrink-0"
-                  >
-                    <span className="truncate max-w-[100px]">{m.nome || m.auth_user_id}</span>
-                    {m.auth_user_id !== me.auth_id && (
-                      <button
-                        type="button"
-                        className="text-destructive hover:opacity-80"
-                        title="Remover do grupo"
-                        onClick={() => void removeFromGroup(m.auth_user_id)}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {active !== "geral" && threads.some((x) => x.id === active && x.tipo === "grupo") && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-[11px] font-bold gap-1"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <UsersRound size={14} /> Config. do grupo
+                </Button>
+              )}
+            </div>
           </header>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
@@ -563,7 +557,70 @@ export default function MensagensPage() {
         </section>
       </main>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configurações do grupo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-[12px] text-muted-foreground">
+              Administradores e o criador podem remover membros ou apagar o grupo.
+            </p>
+            <ScrollArea className="h-52 border rounded-lg">
+              {groupMembers.map((m) => (
+                <div
+                  key={m.auth_user_id}
+                  className="flex items-center gap-2 px-3 py-2 border-b border-border/50 last:border-0"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-[10px]">{initials(m.nome)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{m.nome || m.auth_user_id}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{m.email || m.role || ""}</p>
+                  </div>
+                  {m.auth_user_id !== me.auth_id && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-8 gap-1 text-[11px] shrink-0"
+                      onClick={() => void removeFromGroup(m.auth_user_id)}
+                    >
+                      <Trash2 size={14} /> Remover
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {groupMembers.length === 0 && (
+                <p className="p-4 text-sm text-muted-foreground">Nenhum membro listado.</p>
+              )}
+            </ScrollArea>
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full gap-2 font-bold"
+              onClick={async () => {
+                if (!threadId) return;
+                if (!confirm("Apagar este grupo e o histórico associado?")) return;
+                const r = await apagarGrupoChatAction(threadId);
+                if (!r.success) setErr(r.message || "Falha ao apagar");
+                else {
+                  setSettingsOpen(false);
+                  setGroupMembers([]);
+                  await refreshLists();
+                  await openGeral();
+                }
+              }}
+            >
+              <Trash2 size={16} /> Apagar grupo
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+<Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

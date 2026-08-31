@@ -293,14 +293,20 @@ export async function removerMembroGrupoAction(threadId: string, memberAuthId: s
   if (thr.tipo === "geral") {
     return {
       success: false,
-      message: "O canal Geral não remove membros da empresa. Use 'Ocultar desta lista' se quiser sumir alguém só para você.",
+      message: "O canal Geral não remove membros da empresa. Use 'Ocultar desta lista' na barra lateral.",
     };
   }
   if (thr.tipo !== "grupo") return { success: false, message: "Só grupos permitem remover membros" };
-  // criador ou o próprio membro saindo
   const isOwner = String(thr.created_by) === String(ctx.auth_id);
   const isSelf = String(memberAuthId) === String(ctx.auth_id);
-  if (!isOwner && !isSelf) return { success: false, message: "Sem permissão" };
+  // Qualquer administrador / supervisor / superadmin pode remover
+  const isAdm =
+    !!(ctx as any).isAdministrador ||
+    !!(ctx as any).isSupervisor ||
+    !!(ctx as any).isSuperAdmin;
+  if (!isOwner && !isSelf && !isAdm) {
+    return { success: false, message: "Sem permissão — só admin, criador do grupo ou o próprio membro" };
+  }
   const { error } = await admin
     .from("chat_thread_members")
     .delete()
@@ -349,5 +355,31 @@ export async function restaurarMembroListaAction(hiddenAuthUserId: string) {
     .eq("empresa_id", ctx.empresa_id)
     .eq("auth_user_id", ctx.auth_id)
     .eq("hidden_auth_user_id", hiddenAuthUserId);
+  return { success: true };
+}
+
+
+/** Apaga o grupo inteiro (admin / criador). */
+export async function apagarGrupoChatAction(threadId: string) {
+  const ctx = await ctxOk();
+  if (!ctx?.auth_id || !threadId) return { success: false, message: "Sessão" };
+  const admin = await getSupabaseAdmin();
+  const { data: thr } = await admin
+    .from("chat_threads")
+    .select("id, tipo, created_by, empresa_id")
+    .eq("id", threadId)
+    .eq("empresa_id", ctx.empresa_id)
+    .maybeSingle();
+  if (!thr) return { success: false, message: "Grupo não encontrado" };
+  if (thr.tipo !== "grupo") return { success: false, message: "Só grupos customizados podem ser apagados" };
+  const isOwner = String(thr.created_by) === String(ctx.auth_id);
+  const isAdm =
+    !!(ctx as any).isAdministrador ||
+    !!(ctx as any).isSupervisor ||
+    !!(ctx as any).isSuperAdmin;
+  if (!isOwner && !isAdm) return { success: false, message: "Sem permissão para apagar o grupo" };
+  await admin.from("chat_thread_members").delete().eq("thread_id", threadId);
+  const { error } = await admin.from("chat_threads").delete().eq("id", threadId);
+  if (error) return { success: false, message: error.message };
   return { success: true };
 }
