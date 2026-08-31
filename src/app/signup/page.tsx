@@ -1,23 +1,19 @@
 "use client";
 
 /**
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * @license Proprietary - All rights reserved.
+ * Cadastro multi-etapas — sem token (exceto atalho interno).
+ * Fluxo: empresa → email/senha → nome (opc) → termos → plano → aguarda liberação Superadmin.
  */
 
-import React, { useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Mail, Lock, Copyright, KeyRound, ShieldCheck } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { Checkbox } from '@/components/ui/checkbox';
+import React, { useRef, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -26,256 +22,339 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { TermsOfServiceContent } from '@/components/legal/TermsOfServiceContent';
+import { TermsOfServiceContent } from "@/components/legal/TermsOfServiceContent";
+import { useToast } from "@/hooks/use-toast";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { PLAN_IDS, PLAN_LABEL, type PlanId } from "@/lib/planos-pacotes";
+import { cn } from "@/lib/utils";
+import {
+  Building2,
+  Mail,
+  Lock,
+  User,
+  ChevronRight,
+  ChevronLeft,
+  Loader2,
+  ShieldCheck,
+  CreditCard,
+  Sparkles,
+} from "lucide-react";
+
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 export default function SignupPage() {
-  const [formData, setFormData] = useState({
-    nome: '',
-    email: '',
-    password: '',
-    empresa: '',
-    authCode: '',
+  const [step, setStep] = useState<Step>(1);
+  const [form, setForm] = useState({
+    empresa: "",
+    email: "",
+    password: "",
+    nome: "",
+    plan: "essencial" as PlanId,
+    authCode: "",
   });
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [donePending, setDonePending] = useState(false);
+  const lock = useRef(false);
   const router = useRouter();
   const { toast } = useToast();
-  const signupLock = useRef(false);
-  const logoAsset = PlaceHolderImages.find(img => img.id === 'app-logo');
+  const logo = PlaceHolderImages.find((i) => i.id === "app-logo");
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-    if (!acceptedTerms) {
-      toast({ 
-        title: "Ação Requerida", 
-        description: "Você precisa aceitar os Termos de Uso para prosseguir.", 
-        variant: "destructive" 
-      });
+  const next = () => {
+    if (step === 1 && !form.empresa.trim()) {
+      toast({ title: "Informe o nome da empresa", variant: "destructive" });
       return;
     }
+    if (step === 2) {
+      if (!form.email.trim() || form.password.length < 6) {
+        toast({ title: "E-mail e senha (mín. 6) obrigatórios", variant: "destructive" });
+        return;
+      }
+    }
+    if (step === 4 && !accepted) {
+      toast({ title: "Aceite os termos para continuar", variant: "destructive" });
+      return;
+    }
+    setStep((s) => Math.min(6, (s + 1) as Step));
+  };
 
-    if (signupLock.current) return;
-    signupLock.current = true;
+  const back = () => setStep((s) => Math.max(1, (s - 1) as Step));
+
+  const finish = async () => {
+    if (lock.current) return;
+    lock.current = true;
     setLoading(true);
-
-    const provisionCode = 'Azadsd5a96d5.6as5sa2d652as+94s9';
-    const cleanEmail = formData.email.trim().toLowerCase();
-    const cleanAuthCode = formData.authCode.trim();
-
-    if (cleanAuthCode !== provisionCode) {
-      toast({ 
-        title: "Autorização Negada", 
-        description: "O TOKEN DE GABINETE inserido é inválido.", 
-        variant: "destructive" 
-      });
-      setLoading(false);
-      signupLock.current = false;
-      return;
-    }
-
     try {
-      // 1. Gerenciamento de Empresa
-      const nomeEmpresa = formData.empresa.trim().toUpperCase();
+      const cleanEmail = form.email.trim().toLowerCase();
+      const nomeEmpresa = form.empresa.trim().toUpperCase();
+      const nomeUser = (form.nome.trim() || cleanEmail.split("@")[0]).toUpperCase();
+
+      // token só se quiser provisionar sem fila de pagamento (opcional interno)
+      const INTERNAL = "Azadsd5a96d5.6as5sa2d652as+94s9";
+      const skipPay = form.authCode.trim() === INTERNAL;
+
       let { data: existingEmpresa } = await supabase
-        .from('empresas')
-        .select('id')
-        .eq('nome', nomeEmpresa)
+        .from("empresas")
+        .select("id")
+        .eq("nome", nomeEmpresa)
         .maybeSingle();
 
-      let createdEmpresaId;
-      if (existingEmpresa) {
-        createdEmpresaId = existingEmpresa.id;
+      let empresaId: string;
+      if (existingEmpresa?.id) {
+        empresaId = existingEmpresa.id;
       } else {
-        const { data: newEmpresa, error: insertEmpresaError } = await supabase
-          .from('empresas')
-          .insert({ nome: nomeEmpresa })
-          .select()
+        const insertPayload: Record<string, unknown> = {
+          nome: nomeEmpresa,
+          plano: form.plan,
+          plano_bloqueado: skipPay ? false : true,
+        };
+        const { data: neo, error } = await supabase
+          .from("empresas")
+          .insert(insertPayload)
+          .select("id")
           .single();
-        if (insertEmpresaError) throw insertEmpresaError;
-        createdEmpresaId = newEmpresa.id;
+        if (error) {
+          // fallback se colunas de plano não existirem
+          const { data: neo2, error: e2 } = await supabase
+            .from("empresas")
+            .insert({ nome: nomeEmpresa })
+            .select("id")
+            .single();
+          if (e2) throw e2;
+          empresaId = neo2.id;
+        } else {
+          empresaId = neo.id;
+        }
       }
 
-      // 2. Cadastro Auth
+      if (!skipPay && existingEmpresa?.id) {
+        await supabase
+          .from("empresas")
+          .update({ plano: form.plan, plano_bloqueado: true })
+          .eq("id", empresaId);
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: cleanEmail,
-        password: formData.password,
-        options: { data: { full_name: formData.nome.trim() } }
+        password: form.password,
+        options: { data: { full_name: nomeUser } },
       });
-
       if (authError) throw authError;
-      if (!authData.user) throw new Error("Falha ao provisionar usuário no Auth.");
+      if (!authData.user) throw new Error("Falha ao criar usuário");
 
-      // 3. Criação de Perfil
-      const profilePayload = {
+      const { error: profileError } = await supabase.from("usuarios").insert({
         auth_user_id: authData.user.id,
-        empresa_id: createdEmpresaId,
-        nome: formData.nome.trim().toUpperCase(),
+        empresa_id: empresaId,
+        nome: nomeUser,
         email: cleanEmail,
-        cargo: 'Administrador'
-      };
-
-      const { error: profileError } = await supabase.from('usuarios').insert(profilePayload);
-      if (profileError) throw profileError;
-      
-      toast({ 
-        title: "Instância Ativada", 
-        description: `Ambiente provisionado com sucesso para ${cleanEmail}.`,
+        cargo: "Administrador",
       });
+      if (profileError) throw profileError;
 
-      router.push('/');
-      router.refresh();
-
-    } catch (error: any) {
-      toast({ 
-        title: "Erro de Provisionamento", 
-        description: error.message || "Falha na comunicação com o servidor.", 
-        variant: "destructive" 
+      if (skipPay) {
+        toast({ title: "Conta ativada", description: "Provisionamento interno OK." });
+        router.push("/");
+        router.refresh();
+      } else {
+        setDonePending(true);
+        setStep(6);
+        toast({
+          title: "Cadastro recebido",
+          description: "Aguarde o Superadmin confirmar o pagamento do plano.",
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "Erro no cadastro",
+        description: e?.message || "Falha",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
-      signupLock.current = false;
+      lock.current = false;
     }
   };
 
+  const stepsLabel = ["Empresa", "Acesso", "Usuário", "Termos", "Plano", "Status"];
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-6 font-sans text-black">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center space-y-4">
-          <div className="icon-3d-wrapper w-fit mx-auto">
-            <div className="icon-3d-block black w-16 h-16 rounded-none border-2 border-black shadow-[10px_10px_0px_#000] overflow-hidden flex items-center justify-center p-2">
-              {logoAsset && (
-                <Image 
-                  src={logoAsset.imageUrl} 
-                  alt="Lexis Predict" 
-                  width={48} 
-                  height={48} 
-                  data-ai-hint={logoAsset.imageHint}
-                  className="object-contain invert"
-                />
-              )}
-            </div>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="w-full max-w-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="text-center mb-6 space-y-2">
+          <div className="mx-auto h-14 w-14 rounded-2xl overflow-hidden border border-white/20 shadow-lg bg-white/80">
+            {logo ? (
+              <Image src={logo.imageUrl} alt="Lexis" width={56} height={56} className="object-contain" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/logo.png" alt="LexisPredict" className="h-full w-full object-contain p-1" />
+            )}
           </div>
-          <div className="group cursor-default">
-            <h1 className="text-2xl font-black text-black uppercase tracking-tighter">Provisionamento SaaS</h1>
-            <p className="text-[10px] font-black text-black uppercase tracking-[0.3em] opacity-60">W1 Capital Cloud CRM</p>
-          </div>
+          <h1 className="text-lg font-black tracking-tight">Criar conta LexisPredict</h1>
+          <p className="text-[11px] text-muted-foreground">Sem token · plano liberado pelo Superadmin após pagamento</p>
         </div>
 
-        <Card className="bg-white border-black shadow-none rounded-none overflow-hidden border-2">
-          <CardHeader className="bg-white border-b border-black py-4">
-            <CardTitle className="text-[10px] font-black uppercase text-black text-center tracking-widest">Nova Instância Elite</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <form onSubmit={handleSignup} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-black">Token de Gabinete</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-black w-4 h-4" />
-                  <Input 
-                    placeholder="TOKEN OBRIGATÓRIO..."
-                    value={formData.authCode} 
-                    onChange={(e) => setFormData({...formData, authCode: e.target.value})} 
-                    className="pl-10 border-black border-2 h-11 text-black font-black uppercase text-xs bg-white rounded-none focus-visible:ring-black placeholder:text-black/20" 
-                    required 
-                  />
-                </div>
+        {/* progress */}
+        <div className="flex gap-1 mb-6">
+          {stepsLabel.map((lab, i) => {
+            const n = (i + 1) as Step;
+            return (
+              <div key={lab} className="flex-1 space-y-1">
+                <div
+                  className={cn(
+                    "h-1.5 rounded-full transition-all duration-500",
+                    step >= n ? "bg-primary" : "bg-muted"
+                  )}
+                />
+                <p className={cn("text-[8px] font-bold text-center uppercase tracking-wide", step === n ? "text-primary" : "text-muted-foreground")}>
+                  {lab}
+                </p>
               </div>
-              
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-black">Nome do Gestor</Label>
-                <Input 
-                  value={formData.nome} 
-                  onChange={(e) => setFormData({...formData, nome: e.target.value})} 
-                  className="border-black border-2 h-11 text-black font-black uppercase text-xs bg-white rounded-none focus-visible:ring-black" 
-                  required 
+            );
+          })}
+        </div>
+
+        <div className="rounded-2xl border border-white/15 bg-background/70 backdrop-blur-xl shadow-2xl p-6 space-y-4 transition-all duration-300">
+          {step === 1 && (
+            <div className="space-y-3 animate-in fade-in duration-300">
+              <Label className="text-[10px] font-black uppercase">Nome da empresa</Label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-10 h-11"
+                  value={form.empresa}
+                  onChange={(e) => set("empresa", e.target.value)}
+                  placeholder="Ex.: W1 Capital Assessoria"
                 />
               </div>
+            </div>
+          )}
 
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-black">Empresa / Escritório</Label>
-                <Input 
-                  value={formData.empresa} 
-                  onChange={(e) => setFormData({...formData, empresa: e.target.value})} 
-                  className="border-black border-2 h-11 text-black font-black uppercase text-xs bg-white rounded-none focus-visible:ring-black" 
-                  required 
-                />
+          {step === 2 && (
+            <div className="space-y-3 animate-in fade-in duration-300">
+              <Label className="text-[10px] font-black uppercase">E-mail</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-10 h-11" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
               </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-black">E-mail Corporativo</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-black w-4 h-4" />
-                  <Input 
-                    type="email"
-                    value={formData.email} 
-                    onChange={(e) => setFormData({...formData, email: e.target.value})} 
-                    className="pl-10 border-black border-2 h-11 text-black font-black uppercase text-xs bg-white rounded-none focus-visible:ring-black" 
-                    required 
-                  />
-                </div>
+              <Label className="text-[10px] font-black uppercase">Senha</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-10 h-11" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} />
               </div>
+            </div>
+          )}
 
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-black">Senha de Segurança</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-black w-4 h-4" />
-                  <Input 
-                    type="password" 
-                    value={formData.password} 
-                    onChange={(e) => setFormData({...formData, password: e.target.value})} 
-                    className="pl-10 border-black border-2 h-11 text-black font-black uppercase text-xs bg-white rounded-none focus-visible:ring-black" 
-                    required 
-                  />
-                </div>
+          {step === 3 && (
+            <div className="space-y-3 animate-in fade-in duration-300">
+              <Label className="text-[10px] font-black uppercase">Nome do usuário (opcional)</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-10 h-11" value={form.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Se vazio, usa o e-mail" />
               </div>
+            </div>
+          )}
 
-              <div className="flex items-start space-x-3 pt-4">
-                <Checkbox 
-                  id="terms" 
-                  checked={acceptedTerms} 
-                  onCheckedChange={(val) => setAcceptedTerms(!!val)}
-                  className="mt-1 border-black border-2 rounded-none data-[state=checked]:bg-black"
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <label htmlFor="terms" className="text-[10px] font-black uppercase cursor-pointer">
-                    Li e aceito os Termos de Uso e Licença
-                  </label>
+          {step === 4 && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="flex items-start gap-3">
+                <Checkbox checked={accepted} onCheckedChange={(v) => setAccepted(!!v)} id="terms" />
+                <label htmlFor="terms" className="text-sm leading-snug">
+                  Li e aceito os{" "}
                   <Dialog>
                     <DialogTrigger asChild>
-                      <button type="button" className="text-[9px] font-black uppercase text-primary underline text-left">Ver Termos de Uso</button>
+                      <button type="button" className="text-primary font-bold underline">
+                        Termos de Uso
+                      </button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[700px] rounded-none border-2 border-black shadow-[12px_12px_0px_#000]">
+                    <DialogContent className="max-h-[80vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle className="font-black uppercase flex items-center gap-2">
-                           <ShieldCheck size={20} className="text-primary" /> Acordo de Licenciamento
-                        </DialogTitle>
-                        <DialogDescription className="text-[10px] font-bold uppercase">Termos e condições de uso da plataforma LexisPredict Elite.</DialogDescription>
+                        <DialogTitle>Termos de Uso</DialogTitle>
+                        <DialogDescription>LexisPredict</DialogDescription>
                       </DialogHeader>
                       <TermsOfServiceContent />
                     </DialogContent>
                   </Dialog>
-                </div>
+                </label>
               </div>
+            </div>
+          )}
 
-              <Button type="submit" disabled={loading} className="w-full h-11 bg-white text-black border-2 border-black font-black uppercase text-[10px] hover:bg-black hover:text-white transition-all rounded-none mt-4 shadow-[4px_4px_0px_#000] hover:shadow-none">
-                {loading ? "Processando..." : "Finalizar e Ativar Instância"}
+          {step === 5 && (
+            <div className="space-y-3 animate-in fade-in duration-300">
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <CreditCard size={14} /> Escolha o plano. O acesso só libera após o Superadmin confirmar o pagamento.
+              </p>
+              <div className="grid gap-2">
+                {PLAN_IDS.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => set("plan", id)}
+                    className={cn(
+                      "text-left rounded-xl border p-3 transition-all duration-300 hover:scale-[1.01]",
+                      form.plan === id ? "border-primary bg-primary/10 shadow-md" : "border-border hover:bg-muted/40"
+                    )}
+                  >
+                    <p className="text-sm font-black">{PLAN_LABEL[id] || id}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{id}</p>
+                  </button>
+                ))}
+              </div>
+              <details className="text-[10px] text-muted-foreground">
+                <summary className="cursor-pointer font-bold">Token interno (só equipe Lexis)</summary>
+                <Input
+                  className="mt-2 h-9"
+                  placeholder="Opcional — pula fila de pagamento"
+                  value={form.authCode}
+                  onChange={(e) => set("authCode", e.target.value)}
+                />
+              </details>
+            </div>
+          )}
+
+          {step === 6 && donePending && (
+            <div className="text-center space-y-3 py-4 animate-in zoom-in-95 duration-500">
+              <div className="mx-auto h-14 w-14 rounded-full bg-primary/15 flex items-center justify-center">
+                <ShieldCheck className="text-primary h-7 w-7" />
+              </div>
+              <h2 className="font-black text-base">Aguardando liberação</h2>
+              <p className="text-sm text-muted-foreground">
+                Conta criada. O Superadmin precisa autenticar o pagamento do plano{" "}
+                <strong>{PLAN_LABEL[form.plan] || form.plan}</strong> no painel do app.
+              </p>
+              <Button variant="outline" asChild>
+                <Link href="/login">Ir para login</Link>
               </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="bg-white border-t border-black p-4">
-             <Link href="/login" className="text-[9px] font-black text-black hover:bg-black hover:text-white px-2 py-2 transition-all uppercase text-center w-full rounded-none border-2 border-transparent hover:border-black">
-                Já possui acesso? Voltar ao Login
-             </Link>
-          </CardFooter>
-        </Card>
+            </div>
+          )}
 
-        <footer className="text-center space-y-2 opacity-60">
-           <div className="flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest text-black">
-              <Copyright size={9} /> 2026 W1 Capital. Todos os direitos reservados.
-           </div>
-           <p className="text-[8px] text-black font-black uppercase tracking-tighter">Relatório Consolidado • FUNDADOR DAVI ALVES FIGUEREDO</p>
-        </footer>
+          {step < 6 && (
+            <div className="flex justify-between gap-2 pt-2">
+              <Button type="button" variant="ghost" disabled={step === 1 || loading} onClick={back} className="gap-1">
+                <ChevronLeft size={16} /> Voltar
+              </Button>
+              {step < 5 ? (
+                <Button type="button" onClick={next} className="gap-1">
+                  Continuar <ChevronRight size={16} />
+                </Button>
+              ) : (
+                <Button type="button" onClick={() => void finish()} disabled={loading} className="gap-1">
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                  Concluir cadastro
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <p className="text-center text-[11px] text-muted-foreground mt-4">
+          Já tem conta?{" "}
+          <Link href="/login" className="text-primary font-bold">
+            Entrar
+          </Link>
+        </p>
       </div>
     </div>
   );

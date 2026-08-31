@@ -15,6 +15,7 @@ import { MotionRoot } from "@/components/providers/motion-root";
 import { LexisErrorBoundary } from "@/components/system/error-boundary";
 import { MetalPrefsApplier } from "@/components/ui/metal-prefs-applier";
 import { ClientChrome } from "@/components/system/client-chrome";
+import { RouteSnapshotWatcher } from "@/components/system/route-snapshot-watcher";
 import { ThemeBoot } from "@/components/system/theme-boot";
 import { UiPrefsApplier } from "@/components/system/ui-prefs-applier";
 import { AUTHORITY_PRESETS, hexToHsl } from '@/lib/theme';
@@ -220,6 +221,7 @@ export default function RootLayout({
           <UiPrefsApplier />
           <div className="relative z-10 min-h-screen">
             <ClientChrome />
+            <RouteSnapshotWatcher />
             <LexisErrorBoundary>
               <>
               <DbSunsetBanner />

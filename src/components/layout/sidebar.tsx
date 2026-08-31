@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { flattenNavItems, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
+import { getRouteSnapshot, type RouteSnapshot } from "@/lib/route-snapshot-cache";
 import { PRODUCT } from "@/lib/product-identity";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -146,6 +147,7 @@ function useNavItems(opts: {
       { label: "Indicadores", href: "/analytics", icon: BarChart3 },
       { label: "Insights", href: "/insights", icon: BrainCircuit },
       { label: "Urgências", href: "/urgency", icon: ShieldAlert },
+      { label: "Prêmios", href: "/premios", icon: Crown },
     ];
     const rest: NavItem[] = [];
     if (isAdmin) {
@@ -177,54 +179,166 @@ function useNavItems(opts: {
   }, [isAdmin, isSuperAdmin, plan, navPrefs, showMore, query]);
 }
 
+
 function DockItem({
   item,
   active,
+  userId,
 }: {
   item: NavItem;
   active: boolean;
+  userId?: string | null;
 }) {
+  const [preview, setPreview] = useState<RouteSnapshot | null>(null);
+  const [showPrev, setShowPrev] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const movedRef = useRef(false);
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menu]);
+
+  const hideItem = () => {
+    const prefs = loadNavPreferences(userId);
+    const href = String(item.href);
+    if (!prefs.hidden.includes(href)) {
+      saveNavPreferences({ hidden: [...prefs.hidden, href] }, userId);
+      window.dispatchEvent(new Event("lexis-nav-prefs"));
+    }
+    setMenu(null);
+  };
+
+  const move = (dir: -1 | 1) => {
+    const prefs = loadNavPreferences(userId);
+    const href = String(item.href);
+    let order = prefs.order.length ? [...prefs.order] : [];
+    if (!order.includes(href)) order.push(href);
+    const i = order.indexOf(href);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) {
+      setMenu(null);
+      return;
+    }
+    [order[i], order[j]] = [order[j], order[i]];
+    saveNavPreferences({ order }, userId);
+    window.dispatchEvent(new Event("lexis-nav-prefs"));
+    setMenu(null);
+  };
+
   return (
-    <Link
-      href={item.href}
-      title={item.label}
-      className={cn(
-        "group relative flex flex-col items-center justify-center gap-0.5",
-        "h-[64px] min-w-[64px] max-w-[88px] px-1 rounded-xl",
-        "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        "hover:-translate-y-2.5 focus-visible:-translate-y-2.5",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+    <>
+      <Link
+        href={item.href}
+        title={`${item.label} — passe o mouse para preview; botão direito para opções`}
+        onMouseEnter={() => {
+          setPreview(getRouteSnapshot(item.href));
+          setShowPrev(true);
+        }}
+        onMouseLeave={() => setShowPrev(false)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
+        onTouchStart={(e) => {
+          movedRef.current = false;
+          const t = e.touches[0];
+          longPressRef.current = setTimeout(() => {
+            if (!movedRef.current && t) setMenu({ x: t.clientX, y: t.clientY });
+          }, 480);
+        }}
+        onTouchMove={() => {
+          movedRef.current = true;
+          if (longPressRef.current) clearTimeout(longPressRef.current);
+        }}
+        onTouchEnd={() => {
+          if (longPressRef.current) clearTimeout(longPressRef.current);
+        }}
+        className={cn(
+          "group relative flex flex-col items-center justify-center gap-0.5 select-none",
+          "h-[64px] min-w-[64px] max-w-[88px] px-1 rounded-xl",
+          "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "hover:-translate-y-2.5 focus-visible:-translate-y-2.5",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-xl shrink-0",
+            "transition-all duration-300",
+            "group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/30",
+            active
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/35"
+              : "bg-white/15 text-foreground group-hover:bg-white/25 dark:bg-white/10"
+          )}
+        >
+          <SafeIcon icon={item.icon} size={18} />
+        </span>
+        <span
+          className={cn(
+            "text-[9px] leading-tight font-bold text-center line-clamp-2 px-0.5 max-w-[80px]",
+            active ? "text-primary" : "text-foreground/85"
+          )}
+        >
+          {item.label}
+        </span>
+        <span
+          className={cn(
+            "absolute bottom-0.5 h-[3px] rounded-full transition-all duration-300",
+            active ? "w-5 bg-primary" : "w-0 group-hover:w-2.5 group-hover:bg-foreground/35"
+          )}
+        />
+      </Link>
+
+      {showPrev && !menu && (
+        <div
+          className={cn(
+            "pointer-events-none fixed bottom-[5.6rem] left-1/2 -translate-x-1/2 z-[70]",
+            "w-[min(300px,92vw)] rounded-2xl border border-white/20",
+            "bg-background/92 backdrop-blur-xl shadow-2xl overflow-hidden",
+            "animate-in fade-in slide-in-from-bottom-2 duration-200"
+          )}
+        >
+          {preview?.thumbDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview.thumbDataUrl} alt="" className="w-full h-[110px] object-cover" />
+          ) : (
+            <div className="h-16 bg-gradient-to-br from-primary/25 via-violet-500/20 to-amber-400/20 flex items-center justify-center px-3 text-center text-[10px] font-bold text-muted-foreground">
+              Abra a aba uma vez — o preview fica em cache
+            </div>
+          )}
+          <div className="p-2.5 space-y-0.5">
+            <p className="text-[11px] font-black truncate">{preview?.title || item.label}</p>
+            <p className="text-[10px] text-muted-foreground line-clamp-3">
+              {preview?.excerpt || "Sem snapshot ainda. Visitando a página o app grava automaticamente."}
+            </p>
+          </div>
+        </div>
       )}
-    >
-      <span
-        className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-xl shrink-0",
-          "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-          "group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/30",
-          active
-            ? "bg-primary text-primary-foreground shadow-md shadow-primary/35"
-            : "bg-white/15 text-foreground group-hover:bg-white/25 dark:bg-white/10"
-        )}
-      >
-        <SafeIcon icon={item.icon} size={18} />
-      </span>
-      {/* nome sempre visível — legível */}
-      <span
-        className={cn(
-          "text-[9px] leading-tight font-bold text-center line-clamp-2 px-0.5 max-w-[80px]",
-          "transition-colors duration-200",
-          active ? "text-primary" : "text-foreground/85 group-hover:text-foreground"
-        )}
-      >
-        {item.label}
-      </span>
-      <span
-        className={cn(
-          "absolute bottom-0.5 h-[3px] rounded-full transition-all duration-300",
-          active ? "w-5 bg-primary" : "w-0 bg-transparent group-hover:w-2.5 group-hover:bg-foreground/35"
-        )}
-      />
-    </Link>
+
+      {menu && (
+        <div
+          role="menu"
+          className="fixed z-[80] min-w-[180px] rounded-xl border border-white/20 bg-background/95 backdrop-blur-xl shadow-2xl py-1.5 text-[12px] font-semibold"
+          style={{ left: Math.min(menu.x, window.innerWidth - 200), top: Math.max(8, menu.y - 120) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">{item.label}</p>
+          <button type="button" className="w-full text-left px-3 py-2 hover:bg-muted/80" onClick={() => move(-1)}>
+            ← Mover esquerda
+          </button>
+          <button type="button" className="w-full text-left px-3 py-2 hover:bg-muted/80" onClick={() => move(1)}>
+            Mover direita →
+          </button>
+          <button type="button" className="w-full text-left px-3 py-2 hover:bg-destructive/15 text-destructive" onClick={hideItem}>
+            Ocultar esta aba
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -397,7 +511,14 @@ export function Sidebar() {
         {navItems.map((item) => {
           const active =
             pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-          return <DockItem key={item.href + item.label} item={item} active={active} />;
+          return (
+            <DockItem
+              key={item.href + item.label}
+              item={item}
+              active={active}
+              userId={(profile as any)?.auth_user_id || (profile as any)?.id || null}
+            />
+          );
         })}
         <button
           type="button"
