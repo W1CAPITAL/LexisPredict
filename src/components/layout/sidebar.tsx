@@ -337,7 +337,7 @@ function SidebarNavBody({
                   href={item.href}
                   title={item.label}
                   className={cn(
-                    "group flex items-center gap-2.5 rounded-xl px-2 py-2 transition-all duration-200 ease-out hover:shadow-sm",
+                    "group flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md hover:translate-x-0.5",
                     active
                       ? "bg-primary/15 text-primary"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -512,7 +512,7 @@ export function Sidebar() {
           "hidden md:flex flex-col shrink-0 h-screen sticky top-0 z-40",
           "border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
           "transition-[width] duration-200 ease-out",
-          collapsed ? "w-[4.5rem]" : "w-[17rem]"
+          collapsed ? "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] w-[4.5rem]" : "w-[17rem]"
         )}
       >
         <SidebarNavBody {...bodyProps} showCollapseBtn />

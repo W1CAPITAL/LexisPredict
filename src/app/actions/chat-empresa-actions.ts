@@ -195,3 +195,159 @@ export async function diagnosticoChatAction() {
     return { ok: false, detail: e?.message || "erro" };
   }
 }
+
+
+/** Lista threads da empresa (geral + grupos + DMs recentes). */
+export async function listarThreadsChatAction() {
+  const ctx = await ctxOk();
+  if (!ctx) return [];
+  const admin = await getSupabaseAdmin();
+  const { data } = await admin
+    .from("chat_threads")
+    .select("id, tipo, titulo, dm_key, created_by, created_at")
+    .eq("empresa_id", ctx.empresa_id)
+    .order("created_at", { ascending: true });
+  return data || [];
+}
+
+/** Cria grupo com título e membros (sempre inclui o criador). */
+export async function criarGrupoChatAction(input: {
+  titulo: string;
+  memberIds: string[];
+}) {
+  const ctx = await ctxOk();
+  if (!ctx?.auth_id) return { success: false, threadId: null as string | null, message: "Sessão expirada" };
+  const titulo = String(input.titulo || "").trim().slice(0, 80);
+  if (!titulo) return { success: false, threadId: null, message: "Informe o nome do grupo" };
+  const admin = await getSupabaseAdmin();
+  const { data, error } = await admin
+    .from("chat_threads")
+    .insert({
+      empresa_id: ctx.empresa_id,
+      tipo: "grupo",
+      titulo,
+      created_by: ctx.auth_id,
+    })
+    .select("id")
+    .single();
+  if (error) return { success: false, threadId: null, message: error.message };
+  const ids = new Set<string>([ctx.auth_id, ...(input.memberIds || []).map(String)]);
+  const rows = [...ids].map((uid) => ({
+    thread_id: data.id,
+    auth_user_id: uid,
+    role: uid === ctx.auth_id ? "admin" : "member",
+  }));
+  const { error: e2 } = await admin.from("chat_thread_members").upsert(rows, {
+    onConflict: "thread_id,auth_user_id",
+  });
+  if (e2) return { success: true, threadId: data.id, message: `Grupo criado; membros: ${e2.message}` };
+  return { success: true, threadId: data.id as string };
+}
+
+export async function listarMembrosGrupoAction(threadId: string) {
+  const ctx = await ctxOk();
+  if (!ctx || !threadId) return [];
+  const admin = await getSupabaseAdmin();
+  const { data: thr } = await admin
+    .from("chat_threads")
+    .select("id, empresa_id, tipo")
+    .eq("id", threadId)
+    .eq("empresa_id", ctx.empresa_id)
+    .maybeSingle();
+  if (!thr) return [];
+  if (thr.tipo === "geral") {
+    return listarMembrosChatAction();
+  }
+  const { data } = await admin
+    .from("chat_thread_members")
+    .select("auth_user_id, role")
+    .eq("thread_id", threadId);
+  const users = await getEmpresaUsers().catch(() => []);
+  const byId = new Map((users || []).map((u: any) => [String(u.auth_user_id), u]));
+  return (data || []).map((r: any) => {
+    const u = byId.get(String(r.auth_user_id));
+    return {
+      auth_user_id: r.auth_user_id,
+      role: r.role,
+      nome: u?.nome || r.auth_user_id,
+      email: u?.email || null,
+      cargo: u?.cargo || null,
+      avatar_url: u?.avatar_url || null,
+    };
+  });
+}
+
+/** Remove membro de um grupo (não apaga o canal Geral). */
+export async function removerMembroGrupoAction(threadId: string, memberAuthId: string) {
+  const ctx = await ctxOk();
+  if (!ctx?.auth_id) return { success: false, message: "Sessão expirada" };
+  if (!threadId || !memberAuthId) return { success: false, message: "Dados incompletos" };
+  const admin = await getSupabaseAdmin();
+  const { data: thr } = await admin
+    .from("chat_threads")
+    .select("id, tipo, created_by, empresa_id")
+    .eq("id", threadId)
+    .eq("empresa_id", ctx.empresa_id)
+    .maybeSingle();
+  if (!thr) return { success: false, message: "Grupo não encontrado" };
+  if (thr.tipo === "geral") {
+    return {
+      success: false,
+      message: "O canal Geral não remove membros da empresa. Use 'Ocultar desta lista' se quiser sumir alguém só para você.",
+    };
+  }
+  if (thr.tipo !== "grupo") return { success: false, message: "Só grupos permitem remover membros" };
+  // criador ou o próprio membro saindo
+  const isOwner = String(thr.created_by) === String(ctx.auth_id);
+  const isSelf = String(memberAuthId) === String(ctx.auth_id);
+  if (!isOwner && !isSelf) return { success: false, message: "Sem permissão" };
+  const { error } = await admin
+    .from("chat_thread_members")
+    .delete()
+    .eq("thread_id", threadId)
+    .eq("auth_user_id", memberAuthId);
+  if (error) return { success: false, message: error.message };
+  return { success: true };
+}
+
+/** Oculta um colega da lista lateral (só para você) — útil no Geral. */
+export async function ocultarMembroListaAction(hiddenAuthUserId: string) {
+  const ctx = await ctxOk();
+  if (!ctx?.auth_id || !hiddenAuthUserId) return { success: false, message: "Sessão" };
+  if (String(hiddenAuthUserId) === String(ctx.auth_id)) {
+    return { success: false, message: "Não é possível ocultar a si mesmo" };
+  }
+  const admin = await getSupabaseAdmin();
+  const { error } = await admin.from("chat_geral_hidden").upsert({
+    empresa_id: ctx.empresa_id,
+    auth_user_id: ctx.auth_id,
+    hidden_auth_user_id: hiddenAuthUserId,
+  });
+  if (error) return { success: false, message: error.message };
+  return { success: true };
+}
+
+export async function listarOcultosListaAction() {
+  const ctx = await ctxOk();
+  if (!ctx?.auth_id) return [] as string[];
+  const admin = await getSupabaseAdmin();
+  const { data } = await admin
+    .from("chat_geral_hidden")
+    .select("hidden_auth_user_id")
+    .eq("empresa_id", ctx.empresa_id)
+    .eq("auth_user_id", ctx.auth_id);
+  return (data || []).map((r: any) => String(r.hidden_auth_user_id));
+}
+
+export async function restaurarMembroListaAction(hiddenAuthUserId: string) {
+  const ctx = await ctxOk();
+  if (!ctx?.auth_id) return { success: false };
+  const admin = await getSupabaseAdmin();
+  await admin
+    .from("chat_geral_hidden")
+    .delete()
+    .eq("empresa_id", ctx.empresa_id)
+    .eq("auth_user_id", ctx.auth_id)
+    .eq("hidden_auth_user_id", hiddenAuthUserId);
+  return { success: true };
+}
