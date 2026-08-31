@@ -72,19 +72,6 @@ README do EXE (mesmo visual): copie `README-OFFLINE.md` para o repo Offline.
 
 ---
 
-## Notas (honestas)
-
-| Produto | Utilidade W1 | Produto | Vender | Offline |
-|--|--|--|--|--|
-| Lexis web | **7.6** | **6.6** | 6.0 | 3 |
-| Lexis Offline EXE | **6.8** | **5.8** | 5.5 | **8.0** |
-| Astrea | 7.2 | **8.6** | **8.5** | 7 |
-| Themis | 6.5 | 8.7 | 8.4 | 6 |
-
-Comparativo completo: [`docs/COMPARATIVO.md`](./docs/COMPARATIVO.md).
-
----
-
 ## Começar
 
 ```bash
