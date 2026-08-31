@@ -1,9 +1,5 @@
 "use client";
 
-/**
- * Cards de processo — CNJ completo, prazo e movimento tribunal.
- */
-
 import React from "react";
 import { cn } from "@/lib/utils";
 import type { LegalCase } from "@/lib/case-logic";
@@ -36,21 +32,27 @@ type Props = {
   onDossie?: (c: LegalCase) => void;
 };
 
-/** CNJ completo formatado (nunca corta no meio). */
 function formatCnjFull(raw: string): string {
   const digits = String(raw || "").replace(/\D/g, "");
   if (digits.length === 20) {
-    // NNNNNNN-DD.AAAA.J.TR.OOOO
     return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
   }
-  // se já veio formatado, devolve inteiro
   return String(raw || "").trim();
+}
+
+function isIsoDateLike(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}(T|\s|$)/.test(s) || /^\d{4}-\d{2}-\d{2}T\d{2}:/.test(s);
+}
+
+function formatDataCurta(s: string): string {
+  const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return s;
 }
 
 function pickPrazo(c: LegalCase): string {
   const x = c as any;
-  const p =
-    x.proximoPrazo || x.proximo_retorno || x.proximoRetorno || x.prazo || "";
+  const p = x.proximoPrazo || x.proximo_retorno || x.proximoRetorno || x.prazo || "";
   const s = String(p || "").trim();
   if (!s || /^(#value!|n\/a|null|undefined|encerrado)$/i.test(s)) return "";
   return s;
@@ -61,19 +63,29 @@ function pickUltimoRetorno(c: LegalCase): string {
   return String(x.ultimoRetorno || x.ultimo_retorno || x.retorno || "").trim();
 }
 
-function pickUltimoMovimento(c: LegalCase): string {
+/** Nome do ato + data separada — nunca mostrar ISO sozinho como "Tribunal". */
+function pickUltimoMovimento(c: LegalCase): { texto: string; data: string } {
   const x = c as any;
-  return String(
-    x.datajud_ultimo_movimento ||
-      x.datajud_ultimo_nome ||
-      x.ultimo_movimento ||
-      x.andamento ||
-      x.djen_resumo ||
-      ""
-  )
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 160);
+  const candidatos = [
+    x.datajud_ultimo_nome,
+    x.evento_resumo,
+    x.djen_ultimo_resumo,
+    x.djen_resumo,
+    x.andamento,
+    x.ultimo_movimento,
+  ];
+  let texto = "";
+  for (const cnd of candidatos) {
+    const s = String(cnd || "").replace(/\s+/g, " ").trim();
+    if (!s || isIsoDateLike(s)) continue;
+    texto = s.slice(0, 180);
+    break;
+  }
+  const dataRaw = String(
+    x.datajud_ultimo_movimento || x.djen_ultima_data || x.evento_data || ""
+  ).trim();
+  const data = isIsoDateLike(dataRaw) ? formatDataCurta(dataRaw) : (dataRaw && !isIsoDateLike(dataRaw) ? dataRaw.slice(0, 16) : "");
+  return { texto, data };
 }
 
 export function CaseGlassList({
@@ -124,16 +136,10 @@ export function CaseGlassList({
                 </div>
               )}
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-bold text-[13px] leading-snug line-clamp-2 group-hover:text-primary">
-                    {c.cliente || "Sem cliente"}
-                  </h3>
-                </div>
-                {/* CNJ completo — quebra de linha se precisar, sem slice */}
-                <p
-                  className="text-[11px] font-mono font-semibold text-foreground/90 break-all leading-snug"
-                  title={proto}
-                >
+                <h3 className="font-bold text-[13px] leading-snug line-clamp-2 group-hover:text-primary">
+                  {c.cliente || "Sem cliente"}
+                </h3>
+                <p className="text-[11px] font-mono font-semibold text-foreground/90 break-all" title={proto}>
                   {proto || "—"}
                 </p>
                 <div className="flex flex-wrap gap-1 items-center">
@@ -150,61 +156,41 @@ export function CaseGlassList({
                     <span className="truncate">{c.tribunal || "—"}</span>
                   </div>
                   <div className="flex items-center gap-1.5 rounded-xl bg-white/5 border border-white/10 px-2 py-1.5 min-w-0">
-                    <CalendarClock
-                      size={12}
-                      className={cn("shrink-0", prazo ? "text-amber-500" : "text-muted-foreground")}
-                    />
-                    <span className={cn("truncate font-semibold", prazo ? "text-foreground/90" : "")}>
+                    <CalendarClock size={12} className={cn("shrink-0", prazo ? "text-amber-500" : "")} />
+                    <span className={cn("truncate font-semibold", prazo && "text-foreground/90")}>
                       {prazo || "Sem prazo"}
                     </span>
                   </div>
                 </div>
-                {retorno ? (
-                  <p className="text-[11px] text-muted-foreground">Retorno: {retorno}</p>
-                ) : null}
-                {mov ? (
-                  <p className="text-[10px] text-foreground/80 leading-snug flex gap-1" title={mov}>
+                {retorno ? <p className="text-[11px] text-muted-foreground">Retorno: {retorno}</p> : null}
+                {mov.texto || mov.data ? (
+                  <p className="text-[10px] text-foreground/80 leading-snug flex gap-1" title={mov.texto || mov.data}>
                     <History size={12} className="mt-0.5 shrink-0 text-sky-500" />
                     <span>
                       <span className="font-bold text-sky-600 dark:text-sky-400">Tribunal: </span>
-                      {mov}
+                      {mov.texto || "Movimentação"}
+                      {mov.data ? ` · ${mov.data}` : ""}
                     </span>
                   </p>
-                ) : null}
+                ) : (
+                  <p className="text-[10px] text-muted-foreground/70">Sem movimentação tribunal em cache — rode o Scan</p>
+                )}
               </div>
             </div>
-
             <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
-              <IconBtn
-                title="Scan"
-                onClick={async () => {
-                  if (!onScan) return;
-                  setBusy(protoRaw + "s");
-                  await onScan(c);
-                  setBusy(null);
-                }}
-              >
-                {busy === protoRaw + "s" ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <FileSearch size={14} />
-                )}
+              <IconBtn title="Scan" onClick={async () => {
+                if (!onScan) return;
+                setBusy(protoRaw + "s");
+                await onScan(c);
+                setBusy(null);
+              }}>
+                {busy === protoRaw + "s" ? <Loader2 size={14} className="animate-spin" /> : <FileSearch size={14} />}
               </IconBtn>
-              <IconBtn title="Editar" onClick={() => onEdit?.(c)}>
-                <Pencil size={14} />
-              </IconBtn>
-              <IconBtn title="Registrar atendimento" onClick={() => onLogReturn?.(c)}>
-                <MessageSquare size={14} />
-              </IconBtn>
-              {onDossie && (
-                <IconBtn title="Dossiê" onClick={() => onDossie(c)}>
-                  <FileText size={14} />
-                </IconBtn>
-              )}
+              <IconBtn title="Editar" onClick={() => onEdit?.(c)}><Pencil size={14} /></IconBtn>
+              <IconBtn title="Registrar atendimento" onClick={() => onLogReturn?.(c)}><MessageSquare size={14} /></IconBtn>
+              {onDossie && <IconBtn title="Dossiê" onClick={() => onDossie(c)}><FileText size={14} /></IconBtn>}
               {isOperador && onDelete && (
-                <IconBtn title="Excluir" danger onClick={() => onDelete(String(c.id))}>
-                  <Trash2 size={14} />
-                </IconBtn>
+                <IconBtn title="Excluir" danger onClick={() => onDelete(String(c.id))}><Trash2 size={14} /></IconBtn>
               )}
             </div>
           </article>
@@ -214,29 +200,14 @@ export function CaseGlassList({
   );
 }
 
-function IconBtn({
-  children,
-  onClick,
-  title,
-  danger,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  title?: string;
-  danger?: boolean;
+function IconBtn({ children, onClick, title, danger }: {
+  children: React.ReactNode; onClick?: () => void; title?: string; danger?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={cn(
-        "h-9 w-9 rounded-xl flex items-center justify-center border border-white/10 bg-white/5",
-        "hover:bg-primary/15 hover:text-primary transition-all",
-        danger && "hover:bg-destructive/15 hover:text-destructive"
-      )}
-    >
-      {children}
-    </button>
+    <button type="button" title={title} onClick={onClick} className={cn(
+      "h-9 w-9 rounded-xl flex items-center justify-center border border-white/10 bg-white/5",
+      "hover:bg-primary/15 hover:text-primary transition-all",
+      danger && "hover:bg-destructive/15 hover:text-destructive"
+    )}>{children}</button>
   );
 }
