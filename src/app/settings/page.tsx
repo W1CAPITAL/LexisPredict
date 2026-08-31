@@ -59,6 +59,10 @@ import {
   Settings,
   Image as ImageIcon,
   Layers,
+  Bell,
+  Search,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -134,6 +138,8 @@ export default function SettingsPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [activeTab, setActiveTab] = useState('Menu');
   const [settingsBoot, setSettingsBoot] = useState(true);
+  const [settingsQuery, setSettingsQuery] = useState('');
+  const [chatNotifOn, setChatNotifOn] = useState(false);
   useEffect(() => {
     const id = window.setTimeout(() => setSettingsBoot(false), 300);
     return () => window.clearTimeout(id);
@@ -231,6 +237,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
+    try {
+      setChatNotifOn(localStorage.getItem('lexis_chat_notif') === 'granted');
+    } catch { /* */ }
     const savedIA = localStorage.getItem('lexisPredict_preferred_ia') || 'xai';
     setIaModel(savedIA === 'airforce' ? 'xai' : savedIA);
     setIsMasterUnlocked(localStorage.getItem('lexis_master_unlock') === 'true');
@@ -524,96 +533,211 @@ export default function SettingsPage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-transparent font-sans text-foreground overflow-hidden relative z-10">
+    <div className="flex h-screen bg-background/80 font-sans text-foreground overflow-hidden relative z-10">
       <Sidebar />
       <PageLoadingBar active={settingsBoot} />
-      <div className="fixed bottom-4 right-4 z-50 rounded-full border bg-card shadow-lg p-1">
-        <ThemeToggle />
-      </div>
-      <main className="flex-1 flex flex-col h-screen overflow-hidden glass-panel">
-        <header className="shrink-0 border-b p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 border-2 border-primary flex items-center justify-center">
-              <Settings className="text-primary" size={20} />
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* hero header */}
+        <header className="shrink-0 border-b border-border/50 bg-card/40 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/30 to-violet-500/20 border border-primary/30 flex items-center justify-center shadow-sm shrink-0">
+                  <Settings className="text-primary" size={22} />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-xl font-black tracking-tight truncate">
+                    Configurações
+                  </h1>
+                  <p className="text-xs text-muted-foreground">
+                    Conta, visual, menu, banca, IA e segurança do gabinete
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <ThemeToggle />
+                {isSuperadmin && (
+                  <Button asChild variant="outline" size="sm" className="h-9 rounded-xl text-xs font-bold">
+                    <Link href="/ops"><Database size={14} className="mr-1.5" /> Dados</Link>
+                  </Button>
+                )}
+                <Badge variant="secondary" className="text-[10px] font-bold rounded-lg">
+                  LexisPredict
+                </Badge>
+              </div>
             </div>
-            <div>
-              <h1 className="text-sm font-black uppercase tracking-widest">
-                Configuracoes
-              </h1>
-              <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                Personalize seu gabinete juridico
-              </p>
+
+            {/* busca + atalhos */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={settingsQuery}
+                  onChange={(e) => setSettingsQuery(e.target.value)}
+                  placeholder="Buscar configuração (senha, tema, menu, banca…)"
+                  className="pl-9 h-11 rounded-xl bg-background/80 border-border/60"
+                />
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {[
+                  { id: "Menu", label: "Menu" },
+                  { id: "Conta", label: "Conta" },
+                  { id: "Hardware", label: "Visual" },
+                  { id: "Banca", label: "Banca" },
+                ].map((q) => (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => { setActiveTab(q.id); setSettingsQuery(""); }}
+                    className="shrink-0 h-11 px-3 rounded-xl border border-border/50 bg-background/50 text-xs font-bold hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {isSuperadmin && (
-              <Button asChild variant="outline" size="sm" className="h-9 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-primary/50">
-                <Link href="/ops">
-                  <Database size={12} className="mr-2" />
-                  Operacoes de dados
-                </Link>
-              </Button>
-            )}
-            <Badge variant="outline" className="text-primary text-[9px] uppercase font-black tracking-[0.3em] rounded-none px-3 py-1 border-primary/50">Enterprise Edition v25.0</Badge>
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-8 max-w-6xl mx-auto w-full space-y-8">
-          <div className="space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">
-              Superadmin · liberar valores e prazo (bloqueio / 30d / 365d)
-            </p>
-            <PlanosAdminBloqueio />
-          </div>
-            <PlanosEmpresaPanel />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-            {/* spacer no: injeta acima do grid */}
-            <aside className="space-y-4">
-              <section className="p-4 border border-border/60 rounded-2xl bg-card/70 backdrop-blur-md shadow-sm flex flex-col items-center text-center space-y-3">
-                 <div className="relative group">
-                    <Avatar className="w-20 h-20 border-4 border-primary/20 shadow-lg shadow-primary/10">
-                       <AvatarImage src={profile?.avatar_url || ''} />
-                       <AvatarFallback className="bg-primary/10 text-primary font-black text-lg">{profile?.nome?.substring(0, 2).toUpperCase()}</AvatarFallback>
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+            {/* perfil + planos em faixa */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <section className="lg:col-span-1 rounded-2xl border border-border/60 bg-card/70 backdrop-blur-md p-5 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="relative group shrink-0">
+                    <Avatar className="w-16 h-16 border-2 border-primary/25 shadow-md">
+                      <AvatarImage src={profile?.avatar_url || ""} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-black">
+                        {profile?.nome?.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
-                    <button onClick={() => userAvatarInputRef.current?.click()} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-colors duration-150">
-                       {isUploading ? <Loader2 className="animate-spin" size={20} /> : <Camera size={20} />}
+                    <button
+                      type="button"
+                      onClick={() => userAvatarInputRef.current?.click()}
+                      className="absolute inset-0 bg-black/45 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Camera size={18} />}
                     </button>
                     <input type="file" className="hidden" ref={userAvatarInputRef} onChange={handleUserAvatarUpload} accept="image/*" />
-                 </div>
-                 <div>
-                    <p className="font-black text-xs uppercase tracking-wide">{profile?.nome}</p>
-                  <div className="mt-4 col-span-full w-full"><NavLayoutNomePanel /></div>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase">{profile?.cargo}</p>
-                 </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-sm truncate">{profile?.nome || "Operador"}</p>
+                    <p className="text-[11px] text-muted-foreground uppercase font-bold tracking-wide">
+                      {profile?.cargo || "—"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">{profile?.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Badge variant="outline" className="text-[9px] rounded-md">{profile?.cargo || "perfil"}</Badge>
+                      {chatNotifOn ? (
+                        <Badge className="text-[9px] rounded-md bg-emerald-500/15 text-emerald-600 border-0">Notif. chat ON</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[9px] rounded-md text-muted-foreground">Notif. chat off</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {/* notificação chat */}
+                <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Bell size={16} className="text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold">Notificações do chat equipe</p>
+                      <p className="text-[10px] text-muted-foreground">Avisos de novas mensagens</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={chatNotifOn}
+                    onCheckedChange={async (on) => {
+                      if (on) {
+                        try {
+                          if ("Notification" in window) {
+                            const p = await Notification.requestPermission();
+                            if (p === "granted") {
+                              localStorage.setItem("lexis_chat_notif", "granted");
+                              setChatNotifOn(true);
+                              toast({ title: "Notificações ativadas" });
+                              return;
+                            }
+                          }
+                          toast({ title: "Permissão negada no navegador", variant: "destructive" });
+                          setChatNotifOn(false);
+                        } catch {
+                          setChatNotifOn(false);
+                        }
+                      } else {
+                        localStorage.setItem("lexis_chat_notif", "dismissed");
+                        setChatNotifOn(false);
+                        toast({ title: "Notificações desativadas no app" });
+                      }
+                    }}
+                  />
+                </div>
               </section>
 
-              <nav className="space-y-1">
-                <NavButton active={activeTab === 'Menu'} onClick={() => setActiveTab('Menu')} icon={<Layout size={14}/>} label="Menu e nome" />
-                <NavButton active={activeTab === 'Conta'} onClick={() => setActiveTab('Conta')} icon={<KeyRound size={14}/>} label="Conta e senha" />
-                <NavButton active={activeTab === 'Personalizacao'} onClick={() => setActiveTab('Personalizacao')} icon={<Wand2 size={14}/>} label="Personalizacao" />
-                <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
-                <NavButton active={activeTab === 'Banca'} onClick={() => setActiveTab('Banca')} icon={<Gavel size={14}/>} label="Banca de Advogados" />
-                <NavButton active={activeTab === 'Knowledge'} onClick={() => setActiveTab('Knowledge')} icon={<BookOpen size={14}/>} label="Base de Conhecimento" />
-                <NavButton active={activeTab === 'Engine'} onClick={() => setActiveTab('Engine')} icon={<Cpu size={14}/>} label="Núcleo Neural" />
-                {isMasterUnlocked && <NavButton active={activeTab === 'Export'} onClick={() => setActiveTab('Export')} icon={<Archive size={14}/>} label="Exportação Master" />}
+              <section className="lg:col-span-2 space-y-3">
                 {isSuperadmin && (
-                  <Link
-                    href="/ops"
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-left border-2 border-primary/40 bg-primary/10 text-foreground hover:bg-primary hover:text-black"
-                  >
-                    <Database size={14} />
-                    Operações de dados
-                  </Link>
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 mb-2">
+                      Superadmin · planos e prazos
+                    </p>
+                    <PlanosAdminBloqueio />
+                  </div>
                 )}
-              </nav>
-            </aside>
+                <div className="rounded-2xl border border-border/60 bg-card/50 p-4">
+                  <PlanosEmpresaPanel />
+                </div>
+              </section>
+            </div>
 
-            <div className="md:col-span-3 space-y-12 pb-20 relative min-h-[40vh]">
+            {/* navegação horizontal em chips */}
+            <nav className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+              {[
+                { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
+                { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
+                { id: "Personalizacao", label: "Personalização", icon: <Wand2 size={14} />, keywords: "ui prefs metal botoes" },
+                { id: "Hardware", label: "Visual / tema", icon: <Palette size={14} />, keywords: "tema cores wallpaper fundo visual hardware" },
+                { id: "Banca", label: "Banca", icon: <Gavel size={14} />, keywords: "advogado oab banca" },
+                { id: "Knowledge", label: "Conhecimento", icon: <BookOpen size={14} />, keywords: "conhecimento base docs scripts" },
+                { id: "Engine", label: "Núcleo IA", icon: <Cpu size={14} />, keywords: "ia motor neural engine modelo" },
+                ...(isMasterUnlocked
+                  ? [{ id: "Export", label: "Export master", icon: <Archive size={14} />, keywords: "export backup zip codigo" }]
+                  : []),
+              ]
+                .filter((item) => {
+                  const q = settingsQuery.trim().toLowerCase();
+                  if (!q) return true;
+                  return (
+                    item.label.toLowerCase().includes(q) ||
+                    item.keywords.includes(q) ||
+                    item.id.toLowerCase().includes(q)
+                  );
+                })
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveTab(item.id)}
+                    className={cn(
+                      "shrink-0 flex items-center gap-2 h-10 px-3.5 rounded-full text-xs font-bold border transition-all duration-150",
+                      activeTab === item.id
+                        ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
+                        : "bg-card/60 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    )}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ))}
+            </nav>
+
+            {/* conteúdo da aba */}
+            <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm p-4 sm:p-6 min-h-[50vh] shadow-sm">
               {settingsBoot ? (
                 <PageLoading label="Abrindo configurações…" full />
               ) : (
               <>
-              {activeTab === 'Conta' && (
+                            {activeTab === 'Conta' && (
                 <div className="space-y-6 max-w-xl">
                   <Card className="border border-border/60 shadow-sm rounded-2xl">
                     <CardHeader className="pb-2">
