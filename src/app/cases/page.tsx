@@ -544,7 +544,7 @@ function CasesContent() {
             situacao: attendanceForm.situacao, 
             ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr), 
             observacao: attendanceForm.observacao || c.observacao, 
-            proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno, 
+            proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : (attendanceForm.proximoRetorno || c.proximoPrazo || ''), 
             tem_atualizacao_pos_retorno: false, 
             djen_nova_comunicacao: false, 
             tem_novo_andamento: false 

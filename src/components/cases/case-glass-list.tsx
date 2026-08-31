@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Lista de processos em cards glass (alinha ao dock) — substitui planilha feia.
+ * Lista de processos em cards glass — prazos e última movimentação corretos.
  */
 
 import React from "react";
@@ -18,6 +18,7 @@ import {
   Loader2,
   FileText,
   MessageSquare,
+  History,
 } from "lucide-react";
 
 type Props = {
@@ -34,10 +35,45 @@ type Props = {
   onDossie?: (c: LegalCase) => void;
 };
 
-function prazoLabel(c: LegalCase) {
-  const p = (c as any).proximo_retorno || (c as any).prazo || c.prazo;
-  if (!p) return "Sem prazo";
-  return String(p);
+function pickPrazo(c: LegalCase): string {
+  const x = c as any;
+  const p =
+    x.proximoPrazo ||
+    x.proximo_retorno ||
+    x.proximoRetorno ||
+    x.PROXIMO_RETORNO ||
+    x.prazo ||
+    "";
+  const s = String(p || "").trim();
+  if (!s || /^#?(value|n\/a|null|undefined)$/i.test(s) || /^encerrado$/i.test(s)) {
+    return "";
+  }
+  return s;
+}
+
+function pickUltimoRetorno(c: LegalCase): string {
+  const x = c as any;
+  return String(
+    x.ultimoRetorno || x.ultimo_retorno || x.ULTIMO_RETORNO || x.retorno || ""
+  ).trim();
+}
+
+function pickUltimoMovimento(c: LegalCase): string {
+  const x = c as any;
+  const raw =
+    x.datajud_ultimo_movimento ||
+    x.datajud_ultimo_nome ||
+    x.ultimo_movimento ||
+    x.ultimoMovimento ||
+    x.andamento ||
+    x.Andamento ||
+    x.djen_resumo ||
+    x.DJEN_Resumo ||
+    "";
+  return String(raw || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
 }
 
 export function CaseGlassList({
@@ -60,6 +96,9 @@ export function CaseGlassList({
       {items.map((c) => {
         const proto = String(c.protocolo || c.id || "");
         const isSel = selected?.has(proto);
+        const prazo = pickPrazo(c);
+        const retorno = pickUltimoRetorno(c);
+        const mov = pickUltimoMovimento(c);
         return (
           <article
             key={c.id || proto}
@@ -98,16 +137,38 @@ export function CaseGlassList({
                     <span className="truncate">{c.tribunal || "—"}</span>
                   </div>
                   <div className="flex items-center gap-1.5 rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
-                    <CalendarClock size={12} className="text-amber-500 shrink-0" />
-                    <span className="truncate font-semibold text-foreground/80">{prazoLabel(c)}</span>
+                    <CalendarClock
+                      size={12}
+                      className={cn("shrink-0", prazo ? "text-amber-500" : "text-muted-foreground")}
+                    />
+                    <span
+                      className={cn(
+                        "truncate font-semibold",
+                        prazo ? "text-foreground/90" : "text-muted-foreground"
+                      )}
+                    >
+                      {prazo || "Sem prazo"}
+                    </span>
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground line-clamp-1">
                   {(c as any).advogado || (c as any).atendido_por || "—"}
-                  {(c as any).ultimo_retorno || (c as any).retorno
-                    ? ` · Retorno: ${(c as any).ultimo_retorno || (c as any).retorno}`
-                    : ""}
+                  {retorno ? ` · Retorno: ${retorno}` : ""}
                 </p>
+                {mov ? (
+                  <p
+                    className="text-[10px] text-foreground/75 line-clamp-2 flex items-start gap-1"
+                    title={mov}
+                  >
+                    <History size={12} className="mt-0.5 shrink-0 text-sky-500" />
+                    <span>
+                      <span className="font-bold text-sky-600 dark:text-sky-400">Tribunal: </span>
+                      {mov}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground/70">Sem movimentação tribunal em cache</p>
+                )}
               </div>
             </div>
 
@@ -121,12 +182,16 @@ export function CaseGlassList({
                   setBusy(null);
                 }}
               >
-                {busy === proto + "s" ? <Loader2 size={14} className="animate-spin" /> : <FileSearch size={14} />}
+                {busy === proto + "s" ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <FileSearch size={14} />
+                )}
               </IconBtn>
               <IconBtn title="Editar" onClick={() => onEdit?.(c)}>
                 <Pencil size={14} />
               </IconBtn>
-              <IconBtn title="Retorno" onClick={() => onLogReturn?.(c)}>
+              <IconBtn title="Registrar atendimento" onClick={() => onLogReturn?.(c)}>
                 <MessageSquare size={14} />
               </IconBtn>
               {onDossie && (

@@ -1104,7 +1104,15 @@ export async function registrarAtendimentoCompletoAction(input: {
       situacao,
       observacao: obs,
       statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico',
-      proximoPrazo: prazoNovo,
+      // preserva prazo se o form não mandou novo; nunca apaga movimento do tribunal
+      proximoPrazo: prazoNovo !== undefined && prazoNovo !== null ? prazoNovo : found.proximoPrazo,
+      ultimoRetorno: patch.ultimoRetorno || found.ultimoRetorno,
+      datajud_ultimo_movimento: (found as any).datajud_ultimo_movimento,
+      datajud_ultimo_nome: (found as any).datajud_ultimo_nome,
+      ultimo_movimento: (found as any).ultimo_movimento || (found as any).andamento,
+      andamento: (found as any).andamento,
+      djen_resumo: (found as any).djen_resumo,
+      // só limpa FLAGS de novidade — não apaga o texto do movimento
       tem_novo_andamento: false,
       djen_nova_comunicacao: false,
       tem_atualizacao_pos_retorno: false,
