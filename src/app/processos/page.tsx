@@ -657,7 +657,7 @@ export default function ProcessosEmpresaPage() {
             <div>
               <h1 className="font-black text-sm sm:text-base tracking-tight uppercase">Processos da Empresa</h1>
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                Visão geral da carteira • quem atendeu, editou e apagou
+                Visão geral da carteira • atendimento conta para quem clicou Atender · dono (Criado por) não muda
               </p>
             </div>
           </div>
@@ -707,7 +707,7 @@ export default function ProcessosEmpresaPage() {
             />
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint={`${topAtendentes.length} no ranking (máx. 5)`} />
+              <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint="crédito = atendido_por, não o dono" />
               {topAtendentes.slice(0, 5).map((a, i) => {
                 const uid = String(a.userId || "").toLowerCase();
                 const isSistema =
@@ -885,6 +885,16 @@ export default function ProcessosEmpresaPage() {
                                   </Badge>
                                   <span className="text-[9px] font-bold uppercase text-muted-foreground/70 truncate max-w-[150px]">
                                     {last.user_nome} · {fmtTime(last.created_at)}
+                                  </span>
+                                </div>
+                              ) : (c as any).atendido_por ? (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border gap-1 bg-emerald-500/15 text-emerald-600 border-emerald-500/25">
+                                    Atendeu
+                                  </Badge>
+                                  <span className="text-[9px] font-bold uppercase text-muted-foreground/70 truncate max-w-[150px]">
+                                    {nomeByAuth.get(String((c as any).atendido_por).toLowerCase()) || "operador"}
+                                    {(c as any).ultimoRetorno ? ` · ${String((c as any).ultimoRetorno).slice(5,10)}` : ""}
                                   </span>
                                 </div>
                               ) : (

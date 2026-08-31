@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.90.0";
+export const RELEASE_VERSION = "9.91.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.91 — /processos: atendimento credita quem atendeu (atendido_por); created_by travado sem force_transfer.",
   "9.90 — Agentes CRM (skills CompAI + fila + API /api/crm/agent).",
   "9.82 — Guard CNJ no save; SQL limpa SOLICITAR protocolo; SCHEMA-SUPABASE.md (diagrama multi-tenant).",
   "9.81 — Fix guardTransicaoEncerrarGabinete no save (atender /processos); Dialog a11y; Sem Prazo+baixa → fila revisao.",

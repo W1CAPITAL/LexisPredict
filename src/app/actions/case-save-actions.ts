@@ -15,7 +15,7 @@ function toRow(c: LegalCase, empresaId: string, authId: string | null) {
   const isoRetorno = formatDateToISO(c.ultimoRetorno);
   return {
     empresa_id: empresaId,
-    created_by: c.created_by || authId,
+    created_by: c.created_by || null, // NUNCA cair no auth de quem atende
     protocolo_ref: c.protocolo,
     advogado: c.advogado || 'NÃO ATRIBUÍDO',
     escritorio: c.escritorio || null,
@@ -77,16 +77,43 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
       if (lookup) {
         const { data } = await lookup
           .from('processos')
-          .select('created_by, dados, ultimo_retorno')
+          .select('created_by, dados, ultimo_retorno, protocolo_ref')
           .eq('empresa_id', empresa_id)
           .eq('protocolo_ref', processed.protocolo)
           .maybeSingle();
         existingRow = data;
         existingOwner = data?.created_by || data?.dados?.created_by || null;
+        if (!existingOwner) {
+          const dig = String(processed.protocolo || '').replace(/\D/g, '');
+          if (dig.length >= 15) {
+            const { data: more } = await lookup
+              .from('processos')
+              .select('created_by, dados, ultimo_retorno, protocolo_ref')
+              .eq('empresa_id', empresa_id)
+              .limit(8000);
+            const hit = (more || []).find((r: any) => {
+              const ref = String(r.protocolo_ref || r.dados?.protocolo || '').replace(/\D/g, '');
+              return ref === dig || (ref.length >= 15 && (ref.endsWith(dig) || dig.endsWith(ref)));
+            });
+            if (hit) {
+              existingRow = hit;
+              existingOwner = hit.created_by || hit.dados?.created_by || null;
+            }
+          }
+        }
       }
     }
 
-    processed.created_by = existingOwner || processed.created_by || auth_id || null;
+    // REGRA: atendimento/edição NÃO rouba carteira.
+    // created_by só muda com force_transfer_owner (ReassignOwnerControl).
+    const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
+    if (!forceTransfer && existingOwner) {
+      processed.created_by = existingOwner;
+    } else if (!forceTransfer) {
+      processed.created_by = existingOwner || processed.created_by || null;
+    }
+    // se forceTransfer, processed.created_by já veio do payload
+
     const prevRetorno = String(existingRow?.ultimo_retorno || existingRow?.dados?.ultimoRetorno || '');
     const nextRetorno = String(processed.ultimoRetorno || '');
     if (auth_id && nextRetorno && nextRetorno !== prevRetorno) {
