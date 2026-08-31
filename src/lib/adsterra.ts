@@ -1,3 +1,8 @@
+/** Ligar anúncios: NEXT_PUBLIC_ADS_ENABLED=1 no Vercel + redeploy. Default OFF. */
+export const ADS_ENABLED =
+  typeof process !== "undefined" &&
+  process.env.NEXT_PUBLIC_ADS_ENABLED === "1";
+
 /** Unidades Adsterra por domínio real da barra. */
 const ASSECOM = {
   banner160: {
