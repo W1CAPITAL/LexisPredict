@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.95.0";
+export const RELEASE_VERSION = "9.96.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.96 — Slot Adsterra 160×300 no rodapé do sidebar (xl+). Fecha 24h. Sem key = some.",
   "9.95 — Sincronizar/registrar atendimento: saveMany existia só no import (clique morria). Fallback + toast de erro.",
   "9.94 — Tarefas: filtro É hoje = prazo de hoje (igual /processos). Meus hoje lê a data certo. Anúncio volta em 3 dias, não a cada F5. Offline v6.2 no aviso.",
   "9.93 — Coming soon Offline no web: anúncio fechável + imagem + /offline. READMEs web e EXE.",

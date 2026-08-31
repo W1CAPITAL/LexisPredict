@@ -1,4 +1,5 @@
 "use client";
+import { Adsterra160x300 } from "@/components/ads/adsterra-160x300";
 
 /**
  * Sidebar LexisPredict — menu com ícones distintos, grupos claros e busca.
@@ -381,6 +382,9 @@ function SidebarNavBody({
       </div>
 
       {/* Footer */}
+      <div className="px-2 py-2 border-t border-sidebar-border/60 hidden xl:block">
+        <Adsterra160x300 />
+      </div>
       <div className="p-3 border-t border-sidebar-border space-y-3 shrink-0 overflow-visible">
         {!collapsed && <InstallAppButton />}
         {!collapsed && (
