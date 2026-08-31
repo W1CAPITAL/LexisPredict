@@ -1210,7 +1210,13 @@ export async function fetchCompanyProcessosAction() {
       getEmpresaUsers().catch(() => []),
     ]);
 
-    const cases = Array.isArray(casesPage) ? casesPage : [];
+    let cases = Array.isArray(casesPage) ? casesPage : [];
+    if (!cases.length) {
+      try {
+        const again = await getStoredCasesPageForEmpresa(empresa_id, 500, 0, true, { onlyAtivos: false });
+        cases = Array.isArray(again) ? again : [];
+      } catch { /* retry sem onlyAtivos */ }
+    }
     const totalCount =
       metrics && typeof (metrics as any).total === "number" && (metrics as any).total > 0
         ? (metrics as any).total

@@ -539,8 +539,9 @@ export default function ProcessosEmpresaPage() {
 
   const filtered = useMemo(() => {
     const query = qDebounced.toLowerCase().trim();
-    // Com busca: prioriza resultado do servidor (empresa inteira)
-    const base = query && searchHits != null ? searchHits : cases;
+    // Busca só substitui a lista se o servidor devolveu linhas.
+    // searchHits=[] (falha / filtro velho no localStorage) NÃO esvazia a carteira.
+    const base = query.length >= 3 && searchHits && searchHits.length > 0 ? searchHits : cases;
     let list = base.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;
@@ -747,6 +748,22 @@ export default function ProcessosEmpresaPage() {
                       className="pl-9 h-9 rounded-xl text-[11px]"
                     />
                   </div>
+                  {(q || statusFilter || baOnly || silencioOnly) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQ("");
+                        setStatusFilter("");
+                        setBaOnly(false);
+                        setSilencioOnly(false);
+                        setSearchHits(null);
+                        try { localStorage.removeItem("lexis_processos_filters_v1"); } catch { /* */ }
+                      }}
+                      className="h-9 rounded-xl border border-border/60 px-3 text-[10px] font-black uppercase text-muted-foreground hover:text-foreground"
+                    >
+                      Limpar filtros
+                    </button>
+                  ) : null}
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
