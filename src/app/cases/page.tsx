@@ -975,7 +975,7 @@ function CasesContent() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+      <main className="lexis-main-pad" className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
 <div className="px-4 sm:px-6 pt-4">
             <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
           </div>

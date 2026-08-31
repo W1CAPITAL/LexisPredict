@@ -1092,7 +1092,7 @@ function WhatsAppTerminalInner() {
     <>
       <div className="flex h-screen bg-background text-foreground overflow-hidden">
         <Sidebar />
-        <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+        <main className="lexis-main-pad flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
           <header className="shrink-0 border-b border-border/60 bg-card/80 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">

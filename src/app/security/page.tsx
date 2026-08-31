@@ -81,7 +81,7 @@ export default function SecurityPage() {
     return (
       <div className="flex h-screen bg-background">
         <Sidebar />
-        <main className="flex-1 flex items-center justify-center p-6">
+        <main className="lexis-main-pad flex-1 flex items-center justify-center p-6">
           <div className="max-w-md text-center space-y-2">
             <ShieldAlert className="h-10 w-10 mx-auto text-muted-foreground" />
             <h1 className="text-lg font-black">Acesso restrito</h1>
@@ -116,16 +116,23 @@ export default function SecurityPage() {
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">{error}</div>
           ) : null}
 
-          {ocrHealth ? (
-            <div className="rounded-xl border border-border bg-card p-3 text-xs">
-              <p className="font-black uppercase text-[10px] text-muted-foreground mb-1">OCR externo</p>
-              <p>
-                {ocrHealth.externalConfigured
-                  ? `Configurado → host ${ocrHealth.endpointHost}`
-                  : "Não configurado (app usa Tesseract local na aba OCR)"}
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs space-y-1">
+            <p className="font-black uppercase text-[10px] text-emerald-700 dark:text-emerald-400 mb-1">
+              OCR · política do produto
+            </p>
+            <p className="font-semibold text-foreground">
+              Apenas Tesseract local no navegador (aba /tools/ocr).
+            </p>
+            <p className="text-muted-foreground">
+              OCR externo / OCR.space / hosts na nuvem <strong>não são usados</strong> pelo fluxo oficial.
+              Variáveis LEXIS_OCR_* / OCR_SPACE_* são ignoradas de propósito.
+            </p>
+            {ocrHealth?.externalConfigured ? (
+              <p className="text-amber-700 dark:text-amber-400 text-[11px]">
+                Env de OCR externo detectada no servidor, mas o app não depende dela — pode remover do Vercel.
               </p>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
 
           <div className="space-y-2">
             {checks.map((c) => (

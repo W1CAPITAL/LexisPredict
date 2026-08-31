@@ -1,3 +1,6 @@
+/** POLITICA_OCR_LOCAL_ONLY — produto não usa OCR externo. */
+const OCR_EXTERNAL_DISABLED = true;
+
 /**
  * Alternativa EXTERNA — OCR.space (não é IA generativa).
  * Chave SOMENTE via env: OCR_SPACE_API_KEY
@@ -10,6 +13,10 @@ export async function ocrSpaceExternal(
   mimeType = 'image/png',
   language = 'por'
 ): Promise<OcrResult> {
+  if (OCR_EXTERNAL_DISABLED) {
+    return { ok: false, text: '', provider: 'disabled', error: 'OCR.space desativado — use Tesseract local.' };
+  }
+
   const apiKey = (process.env.OCR_SPACE_API_KEY || '').trim();
   if (!apiKey) {
     return {

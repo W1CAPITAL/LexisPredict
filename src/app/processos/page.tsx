@@ -653,7 +653,7 @@ export default function ProcessosEmpresaPage() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden min-h-0">
       <Sidebar />
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
         <header className="shrink-0 border-b border-border/60 glass-header p-4 sm:px-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">

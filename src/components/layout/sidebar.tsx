@@ -95,7 +95,7 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-const DOCK_H = 72;
+const DOCK_H = 88;
 const LS_PIN = "lexis_dock_pinned"; // "1" = fixo (padrão), "0" = auto-ocultar
 
 function useNavItems(opts: {
@@ -377,7 +377,7 @@ export function SidebarDock() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const pad = pinned ? `${DOCK_H + 28}px` : "20px";
+    const pad = pinned ? `${DOCK_H + 36}px` : `${DOCK_H + 16}px`;
     root.style.setProperty("--lexis-dock-pad", pad);
     // padding no body + mains full-screen comuns
     const styleId = "lexis-dock-pad-style";
@@ -387,7 +387,23 @@ export function SidebarDock() {
       el.id = styleId;
       document.head.appendChild(el);
     }
-    el.textContent = `@media (min-width:768px){body{padding-bottom:var(--lexis-dock-pad)!important;} .lexis-main-pad{padding-bottom:var(--lexis-dock-pad)!important;}}`;
+    el.textContent = `@media (min-width:768px){
+  :root { --lexis-dock-pad: ${pad}; }
+  body { padding-bottom: var(--lexis-dock-pad) !important; }
+  main, .lexis-main-pad, [data-lexis-scroll] {
+    padding-bottom: var(--lexis-dock-pad) !important;
+    box-sizing: border-box;
+  }
+  /* rodapés de chat / formulários colados embaixo */
+  footer.sticky, .lexis-composer, [data-lexis-composer] {
+    bottom: var(--lexis-dock-pad) !important;
+    margin-bottom: 0 !important;
+  }
+  /* evita conteúdo sob o dock */
+  .flex.h-screen > main {
+    max-height: calc(100vh - var(--lexis-dock-pad)) !important;
+  }
+}`;
     return () => {
       root.style.removeProperty("--lexis-dock-pad");
     };

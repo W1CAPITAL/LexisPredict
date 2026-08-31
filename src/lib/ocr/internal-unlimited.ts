@@ -1,3 +1,4 @@
+const OCR_EXTERNAL_DISABLED = true;
 /**
  * Motor OCR INTERNO — contrato compatível com self-host do Baidu Unlimited-OCR
  * (GPU/transformers NÃO rodam na Vercel; sobe o modelo num worker e aponta a URL).

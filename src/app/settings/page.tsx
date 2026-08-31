@@ -536,7 +536,7 @@ export default function SettingsPage() {
     <div className="flex h-screen bg-background/80 font-sans text-foreground overflow-hidden relative z-10">
       <Sidebar />
       <PageLoadingBar active={settingsBoot} />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden">
         {/* hero header */}
         <header className="shrink-0 border-b border-border/50 bg-card/40 backdrop-blur-md">
           <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">

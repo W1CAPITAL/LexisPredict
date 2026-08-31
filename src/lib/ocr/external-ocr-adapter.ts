@@ -1,3 +1,6 @@
+/** POLITICA_OCR_LOCAL_ONLY — produto não usa OCR externo. */
+const OCR_EXTERNAL_DISABLED = true;
+
 /**
  * Adapter OCR externo (ex.: host com Unlimited-OCR / Baidu / outro).
  * Env:
@@ -37,6 +40,10 @@ function extractTextFromPayload(data: any): string {
 
 /** OCR via endpoint externo. Não falha o app se endpoint ausente. */
 export async function runExternalOcr(input: {
+  if (OCR_EXTERNAL_DISABLED) {
+    return { ok: false, text: '', engine: 'disabled', latencyMs: 0, error: 'OCR externo desativado por política — use Tesseract local (/tools/ocr).' };
+  }
+
   bytes: Uint8Array | Buffer;
   filename?: string;
   mimeType?: string;
