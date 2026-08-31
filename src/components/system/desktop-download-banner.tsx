@@ -10,7 +10,7 @@ import { Monitor, X, ArrowUpRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
-const DISMISS_KEY = "lexis_desktop_banner_dismissed_v21";
+const DISMISS_KEY = "lexis_desktop_banner_dismissed_v23";
 
 const EXE_URL =
   (typeof process !== "undefined" &&
@@ -62,13 +62,16 @@ export function DesktopDownloadBanner() {
           </div>
           <div className="min-w-0 flex-1 space-y-1.5">
             <p className="text-sm font-semibold leading-snug tracking-tight">
-              Gabinete Desktop
+              LexisPredict Offline
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               EXE com GPU desta máquina — em geral mais rápido que a aba do
               navegador. Chaves só no servidor.
             </p>
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <Button asChild size="sm" variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase">
+                <Link href="/offline">Coming soon</Link>
+              </Button>
               {EXE_URL ? (
                 <Button
                   type="button"

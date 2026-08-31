@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" fill="none">
+  <defs>
+    <linearGradient id="g2" x1="0" y1="0" x2="1200" y2="420">
+      <stop stop-color="#0B1220"/><stop offset="1" stop-color="#052e2b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="420" rx="28" fill="url(#g2)"/>
+  <text x="64" y="86" fill="#5EEAD4" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15" font-weight="800" letter-spacing="6">LEXISPREDICT OFFLINE  ·  EXE WINDOWS</text>
+  <text x="64" y="168" fill="#F8FAFC" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">Já abre no notebook.</text>
+  <text x="64" y="224" fill="#F8FAFC" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">Paridade com o web: em breve.</text>
+  <text x="64" y="280" fill="#99F6E4" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">Login · planilha M/N · DataJud/DJEN · fila local · v5.1.8</text>
+  <rect x="64" y="318" width="150" height="36" rx="18" fill="#5EEAD4"/>
+  <text x="139" y="342" text-anchor="middle" fill="#042F2E" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13" font-weight="800">EXE PRONTO</text>
+  <rect x="226" y="318" width="160" height="36" rx="18" fill="none" stroke="#5EEAD4"/>
+  <text x="306" y="342" text-anchor="middle" fill="#5EEAD4" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13" font-weight="800">COMING SOON</text>
+</svg>

@@ -50,6 +50,14 @@ const AgentDock = dynamic(
   { ssr: false }
 );
 
+const LaunchAnnounceModal = dynamic(
+  () =>
+    import("@/components/system/launch-announce-modal").then(
+      (m) => m.LaunchAnnounceModal
+    ),
+  { ssr: false }
+);
+
 const DesktopDownloadBanner = dynamic(
   () =>
     import("@/components/system/desktop-download-banner").then(
@@ -97,6 +105,7 @@ export function ClientChrome() {
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
       <AgentDock />
+      <LaunchAnnounceModal />
       <AppUpdateBanner />
       <DesktopDownloadBanner />
       <PacmanTrollOverlay />

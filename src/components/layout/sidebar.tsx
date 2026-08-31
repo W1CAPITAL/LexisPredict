@@ -22,6 +22,7 @@ import {
   Scale,
   ClipboardList,
   Bot,
+  Monitor,
   MessageCircle,
   BarChart3,
   BrainCircuit,
@@ -194,6 +195,7 @@ function SidebarNavBody({
       { label: "Assessoria (comercial)", href: "/crm", icon: Kanban },
       { label: "Follow-ups comerciais", href: "/crm/followups", icon: ListTodo },
       { label: "Agentes CRM", href: "/crm/agentes", icon: Bot },
+      { label: "Offline (soon)", href: "/offline", icon: Monitor },
       { label: "Finanças", href: "/financas", icon: Wallet },
       { label: "Cálculos judiciais", href: "/calculos", icon: Calculator },
       // Peças/modelos (procuração, substabelecimento, habilitação, revogação, modelos)

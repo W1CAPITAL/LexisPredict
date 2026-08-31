@@ -1,8 +1,9 @@
 /** Fonte única: notas, changelog e próximas (compacto). */
 
-export const RELEASE_VERSION = "9.92.0";
+export const RELEASE_VERSION = "9.93.0";
 
 export const RELEASE_CHANGELOG: string[] = [
+  "9.93 — Coming soon Offline no web: anúncio fechável + imagem + /offline. READMEs web e EXE.",
   "9.92 — Ranking/semana pelo LOG (pessoa+CNJ único). W1 não conta como operador. Lista não some com filtro velho.",
   "9.91 — /processos: atendimento credita quem atendeu (atendido_por); created_by travado sem force_transfer.",
   "9.90 — Agentes CRM (skills CompAI + fila + API /api/crm/agent).",
