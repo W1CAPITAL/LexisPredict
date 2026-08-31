@@ -173,3 +173,25 @@ export async function quemSouChatAction() {
   if (!ctx) return { auth_id: null, empresa_id: null, nome: null };
   return { auth_id: ctx.auth_id, empresa_id: ctx.empresa_id, email: ctx.email };
 }
+
+
+export async function diagnosticoChatAction() {
+  const ctx = await ctxOk();
+  if (!ctx) return { ok: false, detail: "Sessão sem empresa_id. Entre de novo." };
+  try {
+    const admin = await getSupabaseAdmin();
+    const { error } = await admin.from("chat_threads").select("id").eq("empresa_id", ctx.empresa_id).limit(1);
+    if (error) {
+      return {
+        ok: false,
+        detail:
+          error.message.includes("does not exist") || error.code === "42P01"
+            ? "Falta rodar supabase/chat-empresa.sql no SQL Editor."
+            : error.message,
+      };
+    }
+    return { ok: true, detail: "ok", empresa_id: ctx.empresa_id, auth_id: ctx.auth_id };
+  } catch (e: any) {
+    return { ok: false, detail: e?.message || "erro" };
+  }
+}

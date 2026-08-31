@@ -16,6 +16,7 @@ import {
 import {
   garantirThreadDmAction,
   garantirThreadGeralAction,
+  diagnosticoChatAction,
   listarMembrosChatAction,
   listarMensagensAction,
   enviarMensagemAction,
@@ -95,6 +96,7 @@ export default function MensagensPage() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   const [rec, setRec] = useState(false);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -117,7 +119,11 @@ export default function MensagensPage() {
       setMembers(people as Member[]);
       if (geral.threadId) {
         setThreadId(geral.threadId);
+        setErr('');
         await loadThread(geral.threadId);
+      } else {
+        const d = await diagnosticoChatAction();
+        setErr((geral as any).message || d.detail || 'Rode supabase/chat-empresa.sql');
       }
     })();
   }, [loadThread]);
@@ -179,13 +185,33 @@ export default function MensagensPage() {
   };
 
   const sendText = async () => {
-    if (!threadId || !text.trim() || busy) return;
+    if (!text.trim() || busy) return;
     setBusy(true);
-    const body = text;
-    setText("");
-    const r = await enviarMensagemAction({ threadId, body, tipo: "text" });
-    if (r.success && r.message) setMsgs((p) => [...p, r.message as Msg]);
-    setBusy(false);
+    try {
+      let tid = threadId;
+      if (!tid) {
+        const g = await garantirThreadGeralAction();
+        tid = g.threadId;
+        if (tid) setThreadId(tid);
+      }
+      if (!tid) {
+        const d = await diagnosticoChatAction();
+        setErr(d.detail || "Sem canal. Rode supabase/chat-empresa.sql");
+        return;
+      }
+      const body = text;
+      setText("");
+      const r = await enviarMensagemAction({ threadId: tid, body, tipo: "text" });
+      if (!r.success) {
+        setErr(String((r as { message?: string }).message || "Falha ao gravar"));
+        setText(body);
+        return;
+      }
+      setErr("");
+      if (r.message) setMsgs((prev) => [...prev, r.message as Msg]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const uploadBlob = async (file: File) => {
@@ -257,7 +283,7 @@ export default function MensagensPage() {
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
-      <main className="flex-1 min-w-0 flex">
+      <main className="flex-1 min-w-0 flex min-h-0 overflow-hidden">
         <aside className="w-64 shrink-0 border-r border-border flex flex-col">
           <div className="p-3 border-b">
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -296,9 +322,9 @@ export default function MensagensPage() {
           </ScrollArea>
         </aside>
 
-        <section className="flex-1 min-w-0 flex flex-col">
+        <section className="flex-1 min-w-0 flex flex-col relative z-10">
           <header className="h-12 border-b px-4 flex items-center font-black text-sm">{title}</header>
-          <ScrollArea className="flex-1 p-4">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4">
             <div className="mx-auto max-w-2xl space-y-4">
               {msgs.map((m) => {
                 const mine = !!(m.auth_user_id && m.auth_user_id === me.auth_id);
@@ -337,9 +363,11 @@ export default function MensagensPage() {
               })}
               <div ref={bottomRef} />
             </div>
-          </ScrollArea>
+          </div>
 
-          <footer className="border-t p-3 flex items-center gap-2">
+          {err ? <div className="px-4 py-2 text-[12px] bg-destructive/10 text-destructive border-t shrink-0">{err}</div> : null}
+
+          <footer className="border-t p-3 flex items-center gap-2 shrink-0 bg-background z-20">
             <input
               ref={fileRef}
               type="file"

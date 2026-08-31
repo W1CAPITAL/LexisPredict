@@ -177,6 +177,7 @@ function SidebarNavBody({
   const navItems: NavItem[] = useMemo(() => {
     const primary: NavItem[] = [
       { label: "Painel da carteira", href: "/", icon: LayoutDashboard },
+      { label: "Chat da equipe", href: "/mensagens", icon: MessagesSquare },
       { label: "Encerrados a revisar", href: "/encerrados-revisao", icon: ShieldAlert },
       { label: "Fila de atendimento", href: "/tarefas", icon: ListTodo },
       { label: "Processos parados", href: "/processos-parados", icon: PauseCircle },
@@ -205,7 +206,6 @@ function SidebarNavBody({
       { label: "Veredito", href: "/veredito", icon: Scale },
       { label: "Assistente", href: "/chat", icon: Bot },
       { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
-      { label: "Chat da equipe", href: "/mensagens", icon: MessagesSquare },
       { label: "Indicadores", href: "/analytics", icon: BarChart3 },
       { label: "Insights da carteira", href: "/insights", icon: BrainCircuit },
       { label: "Urgências", href: "/urgency", icon: ShieldAlert },
