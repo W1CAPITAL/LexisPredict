@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { ADSTERRA, AD_PATH_BLOCK } from "@/lib/adsterra";
+import { ADSTERRA, AD_PATH_BLOCK, adsterraForHost } from "@/lib/adsterra";
 import { useAdsVisible } from "@/components/ads/use-ads-visible";
 
 const DISMISS = "lexis_ad_160_until";
@@ -30,15 +30,16 @@ export function Adsterra160x300() {
     if (!show || !host.current) return;
     if ((window as any)[LOADED]) return;
     (window as any)[LOADED] = true;
+    const unit = adsterraForHost();
     (window as any).atOptions = {
-      key: ADSTERRA.banner160.key,
+      key: unit.banner160.key,
       format: "iframe",
-      height: ADSTERRA.banner160.height,
-      width: ADSTERRA.banner160.width,
+      height: unit.banner160.height,
+      width: unit.banner160.width,
       params: {},
     };
     const s = document.createElement("script");
-    s.src = ADSTERRA.banner160.invoke;
+    s.src = adsterraForHost().banner160.invoke;
     s.async = true;
     host.current.appendChild(s);
   }, [show]);

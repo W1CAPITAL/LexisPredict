@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ADSTERRA } from "@/lib/adsterra";
+import { ADSTERRA, adsterraForHost } from "@/lib/adsterra";
 import { useAdsVisible } from "@/components/ads/use-ads-visible";
 
 export function AdsterraSmartlink({ className }: { className?: string }) {
@@ -9,7 +9,7 @@ export function AdsterraSmartlink({ className }: { className?: string }) {
   if (!visible) return null;
   return (
     <a
-      href={ADSTERRA.smartlink}
+      href={adsterraForHost().smartlink}
       target="_blank"
       rel="noopener noreferrer sponsored"
       className={

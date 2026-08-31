@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { ADSTERRA, AD_PATH_BLOCK } from "@/lib/adsterra";
+import { ADSTERRA, AD_PATH_BLOCK, adsterraForHost } from "@/lib/adsterra";
 import { useAdsVisible } from "@/components/ads/use-ads-visible";
 
 const DISMISS = "lexis_ad_native_until";
@@ -32,7 +32,7 @@ export function AdsterraNative() {
     const s = document.createElement("script");
     s.async = true;
     s.setAttribute("data-cfasync", "false");
-    s.src = ADSTERRA.native.invoke;
+    s.src = adsterraForHost().native.invoke;
     document.body.appendChild(s);
   }, [show]);
 
@@ -61,7 +61,7 @@ export function AdsterraNative() {
             <X size={10} />
           </button>
         </div>
-        <div id={ADSTERRA.native.container} className="min-h-[80px]" />
+        <div id={adsterraForHost().native.container} className="min-h-[80px]" />
       </div>
     </div>
   );
