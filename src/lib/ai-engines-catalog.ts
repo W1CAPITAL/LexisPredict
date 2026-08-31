@@ -111,3 +111,9 @@ export function resolveOfficialKeysPresent(): Record<string, boolean> {
     omniroute: !!process.env.OMNIROUTE_API_KEY,
   };
 }
+
+/** Hy4 preview (Tencent) — 770B MoE / 49B ativo. NÃO roda local (1.5TB).
+ *  Use só via OpenRouter / TokenHub se a empresa tiver crédito.
+ *  Não entra no scanner DataJud; só rascunho/brief longo. */
+export const HY4_ENGINE_NOTE =
+  "Hy4 preview: motor opcional de brief longo (1M contexto). Sem peso no Vercel.";

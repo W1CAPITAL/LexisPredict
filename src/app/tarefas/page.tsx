@@ -152,7 +152,7 @@ export default function TarefasPage() {
   const [search, setSearch] = useState('');
   const searchDebounced = useDebouncedValue(search, 300);
   // filtros persistidos entre abas
-  const [filaFiltro, setFilaFiltro] = useState<'all' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'hoje' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
@@ -659,15 +659,25 @@ const handleSaveAttendance = async () => {
           );
         if (!matchSearch || !matchOffice || !matchLawyer) return false;
         if (soMeusHoje) {
-          const uid = String((profile as any)?.auth_user_id || (profile as any)?.id || '');
-          const mine = (g.cases || []).some((c: any) =>
-            String(c.created_by || '') === uid || String(c.atendido_por || '') === uid
+          const today = (g.cases || []).some((c: any) =>
+            isAtendidoHoje(c) ||
+            isAtendidoHoje(c.ultimoRetorno || c.ultimo_retorno) ||
+            String(c.status || '') === 'É Hoje' ||
+            c.diasFaltando === 0
           );
-          const today = (g.cases || []).some((c: any) => isAtendidoHoje(c));
-          if (!mine || !today) return false;
+          if (!today) return false;
         }
         const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
         const sample = g.cases[0] as any;
+        if (filaFiltro === 'hoje') {
+          return g.cases.some((c: any) => {
+            const st = String(c.status || '').trim();
+            if (st === 'É Hoje' || st === 'E Hoje') return true;
+            const d = c.diasFaltando;
+            if (d === 0 || d === '0') return true;
+            return isAtendidoHoje(c.proximoPrazo || c.proximo_retorno || c.PROXIMO_RETORNO);
+          });
+        }
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
@@ -757,7 +767,8 @@ const handleSaveAttendance = async () => {
       });
 
     const pending = sortedAll.filter(g => !contactedSet.has(String(g.cliente || '').trim().toUpperCase()));
-    return { focus: pending.slice(0, dailyMeta), backlog: pending.slice(dailyMeta), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
+    const cap = filaFiltro === 'hoje' || soMeusHoje ? pending.length : dailyMeta;
+    return { focus: pending.slice(0, cap), backlog: pending.slice(cap), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
   }, [cases, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
 
   useEffect(() => {
@@ -913,7 +924,10 @@ const handleSaveAttendance = async () => {
                   <SelectItem value="prazo_asc">Próximo prazo</SelectItem>
                 </SelectContent>
               </Select>
-<Button type="button" size="sm" variant={soMeusHoje ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setSoMeusHoje((v) => !v)}>
+<Button type="button" size="sm" variant={filaFiltro === "hoje" ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setFilaFiltro((v) => v === "hoje" ? "all" : "hoje")}>
+                É hoje
+              </Button>
+              <Button type="button" size="sm" variant={soMeusHoje ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setSoMeusHoje((v) => !v)}>
                 Meus hoje
               </Button>
               <Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>

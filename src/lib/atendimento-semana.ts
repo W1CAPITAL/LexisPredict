@@ -257,8 +257,14 @@ export function getTopAtendentes(
  * - NÃO usa created_by (dono da carteira) — evita creditar o dono quando outro atende
  */
 
-export function isAtendidoHoje(ultimoRetorno?: string | null, ref = new Date()): boolean {
-  const d = parseUltimoAtendimento(ultimoRetorno);
+export function isAtendidoHoje(ultimoRetorno?: string | null | Record<string, unknown>, ref = new Date()): boolean {
+  let raw: string | null | undefined = null;
+  if (ultimoRetorno && typeof ultimoRetorno === "object") {
+    raw = pickUltimoRetorno(ultimoRetorno);
+  } else {
+    raw = ultimoRetorno as string | null | undefined;
+  }
+  const d = parseUltimoAtendimento(raw);
   if (!d) return false;
   const ymd = hojeBrasilYmd(ref);
   const [y, m, day] = ymd.split('-').map((n) => parseInt(n, 10));

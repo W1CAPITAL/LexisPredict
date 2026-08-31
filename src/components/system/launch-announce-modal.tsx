@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { RELEASE_VERSION, RELEASE_CHANGELOG } from "@/lib/release-feed";
 
 const KEY = "lexis_announce_seen_";
+const SNOOZE = "lexis_announce_snooze_until";
+const SNOOZE_MS = 72 * 3600 * 1000; // 3 dias — reaparece sem ser a cada F5
 
 export function LaunchAnnounceModal() {
   const [open, setOpen] = useState(false);
@@ -19,17 +21,22 @@ export function LaunchAnnounceModal() {
   useEffect(() => {
     try {
       if (typeof window === "undefined") return;
+      const snooze = Number(window.localStorage.getItem(SNOOZE) || 0);
+      if (snooze && Date.now() < snooze) return;
+      // Versão nova: mostra. Mesma versão: só se já passou o snooze (não a cada reload).
+      if (window.localStorage.getItem(seenKey) === "1" && snooze && Date.now() < snooze) return;
       if (window.localStorage.getItem(seenKey) === "1") return;
-      const t = window.setTimeout(() => setOpen(true), 600);
+      const t = window.setTimeout(() => setOpen(true), 900);
       return () => window.clearTimeout(t);
     } catch {
       /* */
     }
   }, [seenKey]);
 
-  const close = () => {
+  const close = (snoozeDays = 3) => {
     try {
       localStorage.setItem(seenKey, "1");
+      localStorage.setItem(SNOOZE, String(Date.now() + snoozeDays * 86400000));
     } catch {
       /* */
     }
@@ -91,8 +98,8 @@ export function LaunchAnnounceModal() {
                 Ver Offline
               </Link>
             </Button>
-            <Button type="button" variant="outline" className="h-9 rounded-xl font-black uppercase text-[10px]" onClick={close}>
-              Fechar
+            <Button type="button" variant="outline" className="h-9 rounded-xl font-black uppercase text-[10px]" onClick={() => close(3)}>
+              Fechar · 3 dias
             </Button>
           </div>
         </div>
