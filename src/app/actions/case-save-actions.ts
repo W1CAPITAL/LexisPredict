@@ -287,3 +287,73 @@ export async function saveManyCasesAction(
     error: errors[0],
   };
 }
+
+/** Transfere o dono (created_by) de um processo — service role. */
+export async function reassignCaseOwnerAction(input: {
+  protocolo: string;
+  novoOwnerAuthId: string;
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const { empresa_id, auth_id } = await getUserContext();
+    if (!empresa_id || !auth_id) return { success: false, message: "Sessão expirada." };
+    const protocolo = String(input.protocolo || "").trim();
+    const novo = String(input.novoOwnerAuthId || "").trim();
+    if (!protocolo || !novo) return { success: false, message: "Protocolo e novo responsável obrigatórios." };
+
+    const admin = await getSupabaseAdmin();
+    const dig = protocolo.replace(/\D/g, "");
+
+    const { data: rows } = await admin
+      .from("processos")
+      .select("id, protocolo_ref, dados, created_by")
+      .eq("empresa_id", empresa_id)
+      .limit(8000);
+
+    const hit = (rows || []).find((r: any) => {
+      const ref = String(r.protocolo_ref || r.dados?.protocolo || "").replace(/\D/g, "");
+      return (
+        ref === dig ||
+        String(r.protocolo_ref) === protocolo ||
+        (ref.length >= 15 && dig.length >= 15 && (ref.endsWith(dig) || dig.endsWith(ref)))
+      );
+    });
+    if (!hit) return { success: false, message: "Processo não encontrado." };
+
+    const dados = { ...(hit.dados || {}), created_by: novo };
+    const { error } = await admin
+      .from("processos")
+      .update({ created_by: novo, dados })
+      .eq("id", hit.id)
+      .eq("empresa_id", empresa_id);
+
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "Responsável atualizado." };
+  } catch (e: any) {
+    return { success: false, message: e?.message || "Falha ao transferir." };
+  }
+}
+
+/** Transferência em massa de created_by. */
+export async function transferCasesOwnerAction(input: {
+  protocolos: string[];
+  novoOwnerAuthId: string;
+}): Promise<{ success: boolean; updated: number; message: string }> {
+  const list = Array.isArray(input.protocolos) ? input.protocolos.map(String).filter(Boolean) : [];
+  const novo = String(input.novoOwnerAuthId || "").trim();
+  if (!list.length || !novo) return { success: false, updated: 0, message: "Lista ou responsável vazio." };
+
+  let updated = 0;
+  const errors: string[] = [];
+  for (const p of list.slice(0, 200)) {
+    const r = await reassignCaseOwnerAction({ protocolo: p, novoOwnerAuthId: novo });
+    if (r.success) updated += 1;
+    else errors.push(`${p}: ${r.message}`);
+  }
+  return {
+    success: updated > 0,
+    updated,
+    message: updated
+      ? `${updated} processo(s) transferido(s)`
+      : errors[0] || "Nenhum atualizado",
+  };
+}

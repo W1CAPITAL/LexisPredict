@@ -580,3 +580,38 @@ async function fetchDjenComunicacoesUncached(
     items: [],
   };
 }
+
+
+/** Ordena comunicações DJEN da mais recente para a mais antiga. */
+export function sortDjenComunicacoesRecentFirst(input: unknown): any[] {
+  const arr = Array.isArray(input) ? [...input] : input ? [input] : [];
+  const ts = (x: any): number => {
+    const raw =
+      x?.data ||
+      x?.data_disponibilizacao ||
+      x?.dataDisponibilizacao ||
+      x?.created_at ||
+      x?.dt ||
+      "";
+    const n = Date.parse(String(raw));
+    return Number.isFinite(n) ? n : 0;
+  };
+  return arr.sort((a, b) => ts(b) - ts(a));
+}
+
+/** Textos DJEN do mais recente ao mais antigo (tarefas/whatsapp/cases). */
+export function djenTextsRecentFirst(input: unknown): string[] {
+  const items = sortDjenComunicacoesRecentFirst(input);
+  if (items.length) {
+    return items
+      .map((it: any) => {
+        if (typeof it === "string") return plainTextFromDjen(it);
+        const raw =
+          it?.texto || it?.text || it?.conteudo || it?.html || it?.mensagem || it?.inteiroTeor || "";
+        return plainTextFromDjen(String(raw));
+      })
+      .filter((s: string) => s && s.trim().length > 0);
+  }
+  if (typeof input === "string" && input.trim()) return [plainTextFromDjen(input)];
+  return [];
+}
