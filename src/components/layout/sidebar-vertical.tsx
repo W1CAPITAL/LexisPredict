@@ -1,14 +1,13 @@
 "use client";
 
 /**
- * Sidebar vertical: animações hover (fundo + sobe), redimensionar largura,
- * arrastar itens (ex.: Agentes), busca, pin, mais ferramentas.
+ * Sidebar vertical leve: CSS transitions (sem framer por item) para não travar.
+ * Redimensionar, pin, busca, mais ferramentas, drag reorder.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, ListTodo, CalendarDays, Briefcase, FolderOpen, Gavel, Upload,
   Kanban, Wallet, FileText, Scale, ClipboardList, Bot, Monitor, MessageCircle,
@@ -33,8 +32,8 @@ type NavItem = { label: string; href: string; icon: LucideIcon };
 const LS_PINNED = "lexis_sidebar_vertical_pinned";
 const LS_WIDTH = "lexis_sidebar_vertical_width";
 const MIN_W = 72;
-const MAX_W = 360;
-const DEFAULT_W = 260;
+const MAX_W = 320;
+const DEFAULT_W = 248;
 
 function buildNavItems(opts: {
   isAdmin: boolean; isSuperAdmin: boolean; plan: string;
@@ -119,7 +118,7 @@ export function SidebarVertical() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences());
   const [dragHref, setDragHref] = useState<string | null>(null);
-  const resizing = useRef(false);
+  const widthRef = useRef(DEFAULT_W);
   const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
 
   useEffect(() => {
@@ -129,7 +128,10 @@ export function SidebarVertical() {
         setOpen(false);
       }
       const w = Number(localStorage.getItem(LS_WIDTH) || DEFAULT_W);
-      if (w >= MIN_W && w <= MAX_W) setWidth(w);
+      if (w >= MIN_W && w <= MAX_W) {
+        setWidth(w);
+        widthRef.current = w;
+      }
     } catch { /* */ }
   }, []);
 
@@ -165,34 +167,26 @@ export function SidebarVertical() {
 
   const onResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    resizing.current = true;
     const startX = e.clientX;
-    const startW = width;
+    const startW = widthRef.current;
+    let last = startW;
     const onMove = (ev: MouseEvent) => {
-      if (!resizing.current) return;
-      const next = Math.min(MAX_W, Math.max(MIN_W, startW + (ev.clientX - startX)));
-      setWidth(next);
-      setOpen(next > 100);
+      last = Math.min(MAX_W, Math.max(MIN_W, startW + (ev.clientX - startX)));
+      widthRef.current = last;
+      // atualiza DOM direto para não re-render a cada pixel
+      const el = document.getElementById("lexis-sidebar-v");
+      if (el) el.style.width = `${last}px`;
     };
     const onUp = () => {
-      resizing.current = false;
-      try { localStorage.setItem(LS_WIDTH, String(width)); } catch { /* */ }
+      setWidth(last);
+      setOpen(last > 100);
+      try { localStorage.setItem(LS_WIDTH, String(last)); } catch { /* */ }
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
-    // persist latest on up via ref trick
-    const onUp2 = () => {
-      resizing.current = false;
-      setWidth((w) => {
-        try { localStorage.setItem(LS_WIDTH, String(w)); } catch { /* */ }
-        return w;
-      });
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp2);
-    };
     document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp2);
-  }, [width]);
+    document.addEventListener("mouseup", onUp);
+  }, []);
 
   const onDragStart = (href: string) => (e: React.DragEvent) => {
     setDragHref(href);
@@ -209,11 +203,9 @@ export function SidebarVertical() {
     setDragHref(null);
     if (!from || from === targetHref) return;
     const prefs = loadNavPreferences(uid);
-    const order = [...(prefs.order || [])];
-    // build current visual order of hrefs
     const hrefs = navItems.map((i) => i.href);
-    const all = order.length ? order : hrefs;
-    const list = all.filter((h) => hrefs.includes(h));
+    const order = [...(prefs.order || [])];
+    const list = (order.length ? order : hrefs).filter((h) => hrefs.includes(h));
     for (const h of hrefs) if (!list.includes(h)) list.push(h);
     const fi = list.indexOf(from);
     const ti = list.indexOf(targetHref);
@@ -225,56 +217,47 @@ export function SidebarVertical() {
   };
 
   const nome = String(profile?.nome || "Operador").trim();
-  const expanded = open || width > 120;
+  const displayW = open || pinned ? width : MIN_W;
+  const expanded = displayW > 120;
 
   const body = (
-    <div className="flex flex-col h-full min-h-0 bg-card/70 backdrop-blur-xl border-r border-border/50 relative">
+    <div className="flex flex-col h-full min-h-0 bg-card/80 backdrop-blur-md border-r border-border/40 relative">
       <div className="flex items-center gap-2 p-3 border-b border-border/40 shrink-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="Lexis" className="h-9 w-9 rounded-xl object-contain bg-white/90 p-0.5 shrink-0" />
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
-              className="min-w-0 flex-1"
-            >
-              <p className="text-[13px] font-black truncate">LexisPredict</p>
-              <p className="text-[10px] text-muted-foreground truncate">Gabinete</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {expanded && (
+          <div className="min-w-0 flex-1 transition-opacity duration-200">
+            <p className="text-[13px] font-black truncate">LexisPredict</p>
+            <p className="text-[10px] text-muted-foreground truncate">Gabinete</p>
+          </div>
+        )}
       </div>
 
       <div className={cn("flex items-center gap-1 px-2 pt-2 shrink-0", !expanded && "flex-col")}>
-        <motion.button
+        <button
           type="button"
-          whileHover={{ y: -2, scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title="Buscar no menu"
+          title="Buscar"
           onClick={() => { setSearchOpen((v) => !v); if (!open) setOpen(true); }}
-          className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-primary/15 border border-transparent hover:border-primary/20 transition-colors"
+          className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-primary/10 border border-transparent hover:border-primary/15 transition-colors duration-150"
         >
           <Search size={16} />
-        </motion.button>
-        <motion.button
+        </button>
+        <button
           type="button"
-          whileHover={{ y: -2 }}
-          title={pinned ? "Fixo — clique para auto-recolher" : "Recolhido — clique para fixar"}
+          title={pinned ? "Fixo" : "Auto-recolher"}
           onClick={togglePin}
           className={cn(
-            "h-9 w-9 rounded-xl flex items-center justify-center border transition-colors",
-            pinned ? "bg-primary/15 text-primary border-primary/30" : "hover:bg-muted/70 border-transparent"
+            "h-9 w-9 rounded-xl flex items-center justify-center border transition-colors duration-150",
+            pinned ? "bg-primary/12 text-primary border-primary/25" : "hover:bg-muted/60 border-transparent"
           )}
         >
           {pinned ? <Pin size={15} /> : <PinOff size={15} />}
-        </motion.button>
+        </button>
         {expanded && (
           <button
             type="button"
-            title="Restaurar abas ocultas"
-            className="h-9 px-2 rounded-xl text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            title="Restaurar ocultas"
+            className="h-9 px-2 rounded-xl text-[10px] font-bold text-muted-foreground hover:bg-muted/50"
             onClick={() => {
               saveNavPreferences({ hidden: [] }, uid);
               window.dispatchEvent(new Event("lexis-nav-prefs"));
@@ -286,59 +269,55 @@ export function SidebarVertical() {
       </div>
 
       {searchOpen && expanded && (
-        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="px-2 pt-2 shrink-0 overflow-hidden">
+        <div className="px-2 pt-2 shrink-0">
           <input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar no menu…"
-            className="w-full h-9 rounded-xl border border-border/60 bg-background/80 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full h-9 rounded-xl border border-border/50 bg-background/80 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/25"
             onKeyDown={(e) => {
               if (e.key === "Escape") { setSearchOpen(false); setQuery(""); }
             }}
           />
-        </motion.div>
+        </div>
       )}
 
-      <motion.button
+      <button
         type="button"
-        whileHover={{ y: -2, scale: 1.01 }}
         onClick={() => {
           try { window.dispatchEvent(new Event("lexis-need-scanner")); } catch { /* */ }
           if (canScanEffective) toggleMinimize();
         }}
         className={cn(
           "mx-2 mt-2 flex items-center gap-2 rounded-xl px-2.5 py-2 text-left shrink-0",
-          "bg-gradient-to-r from-rose-500/25 via-amber-400/20 to-violet-500/25 border border-white/10",
-          "hover:shadow-md transition-shadow"
+          "bg-gradient-to-r from-rose-500/20 via-amber-400/15 to-violet-500/20 border border-white/10",
+          "hover:brightness-110 transition-[filter] duration-150"
         )}
         title="DataJud + DJEN"
       >
         <Zap className={cn("h-4 w-4 text-amber-500 shrink-0", status === "running" && "animate-pulse")} />
         {expanded && <span className="text-[11px] font-black truncate">DataJud + DJEN</span>}
-      </motion.button>
+      </button>
 
-      <nav className="flex-1 overflow-y-auto p-2 space-y-0.5 mt-1 min-h-0">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-0.5 mt-1 min-h-0 [scrollbar-width:thin]">
         {navItems.map((it) => {
           const active =
             pathname === it.href || (it.href !== "/" && pathname.startsWith(it.href));
           const Icon = it.icon;
-          const isAgentes = /agente/i.test(it.label) || it.href.includes("/crm/agentes");
           return (
-            <motion.div
+            <div
               key={it.href + it.label}
-              layout
               draggable
               onDragStart={onDragStart(it.href)}
               onDragOver={onDragOver}
               onDrop={onDrop(it.href)}
-              whileHover={{ y: -2 }}
-              transition={{ type: "spring", stiffness: 400, damping: 28 }}
-              className={cn(dragHref === it.href && "opacity-50")}
+              className={cn(dragHref === it.href && "opacity-40")}
             >
               <Link
                 href={it.href}
-                title={it.label + (isAgentes ? " — arraste para reordenar" : " — arraste · botão direito oculta")}
+                title={it.label}
+                prefetch={false}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   const prefs = loadNavPreferences(uid);
@@ -348,42 +327,38 @@ export function SidebarVertical() {
                   }
                 }}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition-all duration-200 group",
-                  "hover:bg-primary/12 hover:shadow-sm border border-transparent hover:border-primary/20",
+                  "flex items-center gap-2 rounded-xl px-2 py-2 text-[13px] group",
+                  "transition-colors duration-150 border border-transparent",
+                  "hover:bg-primary/10 hover:border-primary/15 hover:text-foreground",
                   active
-                    ? "bg-primary/15 text-primary font-semibold border-primary/25"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary/12 text-primary font-semibold border-primary/20"
+                    : "text-muted-foreground"
                 )}
               >
-                <span className="text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab">
+                <span className="text-muted-foreground/40 opacity-0 group-hover:opacity-100 w-3 shrink-0 transition-opacity duration-150 cursor-grab">
                   <GripVertical size={12} />
                 </span>
-                <motion.span
-                  className="shrink-0 flex items-center justify-center"
-                  whileHover={{ y: -3, scale: 1.12 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 18 }}
-                >
+                <span className="shrink-0 transition-transform duration-150 ease-out group-hover:-translate-y-0.5">
                   <Icon className="h-4 w-4" strokeWidth={1.75} />
-                </motion.span>
+                </span>
                 {expanded && <span className="truncate flex-1">{it.label}</span>}
               </Link>
-            </motion.div>
+            </div>
           );
         })}
 
-        <motion.button
+        <button
           type="button"
-          whileHover={{ y: -2 }}
           onClick={() => { setShowMore((v) => !v); if (!open) setOpen(true); }}
           className={cn(
-            "w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-bold transition-colors border border-transparent",
-            "hover:bg-primary/12 hover:border-primary/20",
+            "w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-bold",
+            "transition-colors duration-150 border border-transparent hover:bg-primary/10",
             showMore ? "bg-primary/10 text-primary" : "text-muted-foreground"
           )}
         >
           <span className="h-4 w-4 flex items-center justify-center text-sm">{showMore ? "−" : "+"}</span>
-          {expanded && <span>{showMore ? "Recolher ferramentas" : "Mais ferramentas"}</span>}
-        </motion.button>
+          {expanded && <span>{showMore ? "Recolher" : "Mais ferramentas"}</span>}
+        </button>
       </nav>
 
       <div className="p-3 border-t border-border/40 space-y-2 shrink-0">
@@ -396,7 +371,7 @@ export function SidebarVertical() {
           </Avatar>
           {expanded && (
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-bold truncate" title={nome}>{nome}</p>
+              <p className="text-[12px] font-bold truncate">{nome}</p>
               <p className="text-[10px] text-muted-foreground truncate">{profile?.cargo || "Operador"}</p>
             </div>
           )}
@@ -404,7 +379,7 @@ export function SidebarVertical() {
         </div>
         <button
           type="button"
-          className="flex items-center gap-2 w-full rounded-xl px-2 py-2 text-[12px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          className="flex items-center gap-2 w-full rounded-xl px-2 py-2 text-[12px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors duration-150"
           onClick={async () => { await signOut(); router.push("/login"); }}
         >
           <LogOut className="h-4 w-4" />
@@ -412,28 +387,28 @@ export function SidebarVertical() {
         </button>
       </div>
 
-      {/* alça de redimensionar */}
       <div
         onMouseDown={onResizeStart}
-        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
-        title="Arraste para ajustar a largura"
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize z-20 hover:bg-primary/30 active:bg-primary/50"
+        title="Largura"
       />
     </div>
   );
 
   return (
     <>
-      <motion.aside
-        className="hidden md:flex flex-col shrink-0 h-screen sticky top-0 z-40 overflow-visible"
-        animate={{ width: open || pinned ? width : MIN_W }}
-        transition={{ duration: 0.22, ease: "easeInOut" }}
+      <aside
+        id="lexis-sidebar-v"
+        className="hidden md:flex flex-col shrink-0 h-screen sticky top-0 z-40 overflow-hidden will-change-[width]"
+        style={{
+          width: displayW,
+          transition: "width 180ms ease-out",
+        }}
         onMouseEnter={() => { if (!pinned) setOpen(true); }}
         onMouseLeave={() => { if (!pinned) setOpen(false); }}
       >
-        <div className="h-full relative" style={{ width: open || pinned ? width : MIN_W }}>
-          {body}
-        </div>
-      </motion.aside>
+        {body}
+      </aside>
 
       <div className="md:hidden fixed top-3 left-3 z-[100]">
         <button
@@ -445,8 +420,8 @@ export function SidebarVertical() {
         </button>
       </div>
       {mobile && (
-        <div className="md:hidden fixed inset-0 z-[110] bg-background/80 backdrop-blur-sm">
-          <div className="absolute left-0 top-0 bottom-0 w-[min(320px,92vw)] bg-card shadow-2xl flex flex-col">
+        <div className="md:hidden fixed inset-0 z-[110] bg-background/70 backdrop-blur-sm">
+          <div className="absolute left-0 top-0 bottom-0 w-[min(300px,92vw)] bg-card shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
             <button type="button" className="absolute right-3 top-3 z-20" onClick={() => setMobile(false)}>
               <X />
             </button>

@@ -262,16 +262,16 @@ function DockItem({
         className={cn(
           "group relative flex flex-col items-center justify-center gap-0.5 select-none",
           "h-[64px] min-w-[64px] max-w-[88px] px-1 rounded-xl",
-          "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-          "hover:-translate-y-2.5 focus-visible:-translate-y-2.5",
+          "transition-transform duration-150 ease-out",
+          "hover:-translate-y-1 focus-visible:-translate-y-1",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         )}
       >
         <span
           className={cn(
             "flex h-9 w-9 items-center justify-center rounded-xl shrink-0",
-            "transition-all duration-300",
-            "group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/30",
+            "transition-all duration-150",
+            "group-hover:scale-105 group-hover:shadow-sm",
             active
               ? "bg-primary text-primary-foreground shadow-md shadow-primary/35"
               : "bg-white/15 text-foreground group-hover:bg-white/25 dark:bg-white/10"
@@ -289,7 +289,7 @@ function DockItem({
         </span>
         <span
           className={cn(
-            "absolute bottom-0.5 h-[3px] rounded-full transition-all duration-300",
+            "absolute bottom-0.5 h-[3px] rounded-full transition-all duration-150",
             active ? "w-5 bg-primary" : "w-0 group-hover:w-2.5 group-hover:bg-foreground/35"
           )}
         />
@@ -493,7 +493,7 @@ export function SidebarDock() {
         <span
           className={cn(
             "relative flex h-10 w-10 items-center justify-center rounded-xl shrink-0",
-            "transition-all duration-300 group-hover:scale-110",
+            "transition-all duration-150 group-hover:scale-110",
             "bg-gradient-to-br from-rose-500 via-amber-400 to-violet-600",
             "shadow-lg shadow-fuchsia-500/40",
             "ring-2 ring-white/30",
@@ -527,7 +527,7 @@ export function SidebarDock() {
           onClick={() => setShowMore((v) => !v)}
           className={cn(
             "h-[64px] min-w-[72px] max-w-[92px] px-1 flex flex-col items-center justify-center gap-0.5 rounded-xl",
-            "transition-all duration-300 hover:-translate-y-2",
+            "transition-all duration-150 hover:-translate-y-2",
             showMore ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-white/10"
           )}
           title={showMore ? "Recolher ferramentas" : "Mais ferramentas"}
@@ -623,12 +623,12 @@ export function SidebarDock() {
           "bg-background/55 dark:bg-background/45",
           "backdrop-blur-xl backdrop-saturate-150",
           "shadow-[0_8px_32px_rgba(0,0,0,0.28)]",
-          "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]",
           visible
             ? "bottom-3 opacity-100 translate-y-0"
             : "bottom-3 opacity-0 translate-y-[110%] pointer-events-none"
         )}
-        style={{ transitionDuration: "400ms" }}
+        style={{ transitionDuration: "200ms" }}
       >
         {dockInner}
       </nav>

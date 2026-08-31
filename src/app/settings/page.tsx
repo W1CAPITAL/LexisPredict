@@ -6,6 +6,8 @@ import { changePasswordAction } from "@/app/actions/change-password-action";
 import { PlanosAdminBloqueio } from "@/components/settings/planos-admin-bloqueio";
 import { PlanosEmpresaPanel } from "@/components/settings/planos-empresa-panel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { PageLoading, PageLoadingBar } from "@/components/ui/page-loading";
+
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -130,7 +132,12 @@ export default function SettingsPage() {
   const [pwdConfirm, setPwdConfirm] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
-  const [activeTab, setActiveTab] = useState('Hardware');
+  const [activeTab, setActiveTab] = useState('Menu');
+  const [settingsBoot, setSettingsBoot] = useState(true);
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettingsBoot(false), 300);
+    return () => window.clearTimeout(id);
+  }, []);
   const { profile } = useAuth();
   
   const [advogados, setAdvogados] = useState<any[]>([]);
@@ -519,6 +526,7 @@ export default function SettingsPage() {
   return (
     <div className="flex h-screen bg-transparent font-sans text-foreground overflow-hidden relative z-10">
       <Sidebar />
+      <PageLoadingBar active={settingsBoot} />
       <div className="fixed bottom-4 right-4 z-50 rounded-full border bg-card shadow-lg p-1">
         <ThemeToggle />
       </div>
@@ -561,13 +569,13 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             {/* spacer no: injeta acima do grid */}
             <aside className="space-y-4">
-              <section className="p-4 border border-border/60 rounded-xl bg-card/60 backdrop-blur-xl flex flex-col items-center text-center space-y-3">
+              <section className="p-4 border border-border/60 rounded-2xl bg-card/70 backdrop-blur-md shadow-sm flex flex-col items-center text-center space-y-3">
                  <div className="relative group">
                     <Avatar className="w-20 h-20 border-4 border-primary/20 shadow-lg shadow-primary/10">
                        <AvatarImage src={profile?.avatar_url || ''} />
                        <AvatarFallback className="bg-primary/10 text-primary font-black text-lg">{profile?.nome?.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <button onClick={() => userAvatarInputRef.current?.click()} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
+                    <button onClick={() => userAvatarInputRef.current?.click()} className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-colors duration-150">
                        {isUploading ? <Loader2 className="animate-spin" size={20} /> : <Camera size={20} />}
                     </button>
                     <input type="file" className="hidden" ref={userAvatarInputRef} onChange={handleUserAvatarUpload} accept="image/*" />
@@ -580,6 +588,7 @@ export default function SettingsPage() {
               </section>
 
               <nav className="space-y-1">
+                <NavButton active={activeTab === 'Menu'} onClick={() => setActiveTab('Menu')} icon={<Layout size={14}/>} label="Menu e nome" />
                 <NavButton active={activeTab === 'Conta'} onClick={() => setActiveTab('Conta')} icon={<KeyRound size={14}/>} label="Conta e senha" />
                 <NavButton active={activeTab === 'Personalizacao'} onClick={() => setActiveTab('Personalizacao')} icon={<Wand2 size={14}/>} label="Personalizacao" />
                 <NavButton active={activeTab === 'Hardware'} onClick={() => setActiveTab('Hardware')} icon={<Palette size={14}/>} label="Hardware Visual" />
@@ -599,8 +608,11 @@ export default function SettingsPage() {
               </nav>
             </aside>
 
-            <div className="md:col-span-3 space-y-12 pb-20">
-              
+            <div className="md:col-span-3 space-y-12 pb-20 relative min-h-[40vh]">
+              {settingsBoot ? (
+                <PageLoading label="Abrindo configurações…" full />
+              ) : (
+              <>
               {activeTab === 'Conta' && (
                 <div className="space-y-6 max-w-xl">
                   <Card className="border border-border/60 shadow-sm rounded-2xl">
@@ -1356,6 +1368,8 @@ export default function SettingsPage() {
                     </Card>
                   )}
                 </div>
+              )}
+              </>
               )}
             </div>
           </div>
