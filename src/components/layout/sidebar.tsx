@@ -377,7 +377,7 @@ export function SidebarDock() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const pad = pinned ? `${DOCK_H + 12}px` : "14px";
+    const pad = pinned ? `${DOCK_H + 28}px` : "20px";
     root.style.setProperty("--lexis-dock-pad", pad);
     // padding no body + mains full-screen comuns
     const styleId = "lexis-dock-pad-style";

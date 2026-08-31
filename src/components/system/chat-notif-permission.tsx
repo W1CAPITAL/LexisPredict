@@ -1,10 +1,7 @@
 "use client";
 
 /**
- * Pedido de notificação do Chat equipe.
- * - Se o usuário JÁ ativou (localStorage lexis_chat_notif=granted), não pede de novo.
- * - Se negou ou ainda não decidiu, mostra o modal a cada abertura da sessão
- *   (até ativar).
+ * Pedido de notificação do Chat equipe + helpers de notificação.
  */
 
 import React, { useEffect, useState } from "react";
@@ -12,7 +9,7 @@ import { Bell, BellOff, MessagesSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const LS_KEY = "lexis_chat_notif"; // granted | denied | "" 
+const LS_KEY = "lexis_chat_notif";
 
 export function ChatNotifPermission() {
   const [open, setOpen] = useState(false);
@@ -29,16 +26,9 @@ export function ChatNotifPermission() {
       pref = "";
     }
 
-    // Já ativou de propósito → nunca mais pedir
-    if (pref === "granted" && Notification.permission === "granted") {
-      return;
-    }
-
-    // Se o browser já está granted mas o user não marcou no app, ainda pode oferecer silencioso
-    // Regra do produto: pedir toda abertura ATÉ ativar no app
+    if (pref === "granted" && Notification.permission === "granted") return;
     if (pref === "granted") return;
 
-    // Mostra após pequeno delay (não bloqueia first paint)
     const t = window.setTimeout(() => setOpen(true), 900);
     return () => window.clearTimeout(t);
   }, []);
@@ -66,7 +56,6 @@ export function ChatNotifPermission() {
           });
         } catch { /* */ }
       } else {
-        // não grava denied permanente — pede de novo na próxima sessão
         try {
           localStorage.setItem(LS_KEY, "dismissed");
         } catch { /* */ }
@@ -77,23 +66,7 @@ export function ChatNotifPermission() {
     }
   };
 
-  const agoraNao = () => {
-    // só fecha nesta sessão; próxima abertura pede de novo
-    try {
-      sessionStorage.setItem("lexis_chat_notif_session", "1");
-    } catch { /* */ }
-    setOpen(false);
-  };
-
-  useEffect(() => {
-    // se já dispensou nesta sessão, não mostra de novo até reload completo ok,
-    // mas o user pediu "toda vez que abrir o app" = novo load
-    try {
-      if (sessionStorage.getItem("lexis_chat_notif_session") === "1") {
-        // ainda assim se preferência não é granted, em NOVO load sessionStorage limpa
-      }
-    } catch { /* */ }
-  }, []);
+  const agoraNao = () => setOpen(false);
 
   if (!open) return null;
 
@@ -118,57 +91,72 @@ export function ChatNotifPermission() {
               Notificações do Chat equipe
             </h2>
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-              Ative para receber avisos de novas mensagens do chat da equipe, mesmo com a aba em segundo plano.
+              Ative para receber avisos de novas mensagens do chat da equipe em segundo plano.
             </p>
           </div>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground p-1"
-            onClick={agoraNao}
-            aria-label="Fechar"
-          >
+          <button type="button" className="text-muted-foreground hover:text-foreground p-1" onClick={agoraNao} aria-label="Fechar">
             <X size={18} />
           </button>
         </div>
-
         <div className="mt-5 flex flex-col sm:flex-row gap-2">
-          <Button
-            className="flex-1 gap-2 h-11 rounded-xl font-bold"
-            onClick={() => void ativar()}
-            disabled={busy}
-          >
+          <Button className="flex-1 gap-2 h-11 rounded-xl font-bold" onClick={() => void ativar()} disabled={busy}>
             <Bell size={16} />
             {busy ? "Ativando…" : "Ativar notificações"}
           </Button>
-          <Button
-            variant="outline"
-            className="flex-1 gap-2 h-11 rounded-xl"
-            onClick={agoraNao}
-            disabled={busy}
-          >
+          <Button variant="outline" className="flex-1 gap-2 h-11 rounded-xl" onClick={agoraNao} disabled={busy}>
             <BellOff size={16} />
             Agora não
           </Button>
         </div>
         <p className="text-[11px] text-muted-foreground mt-3">
-          Depois de ativar, este pedido não aparece mais. Você pode revogar a permissão nas configurações do navegador.
+          Depois de ativar, este pedido não aparece mais. Revogue nas configurações do navegador se quiser.
         </p>
       </div>
     </div>
   );
 }
 
-/** Helper para páginas do chat dispararem notificação se permitido. */
-export function notifyChatMessage(title: string, body: string) {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
+/**
+ * Dispara notificação do sistema (segundo plano) e evento in-app.
+ * Não depende só de visibility — se o browser permitir, notifica sempre
+ * (exceto mensagem própria, filtrada no caller).
+ */
+export function notifyChatMessage(
+  title: string,
+  body: string,
+  opts?: { forceOs?: boolean; silentInApp?: boolean }
+) {
+  if (typeof window === "undefined") return;
+
+  const text = String(body || "Nova mensagem").slice(0, 160);
+  const ttl = title || "Chat equipe";
+
+  // Evento in-app (toast / badge) — sempre que a aba estiver visível
   try {
-    if (localStorage.getItem(LS_KEY) !== "granted") return;
+    if (!opts?.silentInApp) {
+      window.dispatchEvent(
+        new CustomEvent("lexis-chat-notify", {
+          detail: { title: ttl, body: text, at: Date.now() },
+        })
+      );
+    }
+  } catch { /* */ }
+
+  try {
+    if (!("Notification" in window)) return;
+    const pref = localStorage.getItem(LS_KEY);
+    if (pref !== "granted") return;
     if (Notification.permission !== "granted") return;
-    if (document.visibilityState === "visible") return; // só em background
-    new Notification(title || "Chat equipe", {
-      body: body || "Nova mensagem",
+
+    // OS notification: em background sempre; em foreground só se forceOs
+    const hidden = document.visibilityState !== "visible";
+    if (!hidden && !opts?.forceOs) return;
+
+    new Notification(ttl, {
+      body: text,
       icon: "/logo.png",
       tag: "lexis-chat-msg",
+      renotify: true,
     });
   } catch {
     /* */

@@ -58,6 +58,14 @@ const LaunchAnnounceModal = dynamic(
   { ssr: false }
 );
 
+const ChatRealtimeNotify = dynamic(
+  () =>
+    import("@/components/system/chat-realtime-notify").then(
+      (m) => m.ChatRealtimeNotify
+    ),
+  { ssr: false }
+);
+
 const ChatNotifPermission = dynamic(
   () =>
     import("@/components/system/chat-notif-permission").then(
@@ -119,6 +127,7 @@ export function ClientChrome() {
       <PacmanTrollOverlay />
       <LexisCommandPalette />
       <ChatNotifPermission />
+      <ChatRealtimeNotify />
     </>
   );
 }

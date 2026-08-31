@@ -354,7 +354,10 @@ export default function MensagensPage() {
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
-      <main className="flex-1 min-w-0 flex min-h-0 overflow-hidden">
+      <main
+        className="flex-1 min-w-0 flex min-h-0 overflow-hidden lexis-main-pad"
+        style={{ paddingBottom: "var(--lexis-dock-pad, 0px)" }}
+      >
         <aside className="w-[280px] shrink-0 border-r border-border flex flex-col bg-card/40">
           <div className="p-3 border-b flex items-start justify-between gap-2">
             <div>
@@ -545,7 +548,7 @@ export default function MensagensPage() {
             </div>
           ) : null}
 
-          <footer className="border-t p-3 flex items-center gap-2 shrink-0 bg-background z-20">
+          <footer className="border-t p-3 pb-4 flex items-center gap-2 shrink-0 bg-background/95 backdrop-blur-sm z-30 sticky bottom-0">
             <input
               ref={fileRef}
               type="file"
