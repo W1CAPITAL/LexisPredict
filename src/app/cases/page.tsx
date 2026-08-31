@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/case-logic'
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
-import { CaseBadges } from '@/components/cases/case-badges';
+import { CaseBadges } from '@/components/cases/case-badges'
+import { CaseGlassList } from '@/components/cases/case-glass-list';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { CaseResumoChip } from '@/components/cases/case-resumo-chip'
 import { isAtendidoNestaSemana, isAtendidoHoje, hojeBrasilYmd } from '@/lib/atendimento-semana';
@@ -247,8 +248,8 @@ function CasesContent() {
   const [selectedProtos, setSelectedProtos] = useState<Set<string>>(new Set());
   const [bulkOwnerId, setBulkOwnerId] = useState<string>('');
   const [bulkTransferring, setBulkTransferring] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(80);
-  const PAGE_SIZE = 80;
+  const [visibleCount, setVisibleCount] = useState(24);
+  const PAGE_SIZE = 24;
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyResult, setHistoryResult] = useState<{ case: LegalCase, movimentos: any[], djenComunicacoes?: any[] } | null>(null);
   const [suggestedScripts, setSuggestedScripts] = useState<ScriptSuggestion[]>([]);
@@ -1070,28 +1071,20 @@ function CasesContent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className={cn("flex-1", ui.tableWrap)}>
-              <table className="w-full text-left border-collapse min-w-[1100px]">
-                <thead className="sticky top-0 bg-white z-20 border-b border-border">
-                  <tr className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">
-                    <th className="px-4 py-5 w-10"></th>
-                    <th className="px-8 py-5">Identificação</th>
-                    <th className="px-8 py-5">Tribunal</th>
-                    <th className="px-8 py-5">Advogado</th>
-                    <th className="px-8 py-5">Status / Prazo</th>
-                    <th className="px-8 py-5">Último Retorno</th>
-                    <th className="px-8 py-5 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/20">
-                  {visibleItems.map((c) => (
-                    <CaseRow
-                      selectable={canAssignOwner}
-                      selected={selectedProtos.has(String(c.protocolo || ""))}
-                      onToggleSelect={toggleSelectProto} key={c.id} c={c} isOperador={isOperador} onLogReturn={handleLogReturn} onEdit={handleEdit} onDelete={handleDelete} onScan={handleSingleScan} onSuggest={handleSuggestClick} onDossie={handleDossieProcesso} />
-                  ))}
-                </tbody>
-              </table>
+            <div className={cn("flex-1 overflow-y-auto min-h-0 px-2 pb-2")}>
+              <CaseGlassList
+                items={visibleItems}
+                isOperador={isOperador}
+                selectable={canAssignOwner}
+                selected={selectedProtos}
+                onToggleSelect={toggleSelectProto}
+                onLogReturn={handleLogReturn}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onScan={handleSingleScan}
+                onSuggest={handleSuggestClick}
+                onDossie={handleDossieProcesso}
+              />
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 py-4 px-4 border-t border-border/30 bg-card/40">
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                   Mostrando{' '}

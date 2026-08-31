@@ -383,3 +383,26 @@ export async function apagarGrupoChatAction(threadId: string) {
   if (error) return { success: false, message: error.message };
   return { success: true };
 }
+
+
+export async function apagarMensagemChatAction(messageId: string) {
+  const ctx = await ctxOk();
+  if (!ctx?.auth_id || !messageId) return { success: false, message: "Sessão" };
+  const admin = await getSupabaseAdmin();
+  const { data: msg } = await admin
+    .from("chat_messages")
+    .select("id, auth_user_id, empresa_id, thread_id")
+    .eq("id", messageId)
+    .eq("empresa_id", ctx.empresa_id)
+    .maybeSingle();
+  if (!msg) return { success: false, message: "Mensagem não encontrada" };
+  const isOwn = String(msg.auth_user_id) === String(ctx.auth_id);
+  const isAdm =
+    !!(ctx as any).isAdministrador ||
+    !!(ctx as any).isSupervisor ||
+    !!(ctx as any).isSuperAdmin;
+  if (!isOwn && !isAdm) return { success: false, message: "Só o autor ou admin pode apagar" };
+  const { error } = await admin.from("chat_messages").delete().eq("id", messageId);
+  if (error) return { success: false, message: error.message };
+  return { success: true };
+}

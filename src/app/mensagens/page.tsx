@@ -46,6 +46,7 @@ import {
   listarMembrosGrupoAction,
   removerMembroGrupoAction,
   apagarGrupoChatAction,
+  apagarMensagemChatAction,
   ocultarMembroListaAction,
   listarOcultosListaAction,
 } from "@/app/actions/chat-empresa-actions";
@@ -486,7 +487,7 @@ export default function MensagensPage() {
                   <div
                     key={m.id}
                     className={cn(
-                      "max-w-[75%] rounded-2xl px-3.5 py-2.5 text-[13px] shadow-sm transition-all duration-200",
+                      "group max-w-[75%] rounded-2xl px-3.5 py-2.5 text-[13px] shadow-sm transition-all duration-200",
                       mine
                         ? "ml-auto bg-primary text-primary-foreground"
                         : "bg-muted/80"
@@ -499,14 +500,29 @@ export default function MensagensPage() {
                     )}
                     {m.body ? <p className="whitespace-pre-wrap break-words">{m.body}</p> : null}
                     <BubbleMedia msg={m} />
-                    <p className={cn("text-[9px] mt-1 opacity-60", mine && "text-right")}>
-                      {new Date(m.created_at).toLocaleString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        day: "2-digit",
-                        month: "2-digit",
-                      })}
-                    </p>
+                    <div className={cn("flex items-center gap-2 mt-1", mine ? "justify-end" : "justify-start")}>
+                      <p className="text-[9px] opacity-60">
+                        {new Date(m.created_at).toLocaleString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </p>
+                      <button
+                        type="button"
+                        title="Apagar mensagem"
+                        className="text-[9px] font-bold uppercase opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                        onClick={async () => {
+                          if (!confirm("Apagar esta mensagem?")) return;
+                          const r = await apagarMensagemChatAction(m.id);
+                          if (!r.success) setErr(r.message || "Falha");
+                          else if (threadId) await loadThread(threadId);
+                        }}
+                      >
+                        Apagar
+                      </button>
+                    </div>
                   </div>
                 );
               })

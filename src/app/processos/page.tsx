@@ -1,3 +1,4 @@
+import { CaseGlassList } from '@/components/cases/case-glass-list';
 "use client";
 
 /**
@@ -172,12 +173,12 @@ export default function ProcessosEmpresaPage() {
     proximoRetorno: "",
     filaLista: "normal" as FilaLista,
   });
-  const [visibleCount, setVisibleCount] = useState(80);
+  const [visibleCount, setVisibleCount] = useState(24);
   const [listOffset, setListOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [onlyAtivosList, setOnlyAtivosList] = useState(true);
   const [hasServerMore, setHasServerMore] = useState(true);
-  const PAGE_SIZE = 80;
+  const PAGE_SIZE = 24;
 
   const load = async () => {
     setLoading(true);
@@ -826,152 +827,15 @@ export default function ProcessosEmpresaPage() {
                   <p className="text-[10px] font-black uppercase tracking-widest">{searching ? "Buscando na empresa…" : "Nenhum processo encontrado"}.</p>
                 </div>
               ) : (
-                <div className="max-h-[min(70vh,640px)] min-h-[200px] overflow-y-auto overflow-x-auto overscroll-contain border border-border/40 rounded-xl">
-                  <>
-                    <table className="w-full text-left min-w-[980px]">
-                      <thead className="bg-secondary/40 dark:bg-card/60 border-b border-border/20 sticky top-0">
-                        <tr className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest">
-                          <th className="px-6 py-3">Cliente / Protocolo</th>
-                          <th className="px-4 py-3">Advogado</th>
-                          <th className="px-4 py-3">Status</th>
-                          <th className="px-4 py-3">Tribunal</th>
-                          <th className="px-4 py-3 text-center">B.A.</th>
-                          <th className="px-4 py-3 text-right">Último retorno</th>
-                          <th className="px-4 py-3 text-center">Semana</th>
-                          <th className="px-4 py-3">Criado por</th>
-                          <th className="px-4 py-3">Última atividade</th>
-                          <th className="px-6 py-3 text-center">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/10">
-                        {visibleItems.map((c) => {
-                        const last = lastByProtocolo.get(c.protocolo);
-                        const meta = last ? ACTION_META[last.action || ""] : null;
-                        return (
-                          <tr key={c.id || c.protocolo} className="hover:bg-secondary/10 transition-colors group">
-                            <td className="px-6 py-3">
-                              <Link href={`/cases?search=${encodeURIComponent(c.protocolo)}`} className="hover:text-primary transition-colors">
-                                <p className="text-[12px] font-semibold uppercase leading-tight text-foreground">{c.cliente}</p>
-                                <div className="mt-1"><ProtocoloChip protocolo={c.protocolo} size="md" /></div>
-                                <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{linhaDonoPasso(c)}</p>
-                                {(c.tem_atualizacao_pos_retorno || c.tem_novo_andamento || (c as any).djen_nova_comunicacao) ? (
-                                  <div className="mt-1.5 max-w-sm"><AndamentoLeigoBlock caseData={c} /></div>
-                                ) : null}
-                              </Link>
-                            </td>
-                            <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.advogado}</td>
-                            <td className="px-4 py-3">
-                              <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-2 py-0 border", statusTone(c.status))}>
-                                {c.status}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-[10px] font-bold uppercase">{c.tribunal}</td>
-                            <td className="px-4 py-3 text-center">
-                              {isBuscaApreensaoReal(c) ? (
-                                <Badge className="h-5 px-2 rounded-md bg-red-600 text-white font-black uppercase text-[8px] animate-pulse">
-                                  <ShieldAlert size={10} className="mr-1" /> B.A.{(c as any).ba_tipo ? ` ${(c as any).ba_tipo}` : ""}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground/30 text-[10px] font-black">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right text-[11px] font-bold tabular-nums">{c.ultimoRetorno || "—"}</td>
-                            <td className="px-4 py-3 text-center">
-                              <CheckCircle2
-                                size={15}
-                                className={cn(
-                                  "mx-auto",
-                                  c.ultimoRetorno && new Date(`${c.ultimoRetorno.split("/").reverse().join("-")}`).getTime() >= Date.now() - 7 * 864e5 ? "text-emerald-500" : "text-muted-foreground/25"
-                                )}
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-[10px] font-bold uppercase">{(() => {
-                              const nm = nomeByAuth.get(String(c.created_by || "").toLowerCase()) || nomeByAuth.get(String((c as any).atendido_por || "").toLowerCase()) || "";
-                              const av = avatarByAuth.get(String(c.created_by || "").toLowerCase());
-                              if (!nm) return "—";
-                              return (
-                                <span className="inline-flex items-center gap-2 justify-start">
-                                  <UserAvatar name={nm} src={av} size="sm" />
-                                  <span className="truncate max-w-[120px]">{nm}</span>
-                                </span>
-                              );
-                            })()}</td>
-                            <td className="px-6 py-3">
-                              {meta && last ? (
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-2 py-0 border gap-1", meta.tone)}>
-                                    {meta.icon} {meta.label}
-                                  </Badge>
-                                  <span className="text-[9px] font-bold uppercase text-muted-foreground/70 truncate max-w-[150px]">
-                                    {last.user_nome} · {fmtTime(last.created_at)}
-                                  </span>
-                                </div>
-                              ) : (c as any).atendido_por ? (
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border gap-1 bg-emerald-500/15 text-emerald-600 border-emerald-500/25">
-                                    Atendeu
-                                  </Badge>
-                                  <span className="text-[9px] font-bold uppercase text-muted-foreground/70 truncate max-w-[150px]">
-                                    {nomeByAuth.get(String((c as any).atendido_por).toLowerCase()) || "operador"}
-                                    {(c as any).ultimoRetorno ? ` · ${String((c as any).ultimoRetorno).slice(5,10)}` : ""}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-[9px] text-muted-foreground/40 uppercase font-bold">—</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <Link
-                                  href={`/whatsapp?protocolo=${encodeURIComponent(c.protocolo || "")}&cliente=${encodeURIComponent(c.cliente || "")}&tel=${encodeURIComponent(c.telefone || "")}`}
-                                  className="h-8 w-8 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center justify-center transition-colors"
-                                  title="Terminal WhatsApp"
-                                >
-                                  <MessageCircle size={13} />
-                                </Link>
-                                <button
-                                  onClick={() => openAttendance(c)}
-                                  className="h-8 w-8 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center justify-center transition-colors"
-                                  title="Registrar atendimento"
-                                >
-                                  <UserCheck size={13} />
-                                </button>
-                                {!isCasoEncerrado(c) ? (
-                                  <button
-                                    onClick={() => handleEncerrar(c)}
-                                    disabled={saving}
-                                    className="h-8 w-8 rounded-lg border border-border/60 bg-card/60 hover:bg-card hover:text-emerald-600 inline-flex items-center justify-center transition-colors"
-                                    title="Marcar como encerrado"
-                                  >
-                                    <CheckCircle2 size={13} />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleReabrir(c)}
-                                    disabled={saving}
-                                    className="h-8 w-8 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center justify-center transition-colors"
-                                    title="Reabrir processo (volta à carteira ativa)"
-                                  >
-                                    <RefreshCcw size={13} />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setEditing(c);
-                                    setEditOpen(true);
-                                  }}
-                                  className="h-8 w-8 rounded-lg border border-border/60 bg-card/60 hover:bg-card hover:text-primary inline-flex items-center justify-center transition-colors"
-                                  title="Editar processo"
-                                >
-                                  <Pencil size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="max-h-[min(75vh,720px)] min-h-[200px] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-background/30 backdrop-blur-md p-2">
+                  <CaseGlassList
+                    items={visibleItems as any}
+                    onEdit={(c) => {
+                      setEditing(c as any);
+                      setEditOpen(true);
+                    }}
+                    onLogReturn={(c) => openAttendance(c as any)}
+                  />
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 pb-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       Mostrando{" "}
