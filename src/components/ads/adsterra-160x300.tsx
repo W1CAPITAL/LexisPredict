@@ -3,16 +3,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { ADSTERRA, AD_PATH_BLOCK } from "@/lib/adsterra";
+import { useAdsVisible } from "@/components/ads/use-ads-visible";
 
 const DISMISS = "lexis_ad_160_until";
 const LOADED = "lexis_ad_160_loaded";
 
 export function Adsterra160x300() {
+  const { visible: allowed } = useAdsVisible();
   const host = useRef<HTMLDivElement>(null);
   const [show, setShow] = useState(false);
 
   useEffect(() => {
     try {
+      if (!allowed) return;
       if (typeof window === "undefined") return;
       if (AD_PATH_BLOCK.some((p) => window.location.pathname.startsWith(p))) return;
       const until = Number(localStorage.getItem(DISMISS) || 0);
@@ -21,7 +24,7 @@ export function Adsterra160x300() {
     } catch {
       /* */
     }
-  }, []);
+  }, [allowed]);
 
   useEffect(() => {
     if (!show || !host.current) return;
@@ -40,7 +43,7 @@ export function Adsterra160x300() {
     host.current.appendChild(s);
   }, [show]);
 
-  if (!show) return null;
+  if (!allowed || !show) return null;
 
   return (
     <div className="relative mx-auto w-[160px] shrink-0 my-1">

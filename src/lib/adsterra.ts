@@ -1,7 +1,3 @@
-/**
- * Unidades Adsterra (LexisPredict).
- * 1 impressão por sessão — não remonta no SPA (tráfego inválido).
- */
 export const ADSTERRA = {
   banner160: {
     key: "2beb2c0989ff9de99258cc440b9afd19",

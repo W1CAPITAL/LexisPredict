@@ -2,9 +2,11 @@
 
 import React from "react";
 import { ADSTERRA } from "@/lib/adsterra";
+import { useAdsVisible } from "@/components/ads/use-ads-visible";
 
-/** Smartlink só como texto — NUNCA redirect automático (tráfego inválido). */
 export function AdsterraSmartlink({ className }: { className?: string }) {
+  const { visible } = useAdsVisible();
+  if (!visible) return null;
   return (
     <a
       href={ADSTERRA.smartlink}
