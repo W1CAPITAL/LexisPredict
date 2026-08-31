@@ -1,11 +1,15 @@
 "use client";
 
 /**
- * Sidebar LexisPredict — menu com ícones distintos, grupos claros e busca.
+ * Dock horizontal LexisPredict — barra inferior estilo Windows.
+ * - Fixo por padrão (pinned)
+ * - Botão pin: auto-ocultar (sobe ao passar o mouse na borda inferior)
+ * - Fundo semitransparente + blur
+ * - Hover: ícone sobe + nome da página
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -36,26 +40,24 @@ import {
   PlayCircle,
   LogOut,
   Menu,
-  ChevronLeft,
-  ChevronRight,
   Layers,
-  HelpCircle,
   Search,
   Zap,
   Calculator,
   Crown,
+  Pin,
+  PinOff,
+  ChevronUp,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 import { flattenNavItems, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
 import { PRODUCT } from "@/lib/product-identity";
 import { Button } from "@/components/ui/button";
-import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
 import { usePlano } from "@/hooks/use-plano";
-import { planTemScanner } from "@/lib/planos-pacotes";
-import { filterNavByPlan } from "@/lib/planos-pacotes";
+import { planTemScanner, filterNavByPlan } from "@/lib/planos-pacotes";
 import {
   Sheet,
   SheetContent,
@@ -64,14 +66,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { getTranslation, Locale } from "@/lib/i18n";
-import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
+import { getTranslation, type Locale } from "@/lib/i18n";
 import { useAppStore } from "@/store/use-app-store";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { InstallAppButton } from "@/components/mobile/InstallAppButton";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { SystemNotesPanel } from "@/components/layout/system-notes-panel";
 
 function SafeIcon({
   icon: Icon,
@@ -83,7 +82,7 @@ function SafeIcon({
   size?: number;
 }) {
   if (!Icon) return null;
-  return <Icon className={className} strokeWidth={1.85} size={size} aria-hidden />;
+  return <Icon className={className} strokeWidth={1.75} size={size} aria-hidden />;
 }
 
 type NavItem = {
@@ -93,130 +92,67 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-type NavGroup = {
-  title: string;
-  items: NavItem[];
-};
+const DOCK_H = 58;
+const LS_PIN = "lexis_dock_pinned"; // "1" = fixo (padrão), "0" = auto-ocultar
 
-function SidebarNavBody({
-  collapsed,
-  pathname,
-  locale,
-  isAdmin,
-  isSuperAdmin,
-  profile,
-  status,
-  canScan = true,
-  plan = "maximo",
-  onToggleMinimize,
-  onStartTour,
-  onLogout,
-  onToggleCollapsed,
-  showCollapseBtn,
-}: {
-  collapsed: boolean;
-  pathname: string;
-  locale: Locale;
+function useNavItems(opts: {
   isAdmin: boolean;
   isSuperAdmin?: boolean;
+  plan: import("@/lib/planos-pacotes").PlanId;
   profile: any;
-  status: string;
-  canScan?: boolean;
-  plan?: import("@/lib/planos-pacotes").PlanId;
-  onToggleMinimize: () => void;
-  onStartTour: () => void;
-  onLogout: () => void;
-  onToggleCollapsed: () => void;
-  showCollapseBtn: boolean;
+  showMore: boolean;
+  query: string;
 }) {
-  const t = getTranslation(locale);
-  const navScrollRef = useRef<HTMLDivElement>(null);
-  const scrollTopRef = useRef(0);
-  const [navQuery, setNavQuery] = useState("")
-  const [showMoreTools, setShowMoreTools] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("lexis_sidebar_more_tools") === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleMoreTools = useCallback(() => {
-    setShowMoreTools((v) => {
-      const next = !v;
-      try {
-        if (next) window.localStorage.setItem("lexis_sidebar_more_tools", "1");
-        else window.localStorage.removeItem("lexis_sidebar_more_tools");
-      } catch { /* */ }
-      return next;
-    });
-  }, []);
+  const { isAdmin, isSuperAdmin, plan, profile, showMore, query } = opts;
   const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences());
+
   useEffect(() => {
-    const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
+    const uid = profile?.auth_user_id || profile?.id || null;
     setNavPrefs(loadNavPreferences(uid));
     const onPrefs = () => setNavPrefs(loadNavPreferences(uid));
-    window.addEventListener('lexis-nav-prefs', onPrefs);
-    return () => window.removeEventListener('lexis-nav-prefs', onPrefs);
+    window.addEventListener("lexis-nav-prefs", onPrefs);
+    return () => window.removeEventListener("lexis-nav-prefs", onPrefs);
   }, [profile]);
 
-  const onNavScroll = useCallback(() => {
-    if (navScrollRef.current) scrollTopRef.current = navScrollRef.current.scrollTop;
-  }, []);
-
-  useEffect(() => {
-    const el = navScrollRef.current;
-    if (!el) return;
-    const id = requestAnimationFrame(() => {
-      el.scrollTop = scrollTopRef.current;
-    });
-    return () => cancelAnimationFrame(id);
-  }, [pathname]);
-
-  const navItems: NavItem[] = useMemo(() => {
+  return useMemo(() => {
     const primary: NavItem[] = [
-      { label: "Painel da carteira", href: "/", icon: LayoutDashboard },
-      { label: "Chat da equipe", href: "/mensagens", icon: MessagesSquare },
-      { label: "Encerrados a revisar", href: "/encerrados-revisao", icon: ShieldAlert },
-      { label: "Fila de atendimento", href: "/tarefas", icon: ListTodo },
-      { label: "Processos parados", href: "/processos-parados", icon: PauseCircle },
+      { label: "Painel", href: "/", icon: LayoutDashboard },
+      { label: "Chat equipe", href: "/mensagens", icon: MessagesSquare },
+      { label: "Encerrados", href: "/encerrados-revisao", icon: ShieldAlert },
+      { label: "Fila", href: "/tarefas", icon: ListTodo },
+      { label: "Parados", href: "/processos-parados", icon: PauseCircle },
       { label: "Meus processos", href: "/cases", icon: Briefcase },
-      { label: "Processos da empresa", href: "/processos", icon: FolderOpen },
+      { label: "Empresa", href: "/processos", icon: FolderOpen },
       { label: "Importar", href: "/import", icon: Upload },
       { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList },
     ];
-
     const secondary: NavItem[] = [
       { label: "Agenda", href: "/agenda", icon: CalendarDays },
-      { label: "Ações Procedentes", href: "/cumprimentos-procedentes", icon: Scale },
-      { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
-      { label: "Radar predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
+      { label: "Procedentes", href: "/cumprimentos-procedentes", icon: Scale },
+      { label: "Busca/apreensão", href: "/busca-apreensao", icon: Gavel },
+      { label: "Predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
-      { label: "Assessoria (comercial)", href: "/crm", icon: Kanban },
-      { label: "Follow-ups comerciais", href: "/crm/followups", icon: ListTodo },
+      { label: "CRM", href: "/crm", icon: Kanban },
+      { label: "Follow-ups", href: "/crm/followups", icon: ListTodo },
       { label: "Agentes CRM", href: "/crm/agentes", icon: Bot },
-      { label: "Offline (soon)", href: "/offline", icon: Monitor },
+      { label: "Offline", href: "/offline", icon: Monitor },
       { label: "Finanças", href: "/financas", icon: Wallet },
-      { label: "Cálculos judiciais", href: "/calculos", icon: Calculator },
-      // Peças/modelos (procuração, substabelecimento, habilitação, revogação, modelos)
-      // ficam só na Central de Documentos — evita menu duplicado.
-      { label: "Central de documentos", href: "/documents", icon: FileText },
+      { label: "Cálculos", href: "/calculos", icon: Calculator },
+      { label: "Documentos", href: "/documents", icon: FileText },
       { label: "Veredito", href: "/veredito", icon: Scale },
       { label: "Assistente", href: "/chat", icon: Bot },
       { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
       { label: "Indicadores", href: "/analytics", icon: BarChart3 },
-      { label: "Insights da carteira", href: "/insights", icon: BrainCircuit },
+      { label: "Insights", href: "/insights", icon: BrainCircuit },
       { label: "Urgências", href: "/urgency", icon: ShieldAlert },
     ];
-
     const rest: NavItem[] = [];
     if (isAdmin) {
       rest.push(
         { label: "Supervisão", href: "/supervisao", icon: ShieldCheck },
         { label: "Equipe", href: "/team", icon: Users },
-        { label: "Auditoria", href: "/auditoria", icon: ShieldCheck },
+        { label: "Auditoria", href: "/auditoria", icon: ShieldCheck }
       );
       if (isSuperAdmin) {
         rest.push({ label: "Segurança", href: "/security", icon: ShieldAlert });
@@ -226,322 +162,410 @@ function SidebarNavBody({
     rest.push(
       { label: "Treinamento", href: "/onboarding", icon: PlayCircle },
       { label: "Notas", href: "/notes", icon: StickyNote },
-      { label: "Configurações", href: "/settings", icon: Settings },
+      { label: "Config", href: "/settings", icon: Settings }
     );
 
-    let items = flattenNavItems(primary, secondary, rest, navPrefs, showMoreTools);
+    let items = flattenNavItems(primary, secondary, rest, navPrefs, showMore);
     items = filterNavByPlan(items, isSuperAdmin ? "maximo" : plan);
-
-    const q = navQuery.trim().toLowerCase();
+    const q = query.trim().toLowerCase();
     if (q) {
       items = items.filter(
-        (it) =>
-          it.label.toLowerCase().includes(q) ||
-          it.href.toLowerCase().includes(q)
+        (it) => it.label.toLowerCase().includes(q) || it.href.toLowerCase().includes(q)
       );
     }
     return items;
-  }, [isAdmin, isSuperAdmin, navQuery, showMoreTools, navPrefs, plan]);
+  }, [isAdmin, isSuperAdmin, plan, navPrefs, showMore, query]);
+}
 
-
+function DockItem({
+  item,
+  active,
+}: {
+  item: NavItem;
+  active: boolean;
+}) {
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      {/* Brand */}
-      <div className="h-[4.25rem] shrink-0 flex items-center px-3 border-b border-sidebar-border/80">
-        <div className="flex items-center gap-2.5 min-w-0 w-full">
-          <div className="w-9 h-9 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/20 transition-transform duration-200 hover:scale-110">
-            <SafeIcon icon={Layers} size={18} />
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col min-w-0">
-              <span className="font-bold text-[13px] tracking-tight text-sidebar-foreground leading-none truncate">
-                LexisPredict
-              </span>
-              <span className="text-[10px] text-primary font-semibold mt-1">
-                {PRODUCT.tagline}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Scan shortcut */}
-      <div className="px-3 pt-3 shrink-0">
-        <LiquidMetalButton
-          onClick={onToggleMinimize}
-          preset="chromatic"
-          mode="liquid"
-          className={cn("w-full justify-center gap-2", collapsed && "px-0")}
-        >
-          <SafeIcon icon={Zap} size={16} />
-          {!collapsed && (
-            <span className="text-[11px] font-bold uppercase tracking-wide">
-              {!canScan ? "Scanner indisponível (plano/bloqueio)" : status === "running" ? "Scanner ativo" : "Scanner tribunal"}
-            </span>
-          )}
-        </LiquidMetalButton>
-      </div>
-
-      <SystemNotesPanel collapsed={collapsed} />
-
-      {/* Nav */}
-      <div
-        ref={navScrollRef}
-        onScroll={onNavScroll}
-        className="flex-1 min-h-0 py-3 px-2 space-y-4 overflow-y-auto overscroll-y-contain"
-        style={{ overflowAnchor: "none", WebkitOverflowScrolling: "touch" }}
-      >
-        {!collapsed && (
-          <div className="px-1">
-            <div className="relative">
-              <SafeIcon
-                icon={Search}
-                size={14}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sidebar-foreground/40 pointer-events-none"
-              />
-              <input
-                type="search"
-                value={navQuery}
-                onChange={(e) => setNavQuery(e.target.value)}
-                placeholder="Buscar no menu…"
-                className="w-full h-9 rounded-lg border border-sidebar-border bg-sidebar-accent/40 pl-8 pr-3 text-[11px] font-medium text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200"
-                aria-label="Buscar no menu"
-              />
-            </div>
-          </div>
-        )}
-
-        
-      {/* Modo operador: núcleo sempre; demais rotas sob demanda */}
-      {!navQuery.trim() && (
-        <button
-          type="button"
-          onClick={toggleMoreTools}
-          className={cn(
-            "mx-2 mb-2 rounded-lg border border-border/60 px-2 py-1.5 text-[10px] font-black uppercase tracking-wide",
-            "text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200 hover:shadow-sm",
-            collapsed && "mx-1 px-1"
-          )}
-        >
-          {collapsed ? (showMoreTools ? "−" : "+") : showMoreTools ? "Recolher ferramentas" : "Mais ferramentas"}
-        </button>
+    <Link
+      href={item.href}
+      title={item.label}
+      className={cn(
+        "group relative flex flex-col items-center justify-end",
+        "h-12 min-w-[52px] px-1.5 rounded-xl",
+        "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        "hover:-translate-y-2 focus-visible:-translate-y-2",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       )}
-
-{navItems.map((item) => {
-              const active =
-                pathname === item.href ||
-                (item.href !== "/" && pathname.startsWith(item.href));
-              return (
-                <Link
-                  key={item.href + item.label}
-                  href={item.href}
-                  title={item.label}
-                  className={cn(
-                    "group flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md hover:translate-x-0.5",
-                    active
-                      ? "bg-primary/15 text-primary"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 group-hover:scale-105",
-                      active
-                        ? "border-primary/30 bg-primary/10 text-primary"
-                        : "border-sidebar-border/80 bg-sidebar-accent/30 text-sidebar-foreground/70 group-hover:text-sidebar-foreground"
-                    )}
-                  >
-                    <SafeIcon icon={item.icon} size={16} />
-                  </span>
-                  {!collapsed && (
-                    <span className="min-w-0 flex-1 text-[12px] font-semibold leading-tight tracking-tight">
-                      {item.label}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-
-        {!collapsed && navItems.length === 0 && (
-          <p className="px-3 text-xs text-sidebar-foreground/50">Nenhum item para “{navQuery}”.</p>
+    >
+      {/* tooltip / nome que sobe no hover */}
+      <span
+        className={cn(
+          "pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 z-10",
+          "whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide",
+          "bg-foreground/90 text-background shadow-lg",
+          "opacity-0 translate-y-2 scale-95",
+          "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100",
+          "group-focus-visible:opacity-100 group-focus-visible:translate-y-0"
         )}
+      >
+        {item.label}
+      </span>
 
-        <div className="px-1 pt-1">
-          <button
-            type="button"
-            onClick={onStartTour}
-            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl text-sidebar-foreground/65 hover:bg-primary/10 hover:text-primary transition-all duration-200 hover:shadow-sm"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-sidebar-border/80">
-              <SafeIcon icon={HelpCircle} size={16} />
-            </span>
-            {!collapsed && (
-              <span className="text-[12px] font-semibold">Guia rápido</span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Footer */}
-<div className="p-3 border-t border-sidebar-border space-y-3 shrink-0 overflow-visible">
-        {!collapsed && <InstallAppButton />}
-        {!collapsed && (
-          <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sidebar-accent/50 border border-sidebar-border min-w-0 transition-all duration-200 hover:bg-sidebar-accent/80 hover:border-primary/20">
-            <Avatar className="w-9 h-9 border-2 border-primary/20 shrink-0 shadow-sm transition-transform duration-200 hover:scale-110 hover:border-primary/40">
-              <AvatarImage src={profile?.avatar_url || ""} />
-              <AvatarFallback className="bg-primary text-primary-foreground font-bold text-xs">
-                {profile?.nome?.substring(0, 2).toUpperCase() || "??"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[11px] font-bold truncate text-sidebar-foreground">
-                {profile?.nome || "Usuário"}
-              </span>
-              <span className="text-[9px] text-sidebar-foreground/50 font-semibold truncate">
-                {profile?.cargo || "Operador"}
-              </span>
-            </div>
-          </div>
+      <span
+        className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-xl",
+          "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "group-hover:scale-110 group-hover:shadow-md group-hover:shadow-primary/25",
+          active
+            ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+            : "bg-white/10 text-foreground/90 group-hover:bg-white/20 dark:bg-white/5"
         )}
-        <div className={cn("flex gap-2", collapsed ? "flex-col items-center" : "items-center justify-between")}>
-          <div className={cn("flex items-center gap-1", collapsed && "flex-col")}>
-            <button
-              type="button"
-              onClick={onLogout}
-              title={t.logout}
-              className="h-9 w-9 text-sidebar-foreground/80 hover:text-destructive hover:bg-destructive/10 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110"
-            >
-              <SafeIcon icon={LogOut} size={16} />
-            </button>
-            <ThemeToggle />
-          </div>
-          {showCollapseBtn && (
-            <button
-              type="button"
-              onClick={onToggleCollapsed}
-              className={cn(
-                "hidden md:flex items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent/50",
-                "text-sidebar-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-200 hover:shadow-md hover:shadow-primary/20",
-                "shrink-0 z-10",
-                collapsed ? "h-10 w-10 mx-auto" : "h-9 w-9"
-              )}
-              title={collapsed ? "Expandir menu" : "Recolher menu"}
-              aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-            >
-              <SafeIcon icon={collapsed ? ChevronRight : ChevronLeft} size={collapsed ? 20 : 18} />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+      >
+        <SafeIcon icon={item.icon} size={18} />
+      </span>
+
+      {/* indicador ativo estilo Windows */}
+      <span
+        className={cn(
+          "mt-0.5 h-[3px] rounded-full transition-all duration-300",
+          active ? "w-4 bg-primary" : "w-0 bg-transparent group-hover:w-2 group-hover:bg-foreground/30"
+        )}
+      />
+    </Link>
   );
 }
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("lexis_sidebar_collapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [locale, setLocale] = useState<Locale>("pt");
   const { profile, signOut } = useAuth();
-  const { setDarkMode, isDarkMode, setTutorialActive } = useAppStore();
+  const { setTutorialActive } = useAppStore();
   const { status, toggleMinimize } = useDataJudScanStore();
-  const { canScan, isViewer } = useAdmin();
-  const { plan, canHref, isLocked } = usePlano();
-  const isSuperAdmin = checkIfSuperAdmin(profile);
-  const isSupervisor = checkIfSupervisor(profile);
-  const isAdmin =
-    profile?.cargo === "Administrador" || isSuperAdmin || isSupervisor;
-  const canScanEffective = canScan && !isLocked && (isSuperAdmin || planTemScanner(plan));
+  const { canScan, isAdmin, isSuperAdmin } = useAdmin();
+  const { plan } = usePlano();
+  const [locale, setLocale] = useState<Locale>("pt");
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // pin = fixo (padrão). !pin = auto-ocultar como taskbar Windows
+  const [pinned, setPinned] = useState(true);
+  const [revealed, setRevealed] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const savedLocale = localStorage.getItem("lexisPredict_locale") as Locale;
-    if (savedLocale) setLocale(savedLocale);
+    try {
+      const v = localStorage.getItem(LS_PIN);
+      if (v === "0") {
+        setPinned(false);
+        setRevealed(false);
+      }
+    } catch {
+      /* */
+    }
   }, []);
 
   useEffect(() => {
-    setIsMobileOpen(false);
+    const root = document.documentElement;
+    const pad = pinned ? `${DOCK_H + 12}px` : "14px";
+    root.style.setProperty("--lexis-dock-pad", pad);
+    // padding no body + mains full-screen comuns
+    const styleId = "lexis-dock-pad-style";
+    let el = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement("style");
+      el.id = styleId;
+      document.head.appendChild(el);
+    }
+    el.textContent = `@media (min-width:768px){body{padding-bottom:var(--lexis-dock-pad)!important;} .lexis-main-pad{padding-bottom:var(--lexis-dock-pad)!important;}}`;
+    return () => {
+      root.style.removeProperty("--lexis-dock-pad");
+    };
+  }, [pinned]);
+
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("lexisPredict_locale") as Locale | null;
+      if (saved) setLocale(saved);
+    } catch {
+      /* */
+    }
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
   }, [pathname]);
 
-  const bodyProps = {
-    collapsed,
-    pathname,
-    locale,
+  const canScanEffective = canScan && planTemScanner(plan as any);
+  const t = getTranslation(locale);
+
+  const navItems = useNavItems({
     isAdmin,
     isSuperAdmin,
+    plan: (isSuperAdmin ? "maximo" : plan) as any,
     profile,
-    status: status || "idle",
-    canScan: canScanEffective,
-    plan,
-    onToggleMinimize: () => {
-      try { window.dispatchEvent(new Event("lexis-need-scanner")); } catch { /* */ }
-      if (!canScanEffective) return;
-      toggleMinimize();
-    },
-    onStartTour: () => {
-      setTutorialActive(true);
-      setIsMobileOpen(false);
-    },
-    onLogout: async () => {
-      await signOut();
-      router.push("/login");
-    },
-    onToggleCollapsed: () => {
-      setCollapsed((c) => {
-        const next = !c;
-        try {
-          if (next) window.localStorage.setItem("lexis_sidebar_collapsed", "1");
-          else window.localStorage.removeItem("lexis_sidebar_collapsed");
-        } catch { /* */ }
-        return next;
-      });
-    },
+    showMore,
+    query,
+  });
+
+  const togglePin = useCallback(() => {
+    setPinned((p) => {
+      const next = !p;
+      try {
+        localStorage.setItem(LS_PIN, next ? "1" : "0");
+      } catch {
+        /* */
+      }
+      if (next) setRevealed(true);
+      else setRevealed(false);
+      return next;
+    });
+  }, []);
+
+  const onDockEnter = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setRevealed(true);
   };
+
+  const onDockLeave = () => {
+    if (pinned) return;
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setRevealed(false), 480);
+  };
+
+  const visible = pinned || revealed;
+
+  const dockInner = (
+    <div className="flex items-center gap-0.5 min-w-0 h-full px-1">
+      {/* logo */}
+      <div className="flex items-center gap-1.5 px-2 shrink-0 border-r border-white/10 mr-1">
+        <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/25">
+          <SafeIcon icon={Layers} size={16} />
+        </div>
+        <span className="hidden lg:block text-[11px] font-black tracking-tight max-w-[88px] truncate">
+          {PRODUCT.name}
+        </span>
+      </div>
+
+      {/* scanner */}
+      <button
+        type="button"
+        onClick={() => {
+          try {
+            window.dispatchEvent(new Event("lexis-need-scanner"));
+          } catch {
+            /* */
+          }
+          if (canScanEffective) toggleMinimize();
+        }}
+        title={!canScanEffective ? "Scanner indisponível" : status === "running" ? "Scanner ativo" : "Scanner tribunal"}
+        className={cn(
+          "group relative flex flex-col items-center justify-end h-12 min-w-[48px] px-1 rounded-xl",
+          "transition-transform duration-300 hover:-translate-y-2"
+        )}
+      >
+        <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-foreground/90 text-background px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+          Scanner
+        </span>
+        <span
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110",
+            status === "running"
+              ? "bg-amber-500/90 text-white animate-pulse"
+              : "bg-white/10 group-hover:bg-white/20"
+          )}
+        >
+          <SafeIcon icon={Zap} size={17} />
+        </span>
+        <span className="mt-0.5 h-[3px] w-0 group-hover:w-2 rounded-full bg-foreground/30 transition-all" />
+      </button>
+
+      {/* nav scroll */}
+      <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden scrollbar-none flex items-end gap-0.5 py-1">
+        {navItems.map((item) => {
+          const active =
+            pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+          return <DockItem key={item.href + item.label} item={item} active={active} />;
+        })}
+        <button
+          type="button"
+          onClick={() => setShowMore((v) => !v)}
+          className="h-12 min-w-[44px] px-1 flex flex-col items-center justify-end text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors"
+          title={showMore ? "Recolher ferramentas" : "Mais ferramentas"}
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/15 transition-all">
+            {showMore ? "−" : "+"}
+          </span>
+          <span className="h-[3px]" />
+        </button>
+      </div>
+
+      {/* ações direita */}
+      <div className="flex items-center gap-0.5 shrink-0 border-l border-white/10 pl-1.5 ml-0.5">
+        <button
+          type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-white/15 transition-all"
+          title="Buscar no menu"
+        >
+          <SafeIcon icon={Search} size={16} />
+        </button>
+        <ThemeToggle />
+        <button
+          type="button"
+          onClick={togglePin}
+          className={cn(
+            "h-9 w-9 rounded-xl flex items-center justify-center transition-all",
+            pinned ? "bg-primary/20 text-primary" : "hover:bg-white/15 text-muted-foreground"
+          )}
+          title={pinned ? "Fixo (como agora). Clique para auto-ocultar" : "Auto-ocultar. Clique para fixar"}
+        >
+          <SafeIcon icon={pinned ? Pin : PinOff} size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut();
+            router.push("/login");
+          }}
+          className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-destructive/20 hover:text-destructive transition-all"
+          title={t.logout}
+        >
+          <SafeIcon icon={LogOut} size={15} />
+        </button>
+        <div className="hidden sm:flex items-center gap-1.5 pl-1">
+          <Avatar className="h-8 w-8 border border-white/20">
+            {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} /> : null}
+            <AvatarFallback className="text-[10px] font-bold bg-primary/20">
+              {String(profile?.nome || "OP")
+                .split(/\s+/)
+                .map((p: string) => p[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
-      <aside
-        className={cn(
-          "hidden md:flex flex-col shrink-0 h-screen sticky top-0 z-40",
-          "border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
-          "transition-[width] duration-200 ease-out",
-          collapsed ? "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] w-[4.5rem]" : "w-[17rem]"
-        )}
-      >
-        <SidebarNavBody {...bodyProps} showCollapseBtn />
-      </aside>
+      {/* não ocupa largura no flex das páginas */}
+      <div className="hidden md:block w-0 shrink-0" aria-hidden />
 
-      <div className="md:hidden fixed top-3 left-3 z-[100]">
-        <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+      {/* zona de hover na borda inferior (auto-ocultar) */}
+      {!pinned && (
+        <div
+          className="hidden md:block fixed bottom-0 left-0 right-0 h-3 z-[60]"
+          onMouseEnter={onDockEnter}
+          aria-hidden
+        />
+      )}
+
+      {/* DOCK desktop */}
+      <nav
+        aria-label="Menu principal"
+        onMouseEnter={onDockEnter}
+        onMouseLeave={onDockLeave}
+        className={cn(
+          "hidden md:flex fixed left-1/2 -translate-x-1/2 z-[55]",
+          "w-[min(1100px,calc(100vw-1.5rem))]",
+          "h-[58px] items-center",
+          "rounded-2xl border border-white/15",
+          "bg-background/55 dark:bg-background/45",
+          "backdrop-blur-xl backdrop-saturate-150",
+          "shadow-[0_8px_32px_rgba(0,0,0,0.28)]",
+          "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          visible
+            ? "bottom-3 opacity-100 translate-y-0"
+            : "bottom-3 opacity-0 translate-y-[110%] pointer-events-none"
+        )}
+        style={{ transitionDuration: "400ms" }}
+      >
+        {dockInner}
+      </nav>
+
+      {/* busca flutuante */}
+      {searchOpen && (
+        <div className="hidden md:block fixed bottom-[4.75rem] left-1/2 -translate-x-1/2 z-[56] w-[min(360px,90vw)]">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar no menu…"
+            className="w-full h-10 rounded-xl border border-white/20 bg-background/80 backdrop-blur-xl px-3 text-sm shadow-lg outline-none focus:ring-2 focus:ring-primary/40"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setSearchOpen(false);
+                setQuery("");
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* seta quando auto-oculto */}
+      {!pinned && !visible && (
+        <button
+          type="button"
+          onMouseEnter={onDockEnter}
+          onClick={() => setRevealed(true)}
+          className="hidden md:flex fixed bottom-1 left-1/2 -translate-x-1/2 z-[54] h-5 w-12 items-center justify-center rounded-full bg-background/40 backdrop-blur-md border border-white/10 text-muted-foreground hover:text-foreground transition-all"
+          title="Mostrar menu"
+        >
+          <ChevronUp size={14} />
+        </button>
+      )}
+
+      {/* Mobile: botão + sheet */}
+      <div className="md:hidden fixed bottom-4 right-4 z-[100] flex flex-col items-end gap-2">
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button
-              variant="outline"
               size="icon"
-              className="h-11 w-11 rounded-xl border border-border/60 bg-background/95 shadow-md backdrop-blur-md"
+              className="h-12 w-12 rounded-2xl shadow-lg border border-white/20 bg-background/70 backdrop-blur-xl"
               aria-label="Abrir menu"
             >
               <SafeIcon icon={Menu} size={22} />
             </Button>
           </SheetTrigger>
           <SheetContent
-            side="left"
-            className="p-0 border-r border-sidebar-border w-[min(18rem,90vw)] overflow-hidden bg-sidebar"
+            side="bottom"
+            className="p-0 rounded-t-2xl max-h-[78vh] overflow-hidden bg-background/90 backdrop-blur-xl"
           >
-            <SheetHeader className="sr-only">
-              <SheetTitle>Menu</SheetTitle>
+            <SheetHeader className="px-4 pt-4 pb-2 border-b">
+              <SheetTitle>Menu Lexis</SheetTitle>
               <SheetDescription>Navegação do gabinete</SheetDescription>
             </SheetHeader>
-            <SidebarNavBody {...bodyProps} collapsed={false} showCollapseBtn={false} />
+            <div className="p-3 overflow-y-auto max-h-[calc(78vh-4rem)] grid grid-cols-3 gap-2">
+              {navItems.map((item) => {
+                const active =
+                  pathname === item.href ||
+                  (item.href !== "/" && pathname.startsWith(item.href));
+                return (
+                  <Link
+                    key={item.href + item.label}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 rounded-xl p-3 text-center transition-all",
+                      active ? "bg-primary text-primary-foreground" : "bg-muted/50 hover:bg-muted"
+                    )}
+                  >
+                    <SafeIcon icon={item.icon} size={20} />
+                    <span className="text-[10px] font-bold leading-tight">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </SheetContent>
         </Sheet>
       </div>
+
     </>
   );
 }
