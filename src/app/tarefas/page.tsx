@@ -85,7 +85,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { saveManyCasesAction, slimCaseForSave } from '@/app/actions/case-save-actions';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
@@ -497,9 +497,30 @@ const handleSaveAttendance = async () => {
         });
       });
       const touchedCases = updatedCases.filter((c) => touched.includes(c.protocolo));
-      const result = await saveManyCasesAction(
-        (touchedCases.length ? touchedCases : updatedCases.filter((_, i) => i < 1)).map((c) => slimCaseForSave(c) as any)
-      );
+      let result: any = { success: false, saved: 0 };
+      try {
+        result = await saveManyCasesAction(
+          (touchedCases.length ? touchedCases : updatedCases.filter((_, i) => i < 1)).map((c) => slimCaseForSave(c) as any)
+        );
+      } catch (e: any) {
+        result = { success: false, message: e?.message || 'saveMany indisponível' };
+      }
+      if (!result?.success && touched.length) {
+        let ok = 0;
+        for (const proto of touched.slice(0, 20)) {
+          const one = cases.find((c) => c.protocolo === proto) || touchedCases.find((c) => c.protocolo === proto);
+          const r2 = await registrarAtendimentoCompletoAction({
+            protocolo: proto,
+            situacao: attendanceForm.situacao,
+            observacao: attendanceForm.observacao || one?.observacao || '',
+            proximoPrazo: isEncerrado ? '' : (attendanceForm.proximoRetorno || one?.proximoPrazo),
+            via: 'tarefas-fallback',
+            filaLista: attendanceForm.filaLista || 'normal',
+          });
+          if (r2?.success) ok += 1;
+        }
+        if (ok > 0) result = { success: true, saved: ok };
+      }
       if (!(result as any).success && (result as any).saved > 0) (result as any).success = true;
       if (result.success) {
         setCases(updatedCases);
@@ -536,6 +557,12 @@ const handleSaveAttendance = async () => {
           variant: 'destructive',
         });
       }
+    } catch (e: any) {
+      toast({
+        title: 'Falha ao registrar',
+        description: e?.message || 'Erro inesperado no atendimento',
+        variant: 'destructive',
+      });
     } finally { setIsSavingAttendance(false); }
   };
 

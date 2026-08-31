@@ -6,6 +6,7 @@
  * a tabela `processos` não tem essas colunas no schema.
  */
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId } from '@/lib/server-db';
+import { createClient } from '@/lib/supabase/server';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { enqueueSheetMnPush, flushSheetMnPush } from '@/lib/sheet-mn-push';
 
@@ -263,4 +264,48 @@ export async function stampAndLogEdicaoAction(
   } catch {
     return { success: false };
   }
+}
+
+
+/** Payload enxuto — evita estourar Server Action no atendimento em lote. */
+export function slimCaseForSave(c: LegalCase): LegalCase {
+  const x: any = c || {};
+  return {
+    ...x,
+    protocolo: x.protocolo,
+    cliente: x.cliente,
+    situacao: x.situacao,
+    observacao: x.observacao,
+    proximoPrazo: x.proximoPrazo,
+    ultimoRetorno: x.ultimoRetorno,
+    statusManual: x.statusManual,
+    created_by: x.created_by,
+    atendido_por: x.atendido_por,
+    atendido_em: x.atendido_em,
+    escritorio: x.escritorio,
+    advogado: x.advogado,
+    telefone: x.telefone,
+    tribunal: x.tribunal,
+  } as LegalCase;
+}
+
+export async function saveManyCasesAction(
+  cases: LegalCase[]
+): Promise<{ success: boolean; saved: number; failed: number; message?: string; error?: string }> {
+  const list = Array.isArray(cases) ? cases.filter((c) => c && c.protocolo) : [];
+  if (!list.length) return { success: false, saved: 0, failed: 0, message: 'Nenhum processo para salvar.' };
+  let saved = 0;
+  const errors: string[] = [];
+  for (const c of list.slice(0, 40)) {
+    const res = await saveOneCaseAction(c);
+    if (res.success) saved += 1;
+    else errors.push(`${c.protocolo}: ${res.message}`);
+  }
+  return {
+    success: saved > 0,
+    saved,
+    failed: list.length - saved,
+    message: saved ? `${saved} salvo(s)` : errors[0] || 'Falha ao salvar',
+    error: errors[0],
+  };
 }

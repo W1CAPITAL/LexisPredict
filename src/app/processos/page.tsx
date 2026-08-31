@@ -402,8 +402,10 @@ export default function ProcessosEmpresaPage() {
           description: `${attending.cliente} • ${situacao} • ${(res as any).ultimoRetorno || ""} · sync Tarefas/WhatsApp`,
         });
       } else {
-        toast({ title: "Falha ao registrar", description: (res as any).message, variant: "destructive" });
+        toast({ title: "Falha ao registrar", description: (res as any).message || "Sem retorno do servidor", variant: "destructive" });
       }
+    } catch (e: any) {
+      toast({ title: "Falha ao registrar", description: e?.message || "Erro inesperado", variant: "destructive" });
     } finally {
       setAttendanceSaving(false);
     }
@@ -1304,7 +1306,7 @@ export default function ProcessosEmpresaPage() {
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setAttendingOpen(false)} disabled={attendanceSaving}>Cancelar</Button>
-              <Button onClick={saveAttendance} disabled={attendanceSaving} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button type="button" onClick={saveAttendance} disabled={attendanceSaving} className="bg-emerald-600 hover:bg-emerald-700">
                 {attendanceSaving ? <Loader2 className="animate-spin" size={14} /> : "Salvar atendimento"}
               </Button>
             </DialogFooter>
