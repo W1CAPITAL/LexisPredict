@@ -32,6 +32,7 @@ import {
   MessageSquare,
   UsersRound,
 } from "lucide-react";
+import { notifyChatMessage } from "@/components/system/chat-notif-permission";
 import {
   listarMembrosChatAction,
   garantirThreadGeralAction,
@@ -192,15 +193,23 @@ export default function MensagensPage() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages", filter: `thread_id=eq.${threadId}` },
-        () => {
+        (payload: any) => {
           void loadThread(threadId);
+          try {
+            const row = payload?.new || {};
+            const author = String(row.auth_user_id || row.user_id || "");
+            const meId = String((me as any)?.auth_id || "");
+            if (author && meId && author === meId) return;
+            const body = String(row.body || row.texto || row.content || "Nova mensagem no chat equipe");
+            notifyChatMessage("Chat equipe", body.slice(0, 120));
+          } catch { /* */ }
         }
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [threadId, loadThread]);
+  }, [threadId, loadThread, me]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

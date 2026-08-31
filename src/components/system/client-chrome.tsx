@@ -58,6 +58,14 @@ const LaunchAnnounceModal = dynamic(
   { ssr: false }
 );
 
+const ChatNotifPermission = dynamic(
+  () =>
+    import("@/components/system/chat-notif-permission").then(
+      (m) => m.ChatNotifPermission
+    ),
+  { ssr: false }
+);
+
 const DesktopDownloadBanner = dynamic(
   () =>
     import("@/components/system/desktop-download-banner").then(
@@ -110,6 +118,7 @@ export function ClientChrome() {
       <DesktopDownloadBanner />
       <PacmanTrollOverlay />
       <LexisCommandPalette />
+      <ChatNotifPermission />
     </>
   );
 }
