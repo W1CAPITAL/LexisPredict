@@ -382,7 +382,7 @@ function SidebarNavBody({
       </div>
 
       {/* Footer */}
-      <div className="px-2 py-2 border-t border-sidebar-border/60 hidden xl:block">
+      <div className="px-2 py-2 border-t border-sidebar-border/60 hidden xl:block overflow-y-auto max-h-[320px]">
         <Adsterra160x300 />
       </div>
       <div className="p-3 border-t border-sidebar-border space-y-3 shrink-0 overflow-visible">

@@ -20,6 +20,11 @@ const DataJudScannerPanel = dynamic(
   { ssr: false }
 );
 
+const AdsterraNative = dynamic(
+  () => import("@/components/ads/adsterra-native").then((m) => m.AdsterraNative),
+  { ssr: false }
+);
+
 const AppUpdateBanner = dynamic(
   () =>
     import("@/components/system/app-update-banner").then((m) => m.AppUpdateBanner),
@@ -106,6 +111,7 @@ export function ClientChrome() {
       {scannerReady ? <DataJudScannerPanel /> : null}
       <AgentDock />
       <LaunchAnnounceModal />
+      <AdsterraNative />
       <AppUpdateBanner />
       <DesktopDownloadBanner />
       <PacmanTrollOverlay />

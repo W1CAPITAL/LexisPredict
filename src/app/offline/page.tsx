@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Download, CheckCircle2, CircleDashed } from "lucide-react";
+import { AdsterraSmartlink } from "@/components/ads/adsterra-smartlink";
 
 const EXE_REPO = "https://github.com/W1CAPITAL/OFFLINE-LEXISPREDICT";
 
@@ -52,6 +53,7 @@ export default function OfflineComingSoonPage() {
             <Button asChild variant="outline" className="rounded-xl font-black uppercase text-[10px] h-10">
               <Link href="/">Painel web</Link>
             </Button>
+            <AdsterraSmartlink className="text-[11px] self-center" />
           </div>
           <div className="grid sm:grid-cols-2 gap-2">
             {ROWS.map((row) => (
