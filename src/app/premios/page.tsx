@@ -90,8 +90,13 @@ export default function PremiosPage() {
               <Loader2 className="animate-spin" /> Calculando ranking…
             </div>
           ) : top.length === 0 ? (
-            <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">
-              Ainda não há dados suficientes este mês.
+            <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground space-y-2">
+              <p className="font-semibold text-foreground">Nenhum operador no ranking deste mês</p>
+              <p className="text-sm max-w-md mx-auto">
+                O hall usa atendimentos registrados (botão Atender) e logs de auditoria.
+                Sistema interno / W1 CONTROL / scanner não entram. Registre atendimentos em
+                /cases ou /processos e atualize esta página.
+              </p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-3">
