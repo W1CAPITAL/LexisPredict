@@ -44,7 +44,8 @@ import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrar
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
-import { saveOneCaseAction, saveManyCasesAction, deleteOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction, slimCaseForSave } from '@/app/actions/case-save-actions';
+import { saveOneCaseAction, saveManyCasesAction, deleteOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
+import { slimCaseForSave } from '@/lib/slim-case';
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 import { generateDossieProcessoPDFAction } from '@/app/actions/dossie-processo-actions';
 import { exportCasesToCSVAction, exportDossieXlsxAction } from '@/app/actions/export-actions';
