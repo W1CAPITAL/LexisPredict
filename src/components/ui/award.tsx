@@ -87,7 +87,7 @@ export function Awards({
         <p className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">
           {s.label} · {title}
         </p>
-        <h3 className="text-xl font-black tracking-tight text-foreground">{recipient}</h3>
+        <h3 className="text-xl font-black tracking-tight text-foreground break-words px-2">{recipient}</h3>
         <p className="text-sm text-muted-foreground max-w-sm">{subtitle}</p>
         {date ? (
           <p className="text-[11px] font-bold uppercase tracking-widest text-foreground/70">{date}</p>

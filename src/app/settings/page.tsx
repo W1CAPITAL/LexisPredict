@@ -1,4 +1,5 @@
 "use client";
+import { NavLayoutNomePanel } from "@/components/settings/nav-layout-nome-panel";
 
 import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
 import { changePasswordAction } from "@/app/actions/change-password-action";
@@ -573,6 +574,7 @@ export default function SettingsPage() {
                  </div>
                  <div>
                     <p className="font-black text-xs uppercase tracking-wide">{profile?.nome}</p>
+                  <div className="mt-4 col-span-full w-full"><NavLayoutNomePanel /></div>
                     <p className="text-[9px] font-bold text-muted-foreground uppercase">{profile?.cargo}</p>
                  </div>
               </section>

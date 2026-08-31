@@ -52,6 +52,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { flattenNavItems, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
+import { loadNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
+import { SidebarVertical } from "@/components/layout/sidebar-vertical";
 import { getRouteSnapshot, type RouteSnapshot } from "@/lib/route-snapshot-cache";
 import { PRODUCT } from "@/lib/product-identity";
 import { Button } from "@/components/ui/button";
@@ -184,19 +186,13 @@ function DockItem({
   item,
   active,
   userId,
-  onDragStart,
-  onDropOn,
 }: {
   item: NavItem;
   active: boolean;
   userId?: string | null;
-  onDragStart?: (href: string) => void;
-  onDropOn?: (href: string) => void;
 }) {
   const [preview, setPreview] = useState<RouteSnapshot | null>(null);
   const [showPrev, setShowPrev] = useState(false);
-  const [hoverTools, setHoverTools] = useState(false);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const movedRef = useRef(false);
@@ -243,14 +239,8 @@ function DockItem({
         onMouseEnter={() => {
           setPreview(getRouteSnapshot(item.href));
           setShowPrev(true);
-          if (hoverTimer.current) clearTimeout(hoverTimer.current);
-          hoverTimer.current = setTimeout(() => setHoverTools(true), 550);
         }}
-        onMouseLeave={() => {
-          setShowPrev(false);
-          setHoverTools(false);
-          if (hoverTimer.current) clearTimeout(hoverTimer.current);
-        }}
+        onMouseLeave={() => setShowPrev(false)}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY });
@@ -268,16 +258,6 @@ function DockItem({
         }}
         onTouchEnd={() => {
           if (longPressRef.current) clearTimeout(longPressRef.current);
-        }}
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData("text/lexis-nav", item.href);
-          onDragStart?.(item.href);
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          onDropOn?.(item.href);
         }}
         className={cn(
           "group relative flex flex-col items-center justify-center gap-0.5 select-none",
@@ -314,28 +294,6 @@ function DockItem({
           )}
         />
       </Link>
-
-      
-      {hoverTools && !menu && (
-        <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-[75] flex gap-1 rounded-lg border border-white/20 bg-background/95 backdrop-blur-md p-0.5 shadow-lg animate-in fade-in duration-150">
-          <button
-            type="button"
-            className="text-[9px] font-bold px-2 py-1 rounded-md hover:bg-destructive/15 hover:text-destructive"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const prefs = loadNavPreferences(userId);
-              const href = String(item.href);
-              if (!prefs.hidden.includes(href)) {
-                saveNavPreferences({ hidden: [...prefs.hidden, href] }, userId);
-                window.dispatchEvent(new Event("lexis-nav-prefs"));
-              }
-            }}
-          >
-            Ocultar
-          </button>
-        </div>
-      )}
 
       {showPrev && !menu && (
         <div
@@ -386,7 +344,7 @@ function DockItem({
   );
 }
 
-export function Sidebar() {
+export function SidebarDock() {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
@@ -399,7 +357,6 @@ export function Sidebar() {
   const [showMore, setShowMore] = useState(false);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [dragHref, setDragHref] = useState<string | null>(null);
 
   // pin = fixo (padrão). !pin = auto-ocultar como taskbar Windows
   const [pinned, setPinned] = useState(true);
@@ -556,29 +513,12 @@ export function Sidebar() {
         {navItems.map((item) => {
           const active =
             pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-          const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
           return (
             <DockItem
               key={item.href + item.label}
               item={item}
               active={active}
-              userId={uid}
-              onDragStart={(h) => setDragHref(h)}
-              onDropOn={(target) => {
-                if (!dragHref || dragHref === target) return;
-                const prefs = loadNavPreferences(uid);
-                const all = navItems.map((x) => x.href);
-                let order = prefs.order.length ? [...prefs.order] : [...all];
-                for (const h of all) if (!order.includes(h)) order.push(h);
-                const from = order.indexOf(dragHref);
-                const to = order.indexOf(target);
-                if (from < 0 || to < 0) return;
-                order.splice(from, 1);
-                order.splice(to, 0, dragHref);
-                saveNavPreferences({ order }, uid);
-                window.dispatchEvent(new Event("lexis-nav-prefs"));
-                setDragHref(null);
-              }}
+              userId={(profile as any)?.auth_user_id || (profile as any)?.id || null}
             />
           );
         })}
@@ -772,4 +712,22 @@ export function Sidebar() {
 
     </>
   );
+}
+
+
+/** Export único: dock (padrão) ou vertical conforme Configurações. */
+export function Sidebar() {
+  const [mode, setMode] = React.useState<NavLayoutMode>("dock");
+  React.useEffect(() => {
+    setMode(loadNavLayout());
+    const on = () => setMode(loadNavLayout());
+    window.addEventListener("lexis-nav-layout", on);
+    window.addEventListener("storage", on);
+    return () => {
+      window.removeEventListener("lexis-nav-layout", on);
+      window.removeEventListener("storage", on);
+    };
+  }, []);
+  if (mode === "vertical") return <SidebarVertical />;
+  return <SidebarDock />;
 }
