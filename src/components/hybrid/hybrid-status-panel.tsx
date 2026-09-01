@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { hybridStatusAction, hybridPullCarteiraAction } from "@/app/actions/hybrid-sync-actions";
+import { hybridStatusAction, hybridPullCarteiraAction, hybridAutoSyncAction, hybridSeedSheetsFromSupabaseAction } from "@/app/actions/hybrid-sync-actions";
 import { Loader2, RefreshCw, Database, Sheet } from "lucide-react";
 
 export function HybridStatusPanel() {
@@ -83,6 +83,40 @@ export function HybridStatusPanel() {
         <Button type="button" size="sm" onClick={() => void doPull()} disabled={busy || !st?.enabled}>
           <Database className="h-3.5 w-3.5 mr-1" />
           Puxar carteira Sheets
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={busy || !st?.enabled}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const r = await hybridAutoSyncAction();
+              setPull(r.message || r.error || r.action);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Sincronizar agora
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={busy || !st?.enabled}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const r = await hybridSeedSheetsFromSupabaseAction({ maxRows: 4000 });
+              setPull(r.success ? `Seed: ${r.pushed} linhas` : r.error || "falha seed");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Forçar seed Supabase→Sheets
         </Button>
       </div>
       {pull ? <p className="text-[11px] font-mono text-muted-foreground">{pull}</p> : null}

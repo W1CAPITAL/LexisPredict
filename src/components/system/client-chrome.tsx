@@ -66,6 +66,12 @@ const ChatRealtimeNotify = dynamic(
   { ssr: false }
 );
 
+const HybridAutoSync = dynamic(
+  () =>
+    import("@/components/hybrid/hybrid-auto-sync").then((m) => m.HybridAutoSync),
+  { ssr: false }
+);
+
 const ChatNotifPermission = dynamic(
   () =>
     import("@/components/system/chat-notif-permission").then(
@@ -127,6 +133,7 @@ export function ClientChrome() {
       <PacmanTrollOverlay />
       <LexisCommandPalette />
       <ChatNotifPermission />
+      <HybridAutoSync />
       <ChatRealtimeNotify />
     </>
   );
