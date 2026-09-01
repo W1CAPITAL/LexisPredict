@@ -398,6 +398,7 @@ export default function PlanoBPage() {
             </div>
           )}
           {!!rows.length && (
+            <>
             {headerDiag ? (
               <p className="text-[11px] font-mono text-muted-foreground mb-2 px-2 py-1 rounded-md border bg-muted/30">{headerDiag}</p>
             ) : null}
@@ -457,6 +458,7 @@ export default function PlanoBPage() {
                 ) : null}
               </div>
             </div>
+          </>
           )}
         </div>
       </main>

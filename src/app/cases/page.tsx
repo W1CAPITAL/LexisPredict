@@ -1,5 +1,6 @@
-import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 "use client";
+
+import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 

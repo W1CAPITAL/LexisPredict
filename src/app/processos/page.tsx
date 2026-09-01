@@ -1,5 +1,6 @@
-import { canRodarEmpresaScan, canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 "use client";
+
+import { canRodarEmpresaScan, canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 
 import { CaseGlassList } from '@/components/cases/case-glass-list';
 
