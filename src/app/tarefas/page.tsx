@@ -85,7 +85,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction,
+  registrarAtendimentoCompletoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
@@ -500,27 +501,28 @@ const handleSaveAttendance = async () => {
       const touchedCases = updatedCases.filter((c) => touched.includes(c.protocolo));
       let result: any = { success: false, saved: 0 };
       try {
-        result = await saveManyCasesAction(
-          (touchedCases.length ? touchedCases : updatedCases.filter((_, i) => i < 1)).map((c) => slimCaseForSave(c) as any)
-        );
-      } catch (e: any) {
-        result = { success: false, message: e?.message || 'saveMany indisponível' };
-      }
-      if (!result?.success && touched.length) {
+        // Fonte de verdade: registrarAtendimentoCompleto (grava ultimo_retorno + proximo_retorno)
         let ok = 0;
-        for (const proto of touched.slice(0, 20)) {
+        for (const proto of touched.slice(0, 40)) {
           const one = cases.find((c) => c.protocolo === proto) || touchedCases.find((c) => c.protocolo === proto);
           const r2 = await registrarAtendimentoCompletoAction({
             protocolo: proto,
             situacao: attendanceForm.situacao,
             observacao: attendanceForm.observacao || one?.observacao || '',
             proximoPrazo: isEncerrado ? '' : (attendanceForm.proximoRetorno || one?.proximoPrazo),
-            via: 'tarefas-fallback',
+            via: 'tarefas',
             filaLista: attendanceForm.filaLista || 'normal',
           });
           if (r2?.success) ok += 1;
         }
         if (ok > 0) result = { success: true, saved: ok };
+        else {
+          result = await saveManyCasesAction(
+            (touchedCases.length ? touchedCases : updatedCases.filter((_, i) => i < 1)).map((c) => slimCaseForSave(c) as any)
+          );
+        }
+      } catch (e: any) {
+        result = { success: false, message: e?.message || 'saveMany indisponível' };
       }
       if (!(result as any).success && (result as any).saved > 0) (result as any).success = true;
       if (result.success) {

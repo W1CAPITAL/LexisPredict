@@ -41,7 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
@@ -537,49 +537,86 @@ function CasesContent() {
     setIsSavingAttendance(true);
     try {
       const todayStr = hojeBrasilYmd();
-      const updatedCases = cases.map(c => {
-        if (attendanceForm.applyToAll ? c.cliente === activeGroup.cliente : c.protocolo === activeGroup.protocolo) {
-          return processarCaso({ 
-            ...c, 
-            situacao: attendanceForm.situacao, 
-            ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr), 
-            observacao: attendanceForm.observacao || c.observacao, 
-            proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : (attendanceForm.proximoRetorno || c.proximoPrazo || ''), 
-            tem_atualizacao_pos_retorno: false, 
-            djen_nova_comunicacao: false, 
-            tem_novo_andamento: false 
-          });
-        }
-        return c;
-      });
-      const touchedCases = updatedCases.filter((c) =>
+      const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
+      const targets = cases.filter((c) =>
         attendanceForm.applyToAll
           ? c.cliente === activeGroup.cliente
           : c.protocolo === activeGroup.protocolo
       );
-      // NÃO enviar carteira inteira (HTTP 413). Só os casos tocados, payload slim.
-      const res = await saveManyCasesAction(touchedCases.map((c) => slimCaseForSave(c) as any));
-      if (res.success || res.saved > 0) {
-        setCases(updatedCases);
-        setIsAttendanceOpen(false);
-        setActiveGroup(null);
-        const touched = touchedCases.map((c) => c.protocolo);
-        const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
+      const proximo = isEncerrado
+        ? ''
+        : (attendanceForm.proximoRetorno || targets[0]?.proximoPrazo || '');
+      let ok = 0;
+      const byProto: Record<string, any> = {};
+      for (const c of targets.slice(0, 40)) {
         try {
-          if (isEncerrado) {
-            await registrarAuditoriaEventAction('encerramento', touched, { via: 'cases', ultimoRetorno: todayStr });
-          } else {
-            await registrarAtendimentoAction(touched, { via: 'cases', ultimoRetorno: todayStr });
+          const r = await registrarAtendimentoCompletoAction({
+            protocolo: c.protocolo,
+            situacao: attendanceForm.situacao,
+            observacao: attendanceForm.observacao || c.observacao || '',
+            proximoPrazo: proximo,
+            via: 'cases',
+            filaLista: (attendanceForm as any).filaLista || 'normal',
+          });
+          if (r?.success) {
+            ok += 1;
+            byProto[c.protocolo] = {
+              ultimoRetorno: (r as any).ultimoRetorno || todayStr,
+              proximoPrazo: isEncerrado ? '' : proximo,
+              situacao: attendanceForm.situacao,
+              observacao: attendanceForm.observacao || c.observacao,
+            };
           }
         } catch { /* */ }
+      }
+      if (ok > 0) {
+        setCases((prev) =>
+          prev.map((c) => {
+            const p = byProto[c.protocolo];
+            if (!p) return c;
+            return processarCaso({
+              ...c,
+              ...p,
+              ...patchAtendimentoComEdicao(
+                (profile as any)?.auth_user_id || (profile as any)?.id,
+                p.ultimoRetorno || todayStr
+              ),
+              tem_atualizacao_pos_retorno: false,
+              djen_nova_comunicacao: false,
+              tem_novo_andamento: false,
+            });
+          })
+        );
+        setIsAttendanceOpen(false);
+        setActiveGroup(null);
         toast({
           title: isEncerrado ? 'Encerrado e contabilizado' : 'Atendimento registrado',
-          description: `Retorno ${todayStr}`,
+          description: `Último retorno ${todayStr}${proximo ? ` · Próximo ${proximo}` : ''} · ${ok} processo(s)`,
         });
         try {
           const fresh = await fetchRepoCases();
-          if (Array.isArray(fresh) && fresh.length) setCases(fresh);
+          if (Array.isArray(fresh) && fresh.length) {
+            // mescla: não perde o retorno acabado de gravar se o fetch vier stale
+            setCases(
+              fresh.map((c: any) => {
+                const p = byProto[c.protocolo];
+                if (!p) return c;
+                return {
+                  ...c,
+                  ultimoRetorno: p.ultimoRetorno || c.ultimoRetorno,
+                  proximoPrazo: p.proximoPrazo !== undefined ? p.proximoPrazo : c.proximoPrazo,
+                  situacao: p.situacao || c.situacao,
+                };
+              })
+            );
+          }
         } catch { /* */ }
+      } else {
+        toast({
+          title: 'Falha ao salvar atendimento',
+          description: 'Último/próximo retorno não gravados. Tente de novo.',
+          variant: 'destructive',
+        });
       }
     } finally { setIsSavingAttendance(false); }
   };

@@ -267,8 +267,12 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
   const situacao = (data.SITUACAO || data.situacao || data.STATUS || 'EM ANDAMENTO').toUpperCase();
   
-  const proximoPrazoRaw = sanitizeDateCell(data.PROXIMO_RETORNO || data.PROXIMO_PRAZO || data.proximoPrazo || '');
-  const ultimoRetornoRaw = sanitizeDateCell(data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || '');
+  const proximoPrazoRaw = sanitizeDateCell(
+    data.PROXIMO_RETORNO || data.PROXIMO_PRAZO || data.proximoPrazo || data.proximo_retorno || data.proximo_prazo || ''
+  );
+  const ultimoRetornoRaw = sanitizeDateCell(
+    data.ULTIMO_RETORNO || data.RETORNO || data.ultimoRetorno || data.ultimo_retorno || data.ultimo_atendimento || ''
+  );
   
   const statusManual = data.STATUS_MANUAL || data.statusManual || 'Automatico';
 

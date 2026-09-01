@@ -12,8 +12,17 @@ import { enqueueSheetMnPush, flushSheetMnPush } from '@/lib/sheet-mn-push';
 
 /** Monta a linha para upsert — só campos que existem (ou são JSON em dados). */
 function toRow(c: LegalCase, empresaId: string, authId: string | null) {
-  const isoPrazo = formatDateToISO(c.proximoPrazo);
-  const isoRetorno = formatDateToISO(c.ultimoRetorno);
+  // Aceita camel/snake e força ISO YYYY-MM-DD (nunca descarta último retorno preenchido)
+  const isoPrazo =
+    formatDateToISO((c as any).proximoPrazo) ||
+    formatDateToISO((c as any).proximo_retorno) ||
+    formatDateToISO((c as any).proximoRetorno) ||
+    null;
+  const isoRetorno =
+    formatDateToISO((c as any).ultimoRetorno) ||
+    formatDateToISO((c as any).ultimo_retorno) ||
+    formatDateToISO((c as any).ULTIMO_RETORNO) ||
+    null;
   return {
     empresa_id: empresaId,
     created_by: c.created_by || null, // NUNCA cair no auth de quem atende
@@ -153,31 +162,79 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{
       // Fallback: se ainda houver coluna fantasma no payload antigo, tenta update mínimo
       const msg = String(error.message || '');
       if (/edited_at|edited_by|schema cache/i.test(msg)) {
+        const ur = formatDateToISO(processed.ultimoRetorno) || processed.ultimoRetorno || null;
+        const pr = formatDateToISO(processed.proximoPrazo) || processed.proximoPrazo || null;
         const { error: err2 } = await client
           .from('processos')
           .upsert(
             {
               empresa_id,
               protocolo_ref: processed.protocolo,
-              ultimo_retorno: formatDateToISO(processed.ultimoRetorno),
+              ultimo_retorno: ur,
+              proximo_retorno: pr,
+              observacoes: processed.observacao || '',
               tem_atualizacao_pos_retorno: false,
               djen_nova_comunicacao: false,
-              dados: { ...processed },
+              dados: {
+                ...processed,
+                ultimoRetorno: ur,
+                ultimo_retorno: ur,
+                proximoPrazo: pr,
+                proximo_retorno: pr,
+              },
             },
             { onConflict: 'protocolo_ref,empresa_id' }
           );
         if (err2) return { success: false, message: err2.message };
         enqueueSheetMnPush({
           protocolo: processed.protocolo,
-          ultimoRetorno: formatDateToISO(processed.ultimoRetorno),
-          proximoPrazo: formatDateToISO(processed.proximoPrazo),
+          ultimoRetorno: ur,
+          proximoPrazo: pr,
           empresa_id,
           via: 'save-fallback',
         });
         void flushSheetMnPush();
-        return { success: true, message: 'Salvo.', case: processed };
+        return { success: true, message: 'Salvo.', case: { ...processed, ultimoRetorno: ur || '', proximoPrazo: pr || '' } as any };
       }
       return { success: false, message: error.message };
+    }
+
+    // Reforço: grava colunas de retorno mesmo se o upsert JSON sobrescrever dados antigos
+    try {
+      const ur = formatDateToISO(processed.ultimoRetorno) || processed.ultimoRetorno || null;
+      const pr = formatDateToISO(processed.proximoPrazo);
+      const prVal = pr !== null && pr !== undefined ? pr : (processed.proximoPrazo || null);
+      if (ur || prVal !== undefined) {
+        await client
+          .from('processos')
+          .update({
+            ...(ur ? { ultimo_retorno: ur } : {}),
+            ...(prVal !== undefined ? { proximo_retorno: prVal || null } : {}),
+            observacoes: processed.observacao || '',
+            tem_atualizacao_pos_retorno: false,
+            djen_nova_comunicacao: false,
+          })
+          .eq('empresa_id', empresa_id)
+          .eq('protocolo_ref', processed.protocolo);
+      }
+      enqueueSheetMnPush({
+        protocolo: processed.protocolo,
+        ultimoRetorno: ur,
+        proximoPrazo: prVal,
+        empresa_id,
+        via: 'save-one',
+      });
+      void flushSheetMnPush();
+      if (ur) {
+        processed.ultimoRetorno = String(ur);
+        (processed as any).ultimo_retorno = String(ur);
+      }
+      if (prVal) {
+        processed.proximoPrazo = String(prVal);
+        (processed as any).proximo_retorno = String(prVal);
+      }
+    } catch (e) {
+      console.warn('[saveOneCaseAction] reforço retorno', e);
     }
 
     return { success: true, message: 'Salvo.', case: processed };

@@ -1092,12 +1092,16 @@ export async function registrarAtendimentoCompletoAction(input: {
     const patch = patchAtendimentoComEdicao(auth_id, hoje);
     // Quem atendeu: registra, SEM mudar created_by (dono da carteira)
     const ownerKeep = (found as any).created_by || null;
-    const prazoNovo =
+    const prazoRaw =
       situacao === 'ENCERRADO'
         ? ''
-        : input.proximoPrazo != null
+        : input.proximoPrazo != null && String(input.proximoPrazo).trim() !== ''
           ? input.proximoPrazo
           : found.proximoPrazo;
+    const prazoNovo =
+      prazoRaw === '' || prazoRaw == null
+        ? ''
+        : formatDateToISO(String(prazoRaw)) || String(prazoRaw);
     const updated = processarCaso({
       ...found,
       ...patch,
@@ -1105,8 +1109,10 @@ export async function registrarAtendimentoCompletoAction(input: {
       observacao: obs,
       statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico',
       // preserva prazo se o form não mandou novo; nunca apaga movimento do tribunal
-      proximoPrazo: prazoNovo !== undefined && prazoNovo !== null ? prazoNovo : found.proximoPrazo,
-      ultimoRetorno: patch.ultimoRetorno || found.ultimoRetorno,
+      proximoPrazo: prazoNovo,
+      ultimoRetorno: patch.ultimoRetorno || hoje || found.ultimoRetorno,
+      ultimo_retorno: patch.ultimoRetorno || hoje || found.ultimoRetorno,
+      proximo_retorno: prazoNovo,
       datajud_ultimo_movimento: (found as any).datajud_ultimo_movimento,
       datajud_ultimo_nome: (found as any).datajud_ultimo_nome,
       ultimo_movimento: (found as any).ultimo_movimento || (found as any).andamento,
