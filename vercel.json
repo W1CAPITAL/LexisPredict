@@ -1,8 +1,5 @@
 {
   "functions": {
-    "api/lead-discover.ts": { "maxDuration": 10 },
-    "api/public-scan.ts": { "maxDuration": 30 },
-    "api/supabase-config.ts": { "maxDuration": 10 },
     "api/bacen-sgs.ts": { "maxDuration": 15 },
     "api/inbound-lead.ts": { "maxDuration": 15 }
   }
