@@ -178,6 +178,23 @@ export default function SubstabelecimentoSimplesPage() {
   return (
     <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10 overflow-hidden">
       <Sidebar />
+
+          <div className="max-w-5xl mx-auto w-full mt-4 mb-6 px-4">
+            <div className="bg-white border-2 border-black rounded-none shadow-[6px_6px_0px_#000] p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest mb-2">Partes 100% editáveis</p>
+              <p className="text-[10px] text-muted-foreground mb-3">Selecione dados da banca ou preencha manualmente — tudo permanece editável (casado/casada/casado(a)).</p>
+              <EditablePartesPanel
+                banca={partes.banca}
+                setBanca={partes.setBanca}
+                advogados={partes.advogados}
+                setAdvogados={partes.setAdvogados}
+                cliente={partes.cliente}
+                setCliente={partes.setCliente}
+                tituloCliente="Outorgante / Cliente"
+              />
+            </div>
+          </div>
+
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-8 shrink-0 z-40">
           <div className="flex items-center gap-4">
@@ -343,15 +360,7 @@ export default function SubstabelecimentoSimplesPage() {
         </div>
       
         <div className="max-w-4xl mx-auto w-full px-4 py-4">
-          <EditablePartesPanel
-            banca={partes.banca}
-            setBanca={partes.setBanca}
-            advogados={partes.advogados}
-            setAdvogados={partes.setAdvogados}
-            cliente={partes.cliente}
-            setCliente={partes.setCliente}
-          />
-        </div>
+</div>
 
       </main>
     </div>

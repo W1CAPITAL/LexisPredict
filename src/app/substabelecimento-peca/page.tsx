@@ -333,7 +333,25 @@ export default function SubstabelecimentoPecaGenerator() {
             </div>
           )}
 
-          {step === 2 && extractedData && (
+          
+          {step === 1 && (
+            <div className="max-w-5xl mx-auto mt-6 mb-4">
+              <div className="bg-white border-2 border-black rounded-none shadow-[6px_6px_0px_#000] p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest mb-2">Partes 100% editáveis (antes da revisão)</p>
+                <p className="text-[10px] text-muted-foreground mb-3">Selecione a banca ou preencha — tudo editável.</p>
+                <EditablePartesPanel
+            banca={partes.banca}
+            setBanca={partes.setBanca}
+            advogados={partes.advogados}
+            setAdvogados={partes.setAdvogados}
+            cliente={partes.cliente}
+            setCliente={partes.setCliente}
+          />
+              </div>
+            </div>
+          )}
+
+{step === 2 && extractedData && (
             <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto pb-20">
               <div className="flex items-center justify-between border-b-2 border-black pb-4">
                 <div className="flex items-center gap-3">
@@ -430,15 +448,7 @@ export default function SubstabelecimentoPecaGenerator() {
         </div>
       
         <div className="max-w-4xl mx-auto w-full px-4 py-4">
-          <EditablePartesPanel
-            banca={partes.banca}
-            setBanca={partes.setBanca}
-            advogados={partes.advogados}
-            setAdvogados={partes.setAdvogados}
-            cliente={partes.cliente}
-            setCliente={partes.setCliente}
-          />
-        </div>
+</div>
 
       </main>
     </div>
