@@ -1,0 +1,44 @@
+LEXIS GABINETE v6.0 — COMO LIGAR A PLANILHA 2 VIAS (3 PASSOS)
+=============================================================
+
+OBJETIVO: quando você edita um processo no Lexis desktop (atende, remarca
+retorno, escreve observação), a alteração é ENVIADA automaticamente para o
+Google Sheets. E ao carregar, o desktop LÊ a planilha de volta.
+
+PASSO 1 — DEIXE A PLANILHA COMPARTILHADA
+  Google Sheets -> Compartilhar -> "Qualquer pessoa com o link" (visualizar é suficiente).
+
+PASSO 2 — INSTALE O APPS SCRIPT (uma vez)
+  1. Abra a planilha -> Extensões -> Apps Script.
+  2. Apague o código padrão e cole o conteúdo do arquivo  LEXIS-SYNC-AppsScript.gs .
+  3. Troque o TOKEN no topo por uma senha sua.
+     O resto (SHEET_NAME="Processos", KEY_COL="Protocolo") só mexa se sua aba chamar diferente.
+  4. Implantar -> Nova implantação ->
+     Tipo: "Aplicativo da web"
+     Executar como: "Eu"
+     Acesso: "Qualquer pessoa"
+     -> Implantar -> Autorize quando o navegador pedir.
+  5. Copie a URL de implantação (termina em /exec).
+
+PASSO 3 — CONFIGURE O DESKTOP
+  Abra o Lexis Gabinete.exe -> Configurações:
+   - "URL da planilha": o link do Google Sheets (igual você já usava no Plano B)
+   - "URL do webhook": a URL /exec do passo 2
+   - "Token": o mesmo TOKEN que você pôs no script
+   - "Seu nome": aparece nos campos atendido_por / editado_por
+  Clique em "Testar webhook" (deve dar ok:true) e depois "Sincronizar".
+
+COMO FUNCIONA
+ - Ler: o desktop baixa a aba principal como CSV (3 tentativas: export/gviz/pub).
+ - Escrever: quando você salva um atendimento/edição, o desktop faz POST
+   {token, rows:[...]} para o seu /exec; o script acha a linha pelo Protocolo
+   e grava nas colunas que tiverem o mesmo nome do cabeçalho.
+ - Offline: sem internet, as edições ficam numa fila local (outbox); quando
+   voltar a internet, clique em "Sincronizar" e tudo é enviado.
+
+COLUNAS QUE O DESKTOP ESCREVE (casa pelo nome do cabeçalho, pode editar no Excel):
+  Protocolo | Cliente | Telefone | Tribunal | Situacao | Status | Advogado
+  Escritorio | Ultimo_Retorno | Proximo_Prazo | Observacoes
+  (o desktop TAMBÉM lê: CNJ, Nº Processo, PROCESSO, etc. como sinônimos de Protocolo)
+
+DICA: mantenha a aba "Processos" como a primeira/ativa da planilha que o desktop lê.
