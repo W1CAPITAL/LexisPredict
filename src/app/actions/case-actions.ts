@@ -1205,6 +1205,22 @@ export async function fetchCompanyProcessosAction() {
     const empresa_id = ctx.empresa_id;
     if (!empresa_id) return empty;
 
+    // GATE: visão empresa só Supervisor / Superadmin
+    const cargo = String((ctx as any).cargo || "");
+    const role = String((ctx as any).role || "").toLowerCase();
+    const canViewEmpresa =
+      !!(ctx as any).isSupervisor ||
+      !!(ctx as any).isSuperAdmin ||
+      /supervisor|superadmin/i.test(cargo) ||
+      role === "supervisor" ||
+      role === "superadmin";
+    if (!canViewEmpresa) {
+      return {
+        ...empty,
+        error: "Acesso restrito à supervisão (visão empresa)",
+      };
+    }
+
     // 1) Métricas leves + 2) 1ª página da lista + 3) audit/users — em paralelo
     const { fetchRankingAtendentesEmpresaAction } = await import(
       "@/app/actions/ranking-atendentes-action"
@@ -2071,6 +2087,17 @@ export async function fetchCompanyProcessosPageAction(opts?: {
     const { getStoredCasesPageForEmpresa, getUserContext } = await import("@/lib/server-db");
     const ctx = await getUserContext();
     if (!ctx.empresa_id) return { ok: false, cases: [] as any[] };
+    const cargo = String((ctx as any).cargo || "");
+    const role = String((ctx as any).role || "").toLowerCase();
+    const canViewEmpresa =
+      !!(ctx as any).isSupervisor ||
+      !!(ctx as any).isSuperAdmin ||
+      /supervisor|superadmin/i.test(cargo) ||
+      role === "supervisor" ||
+      role === "superadmin";
+    if (!canViewEmpresa) {
+      return { ok: false, cases: [] as any[], error: "Acesso restrito à supervisão" };
+    }
     const limit = Math.min(Math.max(opts?.limit ?? 200, 50), 500);
     const offset = Math.max(opts?.offset ?? 0, 0);
     const onlyAtivos = opts?.onlyAtivos !== false;

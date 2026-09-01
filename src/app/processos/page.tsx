@@ -4,8 +4,9 @@ import { CaseGlassList } from '@/components/cases/case-glass-list';
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * Processos da Empresa — todos os perfis enxergam todos os processos da empresa
- * e a trilha de auditoria: quem atendeu, quem editou, quem apagou.
+ * Processos da Empresa — VISÃO EMPRESA só para Supervisão / Superadmin.
+ * Operador e Administrador comum: bloqueados (usar /cases carteira pessoal).
+ * Trilha de auditoria: quem atendeu, quem editou, quem apagou.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -140,9 +141,17 @@ function Kpi({ icon, label, value, hint, tone = "default" }: {
 export default function ProcessosEmpresaPage() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  /** Visão / "rodar empresa": SOMENTE Supervisor ou Superadmin (não Admin comum, não Operador). */
+  const canViewEmpresa =
+    /supervisor|superadmin/i.test(String((profile as any)?.cargo || "")) ||
+    String((profile as any)?.role || "").toLowerCase() === "superadmin" ||
+    String((profile as any)?.role || "").toLowerCase() === "supervisor" ||
+    !!(profile as any)?.isSuperAdmin ||
+    !!(profile as any)?.isSupervisor;
   const canAssignOwner =
-    /supervisor|superadmin|administrador|admin/i.test(String((profile as any)?.cargo || '')) ||
-    String((profile as any)?.role || '').toLowerCase() === 'superadmin' ||
+    canViewEmpresa ||
+    /administrador|admin/i.test(String((profile as any)?.cargo || "")) ||
+    String((profile as any)?.role || "").toLowerCase() === "superadmin" ||
     !!(profile as any)?.isSuperAdmin;
 
   const [cases, setCases] = useState<LegalCase[]>([]);
@@ -182,6 +191,11 @@ export default function ProcessosEmpresaPage() {
   const PAGE_SIZE = 24;
 
   const load = async () => {
+    if (!canViewEmpresa) {
+      setLoading(false);
+      setCases([]);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetchCompanyProcessosAction();
@@ -645,6 +659,43 @@ export default function ProcessosEmpresaPage() {
   };
 
   const recentFeed = useMemo(() => audit.slice(0, 24), [audit]);
+
+  // —— GATE SUPERVISÃO: "rodar empresa" / visão empresa ——
+  if (!canViewEmpresa) {
+    return (
+      <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 flex flex-col h-screen overflow-hidden items-center justify-center p-8">
+          <div className="max-w-md w-full rounded-2xl border border-border/60 bg-card p-8 shadow-sm text-center space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/15 flex items-center justify-center">
+              <ShieldAlert className="text-amber-600" size={22} />
+            </div>
+            <h1 className="font-black text-lg uppercase tracking-tight">Visão empresa restrita</h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              A aba <strong>Processos da Empresa</strong> (rodar / ver carteira inteira) é exclusiva de{" "}
+              <strong>Supervisor</strong> e <strong>Superadmin</strong>.
+              Seu perfil (<span className="font-semibold">{profile?.cargo || "Operador"}</span>) usa a carteira pessoal.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+              <Link
+                href="/cases"
+                className="inline-flex items-center justify-center h-10 px-5 rounded-xl bg-primary text-primary-foreground text-[11px] font-black uppercase tracking-wider"
+              >
+                Ir para minha carteira
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center h-10 px-5 rounded-xl border border-border text-[11px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              >
+                Painel
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden min-h-0">
