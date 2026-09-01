@@ -38,6 +38,20 @@ function protoKey(p: string) {
   return d.length >= 10 ? d : String(p || "").trim().toUpperCase();
 }
 
+/** Data civil em Brasília a partir de ISO (não usar slice UTC — corta a semana). */
+function ymdBrasilFromIso(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return String(iso || "").slice(0, 10);
+  }
+}
+
 export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
   ok: boolean;
   ranking: RankRow[];
@@ -92,8 +106,10 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     const [yy, mm] = hojeYmd.split("-").map((n) => parseInt(n, 10));
     const monthStart = startOfDay(new Date(yy, mm - 1, 1));
     const monthEnd = endOfDay(new Date(yy, mm, 0));
+    // Garante logs desde o início da semana (seg) mesmo no dia 1 do mês
+    const fetchFrom = weekStart.getTime() < monthStart.getTime() ? weekStart : monthStart;
 
-    // Logs do mês (cabe o ranking). Pagina se preciso.
+    // Logs da semana+mês. Pagina se preciso.
     const logs: any[] = [];
     let offset = 0;
     const pageSize = 1000;
@@ -103,7 +119,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
         .select("auth_user_id, user_nome, protocolo_ref, action, created_at, detalhes")
         .eq("empresa_id", empresaId)
         .in("action", ["atendimento", "encerramento"])
-        .gte("created_at", monthStart.toISOString())
+        .gte("created_at", fetchFrom.toISOString())
         .order("created_at", { ascending: false })
         .range(offset, offset + pageSize - 1);
       if (error) {
@@ -122,7 +138,9 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     const semanaEmpresa = new Set<string>();
 
     for (const row of logs) {
-      const when = parseUltimoAtendimento(String(row.created_at || "").slice(0, 10));
+      const iso = String(row.created_at || "");
+      const ymdBr = ymdBrasilFromIso(iso);
+      const when = parseUltimoAtendimento(ymdBr);
       if (!when) continue;
       const proto = protoKey(row.protocolo_ref);
       if (!proto || proto === "SOLICITARONPROCESSO") continue;
@@ -147,7 +165,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
         acc.semana.add(proto);
         if (!sistema) semanaEmpresa.add(proto);
       }
-      if (isAtendidoHoje(String(row.created_at).slice(0, 10), ref)) acc.dia.add(proto);
+      if (isAtendidoHoje(ymdBr, ref)) acc.dia.add(proto);
     }
 
     const ranking: RankRow[] = [...byUser.entries()]

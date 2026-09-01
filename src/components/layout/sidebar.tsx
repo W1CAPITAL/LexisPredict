@@ -389,19 +389,24 @@ export function SidebarDock() {
     }
     el.textContent = `@media (min-width:768px){
   :root { --lexis-dock-pad: ${pad}; }
-  body { padding-bottom: var(--lexis-dock-pad) !important; }
-  main, .lexis-main-pad, [data-lexis-scroll] {
+  /* só o main principal — evita faixa branca (body + max-height empilhados) */
+  .lexis-main-pad, main.lexis-main-pad, [data-lexis-scroll] {
     padding-bottom: var(--lexis-dock-pad) !important;
     box-sizing: border-box;
   }
-  /* rodapés de chat / formulários colados embaixo */
   footer.sticky, .lexis-composer, [data-lexis-composer] {
     bottom: var(--lexis-dock-pad) !important;
     margin-bottom: 0 !important;
   }
-  /* evita conteúdo sob o dock */
-  .flex.h-screen > main {
-    max-height: calc(100vh - var(--lexis-dock-pad)) !important;
+  /* preenche a altura sem criar “cantos” vazios */
+  .flex.h-screen {
+    min-height: 100dvh;
+    height: 100dvh;
+  }
+  .flex.h-screen > main.lexis-main-pad {
+    min-height: 0;
+    height: 100%;
+    max-height: none;
   }
 }`;
     return () => {

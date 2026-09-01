@@ -189,22 +189,18 @@ export default function ProcessosEmpresaPage() {
       setCases(list);
       setListOffset(list.length);
       setTotalCount(Number(res?.totalCount) || list.length);
-      setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
       let rankList = Array.isArray(res?.ranking) ? res.ranking : [];
-      if (!rankList.length) {
-        try {
-          const rank = await fetchRankingAtendentesEmpresaAction(5);
-          if (rank?.ok && rank.ranking?.length) rankList = rank.ranking;
-        } catch { /* */ }
-      }
+      let atendSem = Number(res?.atendidosSemana) || 0;
+      // Sempre reforça ranking pela auditoria (semana completa, fuso BR)
+      try {
+        const rank = await fetchRankingAtendentesEmpresaAction(8);
+        if (rank?.ok) {
+          if (rank.ranking?.length) rankList = rank.ranking;
+          if (typeof rank.atendidosSemana === "number") atendSem = rank.atendidosSemana;
+        }
+      } catch { /* */ }
       setTopAtendentesSrv(rankList.slice(0, 5));
-      if (typeof (res as any)?.atendidosSemana !== 'number' || !(res as any).atendidosSemana) {
-        try {
-          const rank2 = rankList.length ? null : await fetchRankingAtendentesEmpresaAction(5);
-          const at = (res as any)?.atendidosSemana ?? rank2?.atendidosSemana;
-          if (typeof at === 'number' && at > 0) setAtendidosSemanaSrv(at);
-        } catch { /* */ }
-      }
+      setAtendidosSemanaSrv(atendSem);
       // KPIs de carteira: mesma regra do Dashboard (empresa inteira), NÃO a amostra da tabela
       try {
         const k = await fetchProcessosEmpresaKpisAction();
@@ -728,8 +724,8 @@ export default function ProcessosEmpresaPage() {
                     tone="ok"
                     hint={
                       isSistema
-                        ? `Feito por Davi Alves Figueredo · Dia: ${a.dia} • Mês: ${a.mes}`
-                        : `Dia: ${a.dia} • Mês: ${a.mes}`
+                        ? `Feito por Davi · Semana: ${a.semana} · Dia: ${a.dia} · Mês: ${a.mes}`
+                        : `Semana: ${a.semana} · Dia: ${a.dia} · Mês: ${a.mes}`
                     }
                   />
                 );
