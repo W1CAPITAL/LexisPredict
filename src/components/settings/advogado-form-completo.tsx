@@ -222,17 +222,8 @@ export function AdvogadoFormCompleto({
                 <Input value={f.nacionalidade} onChange={(e) => set("nacionalidade", e.target.value)} className="h-10 rounded-xl" />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label className="text-[9px] font-black uppercase">Estado civil</Label>
-                <Select value={f.estadoCivil} onValueChange={(v) => set("estadoCivil", v)}>
-                  <SelectTrigger className="h-10 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="solteiro">Solteiro(a)</SelectItem>
-                    <SelectItem value="casado">Casado(a)</SelectItem>
-                    <SelectItem value="divorciado">Divorciado(a)</SelectItem>
-                    <SelectItem value="viuvo">Viúvo(a)</SelectItem>
-                    <SelectItem value="uniao_estavel">União estável</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-[9px] font-black uppercase">Estado civil (texto livre)</Label>
+                <Input value={f.estadoCivil} onChange={(e) => set("estadoCivil", e.target.value)} className="h-10 text-xs rounded-xl" placeholder="casado, casada, casado(a)…" />
               </div>
             </div>
 

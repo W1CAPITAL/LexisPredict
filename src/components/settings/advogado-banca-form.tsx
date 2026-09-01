@@ -226,17 +226,20 @@ export function AdvogadoBancaDialog({
                   />
                 </div>
                 <div className="space-y-1 col-span-2">
-                  <Label className="text-[9px] font-black uppercase">Estado civil</Label>
-                  <Select value={form.estadoCivil} onValueChange={(v) => set("estadoCivil", v)}>
-                    <SelectTrigger className="h-10 rounded-xl text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="solteiro">Solteiro(a)</SelectItem>
-                      <SelectItem value="casado">Casado(a)</SelectItem>
-                      <SelectItem value="divorciado">Divorciado(a)</SelectItem>
-                      <SelectItem value="viuvo">Viúvo(a)</SelectItem>
-                      <SelectItem value="uniao_estavel">União estável</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-[9px] font-black uppercase">Estado civil (texto livre)</Label>
+                  <Input
+                    value={form.estadoCivil}
+                    onChange={(e) => set("estadoCivil", e.target.value)}
+                    className="h-10 text-xs rounded-xl"
+                    placeholder="casado, casada, casado(a)…"
+                  />
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {["solteiro","solteira","solteiro(a)","casado","casada","casado(a)","divorciado","divorciada","viúvo","viúva","união estável"].map((s) => (
+                      <button key={s} type="button" onClick={() => set("estadoCivil", s)} className="text-[9px] px-2 py-0.5 rounded-full border border-border hover:bg-primary/15 font-bold">
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
