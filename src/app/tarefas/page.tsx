@@ -86,7 +86,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction,
-  registrarAtendimentoCompletoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+  registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';

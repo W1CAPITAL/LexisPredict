@@ -30,6 +30,8 @@ type Props = {
   onScan?: (c: LegalCase) => void;
   onSuggest?: (c: LegalCase) => void;
   onDossie?: (c: LegalCase) => void;
+  /** Map auth_user_id / usuarios.id (lower) → nome do dono (created_by) */
+  ownerNameByAuth?: Map<string, string> | Record<string, string>;
 };
 
 function formatCnjFull(raw: string): string {
@@ -88,6 +90,23 @@ function pickUltimoMovimento(c: LegalCase): { texto: string; data: string } {
   return { texto, data };
 }
 
+function resolveOwnerName(
+  c: LegalCase,
+  map?: Map<string, string> | Record<string, string>
+): string {
+  const x = c as any;
+  const raw = String(x.created_by || x.createdBy || x.dono_id || "").trim();
+  if (!raw) return "";
+  const key = raw.toLowerCase();
+  if (map instanceof Map) {
+    return map.get(key) || map.get(raw) || "";
+  }
+  if (map && typeof map === "object") {
+    return (map as any)[key] || (map as any)[raw] || "";
+  }
+  return "";
+}
+
 export function CaseGlassList({
   items,
   isOperador,
@@ -99,6 +118,7 @@ export function CaseGlassList({
   onDelete,
   onScan,
   onDossie,
+  ownerNameByAuth,
 }: Props) {
   const [busy, setBusy] = React.useState<string | null>(null);
 
@@ -163,6 +183,15 @@ export function CaseGlassList({
                   </div>
                 </div>
                 {retorno ? <p className="text-[11px] text-muted-foreground">Retorno: {retorno}</p> : null}
+                {(() => {
+                  const dono = resolveOwnerName(c, ownerNameByAuth);
+                  return dono ? (
+                    <p className="text-[11px] font-semibold text-foreground/90">
+                      <span className="text-muted-foreground font-medium">Dono: </span>
+                      {dono}
+                    </p>
+                  ) : null;
+                })()}
                 {mov.texto || mov.data ? (
                   <p className="text-[10px] text-foreground/80 leading-snug flex gap-1" title={mov.texto || mov.data}>
                     <History size={12} className="mt-0.5 shrink-0 text-sky-500" />

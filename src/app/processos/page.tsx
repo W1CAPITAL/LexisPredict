@@ -827,6 +827,7 @@ export default function ProcessosEmpresaPage() {
                 <div className="max-h-[min(75vh,720px)] min-h-[200px] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-background/30 backdrop-blur-md p-2">
                   <CaseGlassList
                     items={visibleItems as any}
+                    ownerNameByAuth={nomeByAuth}
                     onEdit={(c) => {
                       setEditing(c as any);
                       setEditOpen(true);
