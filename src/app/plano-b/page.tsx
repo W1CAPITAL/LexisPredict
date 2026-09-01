@@ -25,7 +25,6 @@ import {
   parseCsv,
   planoBToCsv,
   type PlanoBRow,
-  diagnoseHeaders,
 } from "@/lib/plano-b-sheets";
 import {
   FileSpreadsheet,
