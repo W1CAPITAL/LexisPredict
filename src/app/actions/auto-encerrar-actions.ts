@@ -1,5 +1,7 @@
 "use server";
 
+import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from "@/lib/auth-supervisao";
+
 /**
  * Scanner real DataJud+DJEN — select SEM colunas inexistentes.
  * Erro anterior: processos.cumprimento_encerrado does not exist
@@ -93,30 +95,39 @@ export async function countAutoEncerrarPendentesAction() {
       baixasTribunalTotal = 0;
     }
 
-    const { data: rows, error } = await admin
-      .from("processos")
-      .select("id, dados, protocolo_ref")
-      .eq("empresa_id", empresa_id)
-      .eq("datajud_encerrado_tribunal", true)
-      .limit(5000);
-
-    if (error) {
-      return {
-        success: false,
-        baixaAtivos: 0,
-        outrosAtivos: 0,
-        totalPendentes: 0,
-        baixasTribunalTotal,
-        bloqueadosViaScan: 0,
-        error: error.message,
-      };
-    }
-
+    // Contagem completa (sem teto 5000): pagina por id
     let baixaAtivos = 0;
     let bloqueadosViaScan = 0;
-    for (const row of rows || []) {
-      if (jaAutoScan(row)) bloqueadosViaScan++;
-      else baixaAtivos++;
+    let afterId: number | null = null;
+    for (let page = 0; page < 200; page++) {
+      let q = admin
+        .from("processos")
+        .select("id, dados, protocolo_ref")
+        .eq("empresa_id", empresa_id)
+        .eq("datajud_encerrado_tribunal", true)
+        .order("id", { ascending: true })
+        .limit(1000);
+      if (afterId != null) q = q.gt("id", afterId);
+      const { data: rows, error } = await q;
+      if (error) {
+        return {
+          success: false,
+          baixaAtivos: 0,
+          outrosAtivos: 0,
+          totalPendentes: 0,
+          baixasTribunalTotal,
+          bloqueadosViaScan: 0,
+          error: error.message,
+        };
+      }
+      const chunk = rows || [];
+      if (!chunk.length) break;
+      for (const row of chunk) {
+        if (jaAutoScan(row)) bloqueadosViaScan++;
+        else baixaAtivos++;
+      }
+      afterId = Number(chunk[chunk.length - 1].id);
+      if (chunk.length < 1000) break;
     }
 
     return {
@@ -146,8 +157,22 @@ export async function resetViaScanFlagsBaixasAction(): Promise<{
   error?: string;
 }> {
   try {
-    const { empresa_id } = await getUserContext();
+    const ctx = await getUserContext();
+    const { empresa_id } = ctx;
     if (!empresa_id) return { success: false, updated: 0, error: "Sem sessão" };
+    // Supervisão only
+    {
+      const adminGate = await getSupabaseAdmin();
+      const { data: me } = await adminGate
+        .from("usuarios")
+        .select("cargo, role, perfil")
+        .eq("empresa_id", empresa_id)
+        .eq("auth_user_id", ctx.auth_id || "")
+        .maybeSingle();
+      if (!canSupervisaoCarteira(me as any)) {
+        return { success: false, updated: 0, error: SUPERVISAO_REQUIRED };
+      }
+    }
     const admin = await getSupabaseAdmin();
     const { data: rows, error } = await admin
       .from("processos")
@@ -236,8 +261,23 @@ export async function runAutoEncerrarBatchAction(opts?: {
   };
 
   try {
-    const { empresa_id } = await getUserContext();
+    const ctxBatch = await getUserContext();
+    const { empresa_id, auth_id } = ctxBatch;
     if (!empresa_id) return { ...empty, error: "Sem sessão" };
+
+    // Operação de escala empresarial — só Supervisão/Superadmin
+    {
+      const adminGate = await getSupabaseAdmin();
+      const { data: me } = await adminGate
+        .from("usuarios")
+        .select("cargo, role, perfil")
+        .eq("empresa_id", empresa_id)
+        .eq("auth_user_id", auth_id || "")
+        .maybeSingle();
+      if (!canSupervisaoCarteira(me as any)) {
+        return { ...empty, error: SUPERVISAO_REQUIRED };
+      }
+    }
 
     const maxScans = Math.min(Math.max(opts?.limit ?? MAX_SCANS, 1), MAX_SCANS);
     const fast = opts?.fast !== false;

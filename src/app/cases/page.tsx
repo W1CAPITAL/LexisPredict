@@ -1,3 +1,4 @@
+import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 "use client";
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
@@ -268,7 +269,7 @@ function CasesContent() {
     () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
     [cases, profile]
   );
-  const canAssignOwner = isSupervisor || isSuperAdmin || profile?.cargo === 'Administrador';
+  const canAssignOwner = canAssignOwnerRule(profile as any);
   const { toast } = useToast();
   
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });

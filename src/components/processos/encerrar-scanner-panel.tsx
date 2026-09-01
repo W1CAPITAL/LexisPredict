@@ -51,6 +51,10 @@ export function EncerrarScannerPanel({ onDone, canRodarEmpresa = true }: Props) 
   }, [refreshCount]);
 
   const resetFlags = async () => {
+    if (!canRodarEmpresa) {
+      toast({ title: "Sem permissão", description: "Só Supervisão/Superadmin pode reabrir a fila.", variant: "destructive" });
+      return;
+    }
     if (resetting) return;
     setResetting(true);
     try {
@@ -70,6 +74,10 @@ export function EncerrarScannerPanel({ onDone, canRodarEmpresa = true }: Props) 
   };
 
   const runEmpresaToda = async () => {
+    if (!canRodarEmpresa) {
+      toast({ title: "Sem permissão", description: "Só Supervisão/Superadmin pode rodar a empresa.", variant: "destructive" });
+      return;
+    }
     if (running) return;
     setRunning(true);
     setLastRun(null);
@@ -210,7 +218,7 @@ export function EncerrarScannerPanel({ onDone, canRodarEmpresa = true }: Props) 
         </p>
       )}
 
-      {pendentes && pendentes.bloqueadosViaScan > 0 && (
+      {canRodarEmpresa && pendentes && pendentes.bloqueadosViaScan > 0 && (
         <Button
           type="button"
           size="sm"
@@ -221,6 +229,11 @@ export function EncerrarScannerPanel({ onDone, canRodarEmpresa = true }: Props) 
           <RotateCcw className="mr-1 h-3.5 w-3.5" />
           {resetting ? "Reabrindo…" : `Reabrir fila (${pendentes.bloqueadosViaScan})`}
         </Button>
+      )}
+      {!canRodarEmpresa && pendentes && pendentes.bloqueadosViaScan > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          {pendentes.bloqueadosViaScan} bloqueados via_scan — apenas Supervisão pode reabrir a fila.
+        </p>
       )}
 
       <p className="text-[10px] text-muted-foreground">

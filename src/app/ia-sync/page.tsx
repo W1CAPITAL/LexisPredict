@@ -1,3 +1,4 @@
+import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 "use client";
 
 /**
@@ -98,12 +99,7 @@ export default function IASyncPage() {
   const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
   const [ownerAuthId, setOwnerAuthId] = useState<string>("self");
 
-  const canAssignOwner =
-    checkIfSuperAdmin(profile) ||
-    checkIfSupervisor(profile) ||
-    profile?.cargo === "Administrador" ||
-    profile?.cargo === "Supervisor" ||
-    profile?.cargo === "Superadmin";
+  const canAssignOwner = canAssignOwnerRule(profile as any);
 
   useEffect(() => {
     if (!canAssignOwner) return;

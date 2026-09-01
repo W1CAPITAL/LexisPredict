@@ -1,5 +1,7 @@
 'use server';
 
+import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from "@/lib/auth-supervisao";
+
 /**
  * Salvamento atômico de UM processo — evita upsert de 1000+ linhas (travamento na UI).
  * Colunas de auditoria (edited_at / edited_by) ficam dentro de `dados` quando
@@ -358,6 +360,17 @@ export async function reassignCaseOwnerAction(input: {
     if (!protocolo || !novo) return { success: false, message: "Protocolo e novo responsável obrigatórios." };
 
     const admin = await getSupabaseAdmin();
+    {
+      const { data: me } = await admin
+        .from("usuarios")
+        .select("cargo, role, perfil")
+        .eq("empresa_id", empresa_id)
+        .eq("auth_user_id", auth_id)
+        .maybeSingle();
+      if (!canSupervisaoCarteira(me as any)) {
+        return { success: false, message: SUPERVISAO_REQUIRED };
+      }
+    }
     const dig = protocolo.replace(/\D/g, "");
 
     const { data: rows } = await admin

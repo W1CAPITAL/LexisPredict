@@ -1,3 +1,4 @@
+import { canRodarEmpresaScan, canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 "use client";
 
 import { CaseGlassList } from '@/components/cases/case-glass-list';
@@ -142,17 +143,8 @@ export default function ProcessosEmpresaPage() {
   const { profile } = useAuth();
   const { toast } = useToast();
   /** Só o botão "Rodar empresa" (lote empresa) exige Supervisão/Superadmin. Resto da página é livre. */
-  const canRodarEmpresa =
-    /supervisor|superadmin/i.test(String((profile as any)?.cargo || "")) ||
-    String((profile as any)?.role || "").toLowerCase() === "superadmin" ||
-    String((profile as any)?.role || "").toLowerCase() === "supervisor" ||
-    !!(profile as any)?.isSuperAdmin ||
-    !!(profile as any)?.isSupervisor;
-  const canAssignOwner =
-    canRodarEmpresa ||
-    /administrador|admin/i.test(String((profile as any)?.cargo || "")) ||
-    String((profile as any)?.role || "").toLowerCase() === "superadmin" ||
-    !!(profile as any)?.isSuperAdmin;
+  const canRodarEmpresa = canRodarEmpresaScan(profile as any);
+  const canAssignOwner = canAssignOwnerRule(profile as any);
 
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [searchHits, setSearchHits] = useState<LegalCase[] | null>(null);
