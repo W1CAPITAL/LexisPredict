@@ -995,26 +995,64 @@ export async function getWhatsAppHistory(phone: string) {
 }
 
 export async function listAdvogadosBanca() {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return [];
-  const { data, error } = await supabase.from('advogados_banca').select('*').eq('empresa_id', empresa_id).eq('ativo', true).order('nome', { ascending: true });
-  return data || [];
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id || !supabase) return [];
+    const { data, error } = await supabase
+      .from("advogados_banca")
+      .select("*")
+      .eq("empresa_id", empresa_id)
+      .eq("ativo", true)
+      .order("nome", { ascending: true });
+    if (error) {
+      console.warn("[listAdvogadosBanca]", error.message);
+      return [];
+    }
+    return data || [];
+  } catch (e) {
+    console.warn("[listAdvogadosBanca]", e);
+    return [];
+  }
 }
 
 export async function upsertAdvogadoBanca(adv: any) {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return { success: false, error: 'Sessão expirada' };
-  const payload = { ...adv, empresa_id: empresa_id, ativo: adv.ativo ?? true };
-  const { data, error } = await supabase.from('advogados_banca').upsert(payload, { onConflict: 'id' }).select().single();
-  if (error) return { success: false, error: error.message };
-  return { success: true, data };
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id || !supabase) {
+      return { success: false, error: "offline_or_session", offline: true as const };
+    }
+    const payload = {
+      ...adv,
+      empresa_id,
+      ativo: adv.ativo ?? true,
+      estado_civil: adv.estado_civil ?? adv.estadoCivil ?? null,
+      nacionalidade: adv.nacionalidade ?? null,
+    };
+    const { data, error } = await supabase
+      .from("advogados_banca")
+      .upsert(payload, { onConflict: "id" })
+      .select()
+      .single();
+    if (error) return { success: false, error: error.message, offline: false as const };
+    return { success: true, data };
+  } catch (e: any) {
+    return { success: false, error: e?.message || "erro", offline: true as const };
+  }
 }
 
 export async function desativarAdvogadoBanca(id: string) {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return { success: false };
-  const { error = null } = await supabase.from('advogados_banca').update({ ativo: false }).eq('id', id).eq('empresa_id', empresa_id);
-  return { success: !error };
+  try {
+    const { empresa_id } = await getUserContext();
+    if (!empresa_id || !supabase) return { success: false, offline: true as const };
+    const { error } = await supabase
+      .from("advogados_banca")
+      .update({ ativo: false })
+      .eq("id", id)
+      .eq("empresa_id", empresa_id);
+    return { success: !error, offline: false as const };
+  } catch {
+    return { success: false, offline: true as const };
+  }
 }
 
 /**
