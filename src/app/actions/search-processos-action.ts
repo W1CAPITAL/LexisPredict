@@ -28,17 +28,6 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
     // toLegalCase não é exportado — reusa getStoredCasesPage pattern via select + map local
     const ctx = await getUserContext();
     if (!ctx?.empresa_id) return { ok: false, cases: [], error: "sem empresa" };
-    const cargo = String((ctx as any).cargo || "");
-    const role = String((ctx as any).role || "").toLowerCase();
-    const canViewEmpresa =
-      !!(ctx as any).isSupervisor ||
-      !!(ctx as any).isSuperAdmin ||
-      /supervisor|superadmin/i.test(cargo) ||
-      role === "supervisor" ||
-      role === "superadmin";
-    if (!canViewEmpresa) {
-      return { ok: false, cases: [], error: "Acesso restrito à supervisão" };
-    }
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, cases: [], error: "admin" };
 

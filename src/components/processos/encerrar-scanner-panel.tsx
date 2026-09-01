@@ -15,10 +15,12 @@ type Props = {
   authUserId?: string | null;
   empresaId?: string | null;
   visaoEmpresa?: boolean;
+  /** Se false, oculta botão "Rodar empresa" (só Supervisão/Superadmin). */
+  canRodarEmpresa?: boolean;
   onDone?: () => void;
 };
 
-export function EncerrarScannerPanel({ onDone }: Props) {
+export function EncerrarScannerPanel({ onDone, canRodarEmpresa = true }: Props) {
   const [running, setRunning] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [lastRun, setLastRun] = useState<string | null>(null);
@@ -172,6 +174,7 @@ export function EncerrarScannerPanel({ onDone }: Props) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canRodarEmpresa ? (
           <Button type="button" size="sm" disabled={running} onClick={() => void runEmpresaToda()}>
             {running ? (
               <>
@@ -183,6 +186,7 @@ export function EncerrarScannerPanel({ onDone }: Props) {
               </>
             )}
           </Button>
+          ) : null}
           <Button type="button" size="sm" variant="outline" onClick={() => setLogsOpen((v) => !v)}>
             <List className="mr-1 h-3.5 w-3.5" /> Ver logs
           </Button>
