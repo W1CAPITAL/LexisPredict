@@ -1,0 +1,4 @@
+Usuarios: login | nome | senha | perfil | escritorio | ativo | email | auth_user_id | id
+Processos: Id | Protocolo | Cliente | Status | Situacao | UltimoRetorno | ProximoRetorno | Advogado | Escritorio | Tribunal | Telefone | CreatedBy | Responsavel | AtendidoPor | Observacao | EmpresaId | updated_at | version
+Leads: Id | CriadoEm | AtualizadoEm | Fonte | Status | Consentimento | Nome | WhatsApp | Telefone | Email | CPF | Interesse | Placa | Parcela | Score | Tier | Responsavel | Tags
+Clientes: Id | Nome | Telefone | CPF | Email | Status | updated_at | version

@@ -1,78 +1,117 @@
 /**
- * LEXIS UNIFIED — contrato do Data Provider
- * Supabase deixa de ser obrigatório. Local + Sheets (+ opcional Supabase).
+ * Lexis Unified — abstração de dados (Supabase opcional).
+ * Local / Sheets / Supabase implementam a mesma interface.
  */
 
-export type ProviderId = "local" | "sheets" | "supabase";
-
-export type SyncOp = "upsert" | "delete";
-
-export type SyncEntity =
-  | "users"
-  | "empresas"
-  | "clientes"
-  | "leads"
-  | "processos"
-  | "tarefas"
-  | "atendimentos"
-  | "crm"
-  | "config"
-  | "audit";
-
-export type SyncRecord = {
-  id: string;
-  entity: SyncEntity;
-  op: SyncOp;
-  payload: Record<string, unknown>;
-  updated_at: string; // ISO
-  version: number;
-  device_id: string;
-  deleted?: boolean;
-};
+export type ProviderKind = "local" | "sheets" | "supabase";
 
 export type SessionUser = {
   id: string;
-  name: string;
+  login: string;
+  nome: string;
   email?: string;
   role: string;
-  empresaId?: string;
+  empresaId: string;
   token?: string;
 };
 
-export type LoginResult =
-  | { ok: true; user: SessionUser }
-  | { ok: false; error: string };
+export type ProcessRow = {
+  id: string;
+  protocolo: string;
+  cliente: string;
+  status?: string;
+  situacao?: string;
+  ultimoRetorno?: string;
+  proximoRetorno?: string;
+  advogado?: string;
+  telefone?: string;
+  createdBy?: string;
+  responsavel?: string;
+  observacao?: string;
+  empresaId?: string;
+  updatedAt?: string;
+  version?: number;
+  deleted?: boolean;
+  [key: string]: unknown;
+};
 
-export type PushResult = {
+export type LeadRow = {
+  id: string;
+  nome: string;
+  whatsapp?: string;
+  cpf?: string;
+  status?: string;
+  consentAt?: string | null;
+  score?: number;
+  source?: string;
+  updatedAt?: string;
+  version?: number;
+  deleted?: boolean;
+  [key: string]: unknown;
+};
+
+export type ClientRow = {
+  id: string;
+  nome: string;
+  telefone?: string;
+  cpf?: string;
+  email?: string;
+  status?: string;
+  updatedAt?: string;
+  version?: number;
+  deleted?: boolean;
+  [key: string]: unknown;
+};
+
+export type SyncChange = {
+  table: "processos" | "leads" | "clientes" | "usuarios" | "tarefas" | "crm";
+  id: string;
+  op: "upsert" | "delete";
+  payload: Record<string, unknown>;
+  updatedAt: string;
+  version: number;
+  deviceId: string;
+};
+
+export type SyncPullResult = {
   ok: boolean;
-  accepted: number;
-  conflicts: Array<{ id: string; entity: SyncEntity; reason: string }>;
+  processes?: ProcessRow[];
+  leads?: LeadRow[];
+  clients?: ClientRow[];
+  serverTime?: string;
   error?: string;
 };
 
-export type PullResult = {
+export type SyncPushResult = {
   ok: boolean;
-  records: SyncRecord[];
-  cursor?: string;
+  applied?: number;
+  conflicts?: number;
   error?: string;
 };
 
-export type HealthResult = {
-  ok: boolean;
-  provider: ProviderId;
-  detail?: string;
-};
-
-/** Interface única — Core do Lexis fala só com isto. */
 export interface DataProvider {
-  readonly id: ProviderId;
-  health(): Promise<HealthResult>;
-  login?(user: string, password: string): Promise<LoginResult>;
-  /** Fila local → remoto */
-  push(records: SyncRecord[]): Promise<PushResult>;
-  /** Remoto → local (desde cursor) */
-  pull(opts?: { cursor?: string; entities?: SyncEntity[] }): Promise<PullResult>;
-  /** Leitura rápida local (quando provider é local ou cache) */
-  listLocal?<T = Record<string, unknown>>(entity: SyncEntity): Promise<T[]>;
-  upsertLocal?(entity: SyncEntity, row: Record<string, unknown>): Promise<void>;
+  kind: ProviderKind;
+  auth: {
+    login(login: string, password: string): Promise<{ ok: boolean; user?: SessionUser; error?: string }>;
+    logout(): Promise<void>;
+    currentUser(): SessionUser | null;
+  };
+  processes: {
+    list(opts?: { onlyMine?: boolean }): Promise<ProcessRow[]>;
+    upsert(row: ProcessRow): Promise<ProcessRow>;
+    remove(id: string): Promise<void>;
+  };
+  leads: {
+    list(): Promise<LeadRow[]>;
+    upsert(row: LeadRow): Promise<LeadRow>;
+  };
+  clients: {
+    list(): Promise<ClientRow[]>;
+    upsert(row: ClientRow): Promise<ClientRow>;
+  };
+  sync: {
+    push(changes: SyncChange[]): Promise<SyncPushResult>;
+    pull(since?: string): Promise<SyncPullResult>;
+    ping(): Promise<{ ok: boolean; error?: string }>;
+  };
 }
