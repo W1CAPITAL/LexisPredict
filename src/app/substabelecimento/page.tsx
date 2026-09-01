@@ -1,5 +1,8 @@
 "use client";
 
+import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
+import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -52,6 +55,8 @@ import { listAdvogadosBanca } from '@/lib/server-db';
 import Link from 'next/link';
 
 export default function SubstabelecimentoGenerator() {
+  const partes = usePartesEditaveis();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -132,16 +137,16 @@ export default function SubstabelecimentoGenerator() {
           substabelecente: {
             nome: advLeaving.nome,
             genero: advLeaving.genero || 'M',
-            nacionalidade: advLeaving.nacionalidade || 'brasileiro',
-            estadoCivil: advLeaving.estado_civil || advLeaving.estadoCivil || (advLeaving.genero === 'F' ? 'casada' : 'casado'),
+            nacionalidade: advLeaving.nacionalidade || '',
+            estadoCivil: advLeaving.estado_civil || advLeaving.estadoCivil || (advLeaving.''),
             oabCompleta: `OAB/${selectedState} sob o n.º ${advLeaving.oabs[selectedState] || ''}`,
             oabCurta: `OAB/${selectedState} ${advLeaving.oabs[selectedState] || ''}`
           },
           substabelecido: {
             nome: advEntering.nome,
             genero: advEntering.genero || 'M',
-            nacionalidade: advEntering.nacionalidade || 'brasileiro',
-            estadoCivil: advEntering.estado_civil || advEntering.estadoCivil || (advEntering.genero === 'F' ? 'casada' : 'casado'),
+            nacionalidade: advEntering.nacionalidade || '',
+            estadoCivil: advEntering.estado_civil || advEntering.estadoCivil || (advEntering.''),
             oabCompleta: `OAB/${selectedState} sob o n.º ${advEntering.oabs[selectedState] || ''}`,
             oabCurta: `OAB/${selectedState} ${advEntering.oabs[selectedState] || ''}`
           },
@@ -396,6 +401,18 @@ export default function SubstabelecimentoGenerator() {
             </div>
           )}
         </div>
+      
+        <div className="max-w-4xl mx-auto w-full px-4 py-4">
+          <EditablePartesPanel
+            banca={partes.banca}
+            setBanca={partes.setBanca}
+            advogados={partes.advogados}
+            setAdvogados={partes.setAdvogados}
+            cliente={partes.cliente}
+            setCliente={partes.setCliente}
+          />
+        </div>
+
       </main>
     </div>
   );

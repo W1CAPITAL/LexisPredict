@@ -1,5 +1,8 @@
 "use client";
 
+import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
+import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -54,6 +57,8 @@ import { listAdvogadosBanca } from '@/lib/server-db';
 import Link from 'next/link';
 
 export default function HabilitacaoPecaGenerator() {
+  const partes = usePartesEditaveis();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -131,15 +136,15 @@ export default function HabilitacaoPecaGenerator() {
             endereco: data.cliente?.endereco || "",
             email: data.cliente?.email || "",
             telefone: data.cliente?.telefone || "",
-            nacionalidade: data.cliente?.nacionalidade || "brasileiro(a)",
-            estadoCivil: data.cliente?.estadoCivil || "casado(a)",
+            nacionalidade: data.cliente?.nacionalidade || '',
+            estadoCivil: data.cliente?.estadoCivil || '',
             profissao: data.cliente?.profissao || "autônomo(a)"
           },
           advogado: {
             nome: selectedLawyer.nome.toUpperCase(),
             oab: oabNum,
-            nacionalidade: selectedLawyer.nacionalidade || 'brasileiro',
-            estadoCivil: selectedLawyer.estado_civil || selectedLawyer.estadoCivil || 'casado',
+            nacionalidade: selectedLawyer.nacionalidade || '',
+            estadoCivil: selectedLawyer.estado_civil || selectedLawyer.estadoCivil || '',
             genero: selectedLawyer.genero || 'M',
             endereco: selectedLawyer.endereco,
             email: selectedLawyer.email,
@@ -422,6 +427,18 @@ export default function HabilitacaoPecaGenerator() {
             </div>
           )}
         </div>
+      
+        <div className="max-w-4xl mx-auto w-full px-4 py-4">
+          <EditablePartesPanel
+            banca={partes.banca}
+            setBanca={partes.setBanca}
+            advogados={partes.advogados}
+            setAdvogados={partes.setAdvogados}
+            cliente={partes.cliente}
+            setCliente={partes.setCliente}
+          />
+        </div>
+
       </main>
     </div>
   );

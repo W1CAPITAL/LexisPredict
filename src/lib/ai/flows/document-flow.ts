@@ -75,7 +75,7 @@ function dumbExtract(text: string) {
       dataNascimento: dataNasc,
       email: emailMatch ? emailMatch[0] : "",
       telefone: phoneMatch ? phoneMatch[0] : "",
-      estadoCivil: text.includes('Divorciada') ? 'divorciado(a)' : text.includes('Casado') ? 'casado(a)' : 'solteiro(a)',
+      estadoCivil: '', // não normaliza — operador edita no painel
       profissao: "Autônomo(a)",
       nacionalidade: "brasileiro(a)"
     },

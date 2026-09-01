@@ -1,5 +1,8 @@
 "use client";
 
+import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
+import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -45,6 +48,8 @@ import { cn } from '@/lib/utils';
 const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
 export default function SubstabelecimentoSimplesPage() {
+  const partes = usePartesEditaveis();
+
   const [loading, setLoading] = useState(false);
   const [banca, setBanca] = useState<any[]>([]);
   const [template, setTemplate] = useState<'padrao' | 'cpc272'>('padrao');
@@ -336,6 +341,18 @@ export default function SubstabelecimentoSimplesPage() {
             </CardContent>
           </Card>
         </div>
+      
+        <div className="max-w-4xl mx-auto w-full px-4 py-4">
+          <EditablePartesPanel
+            banca={partes.banca}
+            setBanca={partes.setBanca}
+            advogados={partes.advogados}
+            setAdvogados={partes.setAdvogados}
+            cliente={partes.cliente}
+            setCliente={partes.setCliente}
+          />
+        </div>
+
       </main>
     </div>
   );

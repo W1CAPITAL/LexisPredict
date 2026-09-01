@@ -1,5 +1,8 @@
 "use client";
 
+import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
+import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
+
 /**
  * Revogacao de poderes — redesigned for clarity.
  * Two modes:
@@ -78,6 +81,8 @@ type QueueStatus = "idle" | "running" | "paused" | "done";
 type ModoRevogacao = "revogacao-substabelecimento" | "apenas-revogacao";
 
 export default function RevogacaoPoderesPage() {
+  const partes = usePartesEditaveis();
+
   const { toast } = useToast();
   const [banca, setBanca] = useState<any[]>([]);
   const [leavingId, setLeavingId] = useState("");
@@ -818,6 +823,18 @@ export default function RevogacaoPoderesPage() {
             </div>
           </div>
         </div>
+      
+        <div className="max-w-4xl mx-auto w-full px-4 py-4">
+          <EditablePartesPanel
+            banca={partes.banca}
+            setBanca={partes.setBanca}
+            advogados={partes.advogados}
+            setAdvogados={partes.setAdvogados}
+            cliente={partes.cliente}
+            setCliente={partes.setCliente}
+          />
+        </div>
+
       </main>
     </div>
   );

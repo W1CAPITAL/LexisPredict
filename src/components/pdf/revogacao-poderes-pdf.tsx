@@ -187,7 +187,7 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
                 <Text style={s.bold}>REVOGA</Text> integralmente os poderes outorgados ao(a)
                 advogado(a){" "}
                 <Text style={s.bold}>{String(revogado.nome || "").toUpperCase()}</Text>,{" "}
-                {revogado.nacionalidade || "brasileiro(a)"}, inscrito(a) na{" "}
+                {revogado.nacionalidade || ''}, inscrito(a) na{" "}
                 <Text style={s.bold}>{revogado.oabCompleta}</Text>
                 {revogado.endereco
                   ? ", com endereco profissional em " + revogado.endereco
@@ -219,7 +219,7 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
               <Text>
                 O(A) advogado(a){" "}
                 <Text style={s.bold}>{String(revogado.nome || "").toUpperCase()}</Text>,{" "}
-                {revogado.nacionalidade || "brasileiro(a)"},{" "}
+                {revogado.nacionalidade || ''},{" "}
                 {revogado.estadoCivil || "estado civil nao informado"}, inscrito(a) na{" "}
                 <Text style={s.bold}>{revogado.oabCompleta}</Text>
                 {revogado.endereco
@@ -247,7 +247,7 @@ export function RevogacaoPoderesPDF({ data }: { data: RevogacaoPdfData }) {
                 <Text style={s.bold}>
                   {String(substabelecido!.nome || "").toUpperCase()}
                 </Text>
-                , {substabelecido!.nacionalidade || "brasileiro(a)"},{" "}
+                , {substabelecido!.nacionalidade || ''},{" "}
                 {substabelecido!.estadoCivil || "estado civil nao informado"}, inscrito(a)
                 na <Text style={s.bold}>{substabelecido!.oabCompleta}</Text>
                 {substabelecido!.endereco

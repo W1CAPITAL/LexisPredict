@@ -150,7 +150,7 @@ function mapAdv(adv: any, preferUf?: string) {
     nome: String(adv.nome || ''),
     oabCompleta: o.completa,
     oabCurta: o.curta,
-    nacionalidade: adv.nacionalidade || 'brasileiro(a)',
+    nacionalidade: adv.nacionalidade || '',
     estadoCivil: adv.estadoCivil || adv.estado_civil || '',
     endereco: [adv.endereco, adv.cidade, adv.uf].filter(Boolean).join(' — ') || undefined,
     email: adv.emailProfissional || adv.email || undefined,

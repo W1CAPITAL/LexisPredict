@@ -1,58 +1,54 @@
 'use server';
 
 /**
- * MOTOR DE EXTRAÇÃO DEDICADO - GROK BETA (apenas para documentos jurídicos)
- * 
- * Esta função deve ser usada EXCLUSIVAMENTE em:
- * - Procuração
- * - Substabelecimento  
- * - Habilitação + Procuração
- * 
- * Usa a chave XAI_DOCUMENTS_API_KEY + modelo grok-4.5 (Grok Beta)
+ * MOTOR DE EXTRAÇÃO — documentos jurídicos
+ * NÃO normaliza gênero: se o texto diz "casada", retorna "casada".
  */
 
 const DOCUMENTS_KEY = process.env.XAI_DOCUMENTS_API_KEY;
 const MAIN_KEY = process.env.XAI_API_KEY;
 
-const SYSTEM_PROMPT = `Você é um especialista em extração de dados jurídicos da GET Assessoria Financeira.
+const SYSTEM_PROMPT = `Você é um especialista em extração de dados jurídicos.
 
-Extraia os dados do texto abaixo com máxima precisão e retorne APENAS um JSON válido no formato:
+Extraia os dados do texto e retorne APENAS JSON válido:
 
 {
   "outorgante": {
     "nome": "",
-    "nacionalidade": "brasileiro(a)",
+    "nacionalidade": "",
     "estado_civil": "",
     "profissao": "",
     "rg": "",
     "cpf": "",
     "endereco": "",
-    "email": ""
+    "email": "",
+    "qualificacao": ""
   },
-  "outorgados": [{ "nome": "", "oab": "" }],
+  "outorgados": [{ "nome": "", "oab": "", "nacionalidade": "", "estado_civil": "" }],
   "poderes_especificos": "",
   "instituicao_financeira": "",
   "processo_numero": "",
-  "cidade": "São Paulo",
+  "cidade": "",
   "data": ""
 }
 
-Regras:
-- Nomes completos devem estar em MAIÚSCULO.
-- Extraia o máximo de informações possível.
-- Se não encontrar algum campo, deixe como string vazia.
-- Nunca invente dados.`;
+Regras CRÍTICAS:
+- NÃO normalize gênero. Se o documento diz "casada", use "casada" (não "casado" nem "casado(a)" se não estiver assim).
+- NÃO force "brasileiro" se o texto diz "brasileira".
+- NÃO invente dados. Campo ausente = string vazia.
+- Nomes podem permanecer como no documento (preferência: maiúsculas se já estiverem).
+- "qualificacao" = parágrafo completo de qualificação se existir no texto, senão vazio.`;
 
 export async function extrairDadosDocumentosAction(texto: string) {
   const apiKey = DOCUMENTS_KEY || MAIN_KEY;
 
   if (!apiKey) {
-    console.warn("[Grok Beta] Nenhuma chave xAI encontrada. Retornando dados vazios para fluxo manual.");
-    return { outorgante: {}, processos: [] };
+    console.warn("[docs-extract] Sem chave xAI. Fluxo manual.");
+    return { outorgante: {}, outorgados: [], processos: [] };
   }
 
   if (!texto || texto.trim().length < 30) {
-    return { outorgante: {}, processos: [] };
+    return { outorgante: {}, outorgados: [], processos: [] };
   }
 
   try {
@@ -68,26 +64,24 @@ export async function extrairDadosDocumentosAction(texto: string) {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: texto },
         ],
-        temperature: 0.1,
+        temperature: 0.05,
         response_format: { type: "json_object" },
       }),
     });
 
     if (!response.ok) {
-      console.error(`[Grok Beta] Erro API: ${response.status}`);
-      return { outorgante: {}, processos: [] };
+      console.error(`[docs-extract] API ${response.status}`);
+      return { outorgante: {}, outorgados: [], processos: [] };
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-
-    if (!content) return { outorgante: {}, processos: [] };
+    if (!content) return { outorgante: {}, outorgados: [], processos: [] };
 
     const jsonString = content.replace(/```json|```/g, "").trim();
     return JSON.parse(jsonString);
-
   } catch (error: any) {
-    console.error("[Grok Beta - Documentos] Erro:", error.message);
-    return { outorgante: {}, processos: [] };
+    console.error("[docs-extract]", error.message);
+    return { outorgante: {}, outorgados: [], processos: [] };
   }
 }

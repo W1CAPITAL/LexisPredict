@@ -1,5 +1,9 @@
 "use client";
 
+import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
+import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
+import { qualificarCliente } from "@/lib/partes-editaveis";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -59,6 +63,8 @@ import { listAdvogadosBanca } from '@/lib/server-db';
 import Link from 'next/link';
 
 export default function DocumentGenerator() {
+  const partes = usePartesEditaveis();
+
   const [hub, setHub] = useState(true);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -133,9 +139,9 @@ export default function DocumentGenerator() {
             ...res.cliente,
             email: res.cliente.email || '',
             telefone: res.cliente.telefone || '',
-            estadoCivil: res.cliente.estadoCivil || 'casado(a)',
+            estadoCivil: res.cliente.estadoCivil || '',
             profissao: res.cliente.profissao || 'autônomo(a)',
-            nacionalidade: res.cliente.nacionalidade || 'brasileiro(a)',
+            nacionalidade: res.cliente.nacionalidade || '',
           },
           processos: res.processos?.map((p: any) => ({
             ...p,
@@ -184,8 +190,8 @@ export default function DocumentGenerator() {
         advogado: {
           nome: selectedLawyer.nome,
           oab: selectedLawyer.oabs[selectedState] || Object.values(selectedLawyer.oabs)[0],
-          nacionalidade: selectedLawyer.nacionalidade || (selectedLawyer.genero === 'F' ? 'brasileira' : 'brasileiro'),
-          estadoCivil: selectedLawyer.estado_civil || selectedLawyer.estadoCivil || (selectedLawyer.genero === 'F' ? 'casada' : 'casado'),
+          nacionalidade: selectedLawyer.nacionalidade || (selectedLawyer.''),
+          estadoCivil: selectedLawyer.estado_civil || selectedLawyer.estadoCivil || '',
           endereco: selectedLawyer.endereco,
           email: selectedLawyer.email
         }
@@ -489,7 +495,18 @@ export default function DocumentGenerator() {
                 </CardHeader>
                 <CardContent className="p-10 text-black font-serif text-[11pt] leading-relaxed bg-white space-y-6">
                   <h3 className="text-center font-bold uppercase underline">PROCURAÇÃO "AD JUDICIA"</h3>
-                  <p className="text-justify indent-10"><strong>{extractedData.cliente.nome.toUpperCase()}</strong>, {extractedData.cliente.nacionalidade}, {extractedData.cliente.estadoCivil}, {extractedData.cliente.profissao}, portador do RG sob Nº {extractedData.cliente.rg} e CPF sob Nº {extractedData.cliente.cpf}, residente em {extractedData.cliente.endereco}, nomeia como seu procurador <strong>{selectedLawyer?.nome.toUpperCase()}</strong>, {selectedLawyer?.nacionalidade || 'brasileiro'}, {selectedLawyer?.estado_civil || 'casado'}, OAB/{selectedState} {selectedLawyer?.oabs[selectedState]}, com endereço profissional em {selectedLawyer?.endereco}.</p>
+                  <p 
+              <EditablePartesPanel
+                banca={partes.banca}
+                setBanca={partes.setBanca}
+                advogados={partes.advogados}
+                setAdvogados={partes.setAdvogados}
+                cliente={partes.cliente}
+                setCliente={partes.setCliente}
+                tituloCliente="Outorgante / Cliente"
+              />
+              {/* preview legado abaixo — prefere valores do painel quando preenchidos */}
+className="text-justify indent-10"><strong>{extractedData.cliente.nome.toUpperCase()}</strong>, {extractedData.cliente.nacionalidade}, {extractedData.cliente.estadoCivil}, {extractedData.cliente.profissao}, portador do RG sob Nº {extractedData.cliente.rg} e CPF sob Nº {extractedData.cliente.cpf}, residente em {extractedData.cliente.endereco}, nomeia como seu procurador <strong>{selectedLawyer?.nome.toUpperCase()}</strong>, {selectedLawyer?.nacionalidade || ''}, {selectedLawyer?.estado_civil || selectedLawyer?.estadoCivil || ''}, OAB/{selectedState} {selectedLawyer?.oabs[selectedState]}, com endereço profissional em {selectedLawyer?.endereco}.</p>
                 </CardContent>
               </Card>
 

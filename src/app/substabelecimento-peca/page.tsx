@@ -1,5 +1,8 @@
 "use client";
 
+import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
+import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
+
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.
@@ -55,6 +58,8 @@ import { listAdvogadosBanca } from '@/lib/server-db';
 import Link from 'next/link';
 
 export default function SubstabelecimentoPecaGenerator() {
+  const partes = usePartesEditaveis();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -133,7 +138,7 @@ export default function SubstabelecimentoPecaGenerator() {
             endereco: data.cliente?.endereco || "",
             email: data.cliente?.email || "",
             telefone: data.cliente?.telefone || "",
-            estadoCivil: data.cliente?.estadoCivil || "casado(a)",
+            estadoCivil: data.cliente?.estadoCivil || '',
             profissao: data.cliente?.profissao || "autônomo(a)"
           },
           processo: {
@@ -143,13 +148,13 @@ export default function SubstabelecimentoPecaGenerator() {
             acao: data.processos?.[0]?.acao || "AÇÃO DE REVISÃO CONTRATUAL COM PEDIDO DE TUTELA DE URGÊNCIA"
           },
           advogadoSubstabelecente: advLeaving.nome.toUpperCase(),
-          nacionalidadeSubstabelecente: advLeaving.nacionalidade || 'brasileiro',
-          estadoCivilSubstabelecente: advLeaving.estado_civil || advLeaving.estadoCivil || (advLeaving.genero === 'F' ? 'casada' : 'casado'),
+          nacionalidadeSubstabelecente: advLeaving.nacionalidade || '',
+          estadoCivilSubstabelecente: advLeaving.estado_civil || advLeaving.estadoCivil || (advLeaving.''),
           oabSubstabelecente: `OAB/${selectedState} sob o n.º ${oabLeavingNum}`,
           oabSubstabelecenteCurta: `OAB/${selectedState} ${oabLeavingNum}`,
           advogadoSubstabelecido: advEntering.nome.toUpperCase(),
-          nacionalidadeSubstabelecido: advEntering.nacionalidade || 'brasileiro',
-          estadoCivilSubstabelecido: advEntering.estado_civil || advEntering.estadoCivil || (advEntering.genero === 'F' ? 'casada' : 'casado'),
+          nacionalidadeSubstabelecido: advEntering.nacionalidade || '',
+          estadoCivilSubstabelecido: advEntering.estado_civil || advEntering.estadoCivil || (advEntering.''),
           oabSubstabelecido: `OAB/${selectedState} sob o n.º ${oabEnteringNum}`,
           oabSubstabelecidoCurta: `OAB/${selectedState} ${oabEnteringNum}`,
           cidadeComarca: selectedState === 'SP' ? 'SÃO PAULO' : 'COMARCA LOCAL',
@@ -423,6 +428,18 @@ export default function SubstabelecimentoPecaGenerator() {
             </div>
           )}
         </div>
+      
+        <div className="max-w-4xl mx-auto w-full px-4 py-4">
+          <EditablePartesPanel
+            banca={partes.banca}
+            setBanca={partes.setBanca}
+            advogados={partes.advogados}
+            setAdvogados={partes.setAdvogados}
+            cliente={partes.cliente}
+            setCliente={partes.setCliente}
+          />
+        </div>
+
       </main>
     </div>
   );
