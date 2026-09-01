@@ -1109,6 +1109,11 @@ export async function logAuditoriaSistema(params: {
 }): Promise<void> {
   try {
     if (!params.empresaId || !params.protocolo) return;
+    // Híbrido: não inflar auditoria_logs_app com scan automático
+    try {
+      const { hybridSkipScanAudit } = await import("@/lib/hybrid/policy");
+      if (hybridSkipScanAudit() && /^scan_/.test(String(params.acao || ""))) return;
+    } catch { /* */ }
     const admin = await getSupabaseAdmin();
     await admin.from('auditoria_logs_app').insert({
       empresa_id: params.empresaId,

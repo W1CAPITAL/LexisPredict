@@ -9,6 +9,8 @@ import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from "@/lib/auth-supervisa
 import { getUserContext, getSupabaseAdmin, updateCaseDataJudSystem } from "@/lib/server-db";
 import { scanSingleCaseAction } from "@/app/actions/case-actions";
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from "@/lib/auto-encerrar-scan";
+import { hybridEnabled, hybridMirrorPostgres, getHybridMode } from "@/lib/hybrid/policy";
+import { hybridPushScanBatchAction } from "@/app/actions/hybrid-sync-actions";
 
 const MAX_SCANS = 5;
 
@@ -393,6 +395,16 @@ export async function runAutoEncerrarBatchAction(opts?: {
     let lastError = "";
     const samples: string[] = [];
 
+    const sheetsBatch: Array<{
+      protocolo: string;
+      ultimoMovimento?: string;
+      ultimoNome?: string;
+      djenResumo?: string;
+      datajudEncerrado?: boolean;
+    }> = [];
+    const hybridOn = hybridEnabled() && getHybridMode() === "sheets_carteira_scan";
+    const mirrorPg = hybridMirrorPostgres();
+
     for (const row of targets) {
       const proto = protocoloOf(row);
       const target = rowToTarget(row);
@@ -418,6 +430,15 @@ export async function runAutoEncerrarBatchAction(opts?: {
 
         const p = (scanRes.casePatch || {}) as any;
         const dados = p.dados && typeof p.dados === "object" ? p.dados : {};
+        if (hybridOn && proto) {
+          sheetsBatch.push({
+            protocolo: proto,
+            ultimoNome: String(p.datajud_ultimo_nome || dados.datajud_ultimo_nome || ""),
+            ultimoMovimento: String(p.datajud_ultimo_movimento || dados.datajud_ultimo_movimento || ""),
+            djenResumo: String(p.djen_ultimo_resumo || dados.djen_ultimo_resumo || "").slice(0, 500),
+            datajudEncerrado: !!(p.datajud_encerrado_tribunal ?? dados.datajud_encerrado_tribunal),
+          });
+        }
 
         if (p.via_scan_auto_encerrar || dados.via_scan_auto_encerrar) {
           autoEncerrados++;
@@ -448,7 +469,10 @@ export async function runAutoEncerrarBatchAction(opts?: {
         });
         if (decisao.acao === "auto_encerrar" || decisao.acao === "revisao_fila") {
           const patch = aplicarDecisaoNoPatch(p, target2, decisao);
-          const saved = await updateCaseDataJudSystem(row.id, patch);
+          const saved =
+            hybridOn && !mirrorPg
+              ? { success: true } // carteira no Sheets; Postgres enxuto
+              : await updateCaseDataJudSystem(row.id, patch);
           if (saved?.success) {
             if (decisao.acao === "auto_encerrar") {
               autoEncerrados++;
@@ -468,6 +492,14 @@ export async function runAutoEncerrarBatchAction(opts?: {
     }
 
     const debug = `pages=${pages} rowsRead=${rowsReadTotal} targets=${targets.length} skipped=${skipped}`;
+
+    if (hybridOn && sheetsBatch.length) {
+      try {
+        await hybridPushScanBatchAction(sheetsBatch);
+      } catch (e: any) {
+        lastError = lastError || e?.message || "sheets push fail";
+      }
+    }
 
     return {
       success: true,
