@@ -94,6 +94,7 @@ import { NeuralEnginePanel } from '@/components/settings/neural-engine-panel';
 import { NavLayoutPanel } from '@/components/settings/nav-layout-panel';
 import { exportFullSourceCodeAction } from '@/app/actions/system-actions';
 import { listAdvogadosBanca, upsertAdvogadoBanca, desativarAdvogadoBanca } from '@/lib/server-db';
+import { listAdvogadosBancaLocal, upsertAdvogadoBancaLocal, desativarAdvogadoBancaLocal, mergeBancaRemotoLocal } from '@/lib/banca-offline';
 import { uploadUserAvatarAction, uploadAdvogadoAvatarAction, removeAvatarAction } from '@/app/actions/avatar-actions';
 import { fetchKnowledgeDocsAction, uploadKnowledgeDocAction, deleteKnowledgeDocAction } from '@/app/actions/knowledge-actions';
 import { saveAs } from 'file-saver';
@@ -263,9 +264,17 @@ export default function SettingsPage() {
     fetchKnowledge();
   }, []);
 
-  const fetchBanca = async () => {
+    const fetchBanca = async () => {
     setLoadingBanca(true);
-    const data = await listAdvogadosBanca();
+    let remoto: any[] = [];
+    try {
+      remoto = (await listAdvogadosBanca()) || [];
+    } catch {
+      remoto = [];
+    }
+    const local = listAdvogadosBancaLocal();
+    const data = mergeBancaRemotoLocal(remoto, local);
+
     setAdvogados(data);
     setLoadingBanca(false);
   };
@@ -378,12 +387,12 @@ export default function SettingsPage() {
       toast({ title: "Informe ao menos uma OAB", variant: "destructive" });
       return;
     }
-    const res = await upsertAdvogadoBanca({
+    const payload = {
       id: editingAdv?.id,
       nome: advForm.nome.trim().toUpperCase(),
       genero: advForm.genero,
-      nacionalidade: advForm.nacionalidade,
-      estado_civil: advForm.estadoCivil,
+      nacionalidade: (advForm.nacionalidade || '').trim(),
+      estado_civil: (advForm.estadoCivil || '').trim(),
       cpf: (advForm.cpf || '').replace(/\D/g, '') || null,
       rg: advForm.rg || null,
       endereco: advForm.endereco || null,
@@ -398,14 +407,37 @@ export default function SettingsPage() {
       observacao: advForm.observacao || null,
       oabs: oabsJson,
       ativo: true,
-    });
-    if (res?.success) {
-      toast({ title: "Advogado Sincronizado" });
-      setIsAdvModalOpen(false);
-      fetchBanca();
-    } else {
-      toast({ title: "Erro ao salvar", description: (res as any)?.error || "Verifique as colunas no Supabase", variant: "destructive" });
+    };
+    let res: any = null;
+    try {
+      res = await upsertAdvogadoBanca(payload);
+    } catch (e: any) {
+      res = { success: false, offline: true, error: e?.message };
     }
+    // Offline / sessão: grava local e segue (peças usam isso)
+    if (!res?.success) {
+      const localRow = upsertAdvogadoBancaLocal({
+        ...payload,
+        id: payload.id || undefined,
+        nome: payload.nome,
+      } as any);
+      toast({
+        title: "Salvo offline neste aparelho",
+        description: res?.error && res.error !== "offline_or_session" ? String(res.error) : "Supabase indisponível — banca local OK para peças.",
+      });
+      setIsAdvModalOpen(false);
+      setEditingAdv(null);
+      fetchBanca();
+      return;
+    }
+    // Espelho local também quando remoto OK
+    try {
+      upsertAdvogadoBancaLocal({ ...payload, id: res?.data?.id || payload.id, nome: payload.nome } as any);
+    } catch {}
+    toast({ title: "Advogado sincronizado" });
+    setIsAdvModalOpen(false);
+    setEditingAdv(null);
+    fetchBanca();
   };
 
   const openAddAdv = () => {
@@ -1432,7 +1464,7 @@ export default function SettingsPage() {
                 <div className="space-y-8 animate-in fade-in duration-500">
                    <div className="flex items-center justify-between">
                       <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Advogados Ativos</Label>
-                      {isAdmin && <Button onClick={openAddAdv} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all"><Plus size={14} className="mr-2"/> Cadastrar Novo</Button>}
+                      <Button onClick={openAddAdv} className="bg-black text-white border-2 border-black hover:bg-primary hover:text-black font-black uppercase text-[10px] rounded-none px-6 shadow-[4px_4px_0px_#00D1FF] transition-all"><Plus size={14} className="mr-2"/> Cadastrar Novo</Button>
                    </div>
                    <div className="grid gap-4">
                       {loadingBanca ? <Loader2 className="animate-spin mx-auto"/> : 
@@ -1455,12 +1487,12 @@ export default function SettingsPage() {
                                  </div>
                               </div>
                            </div>
-                           {isAdmin && (
-                             <div className="flex gap-2">
-                                <Button variant="ghost" size="icon" onClick={() => openEditAdv(adv)} className="h-8 w-8 hover:bg-primary hover:text-black rounded-sm"><Edit2 size={14}/></Button>
-                                <Button variant="ghost" size="icon" onClick={async () => { if(confirm('Remover?')) { await desativarAdvogadoBanca(adv.id); fetchBanca(); } }} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
+                           <div className="flex gap-2">
+                                <Button type="button" variant="ghost" size="icon" onClick={() => openEditAdv(adv)} title="Editar" className="h-8 w-8 hover:bg-primary hover:text-black rounded-sm"><Edit2 size={14}/></Button>
+                                {isAdmin && (
+                                <Button type="button" variant="ghost" size="icon" onClick={async () => { if(confirm('Remover?')) { try { await desativarAdvogadoBanca(adv.id); } catch {} desativarAdvogadoBancaLocal(adv.id); fetchBanca(); } }} className="h-8 w-8 hover:bg-red-500 hover:text-white rounded-sm"><Trash2 size={14}/></Button>
+                                )}
                              </div>
-                           )}
                         </div>
                       ))}
                       <input type="file" className="hidden" ref={advAvatarInputRef} onChange={(e) => editingAdv && handleAdvogadoAvatarUpload(editingAdv.id, e)} accept="image/*" />
@@ -1584,17 +1616,25 @@ export default function SettingsPage() {
                         <Input value={advForm.nacionalidade} onChange={e => setAdvForm({...advForm, nacionalidade: e.target.value})} className="h-10 border-black rounded-xl" />
                       </div>
                       <div className="space-y-1 col-span-2">
-                        <Label className="text-[9px] font-black uppercase">Estado civil</Label>
-                        <Select value={advForm.estadoCivil} onValueChange={(v) => setAdvForm({...advForm, estadoCivil: v})}>
-                          <SelectTrigger className="h-10 border-black rounded-xl"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="solteiro">Solteiro(a)</SelectItem>
-                            <SelectItem value="casado">Casado(a)</SelectItem>
-                            <SelectItem value="divorciado">Divorciado(a)</SelectItem>
-                            <SelectItem value="viuvo">Viúvo(a)</SelectItem>
-                            <SelectItem value="uniao_estavel">União estável</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-[9px] font-black uppercase">Estado civil (texto livre)</Label>
+                        <Input
+                          value={advForm.estadoCivil}
+                          onChange={(e) => setAdvForm({ ...advForm, estadoCivil: e.target.value })}
+                          className="h-10 border-black rounded-xl"
+                          placeholder="casado, casada, casado(a), solteiro(a)…"
+                        />
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {["solteiro","solteira","solteiro(a)","casado","casada","casado(a)","divorciado","divorciada","viúvo","viúva","união estável"].map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setAdvForm({ ...advForm, estadoCivil: s })}
+                              className="text-[9px] px-2 py-0.5 rounded-full border border-black/20 hover:bg-primary/15 font-bold"
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
