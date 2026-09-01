@@ -190,7 +190,7 @@ export default function DocumentGenerator() {
         advogado: {
           nome: selectedLawyer.nome,
           oab: selectedLawyer.oabs[selectedState] || Object.values(selectedLawyer.oabs)[0],
-          nacionalidade: selectedLawyer.nacionalidade || (selectedLawyer.''),
+          nacionalidade: selectedLawyer.nacionalidade || (selectedLawyer.genero === 'F' ? 'brasileira' : 'brasileiro'),
           estadoCivil: selectedLawyer.estado_civil || selectedLawyer.estadoCivil || '',
           endereco: selectedLawyer.endereco,
           email: selectedLawyer.email

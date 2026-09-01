@@ -138,7 +138,7 @@ export default function SubstabelecimentoGenerator() {
             nome: advLeaving.nome,
             genero: advLeaving.genero || 'M',
             nacionalidade: advLeaving.nacionalidade || '',
-            estadoCivil: advLeaving.estado_civil || advLeaving.estadoCivil || (advLeaving.''),
+            estadoCivil: advLeaving.estado_civil || advLeaving.estadoCivil || '',
             oabCompleta: `OAB/${selectedState} sob o n.º ${advLeaving.oabs[selectedState] || ''}`,
             oabCurta: `OAB/${selectedState} ${advLeaving.oabs[selectedState] || ''}`
           },
@@ -146,7 +146,7 @@ export default function SubstabelecimentoGenerator() {
             nome: advEntering.nome,
             genero: advEntering.genero || 'M',
             nacionalidade: advEntering.nacionalidade || '',
-            estadoCivil: advEntering.estado_civil || advEntering.estadoCivil || (advEntering.''),
+            estadoCivil: advEntering.estado_civil || advEntering.estadoCivil || '',
             oabCompleta: `OAB/${selectedState} sob o n.º ${advEntering.oabs[selectedState] || ''}`,
             oabCurta: `OAB/${selectedState} ${advEntering.oabs[selectedState] || ''}`
           },
