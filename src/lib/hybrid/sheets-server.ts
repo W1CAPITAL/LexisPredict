@@ -1,6 +1,7 @@
 /**
- * Cliente Sheets no servidor (webhook Apps Script).
- * Usado por actions de sync e scanner — sem localStorage.
+ * Cliente Sheets — Apps Script.
+ * Este deployment só responde bem em GET (doGet). POST devolve 405 HTML.
+ * Por isso: ping/list/write preferem GET; write grande usa POST text/plain com fallback GET.
  */
 
 import { HYBRID_SHEETS_ENV } from "./policy";
@@ -33,48 +34,93 @@ export function sheetsWebhookConfigured(): boolean {
   return !!u && /^https:\/\/script\.google\.com\//i.test(u);
 }
 
-export async function sheetsServerPost(body: Record<string, unknown>): Promise<{
+function parseBody(text: string): { ok: boolean; json?: any; error?: string } {
+  const slice = text.slice(0, 300);
+  if (/<!DOCTYPE html|<html/i.test(slice)) {
+    return {
+      ok: false,
+      error: "HTML do Google (405/login). Use doGet no script ou reimplante: Qualquer pessoa + /exec",
+    };
+  }
+  try {
+    const json = JSON.parse(text);
+    return { ok: !!(json?.ok ?? true), json };
+  } catch {
+    return { ok: false, error: "Resposta não-JSON: " + slice.slice(0, 120) };
+  }
+}
+
+/** GET — funciona no seu /exec atual */
+async function sheetsGet(params: Record<string, string>): Promise<{
   ok: boolean;
   json?: any;
   error?: string;
   status?: number;
 }> {
   const url = webhookUrl();
-  if (!url || !/^https:\/\/script\.google\.com\//i.test(url)) {
-    return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL não configurada (Apps Script /exec)" };
-  }
+  if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
+  const q = new URLSearchParams({ token: token(), ...params });
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: token(), ...body }),
-      // Apps Script pode redirecionar
+    const res = await fetch(`${url}?${q.toString()}`, {
+      method: "GET",
       redirect: "follow",
     });
     const text = await res.text();
-    let json: any = null;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      if (/<html|accounts\.google/i.test(text.slice(0, 200))) {
-        return {
-          ok: false,
-          status: res.status,
-          error: "HTML do Google — implantar Web App: Eu + Qualquer pessoa + Nova versão /exec",
-        };
-      }
-      return { ok: false, status: res.status, error: "Resposta não-JSON", json: { raw: text.slice(0, 200) } };
-    }
-    if (!res.ok && !json?.ok) {
-      return { ok: false, status: res.status, error: json?.error || `HTTP ${res.status}`, json };
-    }
-    return { ok: !!(json?.ok ?? true), json, status: res.status };
+    const parsed = parseBody(text);
+    return { ...parsed, status: res.status, error: parsed.error };
   } catch (e: any) {
-    return { ok: false, error: e?.message || "Falha de rede Sheets" };
+    return { ok: false, error: e?.message || "Falha GET Sheets" };
   }
 }
 
-/** Lista processos da planilha (carteira operacional). */
+/** POST text/plain (Apps Script lê postData.contents) */
+async function sheetsPostPlain(body: Record<string, unknown>): Promise<{
+  ok: boolean;
+  json?: any;
+  error?: string;
+  status?: number;
+}> {
+  const url = webhookUrl();
+  if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ token: token(), ...body }),
+      redirect: "follow",
+    });
+    const text = await res.text();
+    const parsed = parseBody(text);
+    return { ...parsed, status: res.status, error: parsed.error };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || "Falha POST Sheets" };
+  }
+}
+
+export async function sheetsServerPost(body: Record<string, unknown>) {
+  const action = String(body.action || "ping");
+  // 1) tenta POST (se o script tiver doPost)
+  const post = await sheetsPostPlain(body);
+  if (post.ok) return post;
+  // 2) fallback GET (seu deployment atual)
+  if (action === "write") {
+    const rows = body.rows;
+    const payload = typeof rows === "string" ? rows : JSON.stringify(rows || []);
+    // Apps Script GET tem limite de URL — manda até 3 linhas por request
+    return sheetsGet({
+      action: "write",
+      rows: payload.slice(0, 1500),
+    });
+  }
+  const flat: Record<string, string> = { action };
+  for (const [k, v] of Object.entries(body)) {
+    if (k === "action" || v === undefined || v === null) continue;
+    if (typeof v === "object") flat[k] = JSON.stringify(v);
+    else flat[k] = String(v);
+  }
+  return sheetsGet(flat);
+}
+
 export async function sheetsListProcessos(opts?: {
   empresaId?: string;
   responsavel?: string;
@@ -91,32 +137,32 @@ export async function sheetsListProcessos(opts?: {
   return { ok: true, rows: Array.isArray(rows) ? rows : [] };
 }
 
-/** Grava lote de linhas (M/N + resultado de scan). */
-export async function sheetsWriteRows(
-  rows: SheetsWriteRow[]
-): Promise<{ ok: boolean; updated?: number; error?: string }> {
+export async function sheetsWriteRows(rows: SheetsWriteRow[]): Promise<{
+  ok: boolean;
+  updated?: number;
+  error?: string;
+}> {
   if (!rows.length) return { ok: true, updated: 0 };
-  const r = await sheetsServerPost({
-    action: "write",
-    rows: rows.map((row) => {
+  // lotes pequenos (GET URL limit)
+  let updated = 0;
+  for (let i = 0; i < rows.length; i += 5) {
+    const chunk = rows.slice(i, i + 5).map((row) => {
       const out: Record<string, unknown> = { Protocolo: row.protocolo, protocolo: row.protocolo };
       for (const [k, v] of Object.entries(row)) {
-        if (k === "protocolo") continue;
-        if (v === undefined || v === null || v === "") continue;
+        if (k === "protocolo" || v === undefined || v === null || v === "") continue;
         out[k] = v;
       }
       return out;
-    }),
-  });
-  if (!r.ok) return { ok: false, error: r.error };
-  return {
-    ok: true,
-    updated: Number(r.json?.updated ?? r.json?.inserted ?? rows.length),
-  };
+    });
+    const r = await sheetsServerPost({ action: "write", rows: chunk });
+    if (!r.ok) return { ok: false, error: r.error, updated };
+    updated += Number(r.json?.updated ?? r.json?.inserted ?? chunk.length);
+  }
+  return { ok: true, updated };
 }
 
-/** Ping do webhook. */
 export async function sheetsPing(): Promise<{ ok: boolean; error?: string; json?: any }> {
-  const r = await sheetsServerPost({ action: "ping", ping: true });
+  // GET direto — confirmado no seu /exec
+  const r = await sheetsGet({ action: "ping", ping: "1" });
   return { ok: r.ok, error: r.error, json: r.json };
 }
