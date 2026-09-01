@@ -35,9 +35,13 @@ const ALIASES: Record<keyof Omit<PlanoBRow, "raw">, string[]> = {
   situacao: ["situacao_gabinete", "situacao", "situação", "gabinete", "situacao_prazo"],
   ultimoRetorno: [
     "ultimo_retorno", "último retorno", "ultimo retorno", "retorno", "atendido_em", "data retorno",
+    "ultimoretorno", "ultimo retorno cliente", "dt retorno", "data do retorno", "col m", "coluna m",
+    "m", "retorno atual", "ultimo andamento data",
   ],
   proximoRetorno: [
     "proximo_retorno", "próximo retorno", "proximo retorno", "prazo", "proximo prazo", "proximo_prazo",
+    "próx. retorno", "prox. retorno", "prox retorno", "próximo", "proximo", "col n", "coluna n",
+    "n", "data prazo", "dt prazo", "próximo retorno cliente", "vencimento",
   ],
   criado_por: [
     "criado_por", "criado por", "dono", "owner", "created_by", "assistente", "responsavel carteira",
@@ -57,9 +61,17 @@ function normHeader(h: string): string {
 
 function pick(headers: string[], row: string[], keys: string[]): string {
   const nh = headers.map(normHeader);
+  // 1) match exato
   for (const k of keys) {
     const nk = normHeader(k);
-    const i = nh.findIndex((h) => h === nk || h.includes(nk) || nk.includes(h));
+    const i = nh.findIndex((h) => h === nk);
+    if (i >= 0 && row[i] != null && String(row[i]).trim()) return String(row[i]).trim();
+  }
+  // 2) match parcial (só se o header for curto o suficiente para não colidir)
+  for (const k of keys) {
+    const nk = normHeader(k);
+    if (nk.length < 2) continue;
+    const i = nh.findIndex((h) => h === nk || (nk.length >= 4 && (h.includes(nk) || nk.includes(h))));
     if (i >= 0 && row[i] != null && String(row[i]).trim()) return String(row[i]).trim();
   }
   return "";
@@ -302,4 +314,33 @@ export function computePlanoBKpis(rows: PlanoBRow[]) {
     if (!r.telefone?.trim()) semTel++;
   }
   return { total, byStatus, vencidos, arquivados, semTel, ativos: total - arquivados };
+}
+
+
+/** Diagnóstico do mapeamento de colunas (UI Plano B). */
+export function diagnoseHeaders(headers: string[]): {
+  map: Record<string, number>;
+  labels: string[];
+} {
+  const labels = headers.map((h, i) => `${i}=${h}`);
+  const map: Record<string, number> = {};
+  const pairs: [string, string[]][] = Object.entries(ALIASES) as any;
+  const nh = headers.map(normHeader);
+  for (const [field, keys] of pairs) {
+    let found = -1;
+    for (const k of keys) {
+      const nk = normHeader(k);
+      const exact = nh.findIndex((h) => h === nk);
+      if (exact >= 0) { found = exact; break; }
+    }
+    if (found < 0) {
+      for (const k of keys) {
+        const nk = normHeader(k);
+        const soft = nh.findIndex((h) => h.includes(nk) || nk.includes(h));
+        if (soft >= 0) { found = soft; break; }
+      }
+    }
+    map[field] = found;
+  }
+  return { map, labels };
 }

@@ -3,7 +3,12 @@
  * POST JSON: name, phone, email?, interest?, contractYm?, taxaContrato?, consent: true
  * Sem Google Ads, sem CNPJ. Grava no Supabase se configurado; senão devolve payload para o cliente guardar local.
  */
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+type VercelRequest = { method?: string; body?: any; headers?: Record<string, string | string[] | undefined> };
+type VercelResponse = {
+  setHeader: (k: string, v: string) => void;
+  status: (n: number) => VercelResponse;
+  json: (b: unknown) => void;
+};
 import { createClient } from '@supabase/supabase-js';
 
 function digits(s: string) {

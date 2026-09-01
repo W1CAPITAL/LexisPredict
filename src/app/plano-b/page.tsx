@@ -19,9 +19,11 @@ import {
   computePlanoBKpis,
   mapMatrixToPlanoB,
   mapRowsToPlanoB,
+  diagnoseHeaders,
   parseCsv,
   planoBToCsv,
   type PlanoBRow,
+  diagnoseHeaders,
 } from "@/lib/plano-b-sheets";
 import {
   FileSpreadsheet,
@@ -46,6 +48,7 @@ export default function PlanoBPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState(DEFAULT_SHEET);
   const [rows, setRows] = useState<PlanoBRow[]>([]);
+  const [headerDiag, setHeaderDiag] = useState("");
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [q, setQ] = useState("");
@@ -144,6 +147,15 @@ export default function PlanoBPage() {
         const text = await file.text();
         const { headers, rows: raw } = parseCsv(text);
         const mapped = mapRowsToPlanoB(headers, raw);
+        try {
+          const d = diagnoseHeaders(headers);
+          const comPrazo = mapped.filter((r) => r.proximoRetorno).length;
+          setHeaderDiag(
+            `Colunas: RETORNO(M)=${d.map.ultimoRetorno} · PRÓXIMO(N)=${d.map.proximoRetorno} · com prazo: ${comPrazo}/${mapped.length}`
+          );
+        } catch {
+          setHeaderDiag("");
+        }
         persistRows(mapped, `Arquivo ${file.name} · ${mapped.length}`);
         toast({ title: "CSV importado", description: `${mapped.length} processos` });
         return;
@@ -174,6 +186,16 @@ export default function PlanoBPage() {
         /* usa aoa do bridge */
       }
       const mapped = mapMatrixToPlanoB(aoa);
+      try {
+        const headers = (aoa[0] || []).map(String);
+        const d = diagnoseHeaders(headers);
+        const comPrazo = mapped.filter((r) => r.proximoRetorno).length;
+        setHeaderDiag(
+          `Colunas: RETORNO=${d.map.ultimoRetorno} · PRÓXIMO=${d.map.proximoRetorno} · com prazo: ${comPrazo}/${mapped.length}`
+        );
+      } catch {
+        setHeaderDiag("");
+      }
       if (!mapped.length) {
         toast({
           title: "Nenhuma linha com Protocolo",
@@ -376,6 +398,9 @@ export default function PlanoBPage() {
             </div>
           )}
           {!!rows.length && (
+            {headerDiag ? (
+              <p className="text-[11px] font-mono text-muted-foreground mb-2 px-2 py-1 rounded-md border bg-muted/30">{headerDiag}</p>
+            ) : null}
             <div className="rounded-xl border border-border overflow-x-auto">
               <table className="w-full text-left text-[12px]">
                 <thead className="bg-muted/40 text-[10px] font-black uppercase tracking-wider text-muted-foreground sticky top-0">
