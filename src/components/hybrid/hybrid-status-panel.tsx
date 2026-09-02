@@ -36,7 +36,7 @@ const REQUEST_TIMEOUT_MS = 12_000;
 function fmt(n: number) { return new Intl.NumberFormat("pt-BR").format(Math.max(0, n)); }
 function pct(done: number, total: number) { return total > 0 ? Math.min(100, (done / total) * 100) : 0; }
 
-export default function HybridStatusPanel() {
+export function HybridStatusPanel() {
   const [health, setHealth] = useState<Health | null>(null);
   const [running, setRunning] = useState(false);
   const [processed, setProcessed] = useState(0);
@@ -202,3 +202,5 @@ export default function HybridStatusPanel() {
     </section>
   );
 }
+
+export default HybridStatusPanel;
