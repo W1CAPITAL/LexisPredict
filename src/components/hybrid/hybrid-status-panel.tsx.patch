@@ -1,0 +1,6 @@
+--- a/src/components/hybrid/hybrid-status-panel.tsx
++++ b/src/components/hybrid/hybrid-status-panel.tsx
+@@ -1,2 +1,2 @@
+-import { HybridSyncBadge } from "@/components/hybrid/hybrid-sync-badge";
+ "use client";
++import { HybridSyncBadge } from "@/components/hybrid/hybrid-sync-badge";
