@@ -103,9 +103,33 @@ function getWeight(t: string | null | undefined): number {
 
 
 export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminView = false) {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return [];
-  return await getStoredCasesPageForEmpresa(empresa_id, limit, offset, adminView);
+  const ctx = await getUserContext();
+  if (!ctx.empresa_id) return [];
+  try {
+    const { hybridEnabled } = await import("@/lib/hybrid/policy");
+    const { sheetsWebhookConfigured, sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
+    const { sheetRowsToLegalCases } = await import("@/lib/hybrid/sheets-case-map");
+    if (hybridEnabled() && sheetsWebhookConfigured()) {
+      const wide = adminView || !!(ctx.isSuperAdmin || ctx.isSupervisor);
+      const list = await sheetsListProcessos({
+        empresaId: ctx.empresa_id,
+        responsavel: wide ? undefined : ctx.auth_id || undefined,
+        limit: 8000,
+      });
+      if (list.ok && list.rows.length > 0) {
+        let cases = sheetRowsToLegalCases(list.rows);
+        if (!wide && ctx.auth_id) {
+          const me = String(ctx.auth_id).toLowerCase();
+          cases = cases.filter((c) => {
+            const owner = String((c as any).created_by || "").toLowerCase();
+            return !owner || owner === me;
+          });
+        }
+        return cases.slice(offset, offset + limit);
+      }
+    }
+  } catch { /* */ }
+  return await getStoredCasesPageForEmpresa(ctx.empresa_id, limit, offset, adminView);
 }
 
 export async function fetchRepoCases() {
@@ -113,6 +137,35 @@ export async function fetchRepoCases() {
   if (!ctx.empresa_id) return [];
   // Superadmin / Supervisor: todos. Demais cargos: só os próprios.
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
+
+  // Híbrido: carteira operacional vem da planilha (Postgres só auth/empresa)
+  try {
+    const { hybridEnabled } = await import("@/lib/hybrid/policy");
+    const { sheetsWebhookConfigured, sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
+    const { sheetRowsToLegalCases } = await import("@/lib/hybrid/sheets-case-map");
+    if (hybridEnabled() && sheetsWebhookConfigured()) {
+      const list = await sheetsListProcessos({
+        empresaId: ctx.empresa_id,
+        responsavel: wide ? undefined : ctx.auth_id || undefined,
+        limit: 8000,
+      });
+      if (list.ok && list.rows.length > 0) {
+        let cases = sheetRowsToLegalCases(list.rows);
+        if (!wide && ctx.auth_id) {
+          const me = String(ctx.auth_id).toLowerCase();
+          cases = cases.filter((c) => {
+            const owner = String((c as any).created_by || "").toLowerCase();
+            return !owner || owner === me;
+          });
+        }
+        return cases;
+      }
+      // planilha vazia ou list falhou → fallback Postgres (seed ainda não rodou)
+    }
+  } catch {
+    /* fallback PG */
+  }
+
   return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
 
@@ -1078,6 +1131,21 @@ export async function registrarAtendimentoCompletoAction(input: {
       );
     }
     if (!found) {
+      try {
+        const { hybridEnabled } = await import('@/lib/hybrid/policy');
+        const { sheetsWebhookConfigured, sheetsListProcessos } = await import('@/lib/hybrid/sheets-server');
+        const { sheetRowsToLegalCases } = await import('@/lib/hybrid/sheets-case-map');
+        if (hybridEnabled() && sheetsWebhookConfigured()) {
+          const list = await sheetsListProcessos({ empresaId: empresa_id, limit: 8000 });
+          if (list.ok) {
+            found = sheetRowsToLegalCases(list.rows).find(
+              (c: any) => String(c.protocolo || '').replace(/\D/g, '') === digits
+            );
+          }
+        }
+      } catch { /* */ }
+    }
+    if (!found) {
       return { success: false, message: 'Processo não encontrado na carteira' };
     }
 
@@ -1147,6 +1215,27 @@ export async function registrarAtendimentoCompletoAction(input: {
         por: auth_id,
       });
     }
+
+    // Híbrido: espelha atendimento na planilha (M/N + responsável)
+    try {
+      const { hybridEnabled } = await import('@/lib/hybrid/policy');
+      const { sheetsWebhookConfigured, sheetsWriteRows } = await import('@/lib/hybrid/sheets-server');
+      if (hybridEnabled() && sheetsWebhookConfigured()) {
+        await sheetsWriteRows([
+          {
+            protocolo: String(found.protocolo || input.protocolo),
+            UltimoRetorno: hoje,
+            ProximoRetorno: prazoNovo || '',
+            Status: situacao,
+            Situacao: situacao,
+            Observacao: obs || '',
+            AtendidoPor: auth_id || '',
+            CreatedBy: ownerKeep || '',
+            Responsavel: ownerKeep || '',
+          },
+        ]);
+      }
+    } catch { /* sheets best-effort */ }
 
     return {
       success: true,

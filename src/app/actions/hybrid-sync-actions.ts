@@ -67,6 +67,7 @@ export async function hybridStatusAction() {
     skipScanAudit: hybridSkipScanAudit(),
     ping,
     spreadsheetHint: "1qbuJee6DCv0bh9XGvnBDPltc0Ziphdn2yx11QKOnchc",
+    carteiraSource: hybridEnabled() ? "sheets_when_populated" : "supabase",
   };
 }
 
