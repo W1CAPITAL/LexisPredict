@@ -1,12 +1,18 @@
 export type HybridMode = "off" | "sheets_carteira" | "sheets_carteira_scan";
 
+// Carteira operacional: Sheets é o destino primário quando o híbrido está ligado.
+// O encerramento automático fica FORÇADO desligado nesta versão.
+if (typeof process !== "undefined") {
+  process.env.SCAN_AUTO_ENCERRAR = "0";
+}
+
 export function getHybridMode(): HybridMode {
-  const v = String(process.env.LEXIS_HYBRID_MODE || process.env.NEXT_PUBLIC_LEXIS_HYBRID_MODE || "off")
+  const v = String(process.env.LEXIS_HYBRID_MODE || process.env.NEXT_PUBLIC_LEXIS_HYBRID_MODE || "sheets_carteira")
     .trim()
     .toLowerCase();
-  if (v === "sheets_carteira" || v === "carteira") return "sheets_carteira";
+  if (v === "off" || v === "none") return "off";
   if (v === "sheets_carteira_scan" || v === "full" || v === "scan") return "sheets_carteira_scan";
-  return "off";
+  return "sheets_carteira";
 }
 
 export function hybridEnabled(): boolean {
@@ -21,6 +27,10 @@ export function hybridMirrorPostgres(): boolean {
 export function hybridSkipScanAudit(): boolean {
   const v = String(process.env.LEXIS_HYBRID_SKIP_SCAN_AUDIT || "true").toLowerCase();
   return v !== "0" && v !== "false" && v !== "no";
+}
+
+export function autoEncerrarEnabled(): boolean {
+  return false;
 }
 
 export const HYBRID_SHEETS_ENV = {
