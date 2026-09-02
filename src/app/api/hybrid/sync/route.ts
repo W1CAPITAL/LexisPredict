@@ -1,80 +1,47 @@
-/* src/app/api/hybrid/sync/route.ts */
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_BATCH = 500;
 const MAX_BATCH = 500;
-const SHEET_TIMEOUT_MS = 30_000;
-
-type SyncBody = {
-  action?: "seed_batch";
-  cursor?: string | null;
-  batchSize?: number;
-};
+const WEBHOOK_TIMEOUT_MS = 30000;
 
 function env(name: string) {
-  return (process.env[name] || "").trim();
+  return String(process.env[name] || "").trim();
 }
 
-async function getAuthenticatedUser() {
-  const url = env("NEXT_PUBLIC_SUPABASE_URL");
-  const anon = env("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  if (!url || !anon) return { user: null, error: "Supabase público não configurado." };
-
-  const cookieStore = await cookies();
-  const supabase = createServerClient(url, anon, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(values) {
-        try {
-          values.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-        } catch {
-          // Route handler pode estar em contexto somente leitura.
-        }
-      },
-    },
-  });
-
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
-    return { user: null, error: error?.message || "Usuário não autenticado." };
-  }
-  return { user: data.user, error: null };
+function jsonError(message: string, status = 500) {
+  return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-async function getEmpresaId(userId: string, admin: SupabaseClient) {
+async function resolveEmpresaId() {
   const configured = env("LEXIS_HYBRID_EMPRESA_ID");
   if (configured) return configured;
 
-  const { data, error } = await admin
-    .from("profiles")
-    .select("empresa_id")
-    .eq("auth_user_id", userId)
-    .maybeSingle();
-
-  if (error) throw new Error(`Não foi possível identificar a empresa: ${error.message}`);
-  if (!data?.empresa_id) throw new Error("Perfil sem empresa_id.");
-  return String(data.empresa_id);
+  // LexisPredict already uses public.usuarios as its application user/profile
+  // table. Do NOT query public.profiles: that table does not exist in this DB.
+  const ctx = await getUserContext();
+  if (!ctx.empresa_id) {
+    throw new Error("Não foi possível identificar a empresa pela sessão do Lexis. Configure LEXIS_HYBRID_EMPRESA_ID se necessário.");
+  }
+  return String(ctx.empresa_id);
 }
 
-async function postBatchToSheet(payload: unknown) {
+async function postToSheets(payload: unknown) {
   const webhook = env("LEXIS_SHEETS_WEBHOOK_URL");
   if (!webhook) throw new Error("LEXIS_SHEETS_WEBHOOK_URL não configurada.");
 
-  const token = env("LEXIS_SHEETS_TOKEN");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SHEET_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+  const token = env("LEXIS_SHEETS_TOKEN");
 
   try {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
+      Accept: "application/json,text/plain,*/*",
       "X-Lexis-Mode": "batch",
     };
     if (token) {
@@ -82,208 +49,144 @@ async function postBatchToSheet(payload: unknown) {
       headers["X-Lexis-Token"] = token;
     }
 
-    const response = await fetch(webhook, {
+    const res = await fetch(webhook, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
       cache: "no-store",
       signal: controller.signal,
     });
-
-    const raw = await response.text();
-    if (!response.ok) {
-      throw new Error(`Webhook HTTP ${response.status}: ${raw.slice(0, 500)}`);
-    }
-
-    return raw;
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Webhook HTTP ${res.status}: ${text.slice(0, 400)}`);
+    return text;
   } catch (error: any) {
-    if (error?.name === "AbortError") {
-      throw new Error("Webhook excedeu o tempo limite.");
-    }
+    if (error?.name === "AbortError") throw new Error("Webhook excedeu o tempo limite de 30s.");
     throw error;
   } finally {
     clearTimeout(timer);
   }
 }
 
-function buildRows(rows: Record<string, unknown>[]) {
+function normalizeRows(rows: Record<string, any>[]) {
+  return rows.map((row) => {
+    const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
+    return {
+      ...row,
+      protocolo: row.protocolo_ref ?? d.protocolo ?? d.PROTOCOLO ?? "",
+      cliente: row.cliente ?? d.cliente ?? d.CLIENTE ?? "",
+      telefone: row.telefone ?? d.telefone ?? d.phone ?? "",
+      advogado: row.advogado ?? d.advogado ?? d.ADVOGADO ?? "",
+      escritorio: row.escritorio ?? d.escritorio ?? d.ESCRITORIO ?? "",
+      tribunal: row.tribunal ?? d.tribunal ?? d.TRIBUNAL ?? "",
+      status: row.status ?? d.status ?? "",
+      situacao: row.status_interno ?? d.situacao ?? d.status_interno ?? "",
+      ultimoRetorno: row.ultimo_retorno ?? d.ultimoRetorno ?? d.ultimo_retorno ?? "",
+      proximoRetorno: row.proximo_retorno ?? d.proximoRetorno ?? d.proximo_retorno ?? "",
+      criado_por: row.created_by ?? "",
+      observacoes: row.observacoes ?? d.observacoes ?? d.observacao ?? "",
+      andamento: d.ultimoAndamento ?? d.andamento ?? "",
+      evento_tipo: d.evento_tipo ?? "",
+    };
+  });
+}
+
+function toMatrix(rows: Record<string, any>[]) {
   const preferred = [
-    "protocolo",
-    "cliente",
-    "status",
-    "situacao",
-    "ultimoRetorno",
-    "proximoRetorno",
-    "advogado",
-    "escritorio",
-    "tribunal",
-    "telefone",
-    "createdBy",
-    "atendidoPor",
-    "observacao",
-    "datajudEncerrado",
-    "empresaId",
-    "isBaixaTribunal",
+    "id", "protocolo", "cliente", "telefone", "advogado", "escritorio", "tribunal",
+    "status", "situacao", "ultimoRetorno", "proximoRetorno", "criado_por",
+    "observacoes", "andamento", "evento_tipo", "empresa_id", "created_at", "updated_at",
   ];
-
-  const allKeys = Array.from(
-    new Set(rows.flatMap((row) => Object.keys(row)))
-  );
-
+  const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
   const headers = [
-    ...preferred.filter((key) => allKeys.includes(key)),
-    ...allKeys.filter((key) => !preferred.includes(key)),
+    ...preferred.filter((k) => keys.includes(k)),
+    ...keys.filter((k) => !preferred.includes(k) && k !== "dados"),
   ];
-
-  const matrix = rows.map((row) =>
-    headers.map((key) => {
-      const value = row[key];
-      if (value == null) return "";
-      if (typeof value === "object") return JSON.stringify(value);
-      return String(value);
-    })
-  );
-
+  const matrix = rows.map((r) => headers.map((k) => {
+    const v = r[k];
+    if (v == null) return "";
+    if (typeof v === "object") return JSON.stringify(v);
+    return String(v);
+  }));
   return { headers, matrix };
 }
 
-export async function GET(req: NextRequest) {
-  const mode = req.nextUrl.searchParams.get("mode") || "health";
-
-  const webhook = env("LEXIS_SHEETS_WEBHOOK_URL");
-  const url = env("NEXT_PUBLIC_SUPABASE_URL");
-  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-
-  if (mode !== "health") {
-    return NextResponse.json({ ok: false, error: "Modo GET inválido." }, { status: 400 });
-  }
-
-  const auth = await getAuthenticatedUser();
-  if (!auth.user) {
-    return NextResponse.json({
-      ok: false,
-      supabase: "not-configured",
-      webhook: webhook ? "ok" : "not-configured",
-      error: auth.error || "Não autenticado.",
-    }, { status: 401 });
-  }
-
-  if (!url) {
-    return NextResponse.json({ ok: false, supabase: "not-configured", webhook: webhook ? "ok" : "not-configured" }, { status: 503 });
-  }
-
-  const admin = serviceKey ? createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } }) : null;
-  const dataClient = admin ?? createClient(url, env("NEXT_PUBLIC_SUPABASE_ANON_KEY"), { auth: { autoRefreshToken: false, persistSession: false } });
-
+export async function GET() {
   try {
-    const empresaId = admin ? await getEmpresaId(auth.user.id, admin) : null;
-    const countQuery = dataClient
+    const empresaId = await resolveEmpresaId();
+    const admin = await getSupabaseAdmin();
+    const { count, error } = await admin
       .from("processos")
-      .select("id", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true })
+      .eq("empresa_id", empresaId);
 
-    if (empresaId) countQuery.eq("empresa_id", empresaId);
-
-    const { count, error } = await countQuery;
+    if (error) throw new Error(error.message);
 
     return NextResponse.json({
-      ok: !error,
+      ok: true,
       mode: env("LEXIS_HYBRID_MODE") || "sheets_carteira_scan",
-      webhook: webhook ? "ok" : "not-configured",
-      supabase: error ? "fail" : "ok",
-      total: count ?? null,
+      supabase: "ok",
+      webhook: env("LEXIS_SHEETS_WEBHOOK_URL") ? "ok" : "not-configured",
+      total: count ?? 0,
       empresaId,
-      error: error?.message || undefined,
     });
   } catch (error: any) {
-    return NextResponse.json({
-      ok: false,
-      mode: env("LEXIS_HYBRID_MODE") || "sheets_carteira_scan",
-      webhook: webhook ? "ok" : "not-configured",
-      supabase: "fail",
-      error: error?.message || String(error),
-    }, { status: 500 });
+    return jsonError(error?.message || String(error), 500);
   }
 }
 
 export async function POST(req: NextRequest) {
   const started = Date.now();
-
   try {
-    const body = (await req.json()) as SyncBody;
-    if (body.action !== "seed_batch") {
-      return NextResponse.json({ ok: false, error: "Ação inválida." }, { status: 400 });
-    }
+    const body = await req.json();
+    if (body?.action !== "seed_batch") return jsonError("Ação inválida.", 400);
 
-    const auth = await getAuthenticatedUser();
-    if (!auth.user) {
-      return NextResponse.json({ ok: false, error: auth.error || "Não autenticado." }, { status: 401 });
-    }
+    const empresaId = await resolveEmpresaId();
+    const admin = await getSupabaseAdmin();
+    const batchSize = Math.min(MAX_BATCH, Math.max(1, Number(body?.batchSize || DEFAULT_BATCH)));
 
-    const url = env("NEXT_PUBLIC_SUPABASE_URL");
-    const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-    const anon = env("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    const countResult = await admin
+      .from("processos")
+      .select("id", { count: "exact", head: true })
+      .eq("empresa_id", empresaId);
+    if (countResult.error) throw new Error(`Contagem da carteira falhou: ${countResult.error.message}`);
 
-    if (!url || (!serviceKey && !anon)) {
-      return NextResponse.json({ ok: false, error: "Credenciais do Supabase não configuradas no servidor." }, { status: 503 });
-    }
-
-    if (!env("LEXIS_SHEETS_WEBHOOK_URL")) {
-      return NextResponse.json({ ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL não configurada." }, { status: 503 });
-    }
-
-    const admin = serviceKey
-      ? createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
-      : null;
-
-    const client = admin ?? createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
-    const empresaId = admin ? await getEmpresaId(auth.user.id, admin) : undefined;
-
-    const countBuilder = client.from("processos").select("id", { count: "exact", head: true });
-    if (empresaId) countBuilder.eq("empresa_id", empresaId);
-    const { count, error: countError } = await countBuilder;
-    if (countError) throw new Error(`Contagem da carteira falhou: ${countError.message}`);
-
-    const batchSize = Math.min(
-      MAX_BATCH,
-      Math.max(1, Number(body.batchSize || DEFAULT_BATCH))
-    );
-
-    let query = client
+    // Cursor por id evita o custo crescente de OFFSET e permite retomar após falha.
+    let query = admin
       .from("processos")
       .select("*")
+      .eq("empresa_id", empresaId)
       .order("id", { ascending: true })
       .limit(batchSize);
-
-    if (empresaId) query = query.eq("empresa_id", empresaId);
-    if (body.cursor) query = query.gt("id", body.cursor);
+    if (body?.cursor) query = query.gt("id", body.cursor);
 
     const { data, error } = await query;
     if (error) throw new Error(`Leitura da carteira falhou: ${error.message}`);
 
-    const rows = (data || []) as Record<string, unknown>[];
-    const { headers, matrix } = buildRows(rows);
-    const nextCursor = rows.length ? String(rows[rows.length - 1].id ?? "") || null : null;
-    const hasMore = rows.length === batchSize;
+    const rawRows = (data || []) as Record<string, any>[];
+    const rows = normalizeRows(rawRows);
+    const { headers, matrix } = toMatrix(rows);
+    const nextCursor = rawRows.length ? String(rawRows[rawRows.length - 1].id) : null;
+    const hasMore = rawRows.length === batchSize;
 
     if (rows.length) {
-      await postBatchToSheet({
+      await postToSheets({
         action: "upsert_batch",
-        source: "lexispredict",
+        source: "LexisPredict",
         mode: "sheets_carteira_scan",
-        empresa_id: empresaId ?? null,
+        empresa_id: empresaId,
         batch_size: rows.length,
+        cursor: body?.cursor ?? null,
+        next_cursor: hasMore ? nextCursor : null,
+        has_more: hasMore,
         headers,
         matrix,
         rows,
-        cursor: body.cursor ?? null,
-        next_cursor: nextCursor,
-        has_more: hasMore,
       });
     }
 
     return NextResponse.json({
       ok: true,
-      total: count ?? 0,
+      total: countResult.count ?? 0,
       processed: rows.length,
       accepted: rows.length,
       nextCursor: hasMore ? nextCursor : null,
@@ -291,10 +194,6 @@ export async function POST(req: NextRequest) {
       elapsedMs: Date.now() - started,
     });
   } catch (error: any) {
-    return NextResponse.json({
-      ok: false,
-      error: error?.message || String(error),
-      elapsedMs: Date.now() - started,
-    }, { status: 500 });
+    return jsonError(error?.message || String(error), 500);
   }
 }
