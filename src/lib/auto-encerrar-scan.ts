@@ -1,6 +1,9 @@
 /**
  * AUTO se tribunal já marcou baixa/trânsito e NÃO há residual FORTE (B.A. real ou cumprimento ativo claro).
  * REVISAR só com residual forte — não por flag suja isolada.
+ *
+ * IMPORTANTE: autoencerramento é OPT-IN.
+ * Ausência da variável ou qualquer valor diferente de um ativador explícito mantém o recurso desligado.
  */
 
 export type DecisaoEncerrarScan =
@@ -8,9 +11,18 @@ export type DecisaoEncerrarScan =
   | { acao: "revisao_fila"; motivo: string; prioridade: number }
   | { acao: "nenhuma" };
 
+/**
+ * Autoencerramento permanece desligado até ativação explícita.
+ *
+ * Para ativar no futuro, configure a NOVA variável abaixo exatamente como:
+ *   SCAN_AUTO_ENCERRAR_ATIVADO=1|true|on|sim|yes
+ *
+ * A variável legada SCAN_AUTO_ENCERRAR é deliberadamente ignorada para que uma
+ * configuração antiga de produção com valor 1 não religue o autoencerramento.
+ */
 function on(): boolean {
-  const v = String(process.env.SCAN_AUTO_ENCERRAR ?? "1").trim().toLowerCase();
-  return v !== "0" && v !== "false" && v !== "off" && v !== "no";
+  const v = String(process.env.SCAN_AUTO_ENCERRAR_ATIVADO ?? "0").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "on" || v === "sim" || v === "yes";
 }
 
 function truthy(v: unknown): boolean {
@@ -105,7 +117,7 @@ export function decidirEncerramentoScan(ctx: {
     };
   }
 
-  // AUTO: baixa tribunal ou teor forte (is_procedente / oportunidade NÃO bloqueiam sozinhos)
+  // AUTO somente quando a configuração opt-in estiver explicitamente ativa.
   const motivo =
     p.datajud_encerrado_motivo ||
     t.datajud_encerrado_motivo ||
