@@ -1,32 +1,27 @@
 /**
- * Cliente Sheets — Apps Script.
- * Este deployment só responde bem em GET (doGet). POST devolve 405 HTML.
- * Por isso: ping/list/write preferem GET; write grande usa POST text/plain com fallback GET.
+ * Cliente Sheets / Apps Script.
+ * POST é o caminho primário porque suporta lote e preserva a linha inteira.
+ * GET continua disponível para ping/list e para compatibilidade com deployments antigos.
  */
-
 import { HYBRID_SHEETS_ENV } from "./policy";
 
 export type SheetsWriteRow = {
   protocolo: string;
-  UltimoRetorno?: string;
-  ProximoRetorno?: string;
-  ultimo_movimento?: string;
-  DJEN_Resumo?: string;
-  DatajudEncerrado?: string | boolean;
-  Cumprimento?: string;
-  Observacao?: string;
-  AtendidoPor?: string;
-  [key: string]: string | boolean | number | undefined;
+  [key: string]: string | boolean | number | null | undefined | Record<string, unknown>;
 };
 
 function webhookUrl(): string {
-  return String(process.env[HYBRID_SHEETS_ENV.webhook] || process.env.SHEETS_WEBHOOK_URL || "")
+  return String(
+    process.env[HYBRID_SHEETS_ENV.webhook] || process.env.SHEETS_WEBHOOK_URL || "",
+  )
     .trim()
     .replace(/\/dev(\b|$)/, "/exec");
 }
 
 function token(): string {
-  return String(process.env[HYBRID_SHEETS_ENV.token] || process.env.SHEETS_TOKEN || "w1-fase1-2026").trim();
+  return String(
+    process.env[HYBRID_SHEETS_ENV.token] || process.env.SHEETS_TOKEN || "w1-fase1-2026",
+  ).trim();
 }
 
 export function sheetsWebhookConfigured(): boolean {
@@ -35,63 +30,56 @@ export function sheetsWebhookConfigured(): boolean {
 }
 
 function parseBody(text: string): { ok: boolean; json?: any; error?: string } {
-  const slice = text.slice(0, 300);
+  const slice = text.slice(0, 500);
   if (/<!DOCTYPE html|<html/i.test(slice)) {
     return {
       ok: false,
-      error: "HTML do Google (405/login). Use doGet no script ou reimplante: Qualquer pessoa + /exec",
+      error:
+        "Webhook do Google devolveu HTML. Verifique a implantação do Apps Script como Aplicativo da Web, acesso 'Qualquer pessoa' e URL /exec.",
     };
   }
+
   try {
     const json = JSON.parse(text);
     return { ok: !!(json?.ok ?? true), json };
   } catch {
-    return { ok: false, error: "Resposta não-JSON: " + slice.slice(0, 120) };
+    return { ok: false, error: "Resposta não-JSON do webhook: " + slice.slice(0, 180) };
   }
 }
 
-/** GET — funciona no seu /exec atual */
-async function sheetsGet(params: Record<string, string>): Promise<{
-  ok: boolean;
-  json?: any;
-  error?: string;
-  status?: number;
-}> {
+async function sheetsGet(params: Record<string, string>) {
   const url = webhookUrl();
   if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
+
   const q = new URLSearchParams({ token: token(), ...params });
   try {
-    const res = await fetch(`${url}?${q.toString()}`, {
-      method: "GET",
-      redirect: "follow",
-    });
+    const res = await fetch(`${url}?${q.toString()}`, { method: "GET", redirect: "follow", cache: "no-store" });
     const text = await res.text();
     const parsed = parseBody(text);
-    return { ...parsed, status: res.status, error: parsed.error };
+    return { ...parsed, status: res.status };
   } catch (e: any) {
     return { ok: false, error: e?.message || "Falha GET Sheets" };
   }
 }
 
-/** POST text/plain (Apps Script lê postData.contents) */
-async function sheetsPostPlain(body: Record<string, unknown>): Promise<{
-  ok: boolean;
-  json?: any;
-  error?: string;
-  status?: number;
-}> {
+async function sheetsPost(body: Record<string, unknown>) {
   const url = webhookUrl();
   if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
+
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+        Accept: "application/json,text/plain,*/*",
+      },
       body: JSON.stringify({ token: token(), ...body }),
       redirect: "follow",
+      cache: "no-store",
     });
     const text = await res.text();
     const parsed = parseBody(text);
-    return { ...parsed, status: res.status, error: parsed.error };
+    return { ...parsed, status: res.status };
   } catch (e: any) {
     return { ok: false, error: e?.message || "Falha POST Sheets" };
   }
@@ -99,33 +87,35 @@ async function sheetsPostPlain(body: Record<string, unknown>): Promise<{
 
 export async function sheetsServerPost(body: Record<string, unknown>) {
   const action = String(body.action || "ping");
-  // 1) tenta POST (se o script tiver doPost)
-  const post = await sheetsPostPlain(body);
+
+  // POST é obrigatório para escrita real em lote.
+  const post = await sheetsPost(body);
   if (post.ok) return post;
-  // 2) fallback GET (seu deployment atual)
-  if (action === "write") {
-    const rows = body.rows;
-    const payload = typeof rows === "string" ? rows : JSON.stringify(rows || []);
-    // Apps Script GET tem limite de URL — manda até 3 linhas por request
-    return sheetsGet({
-      action: "write",
-      rows: payload.slice(0, 1500),
-    });
+
+  // GET só é usado para operações sem payload grande. Não truncamos uma escrita
+  // para 1.500 caracteres, pois isso causa perda/corrupção de dados.
+  if (action !== "write" && action !== "upsert_batch") {
+    const flat: Record<string, string> = { action };
+    for (const [k, v] of Object.entries(body)) {
+      if (k === "action" || v === undefined || v === null) continue;
+      flat[k] = typeof v === "object" ? JSON.stringify(v) : String(v);
+    }
+    const get = await sheetsGet(flat);
+    if (get.ok) return get;
   }
-  const flat: Record<string, string> = { action };
-  for (const [k, v] of Object.entries(body)) {
-    if (k === "action" || v === undefined || v === null) continue;
-    if (typeof v === "object") flat[k] = JSON.stringify(v);
-    else flat[k] = String(v);
-  }
-  return sheetsGet(flat);
+
+  return {
+    ok: false,
+    error: post.error || `Webhook HTTP ${post.status || 0}`,
+    status: post.status,
+  };
 }
 
 export async function sheetsListProcessos(opts?: {
   empresaId?: string;
   responsavel?: string;
   limit?: number;
-}): Promise<{ ok: boolean; rows: any[]; error?: string }> {
+}) {
   const r = await sheetsServerPost({
     action: "list",
     empresaId: opts?.empresaId,
@@ -137,32 +127,23 @@ export async function sheetsListProcessos(opts?: {
   return { ok: true, rows: Array.isArray(rows) ? rows : [] };
 }
 
-export async function sheetsWriteRows(rows: SheetsWriteRow[]): Promise<{
-  ok: boolean;
-  updated?: number;
-  error?: string;
-}> {
+export async function sheetsWriteRows(rows: SheetsWriteRow[]) {
   if (!rows.length) return { ok: true, updated: 0 };
-  // lotes pequenos (GET URL limit)
-  let updated = 0;
-  for (let i = 0; i < rows.length; i += 5) {
-    const chunk = rows.slice(i, i + 5).map((row) => {
-      const out: Record<string, unknown> = { Protocolo: row.protocolo, protocolo: row.protocolo };
-      for (const [k, v] of Object.entries(row)) {
-        if (k === "protocolo" || v === undefined || v === null || v === "") continue;
-        out[k] = v;
-      }
-      return out;
-    });
-    const r = await sheetsServerPost({ action: "write", rows: chunk });
-    if (!r.ok) return { ok: false, error: r.error, updated };
-    updated += Number(r.json?.updated ?? r.json?.inserted ?? chunk.length);
-  }
-  return { ok: true, updated };
+
+  const r = await sheetsServerPost({
+    action: "write",
+    rows,
+    source: "LexisPredict",
+  });
+
+  if (!r.ok) return { ok: false, error: r.error, updated: 0 };
+  return {
+    ok: true,
+    updated: Number(r.json?.updated ?? r.json?.inserted ?? rows.length),
+  };
 }
 
-export async function sheetsPing(): Promise<{ ok: boolean; error?: string; json?: any }> {
-  // GET direto — confirmado no seu /exec
+export async function sheetsPing() {
   const r = await sheetsGet({ action: "ping", ping: "1" });
   return { ok: r.ok, error: r.error, json: r.json };
 }

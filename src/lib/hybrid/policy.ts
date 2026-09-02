@@ -1,17 +1,22 @@
 export type HybridMode = "off" | "sheets_carteira" | "sheets_carteira_scan";
 
-// Carteira operacional: Sheets é o destino primário quando o híbrido está ligado.
-// O encerramento automático fica FORÇADO desligado nesta versão.
-if (typeof process !== "undefined") {
-  process.env.SCAN_AUTO_ENCERRAR = "0";
-}
-
+/**
+ * Google Sheets é o espelho operacional quando o híbrido está ligado.
+ * Autoencerramento fica permanentemente OFF nesta versão.
+ */
 export function getHybridMode(): HybridMode {
-  const v = String(process.env.LEXIS_HYBRID_MODE || process.env.NEXT_PUBLIC_LEXIS_HYBRID_MODE || "sheets_carteira")
+  const v = String(
+    process.env.LEXIS_HYBRID_MODE ||
+      process.env.NEXT_PUBLIC_LEXIS_HYBRID_MODE ||
+      "sheets_carteira",
+  )
     .trim()
     .toLowerCase();
+
   if (v === "off" || v === "none") return "off";
-  if (v === "sheets_carteira_scan" || v === "full" || v === "scan") return "sheets_carteira_scan";
+  if (v === "sheets_carteira_scan" || v === "full" || v === "scan") {
+    return "sheets_carteira_scan";
+  }
   return "sheets_carteira";
 }
 
