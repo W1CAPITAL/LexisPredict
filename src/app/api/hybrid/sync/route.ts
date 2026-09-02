@@ -1,60 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
+import { getSupabaseAdmin } from "@/lib/server-db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Lotes menores evitam timeout no Apps Script/Vercel sem voltar ao modelo 1 linha = 1 request.
-const DEFAULT_BATCH = 250;
-const MAX_BATCH = 250;
+// O problema anterior era combinar payload grande + ping + COUNT em todo lote.
+// Agora cada lote faz apenas: 1 leitura Supabase + 1 chamada ao Apps Script.
+const DEFAULT_BATCH = 75;
+const MAX_BATCH = 100;
+const SHEETS_TIMEOUT_MS = 12_000;
 const WEBHOOK_ACTION = "upsert_batch";
 
 function env(name: string) {
   return String(process.env[name] || "").trim();
-}
-
-const SHEETS_TIMEOUT_MS = 12_000;
-
-async function directSheetsFetch(payload: Record<string, unknown>, timeoutMs = SHEETS_TIMEOUT_MS) {
-  const webhook = env("LEXIS_SHEETS_WEBHOOK_URL");
-  const token = env("LEXIS_SHEETS_TOKEN");
-  if (!webhook) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL não configurada." };
-  if (!token) return { ok: false, error: "LEXIS_SHEETS_TOKEN não configurado." };
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(webhook, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      cache: "no-store",
-      signal: controller.signal,
-      // O Apps Script valida o token no BODY; não dependemos de header customizado.
-      body: JSON.stringify({ ...payload, token }),
-    });
-    const raw = await response.text();
-    let json: any = {};
-    try { json = JSON.parse(raw || "{}"); } catch (_) {}
-    if (!response.ok) {
-      return { ok: false, error: `Webhook HTTP ${response.status}: ${raw.slice(0, 300)}`, json };
-    }
-    if (json?.ok !== true) {
-      return { ok: false, error: json?.error || "Apps Script não confirmou ok:true.", json };
-    }
-    return { ok: true, json };
-  } catch (error: any) {
-    return {
-      ok: false,
-      error: error?.name === "AbortError"
-        ? `Webhook excedeu ${Math.round(timeoutMs / 1000)}s.`
-        : error?.message || String(error),
-    };
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function jsonError(message: string, status = 500, extra: Record<string, unknown> = {}) {
@@ -64,126 +22,122 @@ function jsonError(message: string, status = 500, extra: Record<string, unknown>
 async function resolveEmpresaId() {
   const configured = env("LEXIS_HYBRID_EMPRESA_ID");
   if (configured) return configured;
-  const ctx = await getUserContext();
-  if (!ctx.empresa_id) {
-    throw new Error(
-      "Não foi possível identificar a empresa pela sessão do Lexis. Configure LEXIS_HYBRID_EMPRESA_ID se necessário.",
-    );
-  }
-  return String(ctx.empresa_id);
+  throw new Error("LEXIS_HYBRID_EMPRESA_ID não configurado. O Plano B não deve depender do auth/realtime do navegador.");
 }
 
 function normalizeRows(rows: Record<string, any>[]) {
   return rows.map((row) => {
     const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
     return {
+      ...d,
       ...row,
       protocolo: row.protocolo_ref ?? row.protocolo ?? d.protocolo ?? d.PROTOCOLO ?? "",
       cliente: row.cliente ?? d.cliente ?? d.CLIENTE ?? "",
-      telefone: row.telefone ?? d.telefone ?? d.phone ?? "",
+      telefone: row.telefone ?? d.telefone ?? d.phone ?? d.celular ?? d.whatsapp ?? "",
       advogado: row.advogado ?? d.advogado ?? d.ADVOGADO ?? "",
       escritorio: row.escritorio ?? d.escritorio ?? d.ESCRITORIO ?? "",
       tribunal: row.tribunal ?? d.tribunal ?? d.TRIBUNAL ?? "",
       status: row.status ?? d.status ?? "",
       situacao: row.status_interno ?? d.situacao ?? d.status_interno ?? "",
-      ultimoRetorno: row.ultimo_retorno ?? d.ultimoRetorno ?? d.ultimo_retorno ?? "",
-      proximoRetorno: row.proximo_retorno ?? d.proximoRetorno ?? d.proximo_retorno ?? "",
-      criado_por: row.created_by ?? d.created_by ?? "",
-      AtendidoPor: row.atendido_por ?? d.atendido_por ?? d.AtendidoPor ?? "",
+      UltimoRetorno: row.ultimo_retorno ?? row.ultimoRetorno ?? d.ultimoRetorno ?? d.ultimo_retorno ?? "",
+      ProximoRetorno: row.proximo_retorno ?? row.proximoRetorno ?? d.proximoRetorno ?? d.proximo_retorno ?? "",
+      CreatedBy: row.created_by ?? row.createdBy ?? d.created_by ?? d.createdBy ?? "",
+      AtendidoPor: row.atendido_por ?? row.atendidoPor ?? d.atendido_por ?? d.atendidoPor ?? "",
       Observacao: row.observacoes ?? row.observacao ?? d.observacoes ?? d.observacao ?? "",
-      andamento: d.ultimoAndamento ?? d.andamento ?? row.ultimo_movimento ?? "",
-      evento_tipo: d.evento_tipo ?? d.Evento_Tipo ?? "",
+      updated_at: row.updated_at ?? row.updatedAt ?? d.updated_at ?? d.updatedAt ?? "",
     };
   });
 }
 
+function scalar(value: unknown) {
+  if (value == null) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
 function toMatrix(rows: Record<string, any>[]) {
   const preferred = [
-    "id",
-    "protocolo",
-    "protocolo_ref",
-    "cliente",
-    "telefone",
-    "advogado",
-    "escritorio",
-    "tribunal",
-    "status",
-    "status_interno",
-    "situacao",
-    "ultimoRetorno",
-    "ultimo_retorno",
-    "proximoRetorno",
-    "proximo_retorno",
-    "created_by",
-    "criado_por",
-    "atendido_por",
-    "AtendidoPor",
-    "observacoes",
-    "Observacao",
-    "andamento",
-    "evento_tipo",
-    "empresa_id",
-    "created_at",
-    "updated_at",
+    "id", "Protocolo", "Cliente", "Status", "Situacao", "UltimoRetorno", "ProximoRetorno",
+    "Advogado", "Escritorio", "Tribunal", "Telefone", "CreatedBy", "AtendidoPor", "Observacao",
+    "DatajudEncerrado", "EmpresaId", "empresa_id", "isBaixaTribunal", "ultimo_movimento", "fase",
+    "valor_causa", "updated_at", "Assistente", "Distribuicao", "Produtos", "Data_Movimentacao",
+    "Andamento", "Evento_Tipo", "Novo_Andamento", "Busca_Apreensao", "Cumprimento", "DJEN_Resumo",
+    "Dias_Sem_Retorno", "Procedente", "Improcedente"
   ];
 
-  const keys = Array.from(
-    new Set(rows.flatMap((r) => Object.keys(r)).filter((key) => key !== "dados")),
-  );
+  const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
   const headers = [
-    ...preferred.filter((k) => keys.includes(k)),
-    ...keys.filter((k) => !preferred.includes(k)),
+    ...preferred.filter((k) => keys.some((actual) => actual === k)),
+    ...keys.filter((k) => !preferred.includes(k) && k !== "dados"),
   ];
-  const matrix = rows.map((r) =>
-    headers.map((k) => {
-      const v = r[k];
-      if (v == null) return "";
-      if (typeof v === "object") return JSON.stringify(v);
-      return String(v);
-    }),
-  );
+
+  const matrix = rows.map((r) => headers.map((h) => scalar(r[h])));
   return { headers, matrix };
 }
 
-async function sheetsHealth() {
-  const result = await directSheetsFetch({ action: "ping" }, 5_000);
-  return { ok: result.ok, error: result.ok ? undefined : result.error };
+async function callSheets(payload: Record<string, unknown>) {
+  const webhook = env("LEXIS_SHEETS_WEBHOOK_URL");
+  const token = env("LEXIS_SHEETS_TOKEN");
+  if (!webhook) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL não configurada." };
+  if (!token) return { ok: false, error: "LEXIS_SHEETS_TOKEN não configurado." };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SHEETS_TIMEOUT_MS);
+  try {
+    const response = await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal,
+      body: JSON.stringify({ ...payload, token }),
+    });
+    const raw = await response.text();
+    let json: any = {};
+    try { json = JSON.parse(raw || "{}"); } catch (_) {}
+    if (!response.ok) return { ok: false, error: `Webhook HTTP ${response.status}: ${raw.slice(0, 300)}`, json };
+    if (json?.ok !== true) return { ok: false, error: json?.error || "Apps Script não confirmou ok:true.", json };
+    return { ok: true, json };
+  } catch (error: any) {
+    return {
+      ok: false,
+      error: error?.name === "AbortError" ? `Webhook excedeu ${SHEETS_TIMEOUT_MS / 1000}s.` : (error?.message || String(error)),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function GET() {
   try {
     const empresaId = await resolveEmpresaId();
     const admin = await getSupabaseAdmin();
-    const [{ count, error: countError }, sheet] = await Promise.all([
-      admin
-        .from("processos")
-        .select("id", { count: "exact", head: true })
-        .eq("empresa_id", empresaId),
-      sheetsHealth(),
-    ]);
 
-    if (countError) throw new Error(countError.message);
+    // Health do Sheets é independente da sessão/realtime do navegador.
+    const sheet = await callSheets({ action: "ping" });
+    const { count, error } = await admin
+      .from("processos")
+      .select("id", { count: "exact", head: true })
+      .eq("empresa_id", empresaId);
 
-    const sheetsWorking = !!sheet.ok;
+    if (error) throw new Error(error.message);
+
     return NextResponse.json({
       ok: true,
-      mode: sheetsWorking ? env("LEXIS_HYBRID_MODE") || "sheets_carteira_scan" : "supabase_fallback",
       supabase: "ok",
-      webhook: sheetsWorking ? "ok" : "fail",
-      sheetsWorking,
-      fallback: sheetsWorking ? null : "supabase",
+      sheetsWorking: sheet.ok,
+      webhook: sheet.ok ? "ok" : "fail",
+      fallback: sheet.ok ? null : "supabase",
       total: count ?? 0,
       empresaId,
-      webhookError: sheetsWorking ? undefined : sheet.error,
-      message: sheetsWorking
+      webhookError: sheet.ok ? undefined : sheet.error,
+      message: sheet.ok
         ? "Plano B disponível: Google Sheets."
-        : "Google Sheets indisponível. O Lexis continua operando normalmente pelo Supabase.",
+        : "Google Sheets indisponível. O Lexis continua operando pelo Supabase.",
     });
   } catch (error: any) {
     return jsonError(error?.message || String(error), 500, {
-      supabase: "fail",
-      sheetsWorking: false,
       fallback: "supabase",
+      sheetsWorking: false,
     });
   }
 }
@@ -196,38 +150,8 @@ export async function POST(req: NextRequest) {
 
     const empresaId = await resolveEmpresaId();
     const admin = await getSupabaseAdmin();
-    const batchSize = Math.min(
-      MAX_BATCH,
-      Math.max(1, Number(body?.batchSize || DEFAULT_BATCH)),
-    );
-
-    const sheet = await sheetsHealth();
-    // Fallback deliberado: se Sheets não responder, não inventamos que o lote foi salvo.
-    // A operação normal continua no Supabase e o checkpoint NÃO avança.
-    if (!sheet.ok) {
-      return NextResponse.json({
-        ok: false,
-        fallback: "supabase",
-        sheetsWorking: false,
-        supabase: "ok",
-        recoverable: true,
-        processed: 0,
-        accepted: 0,
-        nextCursor: body?.cursor ?? null,
-        hasMore: true,
-        elapsedMs: Date.now() - started,
-        error: `Google Sheets indisponível: ${sheet.error || "sem resposta"}`,
-        message: "Plano B indisponível; o Lexis permanece operando pelo Supabase.",
-      }, { status: 200 });
-    }
-
-    const countResult = await admin
-      .from("processos")
-      .select("id", { count: "exact", head: true })
-      .eq("empresa_id", empresaId);
-    if (countResult.error) {
-      throw new Error(`Contagem da carteira falhou: ${countResult.error.message}`);
-    }
+    const batchSize = Math.min(MAX_BATCH, Math.max(1, Number(body?.batchSize || DEFAULT_BATCH)));
+    const cursor = body?.cursor ? String(body.cursor) : null;
 
     let query = admin
       .from("processos")
@@ -236,95 +160,103 @@ export async function POST(req: NextRequest) {
       .order("id", { ascending: true })
       .limit(batchSize);
 
-    if (body?.cursor) query = query.gt("id", body.cursor);
+    if (cursor) query = query.gt("id", cursor);
 
     const { data, error } = await query;
     if (error) throw new Error(`Leitura da carteira falhou: ${error.message}`);
 
     const rawRows = (data || []) as Record<string, any>[];
-    const rows = normalizeRows(rawRows);
-    const { headers, matrix } = toMatrix(rows);
-    const nextCursor = rawRows.length
-      ? String(rawRows[rawRows.length - 1]?.id ?? "") || null
-      : null;
-    const hasMore = rawRows.length === batchSize;
-
-    if (!rows.length) {
+    if (!rawRows.length) {
       return NextResponse.json({
         ok: true,
-        total: countResult.count ?? 0,
+        total: Number(body?.total || 0),
         processed: 0,
         accepted: 0,
         nextCursor: null,
         hasMore: false,
-        elapsedMs: Date.now() - started,
         sheetsWorking: true,
         sheetWritten: 0,
-        sheetUpdated: 0,
-        sheetAdded: 0,
+        elapsedMs: Date.now() - started,
       });
     }
 
-    try {
-      const result = await directSheetsFetch({
-        action: WEBHOOK_ACTION,
-        source: "LexisPredict",
-        mode: "sheets_carteira_scan",
-        empresa_id: empresaId,
-        batch_size: rows.length,
-        actor: "sync",
-        actor_name: "LexisPredict / Plano B",
-        perfil: "superadmin",
-        cursor: body?.cursor ?? null,
-        next_cursor: hasMore ? nextCursor : null,
-        has_more: hasMore,
-        headers,
-        matrix,
-        rows,
-      });
+    const rows = normalizeRows(rawRows);
+    const { headers, matrix } = toMatrix(rows);
+    const nextCursor = String(rawRows[rawRows.length - 1]?.id ?? "") || null;
+    const hasMore = rawRows.length === batchSize;
 
-      if (!result.ok) throw new Error(result.error || "Apps Script recusou o lote.");
+    const sheet = await callSheets({
+      action: WEBHOOK_ACTION,
+      source: "LexisPredict",
+      mode: "sheets_carteira_scan",
+      seed: true,
+      empresa_id: empresaId,
+      batch_size: rows.length,
+      actor: "sync",
+      actor_name: "LexisPredict / Plano B",
+      perfil: "superadmin",
+      cursor,
+      next_cursor: hasMore ? nextCursor : null,
+      has_more: hasMore,
+      headers,
+      matrix,
+      rows,
+    });
 
-      const json = result.json || {};
-
-      const written = Number(json.written ?? json.updated ?? json.added ?? 0);
-      if (written !== rows.length) {
-        throw new Error(`Apps Script confirmou apenas ${written}/${rows.length} registros.`);
-      }
-
-      return NextResponse.json({
-        ok: true,
-        total: countResult.count ?? 0,
-        processed: rows.length,
-        accepted: written,
-        nextCursor: hasMore ? nextCursor : null,
-        hasMore,
-        elapsedMs: Date.now() - started,
-        sheetsWorking: true,
-        sheetUpdated: Number(json.updated ?? 0),
-        sheetAdded: Number(json.added ?? 0),
-        sheetWritten: written,
-      });
-    } catch (sheetError: any) {
-      // Fallback apenas quando o Plano B falhar; nunca mascara como sincronização concluída.
+    if (!sheet.ok) {
+      // Fallback: o Supabase continua sendo a fonte operacional. Não avançamos checkpoint.
       return NextResponse.json({
         ok: false,
         fallback: "supabase",
-        sheetsWorking: false,
         supabase: "ok",
+        sheetsWorking: false,
         recoverable: true,
         processed: 0,
         accepted: 0,
-        nextCursor: body?.cursor ?? null,
+        nextCursor: cursor,
         hasMore: true,
         elapsedMs: Date.now() - started,
-        error: `Google Sheets indisponível: ${sheetError?.message || String(sheetError)}`,
-        message: "Lote não enviado à planilha. O Lexis continua operando pelo Supabase.",
-      }, { status: 200 });
+        error: `Google Sheets indisponível: ${sheet.error}`,
+        message: "O lote não foi confirmado pela planilha; o Lexis continua pelo Supabase.",
+      });
     }
-  } catch (error: any) {
-    return jsonError(error?.message || String(error), 500, {
-      fallback: "supabase",
+
+    const json = sheet.json || {};
+    const written = Number(json.written ?? 0);
+    const rejected = Number(json.rejected_count ?? (Array.isArray(json.rejected) ? json.rejected.length : 0));
+    const accepted = written || Number(json.updated ?? 0) + Number(json.added ?? 0);
+
+    if (accepted !== rows.length || rejected > 0) {
+      return NextResponse.json({
+        ok: false,
+        fallback: "supabase",
+        supabase: "ok",
+        sheetsWorking: false,
+        recoverable: true,
+        processed: 0,
+        accepted: 0,
+        nextCursor: cursor,
+        hasMore: true,
+        elapsedMs: Date.now() - started,
+        error: `Apps Script confirmou ${accepted}/${rows.length} registros (${rejected} rejeitados).`,
+        message: "Checkpoint não avançado para evitar perder registros.",
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      total: Number(body?.total || 0),
+      processed: rows.length,
+      accepted,
+      nextCursor: hasMore ? nextCursor : null,
+      hasMore,
+      sheetsWorking: true,
+      sheetWritten: accepted,
+      sheetUpdated: Number(json.updated ?? 0),
+      sheetAdded: Number(json.added ?? 0),
+      elapsedMs: Date.now() - started,
     });
+  } catch (error: any) {
+    return jsonError(error?.message || String(error), 500, { fallback: "supabase" });
   }
 }

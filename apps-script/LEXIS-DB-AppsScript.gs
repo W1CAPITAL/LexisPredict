@@ -29,7 +29,8 @@ var PROC_SHEET = "Processos";
 var HEADER_ROW = 1;
 var SESS_DURATION_MS = 8 * 3600 * 1000;
 var SESS_PREFIX = "lex_sess_";
-var MAX_WRITE_ROWS = 800;
+var MAX_WRITE_ROWS = 3600;
+var INDEX_SHEET = "__LEXIS_INDEX";
 
 var USER_HEADERS = [
   "login", "nome", "senha", "perfil", "escritorio", "ativo", "email", "auth_user_id", "id"
@@ -315,127 +316,194 @@ function findRowMap_(sh, headers, data) {
   return { byProtocol: out, keyIdx: keyIdx };
 }
 
+function ensureIndexSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(INDEX_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(INDEX_SHEET);
+    sh.getRange(1, 1, 1, 3).setValues([["protocolo_key", "sheet_row", "updated_at"]]);
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+function rebuildIndex_() {
+  var proc = getProcSheet_();
+  var idx = ensureIndexSheet_();
+  var headers = headers_(proc);
+  var hmap = headerMap_(headers);
+  var keyIdx = findCol_(hmap, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
+  if (keyIdx < 0) throw new Error("Aba Processos sem coluna Protocolo/CNJ.");
+  var lastRow = proc.getLastRow();
+  var out = [];
+  if (lastRow >= HEADER_ROW + 1) {
+    var values = proc.getRange(HEADER_ROW + 1, keyIdx + 1, lastRow - HEADER_ROW, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      var key = digits(values[i][0]);
+      if (key) out.push([key, i + HEADER_ROW + 1, new Date().toISOString()]);
+    }
+  }
+  idx.clearContents();
+  idx.getRange(1, 1, 1, 3).setValues([["protocolo_key", "sheet_row", "updated_at"]]);
+  if (out.length) idx.getRange(2, 1, out.length, 3).setValues(out);
+  return idx;
+}
+
+function loadIndex_() {
+  var idx = ensureIndexSheet_();
+  var last = idx.getLastRow();
+  if (last < 2) {
+    rebuildIndex_();
+    last = idx.getLastRow();
+  }
+  var values = last >= 2 ? idx.getRange(2, 1, last - 1, 2).getValues() : [];
+  var map = {};
+  for (var i = 0; i < values.length; i++) {
+    var key = String(values[i][0] || "").trim();
+    var row = Number(values[i][1] || 0);
+    if (key && row) map[key] = row;
+  }
+  return { sheet: idx, map: map };
+}
+
+function appendIndexRows_(idx, rows) {
+  if (!rows.length) return;
+  var start = idx.getLastRow() + 1;
+  idx.getRange(start, 1, rows.length, 3).setValues(rows);
+}
+
 function writeRecords_(rows, actor, allowInsert) {
   if (!Array.isArray(rows)) rows = [];
   if (rows.length > MAX_WRITE_ROWS) throw new Error("Lote acima do limite de " + MAX_WRITE_ROWS + " linhas.");
+  if (!rows.length) return { ok: true, updated: 0, added: 0, written: 0, rejected: [], rejected_count: 0 };
 
-  var sh = getProcSheet_();
-  var headers = headers_(sh);
-  var data = sh.getDataRange().getValues();
-  var hmap = headerMap_(headers);
-  var loc = findRowMap_(sh, headers, data);
-  var existingByProtocol = loc.byProtocol;
-  var ownerIdx = findCol_(hmap, ["Responsavel", "CreatedBy", "created_by", "criado_por"]);
-  var protoIdx = findCol_(hmap, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
-  var empresaIdx = findCol_(hmap, ["EmpresaId", "empresa_id", "empresaId"]);
-  var updatedIdx = findCol_(hmap, ["updated_at", "updatedAt"]);
-  var editedByIdx = findCol_(hmap, ["edited_by", "editado_por"]);
-  var editedNameIdx = findCol_(hmap, ["edited_by_name", "editado_por_nome"]);
-  var editedAtIdx = findCol_(hmap, ["edited_at", "editado_em"]);
-  var isAdmin = roleAccess(actor && actor.perfil) >= 20;
-  var updated = 0;
-  var added = 0;
-  var rejected = [];
-  var touchedRows = {};
-  var now = new Date().toISOString();
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(15000);
+  try {
+    var sh = getProcSheet_();
+    var headers = headers_(sh);
+    var hmap = headerMap_(headers);
+    var protoIdx = findCol_(hmap, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
+    if (protoIdx < 0) throw new Error("coluna-chave (Protocolo/CNJ) não encontrada");
 
-  // BUG CRÍTICO CORRIGIDO:
-  // não usar getLastRow()+1 dentro do loop sem avançar o contador.
-  // Isso fazia todos os novos processos caírem na MESMA linha e os anteriores serem sobrescritos.
-  var nextAppendRow = Math.max(sh.getLastRow() + 1, data.length + 1);
+    var ownerIdx = findCol_(hmap, ["Responsavel", "CreatedBy", "created_by", "criado_por"]);
+    var empresaIdx = findCol_(hmap, ["EmpresaId", "empresa_id", "empresaId"]);
+    var updatedIdx = findCol_(hmap, ["updated_at", "updatedAt"]);
+    var editedByIdx = findCol_(hmap, ["edited_by", "editado_por"]);
+    var editedNameIdx = findCol_(hmap, ["edited_by_name", "editado_por_nome"]);
+    var editedAtIdx = findCol_(hmap, ["edited_at", "editado_em"]);
+    var createdIdx = findCol_(hmap, ["CreatedBy", "created_by", "createdBy", "criado_por"]);
+    var isAdmin = roleAccess(actor && actor.perfil) >= 20;
+    var me = norm(actor && (actor.u || actor.login || actor.nome) || "");
+    var meName = norm(actor && actor.nome || "");
+    var now = new Date().toISOString();
+    var index = loadIndex_();
+    var map = index.map;
 
-  rows.forEach(function (record) {
-    record = record || {};
-    var protocol = protocolFromRecord_(record);
-    var pkey = digits(protocol);
-    if (!pkey) {
-      rejected.push({ protocolo: "", motivo: "sem Protocolo/CNJ" });
-      return;
-    }
+    var touched = {};
+    var appended = [];
+    var indexAdds = [];
+    var updates = 0;
+    var added = 0;
+    var rejected = [];
 
-    var targetRow = existingByProtocol[pkey] || null;
-    var current;
-
-    if (targetRow) {
-      current = data[targetRow - 1].slice();
-      if (ownerIdx >= 0 && !isAdmin && String(current[ownerIdx] || "").trim()) {
-        var owner = norm(current[ownerIdx]);
-        var me = norm(actor && (actor.u || actor.login || actor.nome));
-        if (owner && me && owner !== me && owner !== norm(actor && actor.nome || "")) {
-          rejected.push({ protocolo: protocol, motivo: "processo de outro responsável" });
-          return;
-        }
-      }
-    } else {
-      if (!allowInsert) {
-        rejected.push({ protocolo: protocol, motivo: "processo não encontrado" });
-        return;
-      }
-      // Cada novo registro recebe sua PRÓPRIA linha.
-      targetRow = nextAppendRow++;
-      current = new Array(headers.length).fill("");
-      while (data.length < targetRow) data.push(new Array(headers.length).fill(""));
-      if (ownerIdx >= 0 && actor && actor.u) current[ownerIdx] = actor.u;
-      existingByProtocol[pkey] = targetRow;
-      added++;
-    }
-
-    var dados = record.dados && typeof record.dados === "object" ? record.dados : {};
-    headers.forEach(function (header, i) {
-      var value = valueForField_(record, header, dados);
-      // Campo ausente/vazio NÃO apaga o que já existe.
-      if (value === undefined || value === null || String(value) === "") return;
-      current[i] = toCell_(value);
+    // Lemos somente as linhas que realmente serão alteradas.
+    var existingRows = [];
+    rows.forEach(function(record) {
+      var protocol = protocolFromRecord_(record || {});
+      var key = digits(protocol);
+      if (!key) { rejected.push({ protocolo: "", motivo: "sem Protocolo/CNJ" }); return; }
+      var target = map[key] || 0;
+      if (target) existingRows.push(target);
     });
 
-    if (protoIdx >= 0) current[protoIdx] = protocol;
-
-    var createdIdx = findCol_(hmap, ["CreatedBy", "created_by", "criado_por"]);
-    if (createdIdx >= 0 && !current[createdIdx] && actor && actor.u) current[createdIdx] = actor.u;
-
-    if (empresaIdx >= 0 && record.empresa_id) current[empresaIdx] = String(record.empresa_id);
-    if (updatedIdx >= 0) current[updatedIdx] = now;
-    if (editedByIdx >= 0 && actor && actor.u) current[editedByIdx] = actor.u;
-    if (editedNameIdx >= 0 && actor) current[editedNameIdx] = actor.nome || actor.u || "";
-    if (editedAtIdx >= 0) current[editedAtIdx] = now;
-
-    data[targetRow - 1] = current;
-    touchedRows[targetRow] = true;
-    updated++;
-  });
-
-  var rowNumbers = Object.keys(touchedRows).map(Number).sort(function (a, b) { return a - b; });
-
-  // Escreve em poucos blocos contíguos, evitando setValue célula a célula.
-  var start = null;
-  var previous = null;
-  rowNumbers.forEach(function (rowNum) {
-    if (start == null) {
-      start = previous = rowNum;
-      return;
+    var currentByRow = {};
+    if (existingRows.length) {
+      var wantedRows = Array.from(new Set(existingRows)).sort(function(a, b) { return a - b; });
+      var addresses = wantedRows.map(function(r) { return r + ":" + r; });
+      var ranges = sh.getRangeList(addresses).getRanges();
+      for (var gr = 0; gr < ranges.length; gr++) {
+        currentByRow[wantedRows[gr]] = ranges[gr].getValues()[0];
+      }
     }
-    if (rowNum === previous + 1) {
-      previous = rowNum;
-      return;
+
+    var nextRow = Math.max(sh.getLastRow() + 1, HEADER_ROW + 1);
+    rows.forEach(function(record) {
+      record = record || {};
+      var protocol = protocolFromRecord_(record);
+      var pkey = digits(protocol);
+      if (!pkey) return;
+
+      var targetRow = map[pkey] || 0;
+      var current;
+      if (targetRow) {
+        current = currentByRow[targetRow].slice();
+        if (ownerIdx >= 0 && !isAdmin) {
+          var owner = norm(current[ownerIdx] || "");
+          if (owner && owner !== me && owner !== meName) {
+            rejected.push({ protocolo: protocol, motivo: "processo de outro responsável" });
+            return;
+          }
+        }
+      } else {
+        if (!allowInsert) { rejected.push({ protocolo: protocol, motivo: "processo não encontrado" }); return; }
+        targetRow = nextRow++;
+        current = new Array(headers.length).fill("");
+        if (ownerIdx >= 0 && actor && actor.u) current[ownerIdx] = actor.u;
+        map[pkey] = targetRow;
+        added++;
+      }
+
+      var dados = record.dados && typeof record.dados === "object" ? record.dados : {};
+      headers.forEach(function(header, i) {
+        var value = valueForField_(record, header, dados);
+        // NUNCA apaga valor antigo porque uma coluna não veio no payload.
+        if (value === undefined || value === null || String(value) === "") return;
+        current[i] = toCell_(value);
+      });
+      current[protoIdx] = protocol;
+      if (createdIdx >= 0 && !current[createdIdx] && actor && actor.u) current[createdIdx] = actor.u;
+      if (empresaIdx >= 0 && record.empresa_id) current[empresaIdx] = String(record.empresa_id);
+      if (updatedIdx >= 0) current[updatedIdx] = now;
+      if (editedByIdx >= 0 && actor && actor.u) current[editedByIdx] = actor.u;
+      if (editedNameIdx >= 0 && actor) current[editedNameIdx] = actor.nome || actor.u || "";
+      if (editedAtIdx >= 0) current[editedAtIdx] = now;
+
+      touched[targetRow] = current;
+      if (!index.sheet) return;
+      if (!existingRows.includes(targetRow)) indexAdds.push([pkey, targetRow, now]);
+      updates++;
+    });
+
+    var rowNums = Object.keys(touched).map(Number).sort(function(a,b){ return a-b; });
+    if (rowNums.length) {
+      var runStart = rowNums[0], runEnd = rowNums[0];
+      for (var x = 1; x < rowNums.length; x++) {
+        if (rowNums[x] === runEnd + 1) { runEnd = rowNums[x]; continue; }
+        var block = [];
+        for (var rr = runStart; rr <= runEnd; rr++) block.push(touched[rr]);
+        sh.getRange(runStart, 1, block.length, headers.length).setValues(block);
+        runStart = runEnd = rowNums[x];
+      }
+      var lastBlock = [];
+      for (var rr2 = runStart; rr2 <= runEnd; rr2++) lastBlock.push(touched[rr2]);
+      sh.getRange(runStart, 1, lastBlock.length, headers.length).setValues(lastBlock);
     }
-    sh.getRange(start, 1, previous - start + 1, headers.length)
-      .setValues(data.slice(start - 1, previous));
-    start = previous = rowNum;
-  });
-  if (start != null) {
-    sh.getRange(start, 1, previous - start + 1, headers.length)
-      .setValues(data.slice(start - 1, previous));
+
+    appendIndexRows_(index.sheet, indexAdds);
+    SpreadsheetApp.flush();
+    var written = updates - rejected.length;
+    return {
+      ok: true,
+      updated: updates,
+      added: added,
+      written: written,
+      rejected: rejected,
+      rejected_count: rejected.length
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
   }
-
-  SpreadsheetApp.flush();
-
-  return {
-    ok: true,
-    updated: updated,
-    added: added,
-    written: updated - rejected.length,
-    rejected: rejected
-  };
 }
 
 function upsertBatch_(body) {
