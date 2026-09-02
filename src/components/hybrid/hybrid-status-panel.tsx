@@ -1,6 +1,5 @@
-import { HybridSyncBadge } from "@/components/hybrid/hybrid-sync-badge";
 "use client";
-
+import { HybridSyncBadge } from "@/components/hybrid/hybrid-sync-badge";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
