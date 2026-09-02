@@ -1,8 +1,8 @@
 /**
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * Middleware unificado: sessão Supabase + headers de segurança + rotas admin.
+ * LexisPredict — middleware de sessão Supabase + segurança + ACL.
+ * Compatível com @supabase/ssr atual: usa exclusivamente getAll/setAll.
  */
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const ROLE_WEIGHT: Record<string, number> = {
@@ -21,39 +21,33 @@ function applySecurityHeaders(res: NextResponse) {
   res.headers.set('X-Content-Type-Options', 'nosniff')
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
-  res.headers.set(
-    'Strict-Transport-Security',
-    'max-age=63072000; includeSubDomains; preload'
-  )
-  // CSP reforçado também no middleware (defesa em profundidade)
+  res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+
   if (!res.headers.has('Content-Security-Policy')) {
     res.headers.set(
       'Content-Security-Policy',
       [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net",
         "worker-src 'self' blob:",
-        "child-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: blob: https:",
         "font-src 'self' https://fonts.gstatic.com data:",
-        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
-        "frame-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://*.highrevenueformat.com",
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com",
+        "frame-src 'self' blob: https://*.highrevenueformat.com https://www.highrevenueformat.com https://www.profitableratecpmnetwork.com",
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'",
         "object-src 'none'",
-      ].join('; ')
+      ].join('; '),
     )
   }
+
   return res
 }
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: { headers: request.headers },
-  })
-
+  let response = NextResponse.next({ request: { headers: request.headers } })
   const path = request.nextUrl.pathname
   const isPublicFile =
     /\.(.*)$/.test(path) ||
@@ -61,14 +55,14 @@ export async function middleware(request: NextRequest) {
     path.includes('manifest.json') ||
     path.includes('favicon.ico')
 
-  // Rate-limit no login (GET/POST) — cookie sliding window anti brute-force
+  // Pequeno rate limit para login/signup, sem interferir nas demais rotas.
   if (path === '/login' || path === '/signup') {
     const hits = Number(request.cookies.get('lexis_login_hits')?.value || '0')
     const maxHits = request.method === 'POST' ? 25 : 60
     if (hits > maxHits) {
       const blocked = NextResponse.json(
         { error: 'Muitas tentativas. Aguarde alguns minutos.' },
-        { status: 429 }
+        { status: 429 },
       )
       blocked.cookies.set('lexis_login_hits', String(hits), {
         httpOnly: true,
@@ -79,7 +73,6 @@ export async function middleware(request: NextRequest) {
       })
       return applySecurityHeaders(blocked)
     }
-    // incrementa contador em POST de auth
     if (request.method === 'POST') {
       response.cookies.set('lexis_login_hits', String(hits + 1), {
         httpOnly: true,
@@ -97,39 +90,43 @@ export async function middleware(request: NextRequest) {
   if (url && key && !isPublicFile) {
     const supabase = createServerClient(url, key, {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set({ name, value, ...options })
+          })
+
           response = NextResponse.next({
             request: { headers: request.headers },
           })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-            httpOnly: options.httpOnly ?? true,
-            sameSite: options.sameSite ?? 'lax',
-            secure: process.env.NODE_ENV === 'production' ? true : options.secure,
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+              httpOnly: options.httpOnly ?? true,
+              sameSite: options.sameSite ?? 'lax',
+              secure: process.env.NODE_ENV === 'production' ? true : options.secure,
+            })
           })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
-          response.cookies.set({ name, value: '', ...options })
         },
       },
     })
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    let user = null
+    try {
+      const result = await supabase.auth.getUser()
+      user = result.data.user
+    } catch {
+      // Falha de auth não pode quebrar o restante do app; a página poderá
+      // redirecionar para login pelo estado de usuário abaixo.
+      user = null
+    }
 
     const isAuthPage = path === '/login' || path === '/signup'
-
     if (!user && !isAuthPage) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/login'
@@ -143,14 +140,10 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Rotas admin por cargo (cookie lexis_user_role)
-  const isAdminPath = ADMIN_ONLY.some(
-    (p) => path === p || path.startsWith(`${p}/`)
-  )
+  const isAdminPath = ADMIN_ONLY.some((p) => path === p || path.startsWith(`${p}/`))
   if (isAdminPath) {
     const role = request.cookies.get('lexis_user_role')?.value || ''
-    const weight = ROLE_WEIGHT[role] || 0
-    if (weight < 60) {
+    if ((ROLE_WEIGHT[role] || 0) < 60) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/'
       redirectUrl.search = ''
@@ -158,10 +151,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  
-  const isSuperPath = SUPERADMIN_ONLY.some(
-    (p) => path === p || path.startsWith(`${p}/`)
-  )
+  const isSuperPath = SUPERADMIN_ONLY.some((p) => path === p || path.startsWith(`${p}/`))
   if (isSuperPath) {
     const role = request.cookies.get('lexis_user_role')?.value || ''
     if (role !== 'Superadmin') {
@@ -176,7 +166,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }
