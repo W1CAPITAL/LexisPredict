@@ -21,8 +21,10 @@ export type DecisaoEncerrarScan =
  * configuração antiga de produção com valor 1 não religue o autoencerramento.
  */
 function on(): boolean {
-  const v = String(process.env.SCAN_AUTO_ENCERRAR_ATIVADO ?? "0").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "on" || v === "sim" || v === "yes";
+  // OFF absoluto por padrão nesta versão.
+  // Não lê a variável legada e NÃO permite ativação por ambiente.
+  // Para reativar futuramente, altere este guard de forma deliberada.
+  return false;
 }
 
 function truthy(v: unknown): boolean {
