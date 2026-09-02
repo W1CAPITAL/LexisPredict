@@ -66,6 +66,12 @@ const ChatRealtimeNotify = dynamic(
   { ssr: false }
 );
 
+const HybridSyncBadge = dynamic(
+  () =>
+    import("@/components/hybrid/hybrid-sync-badge").then((m) => m.HybridSyncBadge),
+  { ssr: false }
+);
+
 const HybridAutoSync = dynamic(
   () =>
     import("@/components/hybrid/hybrid-auto-sync").then((m) => m.HybridAutoSync),
@@ -134,6 +140,7 @@ export function ClientChrome() {
       <LexisCommandPalette />
       <ChatNotifPermission />
       <HybridAutoSync />
+      <HybridSyncBadge compact />
       <ChatRealtimeNotify />
     </>
   );

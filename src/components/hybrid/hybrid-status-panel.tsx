@@ -1,3 +1,4 @@
+import { HybridSyncBadge } from "@/components/hybrid/hybrid-sync-badge";
 "use client";
 
 import { useEffect, useState } from "react";
@@ -37,6 +38,7 @@ export function HybridStatusPanel() {
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-3">
+      <HybridSyncBadge compact={false} />
       <div className="flex items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-black flex items-center gap-2">

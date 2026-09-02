@@ -1,12 +1,5 @@
 "use server";
 
-/**
- * Sync automático híbrido:
- * 1) Planilha vazia → joga processos do Supabase para Sheets (seed)
- * 2) Planilha com dados → fonte operacional = Sheets
- * Usuários / empresa / cargos continuam no Supabase.
- */
-
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
 import {
   getHybridMode,
@@ -27,6 +20,7 @@ function str(v: unknown): string {
   return String(v).trim();
 }
 
+/** Postgres processos usa proximo_retorno (NÃO proximo_prazo). */
 function rowFromProcesso(r: any, empresaId: string): SheetsWriteRow {
   const d = r.dados && typeof r.dados === "object" ? r.dados : {};
   const protocolo = str(r.protocolo_ref || d.protocolo || d.PROTOCOLO || d.cnj);
@@ -36,8 +30,10 @@ function rowFromProcesso(r: any, empresaId: string): SheetsWriteRow {
     Cliente: str(d.cliente || d.CLIENTE || d.nome_cliente || r.cliente),
     Status: str(r.status || d.status || d.situacao),
     Situacao: str(r.status_interno || d.situacao || d.SITUACAO),
-    UltimoRetorno: str(r.ultimo_retorno || d.ultimoRetorno || d.ultimo_retorno || d.ULTIMO_RETORNO),
-    ProximoRetorno: str(r.proximo_prazo || d.proximoRetorno || d.proximo_retorno || d.PROXIMO_RETORNO),
+    UltimoRetorno: str(r.ultimo_retorno || d.ultimoRetorno || d.ultimo_retorno),
+    ProximoRetorno: str(
+      r.proximo_retorno || d.proximoRetorno || d.proximo_retorno || d.PROXIMO_RETORNO
+    ),
     Advogado: str(d.advogado || d.ADVOGADO),
     Telefone: str(d.telefone || d.TELEFONE || d.celular),
     CreatedBy: str(r.created_by || d.created_by),
@@ -58,7 +54,28 @@ export async function hybridStatusAction() {
   const mode = getHybridMode();
   const configured = sheetsWebhookConfigured();
   let ping: { ok: boolean; error?: string; json?: any } = { ok: false, error: "não testado" };
-  if (configured) ping = await sheetsPing();
+  let sheetsCount: number | null = null;
+  let listError: string | undefined;
+
+  if (configured) {
+    ping = await sheetsPing();
+    if (ping.ok) {
+      const list = await sheetsListProcessos({ limit: 5 });
+      if (list.ok) {
+        // count approx: list may return only limit — full count via second call
+        const full = await sheetsListProcessos({ limit: 8000 });
+        sheetsCount = full.ok ? full.rows.length : list.rows.length;
+        if (!full.ok) listError = full.error;
+      } else {
+        listError = list.error;
+        sheetsCount = 0;
+      }
+    }
+  }
+
+  const synced =
+    hybridEnabled() && configured && !!ping.ok && sheetsCount !== null && sheetsCount > 0;
+
   return {
     mode,
     enabled: hybridEnabled(),
@@ -66,15 +83,27 @@ export async function hybridStatusAction() {
     mirrorPostgres: hybridMirrorPostgres(),
     skipScanAudit: hybridSkipScanAudit(),
     ping,
+    sheetsCount,
+    listError,
+    synced,
+    syncLabel: !hybridEnabled()
+      ? "Híbrido desligado"
+      : !configured
+        ? "Webhook não configurado"
+        : !ping.ok
+          ? `Ping falhou: ${ping.error || "?"}`
+          : sheetsCount === 0
+            ? "Planilha vazia — rode sync (seed)"
+            : `Sincronizado · ${sheetsCount} processos na planilha`,
+    carteiraSource: synced ? "sheets" : "supabase",
     spreadsheetHint: "1qbuJee6DCv0bh9XGvnBDPltc0Ziphdn2yx11QKOnchc",
-    carteiraSource: hybridEnabled() ? "sheets_when_populated" : "supabase",
   };
 }
 
 export async function hybridPullCarteiraAction(opts?: { limit?: number }) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return { success: false, rows: [], error: "Sem sessão Supabase" };
-  if (!hybridEnabled()) return { success: false, rows: [], error: "Hybrid desligado (LEXIS_HYBRID_MODE)" };
+  if (!hybridEnabled()) return { success: false, rows: [], error: "Hybrid desligado" };
   if (!sheetsWebhookConfigured()) return { success: false, rows: [], error: "Webhook não configurado" };
 
   const list = await sheetsListProcessos({
@@ -85,18 +114,7 @@ export async function hybridPullCarteiraAction(opts?: { limit?: number }) {
   return { success: true, rows: list.rows, count: list.rows.length, source: "sheets" as const };
 }
 
-/**
- * Lê todos os processos da empresa no Supabase e grava na planilha.
- * Use quando a planilha estiver vazia (seed inicial).
- */
-export async function hybridSeedSheetsFromSupabaseAction(opts?: {
-  maxRows?: number;
-}): Promise<{
-  success: boolean;
-  pushed: number;
-  error?: string;
-  samples?: string[];
-}> {
+export async function hybridSeedSheetsFromSupabaseAction(opts?: { maxRows?: number }) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id || !ctx.auth_id) {
     return { success: false, pushed: 0, error: "Sem sessão Supabase" };
@@ -116,7 +134,7 @@ export async function hybridSeedSheetsFromSupabaseAction(opts?: {
     const { data, error } = await admin
       .from("processos")
       .select(
-        "id, protocolo_ref, dados, status, status_interno, created_by, atendido_por, empresa_id, ultimo_retorno, proximo_prazo, observacoes, datajud_ultimo_nome, datajud_encerrado_tribunal, djen_ultimo_resumo, em_cumprimento_sentenca, updated_at"
+        "id, protocolo_ref, dados, status, status_interno, created_by, atendido_por, empresa_id, ultimo_retorno, proximo_retorno, observacoes, datajud_ultimo_nome, datajud_encerrado_tribunal, djen_ultimo_resumo, em_cumprimento_sentenca, updated_at"
       )
       .eq("empresa_id", ctx.empresa_id)
       .order("id", { ascending: true })
@@ -138,7 +156,6 @@ export async function hybridSeedSheetsFromSupabaseAction(opts?: {
     return { success: true, pushed: 0, error: "Supabase sem processos para enviar" };
   }
 
-  // envia em lotes (GET/POST limit)
   let pushed = 0;
   const samples: string[] = [];
   const batchSize = 8;
@@ -160,97 +177,74 @@ export async function hybridSeedSheetsFromSupabaseAction(opts?: {
   return { success: true, pushed, samples };
 }
 
-/**
- * Sync automático:
- * - Se planilha vazia (0 linhas) → seed do Supabase
- * - Se planilha tem dados → pull (Sheets é a carteira)
- */
-export async function hybridAutoSyncAction(): Promise<{
-  success: boolean;
-  action: "noop" | "seed" | "pull" | "error";
-  sheetsCount: number;
-  pushed?: number;
-  pulled?: number;
-  error?: string;
-  message?: string;
-}> {
+export async function hybridAutoSyncAction() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) {
-    return { success: false, action: "error", sheetsCount: 0, error: "Sem sessão" };
+    return { success: false, action: "error" as const, sheetsCount: 0, error: "Sem sessão" };
   }
   if (!hybridEnabled()) {
     return {
       success: true,
-      action: "noop",
+      action: "noop" as const,
       sheetsCount: 0,
-      message: "Hybrid off — defina LEXIS_HYBRID_MODE=sheets_carteira_scan",
+      message: "Hybrid off — LEXIS_HYBRID_MODE=sheets_carteira_scan",
     };
   }
   if (!sheetsWebhookConfigured()) {
-    return { success: false, action: "error", sheetsCount: 0, error: "Webhook não configurado" };
+    return { success: false, action: "error" as const, sheetsCount: 0, error: "Webhook não configurado" };
   }
 
   const ping = await sheetsPing();
   if (!ping.ok) {
     return {
       success: false,
-      action: "error",
+      action: "error" as const,
       sheetsCount: 0,
       error: ping.error || "Ping Sheets falhou",
     };
   }
 
-  const list = await sheetsListProcessos({
-    empresaId: ctx.empresa_id,
-    limit: 50,
-  });
+  const list = await sheetsListProcessos({ empresaId: ctx.empresa_id, limit: 20 });
   if (!list.ok) {
-    return { success: false, action: "error", sheetsCount: 0, error: list.error };
+    return { success: false, action: "error" as const, sheetsCount: 0, error: list.error };
   }
 
-  const sheetsCount = list.rows.length;
-
-  // vazia → seed
-  if (sheetsCount === 0) {
+  if (list.rows.length === 0) {
     const seed = await hybridSeedSheetsFromSupabaseAction({ maxRows: 4000 });
     if (!seed.success && seed.pushed === 0) {
       return {
         success: false,
-        action: "error",
+        action: "error" as const,
         sheetsCount: 0,
         error: seed.error,
-        message: "Planilha vazia; falha ao enviar Supabase → Sheets",
+        message: "Planilha vazia; falha seed Supabase → Sheets",
       };
     }
     return {
       success: true,
-      action: "seed",
+      action: "seed" as const,
       sheetsCount: 0,
       pushed: seed.pushed,
-      message: `Planilha vazia → enviados ${seed.pushed} processos do Supabase`,
+      message: `Planilha vazia → enviados ${seed.pushed} processos`,
     };
   }
 
-  // tem dados → pull completo (carteira = planilha)
-  const full = await sheetsListProcessos({
-    empresaId: ctx.empresa_id,
-    limit: 8000,
-  });
+  const full = await sheetsListProcessos({ empresaId: ctx.empresa_id, limit: 8000 });
   if (!full.ok) {
     return {
       success: false,
-      action: "error",
-      sheetsCount,
+      action: "error" as const,
+      sheetsCount: list.rows.length,
       error: full.error,
     };
   }
 
   return {
     success: true,
-    action: "pull",
+    action: "pull" as const,
     sheetsCount: full.rows.length,
     pulled: full.rows.length,
-    message: `Carteira na planilha: ${full.rows.length} linhas`,
+    message: `Sincronizado · ${full.rows.length} linhas na planilha`,
   };
 }
 

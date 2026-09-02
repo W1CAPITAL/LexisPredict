@@ -135,10 +135,7 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  // Superadmin / Supervisor: todos. Demais cargos: só os próprios.
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
-
-  // Híbrido: carteira operacional vem da planilha (Postgres só auth/empresa)
   try {
     const { hybridEnabled } = await import("@/lib/hybrid/policy");
     const { sheetsWebhookConfigured, sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
@@ -160,12 +157,8 @@ export async function fetchRepoCases() {
         }
         return cases;
       }
-      // planilha vazia ou list falhou → fallback Postgres (seed ainda não rodou)
     }
-  } catch {
-    /* fallback PG */
-  }
-
+  } catch { /* fallback PG */ }
   return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
 
@@ -1131,21 +1124,6 @@ export async function registrarAtendimentoCompletoAction(input: {
       );
     }
     if (!found) {
-      try {
-        const { hybridEnabled } = await import('@/lib/hybrid/policy');
-        const { sheetsWebhookConfigured, sheetsListProcessos } = await import('@/lib/hybrid/sheets-server');
-        const { sheetRowsToLegalCases } = await import('@/lib/hybrid/sheets-case-map');
-        if (hybridEnabled() && sheetsWebhookConfigured()) {
-          const list = await sheetsListProcessos({ empresaId: empresa_id, limit: 8000 });
-          if (list.ok) {
-            found = sheetRowsToLegalCases(list.rows).find(
-              (c: any) => String(c.protocolo || '').replace(/\D/g, '') === digits
-            );
-          }
-        }
-      } catch { /* */ }
-    }
-    if (!found) {
       return { success: false, message: 'Processo não encontrado na carteira' };
     }
 
@@ -1216,26 +1194,23 @@ export async function registrarAtendimentoCompletoAction(input: {
       });
     }
 
-    // Híbrido: espelha atendimento na planilha (M/N + responsável)
     try {
       const { hybridEnabled } = await import('@/lib/hybrid/policy');
       const { sheetsWebhookConfigured, sheetsWriteRows } = await import('@/lib/hybrid/sheets-server');
       if (hybridEnabled() && sheetsWebhookConfigured()) {
-        await sheetsWriteRows([
-          {
-            protocolo: String(found.protocolo || input.protocolo),
-            UltimoRetorno: hoje,
-            ProximoRetorno: prazoNovo || '',
-            Status: situacao,
-            Situacao: situacao,
-            Observacao: obs || '',
-            AtendidoPor: auth_id || '',
-            CreatedBy: ownerKeep || '',
-            Responsavel: ownerKeep || '',
-          },
-        ]);
+        await sheetsWriteRows([{
+          protocolo: String(found.protocolo || input.protocolo),
+          UltimoRetorno: hoje,
+          ProximoRetorno: prazoNovo || '',
+          Status: situacao,
+          Situacao: situacao,
+          Observacao: obs || '',
+          AtendidoPor: auth_id || '',
+          CreatedBy: ownerKeep || '',
+          Responsavel: ownerKeep || '',
+        }]);
       }
-    } catch { /* sheets best-effort */ }
+    } catch { /* */ }
 
     return {
       success: true,
