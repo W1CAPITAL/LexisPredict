@@ -135,6 +135,7 @@ function useNavItems(opts: {
       { label: "Busca/apreensão", href: "/busca-apreensao", icon: Gavel },
       { label: "Predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
+      { label: "Amostra CNJ (estatística)", href: "/estatistica-cnj", icon: BarChart3 },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
       { label: "CRM", href: "/crm", icon: Kanban },
       { label: "Follow-ups", href: "/crm/followups", icon: ListTodo },
