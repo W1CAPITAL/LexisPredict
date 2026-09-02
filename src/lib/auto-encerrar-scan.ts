@@ -1,10 +1,9 @@
 /**
- * Autoencerramento de scanner — DESATIVADO.
+ * Motor de autoencerramento do scanner.
  *
- * Regra de segurança: nenhuma ausência de variável, texto, flag ou resultado
- * do tribunal pode encerrar um processo automaticamente nesta versão.
- * A rotina só poderá ser reativada quando houver uma decisão explícita de
- * produto para isso.
+ * O recurso fica bloqueado por padrão e só pode ser reativado posteriormente
+ * por alteração explícita de código/configuração. Nesta versão todas as
+ * decisões retornam "nenhuma" e nenhum patch de encerramento é aplicado.
  */
 
 export type DecisaoEncerrarScan =
@@ -12,7 +11,7 @@ export type DecisaoEncerrarScan =
   | { acao: "revisao_fila"; motivo: string; prioridade: number }
   | { acao: "nenhuma" };
 
-export function autoEncerrarScanAtivo(): boolean {
+export function autoEncerrarScanAtivo(): false {
   return false;
 }
 
@@ -28,7 +27,5 @@ export function aplicarDecisaoNoPatch(
   _target: any,
   _decisao: DecisaoEncerrarScan,
 ): Record<string, any> {
-  // Mesmo que algum chamador tente passar uma decisão de autoencerramento,
-  // não aplicamos nenhuma alteração de encerramento enquanto o recurso estiver off.
   return { ...patch };
 }
