@@ -6,8 +6,18 @@ import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured } from '@/lib/hybrid/sheets-server';
 
 function iso(v: unknown): string | null {
-  return formatDateToISO(v as any) || (v ? String(v) : null);
+  if (v === undefined || v === null) return null;
+  const text = String(v).trim();
+  if (!text || /^(null|undefined|invalid date)$/i.test(text)) return null;
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  const brMatch = text.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+  if (brMatch) return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+  const formatted = formatDateToISO(v as any);
+  return formatted && /^\d{4}-\d{2}-\d{2}$/.test(formatted) ? formatted : null;
 }
+
+const dateOrNull = iso;
 
 function hasValue(v: unknown): boolean {
   return v !== undefined && v !== null && String(v) !== '';
@@ -79,7 +89,11 @@ async function persistToDatabase(
     dados: mergedDados,
   };
   for (const [dbKey, sourceKey] of Object.entries(directFields)) {
-    if (processed[sourceKey] !== undefined) payload[dbKey] = processed[sourceKey];
+    if (processed[sourceKey] !== undefined) {
+      payload[dbKey] = dbKey === 'ultimo_retorno' || dbKey === 'proximo_retorno'
+        ? dateOrNull(processed[sourceKey])
+        : processed[sourceKey];
+    }
   }
 
   // updated_at é desejável, mas não pode bloquear uma edição se o schema antigo
@@ -193,14 +207,20 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
 
     const processed: any = processarCaso(caseData as any);
     // Edição deve persistir também os campos operacionais que alimentam cards/flags.
-    if ((caseData as any).situacao !== undefined) processed.situacao = String((caseData as any).situacao || '').toUpperCase();
+    if ((caseData as any).situacao !== undefined) {
+      processed.situacao = String((caseData as any).situacao || '').toUpperCase();
+      if (processed.situacao === 'ENCERRADO') {
+        processed.statusManual = 'Encerrado';
+        processed.status = 'Encerrado';
+      }
+    }
     if ((caseData as any).statusManual !== undefined) processed.statusManual = (caseData as any).statusManual;
     if ((caseData as any).ultimoRetorno !== undefined || (caseData as any).ultimo_retorno !== undefined) {
-      processed.ultimoRetorno = (caseData as any).ultimoRetorno ?? (caseData as any).ultimo_retorno ?? '';
+      processed.ultimoRetorno = dateOrNull((caseData as any).ultimoRetorno ?? (caseData as any).ultimo_retorno);
       processed.ultimo_retorno = processed.ultimoRetorno;
     }
     if ((caseData as any).proximoPrazo !== undefined || (caseData as any).proximo_retorno !== undefined) {
-      processed.proximoPrazo = (caseData as any).proximoPrazo ?? (caseData as any).proximo_retorno ?? '';
+      processed.proximoPrazo = dateOrNull((caseData as any).proximoPrazo ?? (caseData as any).proximo_retorno);
       processed.proximo_retorno = processed.proximoPrazo;
     }
     // Supabase é a fonte operacional. Sheets nunca participa da leitura/decisão de salvamento.
@@ -303,7 +323,7 @@ export async function registrarAtendimentoCompletoAction(input: {
 
     const hoje = new Date().toISOString().slice(0, 10);
     const situacao = String(input.situacao || 'EM ANDAMENTO').toUpperCase() === 'ENCERRADO' ? 'ENCERRADO' : 'EM ANDAMENTO';
-    const proximo = situacao === 'ENCERRADO' ? null : (iso(input.proximoPrazo) || null);
+    const proximo = situacao === 'ENCERRADO' ? null : dateOrNull(input.proximoPrazo);
     const observacao = String(input.observacao || '').trim();
     const previousDados = existing?.dados && typeof existing.dados === 'object' ? existing.dados : {};
     const base = processarCaso({ ...(previousDados as any), protocolo, situacao, proximoPrazo: proximo || '', ultimoRetorno: hoje, observacao, statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico' } as any) as any;
@@ -337,7 +357,7 @@ export async function registrarAtendimentoCompletoAction(input: {
       ultimo_retorno: hoje,
       proximo_retorno: proximo,
       observacoes: observacao,
-      status: base.status || (situacao === 'ENCERRADO' ? 'Sem Prazo' : existing.status || 'Sem Prazo'),
+      status: situacao === 'ENCERRADO' ? 'Encerrado' : (base.status || existing.status || 'Sem Prazo'),
       status_interno: situacao,
       atendido_por: ctx.auth_id || null,
       datajud_encerrado_tribunal: !!dados.datajud_encerrado_tribunal,
