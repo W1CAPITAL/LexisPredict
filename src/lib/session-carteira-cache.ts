@@ -1,151 +1,69 @@
 /**
- * Cache de sessão da carteira — UX rápida sem poluir KPI.
- *
- * Regras:
- * 1) Cache só para abrir lista na hora (sessionStorage).
- * 2) Rede SEMPRE substitui o cache (replace), nunca concatena cache+nuvem.
- * 3) KPI / ranking / relatório devem preferir dados com source === "network".
- * 4) Após save/atendimento: invalidate + opcional write do estado novo.
- * 5) Scanner: progresso em chave separada; fila usa store já hidratada, não soma contadores.
+ * Cache persistente da carteira: a lista aparece imediatamente após trocar de aba/F5.
+ * A rede é apenas revalidação em segundo plano; nunca bloqueia a pintura do cache.
  */
-const CARTEIRA_KEY = 'lexis_carteira_sessao_v3';
+const CARTEIRA_KEY = 'lexis_carteira_persistente_v4';
+const LEGACY_KEY = 'lexis_carteira_sessao_v3';
 const SCAN_KEY = 'lexis_scan_progress_v1';
-const TTL_MS = 4 * 60 * 1000; // 4 min — lista ok; KPI revalida em background
-
+const TTL_MS = 30 * 60 * 1000;
 export type CacheSource = 'cache' | 'network' | 'empty';
 
-type CarteiraPayload = {
-  v: 2;
-  at: number;
-  empresaId?: string | null;
-  cases: unknown[];
-};
-
-type ScanProgress = {
-  manualDone: number;
-  manualTotal: number;
-  mode?: string;
-  at: number;
-};
-
-function canUse(): boolean {
-  return typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
-}
-
-export function readCarteiraCache(empresaId?: string | null): {
-  cases: any[];
-  ageMs: number;
-  stale: boolean;
-} | null {
-  if (!canUse()) return null;
+type CarteiraPayload = { v: 4; at: number; empresaId?: string | null; cases: unknown[] };
+type ScanProgress = { manualDone: number; manualTotal: number; mode?: string; at: number };
+function canUse() { return typeof window !== 'undefined' && typeof localStorage !== 'undefined'; }
+function storage(): Storage | null { if (!canUse()) return null; return localStorage; }
+export function readCarteiraCache(empresaId?: string | null) {
+  const s = storage(); if (!s) return null;
   try {
-    const raw = sessionStorage.getItem(CARTEIRA_KEY);
+    const raw = s.getItem(CARTEIRA_KEY) || s.getItem(LEGACY_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as CarteiraPayload;
-    if (!p || p.v !== 2 || !Array.isArray(p.cases)) return null;
+    if (!p || !Array.isArray(p.cases)) return null;
     if (empresaId && p.empresaId && p.empresaId !== empresaId) return null;
-    const ageMs = Date.now() - (p.at || 0);
-    return { cases: p.cases, ageMs, stale: ageMs > TTL_MS };
-  } catch {
-    return null;
-  }
+    return { cases: p.cases as any[], ageMs: Date.now() - (p.at || 0), stale: Date.now() - (p.at || 0) > TTL_MS };
+  } catch { return null; }
 }
-
-/** Grava snapshot único (replace total). */
 export function writeCarteiraCache(cases: unknown[], empresaId?: string | null) {
-  if (!canUse()) return;
+  const s = storage(); if (!s) return;
   try {
-    const payload: CarteiraPayload = {
-      v: 2,
-      at: Date.now(),
-      empresaId: empresaId || null,
-      // não guarda 10k blobs: o array já deve vir enxuto do servidor
-      cases: Array.isArray(cases) ? cases.slice(0, 5000) : [],
-    };
-    sessionStorage.setItem(CARTEIRA_KEY, JSON.stringify(payload));
-  } catch {
-    /* quota */
-  }
+    s.setItem(CARTEIRA_KEY, JSON.stringify({ v: 4, at: Date.now(), empresaId: empresaId || null, cases: Array.isArray(cases) ? cases.slice(0, 5000) : [] } satisfies CarteiraPayload));
+  } catch { /* quota: cache é somente UX */ }
 }
+export function invalidateCarteiraCache() { const s = storage(); if (!s) return; try { s.removeItem(CARTEIRA_KEY); s.removeItem(LEGACY_KEY); } catch {} }
+export function readScanProgress(): ScanProgress | null { const s=storage(); if(!s) return null; try { const p=JSON.parse(s.getItem(SCAN_KEY)||'null'); if(!p||typeof p.manualDone!=='number'||Date.now()-(p.at||0)>12*60*60*1000)return null; return p;}catch{return null;} }
+export function writeScanProgress(done:number,total:number,mode?:string){const s=storage();if(!s)return;try{s.setItem(SCAN_KEY,JSON.stringify({manualDone:done,manualTotal:total,mode,at:Date.now()}));}catch{}}
+export function clearScanProgress(){const s=storage();if(!s)return;try{s.removeItem(SCAN_KEY);}catch{}}
 
-export function invalidateCarteiraCache() {
-  if (!canUse()) return;
-  try {
-    sessionStorage.removeItem(CARTEIRA_KEY);
-  } catch {
-    /* */
-  }
-}
-
-export function readScanProgress(): ScanProgress | null {
-  if (!canUse()) return null;
-  try {
-    const raw = sessionStorage.getItem(SCAN_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw) as ScanProgress;
-    if (!p || typeof p.manualDone !== 'number') return null;
-    // progresso vale 12h
-    if (Date.now() - (p.at || 0) > 12 * 60 * 60 * 1000) return null;
-    return p;
-  } catch {
-    return null;
-  }
-}
-
-export function writeScanProgress(done: number, total: number, mode?: string) {
-  if (!canUse()) return;
-  try {
-    sessionStorage.setItem(
-      SCAN_KEY,
-      JSON.stringify({ manualDone: done, manualTotal: total, mode, at: Date.now() } satisfies ScanProgress)
-    );
-  } catch {
-    /* */
-  }
-}
-
-export function clearScanProgress() {
-  if (!canUse()) return;
-  try {
-    sessionStorage.removeItem(SCAN_KEY);
-  } catch {
-    /* */
-  }
-}
-
-/**
- * Carrega carteira: pinta cache na hora, busca rede, SUBSTITUI (não soma).
- * onKpiSafe = só chama com dados de rede (ou cache se rede falhar e allowStaleKpi).
- */
 export async function loadCarteiraComCache(opts: {
   fetchNetwork: () => Promise<any[]>;
   empresaId?: string | null;
   onShow: (cases: any[], source: CacheSource) => void;
-  /** KPIs / gráficos — só rede por padrão */
   onKpiSafe?: (cases: any[], source: 'network' | 'stale-fallback') => void;
   allowStaleKpiFallback?: boolean;
 }): Promise<{ cases: any[]; source: CacheSource }> {
   const cached = readCarteiraCache(opts.empresaId);
-  if (cached?.cases?.length) {
-    opts.onShow(cached.cases, 'cache');
-  }
-
+  if (cached?.cases?.length) opts.onShow(cached.cases, 'cache');
+  // Rede nunca bloqueia a UI. O caller pode continuar renderizando o cache.
   try {
     const remote = await opts.fetchNetwork();
     const list = Array.isArray(remote) ? remote : [];
-    // REPLACE total — nunca [...cache, ...remote]
-    writeCarteiraCache(list, opts.empresaId);
-    opts.onShow(list, list.length ? 'network' : 'empty');
-    opts.onKpiSafe?.(list, 'network');
-    return { cases: list, source: list.length ? 'network' : 'empty' };
-  } catch (e) {
+    if (list.length) {
+      writeCarteiraCache(list, opts.empresaId);
+      opts.onShow(list, 'network');
+      opts.onKpiSafe?.(list, 'network');
+      return { cases: list, source: 'network' };
+    }
     if (cached?.cases?.length) {
-      if (opts.allowStaleKpiFallback) {
-        opts.onKpiSafe?.(cached.cases, 'stale-fallback');
-      }
+      opts.onKpiSafe?.(cached.cases, 'stale-fallback');
       return { cases: cached.cases, source: 'cache' };
     }
     opts.onShow([], 'empty');
     return { cases: [], source: 'empty' };
+  } catch {
+    if (cached?.cases?.length) {
+      if (opts.allowStaleKpiFallback) opts.onKpiSafe?.(cached.cases, 'stale-fallback');
+      return { cases: cached.cases, source: 'cache' };
+    }
+    opts.onShow([], 'empty'); return { cases: [], source: 'empty' };
   }
 }
