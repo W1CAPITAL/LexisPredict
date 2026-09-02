@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
+import { sheetsPing, sheetsServerPost } from "@/lib/hybrid/sheets-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_BATCH = 500;
 const MAX_BATCH = 500;
-const WEBHOOK_TIMEOUT_MS = 30000;
+const WEBHOOK_ACTION = "upsert_batch";
 
 function env(name: string) {
   return String(process.env[name] || "").trim();
@@ -20,64 +20,13 @@ function jsonError(message: string, status = 500) {
 async function resolveEmpresaId() {
   const configured = env("LEXIS_HYBRID_EMPRESA_ID");
   if (configured) return configured;
-
-  // LexisPredict already uses public.usuarios as its application user/profile
-  // table. Do NOT query public.profiles: that table does not exist in this DB.
   const ctx = await getUserContext();
   if (!ctx.empresa_id) {
-    throw new Error("Não foi possível identificar a empresa pela sessão do Lexis. Configure LEXIS_HYBRID_EMPRESA_ID se necessário.");
+    throw new Error(
+      "Não foi possível identificar a empresa pela sessão do Lexis. Configure LEXIS_HYBRID_EMPRESA_ID se necessário.",
+    );
   }
   return String(ctx.empresa_id);
-}
-
-async function postToSheets(payload: unknown) {
-  const webhook = env("LEXIS_SHEETS_WEBHOOK_URL");
-  if (!webhook) throw new Error("LEXIS_SHEETS_WEBHOOK_URL não configurada.");
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
-  const token = env("LEXIS_SHEETS_TOKEN");
-
-  try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Accept: "application/json,text/plain,*/*",
-      "X-Lexis-Mode": "batch",
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-      headers["X-Lexis-Token"] = token;
-    }
-
-    const res = await fetch(webhook, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`Webhook HTTP ${res.status}: ${text.slice(0, 400)}`);
-    if (/<!DOCTYPE html|<html/i.test(text.slice(0, 500))) {
-      throw new Error(`Webhook HTTP ${res.status}: Google retornou HTML. Verifique a implantação /exec do Apps Script.`);
-    }
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      throw new Error(`Webhook respondeu algo que não é JSON: ${text.slice(0, 300)}`);
-    }
-    if (parsed?.ok !== true) {
-      const action = String((payload as any)?.action || '').trim() || 'desconhecida';
-      throw new Error(String(parsed?.error || `Apps Script recusou a ação ${action}`));
-    }
-    return parsed;
-  } catch (error: any) {
-    if (error?.name === "AbortError") throw new Error("Webhook excedeu o tempo limite de 30s.");
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function normalizeRows(rows: Record<string, any>[]) {
@@ -85,7 +34,7 @@ function normalizeRows(rows: Record<string, any>[]) {
     const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
     return {
       ...row,
-      protocolo: row.protocolo_ref ?? d.protocolo ?? d.PROTOCOLO ?? "",
+      protocolo: row.protocolo_ref ?? row.protocolo ?? d.protocolo ?? d.PROTOCOLO ?? "",
       cliente: row.cliente ?? d.cliente ?? d.CLIENTE ?? "",
       telefone: row.telefone ?? d.telefone ?? d.phone ?? "",
       advogado: row.advogado ?? d.advogado ?? d.ADVOGADO ?? "",
@@ -95,31 +44,60 @@ function normalizeRows(rows: Record<string, any>[]) {
       situacao: row.status_interno ?? d.situacao ?? d.status_interno ?? "",
       ultimoRetorno: row.ultimo_retorno ?? d.ultimoRetorno ?? d.ultimo_retorno ?? "",
       proximoRetorno: row.proximo_retorno ?? d.proximoRetorno ?? d.proximo_retorno ?? "",
-      criado_por: row.created_by ?? "",
-      observacoes: row.observacoes ?? d.observacoes ?? d.observacao ?? "",
-      andamento: d.ultimoAndamento ?? d.andamento ?? "",
-      evento_tipo: d.evento_tipo ?? "",
+      criado_por: row.created_by ?? d.created_by ?? "",
+      AtendidoPor: row.atendido_por ?? d.atendido_por ?? d.AtendidoPor ?? "",
+      Observacao: row.observacoes ?? row.observacao ?? d.observacoes ?? d.observacao ?? "",
+      andamento: d.ultimoAndamento ?? d.andamento ?? row.ultimo_movimento ?? "",
+      evento_tipo: d.evento_tipo ?? d.Evento_Tipo ?? "",
     };
   });
 }
 
 function toMatrix(rows: Record<string, any>[]) {
   const preferred = [
-    "id", "protocolo", "cliente", "telefone", "advogado", "escritorio", "tribunal",
-    "status", "situacao", "ultimoRetorno", "proximoRetorno", "criado_por",
-    "observacoes", "andamento", "evento_tipo", "empresa_id", "created_at", "updated_at",
+    "id",
+    "protocolo",
+    "protocolo_ref",
+    "cliente",
+    "telefone",
+    "advogado",
+    "escritorio",
+    "tribunal",
+    "status",
+    "status_interno",
+    "situacao",
+    "ultimoRetorno",
+    "ultimo_retorno",
+    "proximoRetorno",
+    "proximo_retorno",
+    "created_by",
+    "criado_por",
+    "atendido_por",
+    "AtendidoPor",
+    "observacoes",
+    "Observacao",
+    "andamento",
+    "evento_tipo",
+    "empresa_id",
+    "created_at",
+    "updated_at",
   ];
-  const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+
+  const keys = Array.from(
+    new Set(rows.flatMap((r) => Object.keys(r)).filter((key) => key !== "dados")),
+  );
   const headers = [
     ...preferred.filter((k) => keys.includes(k)),
-    ...keys.filter((k) => !preferred.includes(k) && k !== "dados"),
+    ...keys.filter((k) => !preferred.includes(k)),
   ];
-  const matrix = rows.map((r) => headers.map((k) => {
-    const v = r[k];
-    if (v == null) return "";
-    if (typeof v === "object") return JSON.stringify(v);
-    return String(v);
-  }));
+  const matrix = rows.map((r) =>
+    headers.map((k) => {
+      const v = r[k];
+      if (v == null) return "";
+      if (typeof v === "object") return JSON.stringify(v);
+      return String(v);
+    }),
+  );
   return { headers, matrix };
 }
 
@@ -127,20 +105,24 @@ export async function GET() {
   try {
     const empresaId = await resolveEmpresaId();
     const admin = await getSupabaseAdmin();
-    const { count, error } = await admin
-      .from("processos")
-      .select("id", { count: "exact", head: true })
-      .eq("empresa_id", empresaId);
+    const [{ count, error: countError }, sheet] = await Promise.all([
+      admin
+        .from("processos")
+        .select("id", { count: "exact", head: true })
+        .eq("empresa_id", empresaId),
+      sheetsPing(),
+    ]);
 
-    if (error) throw new Error(error.message);
+    if (countError) throw new Error(countError.message);
 
     return NextResponse.json({
       ok: true,
       mode: env("LEXIS_HYBRID_MODE") || "sheets_carteira_scan",
       supabase: "ok",
-      webhook: env("LEXIS_SHEETS_WEBHOOK_URL") ? "ok" : "not-configured",
+      webhook: sheet.ok ? "ok" : "fail",
       total: count ?? 0,
       empresaId,
+      webhookError: sheet.ok ? undefined : sheet.error,
     });
   } catch (error: any) {
     return jsonError(error?.message || String(error), 500);
@@ -155,21 +137,27 @@ export async function POST(req: NextRequest) {
 
     const empresaId = await resolveEmpresaId();
     const admin = await getSupabaseAdmin();
-    const batchSize = Math.min(MAX_BATCH, Math.max(1, Number(body?.batchSize || DEFAULT_BATCH)));
+    const batchSize = Math.min(
+      MAX_BATCH,
+      Math.max(1, Number(body?.batchSize || DEFAULT_BATCH)),
+    );
 
     const countResult = await admin
       .from("processos")
       .select("id", { count: "exact", head: true })
       .eq("empresa_id", empresaId);
-    if (countResult.error) throw new Error(`Contagem da carteira falhou: ${countResult.error.message}`);
+    if (countResult.error) {
+      throw new Error(`Contagem da carteira falhou: ${countResult.error.message}`);
+    }
 
-    // Cursor por id evita o custo crescente de OFFSET e permite retomar após falha.
+    // Cursor por id: evita OFFSET e permite retomar sem reler lotes concluídos.
     let query = admin
       .from("processos")
       .select("*")
       .eq("empresa_id", empresaId)
       .order("id", { ascending: true })
       .limit(batchSize);
+
     if (body?.cursor) query = query.gt("id", body.cursor);
 
     const { data, error } = await query;
@@ -178,12 +166,12 @@ export async function POST(req: NextRequest) {
     const rawRows = (data || []) as Record<string, any>[];
     const rows = normalizeRows(rawRows);
     const { headers, matrix } = toMatrix(rows);
-    const nextCursor = rawRows.length ? String(rawRows[rawRows.length - 1].id) : null;
+    const nextCursor = rawRows.length ? String(rawRows[rawRows.length - 1]?.id ?? "") || null : null;
     const hasMore = rawRows.length === batchSize;
 
     if (rows.length) {
-      await postToSheets({
-        action: "upsert_batch",
+      const result = await sheetsServerPost({
+        action: WEBHOOK_ACTION,
         source: "LexisPredict",
         mode: "sheets_carteira_scan",
         empresa_id: empresaId,
@@ -195,16 +183,38 @@ export async function POST(req: NextRequest) {
         matrix,
         rows,
       });
+
+      if (!result.ok) {
+        throw new Error(result.error || "Apps Script recusou o lote.");
+      }
+
+      const written = Number(result.json?.written ?? result.json?.updated ?? result.json?.added ?? rows.length);
+
+      return NextResponse.json({
+        ok: true,
+        total: countResult.count ?? 0,
+        processed: rows.length,
+        accepted: written,
+        nextCursor: hasMore ? nextCursor : null,
+        hasMore,
+        elapsedMs: Date.now() - started,
+        sheetUpdated: Number(result.json?.updated ?? 0),
+        sheetAdded: Number(result.json?.added ?? 0),
+        sheetWritten: written,
+      });
     }
 
     return NextResponse.json({
       ok: true,
       total: countResult.count ?? 0,
-      processed: rows.length,
-      accepted: rows.length,
-      nextCursor: hasMore ? nextCursor : null,
-      hasMore,
+      processed: 0,
+      accepted: 0,
+      nextCursor: null,
+      hasMore: false,
       elapsedMs: Date.now() - started,
+      sheetUpdated: 0,
+      sheetAdded: 0,
+      sheetWritten: 0,
     });
   } catch (error: any) {
     return jsonError(error?.message || String(error), 500);
