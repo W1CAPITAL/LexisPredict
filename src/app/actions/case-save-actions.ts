@@ -1,429 +1,207 @@
 'use server';
 
-import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from "@/lib/auth-supervisao";
-
-/**
- * Salvamento atômico de UM processo — evita upsert de 1000+ linhas (travamento na UI).
- * Colunas de auditoria (edited_at / edited_by) ficam dentro de `dados` quando
- * a tabela `processos` não tem essas colunas no schema.
- */
-import { getUserContext, getSupabaseAdmin, getProfileByAuthId } from '@/lib/server-db';
-import { createClient } from '@/lib/supabase/server';
+import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisao';
+import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
-import { enqueueSheetMnPush, flushSheetMnPush } from '@/lib/sheet-mn-push';
+import { hybridEnabled, hybridMirrorPostgres } from '@/lib/hybrid/policy';
+import { sheetsServerPost, sheetsWebhookConfigured } from '@/lib/hybrid/sheets-server';
 
-/** Monta a linha para upsert — só campos que existem (ou são JSON em dados). */
-function toRow(c: LegalCase, empresaId: string, authId: string | null) {
-  // Aceita camel/snake e força ISO YYYY-MM-DD (nunca descarta último retorno preenchido)
-  const isoPrazo =
-    formatDateToISO((c as any).proximoPrazo) ||
-    formatDateToISO((c as any).proximo_retorno) ||
-    formatDateToISO((c as any).proximoRetorno) ||
-    null;
-  const isoRetorno =
-    formatDateToISO((c as any).ultimoRetorno) ||
-    formatDateToISO((c as any).ultimo_retorno) ||
-    formatDateToISO((c as any).ULTIMO_RETORNO) ||
-    null;
+function iso(v: unknown): string | null {
+  return formatDateToISO(v as any) || (v ? String(v) : null);
+}
+
+function sheetRow(c: any, empresaId: string, actorId: string | null, actorName: string) {
+  const now = new Date().toISOString();
+  const ultimoRetorno = iso(c.ultimoRetorno ?? c.ultimo_retorno ?? c.ULTIMO_RETORNO);
+  const proximoRetorno = iso(c.proximoPrazo ?? c.proximo_retorno ?? c.proximoRetorno);
   return {
+    Protocolo: c.protocolo,
+    protocolo: c.protocolo,
     empresa_id: empresaId,
-    created_by: c.created_by || null, // NUNCA cair no auth de quem atende
-    protocolo_ref: c.protocolo,
+    created_by: c.created_by || null,
     advogado: c.advogado || 'NÃO ATRIBUÍDO',
     escritorio: c.escritorio || null,
-    status: c.status || 'Sem Prazo',
-    risco: c.risco || 'Normal',
-    proximo_retorno: isoPrazo,
-    ultimo_retorno: isoRetorno,
-    tribunal: c.tribunal || 'Outros',
+    cliente: c.cliente || null,
+    cpf: c.cpf || null,
     telefone: c.telefone || '',
-    observacoes: c.observacao || '',
-    datajud_ultimo_movimento: c.datajud_ultimo_movimento,
-    datajud_ultimo_nome: c.datajud_ultimo_nome,
-    datajud_consultado_em: c.datajud_consultado_em,
-    tem_atualizacao_pos_retorno: !!c.tem_atualizacao_pos_retorno,
-    datajud_encerrado_tribunal: !!c.datajud_encerrado_tribunal,
-    datajud_encerrado_motivo: c.datajud_encerrado_motivo,
-    datajud_hash: c.datajud_hash || null,
-    indicio_busca_apreensao: !!c.indicio_busca_apreensao,
-    busca_apreensao_confianca: c.busca_apreensao_confianca,
-    busca_apreensao_motivo: c.busca_apreensao_motivo,
-    busca_apreensao_consultado_em: c.busca_apreensao_consultado_em,
-    em_cumprimento_sentenca: !!c.em_cumprimento_sentenca,
-    cumprimento_sentenca_motivo: c.cumprimento_sentenca_motivo,
-    cumprimento_sentenca_consultado_em: c.cumprimento_sentenca_consultado_em,
-    djen_nova_comunicacao: !!c.djen_nova_comunicacao,
-    djen_ultimo_resumo: c.djen_ultimo_resumo,
-    djen_ultimo_link: c.djen_ultimo_link,
-    djen_ultima_data: c.djen_ultima_data,
-    // Auditoria e espelho completo no JSON — evita erro de schema cache
-    dados: {
-      ...c,
-      ultimoRetorno: isoRetorno || c.ultimoRetorno,
-      ultimo_retorno: isoRetorno || (c as any).ultimo_retorno,
-    },
+    status: c.status || c.situacao || 'EM ANDAMENTO',
+    situacao: c.situacao || c.status || 'EM ANDAMENTO',
+    risco: c.risco || 'Normal',
+    UltimoRetorno: ultimoRetorno,
+    ProximoRetorno: proximoRetorno,
+    ultimo_retorno: ultimoRetorno,
+    proximo_retorno: proximoRetorno,
+    tribunal: c.tribunal || 'Outros',
+    Observacao: c.observacao || c.observacoes || '',
+    observacoes: c.observacao || c.observacoes || '',
+    ultimo_movimento: c.datajud_ultimo_movimento || c.ultimo_movimento || c.andamento || '',
+    DJEN_Resumo: c.djen_ultimo_resumo || c.djen_resumo || '',
+    DatajudEncerrado: !!c.datajud_encerrado_tribunal,
+    Cumprimento: c.cumprimento_sentenca_motivo || '',
+    AtendidoPor: c.atendido_por || null,
+    atendido_por: c.atendido_por || null,
+    atendido_em: c.atendido_em || null,
+    edited_by: actorId,
+    edited_by_name: actorName,
+    edited_at: now,
+    updated_at: now,
+    dados: { ...c, edited_by: actorId, edited_by_name: actorName, edited_at: now },
   };
 }
 
-export async function saveOneCaseAction(caseData: LegalCase): Promise<{
-  success: boolean;
-  message: string;
-  case?: LegalCase;
-}> {
+async function existingFromSheets(empresaId: string, protocolo: string) {
+  if (!sheetsWebhookConfigured()) return null;
   try {
-    const { empresa_id, auth_id } = await getUserContext();
+    const r = await sheetsServerPost({ action: 'list', empresaId, limit: 8000 });
+    if (!r.ok) return null;
+    const rows = Array.isArray(r.json?.rows) ? r.json.rows : (Array.isArray(r.json?.data) ? r.json.data : []);
+    const dig = protocolo.replace(/\D/g, '');
+    return rows.find((x: any) => {
+      const p = String(x.Protocolo ?? x.protocolo ?? x.protocolo_ref ?? '').replace(/\D/g, '');
+      return p === dig || String(x.Protocolo ?? x.protocolo ?? x.protocolo_ref) === protocolo;
+    }) || null;
+  } catch { return null; }
+}
+
+export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success: boolean; message: string; case?: LegalCase }> {
+  try {
+    const ctx = await getUserContext();
+    const { empresa_id, auth_id } = ctx;
     if (!empresa_id) return { success: false, message: 'Sessão expirada.' };
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
-    const processed = processarCaso(caseData as any);
+    const processed: any = processarCaso(caseData as any);
+    const hybrid = hybridEnabled() && sheetsWebhookConfigured();
+    let existing: any = null;
 
-    let existingOwner: string | null = null;
-    let existingRow: any = null;
-    {
-      let lookup: any = null;
-      try {
-        lookup = await createClient();
-      } catch {
-        lookup = await getSupabaseAdmin();
-      }
-      if (lookup) {
-        const { data } = await lookup
-          .from('processos')
-          .select('created_by, dados, ultimo_retorno, protocolo_ref')
-          .eq('empresa_id', empresa_id)
-          .eq('protocolo_ref', processed.protocolo)
-          .maybeSingle();
-        existingRow = data;
-        existingOwner = data?.created_by || data?.dados?.created_by || null;
-        if (!existingOwner) {
-          const dig = String(processed.protocolo || '').replace(/\D/g, '');
-          if (dig.length >= 15) {
-            const { data: more } = await lookup
-              .from('processos')
-              .select('created_by, dados, ultimo_retorno, protocolo_ref')
-              .eq('empresa_id', empresa_id)
-              .limit(8000);
-            const hit = (more || []).find((r: any) => {
-              const ref = String(r.protocolo_ref || r.dados?.protocolo || '').replace(/\D/g, '');
-              return ref === dig || (ref.length >= 15 && (ref.endsWith(dig) || dig.endsWith(ref)));
-            });
-            if (hit) {
-              existingRow = hit;
-              existingOwner = hit.created_by || hit.dados?.created_by || null;
-            }
-          }
-        }
-      }
+    if (hybrid) {
+      existing = await existingFromSheets(empresa_id, processed.protocolo);
+      const owner = existing?.created_by || existing?.createdBy || existing?.dados?.created_by || processed.created_by || null;
+      const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
+      if (!forceTransfer) processed.created_by = owner;
+    } else {
+      const admin = await getSupabaseAdmin();
+      const { data } = await admin.from('processos').select('created_by,dados,ultimo_retorno,protocolo_ref').eq('empresa_id', empresa_id).eq('protocolo_ref', processed.protocolo).maybeSingle();
+      existing = data;
+      const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
+      if (!forceTransfer) processed.created_by = data?.created_by || data?.dados?.created_by || processed.created_by || null;
     }
 
-    // REGRA: atendimento/edição NÃO rouba carteira.
-    // created_by só muda com force_transfer_owner (ReassignOwnerControl).
-    const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
-    if (!forceTransfer && existingOwner) {
-      processed.created_by = existingOwner;
-    } else if (!forceTransfer) {
-      processed.created_by = existingOwner || processed.created_by || null;
-    }
-    // se forceTransfer, processed.created_by já veio do payload
-
-    const prevRetorno = String(existingRow?.ultimo_retorno || existingRow?.dados?.ultimoRetorno || '');
-    const nextRetorno = String(processed.ultimoRetorno || '');
-    if (auth_id && nextRetorno && nextRetorno !== prevRetorno) {
+    const previousReturn = String(existing?.ultimo_retorno || existing?.UltimoRetorno || existing?.dados?.ultimoRetorno || '');
+    const currentReturn = String(processed.ultimoRetorno || processed.ultimo_retorno || '');
+    if (auth_id && currentReturn && currentReturn !== previousReturn) {
       processed.atendido_por = auth_id;
       processed.atendido_em = new Date().toISOString();
     }
-
-    let editorName = 'Sistema';
-    if (auth_id) {
-      const profile = await getProfileByAuthId(auth_id);
-      editorName = profile?.nome || editorName;
-    }
-
-    const now = new Date().toISOString();
-    // Metadados de auditoria só no objeto / dados — NÃO como coluna obrigatória
+    const actorName = String((ctx as any).nome || (ctx as any).name || (ctx as any).email || auth_id || 'Sistema');
     processed.edited_by = auth_id || null;
-    processed.edited_at = now;
-    processed.edited_by_name = editorName;
+    processed.edited_by_name = actorName;
+    processed.edited_at = new Date().toISOString();
 
-    const row = toRow(processed, empresa_id, auth_id || null);
+    const row = sheetRow(processed, empresa_id, auth_id || null, actorName);
 
-    let client: any = null;
-    try {
-      client = await createClient();
-    } catch {
-      client = null;
-    }
-    if (!client) client = await getSupabaseAdmin();
-    if (!client) return { success: false, message: 'Cliente Supabase indisponível.' };
-
-    const { error } = await client
-      .from('processos')
-      .upsert(row, { onConflict: 'protocolo_ref,empresa_id' });
-
-    if (error) {
-      // Fallback: se ainda houver coluna fantasma no payload antigo, tenta update mínimo
-      const msg = String(error.message || '');
-      if (/edited_at|edited_by|schema cache/i.test(msg)) {
-        const ur = formatDateToISO(processed.ultimoRetorno) || processed.ultimoRetorno || null;
-        const pr = formatDateToISO(processed.proximoPrazo) || processed.proximoPrazo || null;
-        const { error: err2 } = await client
-          .from('processos')
-          .upsert(
-            {
-              empresa_id,
-              protocolo_ref: processed.protocolo,
-              ultimo_retorno: ur,
-              proximo_retorno: pr,
-              observacoes: processed.observacao || '',
-              tem_atualizacao_pos_retorno: false,
-              djen_nova_comunicacao: false,
-              dados: {
-                ...processed,
-                ultimoRetorno: ur,
-                ultimo_retorno: ur,
-                proximoPrazo: pr,
-                proximo_retorno: pr,
-              },
-            },
-            { onConflict: 'protocolo_ref,empresa_id' }
-          );
-        if (err2) return { success: false, message: err2.message };
-        enqueueSheetMnPush({
-          protocolo: processed.protocolo,
-          ultimoRetorno: ur,
-          proximoPrazo: pr,
-          empresa_id,
-          via: 'save-fallback',
-        });
-        void flushSheetMnPush();
-        return { success: true, message: 'Salvo.', case: { ...processed, ultimoRetorno: ur || '', proximoPrazo: pr || '' } as any };
-      }
-      return { success: false, message: error.message };
+    // Carteira híbrida: salva diretamente na planilha e não toca no Postgres.
+    if (hybrid) {
+      const r = await sheetsServerPost({ action: 'write', rows: [row], source: 'LexisPredict', audit: { edited_by: auth_id, edited_by_name: actorName, edited_at: processed.edited_at } });
+      if (!r.ok) return { success: false, message: r.error || 'Falha ao atualizar a planilha.' };
+      return { success: true, message: 'Salvo na carteira/planilha.', case: processed };
     }
 
-    // Reforço: grava colunas de retorno mesmo se o upsert JSON sobrescrever dados antigos
-    try {
-      const ur = formatDateToISO(processed.ultimoRetorno) || processed.ultimoRetorno || null;
-      const pr = formatDateToISO(processed.proximoPrazo);
-      const prVal = pr !== null && pr !== undefined ? pr : (processed.proximoPrazo || null);
-      if (ur || prVal !== undefined) {
-        await client
-          .from('processos')
-          .update({
-            ...(ur ? { ultimo_retorno: ur } : {}),
-            ...(prVal !== undefined ? { proximo_retorno: prVal || null } : {}),
-            observacoes: processed.observacao || '',
-            tem_atualizacao_pos_retorno: false,
-            djen_nova_comunicacao: false,
-          })
-          .eq('empresa_id', empresa_id)
-          .eq('protocolo_ref', processed.protocolo);
-      }
-      enqueueSheetMnPush({
-        protocolo: processed.protocolo,
-        ultimoRetorno: ur,
-        proximoPrazo: prVal,
-        empresa_id,
-        via: 'save-one',
-      });
-      void flushSheetMnPush();
-      if (ur) {
-        processed.ultimoRetorno = String(ur);
-        (processed as any).ultimo_retorno = String(ur);
-      }
-      if (prVal) {
-        processed.proximoPrazo = String(prVal);
-        (processed as any).proximo_retorno = String(prVal);
-      }
-    } catch (e) {
-      console.warn('[saveOneCaseAction] reforço retorno', e);
-    }
+    const admin = await getSupabaseAdmin();
+    const dbRow: any = {
+      empresa_id,
+      created_by: processed.created_by || null,
+      protocolo_ref: processed.protocolo,
+      advogado: processed.advogado || 'NÃO ATRIBUÍDO',
+      escritorio: processed.escritorio || null,
+      status: processed.status || processed.situacao || 'Sem Prazo',
+      risco: processed.risco || 'Normal',
+      proximo_retorno: iso(processed.proximoPrazo),
+      ultimo_retorno: iso(processed.ultimoRetorno),
+      tribunal: processed.tribunal || 'Outros',
+      telefone: processed.telefone || '',
+      observacoes: processed.observacao || '',
+      datajud_ultimo_movimento: processed.datajud_ultimo_movimento,
+      datajud_ultimo_nome: processed.datajud_ultimo_nome,
+      datajud_consultado_em: processed.datajud_consultado_em,
+      tem_atualizacao_pos_retorno: !!processed.tem_atualizacao_pos_retorno,
+      datajud_encerrado_tribunal: !!processed.datajud_encerrado_tribunal,
+      datajud_encerrado_motivo: processed.datajud_encerrado_motivo,
+      indicio_busca_apreensao: !!processed.indicio_busca_apreensao,
+      em_cumprimento_sentenca: !!processed.em_cumprimento_sentenca,
+      djen_nova_comunicacao: !!processed.djen_nova_comunicacao,
+      djen_ultimo_resumo: processed.djen_ultimo_resumo,
+      djen_ultimo_link: processed.djen_ultimo_link,
+      djen_ultima_data: processed.djen_ultima_data,
+      dados: { ...processed, edited_by: auth_id || null, edited_by_name: actorName, edited_at: processed.edited_at },
+    };
+    const { error } = await admin.from('processos').upsert(dbRow, { onConflict: 'protocolo_ref,empresa_id' });
+    if (error) return { success: false, message: error.message };
 
+    if (sheetsWebhookConfigured()) {
+      // Espelho assíncrono: falha no Sheets não desfaz o salvamento do banco.
+      void sheetsServerPost({ action: 'write', rows: [row], source: 'LexisPredict', audit: { edited_by: auth_id, edited_by_name: actorName, edited_at: processed.edited_at } });
+    }
     return { success: true, message: 'Salvo.', case: processed };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao salvar.' };
   }
 }
 
-export async function deleteOneCaseAction(protocolo: string): Promise<{
-  success: boolean;
-  message: string;
-}> {
-  try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id) return { success: false, message: 'Sessão expirada.' };
-    if (!protocolo) return { success: false, message: 'Protocolo obrigatório.' };
-
-    let client: any = null;
-    try {
-      client = await createClient();
-    } catch {
-      client = null;
-    }
-    if (!client) client = await getSupabaseAdmin();
-    if (!client) return { success: false, message: 'Cliente Supabase indisponível.' };
-
-    const { error } = await client
-      .from('processos')
-      .delete()
-      .eq('empresa_id', empresa_id)
-      .eq('protocolo_ref', protocolo);
-
-    if (error) return { success: false, message: error.message };
-    return { success: true, message: 'Removido.' };
-  } catch (e: any) {
-    return { success: false, message: e?.message || 'Falha ao remover.' };
-  }
+export async function saveManyCasesAction(cases: LegalCase[]): Promise<{ success: boolean; saved: number; failed: number; message?: string; error?: string }> {
+  const list = Array.isArray(cases) ? cases.filter((c) => c?.protocolo).slice(0, 100) : [];
+  let saved = 0; const errors: string[] = [];
+  for (const c of list) { const r = await saveOneCaseAction(c); if (r.success) saved++; else errors.push(`${c.protocolo}: ${r.message}`); }
+  return { success: saved > 0, saved, failed: list.length - saved, message: saved ? `${saved} salvo(s)` : errors[0] || 'Falha ao salvar', error: errors[0] };
 }
 
-/** Garante auditado_em/por e log de edição (chamado pelas UIs). */
-export async function stampAndLogEdicaoAction(
-  protocolo: string,
-  extra: Record<string, any> = {}
-): Promise<{ success: boolean }> {
+export async function deleteOneCaseAction(protocolo: string): Promise<{ success: boolean; message: string }> {
   try {
-    const { getUserContext, logAuditoriaSistema, getSupabaseAdmin } = await import('@/lib/server-db');
-    const { hojeBrasilYmd } = await import('@/lib/atendimento-semana');
-    const ctx = await getUserContext();
-    if (!ctx.empresa_id || !protocolo) return { success: false };
-    const hoje = hojeBrasilYmd();
-    const admin = await getSupabaseAdmin();
-    const dig = String(protocolo).replace(/\D/g, '');
-    const { data: row } = await admin
-      .from('processos')
-      .select('id, dados, protocolo_ref')
-      .eq('empresa_id', ctx.empresa_id)
-      .eq('protocolo_ref', protocolo)
-      .maybeSingle();
-    if (!row) {
-      // tenta match por dígitos via dados — skip
-      await logAuditoriaSistema({
-        empresaId: ctx.empresa_id,
-        authUserId: ctx.auth_id,
-        acao: 'edicao',
-        protocolo,
-        detalhes: { ...extra, auditado_em: hoje, via: 'stampAndLogEdicaoAction' },
-      });
-      return { success: true };
+    const ctx = await getUserContext(); if (!ctx.empresa_id || !protocolo) return { success: false, message: 'Sessão ou protocolo inválido.' };
+    if (hybridEnabled() && sheetsWebhookConfigured()) {
+      const r = await sheetsServerPost({ action: 'write', rows: [{ Protocolo: protocolo, protocolo, empresa_id: ctx.empresa_id, _deleted: true, deleted_at: new Date().toISOString(), deleted_by: ctx.auth_id || null }] });
+      return r.ok ? { success: true, message: 'Removido da carteira/planilha.' } : { success: false, message: r.error || 'Falha ao remover.' };
     }
-    const dados = { ...(row.dados as any), auditado_em: hoje, auditado_por: ctx.auth_id, ...extra };
-    await admin.from('processos').update({
-      dados,
-      // colunas opcionais se existirem
-      ...( { auditado_em: hoje, auditado_por: ctx.auth_id } as any),
-    }).eq('id', row.id);
-    await logAuditoriaSistema({
-      empresaId: ctx.empresa_id,
-      authUserId: ctx.auth_id,
-      acao: 'edicao',
-      protocolo: row.protocolo_ref || protocolo,
-      detalhes: { auditado_em: hoje, via: 'stampAndLogEdicaoAction', ...extra },
-    });
+    const admin = await getSupabaseAdmin(); const { error } = await admin.from('processos').delete().eq('empresa_id', ctx.empresa_id).eq('protocolo_ref', protocolo);
+    return error ? { success: false, message: error.message } : { success: true, message: 'Removido.' };
+  } catch (e: any) { return { success: false, message: e?.message || 'Falha ao remover.' }; }
+}
+
+export async function reassignCaseOwnerAction(input: { protocolo: string; novoOwnerAuthId: string }): Promise<{ success: boolean; message: string }> {
+  try {
+    const { empresa_id, auth_id } = await getUserContext(); if (!empresa_id || !auth_id) return { success: false, message: 'Sessão expirada.' };
+    const protocolo = String(input.protocolo || '').trim(), novo = String(input.novoOwnerAuthId || '').trim();
+    if (!protocolo || !novo) return { success: false, message: 'Protocolo e novo responsável obrigatórios.' };
+    if (hybridEnabled() && sheetsWebhookConfigured()) {
+      const r = await sheetsServerPost({ action: 'write', rows: [{ Protocolo: protocolo, protocolo, empresa_id, created_by: novo, owner_updated_by: auth_id, owner_updated_at: new Date().toISOString() }] });
+      return r.ok ? { success: true, message: 'Responsável atualizado.' } : { success: false, message: r.error || 'Falha ao transferir.' };
+    }
+    const admin = await getSupabaseAdmin();
+    const { data: me } = await admin.from('usuarios').select('cargo,role,perfil').eq('empresa_id', empresa_id).eq('auth_user_id', auth_id).maybeSingle();
+    if (!canSupervisaoCarteira(me as any)) return { success: false, message: SUPERVISAO_REQUIRED };
+    const { error } = await admin.from('processos').update({ created_by: novo, dados: { created_by: novo } }).eq('empresa_id', empresa_id).eq('protocolo_ref', protocolo);
+    return error ? { success: false, message: error.message } : { success: true, message: 'Responsável atualizado.' };
+  } catch (e: any) { return { success: false, message: e?.message || 'Falha ao transferir.' }; }
+}
+
+export async function transferCasesOwnerAction(input: { protocolos: string[]; novoOwnerAuthId: string }): Promise<{ success: boolean; updated: number; message: string }> {
+  const list = Array.isArray(input.protocolos) ? input.protocolos.map(String).filter(Boolean).slice(0, 200) : [];
+  let updated = 0; const errors: string[] = [];
+  for (const protocolo of list) { const r = await reassignCaseOwnerAction({ protocolo, novoOwnerAuthId: input.novoOwnerAuthId }); if (r.success) updated++; else errors.push(`${protocolo}: ${r.message}`); }
+  return { success: updated > 0, updated, message: updated ? `${updated} processo(s) transferido(s)` : errors[0] || 'Nenhum atualizado' };
+}
+
+export async function stampAndLogEdicaoAction(protocolo: string, extra: Record<string, any> = {}): Promise<{ success: boolean }> {
+  try {
+    const ctx = await getUserContext(); if (!ctx.empresa_id || !protocolo) return { success: false };
+    const now = new Date().toISOString();
+    if (hybridEnabled() && sheetsWebhookConfigured()) {
+      const r = await sheetsServerPost({ action: 'write', rows: [{ Protocolo: protocolo, protocolo, empresa_id: ctx.empresa_id, ...extra, edited_by: ctx.auth_id || null, edited_at: now }] });
+      return { success: !!r.ok };
+    }
+    const admin = await getSupabaseAdmin();
+    const { data: row } = await admin.from('processos').select('id,dados,protocolo_ref').eq('empresa_id', ctx.empresa_id).eq('protocolo_ref', protocolo).maybeSingle();
+    if (row) await admin.from('processos').update({ dados: { ...(row.dados || {}), ...extra, auditado_por: ctx.auth_id, auditado_em: now } }).eq('id', row.id);
     return { success: true };
-  } catch {
-    return { success: false };
-  }
-}
-
-
-export async function saveManyCasesAction(
-  cases: LegalCase[]
-): Promise<{ success: boolean; saved: number; failed: number; message?: string; error?: string }> {
-  const list = Array.isArray(cases) ? cases.filter((c) => c && c.protocolo) : [];
-  if (!list.length) return { success: false, saved: 0, failed: 0, message: 'Nenhum processo para salvar.' };
-  let saved = 0;
-  const errors: string[] = [];
-  for (const c of list.slice(0, 40)) {
-    const res = await saveOneCaseAction(c);
-    if (res.success) saved += 1;
-    else errors.push(`${c.protocolo}: ${res.message}`);
-  }
-  return {
-    success: saved > 0,
-    saved,
-    failed: list.length - saved,
-    message: saved ? `${saved} salvo(s)` : errors[0] || 'Falha ao salvar',
-    error: errors[0],
-  };
-}
-
-/** Transfere o dono (created_by) de um processo — service role. */
-export async function reassignCaseOwnerAction(input: {
-  protocolo: string;
-  novoOwnerAuthId: string;
-}): Promise<{ success: boolean; message: string }> {
-  try {
-    const { empresa_id, auth_id } = await getUserContext();
-    if (!empresa_id || !auth_id) return { success: false, message: "Sessão expirada." };
-    const protocolo = String(input.protocolo || "").trim();
-    const novo = String(input.novoOwnerAuthId || "").trim();
-    if (!protocolo || !novo) return { success: false, message: "Protocolo e novo responsável obrigatórios." };
-
-    const admin = await getSupabaseAdmin();
-    {
-      const { data: me } = await admin
-        .from("usuarios")
-        .select("cargo, role, perfil")
-        .eq("empresa_id", empresa_id)
-        .eq("auth_user_id", auth_id)
-        .maybeSingle();
-      if (!canSupervisaoCarteira(me as any)) {
-        return { success: false, message: SUPERVISAO_REQUIRED };
-      }
-    }
-    const dig = protocolo.replace(/\D/g, "");
-
-    const { data: rows } = await admin
-      .from("processos")
-      .select("id, protocolo_ref, dados, created_by")
-      .eq("empresa_id", empresa_id)
-      .limit(8000);
-
-    const hit = (rows || []).find((r: any) => {
-      const ref = String(r.protocolo_ref || r.dados?.protocolo || "").replace(/\D/g, "");
-      return (
-        ref === dig ||
-        String(r.protocolo_ref) === protocolo ||
-        (ref.length >= 15 && dig.length >= 15 && (ref.endsWith(dig) || dig.endsWith(ref)))
-      );
-    });
-    if (!hit) return { success: false, message: "Processo não encontrado." };
-
-    const dados = { ...(hit.dados || {}), created_by: novo };
-    const { error } = await admin
-      .from("processos")
-      .update({ created_by: novo, dados })
-      .eq("id", hit.id)
-      .eq("empresa_id", empresa_id);
-
-    if (error) return { success: false, message: error.message };
-    return { success: true, message: "Responsável atualizado." };
-  } catch (e: any) {
-    return { success: false, message: e?.message || "Falha ao transferir." };
-  }
-}
-
-/** Transferência em massa de created_by. */
-export async function transferCasesOwnerAction(input: {
-  protocolos: string[];
-  novoOwnerAuthId: string;
-}): Promise<{ success: boolean; updated: number; message: string }> {
-  const list = Array.isArray(input.protocolos) ? input.protocolos.map(String).filter(Boolean) : [];
-  const novo = String(input.novoOwnerAuthId || "").trim();
-  if (!list.length || !novo) return { success: false, updated: 0, message: "Lista ou responsável vazio." };
-
-  let updated = 0;
-  const errors: string[] = [];
-  for (const p of list.slice(0, 200)) {
-    const r = await reassignCaseOwnerAction({ protocolo: p, novoOwnerAuthId: novo });
-    if (r.success) updated += 1;
-    else errors.push(`${p}: ${r.message}`);
-  }
-  return {
-    success: updated > 0,
-    updated,
-    message: updated
-      ? `${updated} processo(s) transferido(s)`
-      : errors[0] || "Nenhum atualizado",
-  };
+  } catch { return { success: false }; }
 }
