@@ -1,7 +1,7 @@
 'use server';
 
 import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisao';
-import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
+import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured } from '@/lib/hybrid/sheets-server';
 
@@ -56,13 +56,8 @@ async function persistToDatabase(
     edited_at: now,
   };
 
-  const payload: Record<string, any> = {
-    empresa_id: empresaId,
-    protocolo_ref: protocolo,
-    dados: mergedDados,
-    updated_at: now,
-  };
-
+  // Atualização por ID quando o registro já existe: evita depender de constraint
+  // de upsert e impede duplicação/"salvei mas não mudou".
   const directFields: Record<string, string> = {
     status: 'status',
     status_interno: 'situacao',
@@ -77,19 +72,35 @@ async function persistToDatabase(
     djen_ultimo_resumo: 'djen_ultimo_resumo',
     em_cumprimento_sentenca: 'em_cumprimento_sentenca',
   };
+
+  const payload: Record<string, any> = {
+    empresa_id: empresaId,
+    protocolo_ref: protocolo,
+    dados: mergedDados,
+  };
   for (const [dbKey, sourceKey] of Object.entries(directFields)) {
     if (processed[sourceKey] !== undefined) payload[dbKey] = processed[sourceKey];
   }
 
+  // updated_at é desejável, mas não pode bloquear uma edição se o schema antigo
+  // ainda não tiver essa coluna.
+  const withUpdated = { ...payload, updated_at: now };
+
   if (existing?.id) {
-    const { data, error } = await admin.from('processos').update(payload).eq('id', existing.id).select('*').maybeSingle();
-    if (error) return { success: false, message: error.message };
-    return { success: true, data };
+    let result = await admin.from('processos').update(withUpdated).eq('id', existing.id).select('*').maybeSingle();
+    if (result.error && /updated_at|schema cache|column .* does not exist/i.test(String(result.error.message))) {
+      result = await admin.from('processos').update(payload).eq('id', existing.id).select('*').maybeSingle();
+    }
+    if (result.error) return { success: false, message: result.error.message };
+    return { success: true, data: result.data };
   }
 
-  const { data, error } = await admin.from('processos').insert(payload).select('*').maybeSingle();
-  if (error) return { success: false, message: error.message };
-  return { success: true, data };
+  let result = await admin.from('processos').insert(withUpdated).select('*').maybeSingle();
+  if (result.error && /updated_at|schema cache|column .* does not exist/i.test(String(result.error.message))) {
+    result = await admin.from('processos').insert(payload).select('*').maybeSingle();
+  }
+  if (result.error) return { success: false, message: result.error.message };
+  return { success: true, data: result.data };
 }
 
 function buildSheetRow(
@@ -181,6 +192,17 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
     const processed: any = processarCaso(caseData as any);
+    // Edição deve persistir também os campos operacionais que alimentam cards/flags.
+    if ((caseData as any).situacao !== undefined) processed.situacao = String((caseData as any).situacao || '').toUpperCase();
+    if ((caseData as any).statusManual !== undefined) processed.statusManual = (caseData as any).statusManual;
+    if ((caseData as any).ultimoRetorno !== undefined || (caseData as any).ultimo_retorno !== undefined) {
+      processed.ultimoRetorno = (caseData as any).ultimoRetorno ?? (caseData as any).ultimo_retorno ?? '';
+      processed.ultimo_retorno = processed.ultimoRetorno;
+    }
+    if ((caseData as any).proximoPrazo !== undefined || (caseData as any).proximo_retorno !== undefined) {
+      processed.proximoPrazo = (caseData as any).proximoPrazo ?? (caseData as any).proximo_retorno ?? '';
+      processed.proximo_retorno = processed.proximoPrazo;
+    }
     // Supabase é a fonte operacional. Sheets nunca participa da leitura/decisão de salvamento.
     const existing = await existingFromDatabase(empresa_id, processed.protocolo);
 
@@ -203,6 +225,23 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     const row = buildSheetRow(processed, empresa_id, auth_id || null, actorName, existing);
     const db = await persistToDatabase(empresa_id, processed, existing, auth_id || null, actorName);
     if (!db.success) return { success: false, message: db.message || 'Falha ao salvar.' };
+
+    try {
+      await logAuditoriaSistema({
+        empresaId: empresa_id,
+        authUserId: auth_id,
+        acao: 'edicao',
+        protocolo: processed.protocolo,
+        detalhes: {
+          via: 'saveOneCaseAction',
+          editor: actorName,
+          situacao: processed.situacao,
+          status: processed.status,
+          ultimoRetorno: processed.ultimoRetorno || processed.ultimo_retorno || null,
+          proximoPrazo: processed.proximoPrazo || processed.proximo_retorno || null,
+        },
+      });
+    } catch { /* auditoria não bloqueia o salvamento */ }
 
     // Espelho incremental: 1 processo por operação. Falha no Sheets não desfaz a gravação no banco.
     if (sheetsWebhookConfigured()) {
@@ -234,6 +273,111 @@ export async function saveManyCasesAction(cases: LegalCase[]): Promise<{ success
   let saved = 0; const errors: string[] = [];
   for (const c of list) { const r = await saveOneCaseAction(c); if (r.success) saved++; else errors.push(`${c.protocolo}: ${r.message}`); }
   return { success: saved > 0, saved, failed: list.length - saved, message: saved ? `${saved} salvo(s)` : errors[0] || 'Falha ao salvar', error: errors[0] };
+}
+
+/**
+ * Fonte única para o botão "Registrar atendimento" em Processos/Cases/Tarefas.
+ * Grava retorno, próximo retorno, situação, observação, auditoria e flags em uma única operação.
+ */
+export async function registrarAtendimentoCompletoAction(input: {
+  protocolo: string;
+  situacao?: string;
+  observacao?: string;
+  proximoPrazo?: string;
+  via?: string;
+  filaLista?: string;
+}): Promise<{ success: boolean; message: string; ultimoRetorno?: string; proximoPrazo?: string; case?: LegalCase }> {
+  try {
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id || !input?.protocolo) return { success: false, message: 'Sessão expirada ou protocolo inválido.' };
+    const admin = await getSupabaseAdmin();
+    const protocolo = String(input.protocolo).trim();
+    const { data: existing, error: findError } = await admin
+      .from('processos')
+      .select('*')
+      .eq('empresa_id', ctx.empresa_id)
+      .eq('protocolo_ref', protocolo)
+      .maybeSingle();
+    if (findError) return { success: false, message: findError.message };
+    if (!existing) return { success: false, message: 'Processo não encontrado na carteira.' };
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    const situacao = String(input.situacao || 'EM ANDAMENTO').toUpperCase() === 'ENCERRADO' ? 'ENCERRADO' : 'EM ANDAMENTO';
+    const proximo = situacao === 'ENCERRADO' ? null : (iso(input.proximoPrazo) || null);
+    const observacao = String(input.observacao || '').trim();
+    const previousDados = existing?.dados && typeof existing.dados === 'object' ? existing.dados : {};
+    const base = processarCaso({ ...(previousDados as any), protocolo, situacao, proximoPrazo: proximo || '', ultimoRetorno: hoje, observacao, statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico' } as any) as any;
+    const actorName = String((ctx as any).nome || (ctx as any).name || (ctx as any).email || ctx.auth_id || 'Sistema');
+    const dados = {
+      ...previousDados,
+      ...base,
+      protocolo,
+      situacao,
+      statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico',
+      ultimoRetorno: hoje,
+      ultimo_retorno: hoje,
+      proximoPrazo: proximo || '',
+      proximo_retorno: proximo,
+      observacao,
+      observacoes: observacao,
+      atendido_por: ctx.auth_id || null,
+      atendido_em: new Date().toISOString(),
+      edited_by: ctx.auth_id || null,
+      edited_by_name: actorName,
+      edited_at: new Date().toISOString(),
+      filaLista: input.filaLista || 'normal',
+      tem_atualizacao_pos_retorno: false,
+      djen_nova_comunicacao: false,
+      tem_novo_andamento: false,
+      datajud_encerrado_tribunal: situacao === 'ENCERRADO' ? (base.datajud_encerrado_tribunal ?? existing.datajud_encerrado_tribunal ?? false) : (base.datajud_encerrado_tribunal ?? existing.datajud_encerrado_tribunal ?? false),
+    };
+
+    const patch: Record<string, any> = {
+      dados,
+      ultimo_retorno: hoje,
+      proximo_retorno: proximo,
+      observacoes: observacao,
+      status: base.status || (situacao === 'ENCERRADO' ? 'Sem Prazo' : existing.status || 'Sem Prazo'),
+      status_interno: situacao,
+      atendido_por: ctx.auth_id || null,
+      datajud_encerrado_tribunal: !!dados.datajud_encerrado_tribunal,
+      tem_atualizacao_pos_retorno: false,
+      djen_nova_comunicacao: false,
+      updated_at: new Date().toISOString(),
+    };
+    let saved = await admin.from('processos').update(patch).eq('id', existing.id);
+    if (saved.error && /updated_at|status_interno|schema cache|column .* does not exist/i.test(String(saved.error.message))) {
+      const retry = { ...patch };
+      delete retry.updated_at; delete retry.status_interno;
+      saved = await admin.from('processos').update(retry).eq('id', existing.id);
+    }
+    if (saved.error) return { success: false, message: saved.error.message };
+
+    try {
+      await logAuditoriaSistema({
+        empresaId: ctx.empresa_id,
+        authUserId: ctx.auth_id,
+        acao: situacao === 'ENCERRADO' ? 'encerramento' : 'atendimento',
+        protocolo,
+        detalhes: { via: input.via || 'app', observacao, ultimoRetorno: hoje, proximoPrazo: proximo, situacao, filaLista: input.filaLista || 'normal' },
+      });
+    } catch { /* auditoria não desfaz o salvamento */ }
+
+    const savedCase = processarCaso({ ...(previousDados as any), ...dados, ultimoRetorno: hoje, ultimo_retorno: hoje, proximoPrazo: proximo || '', proximo_retorno: proximo, situacao, status: patch.status } as any) as any;
+    return { success: true, message: situacao === 'ENCERRADO' ? 'Atendimento salvo e processo encerrado.' : 'Atendimento salvo.', ultimoRetorno: hoje, proximoPrazo: proximo || '', case: savedCase };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'Falha ao registrar atendimento.' };
+  }
+}
+
+export async function registrarAtendimentoAction(protocolos: string[], extra: Record<string, any> = {}): Promise<{ success: boolean; updated: number; message: string }> {
+  const list = Array.isArray(protocolos) ? protocolos.map(String).filter(Boolean).slice(0, 100) : [];
+  let updated = 0;
+  for (const protocolo of list) {
+    const r = await registrarAtendimentoCompletoAction({ protocolo, situacao: extra.situacao || 'EM ANDAMENTO', observacao: extra.observacao || '', proximoPrazo: extra.proximoPrazo || extra.proximoRetorno || '', via: extra.via || 'app', filaLista: extra.filaLista || 'normal' });
+    if (r.success) updated++;
+  }
+  return { success: updated > 0, updated, message: updated ? `${updated} atendimento(s) registrado(s)` : 'Nenhum atendimento registrado.' };
 }
 
 export async function deleteOneCaseAction(protocolo: string): Promise<{ success: boolean; message: string }> {
