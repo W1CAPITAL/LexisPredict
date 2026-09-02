@@ -1,301 +1,65 @@
-/* src/components/hybrid/hybrid-status-panel.tsx */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  CheckCircle2,
-  Database,
-  Loader2,
-  RefreshCw,
-  RotateCcw,
-  ShieldCheck,
-  TriangleAlert,
-} from "lucide-react";
+import { CheckCircle2, Database, Loader2, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 
-type Health = {
-  ok: boolean;
-  mode?: string;
-  webhook?: "ok" | "fail" | "not-configured";
-  supabase?: "ok" | "fail" | "not-configured";
-  total?: number | null;
-  empresaId?: string | null;
-  error?: string;
-};
+const KEY = "lexis_hybrid_sync_checkpoint_v4";
+const BATCH = 250;
+const TIMEOUT = 18000;
 
-type BatchResponse = {
-  ok: boolean;
-  total: number;
-  processed: number;
-  accepted: number;
-  nextCursor: string | null;
-  hasMore: boolean;
-  elapsedMs: number;
-  error?: string;
-};
+type Health = { ok: boolean; sheetsWorking?: boolean; fallback?: string | null; total?: number; message?: string; webhookError?: string };
+type Batch = { ok: boolean; fallback?: string; sheetsWorking?: boolean; recoverable?: boolean; total?: number; processed?: number; accepted?: number; nextCursor?: string | null; hasMore?: boolean; error?: string; message?: string };
 
-type Checkpoint = {
-  cursor: string | null;
-  processed: number;
-  total: number;
-  startedAt: number;
-};
+const nf = (n:number) => new Intl.NumberFormat("pt-BR").format(Math.max(0,n));
+function checkpoint(){ try { const x=localStorage.getItem(KEY); return x?JSON.parse(x):null; } catch { return null; } }
+function save(x:any){ try{localStorage.setItem(KEY,JSON.stringify(x));}catch{} }
+function clear(){ try{localStorage.removeItem(KEY);}catch{} }
 
-const CHECKPOINT_KEY = "lexis_hybrid_sync_checkpoint_v3";
-const BATCH_SIZE = 500;
-const REQUEST_TIMEOUT_MS = 35_000;
+export function HybridStatusPanel(){
+  const [health,setHealth]=useState<Health|null>(null);
+  const [running,setRunning]=useState(false);
+  const [done,setDone]=useState(0);
+  const [total,setTotal]=useState(0);
+  const [error,setError]=useState("");
+  const [message,setMessage]=useState("Verificando Plano B...");
+  const [started,setStarted]=useState<number|null>(null);
+  const [elapsed,setElapsed]=useState(0);
 
-function fmt(n: number) {
-  return new Intl.NumberFormat("pt-BR").format(Math.max(0, n));
-}
+  const refresh=useCallback(async()=>{
+    try{ const r=await fetch("/api/hybrid/sync",{cache:"no-store"}); const d=await r.json(); setHealth(d); setMessage(d.message || (d.sheetsWorking?"Google Sheets disponível.":"Lexis operando pelo Supabase.")); setError(d.sheetsWorking?"":(d.webhookError||"")); }
+    catch(e:any){ setHealth({ok:false,sheetsWorking:false,fallback:"supabase"}); setMessage("Plano B indisponível; o Lexis continua pelo Supabase."); setError(e?.message||"Falha ao verificar o Plano B."); }
+  },[]);
+  useEffect(()=>{void refresh(); const i=setInterval(()=>void refresh(),20000); return()=>clearInterval(i)},[refresh]);
+  useEffect(()=>{if(started==null)return;const i=setInterval(()=>setElapsed(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(i)},[started]);
 
-function safePct(processed: number, total: number) {
-  if (!total) return 0;
-  return Math.max(0, Math.min(100, (processed / total) * 100));
-}
-
-export function HybridStatusPanel() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [running, setRunning] = useState(false);
-  const [processed, setProcessed] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState("");
-  const [elapsed, setElapsed] = useState(0);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [lastBatchMs, setLastBatchMs] = useState<number | null>(null);
-  const [message, setMessage] = useState("Planilha vazia — rode sync (seed)");
-
-  const refreshHealth = useCallback(async () => {
-    try {
-      const ctrl = new AbortController();
-      const timer = window.setTimeout(() => ctrl.abort(), 10_000);
-      const res = await fetch("/api/hybrid/sync?mode=health", {
-        method: "GET",
-        cache: "no-store",
-        signal: ctrl.signal,
-      });
-      window.clearTimeout(timer);
-      const data = (await res.json()) as Health;
-      setHealth(data);
-      if (!data.ok && data.error) setError(data.error);
-    } catch (err: any) {
-      setHealth({ ok: false, supabase: "fail", webhook: "fail", error: err?.message || "Falha de conexão" });
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshHealth();
-    const id = window.setInterval(() => void refreshHealth(), 15_000);
-    return () => window.clearInterval(id);
-  }, [refreshHealth]);
-
-  useEffect(() => {
-    if (!running || startedAt == null) {
-      setElapsed(0);
-      return;
-    }
-    const id = window.setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1_000);
-    return () => window.clearInterval(id);
-  }, [running, startedAt]);
-
-  const checkpoint = useMemo<Checkpoint | null>(() => {
-    try {
-      const raw = localStorage.getItem(CHECKPOINT_KEY);
-      if (!raw) return null;
-      const value = JSON.parse(raw) as Checkpoint;
-      if (!value || typeof value.processed !== "number" || typeof value.total !== "number") return null;
-      return value;
-    } catch {
-      return null;
-    }
-  }, [message]);
-
-  const saveCheckpoint = (value: Checkpoint) => {
-    try {
-      localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(value));
-    } catch {
-      // Cache de progresso é opcional.
-    }
-  };
-
-  const clearCheckpoint = () => {
-    try {
-      localStorage.removeItem(CHECKPOINT_KEY);
-    } catch {
-      // noop
-    }
-  };
-
-  const runSync = useCallback(async (force: boolean) => {
-    if (running) return;
-
-    setRunning(true);
-    setError("");
-    const cp = force ? null : checkpoint;
-    let cursor = cp?.cursor ?? null;
-    let done = cp?.processed ?? 0;
-    let knownTotal = cp?.total ?? 0;
-    const started = Date.now();
-
-    setStartedAt(started);
-    setProcessed(done);
-    setTotal(knownTotal);
-    setMessage(force ? "Reiniciando seed..." : cp ? "Retomando seed interrompido..." : "Preparando seed...");
-
-    try {
-      for (;;) {
-        const ctrl = new AbortController();
-        const timeout = window.setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
-
-        let res: Response;
-        try {
-          res = await fetch("/api/hybrid/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            cache: "no-store",
-            signal: ctrl.signal,
-            body: JSON.stringify({
-              action: "seed_batch",
-              cursor,
-              batchSize: BATCH_SIZE,
-            }),
-          });
-        } finally {
-          window.clearTimeout(timeout);
-        }
-
-        const data = (await res.json()) as BatchResponse;
-        if (!res.ok || !data.ok) {
-          throw new Error(data.error || `Falha no lote HTTP ${res.status}`);
-        }
-
-        knownTotal = Number(data.total || knownTotal || 0);
-        done += Number(data.accepted || data.processed || 0);
-        cursor = data.nextCursor ?? null;
-
-        setTotal(knownTotal);
-        setProcessed(Math.min(done, knownTotal || done));
-        setLastBatchMs(data.elapsedMs ?? null);
-
-        saveCheckpoint({
-          cursor,
-          processed: done,
-          total: knownTotal,
-          startedAt: started,
-        });
-
-        const pct = safePct(done, knownTotal);
-        setMessage(
-          data.hasMore
-            ? `Sincronizando lote · ${pct.toFixed(1)}%`
-            : "Confirmando conclusão..."
-        );
-
-        if (!data.hasMore) {
-          clearCheckpoint();
-          setProcessed(knownTotal || done);
-          setMessage(`✓ Seed concluído · ${fmt(knownTotal || done)} processos`);
-          await refreshHealth();
-          break;
-        }
+  const sync=useCallback(async(force:boolean)=>{
+    if(running)return; setError(""); const cp=force?null:checkpoint(); let cursor=cp?.cursor??null; let n=cp?.processed??0; let t=cp?.total??0; const st=Date.now();
+    setRunning(true);setStarted(st);setDone(n);setTotal(t);setMessage(force?"Refazendo seed...":"Sincronizando...");
+    try{
+      for(;;){
+        const c=new AbortController(); const timer=setTimeout(()=>c.abort(),TIMEOUT);
+        let r:Response; try{r=await fetch("/api/hybrid/sync",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",signal:c.signal,body:JSON.stringify({action:"seed_batch",cursor,batchSize:BATCH})});}finally{clearTimeout(timer)}
+        const d:Batch=await r.json();
+        if(d.fallback==="supabase" || d.sheetsWorking===false){setMessage("Google Sheets indisponível — operação normal mantida pelo Supabase.");setError(d.error||"Plano B indisponível.");break;}
+        if(!r.ok||!d.ok)throw new Error(d.error||`Falha HTTP ${r.status}`);
+        t=Number(d.total??t); n+=Number(d.accepted??d.processed??0); cursor=d.nextCursor??null; setTotal(t);setDone(n);
+        if(d.hasMore){save({cursor,processed:n,total:t,startedAt:st});setMessage(`Sincronizando ${nf(n)} / ${nf(t)} processos...`);continue;}
+        clear();setDone(t||n);setMessage(`✓ Planilha sincronizada · ${nf(t||n)} processos`);await refresh();break;
       }
-    } catch (err: any) {
-      setError(err?.name === "AbortError"
-        ? "O lote excedeu o tempo limite. O ponto de retomada foi preservado."
-        : err?.message || String(err));
-      setMessage("Sincronização interrompida — pode retomar do último lote");
-    } finally {
-      setRunning(false);
-      setStartedAt(null);
-    }
-  }, [checkpoint, refreshHealth, running]);
+    }catch(e:any){setError(e?.name==="AbortError"?"O lote excedeu o tempo limite. O checkpoint foi preservado; o Lexis continua pelo Supabase.":e?.message||String(e));setMessage("Plano B interrompido — o Lexis continua pelo Supabase.");}
+    finally{setRunning(false);setStarted(null)}
+  },[refresh,running]);
 
-  const pct = safePct(processed, total);
-  const rate = elapsed > 0 ? processed / elapsed : 0;
-  const eta = rate > 0 && total > processed ? Math.ceil((total - processed) / rate) : 0;
-
-  return (
-    <section className="rounded-2xl border border-border bg-card shadow-sm p-3 sm:p-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 rounded-full ${health?.ok ? "bg-emerald-500" : "bg-amber-400"}`} />
-          <span className="font-black text-xs uppercase tracking-wide">Estado da sincronização</span>
-        </div>
-        <Button type="button" size="sm" variant="outline" disabled={running} onClick={() => void refreshHealth()}>
-          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          <span className="ml-1">Sincronizar</span>
-        </Button>
-      </div>
-
-      <p className="text-[10px] text-muted-foreground font-semibold">{message}</p>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl border px-3 py-2">
-          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Fonte carteira</p>
-          <p className="text-xs font-black">{health?.supabase === "ok" ? "supabase" : "indisponível"}</p>
-        </div>
-        <div className="rounded-xl border px-3 py-2">
-          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Linhas planilha</p>
-          <p className="text-xs font-black">{health?.total != null ? fmt(health.total) : "—"}</p>
-        </div>
-        <div className="rounded-xl border px-3 py-2">
-          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Webhook</p>
-          <p className="text-xs font-black flex items-center gap-1">
-            {health?.webhook === "ok" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <TriangleAlert className="h-3.5 w-3.5 text-amber-500" />}
-            {health?.webhook === "ok" ? "OK" : health?.webhook === "not-configured" ? "não configurado" : "falha"}
-          </p>
-        </div>
-        <div className="rounded-xl border px-3 py-2">
-          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Ping</p>
-          <p className="text-xs font-black">pong</p>
-        </div>
-      </div>
-
-      {running || processed > 0 || checkpoint ? (
-        <div className="rounded-xl border bg-muted/20 p-3 space-y-2">
-          <div className="flex justify-between text-[10px] font-bold">
-            <span>{fmt(processed)} / {fmt(total || processed)}</span>
-            <span>{total ? `${pct.toFixed(1)}%` : "calculando..."}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-foreground transition-[width] duration-300"
-              style={{ width: `${Math.max(total ? pct : 4, running ? 4 : 0)}%` }}
-            />
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-muted-foreground">
-            <span>Lote: {BATCH_SIZE}</span>
-            <span>Tempo: {elapsed}s</span>
-            {rate > 0 ? <span>Velocidade: {rate.toFixed(1)} proc/s</span> : null}
-            {eta > 0 ? <span>ETA: ~{eta}s</span> : null}
-            {lastBatchMs != null ? <span>Último lote: {(lastBatchMs / 1000).toFixed(1)}s</span> : null}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" onClick={() => void runSync(false)} disabled={running || health?.supabase !== "ok"}>
-          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-          <span className="ml-1">Sincronizar agora</span>
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => void runSync(true)} disabled={running || health?.supabase !== "ok"}>
-          <RotateCcw className="h-4 w-4" />
-          <span className="ml-1">Forçar seed Supabase → Sheets</span>
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-        <ShieldCheck className="h-3 w-3" />
-        <span>Lotes de {BATCH_SIZE}; o checkpoint permite retomar sem reenviar os lotes concluídos.</span>
-      </div>
-
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          {error}
-        </div>
-      ) : null}
-    </section>
-  );
+  const p=total?Math.min(100,(done/total)*100):0;
+  return <section className="rounded-2xl border border-border bg-card p-3 shadow-sm space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${health?.sheetsWorking?"bg-emerald-500":"bg-amber-500"}`}/><span className="text-xs font-black uppercase tracking-wide">Estado da sincronização</span></div><Button size="sm" variant="outline" disabled={running} onClick={()=>void refresh()}><RefreshCw className="h-4 w-4"/><span className="ml-1">Verificar</span></Button></div>
+    <p className="text-[10px] font-semibold text-muted-foreground">{message}</p>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><div className="rounded-xl border px-3 py-2"><p className="text-[9px] uppercase tracking-wider text-muted-foreground">Fonte</p><p className="text-xs font-black">Supabase</p></div><div className="rounded-xl border px-3 py-2"><p className="text-[9px] uppercase tracking-wider text-muted-foreground">Plano B</p><p className="text-xs font-black flex items-center gap-1">{health?.sheetsWorking?<CheckCircle2 className="h-3.5 w-3.5 text-emerald-600"/>:<TriangleAlert className="h-3.5 w-3.5 text-amber-500"/>}{health?.sheetsWorking?"Sheets OK":"fallback Supabase"}</p></div><div className="rounded-xl border px-3 py-2"><p className="text-[9px] uppercase tracking-wider text-muted-foreground">Processos</p><p className="text-xs font-black">{health?.total!=null?nf(health.total):"—"}</p></div><div className="rounded-xl border px-3 py-2"><p className="text-[9px] uppercase tracking-wider text-muted-foreground">Tempo</p><p className="text-xs font-black">{elapsed}s</p></div></div>
+    {(running||done>0)&&<div className="rounded-xl border bg-muted/20 p-3 space-y-2"><div className="flex justify-between text-[10px] font-bold"><span>{nf(done)} / {nf(total||done)}</span><span>{total?`${p.toFixed(1)}%`:"calculando..."}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-foreground transition-[width]" style={{width:`${Math.max(p,running?3:0)}%`}}/></div><div className="text-[9px] text-muted-foreground">Lote: {BATCH} · checkpoint preservado em falha</div></div>}
+    <div className="flex flex-wrap gap-2"><Button size="sm" disabled={running||!health?.sheetsWorking} onClick={()=>void sync(false)}>{running?<Loader2 className="h-4 w-4 animate-spin"/>:<Database className="h-4 w-4"/>}<span className="ml-1">Sincronizar agora</span></Button><Button size="sm" variant="outline" disabled={running||!health?.sheetsWorking} onClick={()=>void sync(true)}><RotateCcw className="h-4 w-4"/><span className="ml-1">Refazer seed</span></Button></div>
+    {!health?.sheetsWorking&&<div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">Google Sheets indisponível. O Plano B fica parado e o Lexis continua normalmente pelo Supabase.</div>}
+    {error&&<div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
+  </section>;
 }
-
 export default HybridStatusPanel;
