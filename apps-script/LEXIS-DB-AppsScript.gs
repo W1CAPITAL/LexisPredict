@@ -378,7 +378,7 @@ function writeRecords_(rows, actor, allowInsert) {
   if (!rows.length) return { ok: true, updated: 0, added: 0, written: 0, rejected: [], rejected_count: 0 };
 
   var lock = LockService.getDocumentLock();
-  lock.waitLock(15000);
+  lock.waitLock(5000);
   try {
     var sh = getProcSheet_();
     var headers = headers_(sh);
@@ -420,10 +420,17 @@ function writeRecords_(rows, actor, allowInsert) {
     var currentByRow = {};
     if (existingRows.length) {
       var wantedRows = Array.from(new Set(existingRows)).sort(function(a, b) { return a - b; });
-      var addresses = wantedRows.map(function(r) { return r + ":" + r; });
-      var ranges = sh.getRangeList(addresses).getRanges();
-      for (var gr = 0; gr < ranges.length; gr++) {
-        currentByRow[wantedRows[gr]] = ranges[gr].getValues()[0];
+      var minRow = wantedRows[0];
+      var maxRow = wantedRows[wantedRows.length - 1];
+      // Uma única leitura quando o conjunto é relativamente compacto; isso é muito mais rápido
+      // que dezenas/centenas de getRangeList em lotes de seed.
+      if (maxRow - minRow <= 6000) {
+        var block = sh.getRange(minRow, 1, maxRow - minRow + 1, headers.length).getValues();
+        wantedRows.forEach(function(rowNum) { currentByRow[rowNum] = block[rowNum - minRow]; });
+      } else {
+        var addresses = wantedRows.map(function(r) { return r + ":" + r; });
+        var ranges = sh.getRangeList(addresses).getRanges();
+        for (var gr = 0; gr < ranges.length; gr++) currentByRow[wantedRows[gr]] = ranges[gr].getValues()[0];
       }
     }
 

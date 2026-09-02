@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic";
 
 // O problema anterior era combinar payload grande + ping + COUNT em todo lote.
 // Agora cada lote faz apenas: 1 leitura Supabase + 1 chamada ao Apps Script.
-const DEFAULT_BATCH = 75;
-const MAX_BATCH = 100;
-const SHEETS_TIMEOUT_MS = 12_000;
+const DEFAULT_BATCH = 250;
+const MAX_BATCH = 1000;
+const SHEETS_TIMEOUT_MS = 45_000;
 const WEBHOOK_ACTION = "upsert_batch";
 
 function env(name: string) {
@@ -28,24 +28,48 @@ async function resolveEmpresaId() {
 function normalizeRows(rows: Record<string, any>[]) {
   return rows.map((row) => {
     const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
-    return {
-      ...d,
-      ...row,
-      protocolo: row.protocolo_ref ?? row.protocolo ?? d.protocolo ?? d.PROTOCOLO ?? "",
-      cliente: row.cliente ?? d.cliente ?? d.CLIENTE ?? "",
-      telefone: row.telefone ?? d.telefone ?? d.phone ?? d.celular ?? d.whatsapp ?? "",
-      advogado: row.advogado ?? d.advogado ?? d.ADVOGADO ?? "",
-      escritorio: row.escritorio ?? d.escritorio ?? d.ESCRITORIO ?? "",
-      tribunal: row.tribunal ?? d.tribunal ?? d.TRIBUNAL ?? "",
-      status: row.status ?? d.status ?? "",
-      situacao: row.status_interno ?? d.situacao ?? d.status_interno ?? "",
-      UltimoRetorno: row.ultimo_retorno ?? row.ultimoRetorno ?? d.ultimoRetorno ?? d.ultimo_retorno ?? "",
-      ProximoRetorno: row.proximo_retorno ?? row.proximoRetorno ?? d.proximoRetorno ?? d.proximo_retorno ?? "",
-      CreatedBy: row.created_by ?? row.createdBy ?? d.created_by ?? d.createdBy ?? "",
-      AtendidoPor: row.atendido_por ?? row.atendidoPor ?? d.atendido_por ?? d.atendidoPor ?? "",
-      Observacao: row.observacoes ?? row.observacao ?? d.observacoes ?? d.observacao ?? "",
-      updated_at: row.updated_at ?? row.updatedAt ?? d.updated_at ?? d.updatedAt ?? "",
+    const out: Record<string, any> = {};
+    // Mantém apenas dados realmente necessários para a planilha; não envia o JSON bruto `dados`,
+    // que pode ser enorme e era uma das principais causas de payload/timeout.
+    for (const [k, v] of Object.entries(row || {})) {
+      if (k === "dados" || v === undefined || v === null) continue;
+      if (typeof v === "object") {
+        // Objetos pequenos permanecem; evita transportar estruturas gigantes acidentalmente.
+        const text = JSON.stringify(v);
+        if (text.length <= 12000) out[k] = v;
+      } else {
+        out[k] = v;
+      }
+    }
+    const pick = (key: string, ...aliases: string[]) => {
+      if (out[key] !== undefined && out[key] !== null && String(out[key]) !== "") return;
+      for (const a of aliases) {
+        const v = (row as any)[a] ?? (d as any)[a];
+        if (v !== undefined && v !== null && String(v) !== "") { out[key] = v; return; }
+      }
     };
+    pick("protocolo", "protocolo_ref", "protocolo", "cnj", "processo", "numero");
+    pick("cliente", "cliente", "nome_cliente", "CLIENTE");
+    pick("telefone", "telefone", "phone", "celular", "whatsapp", "TELEFONE");
+    pick("advogado", "advogado", "ADVOGADO");
+    pick("escritorio", "escritorio", "ESCRITORIO");
+    pick("tribunal", "tribunal", "TRIBUNAL");
+    pick("status", "status", "status_executivo");
+    pick("situacao", "status_interno", "situacao", "statusManual");
+    pick("UltimoRetorno", "ultimo_retorno", "ultimoRetorno");
+    pick("ProximoRetorno", "proximo_retorno", "proximoRetorno", "proximoPrazo");
+    pick("CreatedBy", "created_by", "createdBy", "criado_por");
+    pick("AtendidoPor", "atendido_por", "atendidoPor");
+    pick("Observacao", "observacoes", "observacao");
+    pick("EmpresaId", "empresa_id", "empresaId");
+    pick("DatajudEncerrado", "datajud_encerrado_tribunal", "DatajudEncerrado");
+    pick("isBaixaTribunal", "is_baixa_tribunal", "isBaixaTribunal");
+    pick("ultimo_movimento", "ultimo_movimento", "datajud_ultimo_movimento", "ultimoMovimento");
+    pick("valor_causa", "valor_causa", "valorCausa");
+    pick("Evento_Tipo", "evento_tipo", "Evento_Tipo", "eventotipo");
+    pick("Andamento", "andamento", "Andamento", "ultimoAndamento");
+    pick("updated_at", "updated_at", "updatedAt", "editado_em", "edited_at");
+    return out;
   });
 }
 
