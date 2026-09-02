@@ -58,7 +58,20 @@ async function postToSheets(payload: unknown) {
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`Webhook HTTP ${res.status}: ${text.slice(0, 400)}`);
-    return text;
+    if (/<!DOCTYPE html|<html/i.test(text.slice(0, 500))) {
+      throw new Error(`Webhook HTTP ${res.status}: Google retornou HTML. Verifique a implantação /exec do Apps Script.`);
+    }
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(`Webhook respondeu algo que não é JSON: ${text.slice(0, 300)}`);
+    }
+    if (parsed?.ok !== true) {
+      const action = String((payload as any)?.action || '').trim() || 'desconhecida';
+      throw new Error(String(parsed?.error || `Apps Script recusou a ação ${action}`));
+    }
+    return parsed;
   } catch (error: any) {
     if (error?.name === "AbortError") throw new Error("Webhook excedeu o tempo limite de 30s.");
     throw error;
