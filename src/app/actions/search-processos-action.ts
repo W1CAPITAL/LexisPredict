@@ -1,4 +1,4 @@
-use server';
+"use server";
 
 /**
  * Busca processos da empresa por CNJ/protocolo/cliente no banco inteiro.

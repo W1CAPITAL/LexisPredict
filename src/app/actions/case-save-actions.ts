@@ -1,4 +1,4 @@
-use server';
+"use server";
 
 import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisao';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
