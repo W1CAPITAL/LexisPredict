@@ -1,402 +1,795 @@
 /**
- * LEXIS GABINETE v6.2 — Sincronização 2 vias + LOGIN POR USUÁRIO
- * =================================================================
- * Cada usuário loga com usuário/senha (validados AQUI no servidor).
- * Cada processo tem uma coluna RESPONSAVEL = login (ou nome) do dono.
- * - action=auth  : valida usuário/senha (SHA-256) e devolve token de sessão
- * - action=list  : devolve SÓ os casos do usuário (minhas) + todas (aba empresa)
- * - action=write : grava; RECUSA linhas cujo responsavel não é o solicitante
- * - action=ping  : teste do botão "Testar webhook"
+ * LEXIS GABINETE — Apps Script / Google Sheets adapter
+ * =====================================================
  *
- * DEPLOY (1x):
- *  1. Na planilha: crie uma aba chamada  Usuarios  com cabeçalho:
- *       login | nome | senha | perfil | escritorio | ativo
- *     (senha = hash SHA-256, gere no rodapé/script; ativo=sim/não)
- *  2. Na aba da carteira, crie/renomeie a coluna  Responsavel
- *     (vale o login ou o nome do usuário dono de cada processo).
- *  3. Extensões -> Apps Script -> cole este arquivo -> Implantar ->
- *     "Aplicativo da web" -> Executar como: "Eu" -> Acesso: "Qualquer pessoa".
- *  4. No menu do editor "Léxis" use "Criar usuário" (pede login/nome/senha/perfil).
+ * Uma única implementação de webhook para o LexisPredict.
+ * Corrige:
+ *  - token aceito no body do POST (compatível com Vercel);
+ *  - seed em lotes de 500;
+ *  - upsert por Protocolo/CNJ sem duplicar linhas;
+ *  - preservação de TODAS as colunas existentes quando a entrada não informa o campo;
+ *  - escrita em matriz em vez de setValue célula a célula;
+ *  - leitura LIST retornando a linha inteira;
+ *  - auditoria de quem editou/atendeu;
+ *  - ações auth/login, list, get, write e upsert_batch.
  *
- * SEGURANÇA: o acesso web fica como "Qualquer pessoa" porque Apps Script
- * gratuito não oferece autenticação própria — mas a validação de usuário/senha,
- * a geração do token de sessão (8h) e o filtro de linhas são feitos AQUI.
- * A planilha em si deve estar compartilhada SOMENTE com você (não "qualquer
- * pessoa com o link"), pois o desktop só passa por este webhook.
+ * DEPLOY:
+ * 1) Substitua TODO o código antigo por este arquivo.
+ * 2) TOKEN deve ser igual a LEXIS_SHEETS_TOKEN no Vercel.
+ * 3) Implantar > Nova implantação > Aplicativo da web.
+ * 4) Executar como: Eu.
+ * 5) Quem tem acesso: Qualquer pessoa.
+ * 6) Use somente a URL /exec.
+ * 7) Depois de alterar este arquivo: Gerenciar implantações > editar > Nova versão.
  */
 
-var TOKEN = "w1-fase1-2026";                 // <<< troque por um token seu (vai no Config do app)
-var SHEET_NAME = "Processos";                // aba principal da carteira
-var KEY_COL = "Protocolo";                   // cabeçalho da coluna-chave (CNJ)
-var OWNER_FIELD = "Responsavel";             // coluna que identifica o DONO de cada processo
-var USERS_SHEET = "Usuarios";                // aba com login/nome/senha/perfil/escritorio/ativo
-var HEADER_ROW = 1;                          // linha dos cabeçalhos
-var SESS_DURATION_MS = 8 * 3600 * 1000;      // token de sessão dura 8h (renovado a cada list/write)
+var TOKEN = "w1-fase1-2026";
+var USERS_SHEET = "Usuarios";
+var PROC_SHEET = "Processos";
+var HEADER_ROW = 1;
+var SESS_DURATION_MS = 8 * 3600 * 1000;
 var SESS_PREFIX = "lex_sess_";
+var MAX_WRITE_ROWS = 3600;
+var INDEX_SHEET = "__LEXIS_INDEX";
+
+var USER_HEADERS = [
+  "login", "nome", "senha", "perfil", "escritorio", "ativo", "email", "auth_user_id", "id"
+];
+
+var PROC_HEADERS = [
+  "Protocolo", "Cliente", "Status", "Situacao", "UltimoRetorno", "ProximoRetorno",
+  "Advogado", "Escritorio", "Tribunal", "Telefone", "CreatedBy", "AtendidoPor",
+  "Observacao", "DatajudEncerrado", "EmpresaId", "isBaixaTribunal", "ultimo_movimento",
+  "fase", "valor_causa", "updated_at", "Assistente", "Distribuicao", "Produtos",
+  "Data_Movimentacao", "Andamento", "Evento_Tipo", "Novo_Andamento", "Busca_Apreensao",
+  "Cumprimento", "DJEN_Resumo", "Dias_Sem_Retorno", "Procedente", "Improcedente"
+];
+
+var ACCESS = {
+  operador: 10,
+  assistente: 10,
+  atendente: 10,
+  responsavel: 10,
+  administrador: 20,
+  supervisor: 20,
+  superadmin: 30
+};
+
+function getToken_() {
+  try {
+    var configured = PropertiesService.getScriptProperties().getProperty("LEXIS_SHEETS_TOKEN");
+    if (configured && String(configured).trim()) return String(configured).trim();
+  } catch (_) {}
+  return String(TOKEN).trim();
+}
 
 function norm(s) {
-  return String(s || "").replace(/\s+/g, "").replace(/[^\w\u00C0-\u017F/]/g, "").toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return String(s == null ? "" : s)
+    .replace(/[\s._-]+/g, "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function digits(s) {
+  return String(s == null ? "" : s).replace(/\D/g, "");
 }
 
 function hashSenha(s) {
-  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(s || ""), Utilities.Charset.UTF_8);
-  var out = "";
-  for (var i = 0; i < bytes.length; i++) out += ("0" + ((bytes[i] & 0xFF).toString(16))).slice(-2);
-  return out;
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(s || ""),
+    Utilities.Charset.UTF_8
+  );
+  return bytes.map(function (b) {
+    var v = b < 0 ? b + 256 : b;
+    var h = v.toString(16);
+    return h.length === 1 ? "0" + h : h;
+  }).join("");
 }
-
-var ACCESS = { assistente: 10, atendente: 10, responsavel: 10, supervisor: 20, superadmin: 30 };
 
 function roleAccess(perfil) {
-  var p = norm(String(perfil || "assistente"));
-  if (ACCESS[p] !== undefined) return ACCESS[p];
-  for (var k in ACCESS) if (norm(k) === p) return ACCESS[k];
-  return 10;
+  var p = norm(perfil || "operador");
+  return ACCESS[p] == null ? 10 : ACCESS[p];
 }
 
-function out(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+function out_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function jsonBody_(e) {
+  try {
+    return JSON.parse((e && e.postData && e.postData.contents) || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+
+function validToken_(body, e) {
+  var expected = getToken_();
+  var supplied = body && (body.token || body._token);
+  if (!supplied && e && e.parameter) supplied = e.parameter.token;
+  return String(supplied || "").trim() === expected;
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Léxis")
+    .addItem("Garantir abas e cabeçalhos", "ensureSheetsUI")
+    .addItem("Criar usuário (login/senha)", "uiCriarUsuario")
+    .addItem("Listar usuários", "uiListarUsuarios")
+    .addToUi();
+}
+
+function ensureSheetsUI() {
+  ensureSheets_();
+  SpreadsheetApp.getUi().alert("Abas Usuarios e Processos conferidas.");
+}
+
+function ensureSheets_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ensureSheetWithHeaders_(ss, USERS_SHEET, USER_HEADERS);
+  ensureSheetWithHeaders_(ss, PROC_SHEET, PROC_HEADERS);
+}
+
+function ensureSheetWithHeaders_(ss, name, headers) {
+  var sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+
+  var currentCols = Math.max(1, sh.getLastColumn(), headers.length);
+  var current = sh.getRange(HEADER_ROW, 1, 1, currentCols).getValues()[0].map(function (h) {
+    return String(h || "").trim();
+  });
+  var empty = current.every(function (h) { return !h; });
+
+  if (empty) {
+    sh.getRange(HEADER_ROW, 1, 1, headers.length).setValues([headers]);
+    sh.setFrozenRows(1);
+    return;
+  }
+
+  headers.forEach(function (h) {
+    var exists = current.some(function (c) { return norm(c) === norm(h); });
+    if (!exists) {
+      sh.getRange(HEADER_ROW, sh.getLastColumn() + 1).setValue(h);
+      current.push(h);
+    }
+  });
+}
+
+function getProcSheet_() {
+  ensureSheets_();
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PROC_SHEET);
+  if (!sh) throw new Error("Aba Processos não encontrada.");
+  return sh;
+}
+
+function getUsersSheet_() {
+  ensureSheets_();
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(USERS_SHEET);
+  if (!sh) throw new Error("Aba Usuarios não encontrada.");
+  return sh;
+}
+
+function headers_(sh) {
+  var lastCol = Math.max(1, sh.getLastColumn());
+  return sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h || "").trim();
+  });
+}
+
+function headerMap_(headers) {
+  var map = {};
+  headers.forEach(function (h, i) { map[norm(h)] = i; });
+  return map;
+}
+
+function findCol_(map, aliases) {
+  for (var i = 0; i < aliases.length; i++) {
+    var idx = map[norm(aliases[i])];
+    if (idx != null) return idx;
+  }
+  return -1;
+}
+
+function valueForField_(record, header, dados) {
+  var wanted = norm(header);
+  var direct = Object.keys(record || {});
+  for (var i = 0; i < direct.length; i++) {
+    if (norm(direct[i]) === wanted) {
+      var v = record[direct[i]];
+      if (v !== undefined && v !== null && String(v) !== "") return v;
+    }
+  }
+
+  // Mapas especiais escritos separadamente para evitar depender do nome exato da coluna.
+  var special = {
+    protocolo: ["protocolo", "protocolo_ref", "cnj", "processo", "numero"],
+    cliente: ["cliente", "nome_cliente"],
+    status: ["status", "status_executivo"],
+    situacao: ["situacao", "status_interno", "statusManual"],
+    ultimoretorno: ["UltimoRetorno", "ultimo_retorno", "ultimoRetorno"],
+    proximoretorno: ["ProximoRetorno", "proximo_retorno", "proximoRetorno", "proximoPrazo"],
+    advogado: ["advogado"],
+    escritorio: ["escritorio"],
+    tribunal: ["tribunal"],
+    telefone: ["telefone", "phone", "celular", "whatsapp"],
+    createdby: ["CreatedBy", "created_by", "createdBy", "criado_por"],
+    atendidopor: ["AtendidoPor", "atendido_por", "atendidoPor"],
+    observacao: ["Observacao", "observacao", "observacoes"],
+    empresaid: ["EmpresaId", "empresa_id", "empresaId"],
+    datajudencerrado: ["DatajudEncerrado", "datajud_encerrado_tribunal"],
+    isbaixatribunal: ["isBaixaTribunal", "is_baixa_tribunal"],
+    ultimomovimento: ["ultimo_movimento", "datajud_ultimo_movimento", "ultimoMovimento"],
+    valorcausa: ["valor_causa", "valorCausa"],
+    eventotipo: ["evento_tipo", "Evento_Tipo", "eventotipo"],
+    andamento: ["andamento", "Andamento", "ultimoAndamento"],
+    updatedat: ["updated_at", "updatedAt", "editado_em", "edited_at"],
+  };
+
+  var list = special[wanted] || [];
+  for (var j = 0; j < list.length; j++) {
+    var key = list[j];
+    if (record[key] !== undefined && record[key] !== null && String(record[key]) !== "") return record[key];
+    var rKeys = Object.keys(record || {});
+    for (var k = 0; k < rKeys.length; k++) {
+      if (norm(rKeys[k]) === norm(key)) {
+        var rv = record[rKeys[k]];
+        if (rv !== undefined && rv !== null && String(rv) !== "") return rv;
+      }
+    }
+  }
+
+  var dkeys = Object.keys(dados || {});
+  for (var d = 0; d < dkeys.length; d++) {
+    if (norm(dkeys[d]) === wanted) {
+      var dv = dados[dkeys[d]];
+      if (dv !== undefined && dv !== null && String(dv) !== "") return dv;
+    }
+  }
+  for (var s = 0; s < list.length; s++) {
+    for (var d2 = 0; d2 < dkeys.length; d2++) {
+      if (norm(dkeys[d2]) === norm(list[s])) {
+        var sv = dados[dkeys[d2]];
+        if (sv !== undefined && sv !== null && String(sv) !== "") return sv;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function toCell_(v) {
+  if (v === undefined || v === null) return "";
+  if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+function protocolFromRecord_(r) {
+  var d = r && r.dados && typeof r.dados === "object" ? r.dados : {};
+  var p = r && (r.Protocolo || r.protocolo || r.protocolo_ref || r.cnj || r.processo);
+  if (!p) p = d.Protocolo || d.protocolo || d.protocolo_ref || d.cnj || d.processo;
+  return String(p || "").trim();
+}
+
+function readRows_(opts) {
+  opts = opts || {};
+  var sh = getProcSheet_();
+  var headers = headers_(sh);
+  var data = sh.getDataRange().getValues();
+  var map = headerMap_(headers);
+  var keyIdx = findCol_(map, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
+  var ownerIdx = findCol_(map, ["Responsavel", "CreatedBy", "created_by", "criado_por"]);
+  var user = norm(opts.responsavel || "");
+  var isAdmin = !!opts.admin;
+
+  var rows = [];
+  for (var r = HEADER_ROW; r < data.length; r++) {
+    var values = data[r];
+    var has = values.some(function (v) { return String(v == null ? "" : v).trim() !== ""; });
+    if (!has) continue;
+
+    var owner = ownerIdx >= 0 ? String(values[ownerIdx] || "").trim() : "";
+    if (user && !isAdmin && owner && norm(owner) !== user) continue;
+
+    var obj = {};
+    headers.forEach(function (h, i) { obj[h] = values[i]; });
+    if (keyIdx >= 0) obj.Protocolo = values[keyIdx];
+    rows.push(obj);
+    if (opts.limit && rows.length >= Number(opts.limit)) break;
+  }
+  return { headers: headers, rows: rows };
+}
+
+function findRowMap_(sh, headers, data) {
+  var map = headerMap_(headers);
+  var keyIdx = findCol_(map, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
+  if (keyIdx < 0) throw new Error("Aba Processos sem coluna Protocolo/CNJ.");
+  var out = {};
+  for (var r = HEADER_ROW; r < data.length; r++) {
+    var key = digits(data[r][keyIdx]);
+    if (key) out[key] = r + 1;
+  }
+  return { byProtocol: out, keyIdx: keyIdx };
+}
+
+function ensureIndexSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(INDEX_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(INDEX_SHEET);
+    sh.getRange(1, 1, 1, 3).setValues([["protocolo_key", "sheet_row", "updated_at"]]);
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+function rebuildIndex_() {
+  var proc = getProcSheet_();
+  var idx = ensureIndexSheet_();
+  var headers = headers_(proc);
+  var hmap = headerMap_(headers);
+  var keyIdx = findCol_(hmap, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
+  if (keyIdx < 0) throw new Error("Aba Processos sem coluna Protocolo/CNJ.");
+  var lastRow = proc.getLastRow();
+  var out = [];
+  if (lastRow >= HEADER_ROW + 1) {
+    var values = proc.getRange(HEADER_ROW + 1, keyIdx + 1, lastRow - HEADER_ROW, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      var key = digits(values[i][0]);
+      if (key) out.push([key, i + HEADER_ROW + 1, new Date().toISOString()]);
+    }
+  }
+  idx.clearContents();
+  idx.getRange(1, 1, 1, 3).setValues([["protocolo_key", "sheet_row", "updated_at"]]);
+  if (out.length) idx.getRange(2, 1, out.length, 3).setValues(out);
+  return idx;
+}
+
+function loadIndex_() {
+  var idx = ensureIndexSheet_();
+  var last = idx.getLastRow();
+  if (last < 2) {
+    rebuildIndex_();
+    last = idx.getLastRow();
+  }
+  var values = last >= 2 ? idx.getRange(2, 1, last - 1, 2).getValues() : [];
+  var map = {};
+  for (var i = 0; i < values.length; i++) {
+    var key = String(values[i][0] || "").trim();
+    var row = Number(values[i][1] || 0);
+    if (key && row) map[key] = row;
+  }
+  return { sheet: idx, map: map };
+}
+
+function appendIndexRows_(idx, rows) {
+  if (!rows.length) return;
+  var start = idx.getLastRow() + 1;
+  idx.getRange(start, 1, rows.length, 3).setValues(rows);
+}
+
+function writeRecords_(rows, actor, allowInsert) {
+  if (!Array.isArray(rows)) rows = [];
+  if (rows.length > MAX_WRITE_ROWS) throw new Error("Lote acima do limite de " + MAX_WRITE_ROWS + " linhas.");
+  if (!rows.length) return { ok: true, updated: 0, added: 0, written: 0, rejected: [], rejected_count: 0 };
+
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(5000);
+  try {
+    var sh = getProcSheet_();
+    var headers = headers_(sh);
+    var hmap = headerMap_(headers);
+    var protoIdx = findCol_(hmap, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
+    if (protoIdx < 0) throw new Error("coluna-chave (Protocolo/CNJ) não encontrada");
+
+    var ownerIdx = findCol_(hmap, ["Responsavel", "CreatedBy", "created_by", "criado_por"]);
+    var empresaIdx = findCol_(hmap, ["EmpresaId", "empresa_id", "empresaId"]);
+    var updatedIdx = findCol_(hmap, ["updated_at", "updatedAt"]);
+    var editedByIdx = findCol_(hmap, ["edited_by", "editado_por"]);
+    var editedNameIdx = findCol_(hmap, ["edited_by_name", "editado_por_nome"]);
+    var editedAtIdx = findCol_(hmap, ["edited_at", "editado_em"]);
+    var createdIdx = findCol_(hmap, ["CreatedBy", "created_by", "createdBy", "criado_por"]);
+    var isAdmin = roleAccess(actor && actor.perfil) >= 20;
+    var me = norm(actor && (actor.u || actor.login || actor.nome) || "");
+    var meName = norm(actor && actor.nome || "");
+    var now = new Date().toISOString();
+    var index = loadIndex_();
+    var map = index.map;
+
+    var touched = {};
+    var appended = [];
+    var indexAdds = [];
+    var updates = 0;
+    var added = 0;
+    var rejected = [];
+
+    // Lemos somente as linhas que realmente serão alteradas.
+    var existingRows = [];
+    rows.forEach(function(record) {
+      var protocol = protocolFromRecord_(record || {});
+      var key = digits(protocol);
+      if (!key) { rejected.push({ protocolo: "", motivo: "sem Protocolo/CNJ" }); return; }
+      var target = map[key] || 0;
+      if (target) existingRows.push(target);
+    });
+
+    var currentByRow = {};
+    if (existingRows.length) {
+      var wantedRows = Array.from(new Set(existingRows)).sort(function(a, b) { return a - b; });
+      var minRow = wantedRows[0];
+      var maxRow = wantedRows[wantedRows.length - 1];
+      // Uma única leitura quando o conjunto é relativamente compacto; isso é muito mais rápido
+      // que dezenas/centenas de getRangeList em lotes de seed.
+      if (maxRow - minRow <= 6000) {
+        var block = sh.getRange(minRow, 1, maxRow - minRow + 1, headers.length).getValues();
+        wantedRows.forEach(function(rowNum) { currentByRow[rowNum] = block[rowNum - minRow]; });
+      } else {
+        var addresses = wantedRows.map(function(r) { return r + ":" + r; });
+        var ranges = sh.getRangeList(addresses).getRanges();
+        for (var gr = 0; gr < ranges.length; gr++) currentByRow[wantedRows[gr]] = ranges[gr].getValues()[0];
+      }
+    }
+
+    var nextRow = Math.max(sh.getLastRow() + 1, HEADER_ROW + 1);
+    rows.forEach(function(record) {
+      record = record || {};
+      var protocol = protocolFromRecord_(record);
+      var pkey = digits(protocol);
+      if (!pkey) return;
+
+      var targetRow = map[pkey] || 0;
+      var current;
+      if (targetRow) {
+        current = currentByRow[targetRow].slice();
+        if (ownerIdx >= 0 && !isAdmin) {
+          var owner = norm(current[ownerIdx] || "");
+          if (owner && owner !== me && owner !== meName) {
+            rejected.push({ protocolo: protocol, motivo: "processo de outro responsável" });
+            return;
+          }
+        }
+      } else {
+        if (!allowInsert) { rejected.push({ protocolo: protocol, motivo: "processo não encontrado" }); return; }
+        targetRow = nextRow++;
+        current = new Array(headers.length).fill("");
+        if (ownerIdx >= 0 && actor && actor.u) current[ownerIdx] = actor.u;
+        map[pkey] = targetRow;
+        added++;
+      }
+
+      var dados = record.dados && typeof record.dados === "object" ? record.dados : {};
+      headers.forEach(function(header, i) {
+        var value = valueForField_(record, header, dados);
+        // NUNCA apaga valor antigo porque uma coluna não veio no payload.
+        if (value === undefined || value === null || String(value) === "") return;
+        current[i] = toCell_(value);
+      });
+      current[protoIdx] = protocol;
+      if (createdIdx >= 0 && !current[createdIdx] && actor && actor.u) current[createdIdx] = actor.u;
+      if (empresaIdx >= 0 && record.empresa_id) current[empresaIdx] = String(record.empresa_id);
+      if (updatedIdx >= 0) current[updatedIdx] = now;
+      if (editedByIdx >= 0 && actor && actor.u) current[editedByIdx] = actor.u;
+      if (editedNameIdx >= 0 && actor) current[editedNameIdx] = actor.nome || actor.u || "";
+      if (editedAtIdx >= 0) current[editedAtIdx] = now;
+
+      touched[targetRow] = current;
+      if (!index.sheet) return;
+      if (!existingRows.includes(targetRow)) indexAdds.push([pkey, targetRow, now]);
+      updates++;
+    });
+
+    var rowNums = Object.keys(touched).map(Number).sort(function(a,b){ return a-b; });
+    if (rowNums.length) {
+      var runStart = rowNums[0], runEnd = rowNums[0];
+      for (var x = 1; x < rowNums.length; x++) {
+        if (rowNums[x] === runEnd + 1) { runEnd = rowNums[x]; continue; }
+        var block = [];
+        for (var rr = runStart; rr <= runEnd; rr++) block.push(touched[rr]);
+        sh.getRange(runStart, 1, block.length, headers.length).setValues(block);
+        runStart = runEnd = rowNums[x];
+      }
+      var lastBlock = [];
+      for (var rr2 = runStart; rr2 <= runEnd; rr2++) lastBlock.push(touched[rr2]);
+      sh.getRange(runStart, 1, lastBlock.length, headers.length).setValues(lastBlock);
+    }
+
+    appendIndexRows_(index.sheet, indexAdds);
+    SpreadsheetApp.flush();
+    var written = updates - rejected.length;
+    return {
+      ok: true,
+      updated: updates,
+      added: added,
+      written: written,
+      rejected: rejected,
+      rejected_count: rejected.length
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+function upsertBatch_(body) {
+  var rows = Array.isArray(body.rows) ? body.rows : [];
+  var actor = {
+    u: String(body.actor || body.actor_login || body.user || "sync"),
+    nome: String(body.actor_name || "LexisPredict"),
+    perfil: String(body.perfil || "superadmin")
+  };
+  return writeRecords_(rows, actor, true);
 }
 
 function doGet(e) {
   try {
     var p = (e && e.parameter) || {};
-    if (String(p.action || "") === "ping" || p.ping === "1" || p.ping === "true") {
-      if (p.token && String(p.token) !== String(TOKEN)) {
-        return out({ ok: false, error: "token invalido" });
-      }
-      return out({ ok: true, pong: true, v: "6.3", via: "GET" });
+    var action = String(p.action || "").trim();
+    if (action === "ping" || p.ping === "1" || p.ping === "true") {
+      if (p.token && String(p.token).trim() !== getToken_()) return out_({ ok: false, error: "token invalido" });
+      return out_({ ok: true, pong: true, v: "7.0", via: "GET" });
     }
-  } catch (err) {}
-  return out({
-    ok: true,
-    app: "lexis-gabinete-sync",
-    v: "6.3",
-    ts: new Date().toISOString(),
-    hint: "GET ?action=ping&token=TOKEN"
-  });
-}
-
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  if (!ui) return;
-  ui.createMenu("Léxis")
-    .addItem("Criar usuário (login/senha)", "criarUsuarioUI")
-    .addItem("Listar usuários", "listarUsuariosUI")
-    .addToUi();
-}
-
-function criarUsuarioUI() {
-  var ui = SpreadsheetApp.getUi();
-  var resp = ui.prompt("Criar usuário", "login (minúsculas, sem espaços)", ui.ButtonSet.OK_CANCEL);
-  if (resp.getSelectedButton() !== ui.Button.OK) return;
-  var login = norm(resp.getResponseText());
-  if (!login) return;
-  var r2 = ui.prompt("Criar usuário · " + login, "nome completo", ui.ButtonSet.OK_CANCEL);
-  if (r2.getSelectedButton() !== ui.Button.OK) return;
-  var r3 = ui.prompt("Criar usuário · " + login, "senha", ui.ButtonSet.OK_CANCEL);
-  if (r3.getSelectedButton() !== ui.Button.OK) return;
-  var r4 = ui.prompt("Criar usuário · " + login, "perfil (assistente / atendente / responsavel)", ui.ButtonSet.OK_CANCEL);
-  if (r4.getSelectedButton() !== ui.Button.OK) return;
-  criarUsuario(login, r2.getResponseText(), r3.getResponseText(), r4.getResponseText(), "");
-  ui.alert("Usuário criado: " + login);
-}
-
-function listarUsuariosUI() {
-  var ui = SpreadsheetApp.getUi();
-  var sh = usuariosSheet();
-  if (!sh) { ui.alert("Não achei a aba 'Usuarios'."); return; }
-  var vals = sh.getDataRange().getValues();
-  var txt = [];
-  for (var i = 1; i < vals.length; i++) {
-    var v = vals[i];
-    if (!String(v[0] || "").trim()) continue;
-    txt.push(String(v[0]) + " | " + v[1] + " | " + v[3] + " | " + v[4]);
+    if (action === "list" || action === "get") {
+      if (!validToken_(p, e)) return out_({ ok: false, error: "token invalido" });
+      var all = readRows_({ limit: p.limit || 8000 });
+      if (action === "get") {
+        var target = digits(p.protocolo || p.cnj || "");
+        var found = all.rows.find(function (r) {
+          return digits(r.Protocolo || r.protocolo || r.protocolo_ref || r.CNJ || "") === target;
+        });
+        return out_({ ok: true, row: found || null, data: found ? [found] : [] });
+      }
+      return out_({ ok: true, rows: all.rows, headers: all.headers, data: all.rows, count: all.rows.length });
+    }
+    return out_({ ok: true, app: "lexis-gabinete-sync", v: "7.0", ts: new Date().toISOString() });
+  } catch (err) {
+    return out_({ ok: false, error: String(err).slice(0, 500) });
   }
-  ui.alert("Usuários:\n" + (txt.join("\n") || "(nenhum)"));
-}
-
-function criarUsuario(login, nome, senha, perfil, escritorio) {
-  var sh = usuariosSheet(true);
-  if (!sh) return { ok: false, error: "falta aba Usuarios" };
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return norm(h); });
-  function col(aliases) {
-    for (var a = 0; a < aliases.length; a++)
-      for (var c = 0; c < headers.length; c++)
-        if (headers[c] === aliases[a]) return c;
-    return -1;
-  }
-  var cL = col(["login", "usuario"]);
-  var cN = col(["nome"]);
-  var cS = col(["senha"]);
-  var cP = col(["perfil", "perfilacesso"]);
-  var cE = col(["escritorio", "unidade"]);
-  var cA = col(["ativo"]);
-  if (cL < 0 || cN < 0 || cS < 0) return { ok: false, error: "Usuarios precisa de login | nome | senha" };
-  var data = sh.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) {
-    if (norm(data[i][cL]) === norm(login)) return { ok: false, error: "login ja existe" };
-  }
-  var row = [""];
-  if (cL >= 0) row[cL] = login;
-  if (cN >= 0) row[cN] = nome;
-  if (cS >= 0) row[cS] = hashSenha(senha);
-  if (cP >= 0) row[cP] = perfil;
-  if (cE >= 0) row[cE] = escritorio;
-  if (cA >= 0) row[cA] = "sim";
-  var r = sh.getLastRow() + 1;
-  sh.getRange(r, 1, 1, lastCol).setValues([row]);
-  return { ok: true };
-}
-
-function usuariosSheet(create) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(USERS_SHEET);
-  if (!sh && create) {
-    sh = ss.insertSheet(USERS_SHEET);
-    sh.getRange(1, 1, 1, 6).setValues([["login", "nome", "senha", "perfil", "escritorio", "ativo"]]);
-  }
-  return sh;
-}
-
-function getSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  return ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
 }
 
 function doPost(e) {
   try {
-    var body = JSON.parse(e.postData.contents || "{}");
-    if (!body || body.token !== TOKEN) return out({ ok: false, error: "token invalido" });
-    var action = String(body.action || "");
-    if (action === "ping" || body.ping === true) return out({ ok: true, pong: true, v: "6.3" });
+    var body = jsonBody_(e);
+    if (!validToken_(body, e)) return out_({ ok: false, error: "token invalido" });
+    var action = String(body.action || "").trim();
 
-    if (action === "auth" || action === "login") {
-      return out(doAuth(body));
-    }
+    if (action === "ping") return out_({ ok: true, pong: true, v: "7.0" });
+    if (action === "auth" || action === "login") return out_(doAuth_(body));
     if (action === "auto") {
-      var vs = validSess(body);
-      if (vs.err) return out({ ok: false, error: vs.err });
-      return out({ ok: true, user: publicUser(vs.us) });
+      var vsAuto = validSess_(body.sess);
+      if (vsAuto.err) return out_({ ok: false, error: vsAuto.err });
+      return out_({ ok: true, user: publicUser_(vsAuto.us) });
     }
     if (action === "list") {
-      var vs2 = validSess(body);
-      if (vs2.err) return out({ ok: false, error: vs2.err });
-      return out(readAll(vs2.us));
+      return out_(listAction_(body));
+    }
+    if (action === "get") {
+      var rows = readRows_({ limit: 8000 }).rows;
+      var target = digits(body.protocolo || body.cnj || "");
+      var found = rows.find(function (r) { return digits(r.Protocolo || r.protocolo || r.protocolo_ref || "") === target; });
+      return out_({ ok: true, row: found || null, data: found ? [found] : [] });
     }
     if (action === "write") {
-      var vs3 = validSess(body);
-      if (vs3.err) return out({ ok: false, error: vs3.err });
-      return out(writeRows(body.rows || [], vs3.us));
+      var sess = validSess_(body.sess);
+      var actor = sess.err ? {
+        u: String(body.actor || "api"), nome: String(body.actor_name || "LexisPredict"), perfil: "superadmin"
+      } : sess.us;
+      if (sess.err && !body.actor) return out_({ ok: false, error: sess.err });
+      return out_(writeRecords_(body.rows || [], actor, true));
+    }
+    if (action === "upsert_batch") {
+      return out_(upsertBatch_(body));
     }
     if (action === "users" || action === "list_users") {
-      var vs4 = validSess(body);
-      if (vs4.err) return out({ ok: false, error: vs4.err });
-      if (roleAccess(vs4.us.perfil) < 20) return out({ ok: false, error: "sem permissao (supervisor+)" });
-      return out(listUsers());
+      var vu = validSess_(body.sess);
+      if (vu.err) return out_({ ok: false, error: vu.err });
+      if (roleAccess(vu.us.perfil) < 20) return out_({ ok: false, error: "sem permissao (supervisor+)" });
+      return out_(listUsers_());
     }
     if (action === "user_create" || action === "create_user") {
-      var vs5 = validSess(body);
-      if (vs5.err) return out({ ok: false, error: vs5.err });
-      var ca = roleAccess(vs5.us.perfil);
-      if (ca < 20) return out({ ok: false, error: "sem permissao (supervisor+)" });
-      var targetA = roleAccess(body.perfil);
-      if (targetA > ca) return out({ ok: false, error: "voce nao pode criar perfil maior que o seu" });
-      return out(criarUsuarioServer(body, ca));
+      var vc = validSess_(body.sess);
+      if (vc.err) return out_({ ok: false, error: vc.err });
+      if (roleAccess(vc.us.perfil) < 20) return out_({ ok: false, error: "sem permissao (supervisor+)" });
+      return out_(criarUsuarioServer_(body, roleAccess(vc.us.perfil)));
     }
     if (action === "user_set") {
-      var vs6 = validSess(body);
-      if (vs6.err) return out({ ok: false, error: vs6.err });
-      var ca2 = roleAccess(vs6.us.perfil);
-      if (ca2 < 20) return out({ ok: false, error: "sem permissao (supervisor+)" });
-      return out(setUsuarioServer(body, vs6.us.u, ca2));
+      var vs = validSess_(body.sess);
+      if (vs.err) return out_({ ok: false, error: vs.err });
+      if (roleAccess(vs.us.perfil) < 20) return out_({ ok: false, error: "sem permissao (supervisor+)" });
+      return out_(setUsuarioServer_(body, vs.us.u, roleAccess(vs.us.perfil)));
     }
-    if (action === "hash") {
-      return out({ ok: true, hash: hashSenha(body.senha) });
-    }
-    if (action === "set_password") {
-      var login2 = norm(body.login);
-      var nova = String(body.senha || "");
-      if (!login2 || !nova) return out({ ok: false, error: "login e senha obrigatorios" });
-      var sh2 = usuariosSheet();
-      if (!sh2) return out({ ok: false, error: "falta aba Usuarios" });
-      var lastCol2 = Math.max(1, sh2.getLastColumn());
-      var headers2 = sh2.getRange(HEADER_ROW, 1, 1, lastCol2).getValues()[0].map(function (h) { return norm(h); });
-      var cL2 = -1, cS2 = -1;
-      for (var i2 = 0; i2 < headers2.length; i2++) {
-        if (headers2[i2] === "login" || headers2[i2] === "usuario") cL2 = i2;
-        if (headers2[i2] === "senha") cS2 = i2;
-      }
-      if (cL2 < 0 || cS2 < 0) return out({ ok: false, error: "falta coluna login/senha" });
-      var data2 = sh2.getDataRange().getValues();
-      for (var r2 = 1; r2 < data2.length; r2++) {
-        if (norm(data2[r2][cL2]) === login2) {
-          sh2.getRange(r2 + 1, cS2 + 1).setValue(hashSenha(nova));
-          return out({ ok: true, login: login2 });
-        }
-      }
-      return out({ ok: false, error: "nao encontrado" });
-    }
-    return out({ ok: false, error: "acao desconhecida: " + action });
+    if (action === "hash") return out_({ ok: true, hash: hashSenha(body.senha) });
+
+    return out_({ ok: false, error: "acao desconhecida: " + action });
   } catch (err) {
-    return out({ ok: false, error: String(err).slice(0, 300) });
+    return out_({ ok: false, error: String(err).slice(0, 700) });
   }
 }
 
-function publicUser(us) {
-  return { usuario: us.u, nome: us.nome, perfil: us.perfil, escritorio: us.escritorio, access: roleAccess(us.perfil) };
+function publicUser_(us) {
+  return {
+    usuario: us.u,
+    nome: us.nome,
+    perfil: us.perfil,
+    escritorio: us.escritorio,
+    access: roleAccess(us.perfil)
+  };
 }
 
-function doAuth(body) {
-  var login = norm(body.usuario);
+function listAction_(body) {
+  var sh = getProcSheet_();
+  var all = readRows_({ limit: Math.min(Number(body.limit || 8000), 8000) });
+  var vs = body.sess ? validSess_(body.sess) : { err: null, us: null };
+  var isAdmin = !vs.us || roleAccess(vs.us.perfil) >= 20;
+  var user = vs.us;
+  var rows = all.rows;
+  if (body.responsavel && !isAdmin) {
+    var owner = norm(body.responsavel);
+    rows = rows.filter(function (r) {
+      return norm(r.Responsavel || r.CreatedBy || r.created_by || r.responsavel || "") === owner;
+    });
+  }
+  return {
+    ok: true,
+    rows: rows,
+    todas: all.rows,
+    minhas: rows,
+    headers: all.headers,
+    count: rows.length,
+    user: user ? publicUser_(user) : null,
+    v: "7.0"
+  };
+}
+
+function uiCriarUsuario() {
+  var ui = SpreadsheetApp.getUi();
+  var r1 = ui.prompt("Criar usuário", "login", ui.ButtonSet.OK_CANCEL);
+  if (r1.getSelectedButton() !== ui.Button.OK) return;
+  var login = norm(r1.getResponseText());
+  var r2 = ui.prompt("Criar usuário", "nome completo", ui.ButtonSet.OK_CANCEL);
+  if (r2.getSelectedButton() !== ui.Button.OK) return;
+  var r3 = ui.prompt("Criar usuário", "senha", ui.ButtonSet.OK_CANCEL);
+  if (r3.getSelectedButton() !== ui.Button.OK) return;
+  var r4 = ui.prompt("Criar usuário", "perfil", ui.ButtonSet.OK_CANCEL);
+  if (r4.getSelectedButton() !== ui.Button.OK) return;
+  ui.alert(JSON.stringify(criarUsuario_(login, r2.getResponseText(), r3.getResponseText(), r4.getResponseText(), "")));
+}
+
+function uiListarUsuarios() {
+  var users = listUsers_().users || [];
+  SpreadsheetApp.getUi().alert(users.map(function (u) {
+    return u.login + " | " + u.nome + " | " + u.perfil + " | " + u.escritorio + " | " + u.ativo;
+  }).join("\n") || "(nenhum)");
+}
+
+function criarUsuario_(login, nome, senha, perfil, escritorio) {
+  var sh = getUsersSheet_();
+  var headers = headers_(sh);
+  var map = headerMap_(headers);
+  var cL = findCol_(map, ["login", "usuario"]);
+  var cN = findCol_(map, ["nome"]);
+  var cS = findCol_(map, ["senha"]);
+  var cP = findCol_(map, ["perfil", "perfilacesso"]);
+  var cE = findCol_(map, ["escritorio", "unidade"]);
+  var cA = findCol_(map, ["ativo"]);
+  if (cL < 0 || cS < 0) return { ok: false, error: "Usuarios precisa de login e senha" };
+  var data = sh.getDataRange().getValues();
+  for (var i = HEADER_ROW; i < data.length; i++) {
+    if (norm(data[i][cL]) === norm(login)) return { ok: false, error: "login ja existe" };
+  }
+  var row = new Array(headers.length).fill("");
+  row[cL] = login;
+  if (cN >= 0) row[cN] = nome;
+  row[cS] = hashSenha(senha);
+  if (cP >= 0) row[cP] = perfil || "operador";
+  if (cE >= 0) row[cE] = escritorio || "";
+  if (cA >= 0) row[cA] = "sim";
+  sh.getRange(sh.getLastRow() + 1, 1, 1, headers.length).setValues([row]);
+  return { ok: true, login: login };
+}
+
+function doAuth_(body) {
+  var login = norm(body.usuario || body.login || body.email);
   var pass = String(body.senha || "");
   if (!login || !pass) return { ok: false, error: "informe usuario e senha" };
-  var sh = usuariosSheet();
-  if (!sh) return { ok: false, error: "falta a aba 'Usuarios' na planilha (login | nome | senha | perfil | escritorio | ativo)" };
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) { return norm(h); });
-  function col(aliases) {
-    for (var a = 0; a < aliases.length; a++)
-      for (var c = 0; c < headers.length; c++)
-        if (headers[c] === aliases[a]) return c;
-    return -1;
-  }
-  var cL = col(["login", "usuario"]);
-  var cEml = col(["email", "e-mail", "mail"]);
-  var cN = col(["nome"]);
-  var cS = col(["senha"]);
-  var cP = col(["perfil", "perfilacesso"]);
-  var cE = col(["escritorio", "unidade"]);
-  var cA = col(["ativo"]);
-  if (cL < 0 || cS < 0) return { ok: false, error: "Usuarios precisa das colunas login e senha" };
+
+  var sh = getUsersSheet_();
+  var headers = headers_(sh);
+  var map = headerMap_(headers);
+  var cL = findCol_(map, ["login", "usuario"]);
+  var cEml = findCol_(map, ["email", "e-mail", "mail"]);
+  var cN = findCol_(map, ["nome"]);
+  var cS = findCol_(map, ["senha"]);
+  var cP = findCol_(map, ["perfil", "perfilacesso"]);
+  var cE = findCol_(map, ["escritorio", "unidade"]);
+  var cA = findCol_(map, ["ativo"]);
+  if (cL < 0 || cS < 0) return { ok: false, error: "Usuarios precisa de login e senha" };
+
   var data = sh.getDataRange().getValues();
   var found = null;
-  var isEmailInput = String(body.usuario || "").indexOf("@") >= 0;
-  var rawEmailInput = String(body.usuario || "").trim().toLowerCase();
+  var emailInput = String(body.usuario || body.login || "").indexOf("@") >= 0;
   for (var i = HEADER_ROW; i < data.length; i++) {
     var v = data[i];
-    var u = norm(v[cL]);
-    var ativo = norm(v[cA >= 0 ? cA : 0]);
-    var match = false;
-    if (u && u === login) {
-      match = true;
-    } else if (isEmailInput && cEml >= 0) {
-      var storedEmail = String(v[cEml] || "").trim().toLowerCase();
-      if (storedEmail && storedEmail === rawEmailInput) {
-        match = true;
-      }
+    var match = norm(v[cL]) === login;
+    if (!match && emailInput && cEml >= 0) match = String(v[cEml] || "").trim().toLowerCase() === String(body.usuario || body.login || "").trim().toLowerCase();
+    if (!match) continue;
+    if (cA >= 0) {
+      var ativo = norm(v[cA]);
+      if (ativo === "nao" || ativo === "false" || ativo === "0" || ativo === "inativo") return { ok: false, error: "usuario inativo" };
     }
-    if (match) {
-      if (cA >= 0 && (ativo === "nao" || ativo === "false" || ativo === "0" || ativo === "inativo")) {
-        return { ok: false, error: "usuario inativo" };
-      }
-      found = v; break;
-    }
+    found = v;
+    break;
   }
   if (!found) return { ok: false, error: "usuario ou senha invalidos" };
-  var stored = String(found[cS] || "");
-  var passHash = hashSenha(pass);
-  if (passHash !== stored && hashSenha(passHash) !== stored) return { ok: false, error: "usuario ou senha invalidos" };
+  if (hashSenha(pass) !== String(found[cS] || "")) return { ok: false, error: "usuario ou senha invalidos" };
+
   var token = Utilities.getUuid() + Utilities.getUuid();
-  var sessLogin = (cEml >= 0 && isEmailInput) ? String(found[cEml] || "").trim().toLowerCase() : login;
   var sess = {
-    u: sessLogin,
+    u: String(found[cL] || login),
     nome: String(found[cN >= 0 ? cN : 0] || login),
-    perfil: String(found[cP >= 0 ? cP : 0] || "assistente"),
+    perfil: String(found[cP >= 0 ? cP : 0] || "operador"),
     escritorio: String(found[cE >= 0 ? cE : 0] || ""),
     exp: Date.now() + SESS_DURATION_MS
   };
   PropertiesService.getScriptProperties().setProperty(SESS_PREFIX + token, JSON.stringify(sess));
-  pruneSessions();
-  return { ok: true, token: token, user: publicUser(sess) };
+  pruneSessions_();
+  return { ok: true, token: token, user: publicUser_(sess) };
 }
 
-function pruneSessions() {
-  var props = PropertiesService.getScriptProperties();
-  var keys = props.getKeys();
-  var now = Date.now();
-  for (var i = 0; i < keys.length; i++) {
-    if (keys[i].indexOf(SESS_PREFIX) === 0) {
-      try {
-        var s = JSON.parse(props.getProperty(keys[i]));
-        if (s && s.exp && s.exp < now) props.deleteProperty(keys[i]);
-      } catch (_) {}
-    }
-  }
-}
-
-function getSess(token) {
+function getSess_(token) {
   if (!token) return null;
+  var raw = PropertiesService.getScriptProperties().getProperty(SESS_PREFIX + String(token));
+  if (!raw) return null;
   try {
-    var props = PropertiesService.getScriptProperties();
-    var raw = props.getProperty(SESS_PREFIX + String(token));
-    if (!raw) return null;
     var s = JSON.parse(raw);
-    if (s && typeof s.exp === "number" && s.exp > Date.now()) return s;
-    props.deleteProperty(SESS_PREFIX + String(token));
-    return null;
-  } catch (_) { return null; }
+    if (s && s.exp > Date.now()) return s;
+  } catch (_) {}
+  try { PropertiesService.getScriptProperties().deleteProperty(SESS_PREFIX + String(token)); } catch (_) {}
+  return null;
 }
 
-function touchSess(token) {
+function touchSess_(token) {
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(SESS_PREFIX + String(token));
+  if (!raw) return;
   try {
-    var props = PropertiesService.getScriptProperties();
-    var raw = props.getProperty(SESS_PREFIX + String(token));
-    if (!raw) return;
     var s = JSON.parse(raw);
     s.exp = Date.now() + SESS_DURATION_MS;
     props.setProperty(SESS_PREFIX + String(token), JSON.stringify(s));
   } catch (_) {}
 }
 
-function isAtivo(login) {
-  var sh = usuariosSheet();
-  if (!sh) return false;
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) { return norm(h); });
-  var cL = -1, cA = -1;
-  for (var i = 0; i < headers.length; i++) {
-    if (headers[i] === "login" || headers[i] === "usuario") cL = i;
-    if (headers[i] === "ativo") cA = i;
-  }
-  if (cL < 0) return false;
-  var data = sh.getDataRange().getValues();
-  for (var r = HEADER_ROW; r < data.length; r++) {
-    if (norm(data[r][cL]) === norm(login)) {
-      if (cA < 0) return true;
-      var v = norm(data[r][cA]);
-      return !(v === "nao" || v === "false" || v === "0" || v === "inativo");
-    }
-  }
-  return false;
+function pruneSessions_() {
+  var props = PropertiesService.getScriptProperties();
+  var keys = props.getKeys();
+  var now = Date.now();
+  keys.forEach(function (k) {
+    if (k.indexOf(SESS_PREFIX) !== 0) return;
+    try {
+      var s = JSON.parse(props.getProperty(k));
+      if (!s || s.exp <= now) props.deleteProperty(k);
+    } catch (_) {}
+  });
 }
 
-function validSess(body) {
-  var us = getSess(body.sess);
+function validSess_(token) {
+  var us = getSess_(token);
   if (!us) return { err: "sessao invalida ou expirada" };
-  if (!isAtivo(us.u)) {
-    try { PropertiesService.getScriptProperties().deleteProperty(SESS_PREFIX + String(body.sess)); } catch (_) {}
-    return { err: "usuario banido" };
-  }
-  touchSess(body.sess);
+  touchSess_(token);
   return { us: us };
 }
 
-function listUsers() {
-  var sh = usuariosSheet();
-  if (!sh) return { ok: false, error: "falta aba Usuarios" };
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) { return norm(h); });
-  function col(aliases) {
-    for (var a = 0; a < aliases.length; a++)
-      for (var c = 0; c < headers.length; c++)
-        if (headers[c] === aliases[a]) return c;
-    return -1;
-  }
-  var cL = col(["login", "usuario"]), cN = col(["nome"]), cP = col(["perfil", "perfilacesso"]),
-      cE = col(["escritorio", "unidade"]), cA = col(["ativo"]);
+function listUsers_() {
+  var sh = getUsersSheet_();
+  var headers = headers_(sh);
+  var map = headerMap_(headers);
+  var cL = findCol_(map, ["login", "usuario"]);
+  var cN = findCol_(map, ["nome"]);
+  var cP = findCol_(map, ["perfil", "perfilacesso"]);
+  var cE = findCol_(map, ["escritorio", "unidade"]);
+  var cA = findCol_(map, ["ativo"]);
   var data = sh.getDataRange().getValues();
   var users = [];
   for (var i = HEADER_ROW; i < data.length; i++) {
@@ -406,170 +799,43 @@ function listUsers() {
     users.push({
       login: login,
       nome: String(cN >= 0 ? v[cN] || "" : ""),
-      perfil: String(cP >= 0 ? v[cP] || "" : "assistente"),
+      perfil: String(cP >= 0 ? v[cP] || "" : "operador"),
       escritorio: String(cE >= 0 ? v[cE] || "" : ""),
-      ativo: (cA < 0) ? "sim" : String(v[cA] || "sim").trim()
+      ativo: String(cA >= 0 ? v[cA] || "sim" : "sim")
     });
   }
-  users.sort(function (a, b) { return String(a.login).localeCompare(String(b.login)); });
   return { ok: true, users: users };
 }
 
-function criarUsuarioServer(body, callAccess) {
-  var login = norm(body.login);
-  var senha = String(body.senha || "");
-  var nome = String(body.nome || login);
-  var perfil = String(body.perfil || "assistente");
+function criarUsuarioServer_(body, callerAccess) {
+  if (roleAccess(body.perfil || "operador") > callerAccess) return { ok: false, error: "perfil acima da sua permissao" };
+  return criarUsuario_(norm(body.login || body.usuario), String(body.nome || ""), String(body.senha || ""), String(body.perfil || "operador"), String(body.escritorio || ""));
+}
+
+function setUsuarioServer_(body, callerLogin, callerAccess) {
+  var login = norm(body.login || body.usuario);
   if (!login) return { ok: false, error: "login vazio" };
-  if (senha.length < 4) return { ok: false, error: "senha precisa de 4+ caracteres" };
-  if (roleAccess(perfil) > callAccess) return { ok: false, error: "perfil acima da sua permissao" };
-  var existe = readUserRow(login);
-  if (existe) return { ok: false, error: "login ja existe" };
-  var sh = usuariosSheet(true);
-  if (!sh) return { ok: false, error: "falta aba Usuarios" };
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) { return norm(h); });
-  function col(aliases) {
-    for (var a = 0; a < aliases.length; a++)
-      for (var c = 0; c < headers.length; c++)
-        if (headers[c] === aliases[a]) return c;
-    return -1;
-  }
-  var cL = col(["login", "usuario"]), cN = col(["nome"]), cS = col(["senha"]),
-      cP = col(["perfil", "perfilacesso"]), cE = col(["escritorio", "unidade"]), cA = col(["ativo"]);
-  if (cL < 0 || cS < 0) return { ok: false, error: "Usuarios precisa de login(senha)" };
-  var row = [];
-  for (var c = 0; c < lastCol; c++) row.push("");
-  if (cL >= 0) row[cL] = login;
-  if (cN >= 0) row[cN] = nome;
-  if (cS >= 0) row[cS] = hashSenha(senha);
-  if (cP >= 0) row[cP] = perfil;
-  if (cE >= 0) row[cE] = String(body.escritorio || "");
-  if (cA >= 0) row[cA] = "sim";
-  var r = sh.getLastRow() + 1;
-  sh.getRange(r, 1, 1, lastCol).setValues([row]);
-  return { ok: true, login: login, perfil: perfil };
-}
-
-function setUsuarioServer(body, callerLogin, callAccess) {
-  var login = norm(body.login);
-  if (!login) return { ok: false, error: "login vazio" };
-  var t = readUserRow(login);
-  if (!t) return { ok: false, error: "usuario nao encontrado" };
-  var sh = t.sh;
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) { return norm(h); });
-  function col(aliases) {
-    for (var a = 0; a < aliases.length; a++)
-      for (var c = 0; c < headers.length; c++)
-        if (headers[c] === aliases[a]) return c;
-    return -1;
-  }
-  var targetPerfil = "assistente";
-  var cP0 = col(["perfil", "perfilacesso"]);
-  if (cP0 >= 0) targetPerfil = String(t.data[cP0] || "assistente");
-  if (roleAccess(targetPerfil) > callAccess) return { ok: false, error: "esse usuario esta acima da sua permissao" };
-  var cA = col(["ativo"]);
-  var cN = col(["nome"]), cP = col(["perfil", "perfilacesso"]), cE = col(["escritorio", "unidade"]);
-  var ativo = String(body.ativo || "").trim().toLowerCase();
-  if (ativo === "nao" && login === callerLogin) return { ok: false, error: "voce nao pode banir a si mesmo" };
-  if (body.perfil && String(body.perfil).trim()) {
-    if (roleAccess(body.perfil) > callAccess) return { ok: false, error: "perfil acima da sua permissao" };
-    if (cP >= 0) sh.getRange(t.row, cP + 1).setValue(String(body.perfil).trim());
-  }
-  if (body.nome !== undefined && cN >= 0) sh.getRange(t.row, cN + 1).setValue(String(body.nome).trim());
-  if (body.escritorio !== undefined && cE >= 0) sh.getRange(t.row, cE + 1).setValue(String(body.escritorio).trim());
-  if (ativo === "sim" || ativo === "nao") {
-    if (cA < 0) return { ok: false, error: "Usuarios precisa da coluna ativo" };
-    sh.getRange(t.row, cA + 1).setValue(ativo === "sim" ? "sim" : "nao");
-  }
-  return { ok: true, login: login, ativo: ativo || "", perfil: body.perfil || targetPerfil };
-}
-
-function readAll(us) {
-  var sh = getSheet();
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h || "").trim(); });
+  var sh = getUsersSheet_();
+  var headers = headers_(sh);
+  var map = headerMap_(headers);
+  var cL = findCol_(map, ["login", "usuario"]);
+  var cN = findCol_(map, ["nome"]);
+  var cP = findCol_(map, ["perfil", "perfilacesso"]);
+  var cE = findCol_(map, ["escritorio", "unidade"]);
+  var cA = findCol_(map, ["ativo"]);
   var data = sh.getDataRange().getValues();
-  var minhas = [];
-  var todas = [];
-  var u = norm(us.u);
-  var un = norm(us.nome);
-  var respIdx = -1;
-  var isAdmin = roleAccess(us.perfil) >= 20;
-  for (var c = 0; c < headers.length; c++) if (norm(headers[c]) === norm(OWNER_FIELD)) { respIdx = c; break; }
-  for (var i = HEADER_ROW + 1; i < data.length; i++) {
-    var line = data[i];
-    var has = false;
-    for (var q = 0; q < lastCol; q++) if (String(line[q] || "").trim() !== "") { has = true; break; }
-    if (!has) continue;
-    var cells = line.slice(0, lastCol);
-    var owner = (respIdx >= 0) ? String(line[respIdx] || "").trim() : "";
-    var ownerN = norm(owner);
-    todas.push(cells);
-    if (isAdmin || ownerN === "" || ownerN === u || ownerN === un) minhas.push(cells);
+  var row = -1;
+  for (var i = HEADER_ROW; i < data.length; i++) {
+    if (norm(data[i][cL]) === login) { row = i + 1; break; }
   }
-  return { ok: true, headers: headers, minhas: minhas, todas: todas, user: publicUser(us), v: "6.2" };
-}
-
-function writeRows(rowsIn, us) {
-  var sh = getSheet();
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var headers = sh.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h || "").trim(); });
-  var keyIdx = -1;
-  for (var ci = 0; ci < headers.length; ci++) {
-    var hn = norm(headers[ci]);
-    if (/protocolo|cnj|processo|numero/.test(hn)) { keyIdx = ci; break; }
+  if (row < 0) return { ok: false, error: "usuario nao encontrado" };
+  if (body.perfil && roleAccess(body.perfil) > callerAccess) return { ok: false, error: "perfil acima da sua permissao" };
+  if (body.nome !== undefined && cN >= 0) sh.getRange(row, cN + 1).setValue(String(body.nome));
+  if (body.perfil && cP >= 0) sh.getRange(row, cP + 1).setValue(String(body.perfil));
+  if (body.escritorio !== undefined && cE >= 0) sh.getRange(row, cE + 1).setValue(String(body.escritorio));
+  if (body.ativo === "sim" || body.ativo === "nao") {
+    if (login === callerLogin && body.ativo === "nao") return { ok: false, error: "voce nao pode banir a si mesmo" };
+    if (cA >= 0) sh.getRange(row, cA + 1).setValue(body.ativo);
   }
-  if (keyIdx < 0) return { ok: false, error: "coluna-chave (Protocolo/CNJ) nao encontrada" };
-  var respIdx = -1;
-  for (var c2 = 0; c2 < headers.length; c2++) if (norm(headers[c2]) === norm(OWNER_FIELD)) { respIdx = c2; break; }
-  var data = sh.getDataRange().getValues();
-  var map = {};
-  for (var i = HEADER_ROW + 1; i < data.length; i++) {
-    var k = String(data[i][keyIdx] || "").replace(/\D/g, "");
-    if (k) map[k] = i + 1;
-  }
-  var u = norm(us.u);
-  var un = norm(us.nome);
-  var updated = 0, added = 0; var rejected = [];
-  var isAdmin = roleAccess(us.perfil) >= 20;
-  for (var r = 0; r < rowsIn.length; r++) {
-    var rec = rowsIn[r] || {};
-    var key = String(rec[KEY_COL] || rec.protocolo || "").replace(/\D/g, "");
-    if (!key) { rejected.push({ protocolo: "", motivo: "sem chave" }); continue; }
-    var row = map[key] || null;
-    if (!row) {
-      row = sh.getLastRow() + 1;
-      var blank = [];
-      for (var bc = 0; bc < lastCol; bc++) blank.push("");
-      sh.getRange(row, 1, 1, lastCol).setValues([blank]);
-      map[key] = row;
-      if (respIdx >= 0) { // novo caso vira do criador
-        sh.getRange(row, respIdx + 1).setValue(us.u);
-      }
-      added++;
-    } else {
-      var ownerNow = (respIdx >= 0) ? norm(String(data[row - 1][respIdx] || "")) : "";
-      if (!isAdmin && ownerNow !== "" && ownerNow !== u && ownerNow !== un) {
-        rejected.push({ protocolo: key, motivo: "processo de outro responsavel" });
-        continue;
-      }
-    }
-    sh.getRange(row, keyIdx + 1).setValue(rec[KEY_COL] || key);
-    updated++;
-    for (var field in rec) {
-      if (norm(field) === norm(KEY_COL)) continue;
-      if (rec[field] === undefined || rec[field] === null) continue;
-      if (String(rec[field]) === "") continue;
-      var fNorm = norm(field);
-      for (var c = 0; c < headers.length; c++) {
-        if (norm(headers[c]) === fNorm) {
-          sh.getRange(row, c + 1).setValue(String(rec[field]));
-          break;
-        }
-      }
-    }
-  }
-  return { ok: true, updated: updated, added: added, rejected: rejected };
+  return { ok: true, login: login };
 }

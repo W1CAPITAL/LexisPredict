@@ -1,7 +1,6 @@
 /**
- * Cliente Sheets / Apps Script.
- * POST é o caminho primário porque suporta lote e preserva a linha inteira.
- * GET continua disponível para ping/list e para compatibilidade com deployments antigos.
+ * Cliente server-side do Apps Script.
+ * Banco (Supabase) é a fonte operacional; Sheets é apenas espelho incremental/Plano B.
  */
 import { HYBRID_SHEETS_ENV } from "./policy";
 
@@ -13,15 +12,11 @@ export type SheetsWriteRow = {
 function webhookUrl(): string {
   return String(
     process.env[HYBRID_SHEETS_ENV.webhook] || process.env.SHEETS_WEBHOOK_URL || "",
-  )
-    .trim()
-    .replace(/\/dev(\b|$)/, "/exec");
+  ).trim().replace(/\/dev(\b|$)/, "/exec");
 }
 
 function token(): string {
-  return String(
-    process.env[HYBRID_SHEETS_ENV.token] || process.env.SHEETS_TOKEN || "w1-fase1-2026",
-  ).trim();
+  return String(process.env[HYBRID_SHEETS_ENV.token] || process.env.SHEETS_TOKEN || "").trim();
 }
 
 export function sheetsWebhookConfigured(): boolean {
@@ -29,18 +24,13 @@ export function sheetsWebhookConfigured(): boolean {
   return !!u && /^https:\/\/script\.google\.com\//i.test(u);
 }
 
-function parseBody(text: string): { ok: boolean; json?: any; error?: string } {
+function parseBody(text: string) {
   const slice = text.slice(0, 500);
   if (/<!DOCTYPE html|<html/i.test(slice)) {
-    return {
-      ok: false,
-      error:
-        "Webhook do Google devolveu HTML. Verifique a implantação do Apps Script como Aplicativo da Web, acesso 'Qualquer pessoa' e URL /exec.",
-    };
+    return { ok: false, error: "Webhook Google devolveu HTML; use a implantação /exec do Apps Script." };
   }
-
   try {
-    const json = JSON.parse(text);
+    const json = JSON.parse(text || "{}");
     return { ok: !!(json?.ok ?? true), json };
   } catch {
     return { ok: false, error: "Resposta não-JSON do webhook: " + slice.slice(0, 180) };
@@ -50,50 +40,46 @@ function parseBody(text: string): { ok: boolean; json?: any; error?: string } {
 async function sheetsGet(params: Record<string, string>) {
   const url = webhookUrl();
   if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
-
   const q = new URLSearchParams({ token: token(), ...params });
   try {
     const res = await fetch(`${url}?${q.toString()}`, { method: "GET", redirect: "follow", cache: "no-store" });
-    const text = await res.text();
-    const parsed = parseBody(text);
+    const parsed = parseBody(await res.text());
     return { ...parsed, status: res.status };
   } catch (e: any) {
     return { ok: false, error: e?.message || "Falha GET Sheets" };
   }
 }
 
-async function sheetsPost(body: Record<string, unknown>) {
+async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500) {
   const url = webhookUrl();
   if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
-
+  if (!token()) return { ok: false, error: "LEXIS_SHEETS_TOKEN não configurado" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-        Accept: "application/json,text/plain,*/*",
-      },
+      headers: { "Content-Type": "text/plain;charset=utf-8", Accept: "application/json,text/plain,*/*" },
       body: JSON.stringify({ token: token(), ...body }),
       redirect: "follow",
       cache: "no-store",
+      signal: controller.signal,
     });
-    const text = await res.text();
-    const parsed = parseBody(text);
+    const parsed = parseBody(await res.text());
     return { ...parsed, status: res.status };
   } catch (e: any) {
-    return { ok: false, error: e?.message || "Falha POST Sheets" };
+    return { ok: false, error: e?.name === "AbortError" ? "Webhook Sheets excedeu 4,5s." : (e?.message || "Falha POST Sheets") };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 export async function sheetsServerPost(body: Record<string, unknown>) {
   const action = String(body.action || "ping");
-
-  // POST é obrigatório para escrita real em lote.
-  const post = await sheetsPost(body);
+  const post = await sheetsPost(body, action === "upsert_batch" ? 4500 : 3500);
   if (post.ok) return post;
 
-  // GET só é usado para operações sem payload grande. Não truncamos uma escrita
-  // para 1.500 caracteres, pois isso causa perda/corrupção de dados.
+  // GET somente para ping/list/get. Nunca convertemos escrita em GET.
   if (action !== "write" && action !== "upsert_batch") {
     const flat: Record<string, string> = { action };
     for (const [k, v] of Object.entries(body)) {
@@ -104,42 +90,32 @@ export async function sheetsServerPost(body: Record<string, unknown>) {
     if (get.ok) return get;
   }
 
-  return {
-    ok: false,
-    error: post.error || `Webhook HTTP ${post.status || 0}`,
-    status: post.status,
-  };
+  return { ok: false, error: post.error || `Webhook HTTP ${post.status || 0}`, status: post.status };
 }
 
-export async function sheetsListProcessos(opts?: {
-  empresaId?: string;
-  responsavel?: string;
-  limit?: number;
-}) {
-  const r = await sheetsServerPost({
-    action: "list",
-    empresaId: opts?.empresaId,
-    responsavel: opts?.responsavel,
-    limit: opts?.limit ?? 5000,
-  });
+export async function sheetsListProcessos(opts?: { empresaId?: string; responsavel?: string; limit?: number }) {
+  const r = await sheetsServerPost({ action: "list", empresaId: opts?.empresaId, responsavel: opts?.responsavel, limit: opts?.limit ?? 5000 });
   if (!r.ok) return { ok: false, rows: [], error: r.error };
   const rows = r.json?.rows || r.json?.processos || r.json?.data || [];
   return { ok: true, rows: Array.isArray(rows) ? rows : [] };
 }
 
 export async function sheetsWriteRows(rows: SheetsWriteRow[]) {
-  if (!rows.length) return { ok: true, updated: 0 };
-
+  if (!rows.length) return { ok: true, updated: 0, added: 0, written: 0 };
   const r = await sheetsServerPost({
-    action: "write",
+    action: "upsert_batch",
     rows,
     source: "LexisPredict",
+    actor: "sync",
+    actor_name: "LexisPredict",
+    perfil: "superadmin",
   });
-
-  if (!r.ok) return { ok: false, error: r.error, updated: 0 };
+  if (!r.ok) return { ok: false, error: r.error, updated: 0, added: 0, written: 0 };
   return {
     ok: true,
-    updated: Number(r.json?.updated ?? r.json?.inserted ?? rows.length),
+    updated: Number(r.json?.updated ?? 0),
+    added: Number(r.json?.added ?? 0),
+    written: Number(r.json?.written ?? (Number(r.json?.updated ?? 0) + Number(r.json?.added ?? 0))),
   };
 }
 

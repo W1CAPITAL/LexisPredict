@@ -30,8 +30,8 @@ type BatchResponse = {
 
 type Checkpoint = { cursor: string | null; processed: number; total: number; startedAt: number };
 const CHECKPOINT_KEY = "lexis_hybrid_sync_checkpoint_v4";
-const BATCH_SIZE = 75;
-const REQUEST_TIMEOUT_MS = 12_000;
+const BATCH_SIZE = 250;
+const REQUEST_TIMEOUT_MS = 45_000;
 
 function fmt(n: number) { return new Intl.NumberFormat("pt-BR").format(Math.max(0, n)); }
 function pct(done: number, total: number) { return total > 0 ? Math.min(100, (done / total) * 100) : 0; }
@@ -101,7 +101,7 @@ export function HybridStatusPanel() {
     setRunning(true);
     setStartedAt(start);
     setError("");
-    setMessage(force ? "Reiniciando sincronização..." : cp ? "Retomando do último lote confirmado..." : "Iniciando sincronização...");
+    setMessage(force ? "Reiniciando seed manual..." : cp ? "Retomando do último lote confirmado..." : "Iniciando seed manual...");
     setProcessed(done);
     setTotal(knownTotal);
 
@@ -145,7 +145,7 @@ export function HybridStatusPanel() {
           break;
         }
 
-        setMessage(`Sincronizando · ${fmt(done)} processos confirmados`);
+        setMessage(`Seed manual · ${fmt(done)} processos confirmados`);
       }
     } catch (e: any) {
       setMessage("Plano B interrompido; o Lexis continua funcionando pelo Supabase.");
@@ -190,10 +190,10 @@ export function HybridStatusPanel() {
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" disabled={running || !health?.sheetsWorking} onClick={() => void runSync(false)}>
-          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}<span className="ml-1">Sincronizar agora</span>
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}<span className="ml-1">Seed manual</span>
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={running || !health?.sheetsWorking} onClick={() => void runSync(true)}>
-          <RotateCcw className="h-4 w-4" /><span className="ml-1">Reiniciar seed</span>
+          <RotateCcw className="h-4 w-4" /><span className="ml-1">Forçar seed</span>
         </Button>
       </div>
 
