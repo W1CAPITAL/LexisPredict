@@ -52,6 +52,11 @@ export default function PlanoBPage() {
   const [headerDiag, setHeaderDiag] = useState("");
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [loadStage, setLoadStage] = useState<"idle" | "connecting" | "reading" | "processing" | "done" | "error">("idle");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [lastLoadMs, setLastLoadMs] = useState<number | null>(null);
+  const [lastLoadCount, setLastLoadCount] = useState<number | null>(null);
+  const [loadWarning, setLoadWarning] = useState("");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [ativo, setAtivo] = useState(false);
@@ -75,6 +80,18 @@ export default function PlanoBPage() {
       /* */
     }
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      setElapsedSeconds(0);
+      return;
+    }
+    setElapsedSeconds(0);
+    const id = window.setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [loading]);
 
   const persistRows = (list: PlanoBRow[], label: string) => {
     setRows(list);
@@ -112,15 +129,37 @@ export default function PlanoBPage() {
     });
   };
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Tempo limite excedido (${Math.round(ms / 1000)}s). Verifique a conexão com o Supabase/Google Sheets.`)), ms);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+
   const loadFromUrl = useCallback(async () => {
     if (!url.trim()) {
       toast({ title: "Cole o link da planilha", variant: "destructive" });
       return;
     }
+    const startedAt = Date.now();
     setLoading(true);
+    setLastLoadMs(null);
+    setLastLoadCount(null);
+    setLoadWarning("");
+    setLoadStage("connecting");
     try {
-      const r = await loadPlanoBFromSheetsAction(url.trim());
+      setLoadStage("reading");
+      const r = await withTimeout(loadPlanoBFromSheetsAction(url.trim()), 45000);
       if (!r.success) {
+        setLoadStage("error");
+        setLoadWarning(r.error || "Não foi possível ler a fonte.");
         toast({
           title: "Falha ao ler URL",
           description:
@@ -130,8 +169,31 @@ export default function PlanoBPage() {
         });
         return;
       }
-      persistRows(r.rows, `Google Sheets · ${r.count} linhas`);
-      toast({ title: "Planilha carregada", description: `${r.count} processos` });
+
+      setLoadStage("processing");
+      const count = Number(r.count ?? r.rows?.length ?? 0);
+      persistRows(r.rows, `Google Sheets · ${count} linhas`);
+      setLastLoadCount(count);
+      setLastLoadMs(Date.now() - startedAt);
+
+      if (count === 0) {
+        setLoadWarning("A fonte respondeu sem processos. Verifique se o link aponta para a aba/range correto.");
+      } else if (count < 100) {
+        setLoadWarning(
+          `A fonte retornou apenas ${count} linhas. Isso é parcial para uma carteira com milhares de processos; o backend do Plano B precisa paginar/buscar em lotes.`
+        );
+      }
+
+      setLoadStage("done");
+      toast({ title: "Planilha carregada", description: `${count} processos recebidos` });
+    } catch (err: any) {
+      setLoadStage("error");
+      setLoadWarning(err?.message || String(err));
+      toast({
+        title: "Plano B não concluiu a leitura",
+        description: err?.message || String(err),
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -350,6 +412,42 @@ export default function PlanoBPage() {
               Fonte: {sourceLabel}
             </p>
           ) : null}
+
+          <div className="rounded-xl border border-border bg-card px-3 py-2 text-[10px]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-black uppercase tracking-wider">Conexão Plano B</span>
+              <span className={loadStage === "error" ? "text-red-600 font-bold" : loadStage === "done" ? "text-emerald-600 font-bold" : "text-muted-foreground font-bold"}>
+                {loadStage === "connecting"
+                  ? "Conectando…"
+                  : loadStage === "reading"
+                  ? "Lendo fonte…"
+                  : loadStage === "processing"
+                  ? "Processando…"
+                  : loadStage === "done"
+                  ? "Concluído"
+                  : loadStage === "error"
+                  ? "Falha"
+                  : rows.length
+                  ? "Dados em cache"
+                  : "Aguardando"}
+              </span>
+              {lastLoadCount != null ? <span>Último retorno: <b>{lastLoadCount}</b> linhas</span> : null}
+              {lastLoadMs != null ? <span>Tempo: <b>{(lastLoadMs / 1000).toFixed(1)}s</b></span> : null}
+            </div>
+            {loading ? (
+              <div className="mt-2">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full w-1/3 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-foreground/60" />
+                </div>
+                <p className="mt-1 text-muted-foreground">
+                  {`Executando há ${elapsedSeconds}s…`}
+                </p>
+              </div>
+            ) : null}
+            {loadWarning ? (
+              <p className="mt-2 font-semibold text-amber-700 dark:text-amber-400">{loadWarning}</p>
+            ) : null}
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             <Kpi label="Total" value={kpis.total} />
