@@ -1,6 +1,6 @@
 /**
- * LexisPredict — middleware de sessão Supabase + segurança + ACL.
- * Compatível com @supabase/ssr atual: usa exclusivamente getAll/setAll.
+ * LexisPredict — middleware unificado
+ * Sessão Supabase + headers de segurança + ACL de rotas.
  */
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
@@ -28,13 +28,14 @@ function applySecurityHeaders(res: NextResponse) {
       'Content-Security-Policy',
       [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
         "worker-src 'self' blob:",
+        "child-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: blob: https:",
         "font-src 'self' https://fonts.gstatic.com data:",
-        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com",
-        "frame-src 'self' blob: https://*.highrevenueformat.com https://www.highrevenueformat.com https://www.profitableratecpmnetwork.com",
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
+        "frame-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://*.highrevenueformat.com",
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'",
@@ -42,7 +43,6 @@ function applySecurityHeaders(res: NextResponse) {
       ].join('; '),
     )
   }
-
   return res
 }
 
@@ -55,10 +55,10 @@ export async function middleware(request: NextRequest) {
     path.includes('manifest.json') ||
     path.includes('favicon.ico')
 
-  // Pequeno rate limit para login/signup, sem interferir nas demais rotas.
   if (path === '/login' || path === '/signup') {
     const hits = Number(request.cookies.get('lexis_login_hits')?.value || '0')
     const maxHits = request.method === 'POST' ? 25 : 60
+
     if (hits > maxHits) {
       const blocked = NextResponse.json(
         { error: 'Muitas tentativas. Aguarde alguns minutos.' },
@@ -73,6 +73,7 @@ export async function middleware(request: NextRequest) {
       })
       return applySecurityHeaders(blocked)
     }
+
     if (request.method === 'POST') {
       response.cookies.set('lexis_login_hits', String(hits + 1), {
         httpOnly: true,
@@ -94,39 +95,17 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set({ name, value, ...options })
-          })
-
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
-
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-              httpOnly: options.httpOnly ?? true,
-              sameSite: options.sameSite ?? 'lax',
-              secure: process.env.NODE_ENV === 'production' ? true : options.secure,
-            })
-          })
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request: { headers: request.headers } })
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+          response.headers.set('Cache-Control', 'private, no-store')
         },
       },
     })
 
-    let user = null
-    try {
-      const result = await supabase.auth.getUser()
-      user = result.data.user
-    } catch {
-      // Falha de auth não pode quebrar o restante do app; a página poderá
-      // redirecionar para login pelo estado de usuário abaixo.
-      user = null
-    }
-
+    const { data: { user } } = await supabase.auth.getUser()
     const isAuthPage = path === '/login' || path === '/signup'
+
     if (!user && !isAuthPage) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/login'

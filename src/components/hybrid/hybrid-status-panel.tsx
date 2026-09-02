@@ -73,8 +73,19 @@ export function HybridStatusPanel() {
   }, []);
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CHECKPOINT_KEY);
+      if (raw) {
+        const cp = JSON.parse(raw) as Checkpoint;
+        // Checkpoints from an abandoned seed are not resumed automatically.
+        // They may be cleared by the user with a new explicit seed if needed.
+        if (!cp?.startedAt || Date.now() - Number(cp.startedAt) > 10 * 60 * 1000) {
+          localStorage.removeItem(CHECKPOINT_KEY);
+        }
+      }
+    } catch {}
     void refreshHealth();
-    const id = window.setInterval(() => void refreshHealth(), 30_000);
+    const id = window.setInterval(() => void refreshHealth(), 60_000);
     return () => window.clearInterval(id);
   }, [refreshHealth]);
 

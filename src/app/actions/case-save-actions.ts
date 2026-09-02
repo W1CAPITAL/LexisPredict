@@ -21,6 +21,77 @@ function overlayDefined(base: Record<string, any>, patch: Record<string, any>) {
   return out;
 }
 
+async function existingFromDatabase(empresaId: string, protocolo: string): Promise<Record<string, any> | null> {
+  const admin = await getSupabaseAdmin();
+  const key = String(protocolo || '').trim();
+  if (!key) return null;
+  const { data, error } = await admin
+    .from('processos')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .eq('protocolo_ref', key)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as Record<string, any> | null) || null;
+}
+
+async function persistToDatabase(
+  empresaId: string,
+  processed: Record<string, any>,
+  existing: Record<string, any> | null,
+  actorId: string | null,
+  actorName: string,
+): Promise<{ success: boolean; message?: string; data?: any }> {
+  const admin = await getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const protocolo = String(processed.protocolo || processed.protocolo_ref || '').trim();
+  if (!protocolo) return { success: false, message: 'Protocolo obrigatório.' };
+
+  const previousDados = existing?.dados && typeof existing.dados === 'object' ? existing.dados : {};
+  const mergedDados = {
+    ...previousDados,
+    ...Object.fromEntries(Object.entries(processed).filter(([, v]) => v !== undefined)),
+    edited_by: actorId,
+    edited_by_name: actorName,
+    edited_at: now,
+  };
+
+  const payload: Record<string, any> = {
+    empresa_id: empresaId,
+    protocolo_ref: protocolo,
+    dados: mergedDados,
+    updated_at: now,
+  };
+
+  const directFields: Record<string, string> = {
+    status: 'status',
+    status_interno: 'situacao',
+    created_by: 'created_by',
+    atendido_por: 'atendido_por',
+    ultimo_retorno: 'ultimo_retorno',
+    proximo_retorno: 'proximo_retorno',
+    observacoes: 'observacoes',
+    datajud_ultimo_movimento: 'datajud_ultimo_movimento',
+    datajud_ultimo_nome: 'datajud_ultimo_nome',
+    datajud_encerrado_tribunal: 'datajud_encerrado_tribunal',
+    djen_ultimo_resumo: 'djen_ultimo_resumo',
+    em_cumprimento_sentenca: 'em_cumprimento_sentenca',
+  };
+  for (const [dbKey, sourceKey] of Object.entries(directFields)) {
+    if (processed[sourceKey] !== undefined) payload[dbKey] = processed[sourceKey];
+  }
+
+  if (existing?.id) {
+    const { data, error } = await admin.from('processos').update(payload).eq('id', existing.id).select('*').maybeSingle();
+    if (error) return { success: false, message: error.message };
+    return { success: true, data };
+  }
+
+  const { data, error } = await admin.from('processos').insert(payload).select('*').maybeSingle();
+  if (error) return { success: false, message: error.message };
+  return { success: true, data };
+}
+
 function buildSheetRow(
   processed: any,
   empresaId: string,
