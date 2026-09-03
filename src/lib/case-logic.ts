@@ -141,19 +141,13 @@ export interface LegalCase {
   djen_count?: number;
 
 
-  // Procedência / cumprimento (motor DataJud)
-  is_procedente?: boolean;
-  procedente_motivo?: string | null;
-  cumprimento_pendente_necessario?: boolean;
-  data_transito_julgado?: string | null;
-  detalhes_execucao?: any;
   viaEncerrarHumano?: boolean;
   via_scan_auto_encerrar?: boolean;
+
   // Auditoria de edição
   edited_by?: string;
   edited_at?: string;
   edited_by_name?: string;
-  viaEncerrarHumano?: boolean;
 }
 
 export type CaseNote = {
