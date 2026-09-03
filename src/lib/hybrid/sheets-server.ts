@@ -9,6 +9,51 @@ export type SheetsWriteRow = {
   [key: string]: string | boolean | number | null | undefined | Record<string, unknown>;
 };
 
+export type AtendimentoMirrorResult = {
+  ok: boolean;
+  attempted: boolean;
+  reason?: string;
+  updated?: number;
+  added?: number;
+  written?: number;
+};
+
+export function buildAtendimentoMirrorRow(input: {
+  protocolo: string;
+  empresaId: string;
+  ultimoRetorno: string;
+  proximoPrazo: string | null;
+  observacao: string;
+  situacao: string;
+  actorId?: string | null;
+  actorName?: string;
+}) : SheetsWriteRow {
+  return {
+    protocolo: input.protocolo,
+    Protocolo: input.protocolo,
+    empresa_id: input.empresaId,
+    EmpresaId: input.empresaId,
+    UltimoRetorno: input.ultimoRetorno,
+    Retorno: input.ultimoRetorno,
+    ProximoRetorno: input.proximoPrazo,
+    Prazo: input.proximoPrazo,
+    Observacao: input.observacao,
+    Situacao: input.situacao,
+    AtendidoPor: input.actorName || input.actorId || null,
+    Responsavel: input.actorName || input.actorId || null,
+    atendido_por: input.actorId || null,
+    edited_by: input.actorId || null,
+  };
+}
+
+export async function mirrorAtendimento(input: Parameters<typeof buildAtendimentoMirrorRow>[0]): Promise<AtendimentoMirrorResult> {
+  if (!sheetsWebhookConfigured()) return { ok: false, attempted: false, reason: "Sheets não configurado." };
+  const result = await sheetsWriteRows([buildAtendimentoMirrorRow(input)]);
+  return result.ok
+    ? { ok: true, attempted: true, updated: result.updated, added: result.added, written: result.written }
+    : { ok: false, attempted: true, reason: result.error || "Sheets não confirmou o espelhamento." };
+}
+
 function webhookUrl(): string {
   return String(
     process.env[HYBRID_SHEETS_ENV.webhook] || process.env.SHEETS_WEBHOOK_URL || "",
