@@ -1735,7 +1735,7 @@ export async function reclassificarExecutivoCarteiraAction() {
           djenTextos
         );
 
-        const patch: Record<string, any> = {
+        let patch: Record<string, any> = {
           is_procedente: r.is_procedente,
           procedente_motivo: r.procedente_motivo,
           em_cumprimento_sentenca: r.em_cumprimento_sentenca,
