@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-
-=======
 "use server";
 
 /**
@@ -18,4 +15,4 @@ export async function autoEncerrarSeAplicavelAction(_input?: {
     message: "Auto-encerrar desativado.",
   };
 }
->>>>>>> 24954b7236a4afb2cba4482042c47b9fa86183c3
+
