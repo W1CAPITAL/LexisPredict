@@ -233,7 +233,7 @@ export default function ProcessosEmpresaPage() {
   // Busca no banco (empresa inteira) quando há texto — a lista local só tem ~300
   useEffect(() => {
     const q = qDebounced.trim();
-    if (!q || q.length < 3) {
+    if (!q || q.length < 2) {
       setSearchHits(null);
       return;
     }
@@ -534,9 +534,10 @@ export default function ProcessosEmpresaPage() {
 
   const filtered = useMemo(() => {
     const query = qDebounced.toLowerCase().trim();
-    // Busca só substitui a lista se o servidor devolveu linhas.
-    // searchHits=[] (falha / filtro velho no localStorage) NÃO esvazia a carteira.
-    const base = query.length >= 3 && searchHits && searchHits.length > 0 ? searchHits : cases;
+  // Enquanto há uma busca ativa, a resposta do servidor é a fonte da lista,
+  // inclusive quando vazia. Cair de volta para `cases` fazia parecer que a
+  // busca por nome não funcionava e podia mostrar processos incorretos.
+  const base = query.length >= 2 && searchHits !== null ? searchHits : cases;
     let list = base.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;

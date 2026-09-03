@@ -15,10 +15,6 @@ function normalizeCnjDisplay(digits: string): string {
   return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
 }
 
-function safeOr(parts: string[]): string {
-  return parts.filter(Boolean).join(",");
-}
-
 export async function searchCompanyProcessosAction(query: string): Promise<{
   ok: boolean;
   cases: any[];
@@ -109,14 +105,23 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
       `dados->>TELEFONE.ilike.%${q}%`,
     ];
 
-    const textRows = await admin
-      .from("processos")
-      .select("*")
-      .eq("empresa_id", empresaId)
-      .or(safeOr(textColumns))
-      .limit(200);
-
-    for (const row of textRows.data || []) found.set(String(row.id), row);
+    // Não use `.or()` com operadores JSON aqui: versões/configurações do
+    // PostgREST podem rejeitar a expressão inteira e devolver zero resultados.
+    // Consultas independentes são um pouco mais previsíveis e os resultados
+    // continuam deduplicados pelo Map.
+    const textResults = await Promise.all(
+      textColumns.map((filter) =>
+        admin
+          .from("processos")
+          .select("*")
+          .eq("empresa_id", empresaId)
+          .or(filter)
+          .limit(200)
+      )
+    );
+    for (const result of textResults) {
+      for (const row of result.data || []) found.set(String(row.id), row);
+    }
 
     const cases: any[] = [];
     for (const row of found.values()) {
