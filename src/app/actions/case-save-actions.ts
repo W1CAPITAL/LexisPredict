@@ -521,13 +521,17 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
     }) || Boolean(isSupervisor) || Boolean(isSuperAdmin);
     if (!canTransfer) return { success: false, message: SUPERVISAO_REQUIRED };
 
+    const { data: target } = await admin.from('usuarios').select('auth_user_id').eq('empresa_id', empresa_id).eq('auth_user_id', novo).maybeSingle();
+    if (!target?.auth_user_id) return { success: false, message: 'Responsável não encontrado na empresa.' };
+
     const { data: current } = await admin.from('processos').select('*').eq('empresa_id', empresa_id).eq('protocolo_ref', protocolo).maybeSingle();
     if (!current) return { success: false, message: 'Processo não encontrado na carteira.' };
 
     const now = new Date().toISOString();
     const dados = { ...(current.dados || {}), created_by: novo, owner_updated_by: auth_id, owner_updated_at: now, edited_by: auth_id, edited_at: now };
-    const { error } = await admin.from('processos').update({ created_by: novo, dados, updated_at: now }).eq('empresa_id', empresa_id).eq('protocolo_ref', protocolo);
+    const { data: updated, error } = await admin.from('processos').update({ created_by: novo, dados, updated_at: now }).eq('id', current.id).select('id,created_by').maybeSingle();
     if (error) return { success: false, message: error.message };
+    if (!updated || String(updated.created_by) !== novo) return { success: false, message: 'A transferência não foi persistida.' };
 
     if (sheetsWebhookConfigured()) {
       const row = buildSheetRow({ ...(current.dados || {}), protocolo, created_by: novo, edited_by: auth_id, edited_at: now }, empresa_id, auth_id, String((me as any)?.nome || auth_id), { ...current, dados });

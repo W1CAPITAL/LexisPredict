@@ -278,14 +278,11 @@ export default function ProcessosEmpresaPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const r = await backfillEncerradosHojeAction();
-        if (cancelled || !r?.success || !r.updated) return;
-        await load();
+    void backfillEncerradosHojeAction().then((r) => {
+      if (!cancelled && r?.success && r.updated) {
         toast({ title: "Encerrados de hoje contabilizados", description: `${r.updated} processo(s)` });
-      } catch { /* */ }
-    })();
+      }
+    }).catch(() => { /* atualização auxiliar não bloqueia a carteira */ });
     return () => { cancelled = true; };
   }, []);
 
