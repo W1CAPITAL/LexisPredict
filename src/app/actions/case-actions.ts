@@ -1154,9 +1154,10 @@ export async function registrarAtendimentoCompletoAction(input: {
     }
 
     try {
-      const { hybridEnabled } = await import('@/lib/hybrid/policy');
+      // Registrar atendimento SEMPRE espelha retorno + atendente na planilha quando o
+      // webhook está configurado — independe do modo híbrido de LEITURA (db-first default).
       const { sheetsWebhookConfigured, sheetsWriteRows } = await import('@/lib/hybrid/sheets-server');
-      if (hybridEnabled() && sheetsWebhookConfigured()) {
+      if (sheetsWebhookConfigured()) {
         let atendenteNome = auth_id || '';
         try {
           const { getSupabaseAdmin } = await import('@/lib/server-db');

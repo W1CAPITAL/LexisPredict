@@ -862,7 +862,8 @@ export default function SettingsPage() {
               )}
 
               {activeTab === 'Menu' && (
-                <div className="max-w-2xl space-y-6 animate-in fade-in duration-500">
+                <div className="max-w-3xl space-y-6 animate-in fade-in duration-500">
+                  <NavLayoutNomePanel />
                   <div className="flex items-center gap-2">
                     <Layout size={14} className="text-primary" />
                     <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Personalizacao do Menu Lateral</Label>
