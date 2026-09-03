@@ -193,28 +193,24 @@ export default function ProcessosEmpresaPage() {
       setTotalCount(Number(res?.totalCount) || list.length);
       let rankList = Array.isArray(res?.ranking) ? res.ranking : [];
       let atendSem = Number(res?.atendidosSemana) || 0;
-      // Sempre reforça ranking pela auditoria (semana completa, fuso BR)
-      try {
-        const rank = await fetchRankingAtendentesEmpresaAction(8);
-        if (rank?.ok) {
-          if (rank.ranking?.length) rankList = rank.ranking;
-          if (typeof rank.atendidosSemana === "number") atendSem = rank.atendidosSemana;
-        }
-      } catch { /* */ }
+      // Ranking e KPIs são independentes: execute em paralelo para não somar latências.
+      const [rankResult, kpiResult] = await Promise.allSettled([
+        fetchRankingAtendentesEmpresaAction(8),
+        fetchProcessosEmpresaKpisAction(),
+      ]);
+      if (rankResult.status === "fulfilled" && rankResult.value?.ok) {
+        if (rankResult.value.ranking?.length) rankList = rankResult.value.ranking;
+        if (typeof rankResult.value.atendidosSemana === "number") atendSem = rankResult.value.atendidosSemana;
+      }
       setTopAtendentesSrv(rankList.slice(0, 5));
       setAtendidosSemanaSrv(atendSem);
-      // KPIs de carteira: mesma regra do Dashboard (empresa inteira), NÃO a amostra da tabela
-      try {
-        const k = await fetchProcessosEmpresaKpisAction();
-        if (k?.ok) {
-          if (k.total > 0) setTotalCount(k.total);
-          setAtivosCount(k.ativos);
-          setVencidosCount(k.vencidos);
-        } else if (Number(res?.ativosCount) > 0) {
-          setAtivosCount(Number(res.ativosCount));
-        }
-      } catch {
-        if (Number(res?.ativosCount) > 0) setAtivosCount(Number(res.ativosCount));
+      // KPIs de carteira: mesma regra do Dashboard (empresa inteira), NÃO a amostra da tabela.
+      if (kpiResult.status === "fulfilled" && kpiResult.value?.ok) {
+        if (kpiResult.value.total > 0) setTotalCount(kpiResult.value.total);
+        setAtivosCount(kpiResult.value.ativos);
+        setVencidosCount(kpiResult.value.vencidos);
+      } else if (Number(res?.ativosCount) > 0) {
+        setAtivosCount(Number(res.ativosCount));
       }
       setAudit(res?.audit || []);
       setUsers(res?.users || []);
