@@ -1173,7 +1173,9 @@ export async function registrarAtendimentoCompletoAction(input: {
         await sheetsWriteRows([{
           protocolo: String(found.protocolo || input.protocolo),
           UltimoRetorno: hoje,
+          Retorno: hoje,
           ProximoRetorno: prazoNovo || '',
+          Prazo: prazoNovo || '',
           Status: situacao,
           Situacao: situacao,
           Observacao: obs || '',

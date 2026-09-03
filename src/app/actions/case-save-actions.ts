@@ -205,8 +205,12 @@ function buildSheetRow(
     situacao: processed.situacao || previous.situacao || previous.Situacao || previousDados.situacao || previousDados.SITUACAO,
     UltimoRetorno: ultimoRetorno,
     ultimo_retorno: ultimoRetorno,
+    // Aliases de colunas legadas: a planilha pode chamar a coluna só de "Retorno"/"Prazo"
+    Retorno: ultimoRetorno,
     ProximoRetorno: proximoRetorno,
     proximo_retorno: proximoRetorno,
+    Prazo: proximoRetorno,
+    Responsavel: processed.created_by || previous.CreatedBy || previous.Responsavel || previous.responsavel || previousDados.created_by || null,
     Observacao: processed.observacao || processed.observacoes || previous.Observacao || previous.Observacoes || previous.observacao || previous.observacoes || previousDados.observacao || previousDados.observacoes,
     observacoes: processed.observacao || processed.observacoes || previous.observacoes || previous.Observacao || previousDados.observacoes || previousDados.observacao,
     ultimo_movimento: processed.datajud_ultimo_movimento || processed.ultimo_movimento || previous.ultimo_movimento || previousDados.datajud_ultimo_movimento || previousDados.ultimo_movimento,

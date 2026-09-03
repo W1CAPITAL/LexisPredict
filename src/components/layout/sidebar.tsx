@@ -107,10 +107,13 @@ function useNavItems(opts: {
   query: string;
 }) {
   const { isAdmin, isSuperAdmin, plan, profile, showMore, query } = opts;
-  const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences());
+  // Carrega já na key do usuário no mount — fixar abas de "Mais ferramentas" deve
+  // sobreviver à troca de aba / F5 sem depender do efeito assíncrono (key "anon").
+  const uidInit = (profile as any)?.auth_user_id || (profile as any)?.id || null;
+  const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences(uidInit));
 
   useEffect(() => {
-    const uid = profile?.auth_user_id || profile?.id || null;
+    const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
     setNavPrefs(loadNavPreferences(uid));
     const onPrefs = () => setNavPrefs(loadNavPreferences(uid));
     window.addEventListener("lexis-nav-prefs", onPrefs);

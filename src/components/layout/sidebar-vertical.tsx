@@ -116,10 +116,12 @@ export function SidebarVertical() {
   const [showMore, setShowMore] = useState(false);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences());
+  const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
+  // Carrega na key do usuário já no mount: aba fixada ("Mais ferramentas") não pode
+  // sumir ao trocar de aba / F5 por causa de leitura inicial com a key "anon".
+  const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences(uid));
   const [dragHref, setDragHref] = useState<string | null>(null);
   const widthRef = useRef(DEFAULT_W);
-  const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
 
   useEffect(() => {
     try {

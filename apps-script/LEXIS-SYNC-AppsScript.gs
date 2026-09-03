@@ -210,14 +210,18 @@ function valueForField_(record, header, dados) {
     cliente: ["cliente", "nome_cliente"],
     status: ["status", "status_executivo"],
     situacao: ["situacao", "status_interno", "statusManual"],
-    ultimoretorno: ["UltimoRetorno", "ultimo_retorno", "ultimoRetorno"],
-    proximoretorno: ["ProximoRetorno", "proximo_retorno", "proximoRetorno", "proximoPrazo"],
+    ultimoretorno: ["UltimoRetorno", "ultimo_retorno", "ultimoRetorno", "Retorno", "RETORNO", "retorno", "ultimo_atendimento", "ultimoAtendimento", "data_retorno", "dataRetorno"],
+    proximoretorno: ["ProximoRetorno", "proximo_retorno", "proximoRetorno", "proximoPrazo", "Prazo", "prazo", "proximo_atendimento", "data_prazo", "dataPrazo"],
+    retorno: ["UltimoRetorno", "ultimo_retorno", "ultimoRetorno", "Retorno", "RETORNO", "retorno", "ultimo_atendimento", "data_retorno"],
+    prazo: ["ProximoRetorno", "proximo_retorno", "proximoRetorno", "proximoPrazo", "Prazo", "prazo", "data_prazo"],
     advogado: ["advogado"],
     escritorio: ["escritorio"],
     tribunal: ["tribunal"],
     telefone: ["telefone", "phone", "celular", "whatsapp"],
-    createdby: ["CreatedBy", "created_by", "createdBy", "criado_por"],
-    atendidopor: ["AtendidoPor", "atendido_por", "atendidoPor"],
+    createdby: ["CreatedBy", "created_by", "createdBy", "criado_por", "Responsavel", "responsavel"],
+    responsavel: ["CreatedBy", "created_by", "createdBy", "criado_por", "Responsavel", "responsavel"],
+    atendidopor: ["AtendidoPor", "atendido_por", "atendidoPor", "Atendente", "atendente", "quem_atendeu"],
+    atendente: ["AtendidoPor", "atendido_por", "atendidoPor", "Atendente", "atendente"],
     observacao: ["Observacao", "observacao", "observacoes"],
     empresaid: ["EmpresaId", "empresa_id", "empresaId"],
     datajudencerrado: ["DatajudEncerrado", "datajud_encerrado_tribunal"],
@@ -256,6 +260,50 @@ function valueForField_(record, header, dados) {
         if (sv !== undefined && sv !== null && String(sv) !== "") return sv;
       }
     }
+  }
+
+  // Fallback semântico p/ cabeçalhos livres (ex.: "Data do retorno", "Retorno realizado",
+  // "Próximo retorno") sem escrever em colunas de indicador (Dias_Sem_Retorno, status etc.).
+  var recKeys2 = Object.keys(record || {});
+  var pool = {};
+  for (var i2 = 0; i2 < recKeys2.length; i2++) {
+    var rv2 = record[recKeys2[i2]];
+    if (rv2 !== undefined && rv2 !== null && String(rv2) !== "") pool[recKeys2[i2]] = rv2;
+  }
+  for (var i3 = 0; i3 < dkeys.length; i3++) {
+    var dv3 = dados[dkeys[i3]];
+    if (dv3 !== undefined && dv3 !== null && String(dv3) !== "" && pool[dkeys[i3]] == null) pool[dkeys[i3]] = dv3;
+  }
+  var tryKeys = function (cands) {
+    for (var t = 0; t < cands.length; t++) {
+      if (pool[cands[t]] !== undefined && pool[cands[t]] !== null && String(pool[cands[t]]) !== "") return pool[cands[t]];
+      for (var t2 = 0; t2 < recKeys2.length; t2++) {
+        if (norm(recKeys2[t2]) === norm(cands[t])) {
+          var cv2 = pool[recKeys2[t2]];
+          if (cv2 !== undefined && cv2 !== null && String(cv2) !== "") return cv2;
+        }
+      }
+    }
+    return undefined;
+  };
+  var isIndicator = function (w) {
+    return /dias|sem|count|qtd|indicador|status|observ|nota|resumo|motivo|tipo|valor|link|hash|andamento|mov|evento|encerr|baixa|cumpriment/.test(w);
+  };
+  if (wanted.indexOf("retorno") >= 0 && wanted.indexOf("proximo") < 0 && wanted.indexOf("prazo") < 0 && !isIndicator(wanted)) {
+    var vU = tryKeys(special.ultimoretorno || []);
+    if (vU !== undefined) return vU;
+  }
+  if ((wanted.indexOf("prazo") >= 0 || wanted.indexOf("proximo") >= 0) && wanted.indexOf("ultimo") < 0 && !isIndicator(wanted)) {
+    var vP = tryKeys(special.proximoretorno || []);
+    if (vP !== undefined) return vP;
+  }
+  if ((wanted.indexOf("atendente") >= 0 || wanted.indexOf("atendido") >= 0) && !isIndicator(wanted)) {
+    var vA = tryKeys(special.atendidopor || []);
+    if (vA !== undefined) return vA;
+  }
+  if ((wanted.indexOf("responsavel") >= 0 || wanted.indexOf("criado") >= 0 || wanted.indexOf("created") >= 0 || wanted.indexOf("dono") >= 0) && !isIndicator(wanted)) {
+    var vC = tryKeys(special.createdby || []);
+    if (vC !== undefined) return vC;
   }
 
   return undefined;
