@@ -747,7 +747,7 @@ export async function auditCaseCoreSystem(
   // Lote: auto-encerrar seguro OU prioridade na fila de contato / revisar encerrados
   try {
     const decisao = decidirEncerramentoScan({ target, patch });
-    patch = aplicarDecisaoNoPatch(patch, target, decisao);
+    Object.assign(patch, aplicarDecisaoNoPatch(patch, target, decisao));
     if (decisao.acao === 'auto_encerrar') {
       console.info('[scan-auto-encerrar]', protocolo, decisao.motivo);
     } else if (decisao.acao === 'revisao_fila') {
@@ -760,14 +760,14 @@ export async function auditCaseCoreSystem(
   // Motor parados + falta instaurar (DataJud/DJEN, worker, cron, lote)
   try {
     const { mergeMotorParadosIntoPatch } = await import('@/lib/motor-parados-instaurar');
-    patch = mergeMotorParadosIntoPatch(target, patch);
+    Object.assign(patch, mergeMotorParadosIntoPatch(target, patch));
   } catch (e: any) {
     console.warn('[motor-parados-instaurar] skip', e?.message || e);
   }
 
   // Lote3: reconcilia pendente vs já em cumprimento antes de gravar
   try {
-    patch = applyReconciliacaoAoPatch(patch, target as any);
+    Object.assign(patch, applyReconciliacaoAoPatch(patch, target as any));
   } catch (e: any) {
     console.warn('[reconciliar-cumprimento] skip', e?.message || e);
   }
@@ -1735,7 +1735,7 @@ export async function reclassificarExecutivoCarteiraAction() {
           djenTextos
         );
 
-        const patch: Record<string, any> = {
+        let patch: Record<string, any> = {
           is_procedente: r.is_procedente,
           procedente_motivo: r.procedente_motivo,
           em_cumprimento_sentenca: r.em_cumprimento_sentenca,
@@ -1786,12 +1786,15 @@ export async function reclassificarExecutivoCarteiraAction() {
 
         // Lote3: resolve pendente × já em cumprimento após motor parados
         try {
-          patch = applyReconciliacaoAoPatch(patch, {
-            ...row,
-            dados,
-            cumprimento_pendente_necessario: row.cumprimento_pendente_necessario,
-            em_cumprimento_sentenca: row.em_cumprimento_sentenca,
-          });
+          Object.assign(
+            patch,
+            applyReconciliacaoAoPatch(patch, {
+              ...row,
+              dados,
+              cumprimento_pendente_necessario: row.cumprimento_pendente_necessario,
+              em_cumprimento_sentenca: row.em_cumprimento_sentenca,
+            })
+          );
         } catch (e: any) {
           console.warn('[reconciliar reclass]', e?.message || e);
         }

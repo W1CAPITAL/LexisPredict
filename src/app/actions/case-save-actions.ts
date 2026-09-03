@@ -3,7 +3,7 @@
 import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisao';
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
-import { sheetsServerPost, sheetsWebhookConfigured } from '@/lib/hybrid/sheets-server';
+import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 
 function iso(v: unknown): string | null {
   if (v === undefined || v === null) return null;
@@ -369,7 +369,7 @@ export async function registrarAtendimentoCompletoAction(input: {
   proximoPrazo?: string;
   via?: string;
   filaLista?: string;
-}): Promise<{ success: boolean; message: string; ultimoRetorno?: string; proximoPrazo?: string; case?: LegalCase }> {
+}): Promise<{ success: boolean; message: string; ultimoRetorno?: string; proximoPrazo?: string; case?: LegalCase; mirror?: Awaited<ReturnType<typeof mirrorAtendimento>> }> {
   try {
     const ctx = await getUserContext();
     if (!ctx.empresa_id || !input?.protocolo) return { success: false, message: 'Sessão expirada ou protocolo inválido.' };
@@ -441,7 +441,13 @@ export async function registrarAtendimentoCompletoAction(input: {
     } catch { /* auditoria não desfaz o salvamento */ }
 
     const savedCase = processarCaso({ ...(previousDados as any), ...dados, ultimoRetorno: hoje, ultimo_retorno: hoje, proximoPrazo: proximo || '', proximo_retorno: proximo, situacao, status: patch.status } as any) as any;
-    return { success: true, message: situacao === 'ENCERRADO' ? 'Atendimento salvo e processo encerrado.' : 'Atendimento salvo.', ultimoRetorno: hoje, proximoPrazo: proximo || '', case: savedCase };
+    let mirror: Awaited<ReturnType<typeof mirrorAtendimento>>;
+    try {
+      mirror = await mirrorAtendimento({ protocolo, empresaId: ctx.empresa_id, ultimoRetorno: hoje, proximoPrazo: proximo, observacao, situacao, actorId: ctx.auth_id, actorName });
+    } catch (error: any) {
+      mirror = { ok: false, attempted: true, reason: error?.message || 'Falha inesperada no espelhamento.' };
+    }
+    return { success: true, message: situacao === 'ENCERRADO' ? 'Atendimento salvo e processo encerrado.' : 'Atendimento salvo.', ultimoRetorno: hoje, proximoPrazo: proximo || '', case: savedCase, mirror };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao registrar atendimento.' };
   }

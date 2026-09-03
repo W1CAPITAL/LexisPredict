@@ -23,7 +23,7 @@
  * 7) Depois de alterar este arquivo: Gerenciar implantações > editar > Nova versão.
  */
 
-var TOKEN = "w1-fase1-2026";
+var TOKEN = "";
 var USERS_SHEET = "Usuarios";
 var PROC_SHEET = "Processos";
 var HEADER_ROW = 1;
@@ -60,7 +60,7 @@ function getToken_() {
     var configured = PropertiesService.getScriptProperties().getProperty("LEXIS_SHEETS_TOKEN");
     if (configured && String(configured).trim()) return String(configured).trim();
   } catch (_) {}
-  return String(TOKEN).trim();
+  throw new Error("LEXIS_SHEETS_TOKEN ausente nas Script Properties.");
 }
 
 function norm(s) {

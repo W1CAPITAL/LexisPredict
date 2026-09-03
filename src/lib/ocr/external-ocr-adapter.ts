@@ -40,14 +40,14 @@ function extractTextFromPayload(data: any): string {
 
 /** OCR via endpoint externo. Não falha o app se endpoint ausente. */
 export async function runExternalOcr(input: {
-  if (OCR_EXTERNAL_DISABLED) {
-    return { ok: false, text: '', engine: 'disabled', latencyMs: 0, error: 'OCR externo desativado por política — use Tesseract local (/tools/ocr).' };
-  }
-
   bytes: Uint8Array | Buffer;
   filename?: string;
   mimeType?: string;
 }): Promise<OcrAdapterResult> {
+  if (OCR_EXTERNAL_DISABLED) {
+    return { ok: false, text: '', engine: 'disabled', latencyMs: 0, error: 'OCR externo desativado por política — use Tesseract local (/tools/ocr).' };
+  }
+
   const endpoint = (process.env.LEXIS_OCR_ENDPOINT || '').trim();
   if (!endpoint.startsWith('http')) {
     return { ok: false, text: '', engine: 'external', latencyMs: 0, error: 'LEXIS_OCR_ENDPOINT não configurado' };
