@@ -94,13 +94,8 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-<<<<<<< HEAD
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-=======
-        setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
-          cookiesToSet.forEach(({ name, value }: { name: string; value: string }) => request.cookies.set(name, value))
->>>>>>> 24954b7236a4afb2cba4482042c47b9fa86183c3
           response = NextResponse.next({ request: { headers: request.headers } })
           cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options?: any }) => response.cookies.set(name, value, options))
           response.headers.set('Cache-Control', 'private, no-store')
