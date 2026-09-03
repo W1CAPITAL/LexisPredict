@@ -53,7 +53,7 @@ export function LaunchAnnounceModal() {
         type="button"
         className="absolute inset-0 bg-black/55 backdrop-blur-sm"
         aria-label="Fechar anúncio"
-        onClick={close}
+        onClick={() => close()}
       />
       <div
         role="dialog"
@@ -67,7 +67,7 @@ export function LaunchAnnounceModal() {
         />
         <button
           type="button"
-          onClick={close}
+          onClick={() => close()}
           className="absolute right-3 top-3 h-8 w-8 rounded-full bg-black/50 text-white inline-flex items-center justify-center"
           aria-label="Fechar"
         >
@@ -93,7 +93,7 @@ export function LaunchAnnounceModal() {
           </ul>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button asChild className="h-9 rounded-xl font-black uppercase text-[10px]">
-              <Link href="/offline" onClick={close}>
+              <Link href="/offline" onClick={() => close()}>
                 <Monitor className="mr-2 h-4 w-4" />
                 Ver Offline
               </Link>

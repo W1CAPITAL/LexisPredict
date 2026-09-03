@@ -485,9 +485,9 @@ export async function auditCaseCoreSystem(
         })
         .filter(Boolean);
       const classeCod =
-        patch.detalhes_execucao?.classeCodigo ??
-        (typeof target.detalhes_execucao === 'object'
-          ? target.detalhes_execucao?.classeCodigo
+        (patch as any).detalhes_execucao?.classeCodigo ??
+        (typeof (target as any).detalhes_execucao === 'object'
+          ? (target as any).detalhes_execucao?.classeCodigo
           : null);
       const analise2 = analisarProcedenciaECumprimento(
         movimentos,
@@ -792,7 +792,7 @@ export async function auditCaseCoreSystem(
       await logAlertEvent({
         empresaId,
         protocolo: protoSafe || protocolo,
-        eventType: 'scan_auto_encerrar',
+        eventType: 'scan_auto_encerrar' as any,
         source: 'scanner',
         payload: {
           motivo: patch.scan_auto_encerrar_motivo || patch.dados?.scan_auto_encerrar_motivo,
@@ -805,7 +805,7 @@ export async function auditCaseCoreSystem(
       await logAlertEvent({
         empresaId,
         protocolo: protoSafe || protocolo,
-        eventType: 'scan_revisao_encerrar',
+        eventType: 'scan_revisao_encerrar' as any,
         source: 'scanner',
         payload: {
           motivo: patch.dados?.scan_revisao_motivo || patch.evento_resumo,

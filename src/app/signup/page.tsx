@@ -77,10 +77,10 @@ export default function SignupPage() {
       toast({ title: "Aceite os termos para continuar", variant: "destructive" });
       return;
     }
-    setStep((s) => Math.min(6, (s + 1) as Step));
+    setStep((s) => (Math.min(6, Number(s) + 1) as Step));
   };
 
-  const back = () => setStep((s) => Math.max(1, (s - 1) as Step));
+  const back = () => setStep((s) => (Math.max(1, Number(s) - 1) as Step));
 
   const finish = async () => {
     if (lock.current) return;

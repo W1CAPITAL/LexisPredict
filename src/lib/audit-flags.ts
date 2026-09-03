@@ -79,10 +79,10 @@ export function buildIdempotentAlertFlags(input: {
     djen_nova_comunicacao?: boolean;
   } = {};
 
-  const fDj = mergeFlagAlerta(input.alertaDatajud, input.prevDatajud, input.datajudOk);
+  const fDj = mergeFlagAlerta(input.alertaDatajud, input.prevDatajud);
   if (fDj !== undefined) out.tem_atualizacao_pos_retorno = fDj;
 
-  const fDjen = mergeFlagAlerta(input.alertaDjen, input.prevDjen, input.djenOk);
+  const fDjen = mergeFlagAlerta(input.alertaDjen, input.prevDjen);
   if (fDjen !== undefined) out.djen_nova_comunicacao = fDjen;
 
   return out;

@@ -540,7 +540,7 @@ function CasesContent() {
     try {
       const todayStr = hojeBrasilYmd();
       const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
-      const targets = cases.filter((c) =>
+      const targets = cases.filter((c: LegalCase) =>
         attendanceForm.applyToAll
           ? c.cliente === activeGroup.cliente
           : c.protocolo === activeGroup.protocolo
@@ -572,8 +572,8 @@ function CasesContent() {
         } catch { /* */ }
       }
       if (ok > 0) {
-        setCases((prev) =>
-          prev.map((c) => {
+        setCases((prev: LegalCase[]) =>
+          prev.map((c: LegalCase) => {
             const p = byProto[c.protocolo];
             if (!p) return c;
             return processarCaso({
@@ -730,14 +730,14 @@ function CasesContent() {
       const res = await transferCasesOwnerAction({ protocolos: list, novoOwnerAuthId: bulkOwnerId });
       if (res.success && res.updated > 0) {
         // Remove da lista local se não for mais "meu" (operador) ou atualiza created_by
-        setCases((prev) =>
+        setCases((prev: LegalCase[]) =>
           prev
-            .map((c) =>
+            .map((c: LegalCase) =>
               list.includes(String(c.protocolo || ''))
                 ? ({ ...c, created_by: bulkOwnerId } as any)
                 : c
             )
-            .filter((c) => {
+            .filter((c: LegalCase) => {
               if (!isOperador) return true;
               return String((c as any).created_by || '') === String((profile as any)?.auth_user_id || '');
             })
@@ -767,27 +767,34 @@ function CasesContent() {
     // ENCERRADO ou último retorno hoje/semana = conta como atendimento
     const isoForm = formatDateToISO(formState.ultimoRetorno) || '';
     const isEncerrado = String(formState.situacao || '').toUpperCase() === 'ENCERRADO';
-    const formForSave =
-      isEncerrado
-        ? {
-            ...formState,
-            ...patchAtendimentoComEdicao(
-              (profile as any)?.auth_user_id || (profile as any)?.id,
-              hojeBrasilYmd()
-            ),
-            ultimoRetorno: hojeBrasilYmd(),
-            proximoPrazo: '',
-          }
-        : isoForm && (isAtendidoHoje(isoForm) || isAtendidoNestaSemana(isoForm))
-          ? {
-              ...formState,
-              ultimoRetorno: isoForm,
-              ...patchAtendimentoComEdicao(
-                (profile as any)?.auth_user_id || (profile as any)?.id,
-                isoForm
-              ),
-            }
-          : { ...formState, ultimoRetorno: isoForm || formState.ultimoRetorno };
+    const formForSave = (() => {
+      const base: any = { ...formState };
+      if (isEncerrado) {
+        Object.assign(
+          base,
+          patchAtendimentoComEdicao(
+            (profile as any)?.auth_user_id || (profile as any)?.id,
+            hojeBrasilYmd()
+          )
+        );
+        base.ultimoRetorno = hojeBrasilYmd();
+        base.proximoPrazo = "";
+        return base;
+      }
+      if (isoForm && (isAtendidoHoje(isoForm) || isAtendidoNestaSemana(isoForm))) {
+        Object.assign(
+          base,
+          patchAtendimentoComEdicao(
+            (profile as any)?.auth_user_id || (profile as any)?.id,
+            isoForm
+          )
+        );
+        base.ultimoRetorno = isoForm;
+        return base;
+      }
+      base.ultimoRetorno = isoForm || formState.ultimoRetorno;
+      return base;
+    })();
     if (editingCase) {
       const digits = protocolo.replace(/\D/g, '');
       if (digits.length !== 20) {
@@ -940,7 +947,7 @@ function CasesContent() {
         : { success: false, message: 'Protocolo não encontrado' };
       if (res.success) {
         removeCase(id);
-        setCases((prev) => prev.filter((c) => c.id !== id));
+        setCases((prev: LegalCase[]) => prev.filter((c: LegalCase) => c.id !== id));
         toast({ title: 'Processo removido' });
       } else {
         toast({ title: 'Falha ao remover', description: (res as any).message, variant: 'destructive' });
@@ -1014,7 +1021,7 @@ function CasesContent() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className="lexis-main-pad" className={cn("flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
+      <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
 <div className="px-4 sm:px-6 pt-4">
             <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
           </div>

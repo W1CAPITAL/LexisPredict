@@ -355,8 +355,8 @@ export default function MensagensPage() {
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
       <main
-        className="flex-1 min-w-0 flex min-h-0 overflow-hidden lexis-main-pad" style={{ maxHeight: "calc(100vh - var(--lexis-dock-pad, 100px))" }}
-        style={{ paddingBottom: "var(--lexis-dock-pad, 0px)" }}
+        className="flex-1 min-w-0 flex min-h-0 overflow-hidden lexis-main-pad"
+        style={{ maxHeight: "calc(100vh - var(--lexis-dock-pad, 100px))", paddingBottom: "var(--lexis-dock-pad, 0px)" }}
       >
         <aside className="w-[280px] shrink-0 border-r border-border flex flex-col bg-card/40">
           <div className="p-3 border-b flex items-start justify-between gap-2">

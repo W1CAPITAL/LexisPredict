@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         }, { status: 200 });
       }
 
-      synced += Number(result.json?.updated ?? result.json?.inserted ?? chunk.length);
+      synced += Number((result as any).json?.updated ?? (result as any).json?.inserted ?? chunk.length);
       batches += 1;
     }
 

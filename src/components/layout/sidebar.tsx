@@ -51,7 +51,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { flattenNavItems, loadNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
+import { flattenNavItems, loadNavPreferences, saveNavPreferences, type NavPreferences } from "@/lib/nav-preferences";
 import { loadNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
 import { SidebarVertical } from "@/components/layout/sidebar-vertical";
 import { getRouteSnapshot, type RouteSnapshot } from "@/lib/route-snapshot-cache";

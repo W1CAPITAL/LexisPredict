@@ -119,7 +119,7 @@ async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500) {
   }
 }
 
-export async function sheetsServerPost(body: Record<string, unknown>) {
+export async function sheetsServerPost(body: Record<string, unknown>): Promise<{ ok: boolean; json?: any; error?: string; status?: number }> {
   const action = String(body.action || "ping");
   const post = await sheetsPost(body, action === "upsert_batch" ? 4500 : 3500);
   if (post.ok) return post;
@@ -138,7 +138,12 @@ export async function sheetsServerPost(body: Record<string, unknown>) {
   return { ok: false, error: post.error || `Webhook HTTP ${post.status || 0}`, status: post.status };
 }
 
-export async function sheetsListProcessos(opts?: { empresaId?: string; responsavel?: string; limit?: number }) {
+export async function sheetsListProcessos(opts?: {
+  empresaId?: string;
+  responsavel?: string;
+  limit?: number;
+}): Promise<{ ok: boolean; rows: any[]; error?: string }> {
+
   const r = await sheetsServerPost({ action: "list", empresaId: opts?.empresaId, responsavel: opts?.responsavel, limit: opts?.limit ?? 5000 });
   if (!r.ok) return { ok: false, rows: [], error: r.error };
   const rows = r.json?.rows || r.json?.processos || r.json?.data || [];
