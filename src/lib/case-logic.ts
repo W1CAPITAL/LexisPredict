@@ -124,6 +124,11 @@ export interface LegalCase {
 
   // Fase Executiva
   em_cumprimento_sentenca?: boolean;
+  is_procedente?: boolean;
+  procedente_motivo?: string | null;
+  cumprimento_pendente_necessario?: boolean;
+  data_transito_julgado?: string | null;
+  detalhes_execucao?: string | null;
   cumprimento_sentenca_motivo?: string | null;
   cumprimento_sentenca_consultado_em?: string | null;
 
@@ -139,6 +144,7 @@ export interface LegalCase {
   edited_by?: string;
   edited_at?: string;
   edited_by_name?: string;
+  viaEncerrarHumano?: boolean;
 }
 
 export type CaseNote = {

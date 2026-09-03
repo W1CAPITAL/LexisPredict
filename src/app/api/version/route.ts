@@ -4,9 +4,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Bump este número a cada lote visível — dispara o banner “Nova versão”. */
-export const LEXIS_APP_VERSION = "9.61.1";
+const LEXIS_APP_VERSION = "9.61.1";
 
-export const LEXIS_CHANGELOG: string[] = [
+const LEXIS_CHANGELOG: string[] = [
   "Carteira: Cases/Tarefas = só os meus; Processos da Empresa = todos (sem trocar dono no atendimento).",
   "UI: contraste sólido + cores de letras na personalização.",
   "Changelog compacto no menu (sem histórico antigo).",

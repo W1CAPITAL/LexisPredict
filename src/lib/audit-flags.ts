@@ -5,7 +5,9 @@
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import { mergeFlagAlerta } from './novidade';
+function mergeFlagAlerta(current: boolean | null | undefined, next: boolean | null | undefined): boolean {
+  return next === true || (current === true && next !== false);
+}
 import type { EventoTipo } from './case-logic';
 
 const WEIGHT: Record<string, number> = {
