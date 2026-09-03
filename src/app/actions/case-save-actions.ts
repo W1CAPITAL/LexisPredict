@@ -215,7 +215,7 @@ function buildSheetRow(
     DatajudEncerrado: hasValue(processed.datajud_encerrado_tribunal) ? !!processed.datajud_encerrado_tribunal : (previous.DatajudEncerrado ?? previous.datajud_encerrado_tribunal ?? previousDados.datajud_encerrado_tribunal),
     datajud_encerrado_tribunal: hasValue(processed.datajud_encerrado_tribunal) ? !!processed.datajud_encerrado_tribunal : (previous.datajud_encerrado_tribunal ?? previous.DatajudEncerrado ?? previousDados.datajud_encerrado_tribunal),
     isBaixaTribunal: processed.isBaixaTribunal ?? previous.isBaixaTribunal ?? previousDados.isBaixaTribunal,
-    AtendidoPor: processed.atendido_por || previous.AtendidoPor || previous.atendido_por || previousDados.atendido_por,
+    AtendidoPor: processed.atendido_por_nome || actorName || processed.atendido_por || previous.AtendidoPor || previous.atendido_por || previousDados.atendido_por,
     atendido_por: processed.atendido_por || previous.atendido_por || previous.AtendidoPor || previousDados.atendido_por,
     atendido_em: processed.atendido_em || previous.atendido_em || previous.AtendidoEm || previousDados.atendido_em,
     edited_by: actorId,
@@ -276,12 +276,27 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
 
     const previousReturn = String(existing?.ultimo_retorno || existing?.UltimoRetorno || existing?.dados?.ultimoRetorno || existing?.dados?.ultimo_retorno || '');
     const currentReturn = String(processed.ultimoRetorno || processed.ultimo_retorno || '');
-    if (auth_id && currentReturn && currentReturn !== previousReturn) {
+    const forceAtendido = !!(caseData as any).__force_atendido || !!(caseData as any).atendido_por;
+    if (auth_id && (forceAtendido || (currentReturn && currentReturn !== previousReturn))) {
       processed.atendido_por = auth_id;
       processed.atendido_em = new Date().toISOString();
     }
 
-    const actorName = String((ctx as any).nome || (ctx as any).name || (ctx as any).email || auth_id || 'Sistema');
+    let actorName = String((ctx as any).nome || (ctx as any).name || (ctx as any).email || '').trim();
+    if (!actorName && auth_id) {
+      try {
+        const admin = await getSupabaseAdmin();
+        const { data: u } = await admin
+          .from('usuarios')
+          .select('nome, email')
+          .eq('auth_user_id', auth_id)
+          .maybeSingle();
+        actorName = String(u?.nome || u?.email || auth_id);
+      } catch {
+        actorName = auth_id;
+      }
+    }
+    if (!actorName) actorName = 'Sistema';
     processed.edited_by = auth_id || null;
     processed.edited_by_name = actorName;
     processed.edited_at = new Date().toISOString();

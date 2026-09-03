@@ -105,60 +105,16 @@ function getWeight(t: string | null | undefined): number {
 export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminView = false) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
-  try {
-    const { hybridEnabled } = await import("@/lib/hybrid/policy");
-    const { sheetsWebhookConfigured, sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
-    const { sheetRowsToLegalCases } = await import("@/lib/hybrid/sheets-case-map");
-    if (hybridEnabled() && sheetsWebhookConfigured()) {
-      const wide = adminView || !!(ctx.isSuperAdmin || ctx.isSupervisor);
-      const list = await sheetsListProcessos({
-        empresaId: ctx.empresa_id,
-        responsavel: wide ? undefined : ctx.auth_id || undefined,
-        limit: 8000,
-      });
-      if (list.ok && list.rows.length > 0) {
-        let cases = sheetRowsToLegalCases(list.rows);
-        if (!wide && ctx.auth_id) {
-          const me = String(ctx.auth_id).toLowerCase();
-          cases = cases.filter((c) => {
-            const owner = String((c as any).created_by || "").toLowerCase();
-            return !owner || owner === me;
-          });
-        }
-        return cases.slice(offset, offset + limit);
-      }
-    }
-  } catch { /* */ }
+  // Híbrido: Postgres é fonte da verdade na UI. Planilha só espelha (write).
   return await getStoredCasesPageForEmpresa(ctx.empresa_id, limit, offset, adminView);
 }
 
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
+  // Superadmin / Supervisor: todos. Demais: só os próprios.
+  // Híbrido NÃO lê da planilha aqui — senão o app "não atualiza" após save no Postgres.
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
-  try {
-    const { hybridEnabled } = await import("@/lib/hybrid/policy");
-    const { sheetsWebhookConfigured, sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
-    const { sheetRowsToLegalCases } = await import("@/lib/hybrid/sheets-case-map");
-    if (hybridEnabled() && sheetsWebhookConfigured()) {
-      const list = await sheetsListProcessos({
-        empresaId: ctx.empresa_id,
-        responsavel: wide ? undefined : ctx.auth_id || undefined,
-        limit: 8000,
-      });
-      if (list.ok && list.rows.length > 0) {
-        let cases = sheetRowsToLegalCases(list.rows);
-        if (!wide && ctx.auth_id) {
-          const me = String(ctx.auth_id).toLowerCase();
-          cases = cases.filter((c) => {
-            const owner = String((c as any).created_by || "").toLowerCase();
-            return !owner || owner === me;
-          });
-        }
-        return cases;
-      }
-    }
-  } catch { /* fallback PG */ }
   return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
 }
 
@@ -1174,6 +1130,9 @@ export async function registrarAtendimentoCompletoAction(input: {
 
     (updated as any).created_by = ownerKeep;
     (updated as any).atendido_por = auth_id;
+    (updated as any).atendido_em = new Date().toISOString();
+    // força persistência do atendente mesmo se ultimoRetorno não mudou
+    (updated as any).__force_atendido = true;
     const saved = await saveOneCaseAction(updated as any);
     if (!saved.success) {
       return { success: false, message: saved.message || 'Falha ao salvar' };
@@ -1198,6 +1157,18 @@ export async function registrarAtendimentoCompletoAction(input: {
       const { hybridEnabled } = await import('@/lib/hybrid/policy');
       const { sheetsWebhookConfigured, sheetsWriteRows } = await import('@/lib/hybrid/sheets-server');
       if (hybridEnabled() && sheetsWebhookConfigured()) {
+        let atendenteNome = auth_id || '';
+        try {
+          const { getSupabaseAdmin } = await import('@/lib/server-db');
+          const admin = await getSupabaseAdmin();
+          const { data: u } = await admin
+            .from('usuarios')
+            .select('nome, email')
+            .eq('auth_user_id', auth_id || '')
+            .maybeSingle();
+          if (u?.nome) atendenteNome = String(u.nome);
+          else if (u?.email) atendenteNome = String(u.email);
+        } catch { /* */ }
         await sheetsWriteRows([{
           protocolo: String(found.protocolo || input.protocolo),
           UltimoRetorno: hoje,
@@ -1205,7 +1176,8 @@ export async function registrarAtendimentoCompletoAction(input: {
           Status: situacao,
           Situacao: situacao,
           Observacao: obs || '',
-          AtendidoPor: auth_id || '',
+          AtendidoPor: atendenteNome,
+          atendido_por: auth_id || '',
           CreatedBy: ownerKeep || '',
           Responsavel: ownerKeep || '',
         }]);
