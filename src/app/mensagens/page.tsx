@@ -244,18 +244,41 @@ export default function MensagensPage() {
   };
 
   const sendText = async () => {
-    if (!threadId || !text.trim() || busy) return;
+    const body = text.trim();
+    if (!threadId || !body || busy) return;
+    const currentThread = threadId;
+    const optimisticId = `pending-${Date.now()}`;
+    const optimistic: Msg = {
+      id: optimisticId,
+      thread_id: currentThread,
+      auth_user_id: me.auth_id,
+      autor_nome: "Você",
+      body,
+      tipo: "text",
+      created_at: new Date().toISOString(),
+    };
     setBusy(true);
     setErr("");
+    setText("");
+    setMsgs((current) => [...current, optimistic]);
     try {
       const r = await enviarMensagemAction({
-        threadId,
-        body: text.trim(),
+        threadId: currentThread,
+        body,
         tipo: "text",
       });
-      if (!r.success) setErr(r.message || "Falha ao enviar");
-      else setText("");
-      await loadThread(threadId);
+      if (!r.success) {
+        setMsgs((current) => current.filter((message) => message.id !== optimisticId));
+        setText(body);
+        setErr(r.message || "Falha ao enviar");
+        return;
+      }
+      const saved = r.message as Msg;
+      setMsgs((current) => current.map((message) => (message.id === optimisticId ? saved : message)));
+    } catch (error: any) {
+      setMsgs((current) => current.filter((message) => message.id !== optimisticId));
+      setText(body);
+      setErr(error?.message || "Falha ao enviar");
     } finally {
       setBusy(false);
     }
@@ -355,8 +378,8 @@ export default function MensagensPage() {
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
       <main
-        className="flex-1 min-w-0 flex min-h-0 overflow-hidden lexis-main-pad" style={{ maxHeight: "calc(100vh - var(--lexis-dock-pad, 100px))" }}
-        style={{ paddingBottom: "var(--lexis-dock-pad, 0px)" }}
+        className="flex-1 min-w-0 flex min-h-0 overflow-hidden lexis-main-pad bg-background"
+        style={{ maxHeight: "calc(100vh - var(--lexis-dock-pad, 100px))", paddingBottom: "var(--lexis-dock-pad, 0px)" }}
       >
         <aside className="w-[280px] shrink-0 border-r border-border flex flex-col bg-card/40">
           <div className="p-3 border-b flex items-start justify-between gap-2">
@@ -572,7 +595,7 @@ export default function MensagensPage() {
               placeholder="Mensagem para a equipe…"
               className="transition-shadow duration-200 focus-visible:ring-2"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                   e.preventDefault();
                   void sendText();
                 }

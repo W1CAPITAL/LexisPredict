@@ -411,7 +411,7 @@ export default function UnifiedReport() {
   return (
     <div className="min-h-screen lexis-report-root font-sans text-foreground">
 
-      <div className="print:hidden sticky top-0 z-[100] bg-card/85 backdrop-blur-xl border-b border-border p-4">
+      <div className="print:hidden sticky top-0 z-[100] bg-background/90 backdrop-blur-xl border-b border-border p-4 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-6">
             <Button variant="ghost" asChild className="h-10 px-4 font-black uppercase text-[10px] border-2 border-transparent hover:border-border rounded-lg">
