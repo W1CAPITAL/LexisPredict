@@ -1,5 +1,6 @@
-import { EncerrarKpisStrip } from "@/components/dashboard/encerrar-kpis-strip";
 "use client";
+
+import { EncerrarKpisStrip } from "@/components/dashboard/encerrar-kpis-strip";
 import {
   countEditadosAppSemana,
   countEditadosAppHoje,
