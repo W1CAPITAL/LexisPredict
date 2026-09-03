@@ -8,3 +8,15 @@ export function resolveTemNovoAndamento(c: any): boolean {
 export function patchClearNovidade(): Record<string, boolean> {
   return { tem_atualizacao_pos_retorno: false, tem_novo_andamento: false, djen_nova_comunicacao: false };
 }
+
+
+/** Mantém flag de alerta: se novo sinal true → true; se false e prev true → true; senão undefined (não grava). */
+export function mergeFlagAlerta(
+  alerta: boolean,
+  prev: boolean | null | undefined
+): boolean | undefined {
+  if (alerta) return true;
+  if (prev === true) return true;
+  if (prev === false) return false;
+  return undefined;
+}

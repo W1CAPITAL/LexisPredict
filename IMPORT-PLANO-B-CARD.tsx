@@ -1,36 +1,28 @@
-{/* === COLAR NA PÁGINA DE INGESTÃO / IMPORT (src/app/import/page.tsx) ===
-    Coloque no topo do conteúdo principal, antes do upload CSV → Supabase.
-    Imports necessários:
-      import Link from "next/link";
-      import { FileSpreadsheet } from "lucide-react";
-*/}
+/**
+ * Snippet de integração Plano B — não é rota.
+ * Use o conteúdo em src/app/plano-b ou import.
+ */
+"use client";
+import Link from "next/link";
+import { FileSpreadsheet } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-              <Card className="border-2 border-emerald-500/40 bg-emerald-500/5 mb-6">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
-                    <FileSpreadsheet size={18} />
-                    Plano B · Carteira em planilha
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-[12px] text-muted-foreground">
-                  <p>
-                    Operação pela planilha Google / XLSX (leitura e busca), <strong>sem gravar no banco</strong>.
-                    Use quando precisar consultar a carteira fora do fluxo normal de ingestão.
-                  </p>
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li>
-                      <strong>Upload XLSX/CSV</strong> na tela Plano B (recomendado se o link der HTTP 400).
-                    </li>
-                    <li>
-                      Ou no Google Sheets: <strong>Arquivo → Compartilhar → Publicar na web</strong> → aba Processos →{" "}
-                      <strong>CSV</strong> (isso é diferente de “Qualquer pessoa com o link”).
-                    </li>
-                  </ul>
-                  <Link
-                    href="/plano-b"
-                    className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-700 px-4 text-[11px] font-black uppercase tracking-wide text-white hover:bg-emerald-600"
-                  >
-                    Abrir Plano B · Planilha
-                  </Link>
-                </CardContent>
-              </Card>
+export function ImportPlanoBCard() {
+  return (
+    <Card className="border-border/60 bg-card/50 backdrop-blur">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+          <FileSpreadsheet className="h-4 w-4 text-primary" />
+          Plano B · planilha
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="text-xs text-muted-foreground space-y-2">
+        <p>Importar CSV/Sheets e usar como contingência da carteira.</p>
+        <Link href="/plano-b" className="text-primary font-bold underline">
+          Abrir Plano B
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+export default ImportPlanoBCard;

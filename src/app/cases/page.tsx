@@ -572,23 +572,26 @@ function CasesContent() {
         } catch { /* */ }
       }
       if (ok > 0) {
-        setCases((prev: LegalCase[]) =>
-          prev.map((c: LegalCase) => {
-            const p = byProto[c.protocolo];
-            if (!p) return c;
-            return processarCaso({
-              ...c,
-              ...p,
-              ...patchAtendimentoComEdicao(
-                (profile as any)?.auth_user_id || (profile as any)?.id,
-                p.ultimoRetorno || todayStr
-              ),
-              tem_atualizacao_pos_retorno: false,
-              djen_nova_comunicacao: false,
-              tem_novo_andamento: false,
-            });
-          })
-        );
+        {
+          const prev = useAppStore.getState().cases;
+          setCases(
+            prev.map((c: LegalCase) => {
+              const p = byProto[c.protocolo];
+              if (!p) return c;
+              return processarCaso({
+                ...c,
+                ...p,
+                ...patchAtendimentoComEdicao(
+                  (profile as any)?.auth_user_id || (profile as any)?.id,
+                  p.ultimoRetorno || todayStr
+                ),
+                tem_atualizacao_pos_retorno: false,
+                djen_nova_comunicacao: false,
+                tem_novo_andamento: false,
+              });
+            })
+          );
+        }
         setIsAttendanceOpen(false);
         setActiveGroup(null);
         toast({
@@ -730,18 +733,21 @@ function CasesContent() {
       const res = await transferCasesOwnerAction({ protocolos: list, novoOwnerAuthId: bulkOwnerId });
       if (res.success && res.updated > 0) {
         // Remove da lista local se não for mais "meu" (operador) ou atualiza created_by
-        setCases((prev: LegalCase[]) =>
-          prev
-            .map((c: LegalCase) =>
-              list.includes(String(c.protocolo || ''))
-                ? ({ ...c, created_by: bulkOwnerId } as any)
-                : c
-            )
-            .filter((c: LegalCase) => {
-              if (!isOperador) return true;
-              return String((c as any).created_by || '') === String((profile as any)?.auth_user_id || '');
-            })
-        );
+        {
+          const prev = useAppStore.getState().cases;
+          setCases(
+            prev
+              .map((c: LegalCase) =>
+                list.includes(String(c.protocolo || ''))
+                  ? ({ ...c, created_by: bulkOwnerId } as any)
+                  : c
+              )
+              .filter((c: LegalCase) => {
+                if (!isOperador) return true;
+                return String((c as any).created_by || '') === String((profile as any)?.auth_user_id || '');
+              })
+          );
+        }
         setSelectedProtos(new Set());
         toast({ title: 'Transferência em massa', description: res.message });
       } else {
@@ -947,7 +953,7 @@ function CasesContent() {
         : { success: false, message: 'Protocolo não encontrado' };
       if (res.success) {
         removeCase(id);
-        setCases((prev: LegalCase[]) => prev.filter((c: LegalCase) => c.id !== id));
+        setCases(useAppStore.getState().cases.filter((c: LegalCase) => c.id !== id));
         toast({ title: 'Processo removido' });
       } else {
         toast({ title: 'Falha ao remover', description: (res as any).message, variant: 'destructive' });
