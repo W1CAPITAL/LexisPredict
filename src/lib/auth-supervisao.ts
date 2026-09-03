@@ -21,7 +21,10 @@ export type ProfileLike = {
 
 function blob(p: ProfileLike): string {
   if (!p) return "";
-  return `${p.cargo || ""} ${p.role || ""} ${p.perfil || ""}`.toLowerCase();
+  return `${p.cargo || ""} ${p.role || ""} ${p.perfil || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 /** Superadmin (cargo/role ou flag). */
@@ -38,8 +41,8 @@ export function isSupervisorProfile(p: ProfileLike): boolean {
   if (p.isSupervisor) return true;
   if (isSuperAdminProfile(p)) return true;
   const b = blob(p);
-  // superadmin já retornou true acima
-  return /\bsupervisor\b/.test(b);
+  // O sistema usa tanto "Supervisor" quanto "Supervisão" como cargo.
+  return /\bsupervisor\b|\bsupervisao\b/.test(b);
 }
 
 /**

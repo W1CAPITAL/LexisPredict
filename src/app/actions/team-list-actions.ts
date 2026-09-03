@@ -1,6 +1,7 @@
 'use server';
 
 import { getEmpresaUsers, getUserContext } from '@/lib/server-db';
+import { canAssignOwner } from '@/lib/auth-supervisao';
 
 export type AssignableUser = {
   id: string;
@@ -15,13 +16,9 @@ export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
 
-  const cargo = String(ctx.cargo || '');
-  const can =
-    ctx.isSuperAdmin ||
-    ctx.isSupervisor ||
-    /administrador|supervisor|superadmin|admin/i.test(cargo);
-
-  if (!can) return [];
+  // Use the same normalized rule as the reassignment mutation. This keeps
+  // accented cargos such as "Supervisão" consistent with the UI and server.
+  if (!canAssignOwner(ctx as any)) return [];
 
   const users = await getEmpresaUsers();
   return (users || [])
