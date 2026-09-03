@@ -79,24 +79,14 @@ function scalar(value: unknown) {
   return String(value);
 }
 
-function toMatrix(rows: Record<string, any>[]) {
-  const preferred = [
-    "id", "Protocolo", "Cliente", "Status", "Situacao", "UltimoRetorno", "ProximoRetorno",
-    "Advogado", "Escritorio", "Tribunal", "Telefone", "CreatedBy", "AtendidoPor", "Observacao",
-    "DatajudEncerrado", "EmpresaId", "empresa_id", "isBaixaTribunal", "ultimo_movimento", "fase",
-    "valor_causa", "updated_at", "Assistente", "Distribuicao", "Produtos", "Data_Movimentacao",
-    "Andamento", "Evento_Tipo", "Novo_Andamento", "Busca_Apreensao", "Cumprimento", "DJEN_Resumo",
-    "Dias_Sem_Retorno", "Procedente", "Improcedente"
-  ];
-
-  const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
-  const headers = [
-    ...preferred.filter((k) => keys.some((actual) => actual === k)),
-    ...keys.filter((k) => !preferred.includes(k) && k !== "dados"),
-  ];
-
-  const matrix = rows.map((r) => headers.map((h) => scalar(r[h])));
-  return { headers, matrix };
+function dedupeRows(rows: Record<string, any>[]) {
+  const unique = new Map<string, Record<string, any>>();
+  for (const row of rows) {
+    const protocol = String(row.protocolo ?? row.Protocolo ?? row.protocolo_ref ?? row.cnj ?? "").trim();
+    const key = protocol.replace(/\D/g, "") || protocol;
+    if (key) unique.set(key, { ...row, protocolo: protocol, Protocolo: protocol });
+  }
+  return [...unique.values()];
 }
 
 async function callSheets(payload: Record<string, unknown>) {
@@ -204,8 +194,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const rows = normalizeRows(rawRows);
-    const { headers, matrix } = toMatrix(rows);
+    // O Apps Script faz o mapeamento pela linha de cabeçalhos existente. Enviar uma
+    // matriz/header dinâmica permite que colunas antigas sejam deslocadas; por isso
+    // o contrato do seed é sempre uma lista de objetos deduplicados por protocolo.
+    const rows = dedupeRows(normalizeRows(rawRows));
     const nextCursor = String(rawRows[rawRows.length - 1]?.id ?? "") || null;
     const hasMore = rawRows.length === batchSize;
 
@@ -222,8 +214,6 @@ export async function POST(req: NextRequest) {
       cursor,
       next_cursor: hasMore ? nextCursor : null,
       has_more: hasMore,
-      headers,
-      matrix,
       rows,
     });
 

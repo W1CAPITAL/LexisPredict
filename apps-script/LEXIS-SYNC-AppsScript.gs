@@ -562,7 +562,16 @@ function writeRecords_(rows, actor, allowInsert) {
 }
 
 function upsertBatch_(body) {
-  var rows = Array.isArray(body.rows) ? body.rows : [];
+  var input = Array.isArray(body.rows) ? body.rows : [];
+  var unique = {};
+  var rows = [];
+  input.forEach(function (record) {
+    var protocol = protocolFromRecord_(record || "");
+    var key = digits(protocol) || String(protocol || "").trim();
+    if (!key || unique[key]) return;
+    unique[key] = true;
+    rows.push(record);
+  });
   var actor = {
     u: String(body.actor || body.actor_login || body.user || "sync"),
     nome: String(body.actor_name || "LexisPredict"),
