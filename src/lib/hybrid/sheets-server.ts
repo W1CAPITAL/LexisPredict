@@ -113,7 +113,7 @@ async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500): Prom
     const parsed = parseBody(await res.text());
     return { ...parsed, status: res.status };
   } catch (e: any) {
-    return { ok: false, error: e?.name === "AbortError" ? "Webhook Sheets excedeu 4,5s." : (e?.message || "Falha POST Sheets"), status: 0 };
+    return { ok: false, error: e?.name === "AbortError" ? "Webhook Sheets excedeu 30s." : (e?.message || "Falha POST Sheets"), status: 0 };
   } finally {
     clearTimeout(timer);
   }
@@ -121,7 +121,9 @@ async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500): Prom
 
 export async function sheetsServerPost(body: Record<string, unknown>): Promise<{ ok: boolean; json?: any; error?: string; status?: number }> {
   const action = String(body.action || "ping");
-  const post = await sheetsPost(body, action === "upsert_batch" ? 4500 : 3500);
+  // Escritas são confirmadas antes de retornar: o Apps Script pode precisar
+  // aguardar lock e gravar lotes grandes. Leituras continuam rápidas.
+  const post = await sheetsPost(body, action === "upsert_batch" ? 30000 : 3500);
   if (post.ok) return post;
 
   // GET somente para ping/list/get. Nunca convertemos escrita em GET.

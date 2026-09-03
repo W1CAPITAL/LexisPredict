@@ -5,7 +5,7 @@ import { sheetsServerPost, sheetsWebhookConfigured } from "@/lib/hybrid/sheets-s
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_ROWS_PER_REQUEST = 100;
+const MAX_ROWS_PER_REQUEST = 500;
 
 /**
  * Sincronização automática de entrada:
