@@ -31,18 +31,59 @@ function overlayDefined(base: Record<string, any>, patch: Record<string, any>) {
   return out;
 }
 
-async function existingFromDatabase(empresaId: string, protocolo: string): Promise<Record<string, any> | null> {
+function protocolVariants(raw: string): string[] {
+  const key = String(raw || '').trim();
+  const digits = key.replace(/\D/g, '');
+  const out: string[] = [];
+  if (key) out.push(key);
+  if (digits && digits !== key) out.push(digits);
+  if (digits.length === 20) {
+    const masked = `${digits.slice(0,7)}-${digits.slice(7,9)}.${digits.slice(9,13)}.${digits.slice(13,14)}.${digits.slice(14,16)}.${digits.slice(16,20)}`;
+    out.push(masked);
+  }
+  return Array.from(new Set(out));
+}
+
+/** Colunas reais da tabela processos (CSV/Supabase). Nunca gravar proximo_prazo. */
+const PROCESSOS_WRITE_COLS = new Set([
+  'empresa_id','protocolo_ref','dados','created_by','ultimo_retorno','proximo_retorno',
+  'observacoes','status','risco','status_interno','escritorio','advogado','telefone',
+  'tribunal','cliente','atendido_por','updated_at','datajud_ultimo_movimento',
+  'datajud_ultimo_nome','datajud_encerrado_tribunal','em_cumprimento_sentenca',
+  'djen_ultimo_resumo','tem_atualizacao_pos_retorno','djen_nova_comunicacao',
+]);
+
+function pickProcessoPayload(input: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(input || {})) {
+    if (PROCESSOS_WRITE_COLS.has(k) && k !== 'proximo_prazo') out[k] = v;
+  }
+  return out;
+}
+
+async function loadProcessoRow(empresaId: string, protocolo: string): Promise<Record<string, any> | null> {
   const admin = await getSupabaseAdmin();
-  const key = String(protocolo || '').trim();
-  if (!key) return null;
-  const { data, error } = await admin
-    .from('processos')
-    .select('*')
-    .eq('empresa_id', empresaId)
-    .eq('protocolo_ref', key)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return (data as Record<string, any> | null) || null;
+  for (const key of protocolVariants(protocolo)) {
+    const { data, error } = await admin
+      .from('processos')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .eq('protocolo_ref', key)
+      .maybeSingle();
+    if (error && /proximo_prazo/i.test(String(error.message))) {
+      const retry = await admin
+        .from('processos')
+        .select('id, empresa_id, protocolo_ref, dados, created_by, ultimo_retorno, proximo_retorno, observacoes, status, status_interno, atendido_por, escritorio, advogado, telefone, tribunal, cliente, datajud_ultimo_movimento, datajud_ultimo_nome, datajud_encerrado_tribunal, em_cumprimento_sentenca, djen_ultimo_resumo')
+        .eq('empresa_id', empresaId)
+        .eq('protocolo_ref', key)
+        .maybeSingle();
+      if (retry.data) return retry.data as Record<string, any>;
+      continue;
+    }
+    if (error) continue;
+    if (data) return data as Record<string, any>;
+  }
+  return null;
 }
 
 async function persistToDatabase(
@@ -83,13 +124,13 @@ async function persistToDatabase(
     em_cumprimento_sentenca: 'em_cumprimento_sentenca',
   };
 
-  const payload: Record<string, any> = {
+  const payload: Record<string, any> = pickProcessoPayload({
     empresa_id: empresaId,
     protocolo_ref: protocolo,
     dados: mergedDados,
-  };
+  });
   for (const [dbKey, sourceKey] of Object.entries(directFields)) {
-    if (processed[sourceKey] !== undefined) {
+    if (processed[sourceKey] !== undefined && PROCESSOS_WRITE_COLS.has(dbKey)) {
       payload[dbKey] = dbKey === 'ultimo_retorno' || dbKey === 'proximo_retorno'
         ? dateOrNull(processed[sourceKey])
         : processed[sourceKey];
@@ -102,8 +143,11 @@ async function persistToDatabase(
 
   if (existing?.id) {
     let result = await admin.from('processos').update(withUpdated).eq('id', existing.id).select('*').maybeSingle();
-    if (result.error && /updated_at|schema cache|column .* does not exist/i.test(String(result.error.message))) {
-      result = await admin.from('processos').update(payload).eq('id', existing.id).select('*').maybeSingle();
+    if (result.error && /updated_at|proximo_prazo|schema cache|column .* does not exist/i.test(String(result.error.message))) {
+      const safe = { ...payload };
+      delete safe.updated_at;
+      delete (safe as any).proximo_prazo;
+      result = await admin.from('processos').update(safe).eq('id', existing.id).select('id, protocolo_ref').maybeSingle();
     }
     if (result.error) return { success: false, message: result.error.message };
     return { success: true, data: result.data };
@@ -224,7 +268,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       processed.proximo_retorno = processed.proximoPrazo;
     }
     // Supabase é a fonte operacional. Sheets nunca participa da leitura/decisão de salvamento.
-    const existing = await existingFromDatabase(empresa_id, processed.protocolo);
+    const existing = await loadProcessoRow(empresa_id, processed.protocolo);
 
     const owner = existing?.created_by || existing?.CreatedBy || existing?.createdBy || existing?.dados?.created_by || processed.created_by || null;
     const forceTransfer = !!(caseData as any).force_transfer_owner || !!(caseData as any).__transfer_owner;
@@ -312,13 +356,7 @@ export async function registrarAtendimentoCompletoAction(input: {
     if (!ctx.empresa_id || !input?.protocolo) return { success: false, message: 'Sessão expirada ou protocolo inválido.' };
     const admin = await getSupabaseAdmin();
     const protocolo = String(input.protocolo).trim();
-    const { data: existing, error: findError } = await admin
-      .from('processos')
-      .select('*')
-      .eq('empresa_id', ctx.empresa_id)
-      .eq('protocolo_ref', protocolo)
-      .maybeSingle();
-    if (findError) return { success: false, message: findError.message };
+    const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado na carteira.' };
 
     const hoje = new Date().toISOString().slice(0, 10);
@@ -352,7 +390,7 @@ export async function registrarAtendimentoCompletoAction(input: {
       datajud_encerrado_tribunal: situacao === 'ENCERRADO' ? (base.datajud_encerrado_tribunal ?? existing.datajud_encerrado_tribunal ?? false) : (base.datajud_encerrado_tribunal ?? existing.datajud_encerrado_tribunal ?? false),
     };
 
-    const patch: Record<string, any> = {
+    const patch: Record<string, any> = pickProcessoPayload({
       dados,
       ultimo_retorno: hoje,
       proximo_retorno: proximo,
@@ -364,9 +402,9 @@ export async function registrarAtendimentoCompletoAction(input: {
       tem_atualizacao_pos_retorno: false,
       djen_nova_comunicacao: false,
       updated_at: new Date().toISOString(),
-    };
+    });
     let saved = await admin.from('processos').update(patch).eq('id', existing.id);
-    if (saved.error && /updated_at|status_interno|schema cache|column .* does not exist/i.test(String(saved.error.message))) {
+    if (saved.error && /updated_at|proximo_prazo|status_interno|schema cache|column .* does not exist/i.test(String(saved.error.message))) {
       const retry = { ...patch };
       delete retry.updated_at; delete retry.status_interno;
       saved = await admin.from('processos').update(retry).eq('id', existing.id);
