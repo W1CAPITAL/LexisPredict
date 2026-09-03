@@ -5,6 +5,7 @@ import { LegalCase, formatDateToISO, processarCaso } from './case-logic';
 import { resolveSituacaoFromRow, resolveStatusManualFromRow } from './resolve-situacao';
 import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { canSupervisaoCarteira, isSuperAdminProfile } from './auth-supervisao';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -40,8 +41,8 @@ export async function getUserContext() {
     .maybeSingle();
     
   const cargo = (profile?.cargo as UserRole) || 'Operador';
-  const isSuperAdmin = checkIfSuperAdmin(profile);
-  const isSupervisor = checkIfSupervisor(profile) || /supervisor/i.test(String(profile?.cargo || ''));
+  const isSuperAdmin = isSuperAdminProfile(profile) || checkIfSuperAdmin(profile);
+  const isSupervisor = canSupervisaoCarteira(profile) || checkIfSupervisor(profile);
   // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
   // Lote1: só Superadmin e Supervisor veem todos os casos.

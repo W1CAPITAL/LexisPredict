@@ -505,7 +505,7 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
 
 export async function reassignCaseOwnerAction(input: { protocolo: string; novoOwnerAuthId: string }): Promise<{ success: boolean; message: string }> {
   try {
-    const { empresa_id, auth_id } = await getUserContext();
+    const { empresa_id, auth_id, isSupervisor, isSuperAdmin } = await getUserContext();
     if (!empresa_id || !auth_id) return { success: false, message: 'Sessão expirada.' };
 
     const protocolo = String(input.protocolo || '').trim();
@@ -514,7 +514,12 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
 
     const admin = await getSupabaseAdmin();
     const { data: me } = await admin.from('usuarios').select('cargo,role,perfil').eq('empresa_id', empresa_id).eq('auth_user_id', auth_id).maybeSingle();
-    if (!canSupervisaoCarteira(me as any)) return { success: false, message: SUPERVISAO_REQUIRED };
+    const canTransfer = canSupervisaoCarteira({
+      ...(me as any),
+      isSuperAdmin: Boolean((me as any)?.is_superadmin),
+      isSupervisor: Boolean((me as any)?.is_supervisor),
+    }) || Boolean(isSupervisor) || Boolean(isSuperAdmin);
+    if (!canTransfer) return { success: false, message: SUPERVISAO_REQUIRED };
 
     const { data: current } = await admin.from('processos').select('*').eq('empresa_id', empresa_id).eq('protocolo_ref', protocolo).maybeSingle();
     if (!current) return { success: false, message: 'Processo não encontrado na carteira.' };
