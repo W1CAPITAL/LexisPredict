@@ -326,23 +326,29 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       });
     } catch { /* auditoria não bloqueia o salvamento */ }
 
-    // Espelho incremental: 1 processo por operação. Falha no Sheets não desfaz a gravação no banco.
+    // Espelho incremental: aguarda a confirmação do webhook para que o runtime
+    // serverless não encerre a Server Action antes de enviar um processo novo.
+    // Falha no Sheets não desfaz a gravação no banco.
     if (sheetsWebhookConfigured()) {
-      void sheetsServerPost({
-        action: 'upsert_batch',
-        rows: [row],
-        source: 'LexisPredict',
-        actor: auth_id || 'sync',
-        actor_name: actorName,
-        perfil: 'superadmin',
-        audit: {
-          edited_by: auth_id,
-          edited_by_name: actorName,
-          edited_at: processed.edited_at,
-          atendido_por: processed.atendido_por,
-          atendido_em: processed.atendido_em,
-        },
-      }).catch(() => {});
+      try {
+        await sheetsServerPost({
+          action: 'upsert_batch',
+          rows: [row],
+          source: 'LexisPredict',
+          actor: auth_id || 'sync',
+          actor_name: actorName,
+          perfil: 'superadmin',
+          audit: {
+            edited_by: auth_id,
+            edited_by_name: actorName,
+            edited_at: processed.edited_at,
+            atendido_por: processed.atendido_por,
+            atendido_em: processed.atendido_em,
+          },
+        });
+      } catch {
+        // O Postgres continua sendo a fonte operacional.
+      }
     }
 
     return { success: true, message: 'Salvo.', case: processed };

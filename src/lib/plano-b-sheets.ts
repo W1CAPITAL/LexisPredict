@@ -223,6 +223,8 @@ export async function fetchPlanoBFromUrl(url: string): Promise<{
     let lastErr = "";
     for (const finalUrl of candidates) {
       try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
         const res = await fetch(finalUrl, {
           cache: "no-store",
           redirect: "follow",
@@ -230,7 +232,9 @@ export async function fetchPlanoBFromUrl(url: string): Promise<{
             Accept: "text/csv,text/plain,*/*",
             "User-Agent": "LexisPredict-PlanoB/1.0",
           },
+          signal: controller.signal,
         });
+        clearTimeout(timer);
         if (!res.ok) {
           lastErr = `HTTP ${res.status}`;
           continue;
