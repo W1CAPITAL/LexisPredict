@@ -14,7 +14,7 @@ export async function ocrSpaceExternal(
   language = 'por'
 ): Promise<OcrResult> {
   if (OCR_EXTERNAL_DISABLED) {
-    return { ok: false, text: '', provider: 'disabled', error: 'OCR.space desativado — use Tesseract local.' };
+    return { success: false, text: '', provider: 'disabled', error: 'OCR.space desativado — use Tesseract local.' } as any;
   }
 
   const apiKey = (process.env.OCR_SPACE_API_KEY || '').trim();

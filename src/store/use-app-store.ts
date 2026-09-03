@@ -75,7 +75,7 @@ interface AppState {
   setDarkMode: (isDark: boolean) => void;
   
   // Data Actions (with Integrity Check)
-  setCases: (cases: LegalCase[]) => void;
+  setCases: (cases: LegalCase[] | ((prev: LegalCase[]) => LegalCase[])) => void;
   addCase: (item: LegalCase) => void;
   updateCase: (id: string, updates: Partial<LegalCase>) => void;
   updateCaseByProtocolo: (protocolo: string, patch: Partial<LegalCase>) => void;
@@ -174,7 +174,7 @@ export const useAppStore = create<AppState>()(
       },
 
       // Data Actions
-      setCases: (cases) => set({ cases: dedupe(cases) }),
+      setCases: (cases) => set((state) => ({ cases: dedupe(typeof cases === 'function' ? cases(state.cases) : cases) })),
       addCase: (item) => set((state) => ({ cases: dedupe([item, ...state.cases]) })),
       updateCase: (id, updates) => set((state) => ({
         cases: state.cases.map(c => c.id === id ? { ...c, ...updates } : c)

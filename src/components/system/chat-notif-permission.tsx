@@ -156,7 +156,7 @@ export function notifyChatMessage(
       body: text,
       icon: "/logo.png",
       tag: "lexis-chat-msg",
-      renotify: true,
+      // renotify: true, // not in NotificationOptions lib
     });
   } catch {
     /* */

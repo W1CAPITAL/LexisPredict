@@ -36,7 +36,7 @@ export function HybridAutoSync() {
         const st = await hybridStatusAction();
         if (!st.enabled || !st.webhookConfigured) return;
 
-        const r = await hybridAutoSyncAction();
+        const r = await hybridAutoSyncAction() as any;
         if (cancelled) return;
 
         try {
@@ -48,11 +48,13 @@ export function HybridAutoSync() {
         const msg = r.message || r.error || r.action;
         setLast(msg);
 
-        if (r.action === "seed" && r.success) {
-          toast({
-            title: "Planilha sincronizada",
-            description: msg,
-          });
+        if ((r.action === "seed" || r.action === "ready" || (r as any).pushed) && (r as any).success !== false) {
+          if (r.action === "seed" || (r as any).pushed) {
+            toast({
+              title: "Planilha sincronizada",
+              description: msg,
+            });
+          }
         } else if (r.action === "error") {
           toast({
             title: "Sync híbrido",

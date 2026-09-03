@@ -121,7 +121,7 @@ export function rankearCasoEspecial(c: LegalCase, limiar = 55): RankingEspecial 
     label = 'Pronto · empresa por fora';
     cor = 'text-violet-800';
     motivos.push('Honorários a receber + score ≥ limiar');
-  } else if (hon.temHonorariosAReceber && hon.nivel !== 'bloqueado') {
+  } else if (hon.temHonorariosAReceber && (hon.nivel as string) !== 'bloqueado') {
     estagio = 'hon_receber';
     prioridade =
       hon.nivel === 'forte' ? 750 + hon.confianca : hon.nivel === 'medio' ? 600 + hon.confianca : 450;

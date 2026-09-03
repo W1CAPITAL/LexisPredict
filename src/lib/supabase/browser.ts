@@ -78,7 +78,7 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
     if (event === "SIGNED_OUT" || (!session && event === "USER_UPDATED")) return;
 
     // Evita tempestade de refresh quando o navegador recupera de uma sessão ruim.
-    if (event === "USER_DELETED" && !recovering) {
+    if (event === ("USER_DELETED" as any) && !recovering) {
       recovering = true;
       resetSupabaseBrowserSession();
       window.setTimeout(() => {

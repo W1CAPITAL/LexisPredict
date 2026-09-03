@@ -134,14 +134,7 @@ export function createSheetsProvider(): DataProvider {
         // Prefer local cache; pull remoto se vazio
         let rows = await local.processes.list(opts);
         if (!rows.length) {
-          const pull = await this.sync.pull();
-          if (pull.ok && pull.processes?.length) {
-            await importRowsToLocal(
-              "processos",
-              pull.processes as unknown as Record<string, unknown>[],
-            );
-            rows = pull.processes;
-          }
+          // sync engine separado; aqui só cache local
         }
         return rows;
       },

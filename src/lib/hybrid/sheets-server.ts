@@ -82,7 +82,7 @@ function parseBody(text: string) {
   }
 }
 
-async function sheetsGet(params: Record<string, string>) {
+async function sheetsGet(params: Record<string, string>): Promise<{ ok: boolean; json?: any; error?: string; status?: number }> {
   const url = webhookUrl();
   if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
   const q = new URLSearchParams({ token: token(), ...params });
@@ -91,11 +91,11 @@ async function sheetsGet(params: Record<string, string>) {
     const parsed = parseBody(await res.text());
     return { ...parsed, status: res.status };
   } catch (e: any) {
-    return { ok: false, error: e?.message || "Falha GET Sheets" };
+    return { ok: false, error: e?.message || "Falha GET Sheets", status: 0 };
   }
 }
 
-async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500) {
+async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500): Promise<{ ok: boolean; json?: any; error?: string; status?: number }> {
   const url = webhookUrl();
   if (!url) return { ok: false, error: "LEXIS_SHEETS_WEBHOOK_URL vazia" };
   if (!token()) return { ok: false, error: "LEXIS_SHEETS_TOKEN não configurado" };
@@ -113,13 +113,13 @@ async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500) {
     const parsed = parseBody(await res.text());
     return { ...parsed, status: res.status };
   } catch (e: any) {
-    return { ok: false, error: e?.name === "AbortError" ? "Webhook Sheets excedeu 4,5s." : (e?.message || "Falha POST Sheets") };
+    return { ok: false, error: e?.name === "AbortError" ? "Webhook Sheets excedeu 4,5s." : (e?.message || "Falha POST Sheets"), status: 0 };
   } finally {
     clearTimeout(timer);
   }
 }
 
-export async function sheetsServerPost(body: Record<string, unknown>) {
+export async function sheetsServerPost(body: Record<string, unknown>): Promise<{ ok: boolean; json?: any; error?: string; status?: number }> {
   const action = String(body.action || "ping");
   const post = await sheetsPost(body, action === "upsert_batch" ? 4500 : 3500);
   if (post.ok) return post;
@@ -135,10 +135,15 @@ export async function sheetsServerPost(body: Record<string, unknown>) {
     if (get.ok) return get;
   }
 
-  return { ok: false, error: post.error || `Webhook HTTP ${post.status || 0}`, status: post.status };
+  return { ok: false, error: post.error || `Webhook HTTP ${(post as any).status || 0}`, status: (post as any).status };
 }
 
-export async function sheetsListProcessos(opts?: { empresaId?: string; responsavel?: string; limit?: number }) {
+export async function sheetsListProcessos(opts?: {
+  empresaId?: string;
+  responsavel?: string;
+  limit?: number;
+}): Promise<{ ok: boolean; rows: any[]; error?: string }> {
+
   const r = await sheetsServerPost({ action: "list", empresaId: opts?.empresaId, responsavel: opts?.responsavel, limit: opts?.limit ?? 5000 });
   if (!r.ok) return { ok: false, rows: [], error: r.error };
   const rows = r.json?.rows || r.json?.processos || r.json?.data || [];
