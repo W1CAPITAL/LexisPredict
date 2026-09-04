@@ -326,29 +326,26 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       });
     } catch { /* auditoria não bloqueia o salvamento */ }
 
-    // Espelho incremental: aguarda a confirmação do webhook para que o runtime
-    // serverless não encerre a Server Action antes de enviar um processo novo.
-    // Falha no Sheets não desfaz a gravação no banco.
+    // Espelho best-effort: o Postgres já foi confirmado e nunca espera o Sheets.
+    // O webhook é opcional; uma falha ou timeout não pode bloquear o salvamento.
     if (sheetsWebhookConfigured()) {
-      try {
-        await sheetsServerPost({
-          action: 'upsert_batch',
-          rows: [row],
-          source: 'LexisPredict',
-          actor: auth_id || 'sync',
-          actor_name: actorName,
-          perfil: 'superadmin',
-          audit: {
-            edited_by: auth_id,
-            edited_by_name: actorName,
-            edited_at: processed.edited_at,
-            atendido_por: processed.atendido_por,
-            atendido_em: processed.atendido_em,
-          },
-        });
-      } catch {
+      void sheetsServerPost({
+        action: 'upsert_batch',
+        rows: [row],
+        source: 'LexisPredict',
+        actor: auth_id || 'sync',
+        actor_name: actorName,
+        perfil: 'superadmin',
+        audit: {
+          edited_by: auth_id,
+          edited_by_name: actorName,
+          edited_at: processed.edited_at,
+          atendido_por: processed.atendido_por,
+          atendido_em: processed.atendido_em,
+        },
+      }).catch(() => {
         // O Postgres continua sendo a fonte operacional.
-      }
+      });
     }
 
     return { success: true, message: 'Salvo.', case: processed };
@@ -447,13 +444,15 @@ export async function registrarAtendimentoCompletoAction(input: {
     } catch { /* auditoria não desfaz o salvamento */ }
 
     const savedCase = processarCaso({ ...(previousDados as any), ...dados, ultimoRetorno: hoje, ultimo_retorno: hoje, proximoPrazo: proximo || '', proximo_retorno: proximo, situacao, status: patch.status } as any) as any;
-    let mirror: Awaited<ReturnType<typeof mirrorAtendimento>>;
-    try {
-      mirror = await mirrorAtendimento({ protocolo, empresaId: ctx.empresa_id, ultimoRetorno: hoje, proximoPrazo: proximo, observacao, situacao, actorId: ctx.auth_id, actorName });
-    } catch (error: any) {
-      mirror = { ok: false, attempted: true, reason: error?.message || 'Falha inesperada no espelhamento.' };
+    // O atendimento já está confirmado no Postgres. O espelho é assíncrono e best-effort.
+    // Não aguardamos o Apps Script nem propagamos timeout para o operador.
+    if (sheetsWebhookConfigured()) {
+      void mirrorAtendimento({ protocolo, empresaId: ctx.empresa_id, ultimoRetorno: hoje, proximoPrazo: proximo, observacao, situacao, actorId: ctx.auth_id, actorName })
+        .catch(() => {
+          // Falha no espelho não desfaz nem altera o resultado do atendimento.
+        });
     }
-    return { success: true, message: situacao === 'ENCERRADO' ? 'Atendimento salvo e processo encerrado.' : 'Atendimento salvo.', ultimoRetorno: hoje, proximoPrazo: proximo || '', case: savedCase, mirror };
+    return { success: true, message: situacao === 'ENCERRADO' ? 'Atendimento salvo e processo encerrado.' : 'Atendimento salvo.', ultimoRetorno: hoje, proximoPrazo: proximo || '', case: savedCase };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao registrar atendimento.' };
   }
