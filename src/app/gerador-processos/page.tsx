@@ -131,7 +131,10 @@ export default function GeradorProcessosPage() {
             enrich: willEnrich,
           });
           pushLogs(res.logs || []);
-          if (res.geoBlocked) break outer;
+          if (res.geoBlocked || res.invalidSource) {
+            pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "err", text: "Fonte DJEN indisponível ou inválida. Varredura interrompida para não produzir resultado fictício." }]);
+            break outer;
+          }
 
           let retries = 0;
           while (res.rateLimited && retries < 6 && !stopRef.current) {
