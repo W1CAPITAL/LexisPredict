@@ -7,12 +7,14 @@ import {
   extractCnjFromApiField,
   extractCnjFromTextoStrict,
   extractNomeCompletoFromDjen,
+  extractTelefoneFromText,
   formatCnjMasked,
   isSegredoOuSigilo,
   matchFiltrosRevisional,
   teorConsultavel,
   type FiltroRevisionalId,
   type ProcessoDjenReal,
+  type ScanLogLine,
 } from "@/lib/revisional-tribunal-filtros";
 
 function ymdDaysAgo(days: number): string {
@@ -21,179 +23,169 @@ function ymdDaysAgo(days: number): string {
 function hojeYmd(): string {
   return new Date().toISOString().slice(0, 10);
 }
+function log(level: ScanLogLine["level"], text: string): ScanLogLine {
+  return { ts: new Date().toISOString().slice(11, 19), level, text };
+}
 
 function buildLink(it: any, digits: string): string {
   const direct = String(it?.link || "").trim();
   if (direct.startsWith("http")) return direct;
   const hash = String(it?.hash || "").trim();
   if (hash) return `https://comunica.pje.jus.br/consulta?hash=${encodeURIComponent(hash)}`;
-  const id = it?.id != null ? String(it.id).trim() : "";
-  if (id) return `https://comunica.pje.jus.br/consulta?id=${encodeURIComponent(id)}`;
-  const masked = formatCnjMasked(digits);
-  return `https://comunica.pje.jus.br/#/consulta?numeroProcesso=${encodeURIComponent(masked)}`;
+  if (it?.id != null) return `https://comunica.pje.jus.br/consulta?id=${encodeURIComponent(String(it.id))}`;
+  return `https://comunica.pje.jus.br/#/consulta?numeroProcesso=${encodeURIComponent(formatCnjMasked(digits))}`;
 }
 
 /**
- * DJEN real + higiene:
- * - CNJ com DV válido
- * - descarta segredo de justiça / sigilo
- * - exige teor legível OU nome de parte
- * - exige link consultável
- * - match dos filtros ativos
+ * Uma página de scan. O client chama em loop até atingir `alvo`.
+ * Nunca inventa CNJ/nome/telefone. Telefone só se estiver no teor público.
  */
-export async function buscarProcessosDjenRevisionalAction(input: {
+export async function scanDjenPaginaAction(input: {
   filtros: FiltroRevisionalId[];
+  /** índice da query (0..filtros-1) */
+  queryIndex: number;
+  pagina: number;
   dias?: number;
-  limite?: number;
   siglaTribunal?: string;
-  /** se true, só linhas com nome completo */
-  exigirNome?: boolean;
+  /** CNJs já aceitos (não repetir) */
+  excludeCnjs?: string[];
 }): Promise<{
   success: boolean;
-  message?: string;
   items: ProcessoDjenReal[];
-  queries: string[];
-  descartados?: { sigilo: number; cnjInvalido: number; semTeor: number; semMatch: number };
+  logs: ScanLogLine[];
+  query: string;
+  queryIndex: number;
+  pagina: number;
+  hasMore: boolean;
   rateLimited?: boolean;
+  geoBlocked?: boolean;
+  error?: string;
 }> {
+  const logs: ScanLogLine[] = [];
   const ativos = (input.filtros || []).filter(Boolean) as FiltroRevisionalId[];
   if (!ativos.length) {
-    return { success: false, message: "Selecione ao menos um filtro.", items: [], queries: [] };
+    return { success: false, items: [], logs: [log("err", "Nenhum filtro marcado.")], query: "", queryIndex: 0, pagina: 1, hasMore: false, error: "filtros" };
   }
 
+  const defs = FILTROS_REVISIONAL.filter((f) => ativos.includes(f.id));
+  const qi = Math.max(0, Math.min(input.queryIndex || 0, defs.length - 1));
+  const pagina = Math.max(1, input.pagina || 1);
+  const q = defs[qi]?.djenQuery || "";
   const dias = Math.min(Math.max(Number(input.dias) || 7, 1), 45);
-  const limite = Math.min(Math.max(Number(input.limite) || 80, 10), 300);
-  const exigirNome = input.exigirNome !== false;
   const dataFim = hojeYmd();
   const dataInicio = ymdDaysAgo(dias);
   const sigla = input.siglaTribunal?.trim().toUpperCase() || undefined;
+  const exclude = new Set((input.excludeCnjs || []).map((c) => c.replace(/\D/g, "")));
 
-  const queries = FILTROS_REVISIONAL.filter((f) => ativos.includes(f.id)).map((f) => f.djenQuery);
+  logs.push(log("info", `Query ${qi + 1}/${defs.length}: “${q}” · página ${pagina} · ${dataInicio}→${dataFim}${sigla ? ` · ${sigla}` : ""}`));
 
-  const byCnj = new Map<string, ProcessoDjenReal>();
-  const descartados = { sigilo: 0, cnjInvalido: 0, semTeor: 0, semMatch: 0 };
-  let rateLimited = false;
-  let lastError = "";
+  const res = await fetchDjenPorTexto(q, {
+    dataInicio,
+    dataFim,
+    pagina,
+    itensPorPagina: 100,
+    siglaTribunal: sigla,
+  });
 
-  for (const q of queries) {
-    for (const pagina of [1, 2]) {
-      if (byCnj.size >= limite) break;
-      const res = await fetchDjenPorTexto(q, {
-        dataInicio,
-        dataFim,
-        pagina,
-        itensPorPagina: 100,
-        siglaTribunal: sigla,
-      });
-      if (res.isRateLimited) {
-        rateLimited = true;
-        lastError = res.error || "Rate limit DJEN";
-        break;
-      }
-      if (!res.success) {
-        lastError = res.error || "Falha DJEN";
-        continue;
-      }
+  if (res.isGeoBlocked) {
+    logs.push(log("err", "DJEN geo-bloqueou (403). Deploy em São Paulo (gru1)."));
+    return { success: false, items: [], logs, query: q, queryIndex: qi, pagina, hasMore: false, geoBlocked: true, error: res.error };
+  }
+  if (res.isRateLimited) {
+    logs.push(log("warn", "Rate limit 429 — aguarde e continue o scan."));
+    return { success: false, items: [], logs, query: q, queryIndex: qi, pagina, hasMore: true, rateLimited: true, error: res.error };
+  }
+  if (!res.success) {
+    logs.push(log("err", res.error || "Falha DJEN"));
+    return { success: false, items: [], logs, query: q, queryIndex: qi, pagina, hasMore: false, error: res.error };
+  }
 
-      for (const it of res.items || []) {
-        const blobSigilo = `${it.nomeClasse || ""} ${it.texto || ""} ${it.tipoComunicacao || ""}`;
-        if (isSegredoOuSigilo(blobSigilo)) {
-          descartados.sigilo += 1;
-          continue;
-        }
+  logs.push(log("info", `API devolveu ${res.items?.length || 0} itens brutos`));
 
-        const digits =
-          extractCnjFromApiField(it.numero_processo) ||
-          extractCnjFromTextoStrict(String(it.texto || ""));
-        if (!digits || !cnjDvValido(digits)) {
-          descartados.cnjInvalido += 1;
-          continue;
-        }
+  const items: ProcessoDjenReal[] = [];
+  let skipSigilo = 0, skipCnj = 0, skipNome = 0, skipTeor = 0, skipDup = 0;
 
-        if (!teorConsultavel(it.texto) && !(it.destinatarios && it.destinatarios.length)) {
-          // sem teor e sem destinatário = não consultável na prática
-          descartados.semTeor += 1;
-          continue;
-        }
-
-        const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
-        const { ok, hits } = matchFiltrosRevisional(blob, ativos);
-        // Resultado (extinção etc.) exige hit; classe/assunto: hit OU veio da query dedicada
-        const precisaHitForte = ativos.every((id) =>
-          ["extinto_sem_merito", "extinto_com_merito", "improcedente", "procedente_parcial"].includes(id)
-        );
-        if (precisaHitForte && !ok) {
-          descartados.semMatch += 1;
-          continue;
-        }
-        // Mistura classe+assunto: prefere ter ao menos 1 hit de assunto/classe
-        if (!ok && ativos.some((id) => ["acao_revisional", "alienacao_fiduciaria", "procedimento_comum_civel"].includes(id))) {
-          // ainda aceita se a query que trouxe o item for de um filtro ativo (já está)
-          // mas exige palavra revisional/bancário/fiduci no texto
-          const n = blob.toLowerCase();
-          const temSinal =
-            /revisional|fiduci|banc[aá]ri|financiamento|contrato/.test(n) ||
-            /procedimento\s+comum/.test(n);
-          if (!temSinal) {
-            descartados.semMatch += 1;
-            continue;
-          }
-        }
-
-        const nome = extractNomeCompletoFromDjen({
-          texto: it.texto,
-          destinatarios: (it as any).destinatarios,
-        });
-        if (exigirNome && !nome) {
-          descartados.semTeor += 1;
-          continue;
-        }
-
-        const link = buildLink(it, digits);
-        const row: ProcessoDjenReal = {
-          processo: formatCnjMasked(digits),
-          nome_completo: nome,
-          classe: String(it.nomeClasse || "").trim(),
-          assunto_ou_teor: String(it.texto || "").replace(/\s+/g, " ").trim().slice(0, 220),
-          situacao_hint:
-            hits
-              .map((id) => FILTROS_REVISIONAL.find((f) => f.id === id)?.nomeTribunal)
-              .filter(Boolean)
-              .join(" · ") || String(it.tipoComunicacao || ""),
-          tribunal: String(it.siglaTribunal || "").toUpperCase(),
-          data: String(it.data_disponibilizacao || "").slice(0, 10),
-          link,
-          filtros: hits.join("|"),
-          consultavel: true,
-        };
-
-        const prev = byCnj.get(digits);
-        if (!prev || (nome && !prev.nome_completo)) byCnj.set(digits, row);
-        if (byCnj.size >= limite) break;
-      }
-      if (rateLimited) break;
-      await new Promise((r) => setTimeout(r, 150));
+  for (const it of res.items || []) {
+    const blob = `${it.nomeClasse || ""} ${it.texto || ""} ${it.tipoComunicacao || ""}`;
+    if (isSegredoOuSigilo(blob)) {
+      skipSigilo++;
+      continue;
     }
-    if (rateLimited) break;
-    await new Promise((r) => setTimeout(r, 180));
+    const digits =
+      extractCnjFromApiField(it.numero_processo) ||
+      extractCnjFromTextoStrict(String(it.texto || ""));
+    if (!digits || !cnjDvValido(digits)) {
+      skipCnj++;
+      continue;
+    }
+    if (exclude.has(digits)) {
+      skipDup++;
+      continue;
+    }
+    if (!teorConsultavel(it.texto)) {
+      skipTeor++;
+      continue;
+    }
+    const nome = extractNomeCompletoFromDjen({
+      texto: it.texto,
+      destinatarios: (it as any).destinatarios,
+    });
+    if (!nome) {
+      skipNome++;
+      continue;
+    }
+
+    const { hits } = matchFiltrosRevisional(blob, ativos);
+    // sinal mínimo de matéria bancária/revisional quando filtros padrão
+    const n = blob.toLowerCase();
+    const sinal =
+      hits.length > 0 ||
+      /revisional|fiduci|banc[aá]ri|financiamento|contrato|procedimento\s+comum/.test(n);
+    if (!sinal) continue;
+
+    const tel = extractTelefoneFromText(it.texto);
+    items.push({
+      processo: formatCnjMasked(digits),
+      nome_completo: nome,
+      telefone: tel,
+      telefone_fonte: tel ? "teor_djen_publico" : "",
+      classe: String(it.nomeClasse || "").trim(),
+      assunto_ou_teor: String(it.texto || "").replace(/\s+/g, " ").trim().slice(0, 220),
+      situacao_hint:
+        hits.map((id) => FILTROS_REVISIONAL.find((f) => f.id === id)?.nomeTribunal).filter(Boolean).join(" · ") ||
+        String(it.tipoComunicacao || ""),
+      tribunal: String(it.siglaTribunal || "").toUpperCase(),
+      data: String(it.data_disponibilizacao || "").slice(0, 10),
+      link: buildLink(it, digits),
+      filtros: hits.join("|"),
+      consultavel: true,
+    });
   }
 
-  const items = [...byCnj.values()].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  logs.push(
+    log(
+      "ok",
+      `Aceitos nesta página: ${items.length} · descartados sigilo:${skipSigilo} cnj:${skipCnj} sem nome:${skipNome} teor curto:${skipTeor} duplicados:${skipDup}`
+    )
+  );
 
-  if (!items.length) {
-    let msg = `Nenhum processo consultável no DJEN (${dataInicio} → ${dataFim}).`;
-    if (rateLimited) msg = "DJEN limitou (429). Reduza filtros/dias e tente de novo.";
-    if (lastError && !rateLimited) msg = lastError;
-    msg += ` Descartados: sigilo ${descartados.sigilo}, CNJ inválido ${descartados.cnjInvalido}, sem teor/nome ${descartados.semTeor}, fora do filtro ${descartados.semMatch}.`;
-    return { success: false, message: msg, items: [], queries, descartados, rateLimited };
-  }
-
+  const hasMore = (res.items?.length || 0) >= 50;
   return {
     success: true,
-    message: `${items.length} processos reais e consultáveis · ${dataInicio} → ${dataFim} · descartados sigilo:${descartados.sigilo} cnj:${descartados.cnjInvalido}`,
     items,
-    queries,
-    descartados,
-    rateLimited,
+    logs,
+    query: q,
+    queryIndex: qi,
+    pagina,
+    hasMore,
   };
+}
+
+/** Lista de queries para o client saber quantas voltas dar */
+export async function listarQueriesDjenAction(filtros: FiltroRevisionalId[]) {
+  return FILTROS_REVISIONAL.filter((f) => filtros.includes(f.id)).map((f) => ({
+    id: f.id,
+    query: f.djenQuery,
+    nome: f.nomeTribunal,
+  }));
 }

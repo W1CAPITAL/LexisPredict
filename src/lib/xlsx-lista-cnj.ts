@@ -7,18 +7,18 @@ function esc(s: string) {
 function cell(col: string, row: number, val: string) {
   return `<c r="${col}${row}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
 }
-const HEADERS = ["processo","nome_completo","classe","tribunal","data","situacao_hint","link","teor","filtros"] as const;
-const COLS = ["A","B","C","D","E","F","G","H","I"];
+const H = ["processo","nome_completo","telefone","telefone_fonte","classe","tribunal","data","situacao_hint","link","teor"] as const;
+const C = ["A","B","C","D","E","F","G","H","I","J"];
 
 export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
-  const header = `<row r="1">${HEADERS.map((h,i)=>cell(COLS[i],1,h)).join("")}</row>`;
+  const header = `<row r="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
   const data = lista.map((p, idx) => {
-    const r = idx + 2;
-    const vals = [p.processo,p.nome_completo,p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor,p.filtros||""];
-    return `<row r="${r}">${vals.map((v,i)=>cell(COLS[i],r,String(v??""))).join("")}</row>`;
+    const r = idx+2;
+    const vals = [p.processo,p.nome_completo,p.telefone,p.telefone_fonte,p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor];
+    return `<row r="${r}">${vals.map((v,i)=>cell(C[i],r,String(v??""))).join("")}</row>`;
   }).join("");
   const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${header}${data}</sheetData></worksheet>`;
-  const wb = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="djen-real" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const wb = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="djen" sheetId="1" r:id="rId1"/></sheets></workbook>`;
   const rels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
   const wbRels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`;
   const ct = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`;
