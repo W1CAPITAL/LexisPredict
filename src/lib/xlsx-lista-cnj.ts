@@ -1,29 +1,77 @@
+/** XLSX mínimo (SheetJS-free) — CNJ + nome completo + classe/assunto/situação */
+
 import JSZip from "jszip";
+import type { ProcessoGerado } from "@/lib/revisional-tribunal-filtros";
 
 function esc(s: string) {
-  return String(s || "")
+  return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
 
+function cell(col: string, row: number, val: string) {
+  return `<c r="${col}${row}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
+}
+
+const HEADERS = [
+  "processo",
+  "nome_completo",
+  "classe",
+  "assunto",
+  "situacao",
+  "filtros",
+] as const;
+
+const COLS = ["A", "B", "C", "D", "E", "F"];
+
+/** Só CNJ (compatível com versão antiga) */
 export async function xlsxSoCnj(cnjsFmt: string[]): Promise<Blob> {
-  const rows = [
-    `<row r="1"><c r="A1" t="inlineStr"><is><t>processo</t></is></c></row>`,
-    ...cnjsFmt.map((v, i) => {
-      const r = i + 2;
-      return `<row r="${r}"><c r="A${r}" t="inlineStr"><is><t>${esc(v)}</t></is></c></row>`;
-    }),
-  ].join("");
+  const rows = cnjsFmt.map((v) => ({
+    processo: v,
+    nome_completo: "",
+    classe: "",
+    assunto: "",
+    situacao: "",
+    filtros: "",
+  }));
+  return xlsxProcessosGerados(rows);
+}
+
+/** Planilha completa revisional */
+export async function xlsxProcessosGerados(lista: ProcessoGerado[]): Promise<Blob> {
+  const headerRow =
+    `<row r="1">` +
+    HEADERS.map((h, i) => cell(COLS[i], 1, h)).join("") +
+    `</row>`;
+
+  const dataRows = lista
+    .map((p, idx) => {
+      const r = idx + 2;
+      const vals = [
+        p.processo,
+        p.nome_completo,
+        p.classe,
+        p.assunto,
+        p.situacao,
+        p.filtros || "",
+      ];
+      return (
+        `<row r="${r}">` +
+        vals.map((v, i) => cell(COLS[i], r, v)).join("") +
+        `</row>`
+      );
+    })
+    .join("");
 
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <sheetData>${rows}</sheetData>
+  <sheetData>${headerRow}${dataRows}</sheetData>
 </worksheet>`;
 
   const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="processos" sheetId="1" r:id="rId1"/></sheets>
+  <sheets><sheet name="revisional" sheetId="1" r:id="rId1"/></sheets>
 </workbook>`;
 
   const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
