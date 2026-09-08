@@ -17,7 +17,7 @@ import {
 import { planoDaEmpresa, savePlanoEmpresa } from "@/lib/planos-store";
 import { listEmpresasParaPlanosAction,
   salvarPlanoEmpresaAction, liberarEmpresaPlanoAction } from "@/app/actions/planos-actions";
-import { PLANOS_PRECOS, PIX_RECEBEDOR, formatBRL } from "@/lib/planos-precos";
+import { PLANOS_PRECOS, PIX_RECEBEDOR, formatBRL, mensalDoAnual, economiaAnual } from "@/lib/planos-precos";
 import { gerarPixCopiaCola, qrCodeUrl } from "@/lib/pix-emv";
 import {
   criarPedido,
@@ -298,10 +298,10 @@ export function PlanosEmpresaPanel() {
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-black text-white px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em]">
               <Sparkles size={12} className="text-primary" />
-              Upgrade comercial
+              Planos atualizados
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
-              Pacotes por empresa
+              Planos Lexis · 2026
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {planAtual === "maximo" ? (
@@ -401,9 +401,11 @@ export function PlanosEmpresaPanel() {
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-wide flex items-center gap-1.5">
                     {id === "maximo" && <Crown size={14} className="text-primary" />}
-                    {PLAN_LABEL[id]}
+                    {PLAN_LABEL[id]}{preco.selo ? (
+                    <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-primary bg-primary/15 px-2 py-0.5 rounded-full">{preco.selo}</span>
+                  ) : null}
                   </h3>
-                  <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{PLAN_BLURB[id]}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{preco.tagline || PLAN_BLURB[id]}</p>
                 </div>
               </div>
               <div className="mb-4">
@@ -415,7 +417,7 @@ export function PlanosEmpresaPanel() {
                 </div>
                 {ciclo === "anual" && (
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    equiv. {formatBRL(Math.round(preco.valorAnual / 12))}/mês
+                    equiv. {formatBRL(mensalDoAnual(id))}/mês · economiza {formatBRL(economiaAnual(id))}
                   </p>
                 )}
               </div>
@@ -426,6 +428,16 @@ export function PlanosEmpresaPanel() {
                     <span>{b}</span>
                   </li>
                 ))}
+                  {preco.naoInclui && preco.naoInclui.length > 0 && (
+                    <ul className="mt-3 space-y-1 border-t border-border/40 pt-3">
+                      {preco.naoInclui.map((b) => (
+                        <li key={b} className="text-[11px] text-muted-foreground/80 flex gap-2">
+                          <span className="opacity-50">–</span>
+                          <span>{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
               </ul>
               <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-3">
                 {PLAN_PACOTES[id].join(" · ")}

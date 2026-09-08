@@ -17,10 +17,10 @@ export const PLAN_LABEL: Record<PlanId, string> = {
 };
 
 export const PLAN_BLURB: Record<PlanId, string> = {
-  essencial: "Painel, carteira, tarefas, cadastro e configurações.",
-  operacional: "Essencial + tribunal, WhatsApp, peças, parados e alertas.",
-  financeiro: "Essencial + CRM, caixa e dossiê.",
-  maximo: "Todos os pacotes (essencial + operacional + financeiro).",
+  essencial: "Painel, carteira, fila, clientes e importação.",
+  operacional: "Tribunal (DataJud/DJEN), cumprimentos, BA, peças e IA.",
+  financeiro: "CRM, cobrança, caixa, cálculos e relatórios.",
+  maximo: "Gabinete completo: operacional + financeiro sem bloqueio.",
 };
 
 /** O que cada plano libera. Máximo inclui tudo. */
@@ -47,6 +47,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/team",
     "/agenda",
     "/termos",
+    "/plano-b",
   ],
   operacional: [
     "/whatsapp",
@@ -63,6 +64,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/ia-sync",
     "/chat",
     "/chat-ia",
+    "/chatbot-separado",
     "/substabelecimento",
     "/habilitacao-peca",
     "/revisional",
@@ -70,10 +72,14 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/modelos",
     "/investigacao-predatoria",
     "/cumprimentos-procedentes",
+    "/encerrados-revisao",
+    "/gerador-processos",
+    "/estatistica-cnj",
     "/ops",
     "/supervisao",
     "/security",
     "/superadmin",
+    "/etica-operacional",
   ],
   financeiro: [
     "/crm",
@@ -81,6 +87,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/report",
     "/calculos",
     "/analytics",
+    "/deals",
   ],
 };
 
@@ -122,7 +129,7 @@ export function hrefLiberado(href: string, plan: PlanId): boolean {
   return false;
 }
 
-/** Scanner DataJud/DJEN: Operacional e Máximo (não Essencial nem só Financeiro). */
+/** Scanner DataJud/DJEN: Operacional e Máximo. */
 export function planTemScanner(plan: PlanId | string): boolean {
   const p = normalizePlanId(plan);
   return p === "maximo" || p === "operacional";
@@ -133,31 +140,27 @@ export function filterNavByPlan<T extends { href: string }>(items: T[], plan: Pl
   return items.filter((i) => hrefLiberado(i.href, plan));
 }
 
-/** Ordem comercial: maior = mais completo. Operacional e Financeiro são paralelos. */
 export function planRank(id: PlanId | string): number {
-  const p = String(id || '').toLowerCase();
-  if (p === 'maximo') return 100;
-  if (p === 'operacional') return 50;
-  if (p === 'financeiro') return 50;
-  if (p === 'essencial') return 10;
+  const p = String(id || "").toLowerCase();
+  if (p === "maximo") return 100;
+  if (p === "operacional") return 50;
+  if (p === "financeiro") return 50;
+  if (p === "essencial") return 10;
   return 0;
 }
 
-/** true se candidate é inferior ou igual ao atual (não faz sentido “comprar” de novo). */
 export function isPlanoInferiorOuIgual(atual: PlanId, candidate: PlanId): boolean {
-  if (atual === 'maximo') return true; // máximo já tem tudo
+  if (atual === "maximo") return true;
   if (candidate === atual) return true;
-  if (candidate === 'maximo') return false;
-  // mesmos “tier” paralelo (op/fin) não é upgrade um do outro
-  if (atual === 'operacional' && candidate === 'financeiro') return false;
-  if (atual === 'financeiro' && candidate === 'operacional') return false;
+  if (candidate === "maximo") return false;
+  if (atual === "operacional" && candidate === "financeiro") return false;
+  if (atual === "financeiro" && candidate === "operacional") return false;
   return planRank(candidate) <= planRank(atual);
 }
 
-/** Planos que ainda fazem sentido oferecer como upgrade. */
 export function planosDisponiveisParaUpgrade(atual: PlanId): PlanId[] {
-  if (atual === 'maximo') return [];
-  return PLAN_IDS.filter((id) => !isPlanoInferiorOuIgual(atual, id) || id === 'maximo').filter(
+  if (atual === "maximo") return [];
+  return PLAN_IDS.filter((id) => !isPlanoInferiorOuIgual(atual, id) || id === "maximo").filter(
     (id) => id !== atual
   );
 }
