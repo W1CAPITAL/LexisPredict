@@ -748,6 +748,8 @@ export async function auditCaseCoreSystem(
   try {
     const decisao = decidirEncerramentoScan({ target, patch });
     Object.assign(patch, aplicarDecisaoNoPatch(patch, target, decisao));
+    const { sanitizeScanPatchNaoEncerrarCarteira } = await import('@/lib/protect-encerrar');
+    Object.assign(patch, sanitizeScanPatchNaoEncerrarCarteira(patch));
     if (decisao.acao === 'auto_encerrar') {
       console.info('[scan-auto-encerrar]', protocolo, decisao.motivo);
     } else if (decisao.acao === 'revisao_fila') {

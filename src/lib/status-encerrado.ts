@@ -56,14 +56,6 @@ export function isCasoEncerrado(c: any): boolean {
   if (!c) return false;
   const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
 
-  if (c.via_scan_auto_encerrar || d.via_scan_auto_encerrar) return true;
-  if (
-    c.operacao_sistema?.tipo === 'SCAN_AUTO_ENCERRAR' ||
-    d.operacao_sistema?.tipo === 'SCAN_AUTO_ENCERRAR'
-  ) {
-    return true;
-  }
-
   const situ = String(
     c.situacao || d.situacao || c.status_interno || d.status_interno || d.SITUACAO || ''
   ).toUpperCase();

@@ -657,33 +657,16 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
       updatedDados[k] = prevDados[k];
     }
   }
-  // Auto-encerrar scanner: grava situacao legível + flag W1 + coluna status
-  let forceArquivado = false;
-  if (flatPatch.via_scan_auto_encerrar || nestedDados.via_scan_auto_encerrar || updatedDados.via_scan_auto_encerrar) {
-    forceArquivado = true;
-    updatedDados.situacao = 'ENCERRADO';
-    updatedDados.statusManual = 'Encerrado';
-    updatedDados.status = 'Arquivado';
-    updatedDados.status_interno = 'ENCERRADO';
-    updatedDados.via_scan_auto_encerrar = true;
-    if (!updatedDados.operacao_sistema) {
-      updatedDados.operacao_sistema = {
-        origem: 'W1_CONTROL',
-        perfil: 'W1 CONTROL',
-        tipo: 'SCAN_AUTO_ENCERRAR',
-        legenda: 'Feito por Davi Alves Figueredo · scanner automático',
-      };
-    }
-    if (!updatedDados.auditado_por_nome) updatedDados.auditado_por_nome = 'W1 CONTROL';
+  // Scanner nunca encerra carteira e nunca apaga dono.
+  delete updatedDados.via_scan_auto_encerrar;
+  delete updatedDados.created_by;
+  if (updatedDados.datajud_encerrado_tribunal && !updatedDados.viaEncerrarHumano) {
+    updatedDados.precisa_revisar_encerramento = true;
   }
 
   const row: Record<string, any> = {
     dados: updatedDados,
   };
-  if (forceArquivado) {
-    row.status = 'Arquivado';
-    row.status_interno = 'ENCERRADO';
-  }
 
   const colunasReais = [
     'tem_atualizacao_pos_retorno',

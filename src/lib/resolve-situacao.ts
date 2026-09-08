@@ -9,8 +9,7 @@ export function resolveSituacaoFromRow(item: any, dados?: any): string {
     ? dados
     : (item?.dados && typeof item.dados === 'object' ? item.dados : {});
 
-  if (d.via_scan_auto_encerrar || item?.via_scan_auto_encerrar) return 'ENCERRADO';
-  if (d.operacao_sistema?.tipo === 'SCAN_AUTO_ENCERRAR') return 'ENCERRADO';
+  // Flag de scanner NÃO encerra carteira. Só situacao humana / status_interno.
 
   const candidates = [
     d.situacao,

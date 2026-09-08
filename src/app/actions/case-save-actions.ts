@@ -160,6 +160,18 @@ async function persistToDatabase(
     }
   }
 
+  // Dono só muda no fluxo explícito de transferência.
+  if (!processed.__transfer_owner && !processed.force_transfer_owner) {
+    delete payload.created_by;
+    if (existing?.created_by) {
+      mergedDados.created_by = existing.created_by;
+      payload.dados = mergedDados;
+    }
+  }
+  if (payload.created_by === null || payload.created_by === '') {
+    delete payload.created_by;
+  }
+
   // updated_at é desejável, mas não pode bloquear uma edição se o schema antigo
   // ainda não tiver essa coluna.
   const withUpdated = { ...payload, updated_at: now };
