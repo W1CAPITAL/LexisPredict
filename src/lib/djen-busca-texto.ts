@@ -13,9 +13,12 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
     const response = await fetch(`${DJEN_URL}?${params.toString()}`, {
       method: 'GET',
       headers: {
-        Accept: 'application/json',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-        'User-Agent': 'LexisPredict-DJEN-Scanner/1.0',
+        Accept: 'application/json, text/plain, */*',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        Origin: 'https://comunica.pje.jus.br',
+        Referer: 'https://comunica.pje.jus.br/',
       },
       signal: controller.signal,
       cache: 'no-store',
@@ -40,20 +43,31 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
         items: [],
       };
     }
+
+    const body = await response.text().catch(() => '');
+    const jsonSlice = (() => {
+      const raw = String(body || '').trim();
+      if (!raw) return '';
+      if (raw.startsWith('{') || raw.startsWith('[')) return raw;
+      const i = raw.indexOf('{"');
+      const j = raw.lastIndexOf('}');
+      if (i >= 0 && j > i) return raw.slice(i, j + 1);
+      return '';
+    })();
+
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
       const blocked = /<html|<!doctype|access denied|request rejected|proxy/i.test(body);
       return {
         success: false,
-        error: blocked ? `DJEN retornou HTML/bloqueio (HTTP ${response.status})` : `HTTP ${response.status}`,
+        error: blocked
+          ? `DJEN retornou HTML/bloqueio (HTTP ${response.status})`
+          : `HTTP ${response.status}`,
         count: 0,
         items: [],
       };
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    const body = await response.text();
-    if (!contentType.toLowerCase().includes('application/json') || /^\s*<!doctype|^\s*<html/i.test(body)) {
+    if (!jsonSlice) {
       return {
         success: false,
         error: 'DJEN retornou HTML em vez de JSON; consulta não foi considerada válida.',
@@ -64,7 +78,7 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
 
     let data: any;
     try {
-      data = JSON.parse(body);
+      data = JSON.parse(jsonSlice);
     } catch {
       return { success: false, error: 'Resposta JSON inválida do DJEN.', count: 0, items: [] };
     }

@@ -410,16 +410,16 @@ export function PlanosEmpresaPanel() {
               </div>
               <div className="mb-4">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black tabular-nums tracking-tight">{formatBRL(valor)}</span>
+                  <span className="text-3xl font-black tabular-nums tracking-tight">{formatBRL(valor)}</span>
                   <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                    /{ciclo === "mensal" ? "mês" : "ano"}
+                    {ciclo === "mensal" ? "/mês" : "/ano"}
                   </span>
                 </div>
-                {ciclo === "anual" && (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    equiv. {formatBRL(mensalDoAnual(id))}/mês · economiza {formatBRL(economiaAnual(id))}
-                  </p>
-                )}
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {ciclo === "mensal"
+                    ? `ou ${formatBRL(preco.valorAnual)}/ano (${formatBRL(mensalDoAnual(id))}/mês)`
+                    : `${formatBRL(preco.valorMensal)}/mês avulso · economiza ${formatBRL(economiaAnual(id))}`}
+                </p>
               </div>
               <ul className="space-y-1.5 mb-5 flex-1">
                 {preco.beneficios.map((b) => (

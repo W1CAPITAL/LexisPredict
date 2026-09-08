@@ -73,7 +73,7 @@ export async function scanDjenPaginaAction(input: {
     dataFim,
     pagina,
     // Uma comunicação por requisição: evita carregar uma lista inteira de uma vez e permite auditar cada item.
-    itensPorPagina: 1,
+    itensPorPagina: 20,
     siglaTribunal: sigla,
   });
 

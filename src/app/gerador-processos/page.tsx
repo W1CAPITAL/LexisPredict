@@ -18,6 +18,24 @@ import { Download, Loader2, Search, ExternalLink, Copy, Check, Square, Phone, Ma
 const MAX_PAG_POR_QUERY = 25;
 const isoHoje = () => new Date().toISOString().slice(0, 10);
 const isoInicioPadrao = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+function janelasDoIntervalo(inicio: string, fim: string, diasJanela = 14): { dataInicio: string; dataFim: string }[] {
+  const a = new Date(`${inicio}T00:00:00`);
+  const b = new Date(`${fim}T00:00:00`);
+  if (isNaN(a.getTime()) || isNaN(b.getTime()) || a > b) return [];
+  const out: { dataInicio: string; dataFim: string }[] = [];
+  let cur = new Date(b);
+  while (cur >= a) {
+    const end = new Date(cur);
+    const start = new Date(cur);
+    start.setDate(start.getDate() - (diasJanela - 1));
+    if (start < a) start.setTime(a.getTime());
+    out.push({ dataInicio: ymd(start), dataFim: ymd(end) });
+    cur = new Date(start);
+    cur.setDate(cur.getDate() - 1);
+  }
+  return out;
+}
 
 export default function GeradorProcessosPage() {
   const [alvo, setAlvo] = useState("60");
@@ -91,7 +109,8 @@ export default function GeradorProcessosPage() {
     const byCnj = new Map<string, ProcessoDjenReal>();
     const nQueries = FILTROS_REVISIONAL.filter((f) => ativos.includes(f.id)).length;
 
-    outer: for (const janela of [{ dataInicio, dataFim }]) {
+    const janelas = janelasDoIntervalo(dataInicio, dataFim, 14);
+    outer: for (const janela of janelas) {
       if (stopRef.current || byCnj.size >= target) break;
       pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "info", text: `— Intervalo ${janela.dataInicio} até ${janela.dataFim} · ${byCnj.size}/${target} —` }]);
 
@@ -201,7 +220,7 @@ export default function GeradorProcessosPage() {
       <main className="flex-1 min-w-0 flex flex-col max-h-screen overflow-hidden">
         <div className="p-4 border-b border-border/50 space-y-3 shrink-0">
           <div>
-            <h1 className="text-xl font-black tracking-tight">DJEN revisional</h1>
+            <h1 className="text-xl font-black tracking-tight">Gerador de processos automáticos</h1>
             <p className="text-xs text-muted-foreground">
               Scan até o alvo + enrichment opcional (tel, e-mail, CPF, endereço) via{" "}
               <strong>sua API</strong> (<code className="text-[10px]">ENRICHMENT_LOOKUP_*</code>).
@@ -239,6 +258,45 @@ export default function GeradorProcessosPage() {
               <span className="text-[9px] font-black uppercase text-muted-foreground">Fim</span>
               <Input className="h-9 w-36" type="date" value={dataFim} min={dataInicio} max={isoHoje()} onChange={(e) => setDataFim(e.target.value)} />
             </label>
+            <label className="space-y-0.5">
+              <span className="text-[9px] font-black uppercase text-muted-foreground">Mês / ano</span>
+              <Input
+                className="h-9 w-40"
+                type="month"
+                value={dataInicio.slice(0, 7)}
+                max={isoHoje().slice(0, 7)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  const [y, m] = v.split("-").map(Number);
+                  const ini = `${v}-01`;
+                  const last = new Date(y, m, 0);
+                  const fim = ymd(last) > isoHoje() ? isoHoje() : ymd(last);
+                  setDataInicio(ini);
+                  setDataFim(fim);
+                }}
+              />
+            </label>
+            <div className="flex flex-wrap gap-1 items-center">
+              {[
+                ["7d", 7],
+                ["15d", 15],
+                ["30d", 30],
+                ["90d", 90],
+              ].map(([lab, d]) => (
+                <button
+                  key={String(lab)}
+                  type="button"
+                  className="h-8 px-2 rounded-lg border border-border text-[10px] font-black uppercase"
+                  onClick={() => {
+                    setDataFim(isoHoje());
+                    setDataInicio(ymd(new Date(Date.now() - Number(d) * 86400000)));
+                  }}
+                >
+                  {lab}
+                </button>
+              ))}
+            </div>
             <label className="flex items-center gap-2 h-9 px-2 rounded-lg border border-border/50 text-xs cursor-pointer">
               <input type="checkbox" checked={enrichOn} onChange={(e) => setEnrichOn(e.target.checked)} />
               Enrich API
