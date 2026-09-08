@@ -1,82 +1,27 @@
-/** XLSX — processos REAIS do DJEN */
-
 import JSZip from "jszip";
 import type { ProcessoDjenReal } from "@/lib/revisional-tribunal-filtros";
 
 function esc(s: string) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-
 function cell(col: string, row: number, val: string) {
   return `<c r="${col}${row}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
 }
-
-const HEADERS = [
-  "processo",
-  "nome_completo",
-  "classe",
-  "assunto_ou_teor",
-  "situacao_hint",
-  "tribunal",
-  "data",
-  "link",
-  "filtros",
-] as const;
-const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
+const HEADERS = ["processo","nome_completo","classe","tribunal","data","situacao_hint","link","teor","filtros"] as const;
+const COLS = ["A","B","C","D","E","F","G","H","I"];
 
 export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
-  const headerRow =
-    `<row r="1">` + HEADERS.map((h, i) => cell(COLS[i], 1, h)).join("") + `</row>`;
-
-  const dataRows = lista
-    .map((p, idx) => {
-      const r = idx + 2;
-      const vals = [
-        p.processo,
-        p.nome_completo,
-        p.classe,
-        p.assunto_ou_teor,
-        p.situacao_hint,
-        p.tribunal,
-        p.data,
-        p.link,
-        p.filtros || "",
-      ];
-      return `<row r="${r}">` + vals.map((v, i) => cell(COLS[i], r, String(v ?? ""))).join("") + `</row>`;
-    })
-    .join("");
-
-  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <sheetData>${headerRow}${dataRows}</sheetData>
-</worksheet>`;
-
-  const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="djen-real" sheetId="1" r:id="rId1"/></sheets>
-</workbook>`;
-
-  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-</Relationships>`;
-
-  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-</Relationships>`;
-
-  const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-</Types>`;
-
+  const header = `<row r="1">${HEADERS.map((h,i)=>cell(COLS[i],1,h)).join("")}</row>`;
+  const data = lista.map((p, idx) => {
+    const r = idx + 2;
+    const vals = [p.processo,p.nome_completo,p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor,p.filtros||""];
+    return `<row r="${r}">${vals.map((v,i)=>cell(COLS[i],r,String(v??""))).join("")}</row>`;
+  }).join("");
+  const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${header}${data}</sheetData></worksheet>`;
+  const wb = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="djen-real" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`;
+  const ct = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`;
   const zip = new JSZip();
   zip.file("[Content_Types].xml", ct);
   zip.folder("_rels")!.file(".rels", rels);
@@ -84,21 +29,4 @@ export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<
   zip.folder("xl")!.folder("_rels")!.file("workbook.xml.rels", wbRels);
   zip.folder("xl")!.folder("worksheets")!.file("sheet1.xml", sheet);
   return zip.generateAsync({ type: "blob" });
-}
-
-/** @deprecated compat */
-export async function xlsxSoCnj(cnjsFmt: string[]): Promise<Blob> {
-  return xlsxProcessosDjenReal(
-    cnjsFmt.map((c) => ({
-      processo: c,
-      nome_completo: "",
-      classe: "",
-      assunto_ou_teor: "",
-      situacao_hint: "",
-      tribunal: "",
-      data: "",
-      link: "",
-      filtros: "",
-    }))
-  );
 }
