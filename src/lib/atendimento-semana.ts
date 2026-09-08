@@ -199,7 +199,6 @@ export function countAtendimentosPorUsuario(
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
 
-    // Quem atendeu — nunca created_by (dono ≠ quem ligou)
     const userId = String(
       (c as any).atendido_por ??
         (c as any).atendidoPor ??

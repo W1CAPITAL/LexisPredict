@@ -56,7 +56,6 @@ export function groupFilaLista(cases: { observacao?: string }[]): FilaLista {
   return "normal";
 }
 
-
 /**
  * Após atendimento: se ainda crítico e não blacklist, sugere "tratamento"
  * para sair do topo automático sem perder o caso.

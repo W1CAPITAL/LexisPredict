@@ -1,7 +1,4 @@
-/**
- * Relatório de transparência mensal — mesmo sem movimentação.
- * Linguagem ética (CDC): nunca “fase final / causa ganha”.
- */
+
 
 import { FASE_LABELS, type EstadoFluxoEtico } from "@/lib/fluxo-etico-fases";
 import { auditarTextoEtica } from "@/lib/etica-frases-proibidas";

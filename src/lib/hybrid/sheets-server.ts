@@ -1,7 +1,4 @@
-/**
- * Cliente server-side do Apps Script.
- * Banco (Supabase) é a fonte operacional; Sheets é apenas espelho incremental/Plano B.
- */
+
 import { HYBRID_SHEETS_ENV } from "./policy";
 
 export type SheetsWriteRow = {
@@ -126,7 +123,6 @@ export async function sheetsServerPost(body: Record<string, unknown>): Promise<{
   const post = await sheetsPost(body, action === "upsert_batch" ? 30000 : 3500);
   if (post.ok) return post;
 
-  // GET somente para ping/list/get. Nunca convertemos escrita em GET.
   if (action !== "write" && action !== "upsert_batch") {
     const flat: Record<string, string> = { action };
     for (const [k, v] of Object.entries(body)) {

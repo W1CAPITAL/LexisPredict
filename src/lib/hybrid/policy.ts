@@ -1,13 +1,5 @@
 export type HybridMode = "off" | "sheets_carteira" | "sheets_carteira_scan";
 
-/**
- * Supabase é a fonte oficial do produto.
- * Google Sheets funciona como espelho/Plano B e nunca pode esconder registros
- * que existem no banco nem bloquear uma gravação da operação.
- *
- * Para reativar leitura primária pelo Sheets em um ambiente controlado:
- * LEXIS_HYBRID_DB_FIRST=false
- */
 export function dbFirstEnabled(): boolean {
   const v = String(process.env.LEXIS_HYBRID_DB_FIRST ?? "true").trim().toLowerCase();
   return !["0", "false", "no", "off"].includes(v);
@@ -29,10 +21,6 @@ export function getHybridMode(): HybridMode {
   return "sheets_carteira";
 }
 
-/**
- * Leitura híbrida fica desligada por padrão: /processos nunca perde casos
- * porque eles ainda não chegaram à planilha.
- */
 export function hybridEnabled(): boolean {
   return !dbFirstEnabled() && getHybridMode() !== "off";
 }

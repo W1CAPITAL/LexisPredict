@@ -74,7 +74,7 @@ function baTipo(c: LegalCase): string | null {
 }
 
 function temBaOperacional(_c: LegalCase): boolean {
-  // Produto: módulo BA desativado (falsos positivos). Nunca priorizar BA.
+
   return false;
 }
 

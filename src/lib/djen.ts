@@ -23,7 +23,6 @@ export interface DjenComunicacao {
   destinatarios?: Array<{ nome?: string; polo?: string; advogados?: string[]; numeroDocumentoPrincipal?: string; numeroDocumento?: string; cpf?: string; cnpj?: string; documento?: string }>;
 }
 
-
 /** Monta URL do diario oficial quando a API nao envia `link`. */
 export function resolveDjenPublicacaoLink(
   item: Partial<DjenComunicacao> | null | undefined,
@@ -270,7 +269,6 @@ export function summarizeDjenKeywords(raw: string | null | undefined): string {
   return short ? short + (plain.length > 120 ? '…' : '') : 'Publicação no Diário Oficial';
 }
 
-/** Nunca devolve JSON cru na UI operacional. */
 export function resumoHumanoDjen(raw: unknown): string {
   if (raw == null) return '';
   let text = '';
@@ -303,8 +301,6 @@ export function classifyEventFromText(
 ): { tipo: string; label: string } {
   const upper = plainTextFromDjen(String(text || '')).toUpperCase();
   if (!upper) return { tipo: 'rotina', label: 'Rotina' };
-
-  // BA desativado — nunca classifica como busca e apreensão
 
   if (/(TRÂNSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|ARQUIVAMENTO|EXTINÇÃO|EXTINTO|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
     return { tipo: 'transito_ou_baixa', label: 'Trânsito / Baixa' };
@@ -580,7 +576,6 @@ async function fetchDjenComunicacoesUncached(
     items: [],
   };
 }
-
 
 /** Ordena comunicações DJEN da mais recente para a mais antiga. */
 export function sortDjenComunicacoesRecentFirst(input: unknown): any[] {

@@ -1,4 +1,4 @@
-/** Classificação agregada — nunca usa nome/telefone/CPF. */
+
 export function soDigitosCnj(raw: string): string {
   return String(raw || "").replace(/\D/g, "").slice(0, 20);
 }

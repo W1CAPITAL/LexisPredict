@@ -1,15 +1,4 @@
-/**
- * Ponte LexisPredict ↔ Legalcloud
- *
- * Legalcloud (legalcloud.com.br) NÃO oferece API pública de liquidação.
- * Repositórios em github.com/Legalcloud/* são forks genéricos (JWT, Vue card, NDK),
- * não o produto de cálculo.
- *
- * Estratégia:
- * 1) Motor próprio (`liquidacao-cumprimento.ts`) no fluxo Lexis.
- * 2) Deep-link / handoff para a calculadora Premium do operador.
- * 3) Payload JSON exportável para colar/reproduzir no Legalcloud.
- */
+
 
 export const LEGALCLOUD_URLS = {
   home: 'https://legalcloud.com.br/',

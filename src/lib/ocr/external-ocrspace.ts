@@ -1,11 +1,6 @@
 /** POLITICA_OCR_LOCAL_ONLY — produto não usa OCR externo. */
 const OCR_EXTERNAL_DISABLED = true;
 
-/**
- * Alternativa EXTERNA — OCR.space (não é IA generativa).
- * Chave SOMENTE via env: OCR_SPACE_API_KEY
- * Nunca hardcode a key no repositório.
- */
 import type { OcrResult } from './types';
 
 export async function ocrSpaceExternal(

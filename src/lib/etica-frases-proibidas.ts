@@ -13,7 +13,6 @@ export type MatchEtica = {
   trecho?: string;
 };
 
-/** Nunca usar com cliente (publicidade enganosa / expectativa irreal). */
 export const FRASES_BLOQUEIO: { re: RegExp; motivo: string }[] = [
   { re: /causa\s+ganha/i, motivo: "Promessa de resultado judicial" },
   { re: /j[aá]\s+(?:houve\s+)?senten[cç]a/i, motivo: "Afirmar sentença sem prova nos autos" },
@@ -74,7 +73,6 @@ export function auditarTextoEtica(texto: string): {
   return { ok: bloqueios.length === 0, bloqueios, alertas };
 }
 
-/** Documentos que NUNCA devem ser cobrados (cliente obtém de graça). */
 export const DOCUMENTOS_GRATUITOS = [
   { id: "registrato", label: "Extrato Registrato / CCS (BACEN)", como: "registrato.bcb.gov.br" },
   { id: "ir", label: "Declaração de IR (cópia)", como: "e-CAC / app IRPF" },

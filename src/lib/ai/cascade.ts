@@ -4,7 +4,6 @@
  */
 import { freeComplete } from '@/lib/ai/free-gateway';
 
-
 /** Limpa URL colada no Vercel (=https://..., aspas, espaços) */
 export function cleanGatewayBaseUrl(raw: string | undefined | null): string {
   if (!raw) return '';
@@ -26,7 +25,6 @@ export function cleanGatewayBaseUrl(raw: string | undefined | null): string {
   }
   return s;
 }
-
 
 /** Resposta inutil do gateway (emoji sozinho, pontuacao, modelo lixo tipo felo-chat) */
 export function isLowQualityAiText(text: string, model?: string): boolean {

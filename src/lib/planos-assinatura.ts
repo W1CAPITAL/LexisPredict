@@ -1,7 +1,4 @@
-/**
- * Assinatura: validade, bloqueio e contato do proprietário.
- * Superadmin nunca é bloqueado.
- */
+
 
 import type { PlanId } from "@/lib/planos-pacotes";
 import { normalizePlanId } from "@/lib/planos-pacotes";

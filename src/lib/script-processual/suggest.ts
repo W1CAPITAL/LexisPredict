@@ -1,17 +1,4 @@
 import { plainTextFromDjen } from '@/lib/djen';
-/**
- * MOTOR LEXIS (scripts fixos) v15.0
- * Só este motor é determinístico. Grok/Groq/outras IAs NÃO devem ser forçadas a isto.
- *
- * Correções:
- * - R$ 24.000 de RENDA do cônjuge ≠ custas
- * - Intimação de custas ao RÉU/BANCO ≠ cobrança ao cliente
- * - AJG do autor → cliente isento
- * - Cancelamento da distribuição (art. 290) após não pagar custas iniciais → processo extinto, sem dívida absurda
- * - Cumprimento de sentença / intimação ao executado = boa notícia
- *
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- */
 
 import { parseISO, parse, isValid, format } from 'date-fns';
 import { SCRIPT_CATALOG, ScriptTemplate } from './catalog';
@@ -121,7 +108,6 @@ function extractValorCustas(U: string): string | null {
   }
   return null;
 }
-
 
 function parseAnyDate(raw?: string | null): Date | null {
   if (!raw) return null;
@@ -274,7 +260,7 @@ function detectSignals(U: string, input: ScriptInput): Signals {
     );
 
   // Após cancelamento da distribuição por inadimplemento de custas INICIAIS + trânsito/baixa:
-  // não inventar cobrança residual de "dívida ativa" com valor de renda
+
   const processoCanceladoArquivado =
     (cancelamentoDistribuicao || art290) &&
     (extinçãoSemMerito ||
@@ -492,7 +478,6 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     });
   }
 
-
   if (
     (s.cancelamentoDistribuicao || s.art290 || s.extinçãoSemMerito) &&
     (s.transito || s.baixaDefinitiva || s.arquivamento || s.extinçãoSemMerito) &&
@@ -578,7 +563,6 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
       ]),
     });
   }
-
 
   // ——— Apelação / Tema STJ / intimação para manifestar
   if (
@@ -671,9 +655,8 @@ export function suggestScripts(input: ScriptInput): ScriptSuggestion[] {
     }
   }
 
-
   // Monitoramento regular / sem ato relevante
-  // LOTE 2: nunca empurrar "rotina/acompanhando" se há sinal crítico ou novidade aberta
+
   {
     const soRotinaCartorio =
       !/(INTIMA|DESPACHO|DECIS|SENTEN|LIMINAR|AUDI[EÊ]NCIA|CUSTAS|PREPARO|BAIXA|TR[AÂ]NSITO|CUMPRIMENTO|PROCEDENTE|IMPROCEDENTE|GUIA\s+GERADA|NUMOPED)/i.test(U) &&

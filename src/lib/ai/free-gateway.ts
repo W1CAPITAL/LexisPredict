@@ -253,8 +253,6 @@ export async function freeComplete(opts: {
     });
   }
 
-
-
   // NVIDIA NIM — SÓ quando o usuário pede explicitamente (preferred=nvidia/nim/inkling).
   // Política: NVIDIA não entra na cascata automática (scan, auditoria 3D,
   // monitoramento, veredito, sugerir resposta, drafts omni).

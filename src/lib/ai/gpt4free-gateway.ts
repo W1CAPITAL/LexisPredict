@@ -1,15 +1,4 @@
-/**
- * Gateway OpenAI-compatible inspirado em gpt4free-ts / gptgod.
- * Fallback gratuito opcional quando Claude/OmniRoute/Groq falham.
- *
- * Env:
- *   GPT4FREE_BASE_URL  (ex.: https://api.gptgod.online  ou http://localhost:3000)
- *   GPT4FREE_API_KEY
- *   GPT4FREE_MODEL     (ex.: gpt-3.5-turbo, mixtral-8x7b, claude-1-100k)
- *   GPT4FREE_SITE      (opcional: path site do self-host gpt4free-ts, ex. you)
- *
- * Nao use em producao como unica fonte — instavel e terceiros.
- */
+
 export type G4fResult = { text: string; engine: string; latencyMs: number };
 
 function cleanBase(raw?: string | null): string {

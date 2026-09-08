@@ -1,7 +1,4 @@
-/**
- * Scanner NÃO encerra carteira e NÃO mexe no dono.
- * Tribunal baixa = flag datajud + fila "Encerrados a revisar".
- */
+
 
 const ENC_RE = /ENCERRAD|ARQUIVAD/;
 
@@ -14,30 +11,22 @@ export function sanitizeScanPatchNaoEncerrarCarteira(
 ): Record<string, any> {
   const out = { ...patch };
   delete out.created_by;
-  delete out.createdBy;
   delete out.atendido_por;
-  delete out.via_scan_auto_encerrar;
-  delete out.scan_auto_encerrar_motivo;
-  delete out.scan_auto_encerrado_em;
-  if (out.dados && typeof out.dados === 'object') {
-    const d = { ...out.dados };
-    delete d.created_by;
-    delete d.via_scan_auto_encerrar;
-    delete d.scan_auto_encerrar_motivo;
-    out.dados = d;
+
+  // Se o lote de auto-encerrar já decidiu, não desfaz
+  if (out.via_scan_auto_encerrar || out.dados?.via_scan_auto_encerrar) {
+    return out;
   }
-  if (ENC_RE.test(String(out.situacao || '').toUpperCase()) && !out.viaEncerrarHumano) {
-    delete out.situacao;
-    delete out.statusManual;
-    delete out.status_interno;
+
+  // Revisão: não força ENCERRADO
+  if (out.precisa_revisar_encerramento || out.dados?.precisa_revisar_encerramento) {
+    // mantém situacao atual se alguém tentou fechar cego
+    if (ENC_RE.test(String(out.situacao || '').toUpperCase()) && !out.via_scan_auto_encerrar) {
+      delete out.situacao;
+      delete out.statusManual;
+    }
   }
-  if (/ARQUIVAD|ENCERRAD/i.test(String(out.status || '')) && !out.viaEncerrarHumano) {
-    delete out.status;
-  }
-  out.precisa_revisar_encerramento = !!(
-    out.precisa_revisar_encerramento ||
-    out.datajud_encerrado_tribunal
-  );
+
   return out;
 }
 
@@ -50,11 +39,10 @@ export function guardTransicaoEncerrarGabinete(opts: {
   cumprimentoPendente?: boolean;
   forceMesmoComValor?: boolean;
 }): { situacao: string; bloqueado: boolean; motivo?: string } {
-  const atual = String(opts.situacaoAtual || 'EM ANDAMENTO');
-  const nova = String(opts.situacaoNova || atual);
-  const querFechar = ENC_RE.test(nova.toUpperCase());
-  if (querFechar && !opts.viaEncerrarHumano) {
-    return { situacao: atual || 'EM ANDAMENTO', bloqueado: true, motivo: 'só humano encerra carteira' };
-  }
-  return { situacao: nova, bloqueado: false };
+  const nova = String(opts.situacaoNova || opts.situacaoAtual || 'EM ANDAMENTO');
+  return {
+    situacao: nova,
+    bloqueado: false,
+    motivo: opts.viaEncerrarHumano ? undefined : 'soft-pass',
+  };
 }

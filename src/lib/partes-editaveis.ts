@@ -1,7 +1,4 @@
-/**
- * Partes editáveis para peças (procuração, substabelecimento, revogação, habilitação).
- * Tudo é texto livre — chips só sugerem, nunca travam o valor.
- */
+
 
 export type PartePessoa = {
   nome: string;

@@ -84,7 +84,6 @@ export function isPuterEngine(id: string): boolean {
   return id.startsWith("puter-");
 }
 
-
 /** Aliases para neural-nucleus-actions e painéis legados */
 export type AiEngineDef = AiEngine & {
   kind?: 'lexis' | 'puter' | 'official';

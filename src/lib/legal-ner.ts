@@ -1,7 +1,4 @@
-/**
- * NER jurídico determinístico — procurações, decisões, petições.
- * Não inventa: só regex/heurística sobre o texto já limpo pelo OCR.
- */
+
 
 export type LegalEntityKind =
   | 'cnj'

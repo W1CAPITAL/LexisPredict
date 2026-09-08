@@ -32,10 +32,6 @@ function cleanDetalhe(...parts: Array<string | null | undefined>): string {
   return '';
 }
 
-/**
- * Retorna o sinal mais relevante para exibição na capa do processo.
- * BA foi desativado — nunca gera alerta de busca e apreensão.
- */
 export function getSinalCapa(c: LegalCase): SinalCapa {
   const raw = getSinalCapaRaw(c);
   const titulo = cleanDetalhe(raw.titulo) || raw.titulo;

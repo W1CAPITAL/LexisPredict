@@ -1,7 +1,4 @@
-/**
- * Tabela comercial dos planos LexisPredict.
- * Ajuste valores aqui — a UI e o Pix usam esta fonte única.
- */
+
 
 import type { PlanId } from "@/lib/planos-pacotes";
 

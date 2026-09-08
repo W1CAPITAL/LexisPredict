@@ -98,7 +98,7 @@ function toLegalCase(item: any): LegalCase {
     id: item.id.toString(),
     db_id: item.id.toString(),
     created_by: item.created_by,
-    // situacao operacional (gabinete) — nunca status de prazo
+
     situacao: resolveSituacaoFromRow(item, dados),
     statusManual: resolveStatusManualFromRow(item, dados),
     status_interno: item.status_interno || dados.status_interno || resolveSituacaoFromRow(item, dados),
@@ -431,7 +431,6 @@ export async function getGlobalPendingProcessesSystem(
 
   const out: LegalCase[] = (ativos || []).map(mapProcessoRow);
 
-  // ENCERRADOS operacionais ainda sem flag executiva (ou nunca consultados no DataJud)
   const { data: encerrados } = await admin
     .from('processos')
     .select('*')
@@ -500,7 +499,7 @@ export async function getGlobalPendingProcessesSystem(
       const mapped = (cand || []).map(mapProcessoRow);
       filtered = mapped.filter((c) => isCandidatoCumprimentoScan(c));
       if (filtered.length === 0) {
-        // ainda vazio: prioriza nunca auditados (descoberta de procedência)
+
         const { data: never } = await admin
           .from('processos')
           .select('*')
@@ -626,7 +625,6 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     return { success: false, error: fetchError?.message };
   }
 
-  // Scanner/DataJud NUNCA pode apagar atendimento humano
   const ATENDIMENTO_KEYS = [
     'ultimoRetorno', 'ultimo_retorno', 'ULTIMO_RETORNO',
     'atendido_por', 'atendidoPor', 'atendido_em',
@@ -636,7 +634,7 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   for (const k of ATENDIMENTO_KEYS) {
     if (k in safePatch) delete safePatch[k];
   }
-  // Scanner / flags NUNCA alteram dono do processo
+
   delete safePatch['created_by'];
   delete safePatch['createdBy'];
 
@@ -657,16 +655,33 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
       updatedDados[k] = prevDados[k];
     }
   }
-  // Scanner nunca encerra carteira e nunca apaga dono.
-  delete updatedDados.via_scan_auto_encerrar;
-  delete updatedDados.created_by;
-  if (updatedDados.datajud_encerrado_tribunal && !updatedDados.viaEncerrarHumano) {
-    updatedDados.precisa_revisar_encerramento = true;
+  // Auto-encerrar scanner: grava situacao legível + flag W1 + coluna status
+  let forceArquivado = false;
+  if (flatPatch.via_scan_auto_encerrar || nestedDados.via_scan_auto_encerrar || updatedDados.via_scan_auto_encerrar) {
+    forceArquivado = true;
+    updatedDados.situacao = 'ENCERRADO';
+    updatedDados.statusManual = 'Encerrado';
+    updatedDados.status = 'Arquivado';
+    updatedDados.status_interno = 'ENCERRADO';
+    updatedDados.via_scan_auto_encerrar = true;
+    if (!updatedDados.operacao_sistema) {
+      updatedDados.operacao_sistema = {
+        origem: 'W1_CONTROL',
+        perfil: 'W1 CONTROL',
+        tipo: 'SCAN_AUTO_ENCERRAR',
+        legenda: 'Feito por Davi Alves Figueredo · scanner automático',
+      };
+    }
+    if (!updatedDados.auditado_por_nome) updatedDados.auditado_por_nome = 'W1 CONTROL';
   }
 
   const row: Record<string, any> = {
     dados: updatedDados,
   };
+  if (forceArquivado) {
+    row.status = 'Arquivado';
+    row.status_interno = 'ENCERRADO';
+  }
 
   const colunasReais = [
     'tem_atualizacao_pos_retorno',
@@ -727,7 +742,6 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
     return { success: false, error: error.message };
   }
 
-  // Trigger automático de log (tribunal) — não bloqueia o fluxo
   try {
     const temDj = patch?.datajud_consultado_em != null;
     const temDjen = patch?.djen_consultado_em != null || patch?.djen_nova_comunicacao === true;
@@ -757,7 +771,6 @@ export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: s
     const client = isAdmin ? await getSupabaseAdmin() : (supabase || (await getSupabaseAdmin()));
     if (!client) return { success: false, message: 'Cliente indisponível.' };
 
-    // Mapa de donos já gravados — NUNCA sobrescrever no upsert em lote
     const protos = (cases || []).map((c) => c.protocolo).filter(Boolean);
     const ownerByProto = new Map<string, string>();
     if (protos.length) {
@@ -1080,7 +1093,6 @@ export async function getProfileByAuthId(
 }
 
 export type AuditoriaAcao = 'atendimento' | 'edicao' | 'exclusao' | 'criacao' | 'encerramento' | 'exportacao' | 'scan_datajud' | 'scan_djen' | 'auditoria';
-
 
 /** Log de auditoria sem depender de cookie (cron/worker) — usa service role. */
 export async function logAuditoriaSistema(params: {

@@ -57,7 +57,6 @@ export function normalizeMovimentosList(movs: any[] | null | undefined): any[] {
     .sort((a, b) => parseTimelineDate(b.dataHora).getTime() - parseTimelineDate(a.dataHora).getTime());
 }
 
-
 export type UnifiedTimelineItem = {
   type: 'court' | 'djen';
   date: Date;

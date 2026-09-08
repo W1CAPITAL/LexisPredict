@@ -116,7 +116,6 @@ export function sugerirProximaAcaoAgente(item: ReguaItem): string {
   ].join('\n');
 }
 
-
 export function totaisRegua(items: { valor?: number; etapa?: string }[]) {
   const n = items.length;
   const valor = items.reduce((s, it) => s + Number(it.valor || 0), 0);

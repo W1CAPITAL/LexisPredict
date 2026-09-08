@@ -1,10 +1,4 @@
-/**
- * Motor de autoencerramento do scanner.
- *
- * O recurso fica bloqueado por padrão e só pode ser reativado posteriormente
- * por alteração explícita de código/configuração. Nesta versão todas as
- * decisões retornam "nenhuma" e nenhum patch de encerramento é aplicado.
- */
+
 
 export type DecisaoEncerrarScan =
   | { acao: "auto_encerrar"; motivo: string }

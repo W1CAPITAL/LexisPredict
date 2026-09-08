@@ -1,8 +1,4 @@
-/**
- * Detecção de mérito (sentença / audiência) a partir de DataJud e DJEN.
- * Usado no scan e em métricas — não inventa resultado sem texto.
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- */
+
 
 import type { EventoTipo } from './case-logic';
 import { detectarAudienciaPendente } from './audiencia-detect';

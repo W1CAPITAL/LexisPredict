@@ -1,13 +1,4 @@
-/**
- * Score de oportunidade para instaurar cumprimento com viés de honorários.
- * Camada comercial em cima de cumprimento_pendente_necessario (base jurídica).
- *
- * Art. 523 §1º CPC + Súmula 517 STJ: após 15 dias sem pagamento voluntário,
- * multa 10% + honorários 10% sobre o valor do débito.
- *
- * Casos "ruins" (improcedente puro, sucumbência recíproca, só compensação)
- * NÃO entram como elegíveis para cobrar instaurar.
- */
+
 import { extrairCreditoSentenca, boostOportunidadeComExtrato } from '@/lib/credito-sentenca-extract';
 
 export type TipoCreditoOportunidade = 'cliente' | 'sucumbencia' | 'ambos' | 'incerto';
@@ -355,7 +346,6 @@ export function scoreOportunidadeCumprimentoHonorarios(
 }
 
 export const LIMIAR_OPORTUNIDADE_COBRANCA = LIMIAR_COBRANCA;
-
 
 /** Limiar comercial (honorários / empresa por fora). Override futuro via prefs da empresa. */
 export function getLimiarCobranca(override?: number | null): number {

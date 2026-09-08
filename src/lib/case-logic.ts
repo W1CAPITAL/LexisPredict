@@ -13,7 +13,6 @@ import { isCasoEncerrado as isCasoEncerradoCore } from './status-encerrado';
  * Motor de processamento v500.0 Elite - UNIFICADO
  */
 
-
 /** Remove tags legadas de BA e limpa resumos poluídos. */
 export function sanitizeEventoResumo(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -139,7 +138,6 @@ export interface LegalCase {
   djen_ultimo_resumo?: string | null;
   djen_ultimo_link?: string | null;
   djen_count?: number;
-
 
   viaEncerrarHumano?: boolean;
   via_scan_auto_encerrar?: boolean;

@@ -1,7 +1,4 @@
-/**
- * Biblioteca de scripts oficiais éticos (nunca “causa ganha”).
- * Placeholders: {{nome}}, {{empresa}}, {{fase}}, {{protocolo}}
- */
+
 
 export type ScriptEtico = {
   id: string;

@@ -94,8 +94,6 @@ export function jidMatchesPhone(jid: string | null | undefined, phone: string): 
   return jd.endsWith(n.slice(-10)) || jd.endsWith(n.slice(-11)) || n.endsWith(jd.slice(-10));
 }
 
-
-
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -513,7 +511,6 @@ export async function evolutionHealthCheck(): Promise<{
   };
 }
 
-
 export type EvolutionChatMessage = {
   id: string;
   fromMe: boolean;
@@ -709,7 +706,7 @@ export async function fetchChatMessagesFromEvolution(
             jid.includes('@') ? jid : `${String(jid).replace(/\D/g, '')}@s.whatsapp.net`;
           return { ...m, remoteJid: forced };
         });
-        // Só mantém mensagens deste telefone (nunca mistura outros chats)
+
         const msgs = stamped.filter((m) => jidMatchesPhone(m.remoteJid, number));
         const withJid = stamped.filter((m) => !!m.remoteJid).length;
         if (msgs.length > 0) {
@@ -805,7 +802,6 @@ export async function fetchChatMessagesFromEvolution(
     tried,
   };
 }
-
 
 /** Lista chats da instância Evolution (1:1 e grupos @g.us). */
 export type EvolutionChatItem = {

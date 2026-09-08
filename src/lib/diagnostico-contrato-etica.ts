@@ -1,7 +1,4 @@
-/**
- * Diagnóstico contratual ético — taxa do contrato × referência BACEN (input humano).
- * Nunca inventa % de êxito judicial.
- */
+
 
 export type DiagnosticoContrato = {
   /** taxa efetiva anual do contrato (% a.a.) — digitada ou extraída */

@@ -1,4 +1,4 @@
-/** Fonte única: notas, changelog e próximas (compacto). */
+
 
 export const RELEASE_VERSION = "9.97.0";
 

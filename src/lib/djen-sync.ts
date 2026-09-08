@@ -42,7 +42,6 @@ export function detectarNovaComunicacaoDjen(
     || ultima.tipoComunicacao 
     || "PUBLICAÇÃO DJEN";
 
-  // Se nunca houve retorno, alerta se for recente (últimos 30 dias)
   if (!ultimoRetornoStr || ultimoRetornoStr.trim() === "" || ultimoRetornoStr === "-" || ultimoRetornoStr === "0") {
     const trintaDias = startOfDay(subDays(new Date(), 30));
     return {

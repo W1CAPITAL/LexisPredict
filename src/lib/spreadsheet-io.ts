@@ -193,7 +193,6 @@ export async function buildXlsxBytes(headers: string[], rows: any[][]): Promise<
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
 }
 
-
 function colName(idx: number): string {
   let n = idx;
   let s = '';

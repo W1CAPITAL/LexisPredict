@@ -1,7 +1,4 @@
-/**
- * Fonte única de KPIs de carteira — Dashboard / Cases / Tarefas / Supervisão / Report
- * Atendido = ultimo_retorno na semana (Brasília). Não misturar com edição app nem tribunal.
- */
+
 import {
   countAtendidosNestaSemana,
   countAtendidosSemanaDoUsuario,

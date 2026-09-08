@@ -1,8 +1,4 @@
-/**
- * Contrato M/N da planilha W1 (último retorno / próximo retorno).
- * Fila em memória + webhook opcional (SHEETS_PUSH_WEBHOOK_URL).
- * Não bloqueia o save do CRM se o push falhar.
- */
+
 
 export type SheetMnPayload = {
   protocolo: string;

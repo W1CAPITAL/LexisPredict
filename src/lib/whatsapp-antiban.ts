@@ -1,17 +1,4 @@
-/**
- * Anti-ban para Evolution / Baileys (uso seguro, sem garantia Meta).
- * - Delay aleatório + typing proporcional ao texto
- * - Gap mínimo entre envios
- * - Teto diário por instância (memória do processo; multi-réplica = somar limites)
- * - Detecta mensagem idêntica em sequência (spam pattern)
- *
- * Env opcionais:
- *   WA_ANTIBAN_MIN_MS=8000
- *   WA_ANTIBAN_MAX_MS=35000
- *   WA_ANTIBAN_GAP_MS=12000
- *   WA_ANTIBAN_DAILY_MAX=120
- *   WA_ANTIBAN_NEW_NUMBER_DAILY_MAX=40
- */
+
 
 type WindowState = {
   dayKey: string;

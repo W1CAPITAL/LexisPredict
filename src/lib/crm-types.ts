@@ -175,7 +175,6 @@ export type CrmTask = {
   created_at?: string;
 };
 
-/** Contato observado (não inventar campos) */
 export type CrmContato = {
   id: string;
   empresa_id: string;

@@ -9,7 +9,6 @@ export function patchClearNovidade(): Record<string, boolean> {
   return { tem_atualizacao_pos_retorno: false, tem_novo_andamento: false, djen_nova_comunicacao: false };
 }
 
-
 /** Mantém flag de alerta: se novo sinal true → true; se false e prev true → true; senão undefined (não grava). */
 export function mergeFlagAlerta(
   alerta: boolean,

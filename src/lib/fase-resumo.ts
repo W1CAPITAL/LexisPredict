@@ -12,8 +12,6 @@ export function labelPessoa(raw?: string | null, fallback = "Equipe"): string {
   return s;
 }
 
-
-
 export type FaseResumo = {
   fase: string;
   falta: string[];
@@ -73,7 +71,6 @@ export function linhaDonoAto(c?: LegalCase | null): string {
   return `${dono} · ${quando} · ${passo}`;
 }
 
-
 export function proximoPasso(c?: LegalCase | null): string {
   const r = resumirFase(c);
   if (!c) return "Abrir o processo e conferir o último ato";
@@ -90,7 +87,6 @@ export function proximoPasso(c?: LegalCase | null): string {
 export function linhaDonoPasso(c?: LegalCase | null): string {
   return `${linhaDonoAto(c)} · próximo: ${proximoPasso(c)}`;
 }
-
 
 export function diasDesdeTribunal(c?: LegalCase | null): number | null {
   if (!c) return null;

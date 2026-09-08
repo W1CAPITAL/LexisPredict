@@ -133,7 +133,6 @@ export function filterNavByPlan<T extends { href: string }>(items: T[], plan: Pl
   return items.filter((i) => hrefLiberado(i.href, plan));
 }
 
-
 /** Ordem comercial: maior = mais completo. Operacional e Financeiro são paralelos. */
 export function planRank(id: PlanId | string): number {
   const p = String(id || '').toLowerCase();

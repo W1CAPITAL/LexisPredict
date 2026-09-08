@@ -96,7 +96,6 @@ export function extrairDispositivoBullets(blob: string | null | undefined): Disp
   };
 }
 
-/** Hard block: nunca exibir R$ ao cliente sem teor + bases. */
 export function podeExibirValorMonetario(opts: {
   teorSentencaOk: boolean;
   contratoCamposMinimos?: boolean;

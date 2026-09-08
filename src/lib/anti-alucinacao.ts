@@ -43,10 +43,6 @@ const FATO_RE =
 const CITACAO_RE =
   /\b(S[uú]mula\s+(?:Vinculante\s+)?n?[ºo°]?\s*\d+|art\.?\s*\d+[ºo°]?|REsp\s*[\d.]+|HC\s*[\d.]+|ADI\s*\d+)\b/gi;
 
-/**
- * Auditoria rápida de texto gerado por IA.
- * Não substitui conferência humana — só força marcadores e red flags.
- */
 export function auditarTextoJuridico(
   texto: string,
   opts?: { exigirAncoras?: boolean }
@@ -89,7 +85,7 @@ export function auditarTextoJuridico(
 
   // Proibições estilo escritorio-ia
   let marcado = t;
-  // Não inventamos — se IA deixou placeholder genérico, reforça
+
   marcado = marcado.replace(/\[inserir[^\]]*\]/gi, "[preencher: $&]");
   if (citacoes.length > 0) {
     for (const c of citacoes) {

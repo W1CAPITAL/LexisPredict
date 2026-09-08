@@ -1,7 +1,4 @@
-/**
- * Resolve situacao operacional (gabinete) a partir de colunas + JSON.
- * Nunca usa status de prazo (Vencido/No Prazo) como situacao.
- */
+
 const STRONG = /ENCERRAD|ARQUIVAD|EXTINT|BAIXA\s*DEFINITIVA|FINALIZAD|SUSPENS/;
 
 export function resolveSituacaoFromRow(item: any, dados?: any): string {
@@ -9,7 +6,8 @@ export function resolveSituacaoFromRow(item: any, dados?: any): string {
     ? dados
     : (item?.dados && typeof item.dados === 'object' ? item.dados : {});
 
-  // Flag de scanner NÃO encerra carteira. Só situacao humana / status_interno.
+  if (d.via_scan_auto_encerrar || item?.via_scan_auto_encerrar) return 'ENCERRADO';
+  if (d.operacao_sistema?.tipo === 'SCAN_AUTO_ENCERRAR') return 'ENCERRADO';
 
   const candidates = [
     d.situacao,
@@ -18,7 +16,7 @@ export function resolveSituacaoFromRow(item: any, dados?: any): string {
     d.status_interno,
     d.statusManual,
     d.STATUS_MANUAL,
-    // coluna status só se for forte (Arquivado/Encerrado), nunca Vencido
+
     item?.status,
     d.status,
   ];

@@ -51,8 +51,6 @@ export interface Empresa {
   created_at: string;
 }
 
-
-
 /**
  * Utilitário de Verificação de Autoridade Mestre de Sistema.
  */

@@ -1,12 +1,4 @@
-/**
- * NVIDIA NIM / Integrate API (OpenAI-compatible)
- * Env (NUNCA hardcode key no repo):
- *   NVIDIA_API_KEY
- *   NVIDIA_BASE_URL  (default https://integrate.api.nvidia.com/v1)
- *   NVIDIA_MODEL     (default meta/llama-3.3-70b-instruct — ou o modelo liberado na sua conta)
- *
- * O modelo "thinkingmachines/inkling" só funciona se estiver habilitado no seu projeto NVIDIA.
- */
+
 
 export function isNvidiaConfigured(): boolean {
   return !!(process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY);

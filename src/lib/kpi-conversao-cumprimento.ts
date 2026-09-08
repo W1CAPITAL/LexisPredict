@@ -1,8 +1,4 @@
-/**
- * KPI de conversão — Lote 1 (meta nota ~7,5)
- * Métricas internas da esteira de honorários / cumprimento.
- * Não inventa R$; só conta casos e estágios.
- */
+
 
 import type { LegalCase } from "@/lib/case-logic";
 import { rankearCasoEspecial } from "@/lib/pipeline-honorarios-especial";

@@ -1,12 +1,4 @@
-/**
- * Linhas da planilha Processos (cabeçalho W1/export) → LegalCase
- * Colunas oficiais do CSV:
- * Protocolo,Cliente,Status,Situacao,UltimoRetorno,ProximoRetorno,Advogado,Escritorio,
- * Tribunal,Telefone,CreatedBy,AtendidoPor,Observacao,DatajudEncerrado,EmpresaId,
- * isBaixaTribunal,ultimo_movimento,fase,valor_causa,updated_at,Assistente,Distribuicao,
- * Produtos,Data_Movimentacao,Andamento,Evento_Tipo,Novo_Andamento,Busca_Apreensao,
- * Cumprimento,DJEN_Resumo,Dias_Sem_Retorno,Procedente,Improcedente
- */
+
 
 import type { LegalCase } from "@/lib/case-logic";
 import { processarCaso } from "@/lib/case-logic";

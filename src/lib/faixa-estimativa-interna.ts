@@ -1,10 +1,4 @@
-/**
- * Faixa estimativa INTERNA (admin) — técnica de “pipeline revenue” dos CRMs,
- * aplicada a sucumbência sem prometer valor ao cliente.
- *
- * Só calcula se houver base no teor ou input humano.
- * Nunca exibir no WhatsApp / portal do cliente.
- */
+
 
 export type FaixaEstimativa = {
   disponivel: boolean;

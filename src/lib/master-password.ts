@@ -1,7 +1,4 @@
-/**
- * Senha de gabinete / master — NUNCA hardcode no client.
- * Valor só em process.env.MASTER_PASSWORD (servidor).
- */
+
 export function getMasterPassword(): string | null {
   const v = (process.env.MASTER_PASSWORD || process.env.GABINETE_MASTER_PASSWORD || '').trim();
   return v.length >= 8 ? v : null;

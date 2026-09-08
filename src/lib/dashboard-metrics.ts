@@ -114,20 +114,6 @@ export function buildDashboardMetrics(cases: LegalCase[], labels?: {
   };
 }
 
-/**
- * Índice de Risco Global (0–100)
- *
- * Significado: pressão operacional média da carteira ativa.
- * NÃO é probabilidade de perder a causa nem score jurídico de mérito.
- *
- * Fórmula:
- *   score = min(100, round( (Σ count_i × peso_i / N_ativos) × 100 ))
- *
- * Pesos (por processo naquela condição):
- *   Vencido/Crítico 1.00 | É hoje 0.80 | B.A. 0.90 | Atenção 0.50
- *   Improcedente 0.55 | Audiência pós-retorno 0.40 | Novo andamento 0.25
- *   Sem prazo 0.20 | No prazo 0.08 | Encerrado tribunal (ainda ativo no CRM) 0.15
- */
 export function computeRiskIndex(input: {
   activeTotal: number;
   countVencido: number;

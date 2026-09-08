@@ -1,10 +1,4 @@
-/**
- * Timeline art. 523 CPC — inspirada no fluxo operacional de calculadoras
- * de cumprimento (ex.: Legalcloud) e no controle de fase dos CRMs jurídicos.
- *
- * Não inventa datas: só usa o que estiver no caso / teor / dados.
- * Se não houver intimação, marca etapa como "pendente de prova".
- */
+
 
 export type Etapa523Status = "ok" | "ativo" | "pendente" | "bloqueado" | "na";
 

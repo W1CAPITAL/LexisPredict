@@ -1,8 +1,4 @@
-/**
- * Checklist operacional — “vale instaurar cumprimento / honorários?”
- * Lote 1: localStorage + espelho em dados.checklist_cumprimento (via server action).
- * Não inventa R$; só gates humanos.
- */
+
 
 export type ChecklistCumprimento = {
   teorLido: boolean;

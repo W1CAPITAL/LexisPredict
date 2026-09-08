@@ -1,15 +1,4 @@
-/**
- * LexisPredict — Liquidação de Cumprimento (Lote 10)
- * Motor compatível com o fluxo da Calculadora Legalcloud (UI Premium),
- * SEM depender de API proprietária (Legalcloud não publica API de liquidação).
- *
- * Regras:
- * - NÃO inventa valor principal: só usa input humano ou valor detectado no teor (referência).
- * - Art. 523, §1º CPC: multa 10% + honorários 10% sobre o montante não pago no prazo.
- * - Art. 85 CPC: honorários de conhecimento (percentual do teor ou informado).
- * - Abatimentos / custas são informados pelo operador.
- * - Resultado é SIMULAÇÃO interna; hard block de R$ ao cliente permanece fora deste módulo.
- */
+
 
 export type IndiceCorrecao = 'manual' | 'ipca' | 'inpc' | 'selic_proxy' | 'taxa_legal_proxy';
 

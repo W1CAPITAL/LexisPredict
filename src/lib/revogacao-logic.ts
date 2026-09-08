@@ -161,7 +161,6 @@ export function avaliarViabilidadeSubstabelecimento(opts: {
   };
 }
 
-
 /** Extrai CPF (11 digitos) de teor DJEN/decisao */
 export function extrairCpfDoTexto(texto: string): string | null {
   const t = String(texto || '');

@@ -33,7 +33,6 @@ export function mergeImportOverExisting<T extends Record<string, any>>(
 
   const merged: Record<string, any> = { ...incoming };
 
-  // NUNCA sobrescrever dono da carteira
   if (existing.created_by) {
     merged.created_by = existing.created_by;
   }

@@ -1,19 +1,4 @@
-/**
- * XLSX Dossiê Operacional v3 — estilo ANALYTICS + AUDITORIA + RAW_DATA
- * Relatório executivo completo de todos os casos da carteira.
- * SEM id / created_at / empresa_id / created_by
- *
- * Abas: Capa | Dashboard | Analytics | Auditoria | Processos | Mapa_TJ |
- *       Por_Status | Por_Escritorio | Por_Advogado | Codigos_TJ
- *
- * Melhorias v4: escopo Supervisor/Superadmin = carteira completa; capa com cargo/escopo.
- * Melhorias v3:
- * - Colunas com largura otimizada por aba
- * - Cabeçalho congelado + AutoFiltro na aba Processos
- * - Aba Dashboard (painel executivo) e Por_Advogado
- * - KPIs de atendimento, prazos e risco
- * - Estilos ampliados (seções, alertas, ok, kpis, zebra)
- */
+
 
 import JSZip from 'jszip';
 import { EXPORT_HEADERS, CNJ_TRIBUNAL_MAP, tribunalFromProtocolo } from './xlsx-schema';

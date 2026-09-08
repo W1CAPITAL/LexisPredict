@@ -33,10 +33,6 @@ export function eventWeight(t: string | null | undefined): number {
   return 15;
 }
 
-/**
- * Só sobrescreve evento_* se o novo sinal for >= peso do atual.
- * Nunca grava rotina/null só porque “sem alteração nesta passagem”.
- */
 export function mergeEventoMerito(
   currentTipo: EventoTipo | string | null | undefined,
   currentResumo: string | null | undefined,

@@ -1,7 +1,4 @@
-/**
- * Motor de extrato de crédito da sentença (Lote 6 + 7).
- * Heurísticas sobre teor DataJud/DJEN — NÃO inventa valor.
- */
+
 import {
   analisarHonorariosAReceber,
   type HonorariosReceberResult,

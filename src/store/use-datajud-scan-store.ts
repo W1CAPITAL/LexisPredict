@@ -305,7 +305,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         const remote = await fetchRepoCases();
         if (Array.isArray(remote) && remote.length > 0) {
           const setCases = useAppStore.getState().setCases;
-          // REPLACE store — nunca merge com cache residual
+
           if (typeof setCases === 'function') setCases(remote);
           writeCarteiraCache(remote);
           const nEncR = remote.filter((c: any) => isCasoEncerrado(c)).length;

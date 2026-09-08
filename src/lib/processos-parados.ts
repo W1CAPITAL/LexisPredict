@@ -245,7 +245,6 @@ function blobProcessual(c: LegalCase): string {
     .join(' | ');
 }
 
-
 export function isCumprimentoRecebido(c: LegalCase): boolean {
   const any = c as any;
   const txt = blobProcessual(c);
@@ -459,7 +458,6 @@ function oportunidadesDe(c: LegalCase, diasParado: number, estado: EstadoParado)
     ops.push('Tribunal sinaliza baixa: conferir alvará, cumprimento residual ou ato útil no processo');
   }
 
-  // Sem oportunidade processual clara → não inventar "só telefone"
   return ops;
 }
 

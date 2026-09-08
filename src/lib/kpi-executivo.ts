@@ -99,7 +99,6 @@ export type KpiExecutivo = {
   encerradosCarteira: number;
 };
 
-/** Fonte única para cards do dashboard / report / aba executiva. */
 export function computeKpiExecutivo(cases: any[]): KpiExecutivo {
   const list = cases || [];
   let procedentes = 0;

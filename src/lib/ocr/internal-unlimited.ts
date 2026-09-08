@@ -1,18 +1,5 @@
 const OCR_EXTERNAL_DISABLED = true;
-/**
- * Motor OCR INTERNO — contrato compatível com self-host do Baidu Unlimited-OCR
- * (GPU/transformers NÃO rodam na Vercel; sobe o modelo num worker e aponta a URL).
- *
- * Env:
- *   UNLIMITED_OCR_URL  = https://seu-host/ocr  (POST multipart ou JSON base64)
- *   UNLIMITED_OCR_TOKEN = opcional Bearer
- *
- * Contrato esperado (qualquer um):
- *   POST JSON { image_base64, language? } → { text: string } | { result: string }
- *   POST multipart field "file" → { text: string }
- *
- * Referência de modelo: https://github.com/baidu/Unlimited-OCR
- */
+
 import type { OcrResult } from './types';
 
 export async function ocrUnlimitedInternal(

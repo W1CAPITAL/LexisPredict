@@ -1,13 +1,4 @@
-/**
- * Motor Lote 7 — Honorários a receber (sucumbência a favor do autor / banca).
- * Heurística sobre teor DataJud/DJEN. Não inventa valor em R$.
- *
- * Hierarquia:
- * 1) BLOQUEIO (recíproca / a cargo do autor / improcedência)
- * 2) FORTE (condenação explícita do réu a pagar honorários)
- * 3) MÉDIO (fixação %, tabela OAB, art. 85 CPC)
- * 4) FRACO (só "sucumbência" genérica sem destinatário)
- */
+
 
 export type HonorariosReceberNivel = 'nenhum' | 'fraco' | 'medio' | 'forte' | 'bloqueado';
 

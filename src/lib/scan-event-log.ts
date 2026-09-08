@@ -49,7 +49,6 @@ export function clearScanLog() {
   }
 }
 
-
 export function exportScanLogCsv(): string {
   const rows = loadScanLog();
   const head = "hora,cnj,motor,ok,detalhe";

@@ -51,7 +51,6 @@ export interface DataJudOptions {
   fast?: boolean;
 }
 
-
 /** Extrai nomes de polo ativo e passivo a partir do array partes do DataJud. */
 export function extrairPolos(partes: any[]): { ativo: string[]; passivo: string[]; outros: string[] } {
   const ativo: string[] = [];
@@ -163,8 +162,6 @@ export async function searchDataJudByNome(
 
   return { success: true, items };
 }
-
-
 
 /**
  * Busca processos no DataJud por CPF/CNPJ da parte.
@@ -304,7 +301,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const cnjMasked = `${cnjLimpo.substring(0, 7)}-${cnjLimpo.substring(7, 9)}.${cnjLimpo.substring(9, 13)}.${cnjLimpo.substring(13, 14)}.${cnjLimpo.substring(14, 16)}.${cnjLimpo.substring(16, 20)}`;
 
   const isFast = options.fast === true;
-  // ANTES: fast=15s/1 tentativa → DJEN ganhava e DataJud “sumia”
+
   // AGORA: fast ainda dá tempo real ao tribunal + 1 retry
   const timeoutMs = isFast ? 32000 : 42000;
   const maxAttempts = isFast ? 3 : 3;

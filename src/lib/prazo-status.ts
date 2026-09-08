@@ -1,8 +1,4 @@
-/**
- * Status de prazo com calendário de Brasília (evita erro Vercel UTC).
- * Fonte única para Dashboard, Agenda e processarCaso.
- * @copyright 2026 W1 / LexisPredict
- */
+
 
 import type { CaseStatus } from './case-logic';
 

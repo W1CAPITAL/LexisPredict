@@ -320,7 +320,6 @@ export function computePlanoBKpis(rows: PlanoBRow[]) {
   return { total, byStatus, vencidos, arquivados, semTel, ativos: total - arquivados };
 }
 
-
 /** Diagnóstico do mapeamento de colunas (UI Plano B). */
 export function diagnoseHeaders(headers: string[]): {
   map: Record<string, number>;

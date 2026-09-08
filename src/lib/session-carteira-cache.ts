@@ -1,7 +1,4 @@
-/**
- * Cache persistente da carteira: a lista aparece imediatamente após trocar de aba/F5.
- * A rede é apenas revalidação em segundo plano; nunca bloqueia a pintura do cache.
- */
+
 const CARTEIRA_KEY = 'lexis_carteira_persistente_v4';
 const LEGACY_KEY = 'lexis_carteira_sessao_v3';
 const SCAN_KEY = 'lexis_scan_progress_v1';
@@ -43,7 +40,7 @@ export async function loadCarteiraComCache(opts: {
 }): Promise<{ cases: any[]; source: CacheSource }> {
   const cached = readCarteiraCache(opts.empresaId);
   if (cached?.cases?.length) opts.onShow(cached.cases, 'cache');
-  // Rede nunca bloqueia a UI. O caller pode continuar renderizando o cache.
+
   try {
     const remote = await opts.fetchNetwork();
     const list = Array.isArray(remote) ? remote : [];

@@ -1,8 +1,4 @@
-/**
- * Histórico de atualizações do LexisPredict (fonte única).
- * Exibido de forma discreta abaixo do atalho do Scanner no menu lateral.
- * Ao publicar um lote, acrescente um item no topo de APP_CHANGELOG.
- */
+
 export type ChangelogItem = {
   /** Semver do produto (não confundir com build do scanner) */
   version: string;

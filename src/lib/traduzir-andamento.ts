@@ -1,8 +1,4 @@
-/**
- * Tradução operacional de andamento → linguagem leiga (1–2 frases).
- * Não inventa mérito. Reutiliza sinal de capa / textos do caso.
- * @copyright 2026 W1 / LexisPredict
- */
+
 import type { LegalCase } from './case-logic';
 import { getSinalCapa, type SinalCapa } from './sinal-capa';
 

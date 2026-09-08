@@ -192,8 +192,6 @@ export function detectarCumprimentoSentenca(movimentos: any[]): {
   return { ativo: false, motivo: null };
 }
 
-
-
 /** Usa só o último nome salvo (coluna) quando não há lista de movimentos — backfill / UI. */
 export function detectarCumprimentoFromNome(ultimoNome: string | null | undefined): {
   ativo: boolean;
@@ -612,7 +610,6 @@ export function analisarProcedenciaECumprimento(
     }
   }
 
-    // Lote3: nunca pendente + em cumprimento ao mesmo tempo
   if (emCumprimento || cumprimentoEncerrado) {
     cumprimentoPendente = false;
   }

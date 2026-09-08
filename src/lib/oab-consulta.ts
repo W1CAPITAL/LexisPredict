@@ -1,14 +1,4 @@
-/**
- * Consulta cadastral de advogado (OAB / CNA).
- *
- * Não existe API pública oficial estável e gratuita da OAB nacional para todos os estados.
- * Estratégia:
- *  1) Validação de formato (UF + número)
- *  2) Tentativa de consulta via endpoint público do CNA (quando acessível do servidor)
- *  3) Fallback: dados manuais + link oficial para o usuário confirmar
- *
- * Uso: preencher formulário da banca / validar OAB na procuração.
- */
+
 
 export type OabConsultaResult = {
   success: boolean;
@@ -43,10 +33,6 @@ export function buildCnaSearchUrl(uf: string, numero: string): string {
   return `https://cna.oab.org.br/?uf=${encodeURIComponent(u)}&nroOab=${encodeURIComponent(n)}`;
 }
 
-/**
- * Best-effort: alguns ambientes conseguem HTML do CNA; outros bloqueiam datacenter.
- * Nunca inventa nome — só preenche se extrair com confiança.
- */
 export async function consultarOabCna(uf: string, numero: string): Promise<OabConsultaResult> {
   const oabUf = String(uf || "").toUpperCase();
   const oabNumero = normalizeOabNumero(numero);

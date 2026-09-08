@@ -10,7 +10,6 @@
 
 // Window.puter tipado em puter-ai-client.ts (any) — evita conflito de declaração.
 
-
 let loading: Promise<void> | null = null;
 
 export function loadPuterScript(): Promise<void> {

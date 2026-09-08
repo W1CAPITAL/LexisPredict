@@ -1,8 +1,4 @@
-/**
- * Extração de PDF para preenchimento automático dos campos de Modelos & Peças.
- * Client-only: usa pdfjs-dist (mesmo padrão da página OCR) + legal-ner.
- * Não inventa: só entidades/heurísticas presentes no texto do PDF.
- */
+
 
 import * as pdfjsLib from "pdfjs-dist";
 import { extractLegalEntities } from "@/lib/legal-ner";
