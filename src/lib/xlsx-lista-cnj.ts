@@ -7,14 +7,22 @@ function esc(s: string) {
 function cell(col: string, row: number, val: string) {
   return `<c r="${col}${row}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
 }
-const H = ["processo","nome_completo","telefone","telefone_fonte","classe","tribunal","data","situacao_hint","link","teor"] as const;
-const C = ["A","B","C","D","E","F","G","H","I","J"];
+const H = [
+  "processo","nome_completo","telefone","telefone_fonte","email","cpf","cnpj",
+  "endereco","cep","bairro","municipio","uf","situacao_cadastral","enrich_fonte",
+  "classe","tribunal","data","situacao_hint","link","teor",
+] as const;
+const C = "ABCDEFGHIJKLMNOPQRST".split("");
 
 export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
   const header = `<row r="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
   const data = lista.map((p, idx) => {
     const r = idx + 2;
-    const vals = [p.processo,p.nome_completo,p.telefone,p.telefone_fonte,p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor];
+    const vals = [
+      p.processo,p.nome_completo,p.telefone,p.telefone_fonte,p.email,p.cpf,p.cnpj,
+      p.endereco,p.cep,p.bairro,p.municipio,p.uf,p.situacao_cadastral,p.enrich_fonte,
+      p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor,
+    ];
     return `<row r="${r}">${vals.map((v,i)=>cell(C[i],r,String(v??""))).join("")}</row>`;
   }).join("");
   const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${header}${data}</sheetData></worksheet>`;

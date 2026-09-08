@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { scanDjenPaginaAction } from "@/app/actions/gerador-djen-action";
+import { enrichmentConfigAction, scanDjenPaginaAction } from "@/app/actions/gerador-djen-action";
 import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
 import {
   FILTROS_REVISIONAL,
@@ -13,9 +13,8 @@ import {
   type ProcessoDjenReal,
   type ScanLogLine,
 } from "@/lib/revisional-tribunal-filtros";
-import { Download, Loader2, Search, ExternalLink, Copy, Check, Square, Phone } from "lucide-react";
+import { Download, Loader2, Search, ExternalLink, Copy, Check, Square, Phone, Mail } from "lucide-react";
 
-/** Janelas de dias: amplia sozinho até bater o alvo */
 const JANELAS_DIAS = [7, 14, 30, 60, 90];
 const MAX_PAG_POR_QUERY = 25;
 
@@ -29,8 +28,14 @@ export default function GeradorProcessosPage() {
   const [exp, setExp] = useState(false);
   const [qLocal, setQLocal] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const [enrichOn, setEnrichOn] = useState(true);
+  const [enrichCfg, setEnrichCfg] = useState<{ ready: boolean; enabled: boolean; urlSet: boolean; tokenSet: boolean } | null>(null);
   const stopRef = useRef(false);
   const logEnd = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    enrichmentConfigAction().then(setEnrichCfg).catch(() => null);
+  }, []);
 
   useEffect(() => {
     logEnd.current?.scrollIntoView({ behavior: "smooth" });
@@ -42,7 +47,7 @@ export default function GeradorProcessosPage() {
     const q = qLocal.trim().toLowerCase();
     if (!q) return lista;
     return lista.filter((p) =>
-      [p.processo, p.nome_completo, p.telefone, p.classe, p.tribunal].join(" ").toLowerCase().includes(q)
+      [p.processo, p.nome_completo, p.telefone, p.email, p.cpf, p.classe].join(" ").toLowerCase().includes(q)
     );
   }, [lista, qLocal]);
 
@@ -56,26 +61,32 @@ export default function GeradorProcessosPage() {
     setBusy(true);
     setLista([]);
     setLogs([]);
+    const cfg = await enrichmentConfigAction().catch(() => null);
+    setEnrichCfg(cfg);
+    const willEnrich = enrichOn && !!cfg?.ready;
     pushLogs([
       {
         ts: new Date().toISOString().slice(11, 19),
         level: "info",
-        text: `Alvo ${target} · sem sigilo · AUTOR (não réu) · CNJ com DV · telefone só se no teor público (sem base irregular)`,
+        text: `Alvo ${target} · enrich ${willEnrich ? "ON (sua API)" : "OFF"} · sem sigilo · AUTOR`,
       },
     ]);
+    if (enrichOn && cfg && !cfg.ready) {
+      pushLogs([
+        {
+          ts: new Date().toISOString().slice(11, 19),
+          level: "warn",
+          text: `API enrich não pronta (enabled=${cfg.enabled} url=${cfg.urlSet} token=${cfg.tokenSet}). Defina ENRICHMENT_LOOKUP_* no Vercel.`,
+        },
+      ]);
+    }
 
     const byCnj = new Map<string, ProcessoDjenReal>();
     const nQueries = FILTROS_REVISIONAL.filter((f) => ativos.includes(f.id)).length;
 
     outer: for (const dias of JANELAS_DIAS) {
       if (stopRef.current || byCnj.size >= target) break;
-      pushLogs([
-        {
-          ts: new Date().toISOString().slice(11, 19),
-          level: "info",
-          text: `— Janela ${dias} dias · progresso ${byCnj.size}/${target} —`,
-        },
-      ]);
+      pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "info", text: `— Janela ${dias}d · ${byCnj.size}/${target} —` }]);
 
       for (let qi = 0; qi < nQueries; qi++) {
         if (stopRef.current || byCnj.size >= target) break outer;
@@ -90,22 +101,15 @@ export default function GeradorProcessosPage() {
             dias,
             siglaTribunal: tribunal.trim() || undefined,
             excludeCnjs: [...byCnj.keys()],
+            enrich: willEnrich,
           });
           pushLogs(res.logs || []);
-
           if (res.geoBlocked) break outer;
 
-          // rate limit: espera e repete a MESMA página
           let retries = 0;
           while (res.rateLimited && retries < 6 && !stopRef.current) {
             retries++;
-            pushLogs([
-              {
-                ts: new Date().toISOString().slice(11, 19),
-                level: "warn",
-                text: `429 — espera ${2 + retries}s e repete pág ${pagina} (tentativa ${retries})`,
-              },
-            ]);
+            pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "warn", text: `429 — espera ${2 + retries}s` }]);
             await new Promise((r) => setTimeout(r, (2 + retries) * 1000));
             res = await scanDjenPaginaAction({
               filtros: ativos,
@@ -114,6 +118,7 @@ export default function GeradorProcessosPage() {
               dias,
               siglaTribunal: tribunal.trim() || undefined,
               excludeCnjs: [...byCnj.keys()],
+              enrich: willEnrich,
             });
             pushLogs(res.logs || []);
           }
@@ -128,53 +133,32 @@ export default function GeradorProcessosPage() {
           }
           if (added) {
             setLista([...byCnj.values()]);
-            pushLogs([
-              {
-                ts: new Date().toISOString().slice(11, 19),
-                level: "ok",
-                text: `Progresso ${byCnj.size}/${target} (+${added})`,
-              },
-            ]);
+            pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "ok", text: `Progresso ${byCnj.size}/${target} (+${added})` }]);
           }
 
           if (res.bruto === 0) {
             paginasSemBruto++;
-            if (paginasSemBruto >= 2) break; // fim desta query nesta janela
-          } else {
-            paginasSemBruto = 0;
-          }
+            if (paginasSemBruto >= 2) break;
+          } else paginasSemBruto = 0;
 
           if (!res.hasMore && res.bruto < 80) break;
           pagina += 1;
-          await new Promise((r) => setTimeout(r, 180));
+          await new Promise((r) => setTimeout(r, 160));
         }
       }
-
       if (byCnj.size >= target) break;
-      pushLogs([
-        {
-          ts: new Date().toISOString().slice(11, 19),
-          level: "warn",
-          text: `Ainda ${byCnj.size}/${target} — ampliando janela de dias…`,
-        },
-      ]);
     }
 
     setLista([...byCnj.values()]);
+    const vals = [...byCnj.values()];
     pushLogs([
       {
         ts: new Date().toISOString().slice(11, 19),
         level: byCnj.size >= target ? "ok" : "warn",
-        text: stopRef.current
-          ? `Parado · ${byCnj.size} processos`
-          : `Fim · ${byCnj.size}/${target} · tel. no teor: ${[...byCnj.values()].filter((x) => x.telefone).length}`,
+        text: `Fim · ${byCnj.size}/${target} · tel ${vals.filter((x) => x.telefone).length} · email ${vals.filter((x) => x.email).length} · cpf ${vals.filter((x) => x.cpf).length}`,
       },
     ]);
     setBusy(false);
-  };
-
-  const parar = () => {
-    stopRef.current = true;
   };
 
   const baixar = async () => {
@@ -184,7 +168,7 @@ export default function GeradorProcessosPage() {
       const blob = await xlsxProcessosDjenReal(filtrados);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `djen-real-${filtrados.length}.xlsx`;
+      a.download = `djen-enrich-${filtrados.length}.xlsx`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {
@@ -208,30 +192,25 @@ export default function GeradorProcessosPage() {
           <div>
             <h1 className="text-xl font-black tracking-tight">DJEN revisional</h1>
             <p className="text-xs text-muted-foreground">
-              Scan até o <strong>alvo</strong> (7→14→30→60→90 dias). Sem sigilo. Nome = <strong>AUTOR</strong>.
-              Telefone só do teor público — não usa base irregular de CPF/celular.
+              Scan até o alvo + enrichment opcional (tel, e-mail, CPF, endereço) via{" "}
+              <strong>sua API</strong> (<code className="text-[10px]">ENRICHMENT_LOOKUP_*</code>).
             </p>
           </div>
+
           <div className="flex flex-wrap gap-1.5">
             {FILTROS_REVISIONAL.map((f) => (
               <button
                 key={f.id}
                 type="button"
-                onClick={() =>
-                  setAtivos((p) => (p.includes(f.id) ? p.filter((x) => x !== f.id) : [...p, f.id]))
-                }
-                className={
-                  "text-[11px] rounded-lg border px-2 py-1 " +
-                  (ativos.includes(f.id) ? "border-primary bg-primary/20 font-semibold" : "border-border/40 text-muted-foreground")
-                }
+                onClick={() => setAtivos((p) => (p.includes(f.id) ? p.filter((x) => x !== f.id) : [...p, f.id]))}
+                className={"text-[11px] rounded-lg border px-2 py-1 " + (ativos.includes(f.id) ? "border-primary bg-primary/20 font-semibold" : "border-border/40 text-muted-foreground")}
               >
                 {f.nomeTribunal}
               </button>
             ))}
-            <button type="button" className="text-[10px] uppercase font-black text-muted-foreground px-2" onClick={() => setAtivos(filtrosDefaultOn())}>
-              padrão
-            </button>
+            <button type="button" className="text-[10px] uppercase font-black text-muted-foreground px-2" onClick={() => setAtivos(filtrosDefaultOn())}>padrão</button>
           </div>
+
           <div className="flex flex-wrap items-end gap-2">
             <label className="space-y-0.5">
               <span className="text-[9px] font-black uppercase text-muted-foreground">Alvo</span>
@@ -241,38 +220,39 @@ export default function GeradorProcessosPage() {
               <span className="text-[9px] font-black uppercase text-muted-foreground">Tribunal</span>
               <Input className="h-9 w-24 uppercase" value={tribunal} onChange={(e) => setTribunal(e.target.value)} />
             </label>
+            <label className="flex items-center gap-2 h-9 px-2 rounded-lg border border-border/50 text-xs cursor-pointer">
+              <input type="checkbox" checked={enrichOn} onChange={(e) => setEnrichOn(e.target.checked)} />
+              Enrich API
+              <span className={"text-[9px] font-bold " + (enrichCfg?.ready ? "text-emerald-500" : "text-amber-500")}>
+                {enrichCfg == null ? "…" : enrichCfg.ready ? "pronta" : "não configurada"}
+              </span>
+            </label>
             {!busy ? (
-              <Button onClick={iniciarScan} className="h-9 gap-2 text-xs font-black uppercase">
-                <Search className="w-4 h-4" /> Buscar até o alvo
-              </Button>
+              <Button onClick={iniciarScan} className="h-9 gap-2 text-xs font-black uppercase"><Search className="w-4 h-4" /> Buscar até o alvo</Button>
             ) : (
-              <Button onClick={parar} variant="destructive" className="h-9 gap-2 text-xs font-black uppercase">
-                <Square className="w-3.5 h-3.5" /> Parar
-              </Button>
+              <Button onClick={() => { stopRef.current = true; }} variant="destructive" className="h-9 gap-2 text-xs font-black uppercase"><Square className="w-3.5 h-3.5" /> Parar</Button>
             )}
             <Button variant="secondary" onClick={baixar} disabled={!filtrados.length || exp} className="h-9 gap-2 text-xs font-black uppercase">
               {exp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} XLSX
             </Button>
-            <Input className="h-9 flex-1 min-w-[140px]" placeholder="Filtrar lista…" value={qLocal} onChange={(e) => setQLocal(e.target.value)} />
+            <Input className="h-9 flex-1 min-w-[140px]" placeholder="Filtrar…" value={qLocal} onChange={(e) => setQLocal(e.target.value)} />
           </div>
+
           <div className="text-[11px] font-mono text-muted-foreground flex flex-wrap gap-3">
-            <span className="text-foreground font-bold">{lista.length}/{alvo} ok</span>
-            <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {lista.filter((p) => p.telefone).length} tel. no teor</span>
-            {busy && <span className="text-amber-500 inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> scaneando…</span>}
+            <span className="text-foreground font-bold">{lista.length}/{alvo}</span>
+            <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {lista.filter((p) => p.telefone).length} tel</span>
+            <span className="inline-flex items-center gap-1"><Mail className="w-3 h-3" /> {lista.filter((p) => p.email).length} email</span>
+            <span>cpf {lista.filter((p) => p.cpf).length}</span>
+            {busy && <span className="text-amber-500 inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> scan…</span>}
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 grid md:grid-cols-[1fr_320px] overflow-hidden">
+        <div className="flex-1 min-h-0 grid md:grid-cols-[1fr_300px] overflow-hidden">
           <div className="overflow-auto p-3 space-y-2">
-            {!filtrados.length && !busy && (
-              <p className="text-sm text-muted-foreground text-center py-16 border border-dashed rounded-xl">
-                Alvo 60 → o scan continua sozinho (mais páginas e mais dias) até completar ou você parar.
-              </p>
-            )}
             {filtrados.map((p) => (
-              <article key={p.processo} className="rounded-xl border border-border/50 bg-card/40 p-3">
+              <article key={p.processo} className="rounded-xl border border-border/50 bg-card/40 p-3 space-y-1">
                 <div className="flex flex-wrap justify-between gap-2">
-                  <div className="space-y-1 min-w-0">
+                  <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" className="font-mono text-sm font-bold inline-flex items-center gap-1" onClick={() => copy(p.processo)}>
                         {p.processo}
@@ -282,14 +262,17 @@ export default function GeradorProcessosPage() {
                       <span className="text-[10px] font-mono text-muted-foreground">{p.data}</span>
                     </div>
                     <p className="text-sm font-semibold">{p.nome_completo}</p>
-                    {p.telefone ? (
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono inline-flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {p.telefone} <span className="text-[9px] text-muted-foreground">teor DJEN</span>
-                      </p>
-                    ) : (
-                      <p className="text-[10px] text-muted-foreground">Sem telefone na publicação (não inventamos / não usamos base irregular)</p>
-                    )}
-                    <p className="text-[11px] text-muted-foreground">{p.classe || "—"}{p.situacao_hint ? ` · ${p.situacao_hint}` : ""}</p>
+                    <div className="text-[11px] space-y-0.5 text-muted-foreground">
+                      {p.telefone && <p className="text-emerald-600 dark:text-emerald-400 font-mono"><Phone className="w-3 h-3 inline" /> {p.telefone} <span className="opacity-60">({p.telefone_fonte || "—"})</span></p>}
+                      {p.email && <p className="font-mono"><Mail className="w-3 h-3 inline" /> {p.email}</p>}
+                      {p.cpf && <p className="font-mono">CPF {p.cpf}</p>}
+                      {p.cnpj && <p className="font-mono">CNPJ {p.cnpj}</p>}
+                      {(p.endereco || p.municipio) && (
+                        <p>{[p.endereco, p.bairro, p.municipio, p.uf, p.cep].filter(Boolean).join(" · ")}</p>
+                      )}
+                      {p.enrich_fonte && <p className="text-[9px] uppercase tracking-wide">enrich: {p.enrich_fonte}</p>}
+                      <p>{p.classe || "—"}{p.situacao_hint ? ` · ${p.situacao_hint}` : ""}</p>
+                    </div>
                   </div>
                   {p.link && (
                     <a href={p.link} target="_blank" rel="noreferrer" className="text-xs font-bold uppercase text-primary border border-primary/30 rounded-lg px-3 py-2 h-fit inline-flex items-center gap-1">
@@ -297,19 +280,15 @@ export default function GeradorProcessosPage() {
                     </a>
                   )}
                 </div>
-                {p.assunto_ou_teor && (
-                  <p className="mt-2 text-[11px] text-muted-foreground line-clamp-2 border-t border-border/30 pt-2">{p.assunto_ou_teor}</p>
-                )}
               </article>
             ))}
           </div>
-          <aside className="border-t md:border-t-0 md:border-l border-border/50 flex flex-col min-h-[180px] max-h-[40vh] md:max-h-none overflow-hidden bg-black/20">
-            <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/40">Log do scan</div>
+          <aside className="border-t md:border-t-0 md:border-l border-border/50 flex flex-col overflow-hidden bg-black/20">
+            <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/40">Log</div>
             <div className="flex-1 overflow-auto p-2 font-mono text-[10px] space-y-1">
               {logs.map((l, i) => (
                 <div key={i} className={l.level === "err" ? "text-red-400" : l.level === "warn" ? "text-amber-400" : l.level === "ok" ? "text-emerald-400" : "text-slate-300"}>
-                  {l.ts && <span className="opacity-50">{l.ts} </span>}
-                  {l.text}
+                  {l.ts && <span className="opacity-50">{l.ts} </span>}{l.text}
                 </div>
               ))}
               <div ref={logEnd} />

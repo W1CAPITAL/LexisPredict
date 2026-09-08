@@ -20,16 +20,16 @@ export interface FiltroRevisional {
 }
 
 export const FILTROS_REVISIONAL: FiltroRevisional[] = [
-  { id: "procedimento_comum_civel", tipo: "classe", nomeTribunal: "PROCEDIMENTO COMUM CÍVEL", djenQuery: "PROCEDIMENTO COMUM CÍVEL", aliases: ["procedimento comum cível", "procedimento comum civel", "procedimento comum"], defaultOn: true },
-  { id: "acao_revisional", tipo: "assunto", nomeTribunal: "Ação revisional de contrato", djenQuery: "revisional", aliases: ["ação revisional", "acao revisional", "revisional de contrato", "repetição de indébito", "repeticao de indebito"], defaultOn: true },
+  { id: "procedimento_comum_civel", tipo: "classe", nomeTribunal: "PROCEDIMENTO COMUM CÍVEL", djenQuery: "PROCEDIMENTO COMUM CÍVEL", aliases: ["procedimento comum cível", "procedimento comum civel"], defaultOn: true },
+  { id: "acao_revisional", tipo: "assunto", nomeTribunal: "Ação revisional de contrato", djenQuery: "revisional", aliases: ["ação revisional", "revisional de contrato", "repetição de indébito"], defaultOn: true },
   { id: "alienacao_fiduciaria", tipo: "assunto", nomeTribunal: "Alienação fiduciária", djenQuery: "alienação fiduciária", aliases: ["alienação fiduciária", "alienacao fiduciaria"], defaultOn: true },
-  { id: "contratos_bancarios", tipo: "assunto", nomeTribunal: "Contratos bancários", djenQuery: "contratos bancários", aliases: ["contratos bancários", "contratos bancarios"], defaultOn: false },
-  { id: "busca_apreensao", tipo: "classe", nomeTribunal: "Busca e apreensão", djenQuery: "busca e apreensão", aliases: ["busca e apreensão", "busca e apreensao"], defaultOn: false },
+  { id: "contratos_bancarios", tipo: "assunto", nomeTribunal: "Contratos bancários", djenQuery: "contratos bancários", aliases: ["contratos bancários"], defaultOn: false },
+  { id: "busca_apreensao", tipo: "classe", nomeTribunal: "Busca e apreensão", djenQuery: "busca e apreensão", aliases: ["busca e apreensão"], defaultOn: false },
   { id: "cumprimento_sentenca", tipo: "fase", nomeTribunal: "Cumprimento de sentença", djenQuery: "cumprimento de sentença", aliases: ["cumprimento de sentença"], defaultOn: false },
-  { id: "extinto_sem_merito", tipo: "resultado", nomeTribunal: "Extinto sem resolução do mérito", djenQuery: "sem resolução do mérito", aliases: ["sem resolução do mérito", "art. 485", "artigo 485"], defaultOn: false },
+  { id: "extinto_sem_merito", tipo: "resultado", nomeTribunal: "Extinto sem resolução do mérito", djenQuery: "sem resolução do mérito", aliases: ["sem resolução do mérito", "art. 485"], defaultOn: false },
   { id: "extinto_com_merito", tipo: "resultado", nomeTribunal: "Extinto com resolução do mérito", djenQuery: "com resolução do mérito", aliases: ["com resolução do mérito", "art. 487"], defaultOn: false },
   { id: "improcedente", tipo: "resultado", nomeTribunal: "Improcedente", djenQuery: "julgo improcedente", aliases: ["improcedente"], defaultOn: false },
-  { id: "procedente_parcial", tipo: "resultado", nomeTribunal: "Procedente em parte", djenQuery: "parcialmente procedente", aliases: ["procedente em parte", "parcialmente procedente"], defaultOn: false },
+  { id: "procedente_parcial", tipo: "resultado", nomeTribunal: "Procedente em parte", djenQuery: "parcialmente procedente", aliases: ["procedente em parte"], defaultOn: false },
 ];
 
 export function filtrosDefaultOn(): FiltroRevisionalId[] {
@@ -52,17 +52,12 @@ export function matchFiltrosRevisional(texto: string, ativos: FiltroRevisionalId
   return { ok: hits.length > 0, hits };
 }
 
-/** DV oficial CNJ (Res. CNJ 65) */
 export function cnjDvValido(digits20: string): boolean {
   const d = String(digits20 || "").replace(/\D/g, "");
   if (d.length !== 20 || /^0+$/.test(d)) return false;
   try {
-    const seq = d.slice(0, 7);
-    const dv = d.slice(7, 9);
-    const rest = d.slice(9);
-    if (rest.length !== 11) return false;
-    const calc = String(98n - (BigInt(seq + rest) % 97n)).padStart(2, "0");
-    return calc === dv;
+    const calc = String(98n - (BigInt(d.slice(0, 7) + d.slice(9)) % 97n)).padStart(2, "0");
+    return calc === d.slice(7, 9);
   } catch {
     return false;
   }
@@ -74,16 +69,11 @@ export function formatCnjMasked(digits: string): string {
   return `${x.slice(0, 7)}-${x.slice(7, 9)}.${x.slice(9, 13)}.${x.slice(13, 14)}.${x.slice(14, 16)}.${x.slice(16, 20)}`;
 }
 
-/**
- * Extrai CNJ com várias formas usadas pelo DJEN.
- * Prioridade: campo API → "Nº ..." no texto → qualquer máscara válida.
- */
 export function extractCnjRobusto(apiField: string | null | undefined, texto: string | null | undefined): string | null {
   const tryDigits = (raw: string): string | null => {
     const d = String(raw || "").replace(/\D/g, "");
     if (d.length === 20 && cnjDvValido(d)) return d;
     if (d.length > 20) {
-      // tenta janelas de 20
       for (let i = 0; i <= d.length - 20; i++) {
         const slice = d.slice(i, i + 20);
         if (cnjDvValido(slice)) return slice;
@@ -91,26 +81,20 @@ export function extractCnjRobusto(apiField: string | null | undefined, texto: st
     }
     return null;
   };
-
   const fromApi = tryDigits(String(apiField || ""));
   if (fromApi) return fromApi;
-
   const text = String(texto || "");
-  // Nº 4001162-98.2026.8.26.0438
   const patterns = [
     /N[º°o]\s*(\d{7})[.\-]?(\d{2})[.\-]?(\d{4})[.\-]?(\d)[.\-]?(\d{2})[.\-]?(\d{4})/gi,
     /Processo\s*(?:n[º°o])?\s*:?\s*(\d{7})[.\-]?(\d{2})[.\-]?(\d{4})[.\-]?(\d)[.\-]?(\d{2})[.\-]?(\d{4})/gi,
     /\b(\d{7})-(\d{2})\.(\d{4})\.(\d)\.(\d{2})\.(\d{4})\b/g,
-    /\b(\d{20})\b/g,
   ];
   for (const re of patterns) {
     let m: RegExpExecArray | null;
     while ((m = re.exec(text))) {
-      if (m.length >= 7 && m[1] && m[2] && m[6]) {
+      if (m[1] && m[6]) {
         const d = `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`;
         if (cnjDvValido(d)) return d;
-      } else if (m[1] && m[1].length === 20 && cnjDvValido(m[1])) {
-        return m[1];
       }
     }
   }
@@ -118,7 +102,7 @@ export function extractCnjRobusto(apiField: string | null | undefined, texto: st
 }
 
 const SIGILO_RE =
-  /segredo\s+de\s+justi[cç]a|segredo\s+justi[cç]a|em\s+segredo\s+de\s+justi[cç]a|processo\s+em\s+sigilo|autos?\s+em\s+sigilo|sigilo\s+de\s+justi[cç]a|justi[cç]a\s+sigilosa|conte[uú]do\s+sigiloso|indispon[ií]vel\s+por\s+sigilo|protegido\s+por\s+sigilo|tramita(?:ção)?\s+em\s+segredo|sob\s+segredo/i;
+  /segredo\s+de\s+justi[cç]a|segredo\s+justi[cç]a|processo\s+em\s+sigilo|autos?\s+em\s+sigilo|sigilo\s+de\s+justi[cç]a|conte[uú]do\s+sigiloso|sob\s+segredo/i;
 
 export function isSegredoOuSigilo(blob: string): boolean {
   return SIGILO_RE.test(String(blob || ""));
@@ -126,12 +110,9 @@ export function isSegredoOuSigilo(blob: string): boolean {
 
 export function teorConsultavel(texto: string | null | undefined): boolean {
   const t = String(texto || "").replace(/\s+/g, " ").trim();
-  if (t.length < 40) return false;
-  if (isSegredoOuSigilo(t)) return false;
-  return true;
+  return t.length >= 40 && !isSegredoOuSigilo(t);
 }
 
-/** Preferir AUTOR / polo ativo — não o réu */
 export function extractNomeCompletoFromDjen(item: {
   texto?: string | null;
   destinatarios?: Array<{ nome?: string; polo?: string }> | null;
@@ -139,18 +120,11 @@ export function extractNomeCompletoFromDjen(item: {
   const dest = item.destinatarios || [];
   const ativo = dest.find((d) => /ativ|autor|requerente|exequente|reclamante|agravante/i.test(String(d.polo || "")));
   if (ativo?.nome && !isBanco(ativo.nome)) return cleanNome(ativo.nome);
-
   const text = String(item.texto || "");
-  const patterns = [
-    /(?:AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE|AGRAVANTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç'\s\.]{5,90}?)(?:\s{2,}|\s+ADVOGADO|\s+R[EÉ]U|\s+REQUERID|\s+AGRAVAD|\n|$)/i,
-    /-\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-záéíóúâêôãõç'\s]{8,60}?)\s*-\s*Vistos/i,
-  ];
-  for (const re of patterns) {
-    const m = text.match(re);
-    if (m?.[1] && !isBanco(m[1]) && !/estado\s+de/i.test(m[1])) return cleanNome(m[1]);
-  }
-
-  // último recurso: destinatário PF qualquer
+  const m = text.match(
+    /(?:AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE|AGRAVANTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç'\s\.]{5,90}?)(?:\s{2,}|\s+ADVOGADO|\s+R[EÉ]U|\s+REQUERID|\s+AGRAVAD|\n|$)/i
+  );
+  if (m?.[1] && !isBanco(m[1]) && !/estado\s+de/i.test(m[1])) return cleanNome(m[1]);
   const anyPf = dest.find((d) => d.nome && !isBanco(d.nome) && String(d.nome).trim().length >= 8);
   if (anyPf?.nome) return cleanNome(anyPf.nome);
   return "";
@@ -159,7 +133,6 @@ export function extractNomeCompletoFromDjen(item: {
 function isBanco(s: string) {
   return /banco|s\/a|ltda|finan|credito|crédito|estado\s+de|fazenda|munic[ií]pio/i.test(String(s || ""));
 }
-
 function cleanNome(raw: string): string {
   let s = String(raw || "").replace(/\s+/g, " ").trim();
   s = s.split(/\s+(?:ADVOGADO|OAB|R[EÉ]U|REQUERID|INTIMAD|FICA\s|AGRAVAD)/i)[0].trim();
@@ -188,7 +161,17 @@ export interface ProcessoDjenReal {
   processo: string;
   nome_completo: string;
   telefone: string;
+  email: string;
+  cpf: string;
+  cnpj: string;
+  endereco: string;
+  cep: string;
+  bairro: string;
+  municipio: string;
+  uf: string;
+  situacao_cadastral: string;
   telefone_fonte: string;
+  enrich_fonte: string;
   classe: string;
   assunto_ou_teor: string;
   situacao_hint: string;
