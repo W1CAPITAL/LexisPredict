@@ -1,7 +1,7 @@
-/** XLSX mínimo (SheetJS-free) — CNJ + nome completo + classe/assunto/situação */
+/** XLSX — processos REAIS do DJEN */
 
 import JSZip from "jszip";
-import type { ProcessoGerado } from "@/lib/revisional-tribunal-filtros";
+import type { ProcessoDjenReal } from "@/lib/revisional-tribunal-filtros";
 
 function esc(s: string) {
   return String(s ?? "")
@@ -18,32 +18,18 @@ const HEADERS = [
   "processo",
   "nome_completo",
   "classe",
-  "assunto",
-  "situacao",
+  "assunto_ou_teor",
+  "situacao_hint",
+  "tribunal",
+  "data",
+  "link",
   "filtros",
 ] as const;
+const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
 
-const COLS = ["A", "B", "C", "D", "E", "F"];
-
-/** Só CNJ (compatível com versão antiga) */
-export async function xlsxSoCnj(cnjsFmt: string[]): Promise<Blob> {
-  const rows = cnjsFmt.map((v) => ({
-    processo: v,
-    nome_completo: "",
-    classe: "",
-    assunto: "",
-    situacao: "",
-    filtros: "",
-  }));
-  return xlsxProcessosGerados(rows);
-}
-
-/** Planilha completa revisional */
-export async function xlsxProcessosGerados(lista: ProcessoGerado[]): Promise<Blob> {
+export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
   const headerRow =
-    `<row r="1">` +
-    HEADERS.map((h, i) => cell(COLS[i], 1, h)).join("") +
-    `</row>`;
+    `<row r="1">` + HEADERS.map((h, i) => cell(COLS[i], 1, h)).join("") + `</row>`;
 
   const dataRows = lista
     .map((p, idx) => {
@@ -52,15 +38,14 @@ export async function xlsxProcessosGerados(lista: ProcessoGerado[]): Promise<Blo
         p.processo,
         p.nome_completo,
         p.classe,
-        p.assunto,
-        p.situacao,
+        p.assunto_ou_teor,
+        p.situacao_hint,
+        p.tribunal,
+        p.data,
+        p.link,
         p.filtros || "",
       ];
-      return (
-        `<row r="${r}">` +
-        vals.map((v, i) => cell(COLS[i], r, v)).join("") +
-        `</row>`
-      );
+      return `<row r="${r}">` + vals.map((v, i) => cell(COLS[i], r, String(v ?? ""))).join("") + `</row>`;
     })
     .join("");
 
@@ -71,7 +56,7 @@ export async function xlsxProcessosGerados(lista: ProcessoGerado[]): Promise<Blo
 
   const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="revisional" sheetId="1" r:id="rId1"/></sheets>
+  <sheets><sheet name="djen-real" sheetId="1" r:id="rId1"/></sheets>
 </workbook>`;
 
   const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -99,4 +84,21 @@ export async function xlsxProcessosGerados(lista: ProcessoGerado[]): Promise<Blo
   zip.folder("xl")!.folder("_rels")!.file("workbook.xml.rels", wbRels);
   zip.folder("xl")!.folder("worksheets")!.file("sheet1.xml", sheet);
   return zip.generateAsync({ type: "blob" });
+}
+
+/** @deprecated compat */
+export async function xlsxSoCnj(cnjsFmt: string[]): Promise<Blob> {
+  return xlsxProcessosDjenReal(
+    cnjsFmt.map((c) => ({
+      processo: c,
+      nome_completo: "",
+      classe: "",
+      assunto_ou_teor: "",
+      situacao_hint: "",
+      tribunal: "",
+      data: "",
+      link: "",
+      filtros: "",
+    }))
+  );
 }

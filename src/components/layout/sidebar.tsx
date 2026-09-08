@@ -140,7 +140,7 @@ function useNavItems(opts: {
       { label: "Predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
       { label: "Amostra CNJ (estatística)", href: "/estatistica-cnj", icon: BarChart3 },
-      { label: "Gerador de processos", href: "/gerador-processos", icon: Hash },
+      { label: "DJEN revisional", href: "/gerador-processos", icon: Hash },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
       { label: "CRM", href: "/crm", icon: Kanban },
       { label: "Follow-ups", href: "/crm/followups", icon: ListTodo },

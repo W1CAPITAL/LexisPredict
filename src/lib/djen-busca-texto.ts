@@ -69,6 +69,16 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
         link: item.link || null,
         tipoDocumento: item.tipoDocumento || item.tipodocumento || null,
         nomeClasse: item.nomeClasse || item.nomeclasse || null,
+        destinatarios: (() => {
+          const destRaw = item.destinatarios || item.destinatario || item.partes || [];
+          const destList = Array.isArray(destRaw) ? destRaw : [destRaw];
+          return destList
+            .map((d: any) => ({
+              nome: String(d?.nome || d?.nomeDestinatario || d?.razaoSocial || '').trim() || undefined,
+              polo: String(d?.polo || d?.tipoPolo || d?.tipo || '').trim() || undefined,
+            }))
+            .filter((d: any) => d.nome);
+        })(),
       };
     });
 

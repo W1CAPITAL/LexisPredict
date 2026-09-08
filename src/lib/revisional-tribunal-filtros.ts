@@ -1,7 +1,6 @@
 /**
- * Taxonomia alinhada a rótulos comuns de tribunais (PJe / DataJud / DJEN)
- * para carteira de revisão de contratos bancários / consumidor.
- * Uso: filtros do gerador e classificação de lista.
+ * Filtros revisional alinhados a rótulos de tribunal (DJEN / PJe / DataJud).
+ * Busca REAL no DJEN via palavras-chave; match local no texto/classe.
  */
 
 export type FiltroRevisionalId =
@@ -23,46 +22,30 @@ export type TipoFiltro = "classe" | "assunto" | "resultado" | "fase";
 export interface FiltroRevisional {
   id: FiltroRevisionalId;
   tipo: TipoFiltro;
-  /** Nome completo como costuma aparecer no tribunal / capa */
   nomeTribunal: string;
-  /** Aliases para match em texto livre (movimento, classe, assunto) */
+  /** Query enviada à API DJEN (texto) */
+  djenQuery: string;
   aliases: string[];
-  /** Incluir por padrão no gerador de carteira revisional */
   defaultOn: boolean;
 }
 
-/** Catálogo — nomes no padrão de capa/classe/assunto dos TJs */
 export const FILTROS_REVISIONAL: FiltroRevisional[] = [
   {
     id: "procedimento_comum_civel",
     tipo: "classe",
     nomeTribunal: "PROCEDIMENTO COMUM CÍVEL",
-    aliases: [
-      "procedimento comum cível",
-      "procedimento comum civel",
-      "procedimento comum",
-      "proc. comum cível",
-      "classe: 7",
-      "procedimento comum (7)",
-    ],
+    djenQuery: "PROCEDIMENTO COMUM CÍVEL",
+    aliases: ["procedimento comum cível", "procedimento comum civel", "procedimento comum"],
     defaultOn: true,
   },
   {
     id: "acao_revisional",
     tipo: "assunto",
     nomeTribunal: "Ação revisional de contrato bancário",
+    djenQuery: "revisional de contrato",
     aliases: [
-      "ação revisional",
-      "acao revisional",
-      "revisional de contrato",
-      "revisão de contrato",
-      "revisao de contrato",
-      "revisional bancária",
-      "revisional bancaria",
-      "revisão de cláusulas",
-      "revisao de clausulas",
-      "contrato bancário",
-      "contratos bancários",
+      "ação revisional", "acao revisional", "revisional de contrato",
+      "revisão de contrato", "revisao de contrato", "revisional bancária", "revisional bancaria",
     ],
     defaultOn: true,
   },
@@ -70,89 +53,51 @@ export const FILTROS_REVISIONAL: FiltroRevisional[] = [
     id: "alienacao_fiduciaria",
     tipo: "assunto",
     nomeTribunal: "Alienação fiduciária",
-    aliases: [
-      "alienação fiduciária",
-      "alienacao fiduciaria",
-      "alienação fiduciária de bens móveis",
-      "fidúcia",
-      "fiducia",
-      "busca e apreensão em alienação fiduciária",
-    ],
+    djenQuery: "alienação fiduciária",
+    aliases: ["alienação fiduciária", "alienacao fiduciaria", "fidúcia", "fiducia"],
     defaultOn: true,
   },
   {
     id: "contratos_bancarios",
     tipo: "assunto",
     nomeTribunal: "Contratos bancários",
-    aliases: [
-      "contratos bancários",
-      "contratos bancarios",
-      "direito bancário",
-      "direito bancario",
-      "empréstimo",
-      "emprestimo",
-      "financiamento de veículo",
-      "financiamento de veiculo",
-      "cdc",
-      "crédito e financiamento",
-      "credito e financiamento",
-    ],
+    djenQuery: "contratos bancários",
+    aliases: ["contratos bancários", "contratos bancarios", "financiamento de veículo", "empréstimo consignado"],
     defaultOn: true,
   },
   {
     id: "busca_apreensao",
     tipo: "classe",
     nomeTribunal: "Busca e apreensão",
-    aliases: [
-      "busca e apreensão",
-      "busca e apreensao",
-      "busca apreensão",
-      "ação de busca e apreensão",
-    ],
+    djenQuery: "busca e apreensão",
+    aliases: ["busca e apreensão", "busca e apreensao"],
     defaultOn: false,
   },
   {
     id: "cumprimento_sentenca",
     tipo: "fase",
     nomeTribunal: "Cumprimento de sentença",
-    aliases: [
-      "cumprimento de sentença",
-      "cumprimento de sentenca",
-      "cumprimento provisório",
-      "cumprimento definitivo",
-      "instauração de cumprimento",
-    ],
+    djenQuery: "cumprimento de sentença",
+    aliases: ["cumprimento de sentença", "cumprimento de sentenca"],
     defaultOn: false,
   },
   {
     id: "execucao_titulo",
     tipo: "classe",
     nomeTribunal: "Execução de título extrajudicial",
-    aliases: [
-      "execução de título extrajudicial",
-      "execucao de titulo extrajudicial",
-      "execução extrajudicial",
-      "execucao extrajudicial",
-    ],
+    djenQuery: "execução de título extrajudicial",
+    aliases: ["execução de título extrajudicial", "execucao de titulo extrajudicial"],
     defaultOn: false,
   },
   {
     id: "extinto_sem_merito",
     tipo: "resultado",
     nomeTribunal: "Extinto sem resolução do mérito",
+    djenQuery: "sem resolução do mérito",
     aliases: [
-      "extinto sem resolução do mérito",
-      "extinto sem resolucao do merito",
-      "extinção sem resolução do mérito",
-      "extincao sem resolucao do merito",
-      "sem resolução de mérito",
-      "sem resolucao de merito",
-      "art. 485",
-      "artigo 485",
-      "indeferido a petição inicial",
-      "indeferida a peticao inicial",
-      "abandono de causa",
-      "ausência de pressupostos",
+      "extinto sem resolução do mérito", "extinto sem resolucao do merito",
+      "extinção sem resolução do mérito", "art. 485", "artigo 485",
+      "indeferido a petição inicial", "abandono de causa",
     ],
     defaultOn: false,
   },
@@ -160,40 +105,33 @@ export const FILTROS_REVISIONAL: FiltroRevisional[] = [
     id: "extinto_com_merito",
     tipo: "resultado",
     nomeTribunal: "Extinto com resolução do mérito",
-    aliases: [
-      "extinto com resolução do mérito",
-      "extinto com resolucao do merito",
-      "extinção com resolução do mérito",
-      "art. 487",
-      "artigo 487",
-    ],
+    djenQuery: "com resolução do mérito",
+    aliases: ["extinto com resolução do mérito", "art. 487", "artigo 487"],
     defaultOn: false,
   },
   {
     id: "improcedente",
     tipo: "resultado",
     nomeTribunal: "Improcedente",
-    aliases: ["improcedente", "julgo improcedente", "pedido improcedente"],
+    djenQuery: "julgo improcedente",
+    aliases: ["improcedente", "julgo improcedente"],
     defaultOn: false,
   },
   {
     id: "procedente_parcial",
     tipo: "resultado",
     nomeTribunal: "Procedente em parte",
-    aliases: [
-      "procedente em parte",
-      "parcialmente procedente",
-      "julgo parcialmente procedente",
-      "procedente",
-    ],
+    djenQuery: "parcialmente procedente",
+    aliases: ["procedente em parte", "parcialmente procedente", "julgo parcialmente procedente"],
     defaultOn: false,
   },
   {
     id: "em_andamento",
     tipo: "fase",
     nomeTribunal: "Em andamento",
-    aliases: ["em andamento", "em tramitação", "em tramitacao", "ativo"],
-    defaultOn: true,
+    djenQuery: "intimação",
+    aliases: ["em andamento", "em tramitação", "intimação", "intimacao"],
+    defaultOn: false,
   },
 ];
 
@@ -210,7 +148,6 @@ export function normMatch(s: string): string {
     .trim();
 }
 
-/** True se o texto (classe/assunto/movimento) casar com algum filtro ativo */
 export function matchFiltrosRevisional(
   texto: string,
   ativos: FiltroRevisionalId[]
@@ -220,93 +157,69 @@ export function matchFiltrosRevisional(
   const hits: FiltroRevisionalId[] = [];
   for (const f of FILTROS_REVISIONAL) {
     if (!ativos.includes(f.id)) continue;
-    const names = [f.nomeTribunal, ...f.aliases].map(normMatch);
-    if (names.some((a) => a && (n.includes(a) || a.includes(n)))) hits.push(f.id);
+    const names = [f.nomeTribunal, f.djenQuery, ...f.aliases].map(normMatch);
+    if (names.some((a) => a && n.includes(a))) hits.push(f.id);
   }
   return { ok: hits.length > 0, hits };
 }
 
-const NOMES = [
-  "Ana", "Bruno", "Carla", "Diego", "Eliane", "Fábio", "Gabriela", "Henrique",
-  "Isabel", "João", "Karen", "Lucas", "Mariana", "Nicolas", "Olivia", "Paulo",
-  "Queila", "Rafael", "Sabrina", "Tiago", "Úrsula", "Vitor", "Wagner", "Yasmin", "Zélia",
-];
-const MEIO = [
-  "Alves", "Barbosa", "Cardoso", "Dias", "Esteves", "Fernandes", "Gomes", "Hahn",
-  "Ibrahim", "Junqueira", "Klein", "Lima", "Mendes", "Nogueira", "Oliveira", "Pereira",
-  "Queiroz", "Ribeiro", "Silva", "Teixeira", "Uchoa", "Vieira", "Xavier",
-];
-const SOBRE = [
-  "da Silva", "de Souza", "dos Santos", "de Oliveira", "Rodrigues", "Ferreira",
-  "Almeida", "Nascimento", "Moreira", "Carvalho", "Araújo", "Melo", "Costa", "Rocha",
-];
-
-export function gerarNomeCompleto(): string {
-  const a = NOMES[Math.floor(Math.random() * NOMES.length)];
-  const b = MEIO[Math.floor(Math.random() * MEIO.length)];
-  const c = SOBRE[Math.floor(Math.random() * SOBRE.length)];
-  return `${a} ${b} ${c}`.replace(/\s+/g, " ").trim();
+/** Extrai CNJ 20 dígitos do texto/campo */
+export function extractCnjDigits(raw: string | null | undefined): string | null {
+  const d = String(raw || "").replace(/\D/g, "");
+  if (d.length === 20) return d;
+  const m = String(raw || "").match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
+  if (!m) return null;
+  const x = m[0].replace(/\D/g, "");
+  return x.length === 20 ? x : null;
 }
 
-export interface ProcessoGerado {
+export function formatCnjMasked(digits: string): string {
+  const x = digits.replace(/\D/g, "").slice(0, 20);
+  if (x.length !== 20) return x;
+  return `${x.slice(0, 7)}-${x.slice(7, 9)}.${x.slice(9, 13)}.${x.slice(13, 14)}.${x.slice(14, 16)}.${x.slice(16, 20)}`;
+}
+
+/** Nome completo real: destinatários API ou regex no teor */
+export function extractNomeCompletoFromDjen(item: {
+  texto?: string | null;
+  destinatarios?: Array<{ nome?: string; polo?: string }> | null;
+}): string {
+  const dest = item.destinatarios || [];
+  const ativo = dest.find((d) => /ativ|autor|requerente|exequente/i.test(String(d.polo || "")));
+  if (ativo?.nome && String(ativo.nome).trim().length >= 5) {
+    return cleanNome(String(ativo.nome));
+  }
+  const anyPf = dest.find((d) => d.nome && !/banco|s\/a|ltda|finan/i.test(String(d.nome)));
+  if (anyPf?.nome) return cleanNome(String(anyPf.nome));
+
+  const text = String(item.texto || "");
+  const patterns = [
+    /(?:AUTOR|REQUERENTE|EXEQUENTE|RECLAMANTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.]{5,80}?)(?:\s{2,}|\s+ADVOGADO|\s+R[EÉ]U|\s+REQUERID|\n|$)/i,
+    /(?:NOME\s+DO\s+AUTOR)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.]{5,80})/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m?.[1]) return cleanNome(m[1]);
+  }
+  return "";
+}
+
+function cleanNome(raw: string): string {
+  let s = String(raw || "").replace(/\s+/g, " ").trim();
+  s = s.split(/\s+(?:ADVOGADO|OAB|R[EÉ]U|REQUERID|INTIMAD|FICA\s)/i)[0].trim();
+  // Title-ish: keep as published (often ALL CAPS from DJEN)
+  if (s.length > 90) s = s.slice(0, 90).trim();
+  return s;
+}
+
+export interface ProcessoDjenReal {
   processo: string;
   nome_completo: string;
   classe: string;
-  assunto: string;
-  situacao: string;
+  assunto_ou_teor: string;
+  situacao_hint: string;
+  tribunal: string;
+  data: string;
+  link: string;
   filtros: string;
-}
-
-function pickClasse(ativos: FiltroRevisionalId[]): string {
-  const classes = FILTROS_REVISIONAL.filter(
-    (f) => f.tipo === "classe" && ativos.includes(f.id)
-  );
-  if (!classes.length) {
-    return FILTROS_REVISIONAL.find((f) => f.id === "procedimento_comum_civel")!.nomeTribunal;
-  }
-  return classes[Math.floor(Math.random() * classes.length)].nomeTribunal;
-}
-
-function pickAssunto(ativos: FiltroRevisionalId[]): string {
-  const assuntos = FILTROS_REVISIONAL.filter(
-    (f) => f.tipo === "assunto" && ativos.includes(f.id)
-  );
-  if (!assuntos.length) {
-    return "Ação revisional de contrato bancário";
-  }
-  // Preferir combinar revisional + alienação quando ambos ativos
-  const hasRev = assuntos.find((a) => a.id === "acao_revisional");
-  const hasAl = assuntos.find((a) => a.id === "alienacao_fiduciaria");
-  const hasCb = assuntos.find((a) => a.id === "contratos_bancarios");
-  const parts: string[] = [];
-  if (hasRev) parts.push(hasRev.nomeTribunal);
-  if (hasAl && Math.random() > 0.35) parts.push(hasAl.nomeTribunal);
-  if (hasCb && Math.random() > 0.5) parts.push(hasCb.nomeTribunal);
-  if (!parts.length) {
-    return assuntos[Math.floor(Math.random() * assuntos.length)].nomeTribunal;
-  }
-  return parts.join("; ");
-}
-
-function pickSituacao(ativos: FiltroRevisionalId[]): string {
-  const resultados = FILTROS_REVISIONAL.filter(
-    (f) => (f.tipo === "resultado" || f.tipo === "fase") && ativos.includes(f.id)
-  );
-  if (!resultados.length) return "Em andamento";
-  return resultados[Math.floor(Math.random() * resultados.length)].nomeTribunal;
-}
-
-export function montarProcessoGerado(cnjFmt: string, ativos: FiltroRevisionalId[]): ProcessoGerado {
-  const classe = pickClasse(ativos);
-  const assunto = pickAssunto(ativos);
-  const situacao = pickSituacao(ativos);
-  const hits = matchFiltrosRevisional(`${classe} ${assunto} ${situacao}`, ativos).hits;
-  return {
-    processo: cnjFmt,
-    nome_completo: gerarNomeCompleto(),
-    classe,
-    assunto,
-    situacao,
-    filtros: hits.join("|"),
-  };
 }

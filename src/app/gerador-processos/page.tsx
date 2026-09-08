@@ -4,24 +4,24 @@ import React, { useMemo, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatCnj20, gerarLoteCnj } from "@/lib/gerar-cnj-aleatorio";
-import { xlsxProcessosGerados } from "@/lib/xlsx-lista-cnj";
+import { buscarProcessosDjenRevisionalAction } from "@/app/actions/gerador-djen-action";
+import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
 import {
   FILTROS_REVISIONAL,
   filtrosDefaultOn,
-  montarProcessoGerado,
   type FiltroRevisionalId,
-  type ProcessoGerado,
+  type ProcessoDjenReal,
 } from "@/lib/revisional-tribunal-filtros";
-import { Download, Hash, Loader2, Filter } from "lucide-react";
-
-const TETO = 20000;
+import { Download, Loader2, Filter, Search, ExternalLink } from "lucide-react";
 
 export default function GeradorProcessosPage() {
-  const [qtd, setQtd] = useState("100");
-  const [lista, setLista] = useState<ProcessoGerado[]>([]);
+  const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
   const [busy, setBusy] = useState(false);
   const [exp, setExp] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [dias, setDias] = useState("14");
+  const [limite, setLimite] = useState("100");
+  const [tribunal, setTribunal] = useState("");
   const [ativos, setAtivos] = useState<FiltroRevisionalId[]>(() => filtrosDefaultOn());
 
   const toggle = (id: FiltroRevisionalId) => {
@@ -30,29 +30,38 @@ export default function GeradorProcessosPage() {
     );
   };
 
-  const gerar = () => {
-    const n = Math.max(0, Math.min(TETO, parseInt(String(qtd).replace(/\D/g, ""), 10) || 0));
-    if (!n) return;
+  const buscar = async () => {
     if (!ativos.length) {
-      alert("Marque ao menos um filtro (classe/assunto/situação).");
+      setMsg("Marque ao menos um filtro.");
       return;
     }
     setBusy(true);
-    setTimeout(() => {
-      const cnjs = gerarLoteCnj(n, TETO).map(formatCnj20);
-      setLista(cnjs.map((c) => montarProcessoGerado(c, ativos)));
+    setMsg("");
+    try {
+      const res = await buscarProcessosDjenRevisionalAction({
+        filtros: ativos,
+        dias: parseInt(dias, 10) || 14,
+        limite: parseInt(limite, 10) || 100,
+        siglaTribunal: tribunal.trim() || undefined,
+      });
+      setLista(res.items || []);
+      setMsg(res.message || (res.success ? "OK" : "Sem resultados"));
+    } catch (e: any) {
+      setMsg(e?.message || "Erro na busca DJEN");
+      setLista([]);
+    } finally {
       setBusy(false);
-    }, 20);
+    }
   };
 
   const baixar = async () => {
     if (!lista.length) return;
     setExp(true);
     try {
-      const blob = await xlsxProcessosGerados(lista);
+      const blob = await xlsxProcessosDjenReal(lista);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `revisional-filtros-${lista.length}.xlsx`;
+      a.download = `djen-revisional-real-${lista.length}.xlsx`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {
@@ -77,22 +86,22 @@ export default function GeradorProcessosPage() {
       <main className="flex-1 min-w-0 p-6 space-y-6 overflow-y-auto">
         <header className="max-w-3xl space-y-1">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            Ferramenta local
+            DJEN · Comunica PJe (processos reais)
           </p>
-          <h1 className="text-2xl font-black tracking-tight">Gerador de processos — revisional</h1>
+          <h1 className="text-2xl font-black tracking-tight">DJEN revisional</h1>
           <p className="text-sm text-muted-foreground">
-            CNJ válido + <strong>nome completo</strong> + classe/assunto no padrão de capa de tribunal
-            (Procedimento Comum Cível, revisional, alienação fiduciária, extinção sem mérito, etc.).
-            Não grava no banco. Não consulta o tribunal de verdade — rotula o lote conforme os filtros.
+            Busca <strong>publicações reais</strong> na API oficial do DJEN.
+            CNJ e nome completo vêm da comunicação (não são inventados).
+            Filtros: Procedimento Comum Cível, revisional, alienação fiduciária,
+            extinção sem resolução do mérito, etc. Não grava no banco — só lista e exporta.
           </p>
         </header>
 
         <section className="max-w-3xl rounded-2xl border border-border/60 bg-card/40 p-4 space-y-4">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             <Filter className="w-3.5 h-3.5" />
-            Filtros (nome como no tribunal)
+            Filtros (nome de tribunal)
           </div>
-
           {(
             [
               ["classe", "Classe processual"],
@@ -125,105 +134,78 @@ export default function GeradorProcessosPage() {
               </div>
             </div>
           ))}
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-[10px] font-black uppercase"
-              onClick={() => setAtivos(filtrosDefaultOn())}
-            >
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" className="text-[10px] font-black uppercase" onClick={() => setAtivos(filtrosDefaultOn())}>
               Padrão revisional
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-[10px] font-black uppercase"
-              onClick={() =>
-                setAtivos((prev) =>
-                  prev.includes("extinto_sem_merito")
-                    ? prev
-                    : [...prev, "extinto_sem_merito"]
-                )
-              }
-            >
+            <Button type="button" variant="outline" size="sm" className="text-[10px] font-black uppercase" onClick={() => setAtivos((p) => (p.includes("extinto_sem_merito") ? p : [...p, "extinto_sem_merito"]))}>
               + Extinto sem resolução do mérito
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-[10px] font-black uppercase"
-              onClick={() => setAtivos(FILTROS_REVISIONAL.map((f) => f.id))}
-            >
-              Marcar todos
             </Button>
           </div>
         </section>
 
         <div className="flex flex-wrap items-end gap-3">
           <label className="space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-              Quantos processos
-            </span>
-            <Input
-              inputMode="numeric"
-              value={qtd}
-              onChange={(e) => setQtd(e.target.value)}
-              className="w-36 h-10"
-              maxLength={5}
-            />
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Dias (máx. 90)</span>
+            <Input inputMode="numeric" value={dias} onChange={(e) => setDias(e.target.value)} className="w-24 h-10" maxLength={2} />
           </label>
-          <Button onClick={gerar} disabled={busy} className="h-10 gap-2 font-black uppercase text-xs">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Hash className="w-4 h-4" />}
-            Gerar lote
+          <label className="space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Limite CNJs</span>
+            <Input inputMode="numeric" value={limite} onChange={(e) => setLimite(e.target.value)} className="w-24 h-10" maxLength={3} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tribunal (opcional)</span>
+            <Input placeholder="TJSP" value={tribunal} onChange={(e) => setTribunal(e.target.value)} className="w-28 h-10 uppercase" maxLength={8} />
+          </label>
+          <Button onClick={buscar} disabled={busy} className="h-10 gap-2 font-black uppercase text-xs">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            Buscar no DJEN
           </Button>
-          <Button
-            variant="secondary"
-            onClick={baixar}
-            disabled={!lista.length || exp}
-            className="h-10 gap-2 font-black uppercase text-xs"
-          >
+          <Button variant="secondary" onClick={baixar} disabled={!lista.length || exp} className="h-10 gap-2 font-black uppercase text-xs">
             {exp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Baixar xlsx
           </Button>
-          {!!lista.length && (
-            <span className="text-xs text-muted-foreground font-mono">{lista.length} linhas</span>
-          )}
         </div>
 
+        {!!msg && <p className="text-sm text-muted-foreground max-w-3xl">{msg}</p>}
+
         {!!lista.length && (
-          <div className="rounded-2xl border border-border/50 overflow-hidden max-w-5xl">
-            <div className="max-h-[420px] overflow-auto text-xs font-mono">
+          <div className="rounded-2xl border border-border/50 overflow-hidden max-w-6xl">
+            <div className="max-h-[480px] overflow-auto text-xs">
               <table className="w-full text-left">
                 <thead className="sticky top-0 bg-secondary/90 text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="p-2">Processo</th>
                     <th className="p-2">Nome completo</th>
                     <th className="p-2">Classe</th>
-                    <th className="p-2">Assunto</th>
-                    <th className="p-2">Situação</th>
+                    <th className="p-2">Tribunal</th>
+                    <th className="p-2">Data</th>
+                    <th className="p-2">Situação / filtro</th>
+                    <th className="p-2">Link</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {lista.slice(0, 200).map((p) => (
-                    <tr key={p.processo} className="border-t border-border/30">
+                <tbody className="font-mono">
+                  {lista.map((p) => (
+                    <tr key={p.processo + p.data} className="border-t border-border/30 align-top">
                       <td className="p-2 whitespace-nowrap">{p.processo}</td>
-                      <td className="p-2">{p.nome_completo}</td>
-                      <td className="p-2">{p.classe}</td>
-                      <td className="p-2">{p.assunto}</td>
-                      <td className="p-2">{p.situacao}</td>
+                      <td className="p-2 font-sans">{p.nome_completo || "—"}</td>
+                      <td className="p-2 font-sans">{p.classe || "—"}</td>
+                      <td className="p-2">{p.tribunal}</td>
+                      <td className="p-2 whitespace-nowrap">{p.data}</td>
+                      <td className="p-2 font-sans text-[11px]">{p.situacao_hint || "—"}</td>
+                      <td className="p-2">
+                        {p.link ? (
+                          <a href={p.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary">
+                            <ExternalLink className="w-3 h-3" /> DJEN
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {lista.length > 200 && (
-                <p className="p-2 text-muted-foreground text-[10px]">
-                  Prévia 200 de {lista.length} — o xlsx traz todos.
-                </p>
-              )}
             </div>
           </div>
         )}
