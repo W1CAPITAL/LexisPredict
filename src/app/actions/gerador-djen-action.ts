@@ -30,7 +30,9 @@ export async function scanDjenPaginaAction(input: {
   filtros: FiltroRevisionalId[];
   queryIndex: number;
   pagina: number;
-  dias: number;
+  dias?: number;
+  dataInicio?: string;
+  dataFim?: string;
   siglaTribunal?: string;
   excludeCnjs?: string[];
   enrich?: boolean;
@@ -57,9 +59,10 @@ export async function scanDjenPaginaAction(input: {
   const qi = Math.max(0, Math.min(input.queryIndex || 0, defs.length - 1));
   const pagina = Math.max(1, input.pagina || 1);
   const q = defs[qi]?.djenQuery || "";
-  const dias = Math.min(Math.max(Number(input.dias) || 7, 1), 90);
-  const dataFim = new Date().toISOString().slice(0, 10);
-  const dataInicio = new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const dataFim = input.dataFim || hoje;
+  const dataInicio = input.dataInicio || new Date(Date.now() - Math.min(Math.max(Number(input.dias) || 7, 1), 90) * 86400000).toISOString().slice(0, 10);
+  const dias = Math.max(1, Math.ceil((new Date(`${dataFim}T00:00:00`).getTime() - new Date(`${dataInicio}T00:00:00`).getTime()) / 86400000) || 1);
   const sigla = input.siglaTribunal?.trim().toUpperCase() || undefined;
   const exclude = new Set((input.excludeCnjs || []).map((c) => c.replace(/\D/g, "")));
 
