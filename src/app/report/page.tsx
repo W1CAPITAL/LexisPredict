@@ -56,6 +56,7 @@ import { BiCompliancePanel } from "@/components/dashboard/bi-compliance-panel";
 import { useAppStore } from "@/store/use-app-store";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { computeCarteiraKpis } from "@/lib/carteira-kpis";
+import { computeKpiUnificado } from "@/lib/kpi-unificado";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSinalCapa } from "@/lib/sinal-capa"
 import { listProcessosParados } from "@/lib/processos-parados";
@@ -120,19 +121,23 @@ export default function UnifiedReport() {
   }, [mounted, authLoading, setCases]);
 
   const metrics = useMemo(() => {
+    const u = computeKpiUnificado(cases as any);
     const kpis = computeCarteiraKpis(cases as any);
-    const ativos = cases.filter(c => !isCasoEncerrado(c));
-    const activeTotal = ativos.length;
-    const countEncerradoCarteira = kpis.encerradosCarteira;
-    const countEncerradoTribunal = kpis.baixasTribunal;
+    const ativos = u.ativosList as LegalCase[];
+    const activeTotal = u.activeTotal;
+    const countEncerradoCarteira = u.countEncerradoCarteira;
+    const countEncerradoTribunal = u.countEncerradoTribunal;
 
-    const countVencido = ativos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
-    const countHoje = ativos.filter(c => c.status === 'É Hoje').length;
+    const countVencido = u.countVencido;
+    const countHoje = u.countHoje;
 
-    const countNovoAndamento = ativos.filter(c => !!c.tem_novo_andamento).length;
-    const countBA = ativos.filter(c => !!c.indicio_busca_apreensao).length;
+    const countNovoAndamento = u.countNovoAndamento;
+    const countBA = u.countBA;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
-    const countAtendidosSemana = countAtendidosNoPeriodo(cases as any, periodo);
+    const countAtendidosSemana =
+      periodo === "esta_semana"
+        ? u.countAtendidosSemana
+        : countAtendidosNoPeriodo(cases as any, periodo);
     const countAuditadosSemana = countAuditadosNestaSemana(cases as any);
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
     const countEditadosApp = countEditadosAppSemana(cases as any);
@@ -198,11 +203,8 @@ export default function UnifiedReport() {
     const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').slice(0, 10);
     const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento).slice(0, 10);
 
-    const riskScore = activeTotal > 0 ? Math.min(100, Math.round(((countVencido * 1 + countBA * 2 + countNovoAndamento * 0.5) / activeTotal) * 100)) : 0;
-    const riskLevel =
-      riskScore >= 60 ? "CRÍTICO" :
-      riskScore >= 35 ? "ALTO" :
-      riskScore >= 18 ? "MODERADO" : "SAUDÁVEL";
+    const riskScore = u.riskScore;
+    const riskLevel = u.riskLevel;
 
     const recomendacoes: string[] = [];
     if (countVencido > 0) recomendacoes.push(`Priorizar a revisão de ${countVencido} prazo(s) vencido(s) — iniciar pelos de maior criticidade.`);

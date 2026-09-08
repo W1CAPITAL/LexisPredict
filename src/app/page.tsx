@@ -87,6 +87,7 @@ import { isCasoEncerrado } from '@/lib/status-encerrado'
 import { EncerradosRevisaoQueue } from '@/components/dashboard/encerrados-revisao-queue'
 import { countProcessosParados } from '@/lib/processos-parados';
 import { computeCarteiraKpis } from '@/lib/carteira-kpis';
+import { computeKpiUnificado } from '@/lib/kpi-unificado';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { RevisionalJuridicoKpis } from "@/components/dashboard/revisional-juridico-kpis";
@@ -151,32 +152,23 @@ export default function Dashboard() {
   };
 
   const metrics = useMemo(() => {
+    const u = computeKpiUnificado(cases as any, { baHitDigits });
     const kpis = computeCarteiraKpis(cases as any);
-    const ativos = cases.filter(c => !isCasoEncerrado(c));
-    const activeTotal = ativos.length;
-    const countEncerradoCarteira = kpis.encerradosCarteira;
-    // Baixas tribunal em TODA a carteira (ativos + já marcados ENCERRADO no gabinete)
-    const countEncerradoTribunal = kpis.baixasTribunal;
-   
-    const countVencido = ativos.filter(c => statusEfetivo(c) === 'Vencido' || c.status === 'Caso Crítico' || c.statusManual === 'Caso Crítico').length;
-    const countHoje = ativos.filter(c => statusEfetivo(c) === 'É Hoje').length;
-    const countAtencao = ativos.filter(c => statusEfetivo(c) === 'Atenção').length;
-    const countSaudavel = ativos.filter(c => statusEfetivo(c) === 'No Prazo').length;
-    const countSemPrazo = ativos.filter(c =>
-      statusEfetivo(c) === 'Sem Prazo' || c.status === 'Sem Prazo'
-    ).length;
-    
-    // UNIFICAÇÃO DE SINAL (DataJud ∪ DJEN)
-    // LOTE4: união canônica DataJud ∪ DJEN
-    const countNovoAndamento = ativos.filter(c =>
-      !!(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || (c as any).djen_nova_comunicacao)
-    ).length;
-    const countEditadosApp = countEditadosAppSemana(cases as any);
-    const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
-    const countAuditadosHojeN = countEditadosAppHoje(cases as any);
-    const countAuditadosSemana = countEditadosApp;
-    const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
-    const countBA = countBaFromCases(ativos as any, baSet);
+    const ativos = u.ativosList;
+    const activeTotal = u.activeTotal;
+    const countEncerradoCarteira = u.countEncerradoCarteira;
+    const countEncerradoTribunal = u.countEncerradoTribunal;
+    const countVencido = u.countVencido;
+    const countHoje = u.countHoje;
+    const countAtencao = u.countAtencao;
+    const countSaudavel = u.countSaudavel;
+    const countSemPrazo = u.countSemPrazo;
+    const countNovoAndamento = u.countNovoAndamento;
+    const countEditadosApp = u.countEditadosApp;
+    const countAuditadosTribunal = u.countAuditadosTribunal;
+    const countAuditadosHojeN = u.countAuditadosHoje;
+    const countAuditadosSemana = u.countAuditadosSemana;
+    const countBA = u.countBA;
     const countParados60 = countProcessosParados(ativos as any, 60);
     const countParados90 = countProcessosParados(ativos as any, 90);
     // MÉRITO OBRIGATÓRIO (kpiExec ANTES de usar cumprimento/procedentes)
@@ -189,17 +181,10 @@ export default function Dashboard() {
       String(c.evento_tipo || '').includes('audiencia')
     ).length;
 
-    const rateAndamento = activeTotal > 0 ? Math.round((countNovoAndamento / activeTotal) * 100) : 0;
-   
-    const riskSum = (countVencido * 1.0) + (countHoje * 0.8) + (countAtencao * 0.5) + (countSaudavel * 0.1);
-    const riskScore = activeTotal > 0 ? Math.min(100, Math.round((riskSum / activeTotal) * 100)) : 0;
-
-    let riskLabel = "BAIXO";
-    let riskColor = "text-emerald-600";
-    if (riskScore > 80) { riskLabel = "CRÍTICO"; riskColor = "text-red-600"; }
-    else if (riskScore > 60) { riskLabel = "ALTO"; riskColor = "text-orange-600"; }
-    else if (riskScore > 40) { riskLabel = "ELEVADO"; riskColor = "text-yellow-600"; }
-    else if (riskScore > 20) { riskLabel = "MODERADO"; riskColor = "text-amber-600"; }
+    const rateAndamento = u.rateAndamento;
+    const riskScore = u.riskScore;
+    const riskLabel = u.riskLabel;
+    const riskColor = u.riskColor;
 
     const statusData = [
       { name: t.statusCritico, value: countVencido, color: '#ef4444' },
