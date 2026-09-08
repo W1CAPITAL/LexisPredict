@@ -42,7 +42,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
@@ -476,19 +476,6 @@ function CasesContent() {
     } finally { setIsGeneratingAIDraft(false); }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await backfillEncerradosHojeAction();
-        if (cancelled || !r?.success || !r.updated) return;
-        const fresh = await fetchRepoCases();
-        if (!cancelled && Array.isArray(fresh)) setCases(fresh);
-        toast({ title: 'Encerrados de hoje contabilizados', description: `${r.updated} processo(s)` });
-      } catch { /* */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
   const handleLogReturn = (c: LegalCase) => {
     setActiveGroup(c);
     setAttendanceForm({ observacao: c.observacao || '', proximoRetorno: c.proximoPrazo || '', situacao: c.situacao || 'EM ANDAMENTO', applyToAll: true });

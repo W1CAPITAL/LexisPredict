@@ -1407,6 +1407,7 @@ export async function backfillEncerradosHojeAction(): Promise<{
   updated: number;
   message?: string;
 }> {
+  return { success: true, updated: 0, message: 'disabled' };
   try {
     const { getUserContext, getSupabaseAdmin, getStoredCasesForEmpresa, saveStoredCasesForEmpresa } = await import('@/lib/server-db');
     const { processarCaso } = await import('@/lib/case-logic');

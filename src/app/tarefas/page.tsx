@@ -85,7 +85,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction,
-  registrarAtendimentoCompletoAction, registrarAuditoriaEventAction, backfillEncerradosHojeAction } from '@/app/actions/case-actions';
+  registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
@@ -448,22 +448,6 @@ export default function TarefasPage() {
   };
 
   
-  // Corrige encerrados de HOJE que ficaram sem ultimo_retorno
-  useEffect(() => {
-    let cancelled = false;
-    // Depois do paint — não compete com a fila
-    const t = window.setTimeout(async () => {
-      try {
-        const r = await backfillEncerradosHojeAction();
-        if (cancelled || !r?.success || !r.updated) return;
-        const fresh = await fetchRepoCases();
-        if (!cancelled && Array.isArray(fresh)) setCases(fresh);
-        toast({ title: 'Encerrados de hoje contabilizados', description: `${r.updated} processo(s)` });
-      } catch { /* */ }
-    }, 4000);
-    return () => { cancelled = true; window.clearTimeout(t); };
-  }, []);
-
 const handleSaveAttendance = async () => {
     if (!activeGroup || isSavingAttendance) return;
     setIsSavingAttendance(true);

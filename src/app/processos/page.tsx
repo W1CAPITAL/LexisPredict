@@ -17,7 +17,7 @@ import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction,
-  fetchCompanyProcessosPageAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, backfillEncerradosHojeAction } from "@/app/actions/case-actions";
+  fetchCompanyProcessosPageAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
 import { fetchRankingAtendentesEmpresaAction } from "@/app/actions/ranking-atendentes-action";
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
 import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
@@ -273,16 +273,6 @@ export default function ProcessosEmpresaPage() {
       );
     } catch { /* ignore */ }
   }, [qDebounced, statusFilter, baOnly]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void backfillEncerradosHojeAction().then((r) => {
-      if (!cancelled && r?.success && r.updated) {
-        toast({ title: "Encerrados de hoje contabilizados", description: `${r.updated} processo(s)` });
-      }
-    }).catch(() => { /* atualização auxiliar não bloqueia a carteira */ });
-    return () => { cancelled = true; };
-  }, []);
 
   const baCount = useMemo(() => cases.filter((c) => isBuscaApreensaoReal(c)).length, [cases]);
 
