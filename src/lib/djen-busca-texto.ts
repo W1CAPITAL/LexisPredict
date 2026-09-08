@@ -15,10 +15,7 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
       headers: {
         Accept: 'application/json',
         'Accept-Language': 'pt-BR,pt;q=0.9',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        Origin: 'https://comunica.pje.jus.br',
-        Referer: 'https://comunica.pje.jus.br/',
+        'User-Agent': 'LexisPredict-DJEN-Scanner/1.0',
       },
       signal: controller.signal,
       cache: 'no-store',
@@ -44,10 +41,33 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
       };
     }
     if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}`, count: 0, items: [] };
+      const body = await response.text().catch(() => '');
+      const blocked = /<html|<!doctype|access denied|request rejected|proxy/i.test(body);
+      return {
+        success: false,
+        error: blocked ? `DJEN retornou HTML/bloqueio (HTTP ${response.status})` : `HTTP ${response.status}`,
+        count: 0,
+        items: [],
+      };
     }
 
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    const body = await response.text();
+    if (!contentType.toLowerCase().includes('application/json') || /^\s*<!doctype|^\s*<html/i.test(body)) {
+      return {
+        success: false,
+        error: 'DJEN retornou HTML em vez de JSON; consulta não foi considerada válida.',
+        count: 0,
+        items: [],
+      };
+    }
+
+    let data: any;
+    try {
+      data = JSON.parse(body);
+    } catch {
+      return { success: false, error: 'Resposta JSON inválida do DJEN.', count: 0, items: [] };
+    }
     const rawItems = Array.isArray(data.items) ? data.items : [];
     const mappedItems: DjenComunicacao[] = rawItems.map((item: any) => {
       const plainText = plainTextFromDjen(item.texto || '');
