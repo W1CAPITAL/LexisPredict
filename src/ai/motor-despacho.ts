@@ -53,7 +53,6 @@ const BANNED_TERMS = [
   'ASSECOM',
 ];
 
-
 /** Remove 3ª pessoa de processo e reforça tom de mensagem ao cliente. */
 export function sanitizeClienteFacingDraft(text: string, clienteNome?: string): string {
   let s = String(text || '');
@@ -118,7 +117,6 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
     texto_pobre,
   } = input;
 
-
   const djenTexts = sortDjenTextsRecentFirst(djenTextsRaw || []);
 
   const deveFalarCumprimento =
@@ -132,7 +130,6 @@ export async function gerarRascunhoEstrategico(input: MotorDespachoInput) {
         diasAposTransito: oportunidade_dias_apos_transito ?? null,
       })
     : '';
-
 
   const suggestions = suggestScripts({
     clienteNome,
