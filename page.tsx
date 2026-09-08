@@ -260,7 +260,6 @@ export default function ProcessosEmpresaPage() {
     return () => { cancelled = true; };
   }, [qDebounced]);
 
-
   useEffect(() => {
     try {
       const raw = localStorage.getItem('lexis_processos_filters_v1');
@@ -280,7 +279,6 @@ export default function ProcessosEmpresaPage() {
       );
     } catch { /* ignore */ }
   }, [qDebounced, statusFilter, baOnly]);
-
 
   useEffect(() => {
     let cancelled = false;
@@ -427,7 +425,7 @@ export default function ProcessosEmpresaPage() {
         tem_atualizacao_pos_retorno: false,
       };
       const payload = { ...updated } as any;
-      // Edição normal NUNCA transfere carteira — só muda campos / atendimento
+
       delete payload.force_transfer_owner;
       delete payload.__transfer_owner;
       // Se não há UI de transferência neste fluxo, não manda created_by novo
