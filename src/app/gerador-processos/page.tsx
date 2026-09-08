@@ -31,7 +31,7 @@ export default function GeradorProcessosPage() {
   const [exp, setExp] = useState(false);
   const [qLocal, setQLocal] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
-  const [enrichOn, setEnrichOn] = useState(true);
+  const [enrichOn, setEnrichOn] = useState(false);
   const [enrichCfg, setEnrichCfg] = useState<{ ready: boolean; enabled: boolean; urlSet: boolean; tokenSet: boolean } | null>(null);
   const stopRef = useRef(false);
   const logEnd = useRef<HTMLDivElement>(null);
@@ -152,7 +152,9 @@ export default function GeradorProcessosPage() {
 
           if (!res.hasMore && res.bruto < 80) break;
           pagina += 1;
-          await new Promise((r) => setTimeout(r, 160));
+          // O scanner é deliberadamente serial: uma comunicação por segundo,
+          // com progresso e log somente após a resposta real do DJEN.
+          await new Promise((r) => setTimeout(r, 1000));
         }
       }
       if (byCnj.size >= target) break;

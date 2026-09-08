@@ -3,7 +3,7 @@
  */
 import { plainTextFromDjen, type DjenComunicacao, type DjenFetchResult } from '@/lib/djen';
 
-const DJEN_URL = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
+const DJEN_URL = String(process.env.DJEN_API_BASE || 'https://comunicaapi.pje.jus.br/api/v1/comunicacao').replace(/\/$/, '');
 
 async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
   try {

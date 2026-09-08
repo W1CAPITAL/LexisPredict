@@ -72,7 +72,8 @@ export async function scanDjenPaginaAction(input: {
     dataInicio,
     dataFim,
     pagina,
-    itensPorPagina: 100,
+    // Uma comunicação por requisição: evita carregar uma lista inteira de uma vez e permite auditar cada item.
+    itensPorPagina: 1,
     siglaTribunal: sigla,
   });
 
@@ -97,7 +98,9 @@ export async function scanDjenPaginaAction(input: {
     if (isSegredoOuSigilo(blob)) { skipSigilo++; continue; }
 
     // CRÍTICO: só CNJ mascarado + ano/TR/justiça plausíveis (ex. TJSP = 8.26)
-    const digits = extractCnjSeguro(it.numero_processo, it.texto, {
+    // O número precisa vir do campo oficial do DJEN. Nunca extraímos CNJ de texto livre,
+    // pois decisões podem conter números de outros processos e gerar resultados falsos.
+    const digits = extractCnjSeguro(it.numero_processo, "", {
       siglaTribunal: sigla || it.siglaTribunal,
     });
     if (!digits) { skipCnj++; continue; }
@@ -160,7 +163,7 @@ export async function scanDjenPaginaAction(input: {
     query: q,
     queryIndex: qi,
     pagina,
-    hasMore: bruto >= 80,
+    hasMore: bruto > 0,
     bruto,
   };
 }
