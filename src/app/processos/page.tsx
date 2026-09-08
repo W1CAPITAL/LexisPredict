@@ -20,7 +20,7 @@ import { fetchCompanyProcessosAction,
   fetchCompanyProcessosPageAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
 import { fetchRankingAtendentesEmpresaAction } from "@/app/actions/ranking-atendentes-action";
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
-import { loadCarteiraComCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
+import { peekCarteiraCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
@@ -157,7 +157,7 @@ export default function ProcessosEmpresaPage() {
   const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState(0);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !peekCarteiraCache(null, "empresa")?.cases?.length);
   const [q, setQ] = useState("");
   const qDebounced = useDebouncedValue(q, 300);
   const [statusFilter, setStatusFilter] = useState("");
@@ -184,11 +184,18 @@ export default function ProcessosEmpresaPage() {
   const PAGE_SIZE = 24;
 
   const load = async () => {
-    setLoading(true);
+    const cached = peekCarteiraCache(null, "empresa");
+    if (cached?.cases?.length) {
+      setCases(cached.cases as any);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const res = await fetchCompanyProcessosAction();
       const list = res?.cases || [];
       setCases(list);
+      writeCarteiraCache(list, null, "empresa");
       setListOffset(list.length);
       setTotalCount(Number(res?.totalCount) || list.length);
       let rankList = Array.isArray(res?.ranking) ? res.ranking : [];

@@ -238,7 +238,7 @@ function CasesContent() {
   const [lawyerFilter, setLawyerFilter] = useState('all');
   const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
   const [isRecalibrating, setIsRecalibrating] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -274,12 +274,18 @@ function CasesContent() {
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    setLoading(false);
     try {
-      const data = await fetchRepoCases();
-      if (Array.isArray(data)) setCases(data);
+      const empId = (profile as any)?.empresa_id || null;
+      await loadCarteiraComCache({
+        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        empresaId: empId,
+        scope: "mine",
+        onShow: (data) => { if (Array.isArray(data)) setCases(data); },
+        allowStaleKpiFallback: true,
+      });
     } finally { setLoading(false); }
-  }, [setCases]);
+  }, [setCases, profile]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

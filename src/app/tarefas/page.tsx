@@ -149,7 +149,7 @@ export default function TarefasPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const LIST_PAGE_SIZE = 80;
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const searchDebounced = useDebouncedValue(search, 300);
   // filtros persistidos entre abas
@@ -262,14 +262,15 @@ export default function TarefasPage() {
   };
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    setLoading(false);
     try {
       const empId = (profile as any)?.empresa_id || null;
       const _pack = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
         empresaId: empId,
+        scope: "mine",
         onShow: (data) => { if (Array.isArray(data)) startTransition(() => setCases(data)); },
-        allowStaleKpiFallback: false,
+        allowStaleKpiFallback: true,
       });
       const data = _pack.cases;
       try {

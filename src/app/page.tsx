@@ -111,12 +111,13 @@ export default function Dashboard() {
   }, []);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    setLoading(false);
     try {
       const cachedRun = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
+        scope: "mine",
         onShow: (caseData) => { if (Array.isArray(caseData)) setCases(caseData); },
-        allowStaleKpiFallback: false,
+        allowStaleKpiFallback: true,
       });
       const caseData = cachedRun.cases;
         try {
