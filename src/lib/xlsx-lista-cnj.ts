@@ -13,7 +13,7 @@ const C = ["A","B","C","D","E","F","G","H","I","J"];
 export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
   const header = `<row r="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
   const data = lista.map((p, idx) => {
-    const r = idx+2;
+    const r = idx + 2;
     const vals = [p.processo,p.nome_completo,p.telefone,p.telefone_fonte,p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor];
     return `<row r="${r}">${vals.map((v,i)=>cell(C[i],r,String(v??""))).join("")}</row>`;
   }).join("");

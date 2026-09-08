@@ -15,9 +15,12 @@ import {
 } from "@/lib/revisional-tribunal-filtros";
 import { Download, Loader2, Search, ExternalLink, Copy, Check, Square, Phone } from "lucide-react";
 
+/** Janelas de dias: amplia sozinho até bater o alvo */
+const JANELAS_DIAS = [7, 14, 30, 60, 90];
+const MAX_PAG_POR_QUERY = 25;
+
 export default function GeradorProcessosPage() {
   const [alvo, setAlvo] = useState("60");
-  const [dias, setDias] = useState("7");
   const [tribunal, setTribunal] = useState("TJSP");
   const [ativos, setAtivos] = useState<FiltroRevisionalId[]>(() => filtrosDefaultOn());
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
@@ -33,11 +36,7 @@ export default function GeradorProcessosPage() {
     logEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  const toggle = (id: FiltroRevisionalId) => {
-    setAtivos((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  };
-
-  const pushLogs = (more: ScanLogLine[]) => setLogs((prev) => [...prev, ...more].slice(-400));
+  const pushLogs = (more: ScanLogLine[]) => setLogs((prev) => [...prev, ...more].slice(-500));
 
   const filtrados = useMemo(() => {
     const q = qLocal.trim().toLowerCase();
@@ -47,9 +46,6 @@ export default function GeradorProcessosPage() {
     );
   }, [lista, qLocal]);
 
-  const comTel = useMemo(() => lista.filter((p) => p.telefone).length, [lista]);
-
-  /** Scan até atingir alvo (ex. 60), com logs ao vivo */
   const iniciarScan = async () => {
     const target = Math.min(Math.max(parseInt(alvo, 10) || 60, 1), 500);
     if (!ativos.length) {
@@ -64,95 +60,104 @@ export default function GeradorProcessosPage() {
       {
         ts: new Date().toISOString().slice(11, 19),
         level: "info",
-        text: `Início · alvo ${target} processos consultáveis · sem sigilo · nome obrigatório · telefone só se no teor DJEN`,
+        text: `Alvo ${target} · sem sigilo · AUTOR (não réu) · CNJ com DV · telefone só se no teor público (sem base irregular)`,
       },
     ]);
 
     const byCnj = new Map<string, ProcessoDjenReal>();
     const nQueries = FILTROS_REVISIONAL.filter((f) => ativos.includes(f.id)).length;
-    let qi = 0;
-    let pagina = 1;
-    let emptyStreak = 0;
-    let rateHits = 0;
 
-    while (!stopRef.current && byCnj.size < target) {
-      const exclude = [...byCnj.keys()];
-      const res = await scanDjenPaginaAction({
-        filtros: ativos,
-        queryIndex: qi,
-        pagina,
-        dias: parseInt(dias, 10) || 7,
-        siglaTribunal: tribunal.trim() || undefined,
-        excludeCnjs: exclude,
-      });
-      pushLogs(res.logs || []);
+    outer: for (const dias of JANELAS_DIAS) {
+      if (stopRef.current || byCnj.size >= target) break;
+      pushLogs([
+        {
+          ts: new Date().toISOString().slice(11, 19),
+          level: "info",
+          text: `— Janela ${dias} dias · progresso ${byCnj.size}/${target} —`,
+        },
+      ]);
 
-      if (res.geoBlocked) break;
-      if (res.rateLimited) {
-        rateHits++;
-        pushLogs([
-          {
-            ts: new Date().toISOString().slice(11, 19),
-            level: "warn",
-            text: `Aguardando 3s por rate limit (${rateHits})…`,
-          },
-        ]);
-        await new Promise((r) => setTimeout(r, 3000));
-        if (rateHits > 8) break;
-        continue;
-      }
+      for (let qi = 0; qi < nQueries; qi++) {
+        if (stopRef.current || byCnj.size >= target) break outer;
+        let pagina = 1;
+        let paginasSemBruto = 0;
 
-      let added = 0;
-      for (const it of res.items || []) {
-        const dig = it.processo.replace(/\D/g, "");
-        if (byCnj.has(dig)) continue;
-        byCnj.set(dig, it);
-        added++;
-        if (byCnj.size >= target) break;
-      }
-      if (added) {
-        setLista([...byCnj.values()]);
-        pushLogs([
-          {
-            ts: new Date().toISOString().slice(11, 19),
-            level: "ok",
-            text: `Progresso ${byCnj.size}/${target} (+${added} nesta página)`,
-          },
-        ]);
-        emptyStreak = 0;
-      } else {
-        emptyStreak++;
+        while (pagina <= MAX_PAG_POR_QUERY && byCnj.size < target && !stopRef.current) {
+          let res = await scanDjenPaginaAction({
+            filtros: ativos,
+            queryIndex: qi,
+            pagina,
+            dias,
+            siglaTribunal: tribunal.trim() || undefined,
+            excludeCnjs: [...byCnj.keys()],
+          });
+          pushLogs(res.logs || []);
+
+          if (res.geoBlocked) break outer;
+
+          // rate limit: espera e repete a MESMA página
+          let retries = 0;
+          while (res.rateLimited && retries < 6 && !stopRef.current) {
+            retries++;
+            pushLogs([
+              {
+                ts: new Date().toISOString().slice(11, 19),
+                level: "warn",
+                text: `429 — espera ${2 + retries}s e repete pág ${pagina} (tentativa ${retries})`,
+              },
+            ]);
+            await new Promise((r) => setTimeout(r, (2 + retries) * 1000));
+            res = await scanDjenPaginaAction({
+              filtros: ativos,
+              queryIndex: qi,
+              pagina,
+              dias,
+              siglaTribunal: tribunal.trim() || undefined,
+              excludeCnjs: [...byCnj.keys()],
+            });
+            pushLogs(res.logs || []);
+          }
+
+          let added = 0;
+          for (const it of res.items || []) {
+            const dig = it.processo.replace(/\D/g, "");
+            if (byCnj.has(dig)) continue;
+            byCnj.set(dig, it);
+            added++;
+            if (byCnj.size >= target) break;
+          }
+          if (added) {
+            setLista([...byCnj.values()]);
+            pushLogs([
+              {
+                ts: new Date().toISOString().slice(11, 19),
+                level: "ok",
+                text: `Progresso ${byCnj.size}/${target} (+${added})`,
+              },
+            ]);
+          }
+
+          if (res.bruto === 0) {
+            paginasSemBruto++;
+            if (paginasSemBruto >= 2) break; // fim desta query nesta janela
+          } else {
+            paginasSemBruto = 0;
+          }
+
+          if (!res.hasMore && res.bruto < 80) break;
+          pagina += 1;
+          await new Promise((r) => setTimeout(r, 180));
+        }
       }
 
       if (byCnj.size >= target) break;
-
-      // próxima página ou próxima query
-      if (res.hasMore && emptyStreak < 2) {
-        pagina += 1;
-      } else {
-        qi += 1;
-        pagina = 1;
-        emptyStreak = 0;
-        if (qi >= nQueries) {
-          // segunda passagem: amplia dias mentalmente já está fixo — encerra
-          pushLogs([
-            {
-              ts: new Date().toISOString().slice(11, 19),
-              level: "warn",
-              text: `Esgotou queries/páginas com ${byCnj.size}/${target}. Amplie dias ou troque tribunal.`,
-            },
-          ]);
-          break;
-        }
-        pushLogs([
-          {
-            ts: new Date().toISOString().slice(11, 19),
-            level: "info",
-            text: `Trocando para filtro ${qi + 1}/${nQueries}…`,
-          },
-        ]);
-      }
-      await new Promise((r) => setTimeout(r, 200));
+      pushLogs([
+        {
+          ts: new Date().toISOString().slice(11, 19),
+          level: "warn",
+          text: `Ainda ${byCnj.size}/${target} — ampliando janela de dias…`,
+        },
+      ]);
     }
 
     setLista([...byCnj.values()]);
@@ -161,8 +166,8 @@ export default function GeradorProcessosPage() {
         ts: new Date().toISOString().slice(11, 19),
         level: byCnj.size >= target ? "ok" : "warn",
         text: stopRef.current
-          ? `Parado pelo usuário · ${byCnj.size} processos`
-          : `Fim · ${byCnj.size}/${target} · com telefone no teor: ${[...byCnj.values()].filter((x) => x.telefone).length}`,
+          ? `Parado · ${byCnj.size} processos`
+          : `Fim · ${byCnj.size}/${target} · tel. no teor: ${[...byCnj.values()].filter((x) => x.telefone).length}`,
       },
     ]);
     setBusy(false);
@@ -170,7 +175,6 @@ export default function GeradorProcessosPage() {
 
   const parar = () => {
     stopRef.current = true;
-    pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "warn", text: "Parando após a página atual…" }]);
   };
 
   const baixar = async () => {
@@ -200,22 +204,22 @@ export default function GeradorProcessosPage() {
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col max-h-screen overflow-hidden">
-        {/* topo simples */}
-        <div className="p-4 border-b border-border/50 space-y-3 shrink-0 bg-background/95">
+        <div className="p-4 border-b border-border/50 space-y-3 shrink-0">
           <div>
             <h1 className="text-xl font-black tracking-tight">DJEN revisional</h1>
             <p className="text-xs text-muted-foreground">
-              Processos <strong>reais</strong> do Comunica. Sem sigilo. Sem inventar CNJ, nome ou telefone.
-              Telefone só se estiver escrito na publicação.
+              Scan até o <strong>alvo</strong> (7→14→30→60→90 dias). Sem sigilo. Nome = <strong>AUTOR</strong>.
+              Telefone só do teor público — não usa base irregular de CPF/celular.
             </p>
           </div>
-
           <div className="flex flex-wrap gap-1.5">
             {FILTROS_REVISIONAL.map((f) => (
               <button
                 key={f.id}
                 type="button"
-                onClick={() => toggle(f.id)}
+                onClick={() =>
+                  setAtivos((p) => (p.includes(f.id) ? p.filter((x) => x !== f.id) : [...p, f.id]))
+                }
                 className={
                   "text-[11px] rounded-lg border px-2 py-1 " +
                   (ativos.includes(f.id) ? "border-primary bg-primary/20 font-semibold" : "border-border/40 text-muted-foreground")
@@ -228,15 +232,10 @@ export default function GeradorProcessosPage() {
               padrão
             </button>
           </div>
-
           <div className="flex flex-wrap items-end gap-2">
             <label className="space-y-0.5">
-              <span className="text-[9px] font-black uppercase text-muted-foreground">Quantos (alvo)</span>
+              <span className="text-[9px] font-black uppercase text-muted-foreground">Alvo</span>
               <Input className="h-9 w-20 font-bold" value={alvo} onChange={(e) => setAlvo(e.target.value)} />
-            </label>
-            <label className="space-y-0.5">
-              <span className="text-[9px] font-black uppercase text-muted-foreground">Dias</span>
-              <Input className="h-9 w-16" value={dias} onChange={(e) => setDias(e.target.value)} />
             </label>
             <label className="space-y-0.5">
               <span className="text-[9px] font-black uppercase text-muted-foreground">Tribunal</span>
@@ -244,41 +243,36 @@ export default function GeradorProcessosPage() {
             </label>
             {!busy ? (
               <Button onClick={iniciarScan} className="h-9 gap-2 text-xs font-black uppercase">
-                <Search className="w-4 h-4" />
-                Buscar até o alvo
+                <Search className="w-4 h-4" /> Buscar até o alvo
               </Button>
             ) : (
               <Button onClick={parar} variant="destructive" className="h-9 gap-2 text-xs font-black uppercase">
-                <Square className="w-3.5 h-3.5" />
-                Parar
+                <Square className="w-3.5 h-3.5" /> Parar
               </Button>
             )}
             <Button variant="secondary" onClick={baixar} disabled={!filtrados.length || exp} className="h-9 gap-2 text-xs font-black uppercase">
-              {exp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              XLSX
+              {exp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} XLSX
             </Button>
             <Input className="h-9 flex-1 min-w-[140px]" placeholder="Filtrar lista…" value={qLocal} onChange={(e) => setQLocal(e.target.value)} />
           </div>
-
-          <div className="flex flex-wrap gap-3 text-[11px] font-mono text-muted-foreground">
-            <span className="text-foreground font-bold">{lista.length}/{alvo || "?"} ok</span>
-            <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {comTel} com tel. no teor</span>
+          <div className="text-[11px] font-mono text-muted-foreground flex flex-wrap gap-3">
+            <span className="text-foreground font-bold">{lista.length}/{alvo} ok</span>
+            <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {lista.filter((p) => p.telefone).length} tel. no teor</span>
             {busy && <span className="text-amber-500 inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> scaneando…</span>}
           </div>
         </div>
 
         <div className="flex-1 min-h-0 grid md:grid-cols-[1fr_320px] overflow-hidden">
-          {/* lista */}
           <div className="overflow-auto p-3 space-y-2">
             {!filtrados.length && !busy && (
               <p className="text-sm text-muted-foreground text-center py-16 border border-dashed rounded-xl">
-                Defina o alvo (ex. 60), marque filtros e clique em <strong>Buscar até o alvo</strong>.
+                Alvo 60 → o scan continua sozinho (mais páginas e mais dias) até completar ou você parar.
               </p>
             )}
             {filtrados.map((p) => (
-              <article key={p.processo} className="rounded-xl border border-border/50 bg-card/40 p-3 hover:border-primary/30">
+              <article key={p.processo} className="rounded-xl border border-border/50 bg-card/40 p-3">
                 <div className="flex flex-wrap justify-between gap-2">
-                  <div className="min-w-0 space-y-1">
+                  <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" className="font-mono text-sm font-bold inline-flex items-center gap-1" onClick={() => copy(p.processo)}>
                         {p.processo}
@@ -290,11 +284,10 @@ export default function GeradorProcessosPage() {
                     <p className="text-sm font-semibold">{p.nome_completo}</p>
                     {p.telefone ? (
                       <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono inline-flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {p.telefone}
-                        <span className="text-[9px] text-muted-foreground uppercase">teor DJEN</span>
+                        <Phone className="w-3 h-3" /> {p.telefone} <span className="text-[9px] text-muted-foreground">teor DJEN</span>
                       </p>
                     ) : (
-                      <p className="text-[10px] text-muted-foreground">Sem telefone na publicação pública</p>
+                      <p className="text-[10px] text-muted-foreground">Sem telefone na publicação (não inventamos / não usamos base irregular)</p>
                     )}
                     <p className="text-[11px] text-muted-foreground">{p.classe || "—"}{p.situacao_hint ? ` · ${p.situacao_hint}` : ""}</p>
                   </div>
@@ -310,24 +303,11 @@ export default function GeradorProcessosPage() {
               </article>
             ))}
           </div>
-
-          {/* logs */}
-          <aside className="border-t md:border-t-0 md:border-l border-border/50 flex flex-col min-h-[200px] max-h-[40vh] md:max-h-none overflow-hidden bg-black/20">
-            <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/40">
-              Log do scan
-            </div>
+          <aside className="border-t md:border-t-0 md:border-l border-border/50 flex flex-col min-h-[180px] max-h-[40vh] md:max-h-none overflow-hidden bg-black/20">
+            <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/40">Log do scan</div>
             <div className="flex-1 overflow-auto p-2 font-mono text-[10px] space-y-1">
               {logs.map((l, i) => (
-                <div
-                  key={i}
-                  className={
-                    l.level === "err" ? "text-red-400" :
-                    l.level === "warn" ? "text-amber-400" :
-                    l.level === "ok" ? "text-emerald-400" :
-                    l.level === "skip" ? "text-muted-foreground" :
-                    "text-slate-300"
-                  }
-                >
+                <div key={i} className={l.level === "err" ? "text-red-400" : l.level === "warn" ? "text-amber-400" : l.level === "ok" ? "text-emerald-400" : "text-slate-300"}>
                   {l.ts && <span className="opacity-50">{l.ts} </span>}
                   {l.text}
                 </div>
