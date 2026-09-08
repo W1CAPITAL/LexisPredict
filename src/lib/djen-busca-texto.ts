@@ -45,15 +45,10 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
     }
 
     const body = await response.text().catch(() => '');
-    const jsonSlice = (() => {
-      const raw = String(body || '').trim();
-      if (!raw) return '';
-      if (raw.startsWith('{') || raw.startsWith('[')) return raw;
-      const i = raw.indexOf('{"');
-      const j = raw.lastIndexOf('}');
-      if (i >= 0 && j > i) return raw.slice(i, j + 1);
-      return '';
-    })();
+    const contentType = response.headers.get('content-type') || '';
+    const raw = String(body || '').trim();
+    const isJson = /application\/json|application\/problem\+json/i.test(contentType) || raw.startsWith('{') || raw.startsWith('[');
+    const jsonSlice = isJson && (raw.startsWith('{') || raw.startsWith('[')) ? raw : '';
 
     if (!response.ok) {
       const blocked = /<html|<!doctype|access denied|request rejected|proxy/i.test(body);

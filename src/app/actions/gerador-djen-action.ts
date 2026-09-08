@@ -47,6 +47,7 @@ export async function scanDjenPaginaAction(input: {
   bruto: number;
   rateLimited?: boolean;
   geoBlocked?: boolean;
+  invalidSource?: boolean;
   error?: string;
 }> {
   const logs: ScanLogLine[] = [];
@@ -78,13 +79,13 @@ export async function scanDjenPaginaAction(input: {
   });
 
   if ((res as any).isGeoBlocked) {
-    return { success: false, items: [], logs: [...logs, log("err", "403 geo")], query: q, queryIndex: qi, pagina, hasMore: false, bruto: 0, geoBlocked: true, error: res.error };
+    return { success: false, items: [], logs: [...logs, log("err", "403 geo")], query: q, queryIndex: qi, pagina, hasMore: false, bruto: 0, geoBlocked: true, invalidSource: true, error: res.error };
   }
   if (res.isRateLimited) {
     return { success: false, items: [], logs: [...logs, log("warn", "429")], query: q, queryIndex: qi, pagina, hasMore: true, bruto: 0, rateLimited: true, error: res.error };
   }
   if (!res.success) {
-    return { success: false, items: [], logs: [...logs, log("err", res.error || "falha")], query: q, queryIndex: qi, pagina, hasMore: false, bruto: 0, error: res.error };
+    return { success: false, items: [], logs: [...logs, log("err", res.error || "falha")], query: q, queryIndex: qi, pagina, hasMore: false, bruto: 0, invalidSource: true, error: res.error };
   }
 
   const bruto = res.items?.length || 0;
