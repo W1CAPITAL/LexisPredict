@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       if (Date.now() - start > MAX_RUNTIME_MS) break;
       const c = casesToAudit[i];
       try {
-        const res = await auditCaseCoreSystem(c.protocolo, empresa_id, mode, { fast: true });
+        const res = await auditCaseCoreSystem(c.protocolo, empresa_id, mode, { fast: false });
         if (res.success) successCount++;
         else failedCount++;
       } catch (err) {

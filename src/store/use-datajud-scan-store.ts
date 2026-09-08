@@ -104,7 +104,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   manualErrors: 0,
   lastLogs: [],
 
-  scanMode: 'both',
+  scanMode: 'datajud',
   setScanMode: (scanMode) => set({ scanMode }),
   scanScope: 'full',
   setScanScope: (scanScope) => set({ scanScope }),

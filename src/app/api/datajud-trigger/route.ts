@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const { empresa_id } = await getUserContext();
     if (!empresa_id) return new Response('Unauthorized', { status: 401 });
 
-    let mode = 'both';
+    let mode = 'datajud';
     let scope = 'full';
     try {
       const body = await request.clone().json().catch(() => ({}));
