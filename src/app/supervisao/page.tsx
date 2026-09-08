@@ -96,6 +96,27 @@ export default function SupervisaoPage() {
     if (allowed && !authLoading) load();
   }, [allowed, authLoading, periodo]);
 
+  const handleDownloadRelatorioEquipe = async () => {
+    if (!snap) return;
+    setPdfLoading(true);
+    try {
+      const [{ downloadPdf }, { RelatorioEquipePDF }, { montarRelatorioEquipe }] = await Promise.all([
+        import("@/lib/pdf-download"),
+        import("@/components/pdf/relatorio-equipe-pdf"),
+        import("@/lib/relatorio-equipe-narrativa"),
+      ]);
+      const data = montarRelatorioEquipe(snap, { geradoEm: new Date().toLocaleString("pt-BR") });
+      await downloadPdf(
+        <RelatorioEquipePDF data={data} />,
+        `Relatorio_Equipe_${new Date().toISOString().slice(0, 10)}`
+      );
+    } catch (e) {
+      console.error("Relatorio equipe PDF:", e);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     if (!snap) return;
     setPdfLoading(true);
@@ -186,6 +207,15 @@ export default function SupervisaoPage() {
             >
               <Printer size={14} className="mr-1.5" />
               Imprimir / PDF completo
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleDownloadRelatorioEquipe}
+              disabled={!snap || pdfLoading}
+              className="h-9 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-zinc-800 print:hidden"
+            >
+              {pdfLoading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <FileDown size={14} className="mr-1.5" />}
+              Relatório da equipe
             </Button>
             <Button
               variant="outline"

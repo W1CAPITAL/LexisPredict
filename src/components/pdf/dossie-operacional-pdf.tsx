@@ -172,15 +172,15 @@ export function DossieOperacionalPDF({ data }: { data: DossieOperacionalData }) 
         <View style={s.headerBand}>
           <View style={s.headerRow}>
             <View>
-              <Text style={s.brandName}>LEXISPREDICT</Text>
-              <Text style={s.brandSub}>Dossiê Operacional · Relatório Consolidado</Text>
+              <Text style={s.brandName}>W1 CAPITAL</Text>
+              <Text style={s.brandSub}>aplicativo de gestão para assessoria financeira</Text>
             </View>
-            <Text style={s.confBadge}>INTERNO • W1 CAPITAL</Text>
+            <Text style={s.confBadge}>USO INTERNO</Text>
           </View>
         </View>
 
         <View style={s.titleBlock}>
-          <Text style={s.h1}>Dossiê Operacional Master</Text>
+          <Text style={s.h1}>Relatório operacional</Text>
           <Text style={s.metaLine}>
             Auditado por {data.auditor} {data.cargo ? `· ${data.cargo}` : ""} • Gerado em {data.geradoEm}
           </Text>
@@ -278,7 +278,7 @@ export function DossieOperacionalPDF({ data }: { data: DossieOperacionalData }) 
 
           <View style={s.footer} fixed>
             <Text style={s.footerText}>
-              Documento interno • LexisPredict • {data.notas} anotações no gabinete
+              W1 Capital · aplicativo de gestão · {data.notas} anotações no gabinete
             </Text>
             <Text
               style={s.footerText}

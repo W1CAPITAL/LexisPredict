@@ -319,6 +319,33 @@ export default function UnifiedReport() {
     window.print();
   };
 
+  const handleDownloadRelatorioEquipe = async () => {
+    if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
+    setPdfLoading(true);
+    try {
+      const [{ getSupervisaoSnapshotAction }, { downloadPdf }, { RelatorioEquipePDF }, { montarRelatorioEquipe }] = await Promise.all([
+        import("@/app/actions/supervisao-actions"),
+        import("@/lib/pdf-download"),
+        import("@/components/pdf/relatorio-equipe-pdf"),
+        import("@/lib/relatorio-equipe-narrativa"),
+      ]);
+      const res = await getSupervisaoSnapshotAction(periodo as any);
+      if (!res.success || !res.snapshot) {
+        alert(res.error || "Não deu para montar o relatório da equipe.");
+        return;
+      }
+      const data = montarRelatorioEquipe(res.snapshot, { geradoEm: new Date().toLocaleString("pt-BR") });
+      await downloadPdf(
+        <RelatorioEquipePDF data={data} />,
+        `Relatorio_Equipe_${new Date().toISOString().slice(0, 10)}`
+      );
+    } catch (e) {
+      console.error("Relatorio equipe:", e);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
     setPdfLoading(true);
@@ -447,6 +474,14 @@ export default function UnifiedReport() {
             >
               {claudeLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Sparkles size={16} className="mr-2" />}
               Gerar parecer Claude AI
+            </Button>
+            <Button
+              onClick={handleDownloadRelatorioEquipe}
+              disabled={pdfLoading}
+              className="bg-foreground hover:bg-foreground/90 text-background font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
+            >
+              {pdfLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
+              Relatório da equipe
             </Button>
             <Button
               onClick={handleDownloadPdf}
