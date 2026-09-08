@@ -4,6 +4,7 @@ import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisa
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
+import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 
 function iso(v: unknown): string | null {
   if (v === undefined || v === null) return null;
@@ -63,25 +64,27 @@ function pickProcessoPayload(input: Record<string, any>): Record<string, any> {
 
 async function loadProcessoRow(empresaId: string, protocolo: string): Promise<Record<string, any> | null> {
   const admin = await getSupabaseAdmin();
+  const cols = 'id, empresa_id, protocolo_ref, dados, created_by, ultimo_retorno, proximo_retorno, observacoes, status, status_interno, atendido_por, escritorio, advogado, telefone, tribunal, cliente, datajud_ultimo_movimento, datajud_ultimo_nome, datajud_encerrado_tribunal, em_cumprimento_sentenca, djen_ultimo_resumo, updated_at';
   for (const key of protocolVariants(protocolo)) {
     const { data, error } = await admin
       .from('processos')
-      .select('*')
+      .select(cols)
       .eq('empresa_id', empresaId)
       .eq('protocolo_ref', key)
-      .maybeSingle();
-    if (error && /proximo_prazo/i.test(String(error.message))) {
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (error && /proximo_prazo|column/i.test(String(error.message))) {
       const retry = await admin
         .from('processos')
-        .select('id, empresa_id, protocolo_ref, dados, created_by, ultimo_retorno, proximo_retorno, observacoes, status, status_interno, atendido_por, escritorio, advogado, telefone, tribunal, cliente, datajud_ultimo_movimento, datajud_ultimo_nome, datajud_encerrado_tribunal, em_cumprimento_sentenca, djen_ultimo_resumo')
+        .select('id, empresa_id, protocolo_ref, dados, created_by, ultimo_retorno, proximo_retorno, observacoes, status, atendido_por')
         .eq('empresa_id', empresaId)
         .eq('protocolo_ref', key)
-        .maybeSingle();
-      if (retry.data) return retry.data as Record<string, any>;
+        .limit(1);
+      if (retry.data?.[0]) return retry.data[0] as Record<string, any>;
       continue;
     }
     if (error) continue;
-    if (data) return data as Record<string, any>;
+    if (data?.[0]) return data[0] as Record<string, any>;
   }
   return null;
 }
@@ -129,11 +132,31 @@ async function persistToDatabase(
     protocolo_ref: protocolo,
     dados: mergedDados,
   });
+  const ultimoCol = dateOrNull(
+    processed.ultimo_retorno ?? processed.ultimoRetorno ?? processed.ULTIMO_RETORNO ?? mergedDados.ultimoRetorno
+  );
+  const proximoCol = dateOrNull(
+    processed.proximo_retorno ?? processed.proximoPrazo ?? processed.proximoRetorno ?? mergedDados.proximoPrazo
+  );
+  if (ultimoCol) {
+    payload.ultimo_retorno = ultimoCol;
+    mergedDados.ultimoRetorno = ultimoCol;
+    mergedDados.ultimo_retorno = ultimoCol;
+  }
+  if (proximoCol !== undefined && proximoCol !== null) {
+    payload.proximo_retorno = proximoCol;
+    mergedDados.proximoPrazo = proximoCol;
+    mergedDados.proximo_retorno = proximoCol;
+  } else if (processed.proximoPrazo === '' || processed.proximo_retorno === '' || processed.proximoPrazo === null) {
+    payload.proximo_retorno = null;
+    mergedDados.proximoPrazo = '';
+    mergedDados.proximo_retorno = null;
+  }
+  payload.dados = mergedDados;
   for (const [dbKey, sourceKey] of Object.entries(directFields)) {
+    if (dbKey === 'ultimo_retorno' || dbKey === 'proximo_retorno') continue;
     if (processed[sourceKey] !== undefined && PROCESSOS_WRITE_COLS.has(dbKey)) {
-      payload[dbKey] = dbKey === 'ultimo_retorno' || dbKey === 'proximo_retorno'
-        ? dateOrNull(processed[sourceKey])
-        : processed[sourceKey];
+      payload[dbKey] = processed[sourceKey];
     }
   }
 
@@ -142,14 +165,19 @@ async function persistToDatabase(
   const withUpdated = { ...payload, updated_at: now };
 
   if (existing?.id) {
-    let result = await admin.from('processos').update(withUpdated).eq('id', existing.id).select('*').maybeSingle();
+    let result = await admin.from('processos').update(withUpdated).eq('id', existing.id).select('id, protocolo_ref, ultimo_retorno, proximo_retorno').maybeSingle();
     if (result.error && /updated_at|proximo_prazo|schema cache|column .* does not exist/i.test(String(result.error.message))) {
       const safe = { ...payload };
       delete safe.updated_at;
       delete (safe as any).proximo_prazo;
-      result = await admin.from('processos').update(safe).eq('id', existing.id).select('id, protocolo_ref').maybeSingle();
+      result = await admin.from('processos').update(safe).eq('id', existing.id).select('id, protocolo_ref, ultimo_retorno, proximo_retorno').maybeSingle();
     }
     if (result.error) return { success: false, message: result.error.message };
+    if (!result.data) {
+      const byProto = await admin.from('processos').update(payload).eq('empresa_id', empresaId).eq('protocolo_ref', protocolo).select('id, protocolo_ref, ultimo_retorno, proximo_retorno').limit(1);
+      if (byProto.error) return { success: false, message: byProto.error.message };
+      return { success: true, data: byProto.data?.[0] };
+    }
     return { success: true, data: result.data };
   }
 
@@ -384,7 +412,7 @@ export async function registrarAtendimentoCompletoAction(input: {
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado na carteira.' };
 
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = hojeBrasilYmd();
     const situacao = String(input.situacao || 'EM ANDAMENTO').toUpperCase() === 'ENCERRADO' ? 'ENCERRADO' : 'EM ANDAMENTO';
     const proximo = situacao === 'ENCERRADO' ? null : dateOrNull(input.proximoPrazo);
     const observacao = String(input.observacao || '').trim();
