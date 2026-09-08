@@ -117,7 +117,6 @@ export default function DocumentGenerator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLawyerId, selectedState, selectedLawyer?.id]);
 
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

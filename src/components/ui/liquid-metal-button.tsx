@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Botão metal líquido (CSS animado) — sem WebGL para nunca desaparecer.
- * preset: chromatic | silver | gold
- * mode: liquid | glass-liquid | solid
- */
 import * as React from "react";
 import type { MetalFxPreset } from "metal-fx";
 import { Button, type ButtonProps } from "@/components/ui/button";

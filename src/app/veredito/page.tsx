@@ -182,7 +182,7 @@ export default function VereditoPage() {
           setLoading(false);
           return;
         }
-        // SERVER ONLY — nunca searchDataJudByNome no client
+
         const res = await searchProcessesByNomeAction(nomeQuery.trim());
         let items = Array.isArray(res?.items) ? res.items : [];
         if (filtroBA) {

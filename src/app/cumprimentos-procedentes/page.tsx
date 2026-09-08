@@ -169,7 +169,6 @@ export default function CumprimentosProcedentesPage() {
     }
   }, [toast]);
 
-
   
   const handleScanParadosInstaurar = useCallback(async () => {
     if (paradosScanBusy) return;
@@ -452,7 +451,6 @@ export default function CumprimentosProcedentesPage() {
     return cols;
   }, [filtered, limiar]);
 
-
   const handleExportProntoParceiro = async () => {
     try {
       const r = await buildExportProntoParceiroCsv(cases, limiar);
@@ -482,8 +480,6 @@ export default function CumprimentosProcedentesPage() {
       toast({ title: "Não foi possível copiar", variant: "destructive" });
     }
   };
-
-
 
   const handleAnexoContrato = async (protocolo: string, file: File | null) => {
     if (!file) return;
@@ -763,7 +759,6 @@ export default function CumprimentosProcedentesPage() {
     }
 };
 
-
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
@@ -1011,7 +1006,6 @@ export default function CumprimentosProcedentesPage() {
             <Badge className="bg-amber-600 text-white text-[9px] font-black uppercase">Ao vivo</Badge>
           </div>
         )}
-
 
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12">
           {/* Filtros laterais */}

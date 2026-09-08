@@ -99,7 +99,7 @@ const handleSearch = async (e?: React.FormEvent) => {
         setLoading(false);
         return;
       }
-      // SERVER ACTION — nunca searchDataJudByNome no client
+
       const res = await searchProcessesByNomeAction(nomeQuery.trim());
       let items = res.items || [];
       if (filtroBA) {

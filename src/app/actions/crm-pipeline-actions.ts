@@ -198,10 +198,6 @@ export async function toggleTarefaAction(id: string, feito: boolean) {
   }
 }
 
-/**
- * Contatos observados a partir de negócios (não inventa telefone/email).
- * Opcionalmente cruza nomes com processos da empresa.
- */
 export async function listContatosObservadosAction() {
   const ctx = await ctxOrFail();
   if (!ctx) return { success: false as const, rows: [] as any[] };

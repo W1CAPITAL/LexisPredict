@@ -20,7 +20,6 @@ import { ThemeBoot } from "@/components/system/theme-boot";
 import { UiPrefsApplier } from "@/components/system/ui-prefs-applier";
 import { AUTHORITY_PRESETS, hexToHsl } from '@/lib/theme';
 
-
 const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
   id: p.id,
   radius: p.radius,

@@ -1,11 +1,4 @@
-/**
- * CRM externo (outro projeto Supabase) — somente Superadmin
- * Credenciais via env no servidor (nunca no browser).
- *
- * Vercel:
- *   EXTERNAL_CRM_SUPABASE_URL=https://lwfvjnmegifgqkydzvmk.supabase.co
- *   EXTERNAL_CRM_SUPABASE_KEY=<anon ou service_role, JWT completo, sem aspas>
- */
+
 'use server';
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';

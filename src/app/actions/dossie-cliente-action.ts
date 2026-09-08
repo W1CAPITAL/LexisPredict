@@ -62,7 +62,6 @@ type Options = {
   edited?: DossieEditableFields;
 };
 
-
 async function enrichWithClaude(bruto: string, preferredMotor?: string): Promise<Partial<DossieEditableFields> | null> {
   try {
     // Prefer superfície oficial dossiê (OmniRoute/Claude)
@@ -166,7 +165,6 @@ ${bruto.slice(0, 12000)}` },
     return null;
   }
 }
-
 
 function linesToArr(s?: string): string[] {
   if (!s) return [];

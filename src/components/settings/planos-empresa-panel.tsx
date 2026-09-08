@@ -55,7 +55,7 @@ type Ciclo = "mensal" | "anual";
 
 export function PlanosEmpresaPanel() {
   const { profile } = useAdmin();
-  /** Nunca confiar só em cargo Administrador — só Superadmin de verdade. */
+  
   const isSuperAdmin = checkIfSuperAdmin(profile);
   const { toast } = useToast();
   const { daysLeft: diasRestantes, expiresLabel, isExpired, isBlocked, plan: planHook } = usePlano();
@@ -130,7 +130,6 @@ export function PlanosEmpresaPanel() {
       qr: payload ? qrCodeUrl(payload, 260) : "",
     };
   }, [checkoutPlan, ciclo]);
-
 
   const iniciarCheckout = (plan: PlanId) => {
     if (isPlanoInferiorOuIgual(planAtual, plan) && plan !== planAtual) {

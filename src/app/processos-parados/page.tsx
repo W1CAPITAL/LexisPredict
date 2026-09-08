@@ -2,7 +2,6 @@
 
 import { useAdmin } from "@/hooks/use-admin";
 
-
 /**
  * Processos parados (com ação possível) v2 — reativação com estados sem_scan / confirmado.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -222,7 +221,6 @@ export default function ProcessosParadosPage() {
     toast({ title: "Mensagem copiada", description: item.estado === "sem_scan" ? "Auditar antes de prometer andamento" : "Reativação / andamento" });
   };
 
-
   const toggleFase = (id: FiltroFaseParado) => {
     setFiltrosFase((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -305,7 +303,6 @@ export default function ProcessosParadosPage() {
       toast({ title: "Falha no XLSX", description: e?.message || "Use o CSV", variant: "destructive" });
     }
   };
-
 
   const applyScanPatch = (protocolo: string, patch: any) => {
     if (!patch || typeof patch !== "object") return;
@@ -452,7 +449,6 @@ export default function ProcessosParadosPage() {
     saveParadosScanCkpt(ck);
     void runQueue(ck);
   };
-
 
   const estadoBadge = (e: EstadoParado) => {
     if (e === "sem_scan")

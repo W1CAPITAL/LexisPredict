@@ -7,7 +7,6 @@ import {
   countAuditadosTribunalSemana,
 } from "@/lib/processos-auditados";
 
-
 import { statusEfetivo } from "@/lib/prazo-status";
 import { isSentencaProcedente, isSentencaImprocedente } from "@/lib/merito-detect";
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
@@ -525,7 +524,6 @@ export default function Dashboard() {
                    </section>
 
                    <EncerradosRevisaoQueue cases={cases as any} limit={10} />
-
 
                 <OfficeStats cases={cases} />
                 </div>

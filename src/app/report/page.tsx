@@ -3,7 +3,6 @@ import { EncerrarKpisStrip } from "@/components/dashboard/encerrar-kpis-strip";
 
 import { useAdmin } from "@/hooks/use-admin";
 
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved.

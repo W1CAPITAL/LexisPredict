@@ -101,7 +101,6 @@ function getWeight(t: string | null | undefined): number {
   return weights[t] || 0;
 }
 
-
 export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminView = false) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
@@ -398,7 +397,6 @@ export async function auditCaseCoreSystem(
     }
   }
 
-
   // Ultima chance sequencial se ainda vazio (Sugerir resposta) — attempt=2 fura o cache
   if (mode === 'both' && movimentos.length === 0 && comunicacoes.length === 0) {
     try {
@@ -451,7 +449,6 @@ export async function auditCaseCoreSystem(
       protocolo,
     });
   }
-
 
   // Reanálise executiva com textos DJEN (completa art.523 / procedência só no diário)
   try {
@@ -748,8 +745,6 @@ export async function auditCaseCoreSystem(
   try {
     const decisao = decidirEncerramentoScan({ target, patch });
     Object.assign(patch, aplicarDecisaoNoPatch(patch, target, decisao));
-    const { sanitizeScanPatchNaoEncerrarCarteira } = await import('@/lib/protect-encerrar');
-    Object.assign(patch, sanitizeScanPatchNaoEncerrarCarteira(patch));
     if (decisao.acao === 'auto_encerrar') {
       console.info('[scan-auto-encerrar]', protocolo, decisao.motivo);
     } else if (decisao.acao === 'revisao_fila') {
@@ -786,7 +781,6 @@ export async function auditCaseCoreSystem(
       comunicacoes,
     };
   }
-
 
   // Log visível: auto-encerrar / revisão
   try {
@@ -884,7 +878,7 @@ export async function scanSingleCaseAction(
   }
   if (!empresa_id) return { success: false, error: '401', movimentos: [], comunicacoes: [] };
   const safeEmpresaId = String(empresa_id);
-  // UI pontual: NUNCA fast por padrão — evita "Auditoria indisponível" falso
+
   const useFast = options.fast === true;
   let res = await auditCaseCoreSystem(
     protocolo,
@@ -1112,7 +1106,7 @@ export async function registrarAtendimentoCompletoAction(input: {
       situacao,
       observacao: obs,
       statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico',
-      // preserva prazo se o form não mandou novo; nunca apaga movimento do tribunal
+
       proximoPrazo: prazoNovo,
       ultimoRetorno: patch.ultimoRetorno || hoje || found.ultimoRetorno,
       ultimo_retorno: patch.ultimoRetorno || hoje || found.ultimoRetorno,
@@ -1245,7 +1239,6 @@ export async function fetchCompanyProcessosAction() {
     const ctx = await getUserContext();
     const empresa_id = ctx.empresa_id;
     if (!empresa_id) return empty;
-
 
     // 1) Métricas leves + 2) 1ª página da lista + 3) audit/users — em paralelo
     const { fetchRankingAtendentesEmpresaAction } = await import(
@@ -1664,7 +1657,6 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
     return { success: false, error: e?.message };
   }
 }
-
 
 /**
  * Reclassifica a carteira inteira OFFLINE (sem DataJud).
@@ -2104,7 +2096,6 @@ export async function enriquecerTeorFilaOportunidadeAction(opts?: {
     };
   }
 }
-
 
 /** Próxima página da lista /processos (empresa). onlyAtivos=true por padrão. */
 export async function fetchCompanyProcessosPageAction(opts?: {

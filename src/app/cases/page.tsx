@@ -3,7 +3,6 @@
 import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
@@ -231,7 +230,6 @@ function CasesContent() {
   const auditadosTribunal = useMemo(() => countAuditadosTribunalSemana(cases as any), [cases]);
   const editadosApp = useMemo(() => countEditadosAppSemana(cases as any), [cases]);
   const auditadosHoje = useMemo(() => countAuditadosHoje(cases as any), [cases]);
-  // Fonte única: kpiCarteira.atendidosSemana (mesmo número no Dashboard/Supervisão)
 
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
@@ -478,7 +476,6 @@ function CasesContent() {
     } finally { setIsGeneratingAIDraft(false); }
   };
 
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -683,7 +680,6 @@ function CasesContent() {
     });
     setIsModalOpen(true);
   };
-
 
   const withEncerradoRetorno = (c: LegalCase): LegalCase => {
     const sit = String((c as any).situacao || c.status || '').toUpperCase();
@@ -960,7 +956,6 @@ function CasesContent() {
       }
     }
   };
-
 
   useEffect(() => {
     if (!canAssignOwner) return;

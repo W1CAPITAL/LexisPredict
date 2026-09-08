@@ -407,7 +407,6 @@ export default function SupervisaoPage() {
                   </ScrollArea>
                 </section>
 
-
                 {/* Processos separados por usuário do sistema */}
                 <section className="premium-card overflow-hidden">
                   <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between gap-3 flex-wrap">

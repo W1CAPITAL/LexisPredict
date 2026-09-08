@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Aviso periódico (não bloqueia): banco de dados desativado a partir de 17/09/2026 21:00 BRT.
- * Fecha e reaparece depois de algumas horas — não trava o operador.
- */
-
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
@@ -34,7 +29,7 @@ export function DbSunsetBanner() {
       try {
         const until = Number(localStorage.getItem(LS_DISMISS_UNTIL) || "0");
         const expired = Date.now() >= DEADLINE.getTime();
-        // depois do prazo: sempre visível; antes: só se não estiver no período de dismiss
+
         setVisible(expired || Date.now() >= until);
       } catch {
         setVisible(true);

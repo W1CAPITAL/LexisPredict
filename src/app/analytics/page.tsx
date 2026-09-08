@@ -1,7 +1,6 @@
 "use client";
 import { Dashboard as EfferdPanel } from "@/components/dashboard/efferd-dashboard-panel";
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
@@ -56,7 +55,6 @@ const TOOLTIP_LIGHT = {
 };
 const TOOLTIP_ITEM = { color: '#f8fafc', fontWeight: 700 };
 const TOOLTIP_LABEL = { color: '#e2e8f0', fontWeight: 900, fontSize: 10 };
-
 
 export default function AnalyticsPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);

@@ -1,9 +1,5 @@
 "use client";
 
-/**
- * MetalButton — contraste alto em tema claro, 100% CSS (sem WebGL).
- * Fundo sólido SEMPRE: não depende de shader, então nunca fica invisível.
- */
 import * as React from "react";
 import type { MetalFxPreset, MetalFxVariant } from "metal-fx";
 import { Button, type ButtonProps } from "@/components/ui/button";

@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Contatos observados (Twenty People-like) — só dados já gravados em negócios.
- * Comp AI: não inventa telefone/email.
- */
-
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { CrmShell } from "@/components/crm/crm-shell";
 import { Input } from "@/components/ui/input";

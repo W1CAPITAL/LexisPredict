@@ -1,11 +1,5 @@
 "use server";
 
-/**
- * KPIs /processos alinhados ao Dashboard.
- * ativos = !isCasoEncerrado (inclui via_scan_auto_encerrar).
- * Nunca sobe "sozinho": só muda quando o status de gabinete muda.
- */
-
 import { isCasoEncerrado, isBaixaTribunal } from "@/lib/status-encerrado";
 
 export type ProcessosEmpresaKpis = {

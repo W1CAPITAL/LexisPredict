@@ -225,7 +225,6 @@ export async function generateWhatsAppClaudeDraftAction(input: {
   }
 }
 
-
 /** Grava mensagem enviada via wa.me (sem Evolution) no Supabase. */
 export async function logOutboundWhatsAppAction(to: string, message: string) {
   try {
@@ -248,7 +247,6 @@ export async function logOutboundWhatsAppAction(to: string, message: string) {
     return { success: false, message: e?.message };
   }
 }
-
 
 /** Insere mensagem de teste no Supabase e devolve o resultado (para depurar na UI). */
 export async function testSaveWhatsAppMessageAction(phone: string) {
@@ -274,7 +272,6 @@ export async function testSaveWhatsAppMessageAction(phone: string) {
     last: messages.slice(-3).map((m: any) => m.message_text || m.body),
   };
 }
-
 
 /**
  * Puxa mensagens antigas da Evolution e grava no Supabase (whatsapp_messages).
@@ -359,8 +356,6 @@ export async function importEvolutionHistoryAction(phone: string) {
     };
   }
 }
-
-
 
 /**
  * Importa histórico Evolution de TODOS os telefones da carteira.

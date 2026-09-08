@@ -65,7 +65,6 @@ function pickUltimoRetorno(c: LegalCase): string {
   return String(x.ultimoRetorno || x.ultimo_retorno || x.retorno || "").trim();
 }
 
-/** Nome do ato + data separada — nunca mostrar ISO sozinho como "Tribunal". */
 function pickUltimoMovimento(c: LegalCase): { texto: string; data: string } {
   const x = c as any;
   const candidatos = [

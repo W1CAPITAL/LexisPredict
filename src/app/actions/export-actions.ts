@@ -14,9 +14,6 @@ import { EXPORT_HEADERS, tribunalFromProtocolo } from '@/lib/xlsx-schema';
 
 type Row = Record<string, any>;
 
-/**
- * Registra auditoria de exportação (F1). Nunca derruba o export.
- */
 async function auditarExportacao(tipo: string, cases: Row[], extra: Record<string, any> = {}) {
   try {
     const protocolos = (cases || [])
@@ -286,7 +283,6 @@ export async function exportProcessosProfissionalXlsxAction(filtros?: {
     return { success: false as const, error: e?.message || 'Falha ao gerar XLSX Profissional' };
   }
 }
-
 
 /** Planilha só com colunas operacionais + flags executivas (sem ids internos). */
 export async function exportExecutivoXlsxAction() {

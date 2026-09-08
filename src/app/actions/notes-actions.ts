@@ -49,7 +49,6 @@ function mapNote(r: any) {
   };
 }
 
-/** Lista todas as notas da empresa — nunca lança para a UI */
 export async function getNotesAction() {
   try {
     const rows = await getStoredNotes();

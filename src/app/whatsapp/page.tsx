@@ -110,7 +110,6 @@ function normalizeMovList(movs: any): any[] {
   }));
 }
 
-
 /** Telefone do caso com aliases comuns do banco/CSV */
 function casePhone(c?: { telefone?: string | null; phone?: string | null; celular?: string | null; whatsapp?: string | null } | null) {
   if (!c) return "";
@@ -488,7 +487,6 @@ function WhatsAppTerminalInner() {
       description: "O contato aberto não muda — só a ordem da lateral.",
     });
   };
-
 
   useEffect(() => {
     if (deepLinkDone || loading || !cases.length) return;
@@ -937,7 +935,6 @@ function WhatsAppTerminalInner() {
       setIsGeneratingAIDraft(false);
     }
   };
-
 
   /** Normaliza texto para detectar reenvio idêntico */
   const normMsg = (s: string) =>
@@ -1685,7 +1682,6 @@ function WhatsAppTerminalInner() {
                         </div>
                       </div>
                     )}
-
 
                     {duplicateOutbound ? (
                       <div

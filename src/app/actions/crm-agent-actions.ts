@@ -172,7 +172,6 @@ function formatOutstanding(atrasados: any[], silencio: any[]) {
   return lines.join("\n");
 }
 
-
 /** KPIs reais da carteira jurídica (processos) — não só crm_negocios */
 
 export async function agentCarteiraKpisAction() {
@@ -511,7 +510,6 @@ function answerUserPrompt(opts: {
   return lines.join("\n");
 }
 
-
 /** Run com fallback determinístico + timeout na IA */
 export async function runCrmAgentAction(input: {
   agent_id: CrmAgentId;
@@ -551,7 +549,6 @@ export async function runCrmAgentAction(input: {
       : (kpis as any).error || "falha",
     at: now(),
   });
-
 
   const promptRaw = String(input.prompt || "").trim();
   const q = promptRaw.toLowerCase();
@@ -634,7 +631,6 @@ export async function runCrmAgentAction(input: {
     summary: `prompt_len=${promptRaw.length} agent=${agentId}`,
     at: now(),
   });
-
 
   // Ranking/KPI / "cliente mais vencido": SEMPRE dados (mesmo com checkbox IA).
   // Evita timeout MiniMax e resposta sumir / errada.
@@ -793,7 +789,6 @@ export async function runCrmAgentAction(input: {
     };
   }
 }
-
 
 export async function agentBrasilApiCnpjAction(cnpjRaw: string) {
   const c = await ctx();

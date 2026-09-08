@@ -8,7 +8,6 @@ import { PromptLibraryPanel } from "@/components/ai/prompt-library";
 import { AiInstructionsPanel, buildInstructionsPrefix } from "@/components/ai/ai-instructions";
 import { Typewriter } from "@/components/ui/typewriter";
 
-
 import React, { useState, useRef, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";

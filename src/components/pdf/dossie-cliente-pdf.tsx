@@ -1,20 +1,4 @@
-/**
- * Dossiê operacional estratégico — layout premium LexisPredict
- *
- * Changelog desta revisão:
- * - FIX: texto do DJEN chegava com entidades HTML não decodificadas
- *   (&agrave; / &ecirc; / &ocirc; apareciam literalmente). Agora passa
- *   por decodeHtmlEntities() antes de renderizar.
- * - FIX: rodapé "Página X de Y" era hardcoded (sempre "1 de 2" / "2 de 2").
- *   Agora usa o render-prop do react-pdf para contar páginas de verdade —
- *   importante se o conteúdo crescer e quebrar em 3+ páginas.
- * - FIX: "em atraso" era um texto estático amarrado à regex de status.
- *   Agora calcula os dias reais de atraso a partir de proximoPrazo x geradoEm.
- * - Refactor: componente monolítico quebrado em subcomponentes
- *   (KpiCard, RiskGauge, PriorityPanel, TimelineItem, DjenHighlight, PlanCard).
- * - Robustez: normalização de severidade (acentos/caixa), overflow de
- *   movimentações tratado explicitamente em vez de cortar em 10 silenciosamente.
- */
+
 import React from "react";
 import {
   Page,

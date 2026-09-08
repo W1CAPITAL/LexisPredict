@@ -33,7 +33,6 @@ export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
-
 /** Lista completa (inclui avatar_url) para UI de equipe/supervisão. */
 export async function getEmpresaUsersAction() {
   const users = await getEmpresaUsers();

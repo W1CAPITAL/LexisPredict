@@ -73,7 +73,6 @@ export interface CadastroEnrichResult {
   telefone?: string;
 }
 
-
 function pickAdvogadoFromPartes(partes: any[]): string {
   for (const p of partes || []) {
     const reps = p?.representantes || p?.advogados || p?.advogado || p?.representanteProcessual || [];
@@ -121,7 +120,6 @@ function extractPhoneFromText(text: string): string | null {
   const m = text.match(/(?:\(\d{2}\)\s?)?\d?[\s.-]?\d{4,5}[\s-]?\d{4}(?!\d)/);
   return m ? m[0].replace(/[^\d+]/g, '') : null;
 }
-
 
 /** Limpa nome de parte: corta lixo processual colado pelo DJEN. */
 function cleanParteNome(raw: string): string {
@@ -495,7 +493,6 @@ export async function enrichCadastroByCnjAction(
       cliente = poloAtivo.find((n) => !isBanco(n)) || cliente;
     }
 
-    // 5) Fallback DataJud: DJEN quase nunca traz o polo ativo (só intima o réu)
     if (!cliente || poloAtivo.length === 0) {
       try {
         const { fetchDataJud, extrairPolos } = await import('@/lib/datajud');
@@ -538,8 +535,6 @@ export async function enrichCadastroByCnjAction(
         console.warn('[enrichCadastro] DataJud fallback', e);
       }
     }
-
-
 
     if (!cliente && !parte_passiva && !classe_acao) {
       return {

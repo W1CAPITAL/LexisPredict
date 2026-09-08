@@ -9,7 +9,6 @@ import { useAdmin } from '@/hooks/use-admin';
 
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
-
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -233,7 +232,6 @@ export default function TarefasPage() {
     });
   }, [cases]);
 
-
   // Persistir filtros (não perdem ao trocar de aba)
   useEffect(() => {
     try {
@@ -256,7 +254,6 @@ export default function TarefasPage() {
       );
     } catch { /* ignore */ }
   }, [searchDebounced, officeFilter, lawyerFilter, filaFiltro, sortPrazo]);
-
 
   const adjustMeta = (amount: number) => {
     const newVal = Math.max(10, Math.min(100, dailyMeta + amount));

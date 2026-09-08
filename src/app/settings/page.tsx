@@ -8,7 +8,6 @@ import { PlanosEmpresaPanel } from "@/components/settings/planos-empresa-panel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { PageLoading, PageLoadingBar } from "@/components/ui/page-loading";
 
-
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.

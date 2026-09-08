@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!sheet.ok) {
-      // Fallback: o Supabase continua sendo a fonte operacional. Não avançamos checkpoint.
+
       return NextResponse.json({
         ok: false,
         fallback: "supabase",

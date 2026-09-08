@@ -45,7 +45,6 @@ function protocolVariants(raw: string): string[] {
   return Array.from(new Set(out));
 }
 
-/** Colunas reais da tabela processos (CSV/Supabase). Nunca gravar proximo_prazo. */
 const PROCESSOS_WRITE_COLS = new Set([
   'empresa_id','protocolo_ref','dados','created_by','ultimo_retorno','proximo_retorno',
   'observacoes','status','risco','status_interno','escritorio','advogado','telefone',
@@ -160,19 +159,6 @@ async function persistToDatabase(
     }
   }
 
-  // Dono só muda no fluxo explícito de transferência.
-  if (!processed.__transfer_owner && !processed.force_transfer_owner) {
-    delete payload.created_by;
-    if (existing?.created_by) {
-      mergedDados.created_by = existing.created_by;
-      payload.dados = mergedDados;
-    }
-  }
-  if (payload.created_by === null || payload.created_by === '') {
-    delete payload.created_by;
-  }
-
-  // updated_at é desejável, mas não pode bloquear uma edição se o schema antigo
   // ainda não tiver essa coluna.
   const withUpdated = { ...payload, updated_at: now };
 
@@ -311,7 +297,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       processed.proximoPrazo = dateOrNull((caseData as any).proximoPrazo ?? (caseData as any).proximo_retorno);
       processed.proximo_retorno = processed.proximoPrazo;
     }
-    // Supabase é a fonte operacional. Sheets nunca participa da leitura/decisão de salvamento.
+
     const existing = await loadProcessoRow(empresa_id, processed.protocolo);
 
     const owner = existing?.created_by || existing?.CreatedBy || existing?.createdBy || existing?.dados?.created_by || processed.created_by || null;
@@ -387,7 +373,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
           },
         });
       } catch {
-        // O Postgres continua sendo a fonte operacional.
+
       }
     }
 
@@ -404,10 +390,6 @@ export async function saveManyCasesAction(cases: LegalCase[]): Promise<{ success
   return { success: saved > 0, saved, failed: list.length - saved, message: saved ? `${saved} salvo(s)` : errors[0] || 'Falha ao salvar', error: errors[0] };
 }
 
-/**
- * Fonte única para o botão "Registrar atendimento" em Processos/Cases/Tarefas.
- * Grava retorno, próximo retorno, situação, observação, auditoria e flags em uma única operação.
- */
 export async function registrarAtendimentoCompletoAction(input: {
   protocolo: string;
   situacao?: string;

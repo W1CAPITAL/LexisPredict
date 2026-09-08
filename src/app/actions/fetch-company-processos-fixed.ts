@@ -1,7 +1,4 @@
-/**
- * Substitua a função fetchCompanyProcessosAction em case-actions.ts por esta.
- * Retorna cases + totalCount real (COUNT no banco, nunca cases.length).
- */
+
 "use server";
 
 export async function fetchCompanyProcessosAction() {

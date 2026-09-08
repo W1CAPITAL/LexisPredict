@@ -1,9 +1,4 @@
-/**
- * SNIPPET para colar em case-actions.ts (substituir fetchRepoCases).
- *
- * Antes: wide=true para Administrador → até 2000 × select('*') em páginas de 500.
- * Depois: scope priority (400 cols leves) por padrão; company só se pedido.
- */
+
 
 "use server";
 

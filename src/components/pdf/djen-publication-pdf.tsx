@@ -325,7 +325,6 @@ export type DjenPdfData = {
   claudeEngine?: string | null;
 };
 
-
 function formatTeorForPdf(raw: string): string {
   let s = String(raw || "")
     .replace(/\r/g, "")
@@ -424,7 +423,6 @@ export function DjenPublicationPDF({ data }: { data: DjenPdfData }) {
             ))}
           </View>
         )}
-
 
         {analiseClaude ? (
           <View style={styles.claudeBox}>

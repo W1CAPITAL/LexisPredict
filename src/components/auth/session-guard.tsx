@@ -1,9 +1,5 @@
 "use client";
 
-/**
- * Não bloqueia a UI inteira em "Validando sessão…".
- * Só redireciona se realmente não houver user após o boot.
- */
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";

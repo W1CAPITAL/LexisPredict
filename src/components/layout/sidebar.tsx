@@ -185,7 +185,6 @@ function useNavItems(opts: {
   }, [isAdmin, isSuperAdmin, plan, navPrefs, showMore, query]);
 }
 
-
 function DockItem({
   item,
   active,
@@ -417,7 +416,6 @@ export function SidebarDock() {
       root.style.removeProperty("--lexis-dock-pad");
     };
   }, [pinned]);
-
 
   useEffect(() => {
     try {
@@ -738,7 +736,6 @@ export function SidebarDock() {
     </>
   );
 }
-
 
 /** Export único: dock (padrão) ou vertical conforme Configurações. */
 export function Sidebar() {

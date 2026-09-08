@@ -1,17 +1,5 @@
 "use client";
 
-/**
- * KpiCard — componente unificado para KPIs e metricas.
- * Fase C: mesmo visual em Dashboard, Cases, Agenda, Configuracoes.
- *
- * Regras:
- *  - Label: text-muted-foreground, 11px, bold, uppercase
- *  - Valor: text-foreground, 28px, blackweight, tabular-nums
- *  - Nunca text-white em fundo claro nem text-black em fundo escuro
- *  - Hover: elevacao sutil (translateY -1px)
- *  - Borda: border-border, radius xl
- */
-
 import React from "react";
 import { cn } from "@/lib/utils";
 

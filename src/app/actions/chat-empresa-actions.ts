@@ -174,7 +174,6 @@ export async function quemSouChatAction() {
   return { auth_id: ctx.auth_id, empresa_id: ctx.empresa_id, email: ctx.email };
 }
 
-
 export async function diagnosticoChatAction() {
   const ctx = await ctxOk();
   if (!ctx) return { ok: false, detail: "Sessão sem empresa_id. Entre de novo." };
@@ -195,7 +194,6 @@ export async function diagnosticoChatAction() {
     return { ok: false, detail: e?.message || "erro" };
   }
 }
-
 
 /** Lista threads da empresa (geral + grupos + DMs recentes). */
 export async function listarThreadsChatAction() {
@@ -358,7 +356,6 @@ export async function restaurarMembroListaAction(hiddenAuthUserId: string) {
   return { success: true };
 }
 
-
 /** Apaga o grupo inteiro (admin / criador). */
 export async function apagarGrupoChatAction(threadId: string) {
   const ctx = await ctxOk();
@@ -383,7 +380,6 @@ export async function apagarGrupoChatAction(threadId: string) {
   if (error) return { success: false, message: error.message };
   return { success: true };
 }
-
 
 export async function apagarMensagemChatAction(messageId: string) {
   const ctx = await ctxOk();

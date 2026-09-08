@@ -59,7 +59,6 @@ export async function hybridStatusAction() {
   };
 }
 
-/** Pull é explícito/manual; nunca é executado como efeito colateral do boot. */
 export async function hybridPullCarteiraAction(opts?: { limit?: number }) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return { success: false, rows: [], error: "Sem sessão Supabase" };

@@ -1,11 +1,5 @@
 "use server";
 
-/**
- * Plano B — export pontual do Supabase + leitura de Sheets/CSV.
- * Nunca grava de volta no Supabase automaticamente.
- * Export só roda quando o usuário pedir (não no boot do app).
- */
-
 import {
   fetchPlanoBFromUrl,
   planoBToCsv,

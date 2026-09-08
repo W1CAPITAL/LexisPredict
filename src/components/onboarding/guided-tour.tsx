@@ -335,7 +335,6 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-
 export function GuidedTour() {
   const router = useRouter();
   const pathname = usePathname();
