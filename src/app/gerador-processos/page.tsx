@@ -15,12 +15,15 @@ import {
 } from "@/lib/revisional-tribunal-filtros";
 import { Download, Loader2, Search, ExternalLink, Copy, Check, Square, Phone, Mail } from "lucide-react";
 
-const JANELAS_DIAS = [7, 14, 30, 60, 90];
 const MAX_PAG_POR_QUERY = 25;
+const isoHoje = () => new Date().toISOString().slice(0, 10);
+const isoInicioPadrao = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
 export default function GeradorProcessosPage() {
   const [alvo, setAlvo] = useState("60");
   const [tribunal, setTribunal] = useState("TJSP");
+  const [dataInicio, setDataInicio] = useState(isoInicioPadrao);
+  const [dataFim, setDataFim] = useState(isoHoje);
   const [ativos, setAtivos] = useState<FiltroRevisionalId[]>(() => filtrosDefaultOn());
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
@@ -28,7 +31,7 @@ export default function GeradorProcessosPage() {
   const [exp, setExp] = useState(false);
   const [qLocal, setQLocal] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
-  const [enrichOn, setEnrichOn] = useState(true);
+  const [enrichOn, setEnrichOn] = useState(false);
   const [enrichCfg, setEnrichCfg] = useState<{ ready: boolean; enabled: boolean; urlSet: boolean; tokenSet: boolean } | null>(null);
   const stopRef = useRef(false);
   const logEnd = useRef<HTMLDivElement>(null);
@@ -53,6 +56,10 @@ export default function GeradorProcessosPage() {
 
   const iniciarScan = async () => {
     const target = Math.min(Math.max(parseInt(alvo, 10) || 60, 1), 500);
+    if (!dataInicio || !dataFim || dataInicio > dataFim) {
+      pushLogs([{ ts: "", level: "err", text: "Escolha um intervalo válido: início deve ser anterior ao fim." }]);
+      return;
+    }
     if (!ativos.length) {
       pushLogs([{ ts: "", level: "err", text: "Marque pelo menos um filtro." }]);
       return;
@@ -84,9 +91,9 @@ export default function GeradorProcessosPage() {
     const byCnj = new Map<string, ProcessoDjenReal>();
     const nQueries = FILTROS_REVISIONAL.filter((f) => ativos.includes(f.id)).length;
 
-    outer: for (const dias of JANELAS_DIAS) {
+    outer: for (const janela of [{ dataInicio, dataFim }]) {
       if (stopRef.current || byCnj.size >= target) break;
-      pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "info", text: `— Janela ${dias}d · ${byCnj.size}/${target} —` }]);
+      pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "info", text: `— Intervalo ${janela.dataInicio} até ${janela.dataFim} · ${byCnj.size}/${target} —` }]);
 
       for (let qi = 0; qi < nQueries; qi++) {
         if (stopRef.current || byCnj.size >= target) break outer;
@@ -98,8 +105,9 @@ export default function GeradorProcessosPage() {
             filtros: ativos,
             queryIndex: qi,
             pagina,
-            dias,
-            siglaTribunal: tribunal.trim() || undefined,
+              dataInicio: janela.dataInicio,
+              dataFim: janela.dataFim,
+              siglaTribunal: tribunal.trim() || undefined,
             excludeCnjs: [...byCnj.keys()],
             enrich: willEnrich,
           });
@@ -115,7 +123,8 @@ export default function GeradorProcessosPage() {
               filtros: ativos,
               queryIndex: qi,
               pagina,
-              dias,
+              dataInicio: janela.dataInicio,
+              dataFim: janela.dataFim,
               siglaTribunal: tribunal.trim() || undefined,
               excludeCnjs: [...byCnj.keys()],
               enrich: willEnrich,
@@ -143,7 +152,9 @@ export default function GeradorProcessosPage() {
 
           if (!res.hasMore && res.bruto < 80) break;
           pagina += 1;
-          await new Promise((r) => setTimeout(r, 160));
+          // O scanner é deliberadamente serial: uma comunicação por segundo,
+          // com progresso e log somente após a resposta real do DJEN.
+          await new Promise((r) => setTimeout(r, 1000));
         }
       }
       if (byCnj.size >= target) break;
@@ -219,6 +230,14 @@ export default function GeradorProcessosPage() {
             <label className="space-y-0.5">
               <span className="text-[9px] font-black uppercase text-muted-foreground">Tribunal</span>
               <Input className="h-9 w-24 uppercase" value={tribunal} onChange={(e) => setTribunal(e.target.value)} />
+            </label>
+            <label className="space-y-0.5">
+              <span className="text-[9px] font-black uppercase text-muted-foreground">Início</span>
+              <Input className="h-9 w-36" type="date" value={dataInicio} max={dataFim} onChange={(e) => setDataInicio(e.target.value)} />
+            </label>
+            <label className="space-y-0.5">
+              <span className="text-[9px] font-black uppercase text-muted-foreground">Fim</span>
+              <Input className="h-9 w-36" type="date" value={dataFim} min={dataInicio} max={isoHoje()} onChange={(e) => setDataFim(e.target.value)} />
             </label>
             <label className="flex items-center gap-2 h-9 px-2 rounded-lg border border-border/50 text-xs cursor-pointer">
               <input type="checkbox" checked={enrichOn} onChange={(e) => setEnrichOn(e.target.checked)} />

@@ -26,6 +26,7 @@ import { TermsOfServiceContent } from "@/components/legal/TermsOfServiceContent"
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { PLAN_IDS, PLAN_LABEL, type PlanId } from "@/lib/planos-pacotes";
+import { PLANOS_PRECOS, formatBRL, mensalDoAnual, economiaAnual } from "@/lib/planos-precos";
 import { cn } from "@/lib/utils";
 import {
   Building2,
@@ -286,21 +287,33 @@ export default function SignupPage() {
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <CreditCard size={14} /> Escolha o plano. O acesso só libera após o Superadmin confirmar o pagamento.
               </p>
-              <div className="grid gap-2">
-                {PLAN_IDS.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => set("plan", id)}
-                    className={cn(
-                      "text-left rounded-xl border p-3 transition-all duration-300 hover:scale-[1.01]",
-                      form.plan === id ? "border-primary bg-primary/10 shadow-md" : "border-border hover:bg-muted/40"
-                    )}
-                  >
-                    <p className="text-sm font-black">{PLAN_LABEL[id] || id}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{id}</p>
-                  </button>
-                ))}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {PLAN_IDS.map((id) => {
+                  const plano = PLANOS_PRECOS[id];
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => set("plan", id)}
+                      aria-pressed={form.plan === id}
+                      className={cn(
+                        "text-left rounded-xl border p-3 transition-all duration-300 hover:-translate-y-0.5",
+                        form.plan === id ? "border-primary bg-primary/10 shadow-md ring-1 ring-primary/30" : "border-border hover:bg-muted/40"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-black">{PLAN_LABEL[id]}</p>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">{plano.tagline}</p>
+                        </div>
+                        {plano.selo && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-black text-primary">{plano.selo}</span>}
+                      </div>
+                      <p className="mt-2 text-base font-black">{formatBRL(plano.valorMensal)}<span className="text-[10px] font-normal text-muted-foreground">/mês</span></p>
+                      <p className="text-[10px] text-muted-foreground">ou {formatBRL(mensalDoAnual(id))}/mês no anual · economize {formatBRL(economiaAnual(id))}</p>
+                      <p className="mt-2 text-[10px] text-muted-foreground">{plano.beneficios.slice(0, 3).join(" · ")}</p>
+                    </button>
+                  );
+                })}
               </div>
               <details className="text-[10px] text-muted-foreground">
                 <summary className="cursor-pointer font-bold">Token interno (só equipe Lexis)</summary>
