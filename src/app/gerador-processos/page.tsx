@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { scanDjenPaginaAction, scanAleatorioDjenAction } from "@/app/actions/gerador-djen-action";
+import { scanDjenPaginaAction, scanAleatorioDjenAction, scanCarteiraDjenAction } from "@/app/actions/gerador-djen-action";
 import { sherlockBuscarPorNomeAction, sherlockStatusAction } from "@/app/actions/sherlock-action";
 import {
   FILTROS_STATUS,
@@ -17,6 +17,7 @@ import {
   type ScanLogLine,
 } from "@/lib/revisional-tribunal-filtros";
 import { Download, Loader2, Search, ExternalLink, Square } from "lucide-react";
+import { SherlockPanel } from "@/components/sherlock-panel";
 
 const isoHoje = () => new Date().toISOString().slice(0, 10);
 const isoIni = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -47,13 +48,13 @@ export default function GeradorProcessosPage() {
   const [statusOn, setStatusOn] = useState<FiltroStatusId[]>(() => filtrosDefaultStatus());
   const [materiaOn, setMateriaOn] = useState<FiltroMateriaId[]>(() => filtrosDefaultMateria());
   const [cnpj, setCnpj] = useState("");
-  const [modo, setModo] = useState<"aleatorio" | "texto">("aleatorio");
+  const [modo, setModo] = useState<"carteira" | "aleatorio" | "texto">("carteira");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [sherlockReady, setSherlockReady] = useState(false);
   const [sherlockBusy, setSherlockBusy] = useState<string | null>(null);
-  const [sherlockHits, setSherlockHits] = useState<Record<string, { site: string; url: string; username: string }[]>>({});
+  const [sherlockHits, setSherlockHits] = useState<Record<string, { site: string; url: string; username?: string }[]>>({});
   const stopRef = useRef(false);
   const logEnd = useRef<HTMLDivElement>(null);
 
@@ -86,7 +87,7 @@ export default function GeradorProcessosPage() {
       },
     ]);
 
-    const by = new Map<string, ProcessoDjenReal[]>([]);
+    const by = new Map<string, ProcessoDjenReal>();
     const add = (items: ProcessoDjenReal[]) => {
       let n = 0;
       for (const it of items) {
@@ -100,7 +101,26 @@ export default function GeradorProcessosPage() {
       return n;
     };
 
-    if (modo === "texto") {
+    if (modo === "carteira") {
+      let offset = 0;
+      while (by.size < target && !stopRef.current) {
+        const res = await scanCarteiraDjenAction({
+          statusFiltros: statusOn,
+          materiaFiltros: materiaOn,
+          dataInicio,
+          dataFim,
+          siglaTribunal: tribunal || undefined,
+          excludeCnjs: [...by.keys()],
+          cnpj: cnpj.replace(/\D/g, "") || undefined,
+          limit: 1,
+          offset,
+        });
+        pushLogs(res.logs || []);
+        add(res.items || []);
+        if (res.geoBlocked || res.rateLimited || !res.hasMore) break;
+        offset += 1;
+      }
+    } else if (modo === "texto") {
       for (let qi = 0; qi < 8 && by.size < target && !stopRef.current; qi++) {
         const res = await scanDjenPaginaAction({
           statusFiltros: statusOn,
@@ -128,8 +148,9 @@ export default function GeradorProcessosPage() {
       }
     }
 
-    let wait429 = 8000;
-    for (let i = 0; i < 80 && by.size < target && !stopRef.current; i++) {
+    if (modo === "aleatorio") {
+      let wait429 = 8000;
+      for (let i = 0; i < 80 && by.size < target && !stopRef.current; i++) {
       const res = await scanAleatorioDjenAction({
         statusFiltros: statusOn,
         materiaFiltros: materiaOn,
@@ -165,6 +186,7 @@ export default function GeradorProcessosPage() {
               text: `${by.size}/${target}  (+${n} fora da carteira)`,
             },
           ]);
+      }
       }
     }
 
@@ -241,9 +263,10 @@ export default function GeradorProcessosPage() {
               }}
             />
             <Input className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
-            <select className="h-9 border rounded-md px-2 text-xs bg-background" value={modo} onChange={(e) => setModo(e.target.value as any)}>
-              <option value="aleatorio">Aleatório (fora da carteira)</option>
-              <option value="texto">Só texto DJEN (costuma WAF)</option>
+            <select className="h-9 border rounded-md px-2 text-xs bg-background" value={modo} onChange={(e) => setModo(e.target.value as typeof modo)}>
+              <option value="carteira">Carteira · DJEN por CNJ (recomendado)</option>
+              <option value="aleatorio">Aleatório · CNJ sorteado (experimental)</option>
+              <option value="texto">Só texto DJEN (pode ser bloqueado)</option>
             </select>
             {!busy ? (
               <Button onClick={iniciar} className="h-9 text-xs font-black uppercase gap-1">
@@ -255,6 +278,9 @@ export default function GeradorProcessosPage() {
               </Button>
             )}
           </div>
+          <section className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-3">
+            <SherlockPanel compact />
+          </section>
           <p className="text-[11px] font-mono font-bold">
             {lista.length}/{alvo} {busy && <Loader2 className="w-3 h-3 inline animate-spin" />}
           </p>
