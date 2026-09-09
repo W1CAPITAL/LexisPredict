@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="docs/assets/lexis-graph-hero.svg" alt="LexisPredict" width="100%" />
+  <a href="https://w1capital.github.io/LexisPredict/">
+    <img src="docs/assets/lexis-graph-hero.svg" alt="LexisPredict — clique para abrir o mapa graphify interativo" width="100%" />
+  </a>
 </p>
 
 <p align="center">
@@ -9,12 +11,14 @@
 </p>
 
 <p align="center">
+  <a href="https://w1capital.github.io/LexisPredict/">
+    <img alt="Mapa ao vivo" src="https://img.shields.io/badge/🗺️_mapa_graphify-ABRIR_AO_VIVO-4E79A7?style=for-the-badge&labelColor=0B1220" />
+  </a>
   <img alt="License" src="https://img.shields.io/badge/license-Proprietary-0B1220?style=for-the-badge&labelColor=111827" />
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=nextdotjs&logoColor=white" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
   <img alt="Postgres" src="https://img.shields.io/badge/Postgres-multi--tenant-3FCF8E?style=for-the-badge&logo=postgresql&logoColor=white" />
-  <img alt="Status" src="https://img.shields.io/badge/web-operacional-22D3EE?style=for-the-badge&labelColor=0B1220" />
-  <img alt="Graphify" src="https://img.shields.io/badge/graphify-4.3k_nós_·_13.5k_arestas-4E79A7?style=for-the-badge&labelColor=0B1220" />
+  <img alt="Graphify" src="https://img.shields.io/badge/graphify-4.3k_nós_·_13.5k_arestas-22D3EE?style=for-the-badge&labelColor=0B1220" />
   <img alt="Offline" src="https://img.shields.io/badge/offline-EXE_v5+-5EEAD4?style=for-the-badge&labelColor=0B1220" />
 </p>
 
@@ -24,12 +28,80 @@
   <a href="#-para-quem">Para quem</a> ·
   <a href="#-web-vs-offline">Web vs Offline</a> ·
   <a href="#-módulos">Módulos</a> ·
-  <a href="#-mapa-graphify-do-código">Mapa graphify</a> ·
+  <a href="#-mapa-graphify-ao-vivo">Mapa graphify</a> ·
   <a href="#-planilha--crm">Planilha & CRM</a> ·
   <a href="#-arquitetura">Arquitetura</a> ·
   <a href="#-começar">Começar</a> ·
   <a href="#-licença">Licença</a>
 </p>
+
+---
+
+## Mapa graphify ao vivo
+
+> **GitHub não executa JavaScript dentro do README.**  
+> Por isso o grafo interativo (busca, comunidades, inspeção de nós) roda em **GitHub Pages**, ligado ao README pelo banner e pelo botão acima — um clique e o mapa abre **já rodando**.
+
+<p align="center">
+  <a href="https://w1capital.github.io/LexisPredict/">
+    <img src="docs/assets/lexis-code-density.svg" alt="Densidade do código — clique para o grafo interativo" width="100%" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://w1capital.github.io/LexisPredict/"><strong>⟶ Abrir mapa interativo (4.378 nós · 13.547 arestas · 225 comunidades)</strong></a>
+</p>
+
+| Métrica | Valor |
+| ------- | ----- |
+| **Nós** | 4.378 |
+| **Arestas** | 13.547 |
+| **Comunidades** | 225 |
+| **Arquivo** | `docs/assets/graph.html` |
+| **URL ao vivo** | [w1capital.github.io/LexisPredict](https://w1capital.github.io/LexisPredict/) |
+
+### Densidade (onde mexer com cuidado)
+
+| Pasta | ~símbolos | Papel |
+| ----- | --------- | ----- |
+| `src/lib` | **2.142** | Núcleo de domínio |
+| `src/app` | **912** | Rotas Next |
+| `src/components` | **866** | UI |
+| `src/app/actions` | **495** | Server actions |
+| `src/components/ui` | **372** | Design system |
+| `src/lib/ai` | **159** | IA / motores |
+| `src/lib/data-provider` | **58** | Provider / sync |
+| `src/lib/hybrid` | **34** | Hybrid / Sheets (Plano B) |
+
+### Paleta (mesmo visual do grafo)
+
+| | Hex | Leitura |
+|--|-----|---------|
+| 🔵 | `#4E79A7` | Núcleo / lib |
+| 🟠 | `#F28E2B` | App / rotas |
+| 🔴 | `#E15759` | Componentes |
+| 🩵 | `#76B7B2` | Actions |
+| 🟢 | `#59A14F` | UI kit |
+| 🟡 | `#EDC948` | IA |
+| 🟣 | `#B07AA1` | Data provider |
+| 🌸 | `#FF9DA7` | Hybrid |
+
+### Ativar o mapa ao vivo (uma vez)
+
+1. Coloque o HTML do graphify em **`docs/assets/graph.html`**
+2. Repo → **Settings → Pages → Source: GitHub Actions**
+3. Push do workflow `pages-docs.yml` (já no pacote) + pasta `docs/`
+4. URL: `https://w1capital.github.io/LexisPredict/`  
+   (se o nome do repo/org for outro, ajuste o link no README)
+
+Local sem Pages:
+
+```bash
+npx --yes serve docs -p 5180
+# http://localhost:5180/  ou  /assets/graph.html
+```
+
+O mapa **não** entra no app Lexis (Vercel) — só documentação.
 
 ---
 
@@ -64,8 +136,6 @@ Assessoria que opera **revisional / volume** não precisa de mais um funil bonit
 **LexisPredict (web)** — sistema diário da assessoria: carteira, filas, atendimento, DataJud/DJEN, peças, dossiê, CRM operacional e supervisão.
 
 **LexisPredict Offline** — EXE Windows ([OFFLINE-LEXISPREDICT](https://github.com/W1CAPITAL/OFFLINE-LEXISPREDICT)): login local, planilha/JSON, DataJud/DJEN com internet. Paridade com o web: *em evolução*.
-
-No app: rota `/offline` + anúncio na abertura / pós-atualização.
 
 ---
 
@@ -112,94 +182,16 @@ Não é HubSpot. Não é PJe. É **gabinete + operação**.
 
 ---
 
-## Mapa graphify do código
-
-O código do Lexis foi mapeado com **graphify** (rede de símbolos e dependências).  
-Isso **não roda dentro do produto** — vive na documentação, para quem desenvolve e decide onde mexer.
-
-<p align="center">
-  <img src="docs/assets/lexis-code-density.svg" alt="Densidade do código Lexis" width="100%" />
-</p>
-
-| Métrica | Valor |
-| ------- | ----- |
-| **Nós** | 4.378 |
-| **Arestas** | 13.547 |
-| **Comunidades** | 225 |
-
-### Onde está o peso real
-
-| Pasta | ~símbolos | Papel |
-| ----- | --------- | ----- |
-| `src/lib` | **2.142** | Núcleo de domínio |
-| `src/app` | **912** | Rotas Next |
-| `src/components` | **866** | UI |
-| `src/app/actions` | **495** | Server actions |
-| `src/components/ui` | **372** | Design system |
-| `src/lib/ai` | **159** | IA / motores |
-| `src/lib/data-provider` | **58** | Provider / sync |
-| `src/lib/hybrid` | **34** | Hybrid / Sheets (Plano B) |
-
-### Paleta das comunidades (mesmo visual do grafo)
-
-| Cor | Hex | Uso sugerido na leitura do mapa |
-| --- | --- | -------------------------------- |
-| 🔵 | `#4E79A7` | Núcleo / lib dominante |
-| 🟠 | `#F28E2B` | App / rotas |
-| 🔴 | `#E15759` | Componentes |
-| 🩵 | `#76B7B2` | Actions |
-| 🟢 | `#59A14F` | UI kit |
-| 🟡 | `#EDC948` | IA |
-| 🟣 | `#B07AA1` | Data provider |
-| 🌸 | `#FF9DA7` | Hybrid |
-
-### Grafo interativo (fora do app)
-
-O HTML completo do graphify fica em:
-
-```text
-docs/assets/graph.html
-```
-
-Abra no navegador (arquivo local ou GitHub Pages / raw estático).  
-Busca de nós, legenda de comunidades, inspeção de grau e arquivo de origem — **só documentação**, zero impacto no runtime do Lexis.
-
-```bash
-# opcional: servir local
-npx --yes serve docs/assets -p 5180
-# abrir http://localhost:5180/graph.html
-```
-
-> **Por que existe o mapa:** lotes grandes em `src/lib` e `src/app/actions` mexem no coração do produto. O grafo mostra acoplamento antes de “melhorar tudo de uma vez”.
-
----
-
 ## Planilha & CRM
 
-A estratégia do Lexis é **não transformar Google Apps Script no centro do produto**.
-
-### Caminho principal (recomendado)
+**Postgres = fonte da verdade.** Planilha = espelho / arquivo de trabalho.
 
 ```text
-Operação no Lexis (web)
-        │
-        ▼
-Postgres (fonte da verdade)
-        │
-        ├── Export XLSX / CSV → Excel ou Google Sheets
-        └── Import de volta pelo CRM / Import → carteira atualizada
+Lexis (web) → Postgres → Export XLSX/CSV → Excel/Sheets
+                 ↘ Import pelo CRM ← edição humana
 ```
 
-- Planilha = espelho e arquivo de trabalho (BKO / sócio)
-- Zero webhook Google na rotina diária de atendimento
-
-### Caminho opcional (Plano B)
-
-```text
-Lexis ↔ Apps Script (opcional) ↔ Google Sheets
-```
-
-Só se a equipe **explicitamente** precisar de 2 vias automáticas. Documentado no repo offline. **Não é requisito** do web com Postgres.
+Apps Script só como **Plano B** opcional (legado offline). Nunca no caminho feliz do atendimento.
 
 | Objetivo | Preferir |
 | -------- | -------- |
@@ -217,20 +209,20 @@ UI (Next.js 15)
   → Server Actions
   → Postgres (Supabase) · empresa_id · created_by · atendido_por
   → DataJud / DJEN / KPIs
-  → CRM export/import (planilha humana)
+  → CRM export/import
   → [opcional] Apps Script ↔ Sheets
 ```
 
-**Regras de ouro da carteira**
+**Regras de ouro**
 
-- **Dono** = `created_by` (carteira do operador)
-- **Crédito de atendimento** = `atendido_por` / log (ranking)
+- **Dono** = `created_by`
+- **Crédito de atendimento** = `atendido_por` / log
 - **Atender não troca o dono**
 - Ranking da semana = log (`pessoa + CNJ` único)
 
 ---
 
-## Notas honestas (produto sério)
+## Notas honestas
 
 | Assunto | Verdade |
 | ------- | ------- |
@@ -238,10 +230,8 @@ UI (Next.js 15)
 | DJEN | Pode 403 / HTML / rate limit · lote sequencial |
 | Heurística de encerramento | Apoio operacional · **não** é certidão |
 | IA | Depende de cota / motor configurado |
-| Apps Script | Opcional · cotas Google · não escala como SQL |
-| Graphify | Mapa de código · **não** feature de usuário final |
-
-Software jurídico não pode fingir que atalho é certidão.
+| Apps Script | Opcional · não escala como SQL |
+| Graphify | **Ao vivo no Pages** · não feature do app |
 
 ---
 
@@ -251,20 +241,16 @@ Software jurídico não pode fingir que atalho é certidão.
 git clone https://github.com/W1CAPITAL/LexisPredict.git
 cd LexisPredict
 npm install
-cp .env.example .env.local   # Supabase / chaves
+cp .env.example .env.local
 npm run dev
 ```
 
 ```bash
-npm run typecheck
-npm run build
+npm run typecheck && npm run build
 ```
 
-**Produção:** deploy Vercel · variáveis Supabase + DataJud.
-
-**Offline:** [OFFLINE-LEXISPREDICT](https://github.com/W1CAPITAL/OFFLINE-LEXISPREDICT).
-
-**Mapa do código:** abra `docs/assets/graph.html` no browser.
+**Mapa ao vivo:** [w1capital.github.io/LexisPredict](https://w1capital.github.io/LexisPredict/)  
+**Offline:** [OFFLINE-LEXISPREDICT](https://github.com/W1CAPITAL/OFFLINE-LEXISPREDICT)
 
 ---
 
@@ -273,7 +259,7 @@ npm run build
 1. Contagens idênticas em painel, `/processos` e relatório  
 2. Offline: paridade de atendimento + export/import estável  
 3. Sync web ↔ EXE sem duplicar CNJ  
-4. Apps Script apenas como adaptador opcional — nunca como núcleo  
+4. Apps Script apenas adaptador opcional — nunca núcleo  
 
 ---
 
@@ -284,9 +270,9 @@ npm run build
 | Centro | Lead / deal | **Processo · CNJ · prazo** |
 | Usuário | Vendas | **Operador, BKO, supervisor jurídico** |
 | Rotina | Funil | **Retorno, vencidos, tribunal, ranking** |
-| Planilha | “Integração” genérica | **Export/CRM nativo · Sheet só se quiser** |
+| Planilha | Integração genérica | **Export/CRM nativo** |
 | Offline | Raro | **EXE Windows real** |
-| Transparência técnica | Caixa-preta | **Graphify 4k nós na documentação** |
+| Código | Caixa-preta | **Graphify ao vivo na doc** |
 
 ---
 
@@ -296,11 +282,11 @@ Copyright © 2026 **Davi Alves Figueredo** / **W1 Capital Assessoria Financeira 
 
 Software **proprietário**. Proibida cópia, redistribuição ou exploração comercial sem autorização escrita.
 
-**Contato comercial / demo:** [w1capitalassessoria@protonmail.com](mailto:w1capitalassessoria@protonmail.com)
+**Contato:** [w1capitalassessoria@protonmail.com](mailto:w1capitalassessoria@protonmail.com)
 
 ---
 
 <p align="center">
-  <sub>LexisPredict · W1 Capital · Gabinete digital para quem opera de verdade</sub><br/>
-  <sub>Código mapeado · operação primeiro · planilha como espelho</sub>
+  <a href="https://w1capital.github.io/LexisPredict/">🗺️ Abrir mapa graphify ao vivo</a><br/>
+  <sub>LexisPredict · W1 Capital · Gabinete digital para quem opera de verdade</sub>
 </p>
