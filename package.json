@@ -13,7 +13,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "security": "node scripts/security-scan.mjs"
+    "security": "node scripts/security-scan.mjs",
+    "autoimprove": "node scripts/selfimprove/cycle.mjs --publicar",
+    "autoimprove:rapido": "node scripts/selfimprove/cycle.mjs --publicar --sem-testes",
+    "autoimprove:publicar": "node scripts/selfimprove/publish.mjs"
   },
   "dependencies": {
     "@heyputer/puter.js": "^2.1.0",
