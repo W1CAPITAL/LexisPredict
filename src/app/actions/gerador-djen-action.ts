@@ -13,6 +13,7 @@ import {
   formatCnjMasked,
   isSegredoOuSigilo,
   teorConsultavel,
+  classificarSentenca,
   type FiltroStatusId,
   type FiltroMateriaId,
   type ProcessoDjenReal,
@@ -36,6 +37,15 @@ function toRow(it: any, digits: string, gate: any, sigla?: string): ProcessoDjen
     .map((id: string) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal)
     .filter(Boolean)
     .join(" · ");
+  const decisao = classificarSentenca(String(it.texto || ""));
+  const decisaoLabel = {
+    extinto_sem_merito: "Extinto sem resolução do mérito",
+    extinto_com_merito: "Extinto com resolução do mérito",
+    procedente: "Sentença procedente",
+    improcedente: "Sentença improcedente",
+    procedente_parcial: "Sentença procedente em parte",
+    nao_classificada: "Sentença não classificada",
+  }[decisao];
   return {
     processo: formatCnjMasked(digits),
     nome_completo:
@@ -54,8 +64,8 @@ function toRow(it: any, digits: string, gate: any, sigla?: string): ProcessoDjen
     enrich_fonte: "",
     classe: String(it.nomeClasse || "").trim(),
     assunto_ou_teor: String(it.texto || "").replace(/\s+/g, " ").trim().slice(0, 240),
-    situacao_hint: [statusLabel, matLabel].filter(Boolean).join(" · "),
-    status_detectado: gate.status || "",
+    situacao_hint: [statusLabel, matLabel, decisaoLabel].filter(Boolean).join(" · "),
+    status_detectado: gate.status || decisao,
     tribunal: String(it.siglaTribunal || sigla || "").toUpperCase(),
     data: String(it.data_disponibilizacao || "").slice(0, 10),
     link: buildLink(it, digits),
@@ -288,10 +298,14 @@ export async function scanCarteiraDjenAction(input: {
       const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
       if (isSegredoOuSigilo(blob) || !teorConsultavel(it.texto)) continue;
       if (cnpjFilter && !textoTemCnpj(blob, cnpjFilter)) continue;
-      const gate = passaFiltrosCombinados(blob, statusAtivos, materiaAtivos);
-      if (!gate.ok) continue;
-      const digits = extractCnjSeguro(it.numero_processo, it.texto, { siglaTribunal: sigla }) || proto;
-      items.push(toRow(it, digits, gate, sigla));
+    const gate = passaFiltrosCombinados(blob, statusAtivos, materiaAtivos);
+    if (!gate.ok) continue;
+    if (!extractNomeCompletoFromDjen({ texto: it.texto, destinatarios: it.destinatarios })) {
+      logs.push(log("skip", `CNJ ${formatCnjMasked(proto)} · publicação sem nome de parte`));
+      continue;
+    }
+    const digits = extractCnjSeguro(it.numero_processo, it.texto, { siglaTribunal: sigla }) || proto;
+    items.push(toRow(it, digits, gate, sigla));
       exclude.add(digits);
       break;
     }
