@@ -60,17 +60,32 @@ export function normMatch(s: string): string {
   return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
 }
 
-const RE_SEM = /sem\s+resolu[cç][aã]o\s+do\s+m[eé]rito|art\.?\s*485\b|artigo\s*485/i;
-const RE_COM = /com\s+resolu[cç][aã]o\s+do\s+m[eé]rito|art\.?\s*487\b/i;
+const RE_SEM = /sem\s+resolucao\s+do\s+merito|art\.?\s*485\b|artigo\s*485/i;
+const RE_COM = /com\s+resolucao\s+do\s+merito|art\.?\s*487\b/i;
 const RE_ENC = /\barquiv|\bbaixad|tr[aâ]nsito\s+em\s+julgado|processo\s+encerrad/i;
+
+export type ResultadoSentenca = "extinto_sem_merito" | "extinto_com_merito" | "procedente" | "improcedente" | "procedente_parcial" | "nao_classificada";
+
+/** Classifica apenas quando o teor traz linguagem decisória verificável. */
+export function classificarSentenca(texto: string): ResultadoSentenca {
+  const t = normMatch(texto);
+  if (!/(sentenca|julgo|resolucao do merito|extincao|extinto|art\\.?\\s*485|art\\.?\\s*487)/i.test(t)) return "nao_classificada";
+  if (RE_SEM.test(t) || /extincao.*sem resolucao|extinto.*sem resolucao/i.test(t)) return "extinto_sem_merito";
+  if (RE_COM.test(t) || /extincao.*com resolucao|extinto.*com resolucao/i.test(t)) return "extinto_com_merito";
+  if (/parcialmente procedente|procedente em parte/i.test(t)) return "procedente_parcial";
+  if (/julgo improcedente|sentenca.*improcedente|pedido[s]?\s+improcedente/i.test(t)) return "improcedente";
+  if (/julgo procedente|sentenca.*procedente|pedido[s]?\s+procedente/i.test(t)) return "procedente";
+  return "nao_classificada";
+}
 
 export function detectStatus(texto: string): FiltroStatusId | null {
   const t = String(texto || "");
-  if (RE_SEM.test(t)) return "extinto_sem_merito";
-  if (RE_COM.test(t)) return "extinto_com_merito";
+  const decisao = classificarSentenca(t);
+  if (decisao === "extinto_sem_merito") return decisao;
+  if (decisao === "extinto_com_merito") return decisao;
   if (RE_ENC.test(t)) return "encerrado";
   if (/extin[cç][aã]o|extinto/i.test(t)) return "encerrado";
-  return "ativo";
+  return /intime-se|prosiga-se|andamento/i.test(t) ? "ativo" : null;
 }
 
 export function matchMateria(texto: string, ativos: FiltroMateriaId[]): FiltroMateriaId[] {

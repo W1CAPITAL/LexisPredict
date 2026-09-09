@@ -96,6 +96,14 @@ export async function sherlockLookupUsername(username: string): Promise<{
       error: "Sherlock desligado ou sem SHERLOCK_API_URL (opcional).",
     };
   }
+  if (process.env.NODE_ENV === "production" && sherlockIsLocalhostUrl(base)) {
+    return {
+      ok: false,
+      username,
+      hits: [],
+      error: "API local indisponível em produção; configure SHERLOCK_API_URL com uma URL pública HTTPS.",
+    };
+  }
   const pathTpl = String(process.env.SHERLOCK_API_PATH || "/api/v1/username/{username}");
   const url = `${base}${pathTpl.replace("{username}", encodeURIComponent(username))}`;
   const timeoutMs = Math.min(

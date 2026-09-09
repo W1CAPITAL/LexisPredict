@@ -83,7 +83,7 @@ export default function GeradorProcessosPage() {
       {
         ts: new Date().toISOString().slice(11, 19),
         level: "info",
-        text: `Alvo ${target} · ${modo} · ${tribunal} · NÃO varre a carteira`,
+        text: `Alvo ${target} · ${modo} · ${tribunal} · intervalo ${dataInicio} até ${dataFim}`,
       },
     ]);
 
@@ -117,7 +117,7 @@ export default function GeradorProcessosPage() {
         });
         pushLogs(res.logs || []);
         add(res.items || []);
-        if (res.geoBlocked || res.rateLimited || !res.hasMore) break;
+        if (!res.success || res.geoBlocked || res.rateLimited || !res.hasMore) break;
         offset += 1;
       }
     } else if (modo === "texto") {
@@ -195,7 +195,7 @@ export default function GeradorProcessosPage() {
       {
         ts: new Date().toISOString().slice(11, 19),
         level: by.size ? "ok" : "warn",
-        text: `Fim · ${by.size}/${target} · origem: CNJ sorteado, não a carteira`,
+        text: `Fim · ${by.size}/${target} · origem: ${modo === "carteira" ? "carteira consultada por CNJ" : modo === "aleatorio" ? "CNJ sorteado" : "consulta textual DJEN"}`,
       },
     ]);
     setBusy(false);
@@ -208,8 +208,7 @@ export default function GeradorProcessosPage() {
         <div className="p-4 border-b space-y-3 shrink-0 overflow-y-auto max-h-[48vh]">
           <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
           <p className="text-xs text-muted-foreground">
-            Sorteia CNJ do tribunal e consulta o DJEN por número. Não abre processo da carteira.
-            A carteira só serve para não repetir o que você já tem.
+            Consulta processos reais no DJEN dentro do intervalo selecionado. No modo Carteira, lê cada registro salvo da sua empresa, um por vez, e consulta o CNJ correspondente. Não há dados fictícios nem garantia de preencher o alvo.
           </p>
           <div>
             <p className="text-[10px] font-black uppercase text-amber-600">Filtro 1 · Situação · {statusOn.length}</p>

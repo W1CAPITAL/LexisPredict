@@ -24,6 +24,7 @@ export function SherlockPanel({
     ready: boolean;
     enabled: boolean;
     localhost: boolean;
+    production: boolean;
     hint: string;
     urlPreview: string;
   } | null>(null);
@@ -42,6 +43,7 @@ export function SherlockPanel({
           ready: s.ready,
           enabled: s.enabled,
           localhost: s.localhost,
+          production: s.production,
           hint: s.hint,
           urlPreview: s.urlPreview,
         })
@@ -61,7 +63,13 @@ export function SherlockPanel({
     sherlockPreviewUsernamesAction(nome).then(setPreviews).catch(() => setPreviews([]));
   }, [nome]);
 
+  const buscaDisponivel = Boolean(status?.ready);
+
   const buscarNome = async () => {
+    if (!buscaDisponivel) {
+      setErr(status?.hint || "Sherlock não está disponível.");
+      return;
+    }
     setBusy(true);
     setErr("");
     setHits([]);
@@ -76,6 +84,10 @@ export function SherlockPanel({
   };
 
   const buscarUser = async () => {
+    if (!buscaDisponivel) {
+      setErr(status?.hint || "Sherlock não está disponível.");
+      return;
+    }
     setBusy(true);
     setErr("");
     setHits([]);
@@ -132,7 +144,7 @@ export function SherlockPanel({
           <span className="text-[9px] font-black uppercase text-muted-foreground">Nome completo</span>
           <Input className="h-9" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome da parte" />
         </label>
-        <Button type="button" className="h-9 gap-1 text-xs font-black uppercase" disabled={busy || !nome.trim()} onClick={buscarNome}>
+        <Button type="button" className="h-9 gap-1 text-xs font-black uppercase" disabled={busy || !buscaDisponivel || !nome.trim()} onClick={buscarNome}>
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Por nome
         </Button>
       </div>
@@ -142,7 +154,7 @@ export function SherlockPanel({
           <span className="text-[9px] font-black uppercase text-muted-foreground">Username direto</span>
           <Input className="h-9 font-mono" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex.: joaosilva" />
         </label>
-        <Button type="button" variant="secondary" className="h-9 gap-1 text-xs font-black uppercase" disabled={busy || !username.trim()} onClick={buscarUser}>
+        <Button type="button" variant="secondary" className="h-9 gap-1 text-xs font-black uppercase" disabled={busy || !buscaDisponivel || !username.trim()} onClick={buscarUser}>
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Username
         </Button>
       </div>
