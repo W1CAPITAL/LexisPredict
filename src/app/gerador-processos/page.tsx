@@ -1,10 +1,17 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { djenBuscaTexto, cnjOficial, djenLink, type DjenItemRaw } from "@/lib/djen-client";
+import {
+  djenBuscaTexto,
+  cnjOficial,
+  djenLink,
+  type DjenItemRaw,
+  extractTelefonePorContexto,
+  extractNomeDoAutor,
+} from "@/lib/djen-client";
 import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
 import {
   FILTROS_STATUS,
@@ -12,6 +19,7 @@ import {
   filtrosDefaultStatus,
   filtrosDefaultMateria,
   passaFiltrosCombinados,
+  matchMateria,
   textoTemCnpj,
   extractTelefoneSeguro,
   extractNomeCompletoFromDjen,
@@ -37,7 +45,9 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
       aria-pressed={on}
       className={
         "text-[11px] rounded-lg border px-2.5 py-1.5 font-medium " +
-        (on ? "border-primary bg-primary text-primary-foreground" : "border-border/60 text-muted-foreground")
+        (on
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border/60 text-muted-foreground")
       }
     >
       {on ? "✓ " : ""}
@@ -47,12 +57,17 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
 }
 
 /** Queries textuais derivadas dos chips F1/F2 marcados. */
-function queriesDosFiltros(status: FiltroStatusId[], materia: FiltroMateriaId[]): string[] {
+function queriesDosFiltros(
+  status: FiltroStatusId[],
+  materia: FiltroMateriaId[]
+): string[] {
   const qs: string[] = [];
-  if (status.includes("extinto_sem_merito")) qs.push("sem resolução do mérito", "art. 485");
+  if (status.includes("extinto_sem_merito"))
+    qs.push("sem resolução do mérito", "art. 485");
   if (status.includes("extinto_com_merito")) qs.push("com resolução do mérito", "art. 487");
   if (status.includes("encerrado")) qs.push("arquivamento");
   if (status.includes("ativo")) qs.push("intime-se");
+  if (status.includes("ativo")) qs.push("prosiga-se");
   for (const m of materia) {
     const f = FILTROS_MATERIA.find((x) => x.id === m);
     if (f?.djenQuery) qs.push(f.djenQuery);
@@ -63,9 +78,22 @@ function queriesDosFiltros(status: FiltroStatusId[], materia: FiltroMateriaId[])
   return [...new Set(qs)].slice(0, 10);
 }
 
+/** Verifica na linha se há indício de busca e apreensão (inclui b.a.). */
+function blobTemBuscaApreensao(blob: string): boolean {
+  const t = (blob || "").toUpperCase();
+  return (
+    t.includes("BUSCA E APRENSÃO") ||
+    /\bB\.?\s*A\.?\b/.test(t) ||
+    t.includes("BUSCA E APRENSÃO EM ALIENAÇÃO FIDUCIÁRIA".toUpperCase())
+  );
+}
+
+function baClareado(blob: string): boolean {
+  return blobTemBuscaApreensao(blob);
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const agora = () => new Date().toISOString().slice(11, 19);
-
 export default function GeradorProcessosPage() {
   const [alvo, setAlvo] = useState("60");
   const [tribunal, setTribunal] = useState("TJSP");
@@ -73,6 +101,8 @@ export default function GeradorProcessosPage() {
   const [dataFim, setDataFim] = useState(isoHoje);
   const [statusOn, setStatusOn] = useState<FiltroStatusId[]>(() => filtrosDefaultStatus());
   const [materiaOn, setMateriaOn] = useState<FiltroMateriaId[]>(() => filtrosDefaultMateria());
+  const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(false);
+  const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
@@ -91,28 +121,35 @@ export default function GeradorProcessosPage() {
 
   const iniciar = async () => {
     const target = Math.min(Math.max(parseInt(alvo, 10) || 60, 1), 500);
-    if (!statusOn.length && !materiaOn.length) {
-      pushLog("err", "Marque F1 e/ou F2");
+    if (!statusOn.length && !materiaOn.length && !somenteBuscaApreensao) {
+      pushLog("err", "Marque F1 e/ou F2, ou ative Somente busca e apreensão");
       return;
     }
     stopRef.current = false;
     setBusy(true);
     setLista([]);
     setLogs([]);
-    pushLog(
-      "info",
-      `Alvo ${target} · enrich OFF · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`
-    );
-    pushLog(
-      "info",
-      "Consulta DIRETA do seu navegador ao DJEN (Comunica PJe) — usa o IP da sua rede, não o do servidor. F1/F2 aplicados aqui, na tela."
-    );
+    pushLog("info", `Alvo ${target} · enrich OFF · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`);
+    pushLog("info", "Consulta DIRETA do seu navegador ao DJEN (Comunica PJe) — usa o IP da sua rede, não o do servidor.");
+    if (somenteBuscaApreensao) {
+      pushLog("info", "Modo exaustivo: só busca e apreensão (inclui b.a.) com match de nome; filtro local também de busca e apreensão.");
+    }
 
     const by = new Map<string, ProcessoDjenReal>();
     const exclude = new Set<string>();
     const cnpjDigits = cnpj.replace(/\D/g, "");
     const sigla = tribunal.trim().toUpperCase() || undefined;
-    const queries = queriesDosFiltros(statusOn, materiaOn);
+    let queries: string[];
+    if (somenteBuscaApreensao) {
+      queries = [
+        "busca e apreensão",
+        "b.a.",
+        "busca e apreensão em alienação fiduciária",
+        "busca e apreensao",
+      ];
+    } else {
+      queries = queriesDosFiltros(statusOn, materiaOn);
+    }
 
     const add = (items: ProcessoDjenReal[]) => {
       let n = 0;
@@ -191,7 +228,7 @@ export default function GeradorProcessosPage() {
             break;
           }
 
-          // ---- filtros F1/F2 e higiene, localmente ----
+          // ---- filtros F1/F2 (ou só busca e apreensão) e higiene, localmente ----
           const bruto = res.items.length;
           const rows: ProcessoDjenReal[] = [];
           let skipSigilo = 0,
@@ -206,6 +243,11 @@ export default function GeradorProcessosPage() {
             const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
             if (isSegredoOuSigilo(blob)) {
               skipSigilo++;
+              continue;
+            }
+            // Somente busca e apreensão: aceita só itens com BA no clause ou teor.
+            if (somenteBuscaApreensao && !blobTemBuscaApreensao(blob)) {
+              skipFiltro++;
               continue;
             }
             const digits = cnjOficial(it); // SEMPRE o campo oficial da API
@@ -225,10 +267,15 @@ export default function GeradorProcessosPage() {
               skipCnpj++;
               continue;
             }
-            const gate = passaFiltrosCombinados(blob, statusOn, materiaOn);
-            if (!gate.ok) {
-              skipFiltro++;
-              continue;
+            // Filtros de situação e matéria, exceto quando somenteBA — vide bloq.
+            if (!somenteBuscaApreensao) {
+              const gate = passaFiltrosCombinados(blob, statusOn, materiaOn);
+              if (!gate.ok) {
+                skipFiltro++;
+                continue;
+              }
+            } else {
+              // Não executa filtro de status/materia; já filtrou só BA acima.
             }
             const nome =
               extractNomeCompletoFromDjen({
@@ -239,7 +286,9 @@ export default function GeradorProcessosPage() {
               skipNome++;
               continue;
             }
-            rows.push(toRow(it, digits, gate, nome, sigla));
+            const telefoneAutor =
+              exibirTelefoneAutor ? extractTelefonePorContexto(it.texto, nome) : "";
+            rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla));
           }
 
           pushLog(
@@ -301,7 +350,9 @@ export default function GeradorProcessosPage() {
             O número exibido é sempre o campo oficial da API (nunca extraído do teor). Sem dados fictícios, sem enriquecimento externo.
           </p>
           <div>
-            <p className="text-[10px] font-black uppercase text-amber-600">Filtro 1 · Situação · {statusOn.length}</p>
+            <p className="text-[10px] font-black uppercase text-amber-600">
+              Filtro 1 · Situação · {statusOn.length}
+            </p>
             <div className="flex flex-wrap gap-1.5 mt-1">
               {FILTROS_STATUS.map((f) => (
                 <Chip
@@ -310,7 +361,9 @@ export default function GeradorProcessosPage() {
                   label={f.nomeTribunal}
                   onClick={() =>
                     setStatusOn((p) =>
-                      p.includes(f.id as FiltroStatusId) ? p.filter((x) => x !== f.id) : [...p, f.id as FiltroStatusId]
+                      p.includes(f.id as FiltroStatusId)
+                        ? p.filter((x) => x !== f.id)
+                        : [...p, f.id as FiltroStatusId]
                     )
                   }
                 />
@@ -318,7 +371,9 @@ export default function GeradorProcessosPage() {
             </div>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase text-sky-600">Filtro 2 · Matéria · {materiaOn.length}</p>
+            <p className="text-[10px] font-black uppercase text-sky-600">
+              Filtro 2 · Matéria · {materiaOn.length}
+            </p>
             <div className="flex flex-wrap gap-1.5 mt-1">
               {FILTROS_MATERIA.map((f) => (
                 <Chip
@@ -327,11 +382,20 @@ export default function GeradorProcessosPage() {
                   label={f.nomeTribunal}
                   onClick={() =>
                     setMateriaOn((p) =>
-                      p.includes(f.id as FiltroMateriaId) ? p.filter((x) => x !== f.id) : [...p, f.id as FiltroMateriaId]
+                      p.includes(f.id as FiltroMateriaId)
+                        ? p.filter((x) => x !== f.id)
+                        : [...p, f.id as FiltroMateriaId]
                     )
                   }
                 />
               ))}
+              {somenteBuscaApreensao && (
+                <Chip
+                  onClick={() => setSomenteBuscaApreensao((p) => !p)}
+                  on={somenteBuscaApreensao}
+                  label="✓ Somente busca e apreensão"
+                />
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
@@ -345,13 +409,30 @@ export default function GeradorProcessosPage() {
                 <Search className="w-4 h-4" /> Buscar
               </Button>
             ) : (
-              <Button variant="destructive" className="h-9 text-xs font-black uppercase" onClick={() => (stopRef.current = true)}>
+              <Button
+                variant="destructive"
+                className="h-9 text-xs font-black uppercase"
+                onClick={() => (stopRef.current = true)}
+              >
                 <Square className="w-3 h-3" /> Parar
               </Button>
             )}
-            <Button variant="secondary" onClick={baixar} disabled={!lista.length || exp} className="h-9 text-xs font-black uppercase gap-1">
+            <Button
+              variant="secondary"
+              onClick={baixar}
+              disabled={!lista.length || exp}
+              className="h-9 text-xs font-black uppercase gap-1"
+            >
               {exp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} XLSX
             </Button>
+            <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={exibirTelefoneAutor}
+                onChange={(e) => setExibirTelefoneAutor(e.target.checked)}
+              />
+              Achar telefone do autor quando disponível
+            </label>
           </div>
           <p className="text-[11px] font-mono font-bold">
             {lista.length}/{alvo} {busy && <Loader2 className="w-3 h-3 inline animate-spin" />}
@@ -364,12 +445,18 @@ export default function GeradorProcessosPage() {
               const extinto = blob.includes("extinto");
               const procedente = !extinto && (blob.includes("procedente") || blob.includes("procedente em parte"));
               const improcedente = !extinto && blob.includes("improcedente");
+              const baClareadoLocal = blobTemBuscaApreensao(`${p.status_detectado} ${p.situacao_hint}`);
               return (
                 <article key={p.processo} className="border rounded-xl p-3 space-y-1">
                   <div className="flex flex-wrap justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-mono text-sm font-bold">{p.processo}</p>
+                        {baClareadoLocal && (
+                          <span className="text-[10px] font-black uppercase rounded-full px-2 py-0.5 border bg-amber-500/15 text-amber-600 border-amber-500/40">
+                            BUSCA E APRENSÃO
+                          </span>
+                        )}
                         <span
                           className={
                             "text-[10px] font-black uppercase rounded-full px-2 py-0.5 border " +
@@ -382,7 +469,13 @@ export default function GeradorProcessosPage() {
                                   : "bg-muted text-muted-foreground border-border")
                           }
                         >
-                          {extinto ? "EXTINTO" : procedente ? "PROCEDENTE" : improcedente ? "IMPROCEDENTE" : "NÃO CLASSIFICADO"}
+                          {extinto
+                            ? "EXTINTO"
+                            : procedente
+                              ? "PROCEDENTE"
+                              : improcedente
+                                ? "IMPROCEDENTE"
+                                : "NÃO CLASSIFICADO"}
                         </span>
                       </div>
                       <p className="text-sm font-semibold">{p.nome_completo}</p>
@@ -390,7 +483,9 @@ export default function GeradorProcessosPage() {
                         {p.classe || "—"} · {p.situacao_hint} · {p.data}
                       </p>
                       {p.telefone && (
-                        <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">{p.telefone}</p>
+                        <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">
+                          {p.telefone}
+                        </p>
                       )}
                     </div>
                     {p.link && (
@@ -430,7 +525,9 @@ export default function GeradorProcessosPage() {
                   {l.text}
                 </div>
               ))}
-              <div ref={logEnd} className="text-[#3FC56A]">{busy ? "_" : ""}</div>
+              <div ref={logEnd} className="text-[#3FC56A]">
+                {busy ? "_" : ""}
+              </div>
             </div>
           </aside>
         </div>
@@ -441,15 +538,21 @@ export default function GeradorProcessosPage() {
 
 // ---------- row builder ----------
 
-function toRow(it: DjenItemRaw, digits: string, gate: any, nome: string, sigla?: string): ProcessoDjenReal {
-  const tel = extractTelefoneSeguro(it.texto || "");
-  const statusLabel =
-    FILTROS_STATUS.find((f) => f.id === gate.status)?.nomeTribunal || gate.status || "";
-  const matLabel = (gate.materiaHits || [])
-    .map((id: string) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal)
-    .filter(Boolean)
-    .join(" · ");
+function toRow(
+  it: DjenItemRaw,
+  digits: string,
+  nome: string,
+  telefoneAutor: string,
+  statusOn: FiltroStatusId[],
+  materiaOn: FiltroMateriaId[],
+  sigla?: string
+): ProcessoDjenReal {
+  const tel = telefoneAutor || "";
   const decisao = classificarSentenca(String(it.texto || ""));
+  const statusLabel = FILTROS_STATUS.find((f) => f.id === decisao)?.nomeTribunal || decisao || "";
+  const materiaHits = matchMateria(String(it.texto || ""), materiaOn);
+  const matLabel = materiaHits.map((id) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal).filter(Boolean).join(" · ");
+  const baClareadoLocal = blobTemBuscaApreensao(`${it.nomeClasse || ""} ${it.texto || ""}`);
   const decisaoLabel = {
     extinto_sem_merito: "Extinto sem resolução do mérito",
     extinto_com_merito: "Extinto com resolução do mérito",
@@ -476,11 +579,12 @@ function toRow(it: DjenItemRaw, digits: string, gate: any, nome: string, sigla?:
     classe: String(it.nomeClasse || "").trim(),
     assunto_ou_teor: String(it.texto || "").replace(/\s+/g, " ").trim().slice(0, 240),
     situacao_hint: [statusLabel, matLabel, decisaoLabel].filter(Boolean).join(" · "),
-    status_detectado: gate.status || decisao,
+    status_detectado: decisao,
     tribunal: String(it.siglaTribunal || sigla || "").toUpperCase(),
     data: String(it.data_disponibilizacao || "").slice(0, 10),
     link: djenLink(it, digits),
-    filtros: [gate.status, ...(gate.materiaHits || [])].filter(Boolean).join("|"),
+    filtros: [decisao, ...matLabel ? [matLabel] : []].filter(Boolean).join("|"),
     consultavel: true,
+    ba_djen: baClareadoLocal,
   };
 }

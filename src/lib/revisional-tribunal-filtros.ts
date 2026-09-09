@@ -181,6 +181,7 @@ export interface ProcessoDjenReal {
   link: string;
   filtros: string;
   consultavel: boolean;
+  ba_djen?: boolean;
 }
 
 export interface ScanLogLine {
