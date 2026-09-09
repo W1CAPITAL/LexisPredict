@@ -47,8 +47,16 @@ async function djenGet(params: URLSearchParams): Promise<DjenFetchResult> {
     const body = await response.text().catch(() => '');
     const contentType = response.headers.get('content-type') || '';
     const raw = String(body || '').trim();
-    const isJson = /application\/json|application\/problem\+json/i.test(contentType) || raw.startsWith('{') || raw.startsWith('[');
-    const jsonSlice = isJson && (raw.startsWith('{') || raw.startsWith('[')) ? raw : '';
+    let jsonSlice = '';
+    if (raw.startsWith('{') || raw.startsWith('[')) {
+      jsonSlice = raw;
+    } else if (/application\/json|application\/problem\+json/i.test(contentType)) {
+      jsonSlice = raw;
+    } else {
+      // alguns gateways devolvem HTML wrapper; tenta achar JSON embutido
+      const m = raw.match(/\{[\s\S]*"items"\s*:[\s\S]*\}/);
+      if (m) jsonSlice = m[0];
+    }
 
     if (!response.ok) {
       const blocked = /<html|<!doctype|access denied|request rejected|proxy/i.test(body);

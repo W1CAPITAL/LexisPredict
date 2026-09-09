@@ -1,14 +1,20 @@
 "use server";
 
 import { fetchDjenPorTexto } from "@/lib/djen-busca-texto";
-import { extractCnjSeguro, extractTelefoneSeguro, formatCnjMasked } from "@/lib/cnj-higiene";
 import {
-  FILTROS_REVISIONAL,
+  FILTROS_STATUS,
+  FILTROS_MATERIA,
+  buildDjenQueries,
+  passaFiltrosCombinados,
+  textoTemCnpj,
+  extractCnjSeguro,
+  extractTelefoneSeguro,
   extractNomeCompletoFromDjen,
+  formatCnjMasked,
   isSegredoOuSigilo,
-  matchFiltrosRevisional,
   teorConsultavel,
-  type FiltroRevisionalId,
+  type FiltroStatusId,
+  type FiltroMateriaId,
   type ProcessoDjenReal,
   type ScanLogLine,
 } from "@/lib/revisional-tribunal-filtros";
@@ -26,15 +32,26 @@ function buildLink(it: any, digits: string): string {
   return `https://comunica.pje.jus.br/#/consulta?numeroProcesso=${encodeURIComponent(formatCnjMasked(digits))}`;
 }
 
+export async function enrichmentConfigAction() {
+  const enabled = ["1", "true", "yes", "on"].includes(
+    String(process.env.ENRICHMENT_LOOKUP_ENABLED || "").toLowerCase()
+  );
+  const urlSet = !!String(process.env.ENRICHMENT_LOOKUP_URL || "").trim();
+  const tokenSet = !!String(process.env.ENRICHMENT_LOOKUP_TOKEN || "").trim();
+  return { enabled, urlSet, tokenSet, ready: enabled && urlSet && tokenSet };
+}
+
 export async function scanDjenPaginaAction(input: {
-  filtros: FiltroRevisionalId[];
+  statusFiltros: FiltroStatusId[];
+  materiaFiltros: FiltroMateriaId[];
   queryIndex: number;
   pagina: number;
-  dias?: number;
   dataInicio?: string;
   dataFim?: string;
+  dias?: number;
   siglaTribunal?: string;
   excludeCnjs?: string[];
+  cnpj?: string;
   enrich?: boolean;
 }): Promise<{
   success: boolean;
@@ -45,90 +62,189 @@ export async function scanDjenPaginaAction(input: {
   pagina: number;
   hasMore: boolean;
   bruto: number;
+  totalQueries: number;
   rateLimited?: boolean;
   geoBlocked?: boolean;
-  invalidSource?: boolean;
   error?: string;
 }> {
   const logs: ScanLogLine[] = [];
-  const ativos = (input.filtros || []).filter(Boolean) as FiltroRevisionalId[];
-  if (!ativos.length) {
-    return { success: false, items: [], logs: [log("err", "Nenhum filtro.")], query: "", queryIndex: 0, pagina: 1, hasMore: false, bruto: 0, error: "filtros" };
+  const statusAtivos = (input.statusFiltros || []).filter(Boolean) as FiltroStatusId[];
+  const materiaAtivos = (input.materiaFiltros || []).filter(Boolean) as FiltroMateriaId[];
+
+  if (!statusAtivos.length && !materiaAtivos.length) {
+    return {
+      success: false,
+      items: [],
+      logs: [log("err", "Marque Filtro 1 (status) e/ou Filtro 2 (matéria).")],
+      query: "",
+      queryIndex: 0,
+      pagina: 1,
+      hasMore: false,
+      bruto: 0,
+      totalQueries: 0,
+      error: "filtros",
+    };
   }
 
-  const defs = FILTROS_REVISIONAL.filter((f) => ativos.includes(f.id));
-  const qi = Math.max(0, Math.min(input.queryIndex || 0, defs.length - 1));
+  const queries = buildDjenQueries(statusAtivos, materiaAtivos, input.cnpj);
+  if (!queries.length) {
+    return {
+      success: false,
+      items: [],
+      logs: [log("err", "Nenhuma query gerada.")],
+      query: "",
+      queryIndex: 0,
+      pagina: 1,
+      hasMore: false,
+      bruto: 0,
+      totalQueries: 0,
+      error: "query",
+    };
+  }
+
+  const qi = Math.max(0, Math.min(input.queryIndex || 0, queries.length - 1));
   const pagina = Math.max(1, input.pagina || 1);
-  const q = defs[qi]?.djenQuery || "";
-  const hoje = new Date().toISOString().slice(0, 10);
-  const dataFim = input.dataFim || hoje;
-  const dataInicio = input.dataInicio || new Date(Date.now() - Math.min(Math.max(Number(input.dias) || 7, 1), 90) * 86400000).toISOString().slice(0, 10);
-  const dias = Math.max(1, Math.ceil((new Date(`${dataFim}T00:00:00`).getTime() - new Date(`${dataInicio}T00:00:00`).getTime()) / 86400000) || 1);
+  const q = queries[qi];
+  const dataFim = input.dataFim || new Date().toISOString().slice(0, 10);
+  const dataInicio =
+    input.dataInicio ||
+    new Date(Date.now() - Math.min(Math.max(Number(input.dias) || 14, 1), 30) * 86400000)
+      .toISOString()
+      .slice(0, 10);
   const sigla = input.siglaTribunal?.trim().toUpperCase() || undefined;
   const exclude = new Set((input.excludeCnjs || []).map((c) => c.replace(/\D/g, "")));
+  const cnpjFilter = String(input.cnpj || "").replace(/\D/g, "");
 
-  logs.push(log("info", `Filtro ${qi + 1}/${defs.length} “${q}” · pág ${pagina} · ${dias}d · CNJ só máscara+estrutura`));
+  logs.push(
+    log(
+      "info",
+      `Query ${qi + 1}/${queries.length} “${q}” · pág ${pagina} · ${dataInicio}→${dataFim}` +
+        (sigla ? ` · ${sigla}` : "") +
+        (cnpjFilter ? ` · CNPJ ${cnpjFilter}` : "")
+    )
+  );
 
   const res = await fetchDjenPorTexto(q, {
     dataInicio,
     dataFim,
     pagina,
-    // Uma comunicação por requisição: evita carregar uma lista inteira de uma vez e permite auditar cada item.
-    itensPorPagina: 20,
+    itensPorPagina: 100,
     siglaTribunal: sigla,
   });
 
   if ((res as any).isGeoBlocked) {
-    return { success: false, items: [], logs: [...logs, log("err", "403 geo")], query: q, queryIndex: qi, pagina, hasMore: false, bruto: 0, geoBlocked: true, invalidSource: true, error: res.error };
+    return {
+      success: false,
+      items: [],
+      logs: [...logs, log("err", "DJEN 403 geo-block — Vercel em São Paulo (gru1).")],
+      query: q,
+      queryIndex: qi,
+      pagina,
+      hasMore: false,
+      bruto: 0,
+      totalQueries: queries.length,
+      geoBlocked: true,
+      error: res.error,
+    };
   }
   if (res.isRateLimited) {
-    return { success: false, items: [], logs: [...logs, log("warn", "429")], query: q, queryIndex: qi, pagina, hasMore: true, bruto: 0, rateLimited: true, error: res.error };
+    return {
+      success: false,
+      items: [],
+      logs: [...logs, log("warn", "429 rate limit")],
+      query: q,
+      queryIndex: qi,
+      pagina,
+      hasMore: true,
+      bruto: 0,
+      totalQueries: queries.length,
+      rateLimited: true,
+      error: res.error,
+    };
   }
   if (!res.success) {
-    return { success: false, items: [], logs: [...logs, log("err", res.error || "falha")], query: q, queryIndex: qi, pagina, hasMore: false, bruto: 0, invalidSource: true, error: res.error };
+    return {
+      success: false,
+      items: [],
+      logs: [...logs, log("err", res.error || "Falha DJEN")],
+      query: q,
+      queryIndex: qi,
+      pagina,
+      hasMore: false,
+      bruto: 0,
+      totalQueries: queries.length,
+      error: res.error,
+    };
   }
 
   const bruto = res.items?.length || 0;
   logs.push(log("info", `API: ${bruto} brutos`));
 
   const items: ProcessoDjenReal[] = [];
-  let skipSigilo = 0, skipCnj = 0, skipNome = 0, skipTeor = 0, skipDup = 0, skipSinal = 0;
+  let skipSigilo = 0,
+    skipCnj = 0,
+    skipNome = 0,
+    skipTeor = 0,
+    skipDup = 0,
+    skipFiltro = 0,
+    skipCnpj = 0;
 
   for (const it of res.items || []) {
     const blob = `${it.nomeClasse || ""} ${it.texto || ""} ${it.tipoComunicacao || ""}`;
-    if (isSegredoOuSigilo(blob)) { skipSigilo++; continue; }
-
-    // CRÍTICO: só CNJ mascarado + ano/TR/justiça plausíveis (ex. TJSP = 8.26)
-    // O número precisa vir do campo oficial do DJEN. Nunca extraímos CNJ de texto livre,
-    // pois decisões podem conter números de outros processos e gerar resultados falsos.
-    const digits = extractCnjSeguro(it.numero_processo, "", {
+    if (isSegredoOuSigilo(blob)) {
+      skipSigilo++;
+      continue;
+    }
+    const digits = extractCnjSeguro(it.numero_processo, it.texto, {
       siglaTribunal: sigla || it.siglaTribunal,
     });
-    if (!digits) { skipCnj++; continue; }
-    if (exclude.has(digits)) { skipDup++; continue; }
-    if (!teorConsultavel(it.texto)) { skipTeor++; continue; }
+    if (!digits) {
+      skipCnj++;
+      continue;
+    }
+    if (exclude.has(digits)) {
+      skipDup++;
+      continue;
+    }
+    if (!teorConsultavel(it.texto)) {
+      skipTeor++;
+      continue;
+    }
+    if (cnpjFilter && !textoTemCnpj(blob, cnpjFilter)) {
+      skipCnpj++;
+      continue;
+    }
+
+    const gate = passaFiltrosCombinados(blob, statusAtivos, materiaAtivos);
+    if (!gate.ok) {
+      skipFiltro++;
+      continue;
+    }
 
     const nome = extractNomeCompletoFromDjen({
       texto: it.texto,
       destinatarios: (it as any).destinatarios,
     });
-    if (!nome) { skipNome++; continue; }
-
-    const { hits } = matchFiltrosRevisional(blob, ativos);
-    const n = blob.toLowerCase();
-    const sinal =
-      hits.length > 0 ||
-      /revisional|fiduci|banc[aá]ri|financiamento|contrato|ind[eé]bito|procedimento\s+comum/.test(n);
-    if (!sinal) { skipSinal++; continue; }
+    if (!nome) {
+      skipNome++;
+      continue;
+    }
 
     const telTeor = extractTelefoneSeguro(it.texto);
+    const statusLabel =
+      FILTROS_STATUS.find((f) => f.id === gate.status)?.nomeTribunal || gate.status || "";
+    const materiaLabel = gate.materiaHits
+      .map((id) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal)
+      .filter(Boolean)
+      .join(" · ");
+
     items.push({
       processo: formatCnjMasked(digits),
       nome_completo: nome,
       telefone: telTeor,
       email: "",
       cpf: "",
-      cnpj: "",
+      cnpj: cnpjFilter.length === 14 ? cnpjFilter : "",
       endereco: "",
       cep: "",
       bairro: "",
@@ -139,13 +255,12 @@ export async function scanDjenPaginaAction(input: {
       enrich_fonte: "",
       classe: String(it.nomeClasse || "").trim(),
       assunto_ou_teor: String(it.texto || "").replace(/\s+/g, " ").trim().slice(0, 240),
-      situacao_hint:
-        hits.map((id) => FILTROS_REVISIONAL.find((f) => f.id === id)?.nomeTribunal).filter(Boolean).join(" · ") ||
-        String(it.tipoComunicacao || ""),
+      situacao_hint: [statusLabel, materiaLabel].filter(Boolean).join(" · "),
+      status_detectado: gate.status || "",
       tribunal: String(it.siglaTribunal || sigla || "").toUpperCase(),
       data: String(it.data_disponibilizacao || "").slice(0, 10),
       link: buildLink(it, digits),
-      filtros: hits.join("|"),
+      filtros: [...(gate.status ? [gate.status] : []), ...gate.materiaHits].join("|"),
       consultavel: true,
     });
   }
@@ -153,7 +268,7 @@ export async function scanDjenPaginaAction(input: {
   logs.push(
     log(
       "ok",
-      `Aceitos ${items.length} · sigilo:${skipSigilo} cnj_falso/sem_mascara:${skipCnj} nome:${skipNome} teor:${skipTeor} dup:${skipDup} sinal:${skipSinal}`
+      `Aceitos ${items.length} · sigilo:${skipSigilo} cnj:${skipCnj} filtro:${skipFiltro} cnpj:${skipCnpj} nome:${skipNome} teor:${skipTeor} dup:${skipDup}`
     )
   );
 
@@ -164,16 +279,8 @@ export async function scanDjenPaginaAction(input: {
     query: q,
     queryIndex: qi,
     pagina,
-    hasMore: bruto > 0,
+    hasMore: bruto >= 80,
     bruto,
+    totalQueries: queries.length,
   };
-}
-
-export async function enrichmentConfigAction() {
-  const enabled = ["1", "true", "yes", "on"].includes(
-    String(process.env.ENRICHMENT_LOOKUP_ENABLED || "").toLowerCase()
-  );
-  const urlSet = !!String(process.env.ENRICHMENT_LOOKUP_URL || "").trim();
-  const tokenSet = !!String(process.env.ENRICHMENT_LOOKUP_TOKEN || "").trim();
-  return { enabled, urlSet, tokenSet, ready: enabled && urlSet && tokenSet };
 }
