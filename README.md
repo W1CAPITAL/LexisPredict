@@ -39,9 +39,6 @@
 
 ## Mapa graphify ao vivo
 
-> **GitHub não executa JavaScript dentro do README.**  
-> Por isso o grafo interativo (busca, comunidades, inspeção de nós) roda em **GitHub Pages**, ligado ao README pelo banner e pelo botão acima — um clique e o mapa abre **já rodando**.
-
 <p align="center">
   <a href="https://w1capital.github.io/LexisPredict/">
     <img src="docs/assets/lexis-code-density.svg" alt="Densidade do código — clique para o grafo interativo" width="100%" />
