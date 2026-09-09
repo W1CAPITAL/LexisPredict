@@ -75,7 +75,7 @@ const nextConfig: NextConfig = {
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: blob: https:",
             "font-src 'self' https://fonts.gstatic.com data:",
-            "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
+            "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://comunicaapi.pje.jus.br https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

@@ -34,7 +34,7 @@ function applySecurityHeaders(res: NextResponse) {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: blob: https:",
         "font-src 'self' https://fonts.gstatic.com data:",
-        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com https://comunicaapi.pje.jus.br https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
         "frame-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://*.highrevenueformat.com",
         "frame-ancestors 'none'",
         "base-uri 'self'",
