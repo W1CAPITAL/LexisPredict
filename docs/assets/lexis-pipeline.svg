@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="120" viewBox="0 0 1000 120">
+  <rect width="1000" height="120" rx="12" fill="#0f0f1a"/>
+  <g font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="600">
+    <rect x="20" y="40" width="150" height="40" rx="20" fill="#1a1a2e" stroke="#4E79A7"/>
+    <text x="95" y="65" text-anchor="middle" fill="#8eb4d8">CARTEIRA</text>
+    <text x="185" y="65" fill="#555">→</text>
+    <rect x="210" y="40" width="130" height="40" rx="20" fill="#1a1a2e" stroke="#F28E2B"/>
+    <text x="275" y="65" text-anchor="middle" fill="#f5b56a">FILAS</text>
+    <text x="355" y="65" fill="#555">→</text>
+    <rect x="380" y="40" width="160" height="40" rx="20" fill="#1a1a2e" stroke="#E15759"/>
+    <text x="460" y="65" text-anchor="middle" fill="#f0a0a1">ATENDIMENTO</text>
+    <text x="555" y="65" fill="#555">→</text>
+    <rect x="580" y="40" width="150" height="40" rx="20" fill="#1a1a2e" stroke="#76B7B2"/>
+    <text x="655" y="65" text-anchor="middle" fill="#9fd0cc">TRIBUNAL</text>
+    <text x="745" y="65" fill="#555">→</text>
+    <rect x="770" y="40" width="150" height="40" rx="20" fill="#1a1a2e" stroke="#59A14F"/>
+    <text x="845" y="65" text-anchor="middle" fill="#8fc988">GESTÃO</text>
+  </g>
+</svg>

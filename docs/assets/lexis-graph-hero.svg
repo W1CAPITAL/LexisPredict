@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f0f1a"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#4E79A7" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#0f0f1a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="280" fill="url(#bg)"/>
+  <rect width="1200" height="280" fill="url(#glow)"/>
+  <!-- network nodes -->
+  <g stroke-width="1.2" opacity="0.55">
+    <line x1="180" y1="90" x2="320" y2="70" stroke="#4E79A7"/>
+    <line x1="320" y1="70" x2="480" y2="110" stroke="#76B7B2"/>
+    <line x1="480" y1="110" x2="640" y2="80" stroke="#F28E2B"/>
+    <line x1="640" y1="80" x2="820" y2="120" stroke="#E15759"/>
+    <line x1="320" y1="70" x2="400" y2="180" stroke="#59A14F"/>
+    <line x1="480" y1="110" x2="560" y2="200" stroke="#B07AA1"/>
+    <line x1="640" y1="80" x2="700" y2="190" stroke="#EDC948"/>
+    <line x1="180" y1="90" x2="220" y2="200" stroke="#9C755F"/>
+    <line x1="820" y1="120" x2="980" y2="90" stroke="#FF9DA7"/>
+    <line x1="980" y1="90" x2="1050" y2="180" stroke="#BAB0AC"/>
+  </g>
+  <circle cx="180" cy="90" r="7" fill="#4E79A7"/>
+  <circle cx="320" cy="70" r="10" fill="#4E79A7"/>
+  <circle cx="480" cy="110" r="8" fill="#76B7B2"/>
+  <circle cx="640" cy="80" r="11" fill="#F28E2B"/>
+  <circle cx="820" cy="120" r="7" fill="#E15759"/>
+  <circle cx="400" cy="180" r="6" fill="#59A14F"/>
+  <circle cx="560" cy="200" r="6" fill="#B07AA1"/>
+  <circle cx="700" cy="190" r="5" fill="#EDC948"/>
+  <circle cx="220" cy="200" r="5" fill="#9C755F"/>
+  <circle cx="980" cy="90" r="8" fill="#FF9DA7"/>
+  <circle cx="1050" cy="180" r="5" fill="#BAB0AC"/>
+  <text x="600" y="145" text-anchor="middle" fill="#e0e0e0" font-family="Segoe UI, system-ui, sans-serif" font-size="36" font-weight="700">LexisPredict</text>
+  <text x="600" y="178" text-anchor="middle" fill="#aaa" font-family="Segoe UI, system-ui, sans-serif" font-size="16">Gabinete digital · prazo · volume · operação real</text>
+  <text x="600" y="220" text-anchor="middle" fill="#666" font-family="ui-monospace, monospace" font-size="12">4.378 nós · 13.547 arestas · 225 comunidades · código mapeado</text>
+</svg>
