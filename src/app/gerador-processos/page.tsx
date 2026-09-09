@@ -112,13 +112,13 @@ export default function GeradorProcessosPage() {
           siglaTribunal: tribunal || undefined,
           excludeCnjs: [...by.keys()],
           cnpj: cnpj.replace(/\D/g, "") || undefined,
-          limit: 1,
+          limit: 20,
           offset,
         });
         pushLogs(res.logs || []);
         add(res.items || []);
         if (!res.success || res.geoBlocked || res.rateLimited || !res.hasMore) break;
-        offset += 1;
+        offset += 20;
       }
     } else if (modo === "texto") {
       for (let qi = 0; qi < 8 && by.size < target && !stopRef.current; qi++) {
@@ -150,43 +150,54 @@ export default function GeradorProcessosPage() {
 
     if (modo === "aleatorio") {
       let wait429 = 8000;
-      for (let i = 0; i < 80 && by.size < target && !stopRef.current; i++) {
-      const res = await scanAleatorioDjenAction({
-        statusFiltros: statusOn,
-        materiaFiltros: materiaOn,
-        dataInicio,
-        dataFim,
-        siglaTribunal: tribunal || undefined,
-        excludeCnjs: [...by.keys()],
-        cnpj: cnpj.replace(/\D/g, "") || undefined,
-        lote: 8,
-      });
-      pushLogs(res.logs || []);
-      if (res.geoBlocked) break;
-      if (res.rateLimited) {
-        pushLogs([
-          {
-            ts: new Date().toISOString().slice(11, 19),
-            level: "warn",
-            text: `429 · espera ${Math.round(wait429 / 1000)}s e segue no sorteio`,
-          },
-        ]);
-        await new Promise((r) => setTimeout(r, wait429));
-        wait429 = Math.min(wait429 + 4000, 25000);
-        continue;
-      }
-      wait429 = 8000;
-      if (res.items?.length) {
-        const n = add(res.items);
-        if (n)
+      for (let i = 0; i < 120 && by.size < target && !stopRef.current; i++) {
+        const res = await scanAleatorioDjenAction({
+          statusFiltros: statusOn,
+          materiaFiltros: materiaOn,
+          dataInicio,
+          dataFim,
+          siglaTribunal: tribunal || undefined,
+          excludeCnjs: [...by.keys()],
+          cnpj: cnpj.replace(/\D/g, "") || undefined,
+          lote: 8,
+        });
+        pushLogs(res.logs || []);
+        if (!res.success) break;
+        if (res.geoBlocked) break;
+        if (res.rateLimited) {
           pushLogs([
             {
               ts: new Date().toISOString().slice(11, 19),
-              level: "ok",
-              text: `${by.size}/${target}  (+${n} fora da carteira)`,
+              level: "warn",
+              text: `429 · espera ${Math.round(wait429 / 1000)}s e segue no sorteio`,
             },
           ]);
-      }
+          await new Promise((r) => setTimeout(r, wait429));
+          wait429 = Math.min(wait429 + 4000, 25000);
+          continue;
+        }
+        wait429 = 8000;
+        if (res.items?.length) {
+          const n = add(res.items);
+          if (n)
+            pushLogs([
+              {
+                ts: new Date().toISOString().slice(11, 19),
+                level: "ok",
+                text: `${by.size}/${target}  (+${n} novos do sorteio)`,
+              },
+            ]);
+        }
+        if ((res as any).poolFim) {
+          pushLogs([
+            {
+              ts: new Date().toISOString().slice(11, 19),
+              level: "warn",
+              text: `Carteira toda sorteada (${(res as any).poolTotal} CNJs) · parando`,
+            },
+          ]);
+          break;
+        }
       }
     }
 
@@ -264,7 +275,7 @@ export default function GeradorProcessosPage() {
             <Input className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
             <select className="h-9 border rounded-md px-2 text-xs bg-background" value={modo} onChange={(e) => setModo(e.target.value as typeof modo)}>
               <option value="carteira">Carteira · DJEN por CNJ (recomendado)</option>
-              <option value="aleatorio">Aleatório · CNJ sorteado (experimental)</option>
+              <option value="aleatorio">Aleatório · sorteio na carteira, um por um</option>
               <option value="texto">Só texto DJEN (pode ser bloqueado)</option>
             </select>
             {!busy ? (
@@ -286,11 +297,32 @@ export default function GeradorProcessosPage() {
         </div>
         <div className="flex-1 min-h-0 grid md:grid-cols-[1fr_minmax(280px,38%)] overflow-hidden">
           <div className="overflow-auto p-3 space-y-2">
-            {lista.map((p) => (
+            {lista.map((p) => {
+              const blob = `${p.status_detectado} ${p.situacao_hint}`.toLowerCase();
+              const extinto = blob.includes("extinto");
+              const procedente = !extinto && (blob.includes("procedente") || blob.includes("procedente em parte"));
+              const improcedente = !extinto && blob.includes("improcedente");
+              return (
               <article key={p.processo} className="border rounded-xl p-3 space-y-1">
                 <div className="flex flex-wrap justify-between gap-2">
                   <div>
-                    <p className="font-mono text-sm font-bold">{p.processo}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-mono text-sm font-bold">{p.processo}</p>
+                      <span
+                        className={
+                          "text-[10px] font-black uppercase rounded-full px-2 py-0.5 border " +
+                          (extinto
+                            ? "bg-red-500/15 text-red-500 border-red-500/40"
+                            : procedente
+                              ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/40"
+                              : improcedente
+                                ? "bg-amber-500/15 text-amber-600 border-amber-500/40"
+                                : "bg-muted text-muted-foreground border-border")
+                        }
+                      >
+                        {extinto ? "EXTINTO" : procedente ? "PROCEDENTE" : improcedente ? "IMPROCEDENTE" : "NÃO CLASSIFICADO"}
+                      </span>
+                    </div>
                     <p className="text-sm font-semibold">{p.nome_completo}</p>
                     <p className="text-[11px] text-muted-foreground">
                       {p.status_detectado} · {p.situacao_hint}
@@ -330,7 +362,8 @@ export default function GeradorProcessosPage() {
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
           <aside className="border-l flex flex-col min-h-0 bg-[#0C0C0C] text-[#CCCCCC]">
             <div className="px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-[#6A9955] border-b border-[#222] shrink-0">
