@@ -268,6 +268,7 @@ export async function scanCarteiraDjenAction(input: {
     const proto = String(row.protocolo_ref || row.dados?.protocolo || row.dados?.cnj || "").replace(/\D/g, "");
     if (proto.length !== 20 || exclude.has(proto)) continue;
     scanned++;
+    logs.push(log("info", `CNJ ${scanned}/${rows.length} · consultando ${formatCnjMasked(proto)}`));
     const djen = await fetchDjenComunicacoes(proto, { siglaTribunal: sigla, dataInicio, dataFim });
     if (djen.isGeoBlocked) {
       geoBlocked = true;
@@ -279,7 +280,10 @@ export async function scanCarteiraDjenAction(input: {
       logs.push(log("warn", "429 no CNJ"));
       break;
     }
-    if (!djen.success || !djen.items?.length) continue;
+    if (!djen.success || !djen.items?.length) {
+      logs.push(log(djen.success ? "info" : "warn", djen.success ? `CNJ ${formatCnjMasked(proto)} · sem comunicação pública no intervalo` : `CNJ ${formatCnjMasked(proto)} · consulta falhou: ${djen.error || "resposta inválida"}`));
+      continue;
+    }
     for (const it of djen.items) {
       const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
       if (isSegredoOuSigilo(blob) || !teorConsultavel(it.texto)) continue;
@@ -291,7 +295,7 @@ export async function scanCarteiraDjenAction(input: {
       exclude.add(digits);
       break;
     }
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
   logs.push(log("ok", `Carteira vistos ${scanned} · aceitos ${items.length}`));
