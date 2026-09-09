@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>LexisPredict</strong><br/>
-  <span style="font-size:1.05em">O gabinete digital de quem vive de <strong>prazo</strong> e <strong>volume</strong>.</span><br/>
+  <span>O gabinete digital de quem vive de <strong>prazo</strong> e <strong>volume</strong>.</span><br/>
   <em>Não é CRM de vitrine. É o sistema operacional da carteira jurídica.</em>
 </p>
 
@@ -14,7 +14,7 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
   <img alt="Postgres" src="https://img.shields.io/badge/Postgres-multi--tenant-3FCF8E?style=for-the-badge&logo=postgresql&logoColor=white" />
   <img alt="Status" src="https://img.shields.io/badge/web-operacional-22D3EE?style=for-the-badge&labelColor=0B1220" />
-  <img alt="Planilha" src="https://img.shields.io/badge/planilha-via_CRM-F59E0B?style=for-the-badge&labelColor=0B1220" />
+  <img alt="Graph" src="https://img.shields.io/badge/code_map-4.3k_nodes-4E79A7?style=for-the-badge&labelColor=0B1220" />
   <img alt="Offline" src="https://img.shields.io/badge/offline-EXE_v5+-5EEAD4?style=for-the-badge&labelColor=0B1220" />
 </p>
 
@@ -24,7 +24,7 @@
   <a href="#-para-quem">Para quem</a> ·
   <a href="#-web-vs-offline">Web vs Offline</a> ·
   <a href="#-módulos">Módulos</a> ·
-  <a href="#-planilha--crm--sem-depender-de-apps-script">Planilha & CRM</a> ·
+  <a href="#-mapa-do-código">Mapa do código</a> ·
   <a href="#-arquitetura">Arquitetura</a> ·
   <a href="#-começar">Começar</a> ·
   <a href="#-licença">Licença</a>
@@ -36,19 +36,17 @@
 
 Assessoria que opera **revisional / volume** não precisa de mais um funil bonito.
 
-Precisa de:
-
 | Dor do dia a dia | O que o Lexis faz |
-|------------------|-------------------|
+| ---------------- | ----------------- |
 | Prazo vencido sem dono claro | Fila + status + responsável |
 | “Quem atendeu esse CNJ?” | Ranking por log (`atendido_por`) sem roubar carteira |
 | Silêncio no tribunal | Scanner DataJud / DJEN + BA real |
-| Planilha paralela bagunçada | Export/import e edição pelo **CRM do próprio app** |
+| Planilha paralela bagunçada | Export/import pelo **CRM do próprio app** |
 | Queda de internet / nuvem | Offline EXE continua com a carteira local |
 
 > **Uma linha:** organiza e acelera quem já opera processos — não substitui RH, financeiro genérico ou marketing de vitrine.
 
-```
+```text
   CARTEIRA  →  FILAS  →  ATENDIMENTO  →  TRIBUNAL  →  GESTÃO
   processos    vencidos   quem atendeu    DataJud     supervisão
                BA real    sem roubar      DJEN        relatório
@@ -62,18 +60,18 @@ Precisa de:
 
 **LexisPredict Offline** — EXE Windows ([OFFLINE-LEXISPREDICT](https://github.com/W1CAPITAL/OFFLINE-LEXISPREDICT)): login local, planilha/JSON, DataJud/DJEN com internet. Paridade total com o web: *em evolução*.
 
-No app: rota `/offline` + anúncio na abertura / pós-atualização.
+No app: rota `/offline` · mapa de código `/mapa-codigo` · anúncio pós-atualização.
 
 ---
 
 ## Para quem
 
 | Perfil | Ganha o quê |
-|--------|-------------|
+| ------ | ----------- |
 | **Operador** | Fila do dia, atendimento, WhatsApp, carteira sem ruído |
 | **Supervisor** | Empresa inteira, “Rodar empresa”, ranking, auditoria |
 | **Sócio / BKO** | Volume, vencidos, silêncio, relatório executivo |
-| **Quem vive de planilha** | Continua com Excel/Sheets — **pelo CRM do Lexis**, não como “banco principal” |
+| **Quem vive de planilha** | Excel/Sheets pelo **CRM do Lexis**, não como banco principal |
 
 Não é HubSpot. Não é PJe. É **gabinete + operação**.
 
@@ -95,93 +93,95 @@ Não é HubSpot. Não é PJe. É **gabinete + operação**.
 ## Módulos
 
 | Módulo | Função |
-|--------|--------|
+| ------ | ------ |
 | **Painel** | KPIs: ativos, vencidos, atendidos, novidades |
 | **Meus processos / Cases** | Carteira por `created_by` |
-| **Processos da empresa** | Visão completa · todos usam · **“Rodar empresa”** só supervisão |
+| **Processos da empresa** | Visão completa · **“Rodar empresa”** só supervisão |
 | **Filas / Tarefas** | Prioridade do dia |
 | **Parados / Encerrados a revisar** | Silêncio tribunal ≠ prazo vencido |
 | **Scanner tribunal** | DataJud + DJEN |
 | **WhatsApp / Peças / Dossiê** | Atendimento e documentação |
-| **CRM Assessoria** | Clientes, funil, atividades — **export/import planilha** |
+| **CRM Assessoria** | Clientes, funil — **export/import planilha** |
 | **Team / Supervisão** | Ranking, cargos, auditoria |
+| **Mapa do código** | Grafo graphify · acoplamento real |
 | **Offline** | `/offline` + EXE irmão |
+
+---
+
+## Mapa do código
+
+O repositório inclui visão **graphify** do código (rede de símbolos):
+
+| Métrica | Valor |
+| ------- | ----- |
+| Nós | **4.378** |
+| Arestas | **13.547** |
+| Comunidades | **225** |
+
+Pastas mais densas (útil antes de lotes grandes):
+
+| Pasta | ~símbolos | Papel |
+| ----- | --------- | ----- |
+| `src/lib` | 2.1k | Núcleo de domínio |
+| `src/app` | 900+ | Rotas |
+| `src/components` | 850+ | UI |
+| `src/app/actions` | 490+ | Server actions |
+| `src/lib/ai` | 150+ | IA / motores |
+
+No app: **`/mapa-codigo`** (iframe de `public/mapa/graph.html`).
+
+Paleta operacional (dark ops):
+
+`#0f0f1a` fundo · `#1a1a2e` painel · `#4E79A7` acento · comunidades `#F28E2B` `#E15759` `#76B7B2` `#59A14F`
 
 ---
 
 ## Planilha & CRM — sem depender de Apps Script
 
-A estratégia do Lexis é **não transformar Google Apps Script no centro do produto**.
+**Postgres = fonte da verdade.** Planilha = espelho / arquivo de trabalho.
 
-### Caminho principal (recomendado)
-
-```
-  Operação no Lexis (web)
-        │
-        ▼
-  Postgres (fonte da verdade)
-        │
-        ├── Export XLSX / CSV  →  Excel ou Google Sheets (leitura/edição humana)
-        │
-        └── Import de volta pelo CRM / Import  →  carteira atualizada
+```text
+  Lexis (web) → Postgres → Export XLSX/CSV → Excel/Sheets
+                      ↘ Import pelo CRM ← edição humana
 ```
 
-- **Editar a planilha “pelo CRM”:** use o módulo CRM + exportações operacionais (dossiê, carteira, contatos).
-- A planilha continua útil para BKO, sócio e planilha-mãe — **como espelho e arquivo de trabalho**, não como servidor obrigatório.
-- Zero webhook Google para a rotina diária.
-
-### Caminho opcional (Plano B)
-
-Quando a operação **ainda** precisa de 2 vias automáticas com uma Sheet específica (legado Offline, migração, escritório 100% planilha):
-
-```
-  Lexis  ↔  Apps Script (opcional)  ↔  Google Sheets
-```
-
-- Documentado em `docs/` e no repo Offline (`LEXIS-SYNC-AppsScript.gs`).
-- **Não é requisito** para o web em produção com Postgres.
-- Use só se a equipe explicitamente precisar do webhook.
-
-| Objetivo | Preferir |
-|----------|----------|
-| Vender / operar assessoria | Web + Postgres + CRM |
-| Trabalhar offline no notebook | EXE + planilha local |
-| Espelhar números no Excel | **Export/Import pelo app** |
-| Sync automático Sheet ↔ app | Apps Script (opcional, Plano B) |
+Apps Script só como **Plano B** opcional (legado offline). Nunca no caminho feliz do atendimento.
 
 ---
 
 ## Arquitetura
 
-```
-  UI (Next.js 15)
-    → Server Actions
-      → Postgres (Supabase) · empresa_id · created_by · atendido_por
-      → DataJud / DJEN / KPIs
-    → CRM export/import (planilha humana)
-    → [opcional] Apps Script ↔ Sheets
+```text
+  UI (Next.js 15) · tema graphify dark ops
+       ↓
+  Server Actions
+       ↓
+  Postgres (Supabase) · empresa_id · created_by · atendido_por
+       ↓
+  DataJud / DJEN / KPIs
+       ↓
+  CRM export/import
+       ↘ [opcional] Apps Script ↔ Sheets
 ```
 
-**Regras de ouro da carteira**
+**Regras de ouro**
 
-- **Dono** = `created_by` (carteira do operador)
-- **Crédito de atendimento** = `atendido_por` / log (ranking)
+- **Dono** = `created_by`
+- **Crédito de atendimento** = `atendido_por` / log
 - **Atender não troca o dono**
 - Ranking da semana = log (`pessoa + CNJ` único)
 
 ---
 
-## Notas honestas (produto sério)
+## Notas honestas
 
 | Assunto | Verdade |
-|---------|---------|
+| ------- | ------- |
 | DataJud | Não é PJe / e-SAJ · consulta pública indexada |
-| DJEN | Pode 403 / rate limit · lote sequencial |
+| DJEN | Pode 403 / HTML / rate limit · preferir client-side |
 | Heurística de encerramento | Apoio operacional · **não** é certidão |
 | IA | Depende de cota / motor configurado |
-| Apps Script | Opcional · cotas Google · não escala como SQL |
-
-Software jurídico não pode fingir que atalho é certidão.
+| Apps Script | Opcional · não escala como SQL |
 
 ---
 
@@ -191,7 +191,7 @@ Software jurídico não pode fingir que atalho é certidão.
 git clone https://github.com/W1CAPITAL/LexisPredict.git
 cd LexisPredict
 npm install
-cp .env.example .env.local   # se existir — preencha Supabase / chaves
+cp .env.example .env.local   # Supabase / chaves
 npm run dev
 ```
 
@@ -200,30 +200,34 @@ npm run typecheck
 npm run build
 ```
 
-**Produção:** deploy Vercel · variáveis Supabase + DataJud.
+**Visual graphify:** copie o `graph.html` para `public/mapa/graph.html` e abra `/mapa-codigo`.
 
-**Offline:** repo [OFFLINE-LEXISPREDICT](https://github.com/W1CAPITAL/OFFLINE-LEXISPREDICT) · junte as partes do EXE · abra `Lexis Gabinete.exe`.
+**Produção:** Vercel · variáveis Supabase + DataJud.
+
+**Offline:** [OFFLINE-LEXISPREDICT](https://github.com/W1CAPITAL/OFFLINE-LEXISPREDICT).
 
 ---
 
 ## Roadmap
 
 1. Contagens idênticas em painel, `/processos` e relatório  
-2. Offline: paridade de atendimento + export/import estável (planilha pelo app)  
+2. Offline: paridade de atendimento + export/import estável  
 3. Sync web ↔ EXE sem duplicar CNJ  
-4. Apps Script apenas como adaptador opcional — nunca como núcleo  
+4. Apps Script apenas adaptador opcional — nunca núcleo  
+5. Tema dark ops (graphify) em painel, filas e cases  
 
 ---
 
-## Diferencial comercial (resumo para pitch)
+## Diferencial comercial
 
 | | CRM genérico | **LexisPredict** |
 |--|--|--|
 | Centro | Lead / deal | **Processo · CNJ · prazo** |
 | Usuário | Vendas | **Operador, BKO, supervisor jurídico** |
 | Rotina | Funil | **Retorno, vencidos, tribunal, ranking** |
-| Planilha | “Integração” genérica | **Export/CRM nativo · Sheet só se quiser** |
+| Planilha | Integração genérica | **Export/CRM nativo** |
 | Offline | Raro | **EXE Windows real** |
+| Código | Caixa-preta | **Mapa graphify 4k nós** |
 
 ---
 
