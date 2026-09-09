@@ -13,22 +13,27 @@ import {
 export async function sherlockStatusAction() {
   const url = sherlockApiUrl();
   const enabled = sherlockEnabledFlag();
-  const ready = sherlockConfigured();
+  const configured = sherlockConfigured();
   const localhost = url ? sherlockIsLocalhostUrl(url) : false;
+  const production = process.env.NODE_ENV === "production";
+  const ready = configured && !(production && localhost);
   return {
     optional: true as const,
     enabled,
     urlSet: !!url,
     ready,
-    urlPreview: url ? (localhost ? "http://127.0.0.1:…" : url.replace(/https?:\/\//, "").slice(0, 40)) : "",
     localhost,
+    production,
+    urlPreview: url ? (localhost ? "http://127.0.0.1:…" : url.replace(/https?:\/\//, "").slice(0, 40)) : "",
     hint: !enabled
       ? "Sherlock opcional e desligado."
       : !url
         ? "SHERLOCK_ENABLED=true, mas falta SHERLOCK_API_URL."
-        : localhost
-          ? "URL é 127.0.0.1 — no Vercel Production isso NÃO alcança o seu PC. Use npm run dev na sua máquina com a API local, ou uma URL pública."
-          : "Sherlock pronto.",
+        : production && localhost
+          ? "Sherlock bloqueado: 127.0.0.1 aponta para o servidor Vercel, não para o seu PC. Configure uma URL pública HTTPS."
+          : localhost
+            ? "Sherlock local disponível somente durante npm run dev na sua máquina."
+            : "Sherlock pronto.",
   };
 }
 
