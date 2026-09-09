@@ -92,16 +92,34 @@ export default function GeradorProcessosPage() {
     };
 
     try {
-      // Uma rodada de queries textuais sobre o intervalo escolhido.
-      for (let qi = 0; qi < 10 && by.size < target && !stopRef.current; qi++) {
-        let pagina = 1;
-        let paginasVazias = 0;
+      // UM fluxo: feed por data (+tribunal), paginando no ritmo do DJEN.
+      // Sem rajada de queries textuais — era isso que ativava o bloqueio WAF.
+      let pagina = 1;
+      let falhasSeguidas = 0;
 
-        while (pagina <= 25 && by.size < target && !stopRef.current) {
-          let res = await scanDjenPaginaAction({
+      while (by.size < target && !stopRef.current) {
+        let res = await scanDjenPaginaAction({
+          statusFiltros: statusOn,
+          materiaFiltros: materiaOn,
+          pagina,
+          dataInicio,
+          dataFim,
+          siglaTribunal: tribunal.trim().toUpperCase() || undefined,
+          excludeCnjs: [...by.keys()],
+          cnpj: cnpj.replace(/\D/g, "") || undefined,
+        });
+        pushLogs(res.logs || []);
+
+        // 429 → espera crescente e repete a MESMA página.
+        let retries = 0;
+        while (res.rateLimited && retries < 6 && !stopRef.current) {
+          retries++;
+          const espera = 3 * retries;
+          pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "warn", text: `429 — espera ${espera}s e repete pág ${pagina}` }]);
+          await new Promise((r) => setTimeout(r, espera * 1000));
+          res = await scanDjenPaginaAction({
             statusFiltros: statusOn,
             materiaFiltros: materiaOn,
-            queryIndex: qi,
             pagina,
             dataInicio,
             dataFim,
@@ -110,58 +128,61 @@ export default function GeradorProcessosPage() {
             cnpj: cnpj.replace(/\D/g, "") || undefined,
           });
           pushLogs(res.logs || []);
+        }
 
-          let retries = 0;
-          while (res.rateLimited && retries < 6 && !stopRef.current) {
-            retries++;
-            pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "warn", text: `429 — espera ${2 + retries}s` }]);
-            await new Promise((r) => setTimeout(r, (2 + retries) * 1000));
-            res = await scanDjenPaginaAction({
-              statusFiltros: statusOn,
-              materiaFiltros: materiaOn,
-              queryIndex: qi,
-              pagina,
-              dataInicio,
-              dataFim,
-              siglaTribunal: tribunal.trim().toUpperCase() || undefined,
-              excludeCnjs: [...by.keys()],
-              cnpj: cnpj.replace(/\D/g, "") || undefined,
-            });
-            pushLogs(res.logs || []);
-          }
-
-          if (res.geoBlocked || res.htmlBlocked) {
+        // WAF/HTML → espera longa e repete a mesma página (até 3x), sem desistir na 1ª.
+        if (res.htmlBlocked) {
+          falhasSeguidas++;
+          if (falhasSeguidas >= 3) {
             pushLogs([
               {
                 ts: new Date().toISOString().slice(11, 19),
                 level: "err",
-                text: "DJEN bloqueou a consulta textual. Aguarde um instante e clique Buscar de novo.",
+                text: "DJEN segue bloqueando após 3 esperas — pare e tente mais tarde (o bloqueio expira sozinho).",
               },
             ]);
             break;
           }
-          if (!res.success) break;
-
-          const added = add(res.items || []);
-          if (added) {
-            pushLogs([
-              {
-                ts: new Date().toISOString().slice(11, 19),
-                level: "ok",
-                text: `Progresso ${by.size}/${target} (+${added})`,
-              },
-            ]);
-          }
-
-          if ((res.bruto || 0) === 0) {
-            paginasVazias++;
-            if (paginasVazias >= 2) break;
-          } else paginasVazias = 0;
-
-          if (!res.hasMore) break;
-          pagina += 1;
-          await new Promise((r) => setTimeout(r, 160));
+          pushLogs([
+            {
+              ts: new Date().toISOString().slice(11, 19),
+              level: "warn",
+              text: `Bloqueio WAF — espera 20s e repete pág ${pagina} (tentativa ${falhasSeguidas}/3)`,
+            },
+          ]
+          );
+          await new Promise((r) => setTimeout(r, 20000));
+          continue;
         }
+        falhasSeguidas = 0;
+
+        if (res.geoBlocked) {
+          pushLogs([
+            {
+              ts: new Date().toISOString().slice(11, 19),
+              level: "err",
+              text: "DJEN geo-bloqueou este servidor (403). Nenhuma aba consegue consultar a partir desta região.",
+            },
+          ]);
+          break;
+        }
+        if (!res.success) break;
+
+        const added = add(res.items || []);
+        if (added) {
+          pushLogs([
+            {
+              ts: new Date().toISOString().slice(11, 19),
+              level: "ok",
+              text: `Progresso ${by.size}/${target} (+${added})`,
+            },
+          ]);
+        }
+
+        if (!res.hasMore || (res.bruto || 0) === 0) break;
+        pagina += 1;
+        // Pacing: 1 página a cada ~1,2s — ritimo de leitura, não de rajada.
+        await new Promise((r) => setTimeout(r, 1200));
       }
     } catch (e: any) {
       pushLogs([
@@ -178,7 +199,7 @@ export default function GeradorProcessosPage() {
       {
         ts: new Date().toISOString().slice(11, 19),
         level: by.size ? "ok" : "warn",
-        text: `Fim · ${by.size}/${target} · origem: consulta textual DJEN (número oficial da API, sem CNJ de teor)`,
+        text: `Fim · ${by.size}/${target} · origem: feed DJEN por data + tribunal (número oficial da API, sem CNJ de teor, sem filtro de carteira/nome na consulta)`,
       },
     ]);
     setBusy(false);

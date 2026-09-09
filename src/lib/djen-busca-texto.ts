@@ -219,3 +219,31 @@ export async function fetchDjenPorTexto(
   }
   return last;
 }
+
+/**
+ * Feed DJEN por DATA (+ tribunal opcional) — sem texto, sem nome, sem CNJ.
+ * É o mesmo endpoint que as outras abas consultam com sucesso: 1 request = 1 página.
+ * Filtros F1/F2 ficam por conta do caller (locais), então não há rajada de queries
+ * textuais — o padrão que fazia o WAF bloquear.
+ */
+export async function fetchDjenPorData(opts: {
+  dataInicio: string;
+  dataFim: string;
+  pagina?: number;
+  itensPorPagina?: number;
+  siglaTribunal?: string;
+}): Promise<DjenFetchResult & { isHtmlBlock?: boolean }> {
+  const dataFim = opts.dataFim || new Date().toISOString().split('T')[0];
+  const dataInicio =
+    opts.dataInicio || new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0];
+  const params = new URLSearchParams({
+    dataDisponibilizacaoInicio: dataInicio,
+    dataDisponibilizacaoFim: dataFim,
+    pagina: String(Math.max(1, opts.pagina || 1)),
+    itensPorPagina: String(Math.min(opts.itensPorPagina || 100, 100)),
+  });
+  if (opts.siglaTribunal && !/^outros$/i.test(opts.siglaTribunal)) {
+    params.append('siglaTribunal', opts.siglaTribunal.toUpperCase());
+  }
+  return djenGet(params);
+}
