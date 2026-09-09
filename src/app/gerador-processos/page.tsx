@@ -4,13 +4,21 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { scanDjenPaginaAction, enrichmentConfigAction } from "@/app/actions/gerador-djen-action";
+import { djenBuscaTexto, cnjOficial, djenLink, type DjenItemRaw } from "@/lib/djen-client";
 import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
 import {
   FILTROS_STATUS,
   FILTROS_MATERIA,
   filtrosDefaultStatus,
   filtrosDefaultMateria,
+  passaFiltrosCombinados,
+  textoTemCnpj,
+  extractTelefoneSeguro,
+  extractNomeCompletoFromDjen,
+  formatCnjMasked,
+  isSegredoOuSigilo,
+  teorConsultavel,
+  classificarSentenca,
   type FiltroStatusId,
   type FiltroMateriaId,
   type ProcessoDjenReal,
@@ -38,6 +46,26 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
   );
 }
 
+/** Queries textuais derivadas dos chips F1/F2 marcados. */
+function queriesDosFiltros(status: FiltroStatusId[], materia: FiltroMateriaId[]): string[] {
+  const qs: string[] = [];
+  if (status.includes("extinto_sem_merito")) qs.push("sem resolução do mérito", "art. 485");
+  if (status.includes("extinto_com_merito")) qs.push("com resolução do mérito", "art. 487");
+  if (status.includes("encerrado")) qs.push("arquivamento");
+  if (status.includes("ativo")) qs.push("intime-se");
+  for (const m of materia) {
+    const f = FILTROS_MATERIA.find((x) => x.id === m);
+    if (f?.djenQuery) qs.push(f.djenQuery);
+  }
+  if (status.includes("extinto_sem_merito") && materia.includes("acao_revisional")) {
+    qs.unshift("485 revisional");
+  }
+  return [...new Set(qs)].slice(0, 10);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const agora = () => new Date().toISOString().slice(11, 19);
+
 export default function GeradorProcessosPage() {
   const [alvo, setAlvo] = useState("60");
   const [tribunal, setTribunal] = useState("TJSP");
@@ -58,32 +86,41 @@ export default function GeradorProcessosPage() {
   }, [logs]);
 
   const pushLogs = (m: ScanLogLine[]) => setLogs((p) => [...p, ...m].slice(-600));
+  const pushLog = (level: ScanLogLine["level"], text: string) =>
+    pushLogs([{ ts: agora(), level, text }]);
 
   const iniciar = async () => {
     const target = Math.min(Math.max(parseInt(alvo, 10) || 60, 1), 500);
     if (!statusOn.length && !materiaOn.length) {
-      pushLogs([{ ts: "", level: "err", text: "Marque F1 e/ou F2" }]);
+      pushLog("err", "Marque F1 e/ou F2");
       return;
     }
     stopRef.current = false;
     setBusy(true);
     setLista([]);
     setLogs([]);
-    pushLogs([
-      {
-        ts: new Date().toISOString().slice(11, 19),
-        level: "info",
-        text: `Alvo ${target} · enrich OFF · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`,
-      },
-    ]);
+    pushLog(
+      "info",
+      `Alvo ${target} · enrich OFF · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`
+    );
+    pushLog(
+      "info",
+      "Consulta DIRETA do seu navegador ao DJEN (Comunica PJe) — usa o IP da sua rede, não o do servidor. F1/F2 aplicados aqui, na tela."
+    );
 
     const by = new Map<string, ProcessoDjenReal>();
+    const exclude = new Set<string>();
+    const cnpjDigits = cnpj.replace(/\D/g, "");
+    const sigla = tribunal.trim().toUpperCase() || undefined;
+    const queries = queriesDosFiltros(statusOn, materiaOn);
+
     const add = (items: ProcessoDjenReal[]) => {
       let n = 0;
       for (const it of items) {
         const d = it.processo.replace(/\D/g, "");
         if (by.has(d)) continue;
         by.set(d, it);
+        exclude.add(d);
         n++;
         if (by.size >= target) break;
       }
@@ -92,116 +129,147 @@ export default function GeradorProcessosPage() {
     };
 
     try {
-      // UM fluxo: feed por data (+tribunal), paginando no ritmo do DJEN.
-      // Sem rajada de queries textuais — era isso que ativava o bloqueio WAF.
-      let pagina = 1;
-      let falhasSeguidas = 0;
+      outer: for (const q of queries) {
+        if (by.size >= target || stopRef.current) break;
 
-      while (by.size < target && !stopRef.current) {
-        let res = await scanDjenPaginaAction({
-          statusFiltros: statusOn,
-          materiaFiltros: materiaOn,
-          pagina,
-          dataInicio,
-          dataFim,
-          siglaTribunal: tribunal.trim().toUpperCase() || undefined,
-          excludeCnjs: [...by.keys()],
-          cnpj: cnpj.replace(/\D/g, "") || undefined,
-        });
-        pushLogs(res.logs || []);
+        let pagina = 1;
+        let paginasVazias = 0;
 
-        // 429 → espera crescente e repete a MESMA página.
-        let retries = 0;
-        while (res.rateLimited && retries < 6 && !stopRef.current) {
-          retries++;
-          const espera = 3 * retries;
-          pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "warn", text: `429 — espera ${espera}s e repete pág ${pagina}` }]);
-          await new Promise((r) => setTimeout(r, espera * 1000));
-          res = await scanDjenPaginaAction({
-            statusFiltros: statusOn,
-            materiaFiltros: materiaOn,
-            pagina,
+        while (pagina <= 25 && by.size < target && !stopRef.current) {
+          pushLog("info", `Texto “${q}” · pág ${pagina} · ${dataInicio}→${dataFim}`);
+          let res = await djenBuscaTexto({
+            texto: q,
             dataInicio,
             dataFim,
-            siglaTribunal: tribunal.trim().toUpperCase() || undefined,
-            excludeCnjs: [...by.keys()],
-            cnpj: cnpj.replace(/\D/g, "") || undefined,
+            pagina,
+            itensPorPagina: 50,
+            siglaTribunal: sigla,
           });
-          pushLogs(res.logs || []);
-        }
 
-        // WAF/HTML → espera longa e repete a mesma página (até 3x), sem desistir na 1ª.
-        if (res.htmlBlocked) {
-          falhasSeguidas++;
-          if (falhasSeguidas >= 3) {
-            pushLogs([
-              {
-                ts: new Date().toISOString().slice(11, 19),
-                level: "err",
-                text: "DJEN segue bloqueando após 3 esperas — pare e tente mais tarde (o bloqueio expira sozinho).",
-              },
-            ]);
+          // 429 → espera crescente e repete a MESMA página (até 6x)
+          let retries = 0;
+          while (res.rateLimited && retries < 6 && !stopRef.current) {
+            retries++;
+            const espera = 3 * retries;
+            pushLog("warn", `429 — espera ${espera}s e repete pág ${pagina}`);
+            await sleep(espera * 1000);
+            res = await djenBuscaTexto({
+              texto: q,
+              dataInicio,
+              dataFim,
+              pagina,
+              itensPorPagina: 50,
+              siglaTribunal: sigla,
+            });
+          }
+
+          // WAF/HTML → espera longa e repete a MESMA página (até 3x)
+          let wafTries = 0;
+          while (res.htmlBlocked && wafTries < 3 && !stopRef.current) {
+            wafTries++;
+            pushLog("warn", `Bloqueio WAF — espera 20s e repete pág ${pagina} (${wafTries}/3)`);
+            await sleep(20000);
+            res = await djenBuscaTexto({
+              texto: q,
+              dataInicio,
+              dataFim,
+              pagina,
+              itensPorPagina: 50,
+              siglaTribunal: sigla,
+            });
+          }
+          if (res.htmlBlocked) {
+            pushLog("err", "DJEN segue bloqueando após 3 esperas — tente mais tarde (o bloqueio expira sozinho).");
+            break outer;
+          }
+          if (res.geoBlocked) {
+            pushLog("err", "DJEN 403 para a sua rede — raro; tente novamente mais tarde.");
+            break outer;
+          }
+          if (!res.ok) {
+            pushLog("err", String(res.error || "falha na consulta"));
             break;
           }
-          pushLogs([
-            {
-              ts: new Date().toISOString().slice(11, 19),
-              level: "warn",
-              text: `Bloqueio WAF — espera 20s e repete pág ${pagina} (tentativa ${falhasSeguidas}/3)`,
-            },
-          ]
+
+          // ---- filtros F1/F2 e higiene, localmente ----
+          const bruto = res.items.length;
+          const rows: ProcessoDjenReal[] = [];
+          let skipSigilo = 0,
+            skipCnj = 0,
+            skipDup = 0,
+            skipTeor = 0,
+            skipCnpj = 0,
+            skipFiltro = 0,
+            skipNome = 0;
+
+          for (const it of res.items) {
+            const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
+            if (isSegredoOuSigilo(blob)) {
+              skipSigilo++;
+              continue;
+            }
+            const digits = cnjOficial(it); // SEMPRE o campo oficial da API
+            if (!digits) {
+              skipCnj++;
+              continue;
+            }
+            if (exclude.has(digits)) {
+              skipDup++;
+              continue;
+            }
+            if (!teorConsultavel(it.texto)) {
+              skipTeor++;
+              continue;
+            }
+            if (cnpjDigits && !textoTemCnpj(blob, cnpjDigits)) {
+              skipCnpj++;
+              continue;
+            }
+            const gate = passaFiltrosCombinados(blob, statusOn, materiaOn);
+            if (!gate.ok) {
+              skipFiltro++;
+              continue;
+            }
+            const nome =
+              extractNomeCompletoFromDjen({
+                texto: it.texto,
+                destinatarios: (it as any).destinatarios,
+              }) || "";
+            if (!nome) {
+              skipNome++;
+              continue;
+            }
+            rows.push(toRow(it, digits, gate, nome, sigla));
+          }
+
+          pushLog(
+            rows.length ? "ok" : "warn",
+            `Pág ${pagina}: aceitos ${rows.length}/${bruto} · filtro_F1F2:${skipFiltro} sem_nome:${skipNome} sigilo:${skipSigilo} teor:${skipTeor} dup:${skipDup} sem_num:${skipCnj}`
           );
-          await new Promise((r) => setTimeout(r, 20000));
-          continue;
-        }
-        falhasSeguidas = 0;
 
-        if (res.geoBlocked) {
-          pushLogs([
-            {
-              ts: new Date().toISOString().slice(11, 19),
-              level: "err",
-              text: "DJEN geo-bloqueou este servidor (403). Nenhuma aba consegue consultar a partir desta região.",
-            },
-          ]);
-          break;
-        }
-        if (!res.success) break;
+          const added = add(rows);
+          if (added) pushLog("ok", `Progresso ${by.size}/${target} (+${added})`);
 
-        const added = add(res.items || []);
-        if (added) {
-          pushLogs([
-            {
-              ts: new Date().toISOString().slice(11, 19),
-              level: "ok",
-              text: `Progresso ${by.size}/${target} (+${added})`,
-            },
-          ]);
-        }
+          if (bruto === 0) {
+            paginasVazias++;
+            if (paginasVazias >= 2) break;
+          } else paginasVazias = 0;
 
-        if (!res.hasMore || (res.bruto || 0) === 0) break;
-        pagina += 1;
-        // Pacing: 1 página a cada ~1,2s — ritimo de leitura, não de rajada.
-        await new Promise((r) => setTimeout(r, 1200));
+          if (bruto < 50) break; // última página desta query
+          pagina += 1;
+          await sleep(1200); // ritmo de leitura — sem rajada
+        }
+        if (by.size >= target || stopRef.current) break outer;
       }
     } catch (e: any) {
-      pushLogs([
-        {
-          ts: new Date().toISOString().slice(11, 19),
-          level: "err",
-          text: `Erro inesperado: ${e?.message || String(e)}`,
-        },
-      ]);
+      pushLog("err", `Erro inesperado: ${e?.message || String(e)}`);
     }
 
     setLista([...by.values()]);
-    pushLogs([
-      {
-        ts: new Date().toISOString().slice(11, 19),
-        level: by.size ? "ok" : "warn",
-        text: `Fim · ${by.size}/${target} · origem: feed DJEN por data + tribunal (número oficial da API, sem CNJ de teor, sem filtro de carteira/nome na consulta)`,
-      },
-    ]);
+    pushLog(
+      by.size ? "ok" : "warn",
+      `Fim · ${by.size}/${target} · consulta direta navegador→DJEN (número oficial da API, sem CNJ de teor, sem filtro de carteira/nome na consulta)`
+    );
     setBusy(false);
   };
 
@@ -216,7 +284,7 @@ export default function GeradorProcessosPage() {
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (e: any) {
-      pushLogs([{ ts: new Date().toISOString().slice(11, 19), level: "err", text: `XLSX: ${e?.message || e}` }]);
+      pushLog("err", `XLSX: ${e?.message || e}`);
     } finally {
       setExp(false);
     }
@@ -229,8 +297,8 @@ export default function GeradorProcessosPage() {
         <div className="p-4 border-b space-y-3 shrink-0 overflow-y-auto max-h-[48vh]">
           <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
           <p className="text-xs text-muted-foreground">
-            Consulta publicações reais no DJEN dentro do intervalo. O número exibido é sempre o campo oficial da API
-            (nunca extraído do teor). Sem dados fictícios, sem enriquecimento externo.
+            Consulta publicações reais no DJEN (Comunica PJe) direto do seu navegador — sem servidor intermediário.
+            O número exibido é sempre o campo oficial da API (nunca extraído do teor). Sem dados fictícios, sem enriquecimento externo.
           </p>
           <div>
             <p className="text-[10px] font-black uppercase text-amber-600">Filtro 1 · Situação · {statusOn.length}</p>
@@ -369,4 +437,50 @@ export default function GeradorProcessosPage() {
       </main>
     </div>
   );
+}
+
+// ---------- row builder ----------
+
+function toRow(it: DjenItemRaw, digits: string, gate: any, nome: string, sigla?: string): ProcessoDjenReal {
+  const tel = extractTelefoneSeguro(it.texto || "");
+  const statusLabel =
+    FILTROS_STATUS.find((f) => f.id === gate.status)?.nomeTribunal || gate.status || "";
+  const matLabel = (gate.materiaHits || [])
+    .map((id: string) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal)
+    .filter(Boolean)
+    .join(" · ");
+  const decisao = classificarSentenca(String(it.texto || ""));
+  const decisaoLabel = {
+    extinto_sem_merito: "Extinto sem resolução do mérito",
+    extinto_com_merito: "Extinto com resolução do mérito",
+    procedente: "Sentença procedente",
+    improcedente: "Sentença improcedente",
+    procedente_parcial: "Sentença procedente em parte",
+    nao_classificada: "Sentença não classificada",
+  }[decisao];
+  return {
+    processo: formatCnjMasked(digits),
+    nome_completo: nome,
+    telefone: tel,
+    email: "",
+    cpf: "",
+    cnpj: "",
+    endereco: "",
+    cep: "",
+    bairro: "",
+    municipio: "",
+    uf: "",
+    situacao_cadastral: "",
+    telefone_fonte: tel ? "teor_djen_publico" : "",
+    enrich_fonte: "",
+    classe: String(it.nomeClasse || "").trim(),
+    assunto_ou_teor: String(it.texto || "").replace(/\s+/g, " ").trim().slice(0, 240),
+    situacao_hint: [statusLabel, matLabel, decisaoLabel].filter(Boolean).join(" · "),
+    status_detectado: gate.status || decisao,
+    tribunal: String(it.siglaTribunal || sigla || "").toUpperCase(),
+    data: String(it.data_disponibilizacao || "").slice(0, 10),
+    link: djenLink(it, digits),
+    filtros: [gate.status, ...(gate.materiaHits || [])].filter(Boolean).join("|"),
+    consultavel: true,
+  };
 }
