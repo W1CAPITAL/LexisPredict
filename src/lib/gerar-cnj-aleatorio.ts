@@ -43,3 +43,27 @@ export function gerarLoteCnj(qtd: number, teto = 20000): string[] {
   }
   return [...seen];
 }
+
+
+const TJ_TR: Record<string, string> = {
+  TJAC: "01", TJAL: "02", TJAP: "03", TJAM: "04", TJBA: "05", TJCE: "06",
+  TJDF: "07", TJDFT: "07", TJES: "08", TJGO: "09", TJMA: "10", TJMT: "11",
+  TJMS: "12", TJMG: "13", TJPA: "14", TJPB: "15", TJPR: "16", TJPE: "17",
+  TJPI: "18", TJRJ: "19", TJRN: "20", TJRS: "21", TJRO: "22", TJRR: "23",
+  TJSC: "24", TJSE: "25", TJSP: "26", TJTO: "27",
+};
+
+export function trDoTribunal(sigla?: string): string | null {
+  const k = String(sigla || "").replace(/\s/g, "").toUpperCase();
+  return TJ_TR[k] || null;
+}
+
+export function gerarCnjTribunal(sigla?: string, anoMin = 2020, anoMax = 2026): string {
+  const ano = pad(anoMin + Math.floor(Math.random() * (anoMax - anoMin + 1)), 4);
+  const j = "8";
+  const tr = trDoTribunal(sigla) || TR_ESTADUAL[Math.floor(Math.random() * TR_ESTADUAL.length)];
+  const origem = pad(1 + Math.floor(Math.random() * 320), 4);
+  const seq = pad(1 + Math.floor(Math.random() * 400000), 7);
+  const dd = dvCnj(seq, ano, j, tr, origem);
+  return `${seq}${dd}${ano}${j}${tr}${origem}`;
+}

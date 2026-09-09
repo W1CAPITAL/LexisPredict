@@ -306,3 +306,114 @@ export async function scanCarteiraDjenAction(input: {
     geoBlocked,
   };
 }
+
+
+/** CNJs aleatórios (não vêm da carteira). Carteira só entra como lista de exclusão. */
+export async function scanAleatorioDjenAction(input: {
+  statusFiltros: FiltroStatusId[];
+  materiaFiltros: FiltroMateriaId[];
+  dataInicio?: string;
+  dataFim?: string;
+  siglaTribunal?: string;
+  excludeCnjs?: string[];
+  cnpj?: string;
+  lote?: number;
+}) {
+  const logs: ScanLogLine[] = [];
+  const statusAtivos = (input.statusFiltros || []) as FiltroStatusId[];
+  const materiaAtivos = (input.materiaFiltros || []) as FiltroMateriaId[];
+  const dataFim = input.dataFim || new Date().toISOString().slice(0, 10);
+  const dataInicio = input.dataInicio || new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const sigla = input.siglaTribunal?.trim().toUpperCase() || undefined;
+  const exclude = new Set((input.excludeCnjs || []).map((c) => c.replace(/\D/g, "")));
+  const cnpjFilter = String(input.cnpj || "").replace(/\D/g, "");
+  const lote = Math.min(Math.max(Number(input.lote) || 8, 3), 12);
+  const anoMin = Math.max(2016, Number(String(dataInicio).slice(0, 4)) || 2020);
+  const anoMax = Math.min(2026, Number(String(dataFim).slice(0, 4)) || 2026);
+
+  try {
+    const { getUserContext, getSupabaseAdmin } = await import("@/lib/server-db");
+    const ctx = await getUserContext();
+    if (ctx.empresa_id) {
+      const admin = await getSupabaseAdmin();
+      const { data } = await admin
+        .from("processos")
+        .select("protocolo_ref")
+        .eq("empresa_id", ctx.empresa_id)
+        .limit(4000);
+      for (const r of data || []) {
+        const d = String((r as any).protocolo_ref || "").replace(/\D/g, "");
+        if (d.length === 20) exclude.add(d);
+      }
+    }
+  } catch {
+    /* exclusão da carteira é opcional */
+  }
+
+  const { gerarCnjTribunal } = await import("@/lib/gerar-cnj-aleatorio");
+  logs.push(log("info", `Aleatório ${sigla || "BR"} · lote ${lote} · fora da carteira (${exclude.size} excluídos)`));
+
+  const items: ProcessoDjenReal[] = [];
+  let scanned = 0;
+  let vazios = 0;
+  let rateLimited = false;
+  let geoBlocked = false;
+  const tentados: string[] = [];
+
+  for (let i = 0; i < lote; i++) {
+    let proto = gerarCnjTribunal(sigla, anoMin, anoMax);
+    let g = 0;
+    while (exclude.has(proto) && g < 8) {
+      proto = gerarCnjTribunal(sigla, anoMin, anoMax);
+      g++;
+    }
+    if (exclude.has(proto)) continue;
+    exclude.add(proto);
+    tentados.push(proto);
+    scanned++;
+    const djen = await fetchDjenComunicacoes(proto, { siglaTribunal: sigla, dataInicio, dataFim });
+    if (djen.isGeoBlocked) {
+      geoBlocked = true;
+      logs.push(log("err", "403 no CNJ aleatório"));
+      break;
+    }
+    if (djen.isRateLimited) {
+      rateLimited = true;
+      logs.push(log("warn", "429 — pausa (não usa carteira)"));
+      break;
+    }
+    if (!djen.success || !djen.items?.length) {
+      vazios++;
+      continue;
+    }
+    for (const it of djen.items) {
+      const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
+      if (isSegredoOuSigilo(blob)) continue;
+      if (cnpjFilter && !textoTemCnpj(blob, cnpjFilter)) continue;
+      const gate = passaFiltrosCombinados(blob, statusAtivos, materiaAtivos);
+      if (!gate.ok) continue;
+      const digits =
+        extractCnjSeguro(it.numero_processo, "", { siglaTribunal: sigla }) || proto;
+      items.push(toRow(it, digits, gate, sigla));
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 700));
+  }
+
+  logs.push(
+    log(
+      items.length ? "ok" : "info",
+      `Sorteio ${scanned} · pub ${scanned - vazios} · bateu filtro ${items.length}`
+    )
+  );
+  return {
+    success: true,
+    items,
+    logs,
+    scanned,
+    vazios,
+    hasMore: true,
+    rateLimited,
+    geoBlocked,
+  };
+}

@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { scanDjenPaginaAction, scanCarteiraDjenAction } from "@/app/actions/gerador-djen-action";
+import { scanDjenPaginaAction, scanAleatorioDjenAction } from "@/app/actions/gerador-djen-action";
 import { sherlockBuscarPorNomeAction, sherlockStatusAction } from "@/app/actions/sherlock-action";
 import {
   FILTROS_STATUS,
@@ -21,24 +21,6 @@ import { Download, Loader2, Search, ExternalLink, Square } from "lucide-react";
 const isoHoje = () => new Date().toISOString().slice(0, 10);
 const isoIni = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
-
-function janelas(inicio: string, fim: string, n = 14) {
-  const a = new Date(`${inicio}T00:00:00`);
-  const b = new Date(`${fim}T00:00:00`);
-  if (isNaN(a.getTime()) || isNaN(b.getTime()) || a > b) return [];
-  const out: { dataInicio: string; dataFim: string }[] = [];
-  let cur = new Date(b);
-  while (cur >= a) {
-    const end = new Date(cur);
-    const start = new Date(cur);
-    start.setDate(start.getDate() - (n - 1));
-    if (start < a) start.setTime(a.getTime());
-    out.push({ dataInicio: ymd(start), dataFim: ymd(end) });
-    cur = new Date(start);
-    cur.setDate(cur.getDate() - 1);
-  }
-  return out;
-}
 
 function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
   return (
@@ -65,7 +47,7 @@ export default function GeradorProcessosPage() {
   const [statusOn, setStatusOn] = useState<FiltroStatusId[]>(() => filtrosDefaultStatus());
   const [materiaOn, setMateriaOn] = useState<FiltroMateriaId[]>(() => filtrosDefaultMateria());
   const [cnpj, setCnpj] = useState("");
-  const [modo, setModo] = useState<"auto" | "carteira" | "texto">("auto");
+  const [modo, setModo] = useState<"aleatorio" | "texto">("aleatorio");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
   const [busy, setBusy] = useState(false);
@@ -84,7 +66,7 @@ export default function GeradorProcessosPage() {
       .catch(() => null);
   }, []);
 
-  const pushLogs = (m: ScanLogLine[]) => setLogs((p) => [...p, ...m].slice(-500));
+  const pushLogs = (m: ScanLogLine[]) => setLogs((p) => [...p, ...m].slice(-600));
 
   const iniciar = async () => {
     const target = Math.min(Math.max(parseInt(alvo, 10) || 60, 1), 500);
@@ -100,11 +82,11 @@ export default function GeradorProcessosPage() {
       {
         ts: new Date().toISOString().slice(11, 19),
         level: "info",
-        text: `Alvo ${target} · modo ${modo} · F1[${statusOn}] · F2[${materiaOn}]`,
+        text: `Alvo ${target} · ${modo} · ${tribunal} · NÃO varre a carteira`,
       },
     ]);
 
-    const by = new Map<string, ProcessoDjenReal>();
+    const by = new Map<string, ProcessoDjenReal[]>([]);
     const add = (items: ProcessoDjenReal[]) => {
       let n = 0;
       for (const it of items) {
@@ -118,95 +100,71 @@ export default function GeradorProcessosPage() {
       return n;
     };
 
-    let textoFalhou = false;
-    if (modo !== "carteira") {
-      let tq = 1;
-      outer: for (const j of janelas(dataInicio, dataFim, 14)) {
-        if (stopRef.current || by.size >= target) break;
-        for (let qi = 0; qi < tq; qi++) {
-          if (stopRef.current || by.size >= target) break outer;
-          let html = 0;
-          for (let pagina = 1; pagina <= 6 && by.size < target && !stopRef.current; pagina++) {
-            const res = await scanDjenPaginaAction({
-              statusFiltros: statusOn,
-              materiaFiltros: materiaOn,
-              queryIndex: qi,
-              pagina,
-              dataInicio: j.dataInicio,
-              dataFim: j.dataFim,
-              siglaTribunal: tribunal || undefined,
-              excludeCnjs: [...by.keys()],
-              cnpj: cnpj.replace(/\D/g, "") || undefined,
-            });
-            if (res.totalQueries) tq = res.totalQueries;
-            pushLogs(res.logs || []);
-            if (res.geoBlocked) break outer;
-            if (res.htmlBlocked) {
-              html++;
-              textoFalhou = true;
-              if (html >= 2) break;
-            }
-            if (res.rateLimited) {
-              await new Promise((r) => setTimeout(r, 3000));
-              continue;
-            }
-            if (res.success && res.items?.length) {
-              const n = add(res.items);
-              if (n)
-                pushLogs([
-                  {
-                    ts: new Date().toISOString().slice(11, 19),
-                    level: "ok",
-                    text: `${by.size}/${target} (+${n} texto)`,
-                  },
-                ]);
-            }
-            if (!res.success || res.bruto < 40) break;
-          }
-        }
-      }
-    }
-
-    if ((modo === "auto" && textoFalhou) || modo === "carteira" || (modo === "auto" && by.size < target)) {
-      if (textoFalhou)
-        pushLogs([
-          {
-            ts: new Date().toISOString().slice(11, 19),
-            level: "warn",
-            text: "Texto WAF → fallback carteira (igual scanner 09ebace/parados)",
-          },
-        ]);
-      let offset = 0;
-      for (let i = 0; i < 40 && by.size < target && !stopRef.current; i++) {
-        const res = await scanCarteiraDjenAction({
+    if (modo === "texto") {
+      for (let qi = 0; qi < 8 && by.size < target && !stopRef.current; qi++) {
+        const res = await scanDjenPaginaAction({
           statusFiltros: statusOn,
           materiaFiltros: materiaOn,
+          queryIndex: qi,
+          pagina: 1,
           dataInicio,
           dataFim,
           siglaTribunal: tribunal || undefined,
           excludeCnjs: [...by.keys()],
           cnpj: cnpj.replace(/\D/g, "") || undefined,
-          limit: 25,
-          offset,
         });
         pushLogs(res.logs || []);
-        if (res.geoBlocked) break;
-        if (res.rateLimited) {
-          await new Promise((r) => setTimeout(r, 4000));
-          continue;
+        if (res.htmlBlocked || res.geoBlocked) {
+          pushLogs([
+            {
+              ts: new Date().toISOString().slice(11, 19),
+              level: "warn",
+              text: "Texto bloqueado pelo WAF — use o modo Aleatório (CNJ sorteado).",
+            },
+          ]);
+          break;
         }
-        if (res.items?.length) {
-          const n = add(res.items);
+        if (res.items?.length) add(res.items);
+      }
+    }
+
+    let wait429 = 8000;
+    for (let i = 0; i < 80 && by.size < target && !stopRef.current; i++) {
+      const res = await scanAleatorioDjenAction({
+        statusFiltros: statusOn,
+        materiaFiltros: materiaOn,
+        dataInicio,
+        dataFim,
+        siglaTribunal: tribunal || undefined,
+        excludeCnjs: [...by.keys()],
+        cnpj: cnpj.replace(/\D/g, "") || undefined,
+        lote: 8,
+      });
+      pushLogs(res.logs || []);
+      if (res.geoBlocked) break;
+      if (res.rateLimited) {
+        pushLogs([
+          {
+            ts: new Date().toISOString().slice(11, 19),
+            level: "warn",
+            text: `429 · espera ${Math.round(wait429 / 1000)}s e segue no sorteio`,
+          },
+        ]);
+        await new Promise((r) => setTimeout(r, wait429));
+        wait429 = Math.min(wait429 + 4000, 25000);
+        continue;
+      }
+      wait429 = 8000;
+      if (res.items?.length) {
+        const n = add(res.items);
+        if (n)
           pushLogs([
             {
               ts: new Date().toISOString().slice(11, 19),
               level: "ok",
-              text: `${by.size}/${target} (+${n} carteira/CNJ)`,
+              text: `${by.size}/${target}  (+${n} fora da carteira)`,
             },
           ]);
-        }
-        offset += res.scanned || 25;
-        if (!res.hasMore) break;
       }
     }
 
@@ -215,7 +173,7 @@ export default function GeradorProcessosPage() {
       {
         ts: new Date().toISOString().slice(11, 19),
         level: by.size ? "ok" : "warn",
-        text: `Fim · ${by.size}/${target}`,
+        text: `Fim · ${by.size}/${target} · origem: CNJ sorteado, não a carteira`,
       },
     ]);
     setBusy(false);
@@ -225,11 +183,11 @@ export default function GeradorProcessosPage() {
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col max-h-screen overflow-hidden">
-        <div className="p-4 border-b space-y-3 shrink-0 overflow-y-auto max-h-[55vh]">
-          <h1 className="text-xl font-black">DJEN revisional</h1>
+        <div className="p-4 border-b space-y-3 shrink-0 overflow-y-auto max-h-[48vh]">
+          <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
           <p className="text-xs text-muted-foreground">
-            Modo <b>Auto</b>: texto → se WAF, <b>carteira + DJEN por CNJ</b> (scanner que funciona). Sherlock = perfis
-            públicos grátis (self-host).
+            Sorteia CNJ do tribunal e consulta o DJEN por número. Não abre processo da carteira.
+            A carteira só serve para não repetir o que você já tem.
           </p>
           <div>
             <p className="text-[10px] font-black uppercase text-amber-600">Filtro 1 · Situação · {statusOn.length}</p>
@@ -272,11 +230,20 @@ export default function GeradorProcessosPage() {
             <Input className="h-9 w-24 uppercase" value={tribunal} onChange={(e) => setTribunal(e.target.value)} />
             <Input className="h-9 w-36" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
             <Input className="h-9 w-36" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
-            <Input className="h-9 w-36 font-mono" placeholder="CNPJ" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
+            <Input className="h-9 w-36" type="month" value={dataInicio.slice(0, 7)} max={isoHoje().slice(0, 7)}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                const [y, m] = v.split("-").map(Number);
+                setDataInicio(`${v}-01`);
+                const last = ymd(new Date(y, m, 0));
+                setDataFim(last > isoHoje() ? isoHoje() : last);
+              }}
+            />
+            <Input className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
             <select className="h-9 border rounded-md px-2 text-xs bg-background" value={modo} onChange={(e) => setModo(e.target.value as any)}>
-              <option value="auto">Auto</option>
-              <option value="carteira">Só carteira/CNJ</option>
-              <option value="texto">Só texto</option>
+              <option value="aleatorio">Aleatório (fora da carteira)</option>
+              <option value="texto">Só texto DJEN (costuma WAF)</option>
             </select>
             {!busy ? (
               <Button onClick={iniciar} className="h-9 text-xs font-black uppercase gap-1">
@@ -287,15 +254,12 @@ export default function GeradorProcessosPage() {
                 <Square className="w-3 h-3" /> Parar
               </Button>
             )}
-            <span className="text-[10px] font-mono">
-              Sherlock: {sherlockReady ? "ON" : "off (env)"}
-            </span>
           </div>
           <p className="text-[11px] font-mono font-bold">
             {lista.length}/{alvo} {busy && <Loader2 className="w-3 h-3 inline animate-spin" />}
           </p>
         </div>
-        <div className="flex-1 min-h-0 grid md:grid-cols-[1fr_280px] overflow-hidden">
+        <div className="flex-1 min-h-0 grid md:grid-cols-[1fr_minmax(280px,38%)] overflow-hidden">
           <div className="overflow-auto p-3 space-y-2">
             {lista.map((p) => (
               <article key={p.processo} className="border rounded-xl p-3 space-y-1">
@@ -343,13 +307,30 @@ export default function GeradorProcessosPage() {
               </article>
             ))}
           </div>
-          <aside className="border-l overflow-auto p-2 font-mono text-[10px] bg-black/20">
-            {logs.map((l, i) => (
-              <div key={i} className={l.level === "err" ? "text-red-400" : l.level === "warn" ? "text-amber-400" : l.level === "ok" ? "text-emerald-400" : ""}>
-                {l.ts} {l.text}
-              </div>
-            ))}
-            <div ref={logEnd} />
+          <aside className="border-l flex flex-col min-h-0 bg-[#0C0C0C] text-[#CCCCCC]">
+            <div className="px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-[#6A9955] border-b border-[#222] shrink-0">
+              C:\LEXIS\GERADOR&gt; log
+            </div>
+            <div className="flex-1 overflow-auto p-3 font-mono text-[12px] leading-5">
+              {logs.map((l, i) => (
+                <div
+                  key={i}
+                  className={
+                    l.level === "err"
+                      ? "text-[#F14C4C]"
+                      : l.level === "warn"
+                        ? "text-[#CCA700]"
+                        : l.level === "ok"
+                          ? "text-[#3FC56A]"
+                          : "text-[#D4D4D4]"
+                  }
+                >
+                  <span className="text-[#6A9955]">{l.ts ? `${l.ts} ` : ""}</span>
+                  {l.text}
+                </div>
+              ))}
+              <div ref={logEnd} className="text-[#3FC56A]">{busy ? "_" : ""}</div>
+            </div>
           </aside>
         </div>
       </main>
