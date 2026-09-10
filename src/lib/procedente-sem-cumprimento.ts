@@ -1,7 +1,6 @@
 /**
  * Sentença procedente (favorável ao autor) SEM cumprimento de sentença instaurado.
- * Prioridade operacional: em ~5 anos a pretensão executória pode prescrever (art. 206 CC / CPC).
- * Processos ~4 anos parados = janela crítica.
+ * ICP: revisional / bancário / cível — NÃO ação penal.
  */
 
 const RE_JULGO_PROCEDENTE_AUTOR =
@@ -15,11 +14,9 @@ const RE_PARCIAL = /procedente\s+em\s+parte|parcialmente\s+procedente/i;
 const RE_IMPROCEDENTE =
   /\bjulgo\s+improcedente\b|\bpedido[s]?\s+improcedente|\bsenten[cç]a\s+improcedente\b/i;
 
-/** Cumprimento já instaurado / em curso no teor. */
 const RE_CUMPRIMENTO_INSTAURADO =
   /\b(instaur[oa]\w*\s+)?cumprimento\s+de\s+senten[cç]a\b|\bcumprimento\s+provis[oó]rio\b|\binicio\s+do\s+cumprimento\b|\bexecu[cç][aã]o\s+de\s+senten[cç]a\b|\bpeti[cç][aã]o\s+de\s+cumprimento\b|\brequer\s+o\s+cumprimento\b|\bautos\s+de\s+cumprimento\b/i;
 
-/** Ainda só fase de conhecimento / falta executar. */
 const RE_SEM_CUMPRIMENTO_HINT =
   /\b(aguarde-se\s+o\s+tr[aâ]nsito|certifique-se\s+o\s+tr[aâ]nsito|ap[oó]s\s+o\s+tr[aâ]nsito|nada\s+requerido|sem\s+requerimento\s+de\s+cumprimento)\b/i;
 
@@ -33,6 +30,47 @@ export type ProcedenteSemCumprimento = {
   motivo: string;
 };
 
+export function isEsferaPenal(texto: string): boolean {
+  const t = String(texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (/\bacao penal\b/.test(t)) return true;
+  if (/\bprocesso penal\b/.test(t)) return true;
+  if (/\binquerito policial\b/.test(t)) return true;
+  if (/\bexecucao penal\b/.test(t)) return true;
+  if (/\bcodigo penal\b/.test(t)) return true;
+  if (/\btribunal do juri\b|\bjuri popular\b/.test(t)) return true;
+  if (/\bmedida de seguranca\b/.test(t)) return true;
+  if (/\bpenal\s*[-–]\s*procedimento/.test(t)) return true;
+  if (/\bprocedimento\s+(sumario|ordinario)\b/.test(t) && /\bpenal\b/.test(t)) return true;
+  if (/acao penal/.test(t)) return true;
+  return false;
+}
+
+export function isRevisionalOuBancarioCivel(texto: string): boolean {
+  const t = String(texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (isEsferaPenal(t)) return false;
+  if (/\bprocedimento comum infancia|\bvara da infancia|\binfancia e juventude\b/.test(t)) return false;
+  if (/\brevisional\b/.test(t)) return true;
+  if (/\brevisao de (contrato|clausula|juros)\b/.test(t)) return true;
+  if (/\bcontrato[s]? bancario/.test(t)) return true;
+  if (/\balienacao fiduciaria\b/.test(t)) return true;
+  if (/\bbusca e apreensao\b/.test(t)) return true;
+  if (/\bfinanciamento\b/.test(t)) return true;
+  if (/\bconsignado\b/.test(t)) return true;
+  if (/\bcdc\b|\bcodigo de defesa do consumidor\b/.test(t)) return true;
+  if (/\bsuperendividamento\b/.test(t)) return true;
+  if (/\bindebito\b/.test(t)) return true;
+  if (/\bbanco\b|\bfinanceira\b|\bcredor fiduciario\b/.test(t)) return true;
+  if (/\bprocedimento comum civel\b/.test(t)) return true;
+  if (/\bcivel\b/.test(t) && !/\bpenal\b/.test(t)) return true;
+  return false;
+}
+
 export function analisarProcedenteSemCumprimento(texto: string): ProcedenteSemCumprimento {
   const t = String(texto || "");
   const isParcial = RE_PARCIAL.test(t);
@@ -42,20 +80,36 @@ export function analisarProcedenteSemCumprimento(texto: string): ProcedenteSemCu
     (RE_JULGO_PROCEDENTE_AUTOR.test(t) || RE_PROCEDENTE_CLARO.test(t) || isParcial);
   const cumprimentoInstaurado = RE_CUMPRIMENTO_INSTAURADO.test(t);
 
-  const elegivel = isProcedenteAutor && !cumprimentoInstaurado;
+  // Penal nunca elegível neste módulo
+  if (isEsferaPenal(t)) {
+    return {
+      isProcedenteAutor,
+      isParcial,
+      isImprocedente,
+      cumprimentoInstaurado,
+      elegivel: false,
+      label: "EXCLUÍDO · AÇÃO PENAL",
+      motivo: "Esfera penal — fora do ICP revisional/bancário",
+    };
+  }
+
+  const elegivel =
+    isProcedenteAutor && !cumprimentoInstaurado && isRevisionalOuBancarioCivel(t);
 
   let label = "NÃO CLASSIFICADO";
   let motivo = "";
   if (isImprocedente) {
     label = "IMPROCEDENTE";
     motivo = "Sentença desfavorável ao autor";
+  } else if (isProcedenteAutor && !cumprimentoInstaurado && !isRevisionalOuBancarioCivel(t)) {
+    label = "PROCEDENTE · FORA DO ICP";
+    motivo = "Procedente, mas não revisional/bancário/cível do funil (ex.: outra área)";
   } else if (elegivel && isParcial) {
     label = "PROCEDENTE EM PARTE · SEM CUMPRIMENTO";
-    motivo = "Julgado parcialmente procedente ao autor — não há indício de cumprimento instaurado";
+    motivo = "Revisional/cível · parcial ao autor · sem cumprimento instaurado";
   } else if (elegivel) {
     label = "JULGO PROCEDENTE · SEM CUMPRIMENTO";
-    motivo =
-      "Linguagem clara de procedência ao autor e sem cumprimento de sentença instaurado no teor";
+    motivo = "Revisional/bancário/cível · procedência ao autor · sem cumprimento no teor";
   } else if (isProcedenteAutor && cumprimentoInstaurado) {
     label = "PROCEDENTE · CUMPRIMENTO JÁ INSTAURADO";
     motivo = "Já há menção a cumprimento/execução de sentença";
@@ -79,24 +133,23 @@ export function analisarProcedenteSemCumprimento(texto: string): ProcedenteSemCu
   };
 }
 
-/** Queries DJEN focadas em procedência ao autor (não “vendo carro”). */
+/** Queries DJEN: procedente + revisional (evita puxar ação penal). */
 export function queriesProcedenteSemCumprimento(): string[] {
-  // Frases curtas: o índice DJEN responde melhor do que textos longos
   return [
-    "julgo procedente",
-    "julgo procedentes",
-    "pedido procedente",
-    "pedidos procedentes",
-    "sentença procedente",
-    "parcialmente procedente",
-    "procedente o pedido do autor",
-    "julgo procedente o pedido formulado",
+    "julgo procedente revisional",
+    "procedente revisional",
+    "sentença procedente revisional",
+    "parcialmente procedente revisional",
+    "julgo procedente contrato bancário",
+    "julgo procedente alienação fiduciária",
+    "procedente repetição de indébito",
+    "julgo procedente financiamento",
+    "julgo procedente procedimento comum cível",
   ];
 }
 
 const MS_ANO = 365.25 * 86400000;
 
-/** Publicação / data do ato com idade em anos (ex.: 4.0 = ~4 anos). */
 export function idadeAnosDaData(isoOrBr: string | null | undefined): number | null {
   if (!isoOrBr) return null;
   const s = String(isoOrBr).trim();
@@ -110,7 +163,6 @@ export function idadeAnosDaData(isoOrBr: string | null | undefined): number | nu
   return (Date.now() - d.getTime()) / MS_ANO;
 }
 
-/** Janela crítica: ≥ minAnos e < maxAnos (default 4–5: perto da prescrição da execução). */
 export function naJanelaPrescricao(
   data: string | null | undefined,
   minAnos = 4,

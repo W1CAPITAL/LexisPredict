@@ -38,6 +38,7 @@ import {
   queriesProcedenteSemCumprimento,
   naJanelaPrescricao,
   rotuloIdade,
+  isEsferaPenal,
 } from "@/lib/procedente-sem-cumprimento";
 
 
@@ -319,6 +320,10 @@ export default function GeradorProcessosPage() {
             // modoProcedente: filtro é analisarProcedenteSemCumprimento abaixo
 
             if (modoProcedenteSemCumprimento) {
+              if (isEsferaPenal(blob)) {
+                skipFiltro++;
+                continue;
+              }
               const an = analisarProcedenteSemCumprimento(blob);
               if (!an.elegivel) {
                 skipFiltro++;
