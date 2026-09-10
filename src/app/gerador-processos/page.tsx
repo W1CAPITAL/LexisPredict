@@ -156,22 +156,22 @@ export default function GeradorProcessosPage() {
     let scanDataFim = dataFim;
 
     if (modoProcedenteSemCumprimento) {
-      // F1/F2 NÃO mandam neste modo — só linguagem de procedência ao autor
-      queries = queriesProcedenteSemCumprimento();
+      // Mesma lógica de F1/F2 (queriesDosFiltros) + queries de procedência.
+      // Datas = formulário (DJEN costuma devolver 0 em janela ~2021–2022).
+      const base = queriesDosFiltros(statusOn, materiaOn) || [];
+      const qsProc = queriesProcedenteSemCumprimento();
+      queries = [...qsProc, ...base.filter((q) => !qsProc.includes(q))];
+      if (!queries.length) queries = qsProc;
+      scanDataInicio = dataInicio;
+      scanDataFim = dataFim;
       pushLog(
         "info",
-        "Modo PROCEDENTE SEM CUMPRIMENTO: F1/F2 ignorados. Só queries 'julgo procedente' / sentença procedente. Filtro local: autor procedente e SEM cumprimento instaurado."
+        "Modo PROCEDENTE SEM CUMPRIMENTO: mesma busca F1/F2 + 'julgo procedente'. Datas do formulário. Filtro LOCAL: procedente ao autor e SEM cumprimento no teor."
       );
       if (priorizarParados4a) {
-        const fim4 = new Date();
-        fim4.setFullYear(fim4.getFullYear() - 4);
-        const ini4 = new Date(fim4);
-        ini4.setMonth(ini4.getMonth() - 14); // ~14 meses centrados em ~4 anos atrás
-        scanDataInicio = ini4.toISOString().slice(0, 10);
-        scanDataFim = fim4.toISOString().slice(0, 10);
         pushLog(
-          "info",
-          `Janela ~4 anos (prescrição execução ~5a): ${scanDataInicio} → ${scanDataFim}`
+          "warn",
+          "Priorizar ~4 anos: o índice DJEN quase não retorna 2021–2022. Mantendo datas do formulário; marque publicações mais antigas quando o teor trouxer data. Para carteira já no Lexis use o scanner de cumprimento."
         );
       }
     } else if (somenteBuscaApreensao) {
@@ -438,14 +438,15 @@ export default function GeradorProcessosPage() {
                 onChange={(e) => setPriorizarParados4a(e.target.checked)}
               />
               <span>
-                Priorizar publicações com ~<strong>4 anos</strong> (janela antes dos ~5 anos em que a
-                cobrança/execução pode prescrever)
+                Sinalizar risco ~<strong>4–5 anos</strong> (prescrição da execução) quando a data do teor for antiga
+                — <strong>não</strong> troca a janela DJEN (evita 0 resultados)
               </span>
             </label>
           {modoProcedenteSemCumprimento && (
               <p className="text-[10px] text-amber-700 dark:text-amber-400 pl-5">
-                F1 (situação) e F2 (matéria) <strong>não são usados</strong> neste modo — a busca é só por
-                “julgo procedente” / sentença procedente. Use F2 só no modo normal.
+                Usa a <strong>mesma busca F1/F2</strong> (marque Procedente / Procedente em parte / revisional…) mais “julgo procedente”.
+                O filtro extra é só no teor: procedente ao autor e <strong>sem</strong> cumprimento instaurado.
+                Datas = campos do formulário (não força 2021–22 — o DJEN volta vazio nessa janela).
               </p>
             )}
           </div>
