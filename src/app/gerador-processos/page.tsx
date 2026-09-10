@@ -32,7 +32,6 @@ import {
   type ProcessoDjenReal,
   type ScanLogLine,
 } from "@/lib/revisional-tribunal-filtros";
-import { parseOlxPasteMany, type OlxLead } from "@/lib/olx-extract";
 import { Download, Loader2, Search, ExternalLink, Square } from "lucide-react";
 
 const isoHoje = () => new Date().toISOString().slice(0, 10);
@@ -106,11 +105,7 @@ export default function GeradorProcessosPage() {
   const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
-  /** djen = publicações tribunal (telefone opcional); olx = colar anúncios nome/veículo/tel */
-  const [modoFonte, setModoFonte] = useState<"djen" | "olx">("djen");
   const [exigeTelefone, setExigeTelefone] = useState(false);
-  const [olxPaste, setOlxPaste] = useState("");
-  const [olxLeads, setOlxLeads] = useState<OlxLead[]>([]);
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [exp, setExp] = useState(false);
@@ -356,78 +351,17 @@ export default function GeradorProcessosPage() {
         <div className="p-4 border-b space-y-3 shrink-0 overflow-y-auto max-h-[48vh]">
           <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
           <p className="text-xs text-muted-foreground">
-            Duas fontes: <strong>DJEN</strong> (processo/CNJ, telefone opcional) ou <strong>OLX</strong> (colar anúncio → nome, veículo, telefone).
-            DJEN: número oficial da API, sem CNJ inventado do teor.
+            Fonte <strong>DJEN</strong> (Comunica PJe): publicações reais, CNJ oficial da API.
+            Por padrão gera <strong>sem telefone</strong> — marque a opção abaixo só se quiser exigir contato no teor.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setModoFonte("djen")}
-              className={`h-9 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider border ${
-                modoFonte === "djen" ? "bg-black text-white border-black" : "bg-card border-border"
-              }`}
-            >
-              DJEN · tribunal
-            </button>
-            <button
-              type="button"
-              onClick={() => setModoFonte("olx")}
-              className={`h-9 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider border ${
-                modoFonte === "olx" ? "bg-black text-white border-black" : "bg-card border-border"
-              }`}
-            >
-              OLX · nome / veículo / tel
-            </button>
-          </div>
-          {modoFonte === "djen" && (
-            <label className="flex items-center gap-2 text-[11px] font-semibold">
-              <input
-                type="checkbox"
-                checked={exigeTelefone}
-                onChange={(e) => setExigeTelefone(e.target.checked)}
-              />
-              Exigir telefone no DJEN (desligado = gera mesmo sem telefone)
-            </label>
-          )}
-          {modoFonte === "olx" && (
-            <div className="space-y-2 rounded-xl border border-border/60 p-3 bg-muted/30">
-              <p className="text-[11px] text-muted-foreground">
-                Cole o texto do anúncio OLX (título + descrição + telefone visível). Sem scraping automático —
-                você cola o que já está público na tela.
-              </p>
-              <textarea
-                className="w-full min-h-[120px] rounded-xl border border-border bg-background p-3 text-xs font-mono"
-                placeholder={"Ex.:\nFiat Argo 1.0 2022\nR$ 62.900\nSão Paulo - SP\n(11) 98888-7777\nVendedor: João Silva"}
-                value={olxPaste}
-                onChange={(e) => setOlxPaste(e.target.value)}
-              />
-              <button
-                type="button"
-                className="h-9 px-4 rounded-xl bg-black text-white text-[10px] font-black uppercase"
-                onClick={() => {
-                  const leads = parseOlxPasteMany(olxPaste);
-                  setOlxLeads(leads);
-                  pushLog(
-                    leads.length ? "ok" : "warn",
-                    leads.length
-                      ? `OLX: ${leads.length} anúncio(s) · com tel: ${leads.filter((l) => l.telefone).length}`
-                      : "OLX: nada extraído — cole título, telefone e dados do anúncio"
-                  );
-                }}
-              >
-                Extrair nome / veículo / telefone
-              </button>
-              {olxLeads.length > 0 && (
-                <ul className="text-xs space-y-1 max-h-40 overflow-auto">
-                  {olxLeads.map((l, i) => (
-                    <li key={i} className="border-b border-border/40 py-1">
-                      <strong>{l.nome || "—"}</strong> · {l.veiculo || "—"} · {l.telefone || "sem tel"} · {l.cidade}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+          <label className="flex items-center gap-2 text-[11px] font-semibold">
+            <input
+              type="checkbox"
+              checked={exigeTelefone}
+              onChange={(e) => setExigeTelefone(e.target.checked)}
+            />
+            Exigir telefone no DJEN (desligado = gera mesmo sem telefone)
+          </label>
           <div>
             <p className="text-[10px] font-black uppercase text-amber-600">
               Filtro 1 · Situação · {statusOn.length}
