@@ -33,6 +33,13 @@ import {
   type ScanLogLine,
 } from "@/lib/revisional-tribunal-filtros";
 import { Download, Loader2, Search, ExternalLink, Square } from "lucide-react";
+import {
+  analisarProcedenteSemCumprimento,
+  queriesProcedenteSemCumprimento,
+  naJanelaPrescricao,
+  rotuloIdade,
+} from "@/lib/procedente-sem-cumprimento";
+
 
 const isoHoje = () => new Date().toISOString().slice(0, 10);
 const isoIni = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -106,6 +113,9 @@ export default function GeradorProcessosPage() {
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
   const [exigeTelefone, setExigeTelefone] = useState(false);
+  /** Prioriza "julgo procedente" ao autor sem cumprimento + amostra ~4 anos parados */
+  const [modoProcedenteSemCumprimento, setModoProcedenteSemCumprimento] = useState(false);
+  const [priorizarParados4a, setPriorizarParados4a] = useState(true);
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [exp, setExp] = useState(false);
@@ -134,6 +144,32 @@ export default function GeradorProcessosPage() {
     pushLog("info", "Consulta DIRETA do seu navegador ao DJEN (Comunica PJe) — usa o IP da sua rede, não o do servidor.");
     if (somenteBuscaApreensao) {
       pushLog("info", "Modo exaustivo: só busca e apreensão (inclui b.a.) com match de nome; filtro local também de busca e apreensão.");
+    }
+
+
+    let scanDataInicio = dataInicio;
+    let scanDataFim = dataFim;
+    if (modoProcedenteSemCumprimento) {
+      const qsProc = queriesProcedenteSemCumprimento();
+      // metade procedente-sem-cumprimento + resto aleatório/filtros já montados
+      queries = [...qsProc, ...queries.filter((q) => !qsProc.includes(q))];
+      pushLog(
+        "info",
+        "Modo PROCEDENTE SEM CUMPRIMENTO: queries 'julgo procedente' + amostra mista; local exige procedência ao autor e bloqueia se já houver cumprimento."
+      );
+      if (priorizarParados4a) {
+        const fim4 = new Date();
+        fim4.setFullYear(fim4.getFullYear() - 4);
+        const ini4 = new Date(fim4);
+        ini4.setMonth(ini4.getMonth() - 10);
+        // Usa janela ~4 anos no DJEN nesta corrida (prescrição ~5a da pretensão executória)
+        scanDataInicio = ini4.toISOString().slice(0, 10);
+        scanDataFim = fim4.toISOString().slice(0, 10);
+        pushLog(
+          "info",
+          `Janela DJEN ~4 anos (risco prescrição ~5a): ${scanDataInicio} → ${scanDataFim}.`
+        );
+      }
     }
 
     const by = new Map<string, ProcessoDjenReal>();
@@ -193,8 +229,8 @@ export default function GeradorProcessosPage() {
             await sleep(espera * 1000);
             res = await djenBuscaTexto({
               texto: q,
-              dataInicio,
-              dataFim,
+              scanDataInicio,
+              scanDataFim,
               pagina,
               itensPorPagina: 50,
               siglaTribunal: sigla,
@@ -209,8 +245,8 @@ export default function GeradorProcessosPage() {
             await sleep(20000);
             res = await djenBuscaTexto({
               texto: q,
-              dataInicio,
-              dataFim,
+              scanDataInicio,
+              scanDataFim,
               pagina,
               itensPorPagina: 50,
               siglaTribunal: sigla,
@@ -278,6 +314,17 @@ export default function GeradorProcessosPage() {
             } else {
               // Não executa filtro de status/materia; já filtrou só BA acima.
             }
+
+            let scanDataInicio = dataInicio;
+    let scanDataFim = dataFim;
+    if (modoProcedenteSemCumprimento) {
+              const an = analisarProcedenteSemCumprimento(blob);
+              if (!an.elegivel) {
+                skipFiltro++;
+                continue;
+              }
+            }
+
             const nome =
               extractNomeCompletoFromDjen({
                 texto: it.texto,
@@ -362,6 +409,39 @@ export default function GeradorProcessosPage() {
             />
             Exigir telefone no DJEN (desligado = gera mesmo sem telefone)
           </label>
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 space-y-2">
+            <label className="flex items-start gap-2 text-[11px] font-semibold">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={modoProcedenteSemCumprimento}
+                onChange={(e) => setModoProcedenteSemCumprimento(e.target.checked)}
+              />
+              <span>
+                <span className="text-emerald-700 dark:text-emerald-400 font-black uppercase tracking-wide">
+                  Procedente sem cumprimento
+                </span>
+                <span className="block text-muted-foreground font-normal mt-0.5">
+                  Busca teores com <strong>julgo procedente</strong> (pedido do autor) e{" "}
+                  <strong>sem</strong> instauração de cumprimento de sentença. Mistura com amostragem
+                  aleatória do fluxo normal.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-[11px] font-semibold pl-5">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={priorizarParados4a}
+                disabled={!modoProcedenteSemCumprimento}
+                onChange={(e) => setPriorizarParados4a(e.target.checked)}
+              />
+              <span>
+                Priorizar publicações com ~<strong>4 anos</strong> (janela antes dos ~5 anos em que a
+                cobrança/execução pode prescrever)
+              </span>
+            </label>
+          </div>
           <div>
             <p className="text-[10px] font-black uppercase text-amber-600">
               Filtro 1 · Situação · {statusOn.length}
@@ -456,8 +536,11 @@ export default function GeradorProcessosPage() {
             {lista.map((p) => {
               const blob = `${p.status_detectado} ${p.situacao_hint}`.toLowerCase();
               const extinto = blob.includes("extinto");
-              const procedente = !extinto && (blob.includes("procedente") || blob.includes("procedente em parte"));
-              const improcedente = !extinto && blob.includes("improcedente");
+              const anProc = analisarProcedenteSemCumprimento(blob);
+              const procedente = !extinto && anProc.isProcedenteAutor;
+              const improcedente = !extinto && anProc.isImprocedente;
+              const semCumpr = anProc.elegivel;
+              const idadeLbl = rotuloIdade(p.data);
               const baClareadoLocal = blobTemBuscaApreensao(`${p.status_detectado} ${p.situacao_hint}`);
               return (
                 <article key={p.processo} className="border rounded-xl p-3 space-y-1">
@@ -484,17 +567,25 @@ export default function GeradorProcessosPage() {
                         >
                           {extinto
                             ? "EXTINTO"
-                            : procedente
-                              ? "PROCEDENTE"
-                              : improcedente
-                                ? "IMPROCEDENTE"
-                                : "NÃO CLASSIFICADO"}
+                            : semCumpr
+                              ? anProc.label
+                              : procedente
+                                ? anProc.label
+                                : improcedente
+                                  ? "IMPROCEDENTE"
+                                  : "NÃO CLASSIFICADO"}
                         </span>
                       </div>
                       <p className="text-sm font-semibold">{p.nome_completo}</p>
                       <p className="text-[11px] text-muted-foreground">
                         {p.classe || "—"} · {p.situacao_hint} · {p.data}
+                        {idadeLbl ? ` · ${idadeLbl}` : ""}
                       </p>
+                      {semCumpr && (
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                          {anProc.motivo}
+                        </p>
+                      )}
                       {p.telefone && (
                         <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">
                           {p.telefone}

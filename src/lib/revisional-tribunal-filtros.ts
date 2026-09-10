@@ -74,7 +74,7 @@ export function classificarSentenca(texto: string): ResultadoSentenca {
   if (RE_COM.test(t) || /extincao.*com resolucao|extinto.*com resolucao/i.test(t)) return "extinto_com_merito";
   if (/parcialmente procedente|procedente em parte/i.test(t)) return "procedente_parcial";
   if (/julgo improcedente|sentenca.*improcedente|pedido[s]?\s+improcedente/i.test(t)) return "improcedente";
-  if (/julgo procedente|sentenca.*procedente|pedido[s]?\s+procedente/i.test(t)) return "procedente";
+  if (/julgo\s+procedente[s]?(\s+em\s+parte)?|pedido[s]?\s+(do\s+autor\s+)?procedente|sentenca.*procedente/i.test(t)) return "procedente";
   return "nao_classificada";
 }
 
