@@ -14,7 +14,8 @@ export type FiltroMateriaId =
   | "busca_apreensao"
   | "cumprimento_sentenca"
   | "improcedente"
-  | "procedente_parcial";
+  | "procedente_parcial"
+  | "procedente";
 export type FiltroRevisionalId = FiltroStatusId | FiltroMateriaId;
 
 export interface FiltroRevisional {
@@ -41,6 +42,7 @@ export const FILTROS_MATERIA: FiltroRevisional[] = [
   { id: "busca_apreensao", grupo: "materia", nomeTribunal: "Busca e apreensão", djenQuery: "busca e apreensão", aliases: ["busca e apreensao"], defaultOn: false },
   { id: "cumprimento_sentenca", grupo: "materia", nomeTribunal: "Cumprimento de sentença", djenQuery: "cumprimento de sentença", aliases: ["cumprimento de sentenca"], defaultOn: false },
   { id: "improcedente", grupo: "materia", nomeTribunal: "Improcedente", djenQuery: "julgo improcedente", aliases: ["improcedente"], defaultOn: false },
+  { id: "procedente", grupo: "materia", nomeTribunal: "Procedente", djenQuery: "julgo procedente", aliases: ["julgo procedente", "sentença procedente", "pedido procedente"], defaultOn: false },
   { id: "procedente_parcial", grupo: "materia", nomeTribunal: "Procedente em parte", djenQuery: "parcialmente procedente", aliases: ["procedente em parte"], defaultOn: false },
 ];
 

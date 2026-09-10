@@ -152,7 +152,29 @@ export default function GeradorProcessosPage() {
     const cnpjDigits = cnpj.replace(/\D/g, "");
     const sigla = tribunal.trim().toUpperCase() || undefined;
     let queries: string[];
-    if (somenteBuscaApreensao) {
+    let scanDataInicio = dataInicio;
+    let scanDataFim = dataFim;
+
+    if (modoProcedenteSemCumprimento) {
+      // F1/F2 NÃO mandam neste modo — só linguagem de procedência ao autor
+      queries = queriesProcedenteSemCumprimento();
+      pushLog(
+        "info",
+        "Modo PROCEDENTE SEM CUMPRIMENTO: F1/F2 ignorados. Só queries 'julgo procedente' / sentença procedente. Filtro local: autor procedente e SEM cumprimento instaurado."
+      );
+      if (priorizarParados4a) {
+        const fim4 = new Date();
+        fim4.setFullYear(fim4.getFullYear() - 4);
+        const ini4 = new Date(fim4);
+        ini4.setMonth(ini4.getMonth() - 14); // ~14 meses centrados em ~4 anos atrás
+        scanDataInicio = ini4.toISOString().slice(0, 10);
+        scanDataFim = fim4.toISOString().slice(0, 10);
+        pushLog(
+          "info",
+          `Janela ~4 anos (prescrição execução ~5a): ${scanDataInicio} → ${scanDataFim}`
+        );
+      }
+    } else if (somenteBuscaApreensao) {
       queries = [
         "busca e apreensão",
         "b.a.",
@@ -160,35 +182,12 @@ export default function GeradorProcessosPage() {
         "busca e apreensao",
       ];
     } else {
-      queries = queriesDosFiltros(statusOn, materiaOn);
+      queries = queriesDosFiltros(statusOn, materiaOn) || [];
     }
-    if (!queries) queries = [];
-
-    let scanDataInicio = dataInicio;
-    let scanDataFim = dataFim;
-    if (modoProcedenteSemCumprimento) {
-      const qsProc = queriesProcedenteSemCumprimento();
-      const base = Array.isArray(queries) ? queries : [];
-      queries = [...qsProc, ...base.filter((q) => !qsProc.includes(q))];
-      pushLog(
-        "info",
-        "Modo PROCEDENTE SEM CUMPRIMENTO: queries 'julgo procedente' + amostra; exige procedência ao autor e bloqueia cumprimento já instaurado."
-      );
-      if (priorizarParados4a) {
-        const fim4 = new Date();
-        fim4.setFullYear(fim4.getFullYear() - 4);
-        const ini4 = new Date(fim4);
-        ini4.setMonth(ini4.getMonth() - 10);
-        scanDataInicio = ini4.toISOString().slice(0, 10);
-        scanDataFim = fim4.toISOString().slice(0, 10);
-        pushLog(
-          "info",
-          `Janela DJEN ~4 anos (risco prescrição ~5a): ${scanDataInicio} → ${scanDataFim}.`
-        );
-      }
-    }
-    if (!queries.length && modoProcedenteSemCumprimento) {
-      queries = queriesProcedenteSemCumprimento();
+    if (!queries.length) {
+      pushLog("err", "Nenhuma query para buscar.");
+      setBusy(false);
+      return;
     }
 
     const add = (items: ProcessoDjenReal[]) => {
@@ -443,6 +442,12 @@ export default function GeradorProcessosPage() {
                 cobrança/execução pode prescrever)
               </span>
             </label>
+          {modoProcedenteSemCumprimento && (
+              <p className="text-[10px] text-amber-700 dark:text-amber-400 pl-5">
+                F1 (situação) e F2 (matéria) <strong>não são usados</strong> neste modo — a busca é só por
+                “julgo procedente” / sentença procedente. Use F2 só no modo normal.
+              </p>
+            )}
           </div>
           <div>
             <p className="text-[10px] font-black uppercase text-amber-600">

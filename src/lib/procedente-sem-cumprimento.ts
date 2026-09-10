@@ -81,13 +81,16 @@ export function analisarProcedenteSemCumprimento(texto: string): ProcedenteSemCu
 
 /** Queries DJEN focadas em procedência ao autor (não “vendo carro”). */
 export function queriesProcedenteSemCumprimento(): string[] {
+  // Frases curtas: o índice DJEN responde melhor do que textos longos
   return [
-    "julgo procedente o pedido",
-    "julgo procedentes os pedidos do autor",
-    "julgo procedente a pretensão",
-    "sentença procedente autor",
-    "parcialmente procedente o pedido",
-    "com resolução do mérito procedente",
+    "julgo procedente",
+    "julgo procedentes",
+    "pedido procedente",
+    "pedidos procedentes",
+    "sentença procedente",
+    "parcialmente procedente",
+    "procedente o pedido do autor",
+    "julgo procedente o pedido formulado",
   ];
 }
 
