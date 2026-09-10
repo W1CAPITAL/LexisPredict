@@ -1,6 +1,8 @@
 /**
  * Governança de status inativos / baixas tribunal.
  */
+import { isTutelaLiminarNaoEncerramento } from './nao-encerrar-tutela';
+
 
 export const STATUS_ENCERRADOS = [
   'ENCERRADO',
@@ -40,14 +42,17 @@ function hasStrongEncerrado(s: string): boolean {
 export function textoBaixaOuArquivoTribunal(text: string): boolean {
   const t = String(text || '').toUpperCase();
   if (!t) return false;
+  // Tutela/liminar (indeferida ou condicionada a depósito) NÃO é baixa do processo
+  if (isTutelaLiminarNaoEncerramento(t)) return false;
   if (isAguardandoProtocoloTribunal(t) && !hasStrongEncerrado(t)) return false;
+  // Não usar "BAIXADO" solto nem "BAIXA PROVISÓRIA" isolada (falso positivo comum)
   return (
-    /BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|BAIXA\s+PROVIS[OÓ]RIA|BAIXADO/.test(t) ||
-    /ARQUIVAMENTO(\s+DEFINITIVO)?|ARQUIVADO\s+DEFINITIVAMENTE|ARQUIVADO\s+NO\s+TRIBUNAL/.test(t) ||
+    /BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|PROCESSO\s+BAIXADO|DETERMINADA\s+A\s+BAIXA/.test(t) ||
+    /ARQUIVAMENTO\s+DEFINITIVO|ARQUIVADO\s+DEFINITIVAMENTE|ARQUIVADO\s+NO\s+TRIBUNAL/.test(t) ||
     /TR[AÂ]NSITO\s+EM\s+JULGADO|TRANSITO\s+EM\s+JULGADO/.test(t) ||
     /EXTIN[CÇ][AÃ]O\s+DO\s+PROCESSO|PROCESSO\s+EXTINTO|EXTINTO\s+SEM\s+RESOLU/.test(t) ||
     /ENCERRADO\s+NO\s+TRIBUNAL|ENCERRAMENTO\s+DO\s+PROCESSO/.test(t) ||
-    /CANCELAMENTO\s+DA\s+DISTRIBUI[CÇ][AÃ]O|DESER[CÇ][AÃ]O/.test(t) ||
+    /CANCELAMENTO\s+DA\s+DISTRIBUI[CÇ][AÃ]O/.test(t) ||
     /SENTEN[CÇ]A\s+DE\s+EXTIN|HOMOLOGA[CÇ][AÃ]O\s+DE\s+DESIST/.test(t)
   );
 }

@@ -5,6 +5,7 @@
 
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
 import { scoreOportunidadeCumprimentoHonorarios, type OportunidadeInstaurarCumprimento } from './oportunidade-cumprimento';
+import { isTutelaLiminarNaoEncerramento } from './nao-encerrar-tutela';
 
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
@@ -90,8 +91,14 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
   let closeStrong = false;
   for (let i = 0; i < constructedWindow.length; i++) {
     const text = constructedWindow[i];
+    // Tutela/liminar indeferida ou condicionada a depósito ≠ encerramento
+    if (isTutelaLiminarNaoEncerramento(text)) continue;
     for (const group of patternGroups) {
       if (group.patterns.some((p) => text.includes(p))) {
+        // Evita "BAIXA DA LIMINAR" contando como baixa do processo
+        if (/BAIXA/.test(text) && /LIMINAR|TUTELA/.test(text) && !/BAIXA\s+DEFINITIVA|BAIXA\s+DO\s+PROCESSO|PROCESSO\s+BAIXADO/.test(text)) {
+          continue;
+        }
         closeIdx = i;
         closeLabel = group.label;
         closeStrong = group.label === 'BAIXA DEFINITIVA' || group.label === 'ARQUIVAMENTO DEFINITIVO' || group.label === 'CANCELAMENTO DA DISTRIBUIÇÃO';

@@ -7,6 +7,7 @@ import {
   classifyMeritoFromText,
   isDataAposRetorno,
 } from "./merito-detect";
+import { isTutelaLiminarNaoEncerramento } from "./nao-encerrar-tutela";
 
 function blob(c: Partial<LegalCase> & Record<string, any>): string {
   return [
@@ -116,12 +117,16 @@ export function applyFlagsTruth<T extends Partial<LegalCase> & Record<string, an
   const aberto = recebido
     ? false
     : !!(c.em_cumprimento_sentenca || c.cumprimento_ativo || c.cumprimento_pendente_necessario);
-  const encerrado = !!(c.datajud_encerrado_tribunal);
+  const blobTxt = blob(withClasse);
+  // Tutela/liminar nunca conta como baixa/encerrado de tribunal
+  const encerrado =
+    !!(c.datajud_encerrado_tribunal) && !isTutelaLiminarNaoEncerramento(blobTxt);
   const evento_tipo = eventoTipoEstavel({ ...withClasse, ...merito }, ba && !encerrado);
 
   return {
     ...c,
     classe_processual,
+    datajud_encerrado_tribunal: encerrado ? c.datajud_encerrado_tribunal : false,
     indicio_busca_apreensao: ba && !encerrado,
     is_procedente: merito.is_procedente,
     is_improcedente: merito.is_improcedente,

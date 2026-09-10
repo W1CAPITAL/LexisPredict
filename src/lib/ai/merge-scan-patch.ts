@@ -4,6 +4,7 @@
  */
 import type { AiCaseClassification } from '@/lib/ai/case-event-classifier';
 import { sanitizeScanPatchNaoEncerrarCarteira } from '@/lib/protect-encerrar';
+import { isTutelaLiminarNaoEncerramento } from '@/lib/nao-encerrar-tutela';
 
 /** Aplica classificação AI sobre patch heurístico (não apaga flags já true). */
 export function mergeAiIntoScanPatch(
@@ -23,11 +24,18 @@ export function mergeAiIntoScanPatch(
   out.ai_motivo_alerta = ai.motivo_alerta || null;
 
   // Encerrado / baixa — SOMENTE telemetria de tribunal (não grava situacao ENCERRADO)
-  if (f.encerrado) {
+  // NUNCA por indeferimento de tutela/liminar nem tutela condicionada a depósito
+  const aiBlob = `${ai.evento_resumo || ''} ${ai.evento_tipo || ''} ${out.evento_resumo || ''} ${out.datajud_ultimo_nome || ''} ${out.djen_ultimo_resumo || ''}`;
+  if (f.encerrado && !isTutelaLiminarNaoEncerramento(aiBlob) && ai.evento_tipo !== 'liminar') {
     out.datajud_encerrado_tribunal = true;
     out.datajud_encerrado_motivo =
       out.datajud_encerrado_motivo || ai.evento_resumo || 'IA: encerrado/baixa';
     out.precisa_revisar_encerramento = true;
+  } else if (f.encerrado && (isTutelaLiminarNaoEncerramento(aiBlob) || ai.evento_tipo === 'liminar')) {
+    // telemetria correta: liminar/tutela, processo segue
+    out.tem_liminar = true;
+    out.datajud_encerrado_tribunal = false;
+    out.ai_evento_tipo = out.ai_evento_tipo || 'liminar';
   }
 
   // Cumprimento de sentença
