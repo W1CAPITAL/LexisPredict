@@ -132,8 +132,8 @@ export default function GeradorProcessosPage() {
 
   const iniciar = async () => {
     const target = Math.min(Math.max(parseInt(alvo, 10) || 60, 1), 500);
-    if (!statusOn.length && !materiaOn.length && !somenteBuscaApreensao) {
-      pushLog("err", "Marque F1 e/ou F2, ou ative Somente busca e apreensão");
+    if (!statusOn.length && !materiaOn.length && !somenteBuscaApreensao && !modoProcedenteSemCumprimento) {
+      pushLog("err", "Marque F1 e/ou F2, ative Somente busca e apreensão, ou Procedente sem cumprimento");
       return;
     }
     stopRef.current = false;
@@ -146,31 +146,6 @@ export default function GeradorProcessosPage() {
       pushLog("info", "Modo exaustivo: só busca e apreensão (inclui b.a.) com match de nome; filtro local também de busca e apreensão.");
     }
 
-
-    let scanDataInicio = dataInicio;
-    let scanDataFim = dataFim;
-    if (modoProcedenteSemCumprimento) {
-      const qsProc = queriesProcedenteSemCumprimento();
-      // metade procedente-sem-cumprimento + resto aleatório/filtros já montados
-      queries = [...qsProc, ...queries.filter((q) => !qsProc.includes(q))];
-      pushLog(
-        "info",
-        "Modo PROCEDENTE SEM CUMPRIMENTO: queries 'julgo procedente' + amostra mista; local exige procedência ao autor e bloqueia se já houver cumprimento."
-      );
-      if (priorizarParados4a) {
-        const fim4 = new Date();
-        fim4.setFullYear(fim4.getFullYear() - 4);
-        const ini4 = new Date(fim4);
-        ini4.setMonth(ini4.getMonth() - 10);
-        // Usa janela ~4 anos no DJEN nesta corrida (prescrição ~5a da pretensão executória)
-        scanDataInicio = ini4.toISOString().slice(0, 10);
-        scanDataFim = fim4.toISOString().slice(0, 10);
-        pushLog(
-          "info",
-          `Janela DJEN ~4 anos (risco prescrição ~5a): ${scanDataInicio} → ${scanDataFim}.`
-        );
-      }
-    }
 
     const by = new Map<string, ProcessoDjenReal>();
     const exclude = new Set<string>();
@@ -186,6 +161,34 @@ export default function GeradorProcessosPage() {
       ];
     } else {
       queries = queriesDosFiltros(statusOn, materiaOn);
+    }
+    if (!queries) queries = [];
+
+    let scanDataInicio = dataInicio;
+    let scanDataFim = dataFim;
+    if (modoProcedenteSemCumprimento) {
+      const qsProc = queriesProcedenteSemCumprimento();
+      const base = Array.isArray(queries) ? queries : [];
+      queries = [...qsProc, ...base.filter((q) => !qsProc.includes(q))];
+      pushLog(
+        "info",
+        "Modo PROCEDENTE SEM CUMPRIMENTO: queries 'julgo procedente' + amostra; exige procedência ao autor e bloqueia cumprimento já instaurado."
+      );
+      if (priorizarParados4a) {
+        const fim4 = new Date();
+        fim4.setFullYear(fim4.getFullYear() - 4);
+        const ini4 = new Date(fim4);
+        ini4.setMonth(ini4.getMonth() - 10);
+        scanDataInicio = ini4.toISOString().slice(0, 10);
+        scanDataFim = fim4.toISOString().slice(0, 10);
+        pushLog(
+          "info",
+          `Janela DJEN ~4 anos (risco prescrição ~5a): ${scanDataInicio} → ${scanDataFim}.`
+        );
+      }
+    }
+    if (!queries.length && modoProcedenteSemCumprimento) {
+      queries = queriesProcedenteSemCumprimento();
     }
 
     const add = (items: ProcessoDjenReal[]) => {
@@ -210,11 +213,11 @@ export default function GeradorProcessosPage() {
         let paginasVazias = 0;
 
         while (pagina <= 25 && by.size < target && !stopRef.current) {
-          pushLog("info", `Texto “${q}” · pág ${pagina} · ${dataInicio}→${dataFim}`);
+          pushLog("info", `Texto “${q}” · pág ${pagina} · ${scanDataInicio}→${scanDataFim}`);
           let res = await djenBuscaTexto({
             texto: q,
-            dataInicio,
-            dataFim,
+            dataInicio: scanDataInicio,
+            dataFim: scanDataFim,
             pagina,
             itensPorPagina: 50,
             siglaTribunal: sigla,
@@ -229,8 +232,8 @@ export default function GeradorProcessosPage() {
             await sleep(espera * 1000);
             res = await djenBuscaTexto({
               texto: q,
-              scanDataInicio,
-              scanDataFim,
+              dataInicio: scanDataInicio,
+              dataFim: scanDataFim,
               pagina,
               itensPorPagina: 50,
               siglaTribunal: sigla,
@@ -245,8 +248,8 @@ export default function GeradorProcessosPage() {
             await sleep(20000);
             res = await djenBuscaTexto({
               texto: q,
-              scanDataInicio,
-              scanDataFim,
+              dataInicio: scanDataInicio,
+              dataFim: scanDataFim,
               pagina,
               itensPorPagina: 50,
               siglaTribunal: sigla,
@@ -305,19 +308,18 @@ export default function GeradorProcessosPage() {
               continue;
             }
             // Filtros de situação e matéria, exceto quando somenteBA — vide bloq.
-            if (!somenteBuscaApreensao) {
+            if (!somenteBuscaApreensao && !modoProcedenteSemCumprimento) {
               const gate = passaFiltrosCombinados(blob, statusOn, materiaOn);
               if (!gate.ok) {
                 skipFiltro++;
                 continue;
               }
-            } else {
+            } else if (somenteBuscaApreensao) {
               // Não executa filtro de status/materia; já filtrou só BA acima.
             }
+            // modoProcedente: filtro é analisarProcedenteSemCumprimento abaixo
 
-            let scanDataInicio = dataInicio;
-    let scanDataFim = dataFim;
-    if (modoProcedenteSemCumprimento) {
+            if (modoProcedenteSemCumprimento) {
               const an = analisarProcedenteSemCumprimento(blob);
               if (!an.elegivel) {
                 skipFiltro++;
