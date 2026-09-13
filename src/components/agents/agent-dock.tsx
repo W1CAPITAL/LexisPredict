@@ -373,7 +373,7 @@ export function AgentDock() {
 
       <button
         type="button"
-        className="pointer-events-auto fixed bottom-4 right-4 z-[91] flex h-12 items-center gap-2 rounded-full border border-zinc-600 bg-zinc-950 px-4 text-sm font-bold text-white shadow-xl hover:bg-zinc-900"
+        className="pointer-events-auto fixed bottom-4 right-4 z-[91] flex h-12 items-center gap-2 rounded-full border border-zinc-600 bg-zinc-950 px-4 text-sm font-bold text-white shadow-xl hover:bg-zinc-900 max-md:hidden [@media(max-height:700px)]:hidden"
         onClick={() => setOpen((v) => !v)}
       >
         <Bot className="h-4 w-4 text-emerald-400" />
