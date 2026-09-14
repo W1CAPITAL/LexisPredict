@@ -54,6 +54,32 @@ export function NavLayoutNomePanel() {
   return (
     <div className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur p-4 space-y-4">
       <div className="space-y-2">
+        <Label className="text-[10px] font-black uppercase">Posição do menu</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => applyMode("dock")}
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium",
+              mode === "dock" ? "border-primary bg-primary/10" : "hover:bg-muted"
+            )}
+          >
+            <PanelBottom size={16} /> Horizontal
+          </button>
+          <button
+            type="button"
+            onClick={() => applyMode("vertical")}
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium",
+              mode === "vertical" ? "border-primary bg-primary/10" : "hover:bg-muted"
+            )}
+          >
+            <PanelLeft size={16} /> Vertical
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">Horizontal libera a tela para a carteira. Vertical lista todas as áreas na esquerda.</p>
+      </div>
+      <div className="space-y-2">
         <Label className="text-[10px] font-black uppercase">Nome completo (aparece no Hall de Prêmios)</Label>
         <Input
           value={nome}

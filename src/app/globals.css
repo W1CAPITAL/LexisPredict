@@ -372,6 +372,9 @@ input:focus, textarea:focus, select:focus {
   .max-h-screen { max-height: 100dvh; }
 }
 body:has([data-lexis-sidebar]) main { min-width: 0; padding-bottom: 0; }
+@media (min-width: 768px) {
+  body:has([data-lexis-dock]) main { padding-top: 3.5rem; }
+}
 @media (max-width: 767px) {
   body:has([data-lexis-mobile-nav]) main { padding-top: calc(3.5rem + env(safe-area-inset-top)); }
   body:has([data-lexis-mobile-nav]) main > header { flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem 1rem; }
