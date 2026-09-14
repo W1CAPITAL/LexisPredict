@@ -90,9 +90,5 @@ export function countBaFromCases(
     const k = normalizeProtocolo(c.protocolo) || c.protocolo || `tmp_${Date.now()}`;
     seen.add(k);
   }
-  // hits só nos logs sem match na carteira ainda contam no dashboard
-  if (baHits) {
-    for (const h of baHits) seen.add(h);
-  }
   return seen.size;
 }

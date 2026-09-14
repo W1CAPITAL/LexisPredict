@@ -37,13 +37,14 @@ export function riscoCarteiraUnificado(opts: {
   novidades: number;
 }): number {
   const n = Math.max(1, opts.ativos);
-  const peso =
-    opts.vencidos * 1 +
-    opts.hoje * 0.8 +
-    opts.atencao * 0.45 +
-    opts.ba * 1.5 +
-    opts.novidades * 0.35;
-  return Math.min(100, Math.round((peso / n) * 100));
+  const ba = Math.min(Math.max(0, opts.ba), n);
+  const venc = Math.min(Math.max(0, opts.vencidos), n);
+  const hoje = Math.min(Math.max(0, opts.hoje), n);
+  const atencao = Math.min(Math.max(0, opts.atencao), n);
+  const nov = Math.min(Math.max(0, opts.novidades), n);
+  // Fração da carteira ATIVA — não soma baixa de tribunal nem hit órfão.
+  const peso = venc * 0.55 + hoje * 0.12 + atencao * 0.18 + ba * 0.28 + nov * 0.08;
+  return Math.min(92, Math.round((peso / n) * 100));
 }
 
 export function riskLabelFromScore(score: number): {

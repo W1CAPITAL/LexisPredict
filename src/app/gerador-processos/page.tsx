@@ -108,7 +108,10 @@ export default function GeradorProcessosPage() {
   const [dataInicio, setDataInicio] = useState(isoIni);
   const [dataFim, setDataFim] = useState(isoHoje);
   const [statusOn, setStatusOn] = useState<FiltroStatusId[]>(() => filtrosDefaultStatus());
-  const [materiaOn, setMateriaOn] = useState<FiltroMateriaId[]>(() => filtrosDefaultMateria());
+  const [materiaOn, setMateriaOn] = useState<FiltroMateriaId[]>(() => {
+    const d = filtrosDefaultMateria();
+    return d.includes("busca_apreensao") ? d : [...d, "busca_apreensao"];
+  });
   const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(false);
   const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
   const [cnpj, setCnpj] = useState("");

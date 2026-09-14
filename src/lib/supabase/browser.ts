@@ -66,6 +66,8 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
       persistSession: true,
       detectSessionInUrl: true,
       flowType: "pkce",
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      storageKey: "lexis-auth",
     },
     realtime: {
       params: { eventsPerSecond: 1 },

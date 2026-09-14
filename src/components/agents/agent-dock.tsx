@@ -17,7 +17,7 @@ import type { AgentMeta } from "@/lib/crm-agent/skills";
 import { cn } from "@/lib/utils";
 
 const PANEL =
-  "fixed bottom-20 right-4 z-[90] w-[min(420px,calc(100vw-1.5rem))] max-h-[min(85vh,720px)] overflow-y-auto rounded-2xl border border-zinc-600 bg-zinc-950 text-zinc-50 shadow-2xl";
+  "fixed top-14 left-3 z-[90] w-[min(420px,calc(100vw-1.5rem))] max-h-[min(85vh,720px)] overflow-y-auto rounded-2xl border border-zinc-600 bg-zinc-950 text-zinc-50 shadow-2xl";
 
 const INPUT =
   "w-full rounded-lg border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50";
@@ -373,7 +373,7 @@ export function AgentDock() {
 
       <button
         type="button"
-        className="pointer-events-auto fixed bottom-4 right-4 z-[91] flex h-12 items-center gap-2 rounded-full border border-zinc-600 bg-zinc-950 px-4 text-sm font-bold text-white shadow-xl hover:bg-zinc-900 max-md:hidden [@media(max-height:700px)]:hidden"
+        className="pointer-events-auto fixed top-3 left-3 z-[91] flex h-10 items-center gap-2 rounded-full border border-zinc-600 bg-zinc-950 px-3 text-sm font-bold text-white shadow-xl hover:bg-zinc-900"
         onClick={() => setOpen((v) => !v)}
       >
         <Bot className="h-4 w-4 text-emerald-400" />

@@ -715,9 +715,12 @@ export default function SettingsPage() {
                     <PlanosAdminBloqueio />
                   </div>
                 )}
-                <div className="rounded-2xl border border-border/60 bg-card/50 p-4">
-                  <PlanosEmpresaPanel />
-                </div>
+                <details className="rounded-2xl border border-border/60 bg-card/50 p-4">
+                  <summary className="cursor-pointer text-sm font-semibold">Planos da empresa</summary>
+                  <div className="mt-3 overflow-auto max-h-[70vh]">
+                    <PlanosEmpresaPanel />
+                  </div>
+                </details>
               </section>
             </div>
 

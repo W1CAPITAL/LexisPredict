@@ -125,23 +125,24 @@ function useNavItems(opts: {
   return useMemo(() => {
     const primary: NavItem[] = [
       { label: "Painel", href: "/", icon: LayoutDashboard },
-      { label: "Chat equipe", href: "/mensagens", icon: MessagesSquare },
-      { label: "Encerrados", href: "/encerrados-revisao", icon: ShieldAlert },
       { label: "Fila", href: "/tarefas", icon: ListTodo },
-      { label: "Parados", href: "/processos-parados", icon: PauseCircle },
       { label: "Meus processos", href: "/cases", icon: Briefcase },
       { label: "Empresa", href: "/processos", icon: FolderOpen },
-      { label: "Importar", href: "/import", icon: Upload },
-      { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList },
+      { label: "Encerrados", href: "/encerrados-revisao", icon: ShieldAlert },
+      { label: "Parados", href: "/processos-parados", icon: PauseCircle },
+      { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
+      { label: "Gerador", href: "/gerador-processos", icon: Hash },
+      
+      { label: "Config", href: "/settings", icon: Settings },
     ];
     const secondary: NavItem[] = [
       { label: "Agenda", href: "/agenda", icon: CalendarDays },
       { label: "Procedentes", href: "/cumprimentos-procedentes", icon: Scale },
-      { label: "Busca/apreensão", href: "/busca-apreensao", icon: Gavel },
+      
       { label: "Predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
       { label: "Dossiê", href: "/report", icon: BarChart3 },
       { label: "Amostra CNJ (estatística)", href: "/estatistica-cnj", icon: BarChart3 },
-      { label: "DJEN revisional", href: "/gerador-processos", icon: Hash },
+      
       { label: "Autoaprimorar", href: "/autoaprimoramento", icon: Sparkles },
       { label: "OCR", href: "/tools/ocr", icon: FileText },
       { label: "CRM", href: "/crm", icon: Kanban },
@@ -174,7 +175,6 @@ function useNavItems(opts: {
     rest.push(
       { label: "Treinamento", href: "/onboarding", icon: PlayCircle },
       { label: "Notas", href: "/notes", icon: StickyNote },
-      { label: "Config", href: "/settings", icon: Settings }
     );
 
     let items = flattenNavItems(primary, secondary, rest, navPrefs, showMore);
@@ -361,7 +361,7 @@ export function SidebarDock() {
   const { plan } = usePlano();
   const [locale, setLocale] = useState<Locale>("pt");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [showMore, setShowMore] = useState(false);
+  const [showMore, setShowMore] = useState(true);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -549,28 +549,7 @@ export function SidebarDock() {
             />
           );
         })}
-        <button
-          type="button"
-          onClick={() => setShowMore((v) => !v)}
-          className={cn(
-            "h-[64px] min-w-[72px] max-w-[92px] px-1 flex flex-col items-center justify-center gap-0.5 rounded-xl",
-            "transition-all duration-150 hover:-translate-y-2",
-            showMore ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-white/10"
-          )}
-          title={showMore ? "Recolher ferramentas" : "Mais ferramentas"}
-        >
-          <span
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black",
-              "bg-gradient-to-br from-sky-500/30 to-violet-500/30 border border-white/20"
-            )}
-          >
-            {showMore ? "−" : "+"}
-          </span>
-          <span className="text-[9px] font-black leading-tight text-center text-foreground/90 line-clamp-2 max-w-[84px]">
-            {showMore ? "Recolher" : "Mais ferramentas"}
-          </span>
-        </button>
+        
       </div>
 
       {/* ações direita */}
@@ -712,7 +691,15 @@ export function SidebarDock() {
               <SheetTitle>Menu Lexis</SheetTitle>
               <SheetDescription>Navegação do gabinete</SheetDescription>
             </SheetHeader>
-            <div className="p-3 overflow-y-auto max-h-[calc(78vh-4rem)] grid grid-cols-3 gap-2">
+            <div className="px-3 pt-2">
+              <input
+                className="w-full h-9 rounded-lg border bg-background px-3 text-sm"
+                placeholder="Buscar aba…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <div className="p-3 overflow-y-auto max-h-[calc(78vh-6rem)] grid grid-cols-3 gap-2">
               {navItems.map((item) => {
                 const active =
                   pathname === item.href ||

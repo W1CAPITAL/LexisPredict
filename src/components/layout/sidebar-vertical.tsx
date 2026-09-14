@@ -13,7 +13,7 @@ import {
   Kanban, Wallet, FileText, Scale, ClipboardList, Bot, Monitor, MessageCircle,
   MessagesSquare, BarChart3, BrainCircuit, ShieldAlert, PauseCircle, ShieldCheck,
   Users, Settings, StickyNote, PlayCircle, LogOut, Menu, X, Zap, Crown,
-  Calculator, Search, Pin, PinOff, GripVertical, type LucideIcon,
+  Calculator, Hash, Search, Pin, PinOff, GripVertical, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -42,25 +42,26 @@ function buildNavItems(opts: {
   const { isAdmin, isSuperAdmin, plan, showMore, query, navPrefs } = opts;
   const primary: NavItem[] = [
     { label: "Painel", href: "/", icon: LayoutDashboard },
-    { label: "Chat equipe", href: "/mensagens", icon: MessagesSquare },
-    { label: "Encerrados", href: "/encerrados-revisao", icon: ShieldAlert },
     { label: "Fila", href: "/tarefas", icon: ListTodo },
-    { label: "Parados", href: "/processos-parados", icon: PauseCircle },
     { label: "Meus processos", href: "/cases", icon: Briefcase },
     { label: "Empresa", href: "/processos", icon: FolderOpen },
-    { label: "Importar", href: "/import", icon: Upload },
-    { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList },
+    { label: "Encerrados", href: "/encerrados-revisao", icon: ShieldAlert },
+    { label: "Parados", href: "/processos-parados", icon: PauseCircle },
+    { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
+    { label: "Gerador", href: "/gerador-processos", icon: Hash },
+    { label: "Dossiê", href: "/report", icon: BarChart3 },
+    { label: "Config", href: "/settings", icon: Settings },
   ];
   const secondary: NavItem[] = [
     { label: "Agenda", href: "/agenda", icon: CalendarDays },
     { label: "Procedentes", href: "/cumprimentos-procedentes", icon: Scale },
-    { label: "Busca/apreensão", href: "/busca-apreensao", icon: Gavel },
+    
     { label: "Predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
     { label: "Dossiê", href: "/report", icon: BarChart3 },
     { label: "OCR", href: "/tools/ocr", icon: FileText },
     { label: "CRM", href: "/crm", icon: Kanban },
     { label: "Follow-ups", href: "/crm/followups", icon: ListTodo },
-    { label: "Agentes", href: "/crm/agentes", icon: Bot },
+    { label: "Chat equipe", href: "/mensagens", icon: MessagesSquare },
     { label: "Offline", href: "/offline", icon: Monitor },
     { label: "Finanças", href: "/financas", icon: Wallet },
     { label: "Cálculos", href: "/calculos", icon: Calculator },
