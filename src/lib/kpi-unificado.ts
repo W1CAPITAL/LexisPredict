@@ -1,3 +1,6 @@
+import { uniqueCases } from './case-identity';
+import { resolveTemNovoAndamento } from './novidade';
+import { temBaCarteira } from './flags-operacionais';
 /**
  * KPIs únicos — Painel e Dossiê operacional leem daqui.
  * Sem isso o risco e as novidades divergem (fórmulas diferentes).
@@ -15,11 +18,7 @@ import {
 import { countBaFromCases } from "@/lib/flags-operacionais";
 
 export function temNovidadeCnj(c: any): boolean {
-  return !!(
-    c?.tem_novo_andamento ||
-    c?.tem_atualizacao_pos_retorno ||
-    c?.djen_nova_comunicacao
-  );
+  return resolveTemNovoAndamento(c);
 }
 
 export function isVencidoAtivo(c: any): boolean {
@@ -59,7 +58,7 @@ export function riskLabelFromScore(score: number): {
 }
 
 export function computeKpiUnificado(cases: any[], opts?: { baHitDigits?: string[]; ref?: Date }) {
-  const list = cases || [];
+  const list = uniqueCases(cases || []);
   const ref = opts?.ref ?? new Date();
   const kpis = computeCarteiraKpis(list);
   const ativosList = list.filter((c) => !isCasoEncerrado(c));
@@ -69,20 +68,21 @@ export function computeKpiUnificado(cases: any[], opts?: { baHitDigits?: string[
   const countHoje = ativosList.filter((c) => statusEfetivo(c) === "É Hoje").length;
   const countAtencao = ativosList.filter((c) => statusEfetivo(c) === "Atenção").length;
   const countSaudavel = ativosList.filter((c) => statusEfetivo(c) === "No Prazo").length;
-  const countSemPrazo = ativosList.filter((c) => statusEfetivo(c) === "Sem Prazo" || c?.status === "Sem Prazo").length;
+  const countSemPrazo = ativosList.filter((c) => statusEfetivo(c) === "Sem Prazo").length;
   const countNovoAndamento = ativosList.filter(temNovidadeCnj).length;
 
   const baSet = new Set((opts?.baHitDigits || []).map((x) => String(x).replace(/\D/g, "")).filter(Boolean));
   const countBA = countBaFromCases(ativosList as any, baSet.size ? baSet : undefined);
 
-  const riskScore = riscoCarteiraUnificado({
-    ativos: activeTotal,
-    vencidos: countVencido,
-    hoje: countHoje,
-    atencao: countAtencao,
-    ba: countBA,
-    novidades: countNovoAndamento,
+  const caseScores = ativosList.map(c => {
+    const status = statusEfetivo(c);
+    return Math.max(
+      isVencidoAtivo(c) ? 100 : status === 'É Hoje' ? 70 : status === 'Atenção' ? 40 : status === 'Sem Prazo' ? 15 : 0,
+      temBaCarteira(c, baSet) ? 90 : 0,
+      temNovidadeCnj(c) ? 25 : 0,
+    );
   });
+  const riskScore = activeTotal ? Math.round(caseScores.reduce((sum, score) => sum + score, 0) / activeTotal) : 0;
   const risk = riskLabelFromScore(riskScore);
 
   return {
@@ -97,7 +97,8 @@ export function computeKpiUnificado(cases: any[], opts?: { baHitDigits?: string[
     countSaudavel,
     countSemPrazo,
     countNovoAndamento,
-    pendentes: countNovoAndamento + countHoje,
+    pendentes: ativosList.filter(c => temNovidadeCnj(c) || statusEfetivo(c) === "É Hoje").length,
+    caseScores,
     countBA,
     riskScore,
     riskLabel: risk.riskLabel,

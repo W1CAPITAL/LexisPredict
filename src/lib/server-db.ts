@@ -3,7 +3,9 @@
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor, checkIfViewer } from './supabase';
 import { LegalCase, formatDateToISO, processarCaso } from './case-logic';
 import { resolveSituacaoFromRow, resolveStatusManualFromRow } from './resolve-situacao';
-import { cookies } from 'next/headers';
+import { createClient as createRequestClient } from './supabase/server';
+import { cache } from 'react';
+import { uniqueCases } from './case-identity';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { canSupervisaoCarteira, isSuperAdminProfile } from './auth-supervisao';
 
@@ -28,18 +30,20 @@ export async function getSupabaseAdmin() {
   return createSupabaseClient(url, key);
 }
 
-export async function getUserContext() {
-  const cookieStore = await cookies();
-  const userEmail = cookieStore.get('lexis_user_email')?.value;
-  
-  if (!userEmail || !supabase) return { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, weight: 0 };
-
-  const { data: profile } = await supabase
+const resolveUserContext = cache(async () => {
+  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, weight: 0 };
+  const requestClient = await createRequestClient();
+  if (!requestClient) return empty;
+  const { data: { user }, error } = await requestClient.auth.getUser();
+  if (error || !user) return empty;
+  const db = process.env.SUPABASE_SERVICE_ROLE_KEY ? await getSupabaseAdmin() : requestClient;
+  const { data: profile, error: profileError } = await db
     .from('usuarios')
-    .select('id, empresa_id, cargo, email, auth_user_id')
-    .eq('email', userEmail.toLowerCase().trim())
+    .select('id, empresa_id, cargo, email, auth_user_id, nome, role')
+    .eq('auth_user_id', user.id)
     .maybeSingle();
-    
+  if (profileError || !profile?.empresa_id) return empty;
+
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = isSuperAdminProfile(profile) || checkIfSuperAdmin(profile);
   const isSupervisor = canSupervisaoCarteira(profile) || checkIfSupervisor(profile);
@@ -56,6 +60,7 @@ export async function getUserContext() {
     empresa_id: profile?.empresa_id || null, 
     cargo: cargo,
     email: profile?.email || null,
+    nome: profile?.nome || null,
     isSuperAdmin,
     isSupervisor,
     isViewer,
@@ -64,6 +69,10 @@ export async function getUserContext() {
     isEmpresaWide,
     weight: ROLE_WEIGHTS[cargo] || 0
   };
+});
+
+export async function getUserContext() {
+  return resolveUserContext();
 }
 
 export async function getStoredCases(): Promise<LegalCase[]> {
@@ -73,21 +82,7 @@ export async function getStoredCases(): Promise<LegalCase[]> {
 }
 
 function dedupeByProtocolo(cases: LegalCase[]): LegalCase[] {
-  const seen = new Map<string, LegalCase>();
-  for (const c of cases) {
-    const key = String(c.protocolo || '').replace(/\D/g, '') || String(c.id || '');
-    if (!key) continue;
-    const prev = seen.get(key);
-    if (!prev) {
-      seen.set(key, c);
-      continue;
-    }
-    // mantém o que tem mais sinal de atendimento/atualização
-    const score = (x: any) =>
-      (x.ultimoRetorno ? 10 : 0) + (x.tem_novo_andamento ? 5 : 0) + (x.created_by ? 2 : 0);
-    if (score(c) >= score(prev)) seen.set(key, c);
-  }
-  return Array.from(seen.values());
+  return uniqueCases(cases);
 }
 
 function toLegalCase(item: any): LegalCase {
@@ -150,6 +145,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   if (!empresaId) return [];
 
   const context = await getUserContext();
+  if (context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
   const { auth_id, isSuperAdmin, isSupervisor } = context as any;
 
   // isAdmin=true → /processos (empresa toda)

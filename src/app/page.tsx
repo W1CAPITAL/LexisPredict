@@ -310,9 +310,7 @@ export default function Dashboard() {
         </header>
 
         
-        <div className="px-4 sm:px-6 pt-4 shrink-0">
-          <SuiteIdentityStrip />
-        </div>
+
 <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
           <div className="px-4 sm:px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
              <ScrollArea className="w-full">

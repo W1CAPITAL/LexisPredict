@@ -1,35 +1,19 @@
-/**
- * ESLint flat config — TypeScript é validado por `tsc --noEmit` (typecheck).
- * Espree não parseia TS; por isso .ts/.tsx ficam só com ignore + regras JS.
- * Evita 500+ "Parsing error: Unexpected token" falsos no CI.
- */
+import nextPlugin from '@next/eslint-plugin-next';
+import reactHooks from 'eslint-plugin-react-hooks';
+import tsParser from '@typescript-eslint/parser';
+
 export default [
+  { ignores: ['.next/**', 'node_modules/**', 'dist/**', 'out/**'] },
   {
-    ignores: [
-      ".next/**",
-      "out/**",
-      "build/**",
-      "node_modules/**",
-      "reports/**",
-      "coverage/**",
-      "next-env.d.ts",
-      "e2e/**",
-      // TS/TSX: use typecheck, não eslint sem typescript-eslint
-      "**/*.ts",
-      "**/*.tsx",
-      "**/*.mts",
-      "**/*.cts",
-    ],
-  },
-  {
-    files: ["**/*.{js,mjs,cjs}"],
+    files: ['src/**/*.{ts,tsx}', 'middleware.ts', 'next.config.ts'],
+    plugins: { '@next/next': nextPlugin, 'react-hooks': reactHooks },
+    languageOptions: { parser: tsParser, ecmaVersion: 'latest', sourceType: 'module', parserOptions: { ecmaFeatures: { jsx: true } } },
     rules: {
-      "no-duplicate-imports": "error",
-      "no-unreachable": "error",
-      "no-unused-expressions": "warn",
-      eqeqeq: ["warn", "smart"],
-      "prefer-const": "warn",
-      "no-var": "error",
+      'no-debugger': 'error',
+      'no-dupe-args': 'error',
+      'no-duplicate-case': 'error',
+      'no-unreachable': 'error',
+      'no-unsafe-finally': 'error',
     },
   },
 ];

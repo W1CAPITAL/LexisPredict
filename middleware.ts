@@ -47,101 +47,48 @@ function applySecurityHeaders(res: NextResponse) {
 }
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request: { headers: request.headers } })
-  const path = request.nextUrl.pathname
-  const isPublicFile =
-    /\.(.*)$/.test(path) ||
-    path.startsWith('/api') ||
-    path.includes('manifest.json') ||
-    path.includes('favicon.ico')
-
-  if (path === '/login' || path === '/signup') {
-    const hits = Number(request.cookies.get('lexis_login_hits')?.value || '0')
-    const maxHits = request.method === 'POST' ? 25 : 60
-
-    if (hits > maxHits) {
-      const blocked = NextResponse.json(
-        { error: 'Muitas tentativas. Aguarde alguns minutos.' },
-        { status: 429 },
-      )
-      blocked.cookies.set('lexis_login_hits', String(hits), {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 15 * 60,
-        path: '/',
-      })
-      return applySecurityHeaders(blocked)
-    }
-
-    if (request.method === 'POST') {
-      response.cookies.set('lexis_login_hits', String(hits + 1), {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 15 * 60,
-        path: '/',
-      })
-    }
-  }
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (url && key && !isPublicFile) {
-    const supabase = createServerClient(url, key, {
+  let response = NextResponse.next({ request });
+  const path = request.nextUrl.pathname;
+  const isAuthPage = path === '/login' || path === '/signup';
+  const isPublic = isAuthPage || path.startsWith('/termos') || path.startsWith('/api/') || /\.[a-z0-9]+$/i.test(path);
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const redirect = (pathname: string) => {
+    const target = request.nextUrl.clone();
+    target.pathname = pathname;
+    target.search = '';
+    const next = NextResponse.redirect(target);
+    // Refresh cookies must also reach redirects (Safari/PWA included).
+    for (const cookie of response.cookies.getAll()) next.cookies.set(cookie);
+    next.headers.set('Cache-Control', 'private, no-store');
+    return applySecurityHeaders(next);
+  };
+  if (url && key && (!isPublic || isAuthPage)) {
+    const client = createServerClient(url, key, {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
+        getAll: () => request.cookies.getAll(),
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({ request: { headers: request.headers } })
-          cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options?: any }) => response.cookies.set(name, value, options))
-          response.headers.set('Cache-Control', 'private, no-store')
+          for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
+          const previous = response.cookies.getAll();
+          response = NextResponse.next({ request });
+          for (const cookie of previous) response.cookies.set(cookie);
+          for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, options);
         },
       },
-    })
-
-    const { data: { user } } = await supabase.auth.getUser()
-    const isAuthPage = path === '/login' || path === '/signup'
-
-    if (!user && !isAuthPage) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/login'
-      return applySecurityHeaders(NextResponse.redirect(redirectUrl))
+    });
+    const { data: { user } } = await client.auth.getUser();
+    if (!user && !isPublic) return redirect('/login');
+    if (user && isAuthPage) return redirect('/');
+    const adminPath = ADMIN_ONLY.some(p => path === p || path.startsWith(`${p}/`));
+    const superPath = [...SUPERADMIN_ONLY, '/superadmin', '/ops'].some(p => path === p || path.startsWith(`${p}/`));
+    if (user && (adminPath || superPath)) {
+      const { data: profile } = await client.from('usuarios').select('cargo').eq('auth_user_id', user.id).maybeSingle();
+      const role = profile?.cargo || '';
+      if ((superPath && role !== 'Superadmin') || (adminPath && (ROLE_WEIGHT[role] || 0) < 60)) return redirect('/');
     }
-
-    if (user && isAuthPage) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/'
-      return applySecurityHeaders(NextResponse.redirect(redirectUrl))
-    }
+    response.headers.set('Cache-Control', 'private, no-store');
   }
-
-  const isAdminPath = ADMIN_ONLY.some((p) => path === p || path.startsWith(`${p}/`))
-  if (isAdminPath) {
-    const role = request.cookies.get('lexis_user_role')?.value || ''
-    if ((ROLE_WEIGHT[role] || 0) < 60) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/'
-      redirectUrl.search = ''
-      return applySecurityHeaders(NextResponse.redirect(redirectUrl))
-    }
-  }
-
-  const isSuperPath = SUPERADMIN_ONLY.some((p) => path === p || path.startsWith(`${p}/`))
-  if (isSuperPath) {
-    const role = request.cookies.get('lexis_user_role')?.value || ''
-    if (role !== 'Superadmin') {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/'
-      redirectUrl.search = ''
-      return applySecurityHeaders(NextResponse.redirect(redirectUrl))
-    }
-  }
-
-  return applySecurityHeaders(response)
+  return applySecurityHeaders(response);
 }
 
 export const config = {

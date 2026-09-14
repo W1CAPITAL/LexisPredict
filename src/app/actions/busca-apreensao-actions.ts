@@ -28,6 +28,8 @@ import {
 } from '@/lib/busca-apreensao-logic';
 
 export interface BaHit {
+  classe?: string | null;
+  evidenceVerified?: boolean;
   id: string;
   data: string | null;
   tribunal: string | null;
@@ -180,6 +182,9 @@ async function persistBaHits(
           processo_djen: processoDjen,
           payload: {
             orgao: h.orgao,
+            classe: h.classe,
+            evidenceVerified: h.evidenceVerified === true,
+            alertarOperacional: h.alertarOperacional,
             protocolos_carteira: h.protocolosCarteira,
             processo_djen: processoDjen,
             protocolo_carteira: protocoloCarteira,
@@ -205,6 +210,9 @@ async function persistBaHits(
       tribunal: h.tribunal,
       payload: {
         orgao: h.orgao,
+            classe: h.classe,
+            evidenceVerified: h.evidenceVerified === true,
+            alertarOperacional: h.alertarOperacional,
         protocolos_carteira: h.protocolosCarteira,
         processo_djen: processoDjen,
         protocolo_carteira: protocoloCarteira,
@@ -377,12 +385,11 @@ export async function scanOneClienteBaAction(
   const seenProcesso = new Set<string>();
 
   for (const item of res.items || []) {
-    const processoDjen = item.numero_processo
-      ? String(item.numero_processo)
-      : null;
+    const processoDjen = item.numero_processo || (item as any).numeroProcesso || null;
 
     const full = detectarBaCompleto({
       texto: item.texto || '',
+      classe: (item as any).nomeClasse || null,
       processoDjen,
       tribunalSigla: item.siglaTribunal || null,
       protocolosCarteira: protocolos,
@@ -404,19 +411,6 @@ export async function scanOneClienteBaAction(
         break;
       }
     }
-    if (!protocoloCarteira) {
-      for (const p of protocolos) {
-        const dig = digitsOnly(p);
-        if (dig.length >= 15 && digitsOnly(item.texto || '').includes(dig)) {
-          protocoloCarteira = p;
-          break;
-        }
-      }
-    }
-    if (!protocoloCarteira && protocolos.length === 1) {
-      protocoloCarteira = protocolos[0];
-    }
-
     const key = `${item.id}|${processoDjen || ''}|${item.data_disponibilizacao || ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -427,6 +421,8 @@ export async function scanOneClienteBaAction(
     seenProcesso.add(digKey);
 
     hits.push({
+      classe: (item as any).nomeClasse || null,
+      evidenceVerified: full.hit,
       id: key,
       data: item.data_disponibilizacao,
       tribunal: item.siglaTribunal,
@@ -454,7 +450,7 @@ export async function scanOneClienteBaAction(
     await persistBaHits(hits, ctx.empresa_id);
   }
 
-  
+
 
   // Confirmação opcional via IA (motor escolhido na UI)
   let engineUsed: string | null = null;

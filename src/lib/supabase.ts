@@ -5,7 +5,7 @@
  * Cliente browser com cookies (SSR-compatible) para o middleware ver a sessão.
  * Evita loop login ↔ home quando a sessão ficava só no localStorage.
  */
-import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseBrowserClient } from "./supabase/browser";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -18,7 +18,7 @@ function createLexisClient() {
   if (!isSupabaseConfigured) return null as any;
   // No browser: cookies + localStorage via @supabase/ssr (middleware consegue ler)
   if (typeof window !== "undefined") {
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+    return getSupabaseBrowserClient();
   }
   // Server/module init: cliente JS simples (sem cookies de request)
   return createSupabaseJsClient(supabaseUrl, supabaseAnonKey);

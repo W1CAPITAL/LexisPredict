@@ -43,7 +43,7 @@ export default function LoginPage() {
   useEffect(() => {
     let safetyTimeout: NodeJS.Timeout;
 
-    if (!authLoading && user && profile) {
+    if (!authLoading && user) {
       router.replace('/');
       router.refresh();
       // Uma única tentativa suave — evita loop assign('/') ↔ /login
@@ -60,6 +60,10 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (!supabase) {
+      toast({ title: "Login indisponível", description: "A conexão do aplicativo ainda não foi configurada.", variant: "destructive" });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -72,12 +76,13 @@ export default function LoginPage() {
       if (authError) {
         toast({ title: "Erro de Acesso", description: "Credenciais inválidas.", variant: "destructive" });
         setIsSubmitting(false);
-      } else if (data.user) {
+      } else if (data.user && data.session) {
         const emailVal = (data.user.email || loginEmail).toLowerCase().trim();
         if (emailVal) {
           const isProd = window.location.protocol === 'https:';
           document.cookie = `lexis_user_email=${emailVal}; path=/; max-age=31536000; samesite=lax${isProd ? '; secure' : ''}`;
         }
+        window.location.replace('/');
       }
     } catch (error) {
       toast({ title: "Falha de Rede", variant: "destructive" });
@@ -85,7 +90,7 @@ export default function LoginPage() {
     }
   };
 
-  if (!authLoading && user && profile) {
+  if (!authLoading && user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-[#0b1220] to-slate-950 space-y-8 font-sans p-6 text-center relative overflow-hidden">
         <div className="absolute inset-0 opacity-20 pointer-events-none select-none">
@@ -100,8 +105,8 @@ export default function LoginPage() {
           )}
         </div>
         <div className="space-y-4">
-          <h1 className="text-2xl font-black uppercase tracking-tighter text-white">Gabinete Aberto</h1>
-          <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Redirecionando para Mission Control...</p>
+          <h1 className="text-2xl font-black uppercase tracking-tighter text-white">Acesso confirmado</h1>
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Abrindo sua carteira…</p>
         </div>
         <Loader2 className="animate-spin text-primary" size={32} />
       </div>

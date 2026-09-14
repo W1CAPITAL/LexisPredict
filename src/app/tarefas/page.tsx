@@ -1,4 +1,6 @@
 "use client";
+import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
+import { statusEfetivo } from "@/lib/prazo-status";
 
 import { AtendimentoActions } from '@/components/ops/atendimento-actions';
 import { PublicacaoDjenBlock } from '@/components/ops/publicacao-djen';
@@ -452,101 +454,34 @@ export default function TarefasPage() {
 const handleSaveAttendance = async () => {
     if (!activeGroup || isSavingAttendance) return;
     setIsSavingAttendance(true);
+    const targets = cases.filter(c => attendanceForm.applyToAll
+      ? c.cliente === activeGroup.cliente
+      : activeGroup.cases.some(ac => ac.protocolo === c.protocolo));
+    const confirmed = new Map<string, LegalCase>();
+    const pending: string[] = [];
+    const failures: string[] = [];
     try {
-      const todayStr = hojeBrasilYmd(); // YYYY-MM-DD Brasília — SEMPRE grava retorno (também no ENCERRADO)
-      const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
-      const touched: string[] = [];
-      const updatedCases = cases.map(c => {
-        const isInGroup = attendanceForm.applyToAll
-          ? c.cliente === activeGroup.cliente
-          : activeGroup.cases.some(ac => ac.protocolo === c.protocolo);
-        if (!isInGroup) return c;
-        touched.push(c.protocolo);
-        const prazoAtt = isEncerrado
-          ? ''
-          : (formatDateToISO(attendanceForm.proximoRetorno) || attendanceForm.proximoRetorno || '');
-        return processarCaso({
-          ...c,
-          situacao: attendanceForm.situacao,
-          statusManual: isEncerrado ? 'Encerrado' : 'Automatico',
-          ...patchAtendimentoComEdicao((profile as any)?.auth_user_id || (profile as any)?.id, todayStr),
-          observacao: applyFilaListaToObs(
-            attendanceForm.observacao || c.observacao,
-            attendanceForm.filaLista || 'normal'
-          ),
-          proximoPrazo: prazoAtt,
-          tem_atualizacao_pos_retorno: false,
-          djen_nova_comunicacao: false,
-          tem_novo_andamento: false,
-        });
-      });
-      const touchedCases = updatedCases.filter((c) => touched.includes(c.protocolo));
-      let result: any = { success: false, saved: 0 };
-      try {
-        // Fonte de verdade: registrarAtendimentoCompleto (grava ultimo_retorno + proximo_retorno)
-        let ok = 0;
-        for (const proto of touched.slice(0, 40)) {
-          const one = cases.find((c) => c.protocolo === proto) || touchedCases.find((c) => c.protocolo === proto);
-          const r2 = await registrarAtendimentoCompletoAction({
-            protocolo: proto,
+      for (const c of targets) {
+        try {
+          const result = await registrarAtendimentoCompletoAction({
+            protocolo: c.protocolo,
             situacao: attendanceForm.situacao,
-            observacao: attendanceForm.observacao || one?.observacao || '',
-            proximoPrazo: isEncerrado ? '' : (attendanceForm.proximoRetorno || one?.proximoPrazo),
-            via: 'tarefas',
-            filaLista: attendanceForm.filaLista || 'normal',
+            observacao: attendanceForm.observacao,
+            proximoPrazo: attendanceForm.situacao === 'ENCERRADO' ? '' : attendanceForm.proximoRetorno,
+            via: 'tarefas', filaLista: attendanceForm.filaLista || 'normal',
           });
-          if (r2?.success) ok += 1;
-        }
-        if (ok > 0) result = { success: true, saved: ok };
-        else {
-          result = await saveManyCasesAction(
-            (touchedCases.length ? touchedCases : updatedCases.filter((_, i) => i < 1)).map((c) => slimCaseForSave(c) as any)
-          );
-        }
-      } catch (e: any) {
-        result = { success: false, message: e?.message || 'saveMany indisponível' };
+          if (!result.success || !result.case) { failures.push(`${c.protocolo}: ${result.message}`); continue; }
+          confirmed.set(c.protocolo, result.case);
+          if (result.mirror?.attempted && !result.mirror.ok) pending.push(c.protocolo);
+        } catch (error: any) { failures.push(`${c.protocolo}: ${error?.message || 'Falha ao salvar'}`); }
       }
-      if (!(result as any).success && (result as any).saved > 0) (result as any).success = true;
-      if (result.success) {
-        setCases(updatedCases);
-        const updatedContatados = Array.from(new Set([...contatadosHoje, activeGroup.cliente]));
-        setContatadosHoje(updatedContatados);
-        localStorage.setItem(getTodayKey(), JSON.stringify(updatedContatados));
-        setIsAttendanceOpen(false);
-        setActiveGroup(null);
-        try {
-          if (isEncerrado) {
-            await registrarAuditoriaEventAction('encerramento', touched, {
-              via: 'tarefas',
-              ultimoRetorno: todayStr,
-            });
-          } else {
-            await registrarAtendimentoAction(touched, {
-              via: 'tarefas',
-              ultimoRetorno: todayStr,
-            });
-          }
-        } catch { /* */ }
-        toast({
-          title: isEncerrado ? 'Encerrado e contabilizado' : 'Atendimento registrado',
-          description: `Retorno ${todayStr} · ${touched.length} processo(s)`,
-        });
-        try {
-          const fresh = await fetchRepoCases();
-          if (Array.isArray(fresh) && fresh.length) setCases(fresh);
-        } catch { /* */ }
-      } else {
-        toast({
-          title: 'Falha ao salvar',
-          description: (result as any).error || (result as any).message || 'Tente de novo',
-          variant: 'destructive',
-        });
-      }
-    } catch (e: any) {
+      setCases(cases.map(c => confirmed.get(c.protocolo) || c));
+      if (!failures.length && confirmed.size) { setIsAttendanceOpen(false); setActiveGroup(null); }
       toast({
-        title: 'Falha ao registrar',
-        description: e?.message || 'Erro inesperado no atendimento',
-        variant: 'destructive',
+        title: failures.length ? 'Atendimento parcialmente salvo' : 'Atendimento registrado',
+        description: `${confirmed.size}/${targets.length} processo(s) salvo(s). ${failures.length ? failures.slice(0, 2).join(' · ') : pending.length ? `${pending.length} aguardando confirmação da planilha.` : 'Retornos atualizados.'}`,
+        variant: failures.length ? 'destructive' : undefined,
+        action: pending.length ? <AtendimentoSyncRetry protocolos={pending}/> : undefined,
       });
     } finally { setIsSavingAttendance(false); }
   };
@@ -576,23 +511,20 @@ const handleSaveAttendance = async () => {
         if (c.cliente) clientes.add(String(c.cliente).trim().toUpperCase());
       }
     }
-    // une nomes só do localStorage (legado) que ainda não estão no DB
-    for (const nome of contatadosHoje) {
-      if (nome) clientes.add(String(nome).trim().toUpperCase());
-    }
-    return { clientes: clientes.size, processos: Math.max(processos, clientes.size) };
-  }, [cases, contatadosHoje]);
+    return { clientes: clientes.size, processos };
+  }, [cases]);
 
   const taskData = useMemo(() => {
     const groups: Record<string, TaskGroup> = {};
-    const contactedSet = new Set(
-      contatadosHoje.map((n) => String(n).trim().toUpperCase())
-    );
+    const byClient = new Map<string, LegalCase[]>();
     for (const c of cases) {
-      if (isAtendidoHoje(c.ultimoRetorno || (c as any).ultimo_retorno) && c.cliente) {
-        contactedSet.add(String(c.cliente).trim().toUpperCase());
-      }
+      if (!c.cliente || isCasoEncerrado(c)) continue;
+      const key = String(c.cliente).trim().toUpperCase();
+      byClient.set(key, [...(byClient.get(key) || []), c]);
     }
+    const contactedSet = new Set([...byClient].filter(([, group]) => group.every(c =>
+      isAtendidoHoje(c.ultimoRetorno || (c as any).ultimo_retorno) && !c.tem_novo_andamento && !c.tem_atualizacao_pos_retorno && !c.djen_nova_comunicacao
+    )).map(([key]) => key));
     const today = startOfDay(new Date());
 
     const activeCases = cases.filter(c => {
@@ -633,7 +565,7 @@ const handleSaveAttendance = async () => {
       if (res) { g.eventoUnificadoResumo = res; g.eventoTipo = c.evento_tipo || null; }
 
       let currentScore = 0;
-      const statusUpper = (c.status || '').toUpperCase();
+      const statusUpper = statusEfetivo(c).toUpperCase();
       if (statusUpper.includes('CRÍTICO')) currentScore = 50;
       else if (statusUpper === 'VENCIDO') currentScore = 40;
       else if (statusUpper === 'É HOJE') currentScore = 30;
@@ -838,23 +770,10 @@ const handleSaveAttendance = async () => {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
-<div className="px-4 sm:px-6 pt-4">
-            <OpsOrbitalStrip
-              nodes={defaultOpsNodes({
-                total: cases.length,
-                pendentes: cases.filter((c: any) => c.status === "É Hoje" || c.tem_novo_andamento).length,
-                vencidos: cases.filter((c: any) => c.status === "Vencido" || c.status === "Caso Crítico").length,
-                novidades: cases.filter((c: any) => c.tem_novo_andamento).length,
-                ok: cases.filter((c: any) => c.status === "No Prazo").length,
-              })}
-              className="mb-4"
-            />
-          </div>
-
         <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-black text-white rounded-lg shadow-lg"><CheckCircle size={20} className="text-primary" /></div>
-            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila Crítica de Atendimento</h1>
+            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila de atendimento</h1>
             <span className="ml-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground tabular-nums" title={kpiCarteira.semanaLabel}>
               Atendidos sem.: {kpiCarteira.atendidosSemana}
               <span className="ml-2">Réplica {opsKpis.replicaPendente}</span>
@@ -907,12 +826,12 @@ const handleSaveAttendance = async () => {
             </div>
           </section>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-card border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
              <div className="flex-1 w-full flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar por cliente ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-[#f8f9fb] border-none text-base sm:text-xs font-bold uppercase rounded-xl" /></div>
+                <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar por cliente ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-muted border-none text-base sm:text-xs font-bold uppercase rounded-xl" /></div>
                 <Select value={officeFilter} onValueChange={setOfficeFilter}>
-                   <SelectTrigger className="h-12 w-full md:w-[250px] bg-[#f8f9fb] border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="TODOS ESCRITÓRIOS" /></SelectTrigger>
-                   <SelectContent className="bg-white border-2 border-black rounded-xl">
+                   <SelectTrigger className="h-12 w-full md:w-[250px] bg-muted border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="TODOS ESCRITÓRIOS" /></SelectTrigger>
+                   <SelectContent className="bg-popover text-popover-foreground border rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">TODOS ESCRITÓRIOS</SelectItem>
                       {distinctOffices.map(off => <SelectItem key={off} value={off} className="font-black uppercase text-[10px]">{off}</SelectItem>)}
                    </SelectContent>
@@ -943,8 +862,8 @@ const handleSaveAttendance = async () => {
                 Meus hoje
               </Button>
               <Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
-                   <SelectTrigger className="h-12 w-full md:w-[260px] bg-[#f8f9fb] border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
-                   <SelectContent className="bg-white border-2 border-black rounded-xl">
+                   <SelectTrigger className="h-12 w-full md:w-[260px] bg-muted border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
+                   <SelectContent className="bg-popover text-popover-foreground border rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
                       <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
                       <SelectItem value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
@@ -1134,7 +1053,7 @@ const handleSaveAttendance = async () => {
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Select value={selectedMotor} onValueChange={setSelectedMotor}>
                           <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
-                          <SelectContent className="bg-white border-2 border-black rounded-lg">
+                          <SelectContent className="bg-popover text-popover-foreground border rounded-lg">
                             <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                             <SelectItem value="claude" className="text-[9px] font-black uppercase">Claude AI (OmniRoute)</SelectItem>
                             <SelectItem value="groq-llama" className="text-[9px] font-black uppercase">Groq Llama 3.3</SelectItem>

@@ -1,3 +1,4 @@
+import { uniqueCases } from './case-identity';
 /**
  * KPIs de carteira — SEPARAR sempre:
  * - Baixa tribunal: isBaixaTribunal (DataJud/DJEN, telemetria)
@@ -22,6 +23,7 @@ export type CarteiraKpis = {
 };
 
 export function computeCarteiraKpis(cases: any[]): CarteiraKpis {
+  cases = uniqueCases(cases || []);
   let ativos = 0;
   let encerradosCarteira = 0;
   let baixasTribunal = 0;

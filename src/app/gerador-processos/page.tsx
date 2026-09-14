@@ -1,5 +1,8 @@
 "use client";
 
+import { isClasseBuscaApreensao } from '@/lib/ba-evidence';
+import { splitDjenDateRange, djenRetryDelay, waitForDjen } from '@/lib/djen-scan-control';
+import { useAuth } from '@/components/auth/auth-provider';
 import React, { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
@@ -86,23 +89,12 @@ function queriesDosFiltros(
   return [...new Set(qs)].slice(0, 10);
 }
 
-/** Verifica na linha se há indício de busca e apreensão (inclui b.a.). */
-function blobTemBuscaApreensao(blob: string): boolean {
-  const t = (blob || "").toUpperCase();
-  return (
-    t.includes("BUSCA E APRENSÃO") ||
-    /\bB\.?\s*A\.?\b/.test(t) ||
-    t.includes("BUSCA E APRENSÃO EM ALIENAÇÃO FIDUCIÁRIA".toUpperCase())
-  );
-}
-
-function baClareado(blob: string): boolean {
-  return blobTemBuscaApreensao(blob);
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const agora = () => new Date().toISOString().slice(11, 19);
 export default function GeradorProcessosPage() {
+  const { profile } = useAuth();
+  const exclusionKey = `lexis-generated-cnj-v2:${profile?.empresa_id || 'session'}:${profile?.auth_user_id || 'session'}`;
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
   const [alvo, setAlvo] = useState("60");
   const [tribunal, setTribunal] = useState("TJSP");
   const [dataInicio, setDataInicio] = useState(isoIni);
@@ -140,19 +132,30 @@ export default function GeradorProcessosPage() {
       pushLog("err", "Marque F1 e/ou F2, ative Somente busca e apreensão, ou Procedente sem cumprimento");
       return;
     }
+    let windows: ReturnType<typeof splitDjenDateRange>;
+    try { windows = splitDjenDateRange(dataInicio, dataFim); }
+    catch (error: any) { pushLog('err', error.message); return; }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const sleep = (ms: number) => waitForDjen(ms, controller.signal);
     stopRef.current = false;
     setBusy(true);
     setLista([]);
     setLogs([]);
-    pushLog("info", `Alvo ${target} · enrich OFF · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`);
+    pushLog("info", `DJEN · Alvo ${target} · ${windows.length} intervalos · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`);
     pushLog("info", "Consulta DIRETA do seu navegador ao DJEN (Comunica PJe) — usa o IP da sua rede, não o do servidor.");
     if (somenteBuscaApreensao) {
-      pushLog("info", "Modo exaustivo: só busca e apreensão (inclui b.a.) com match de nome; filtro local também de busca e apreensão.");
+      pushLog("info", "Busca e apreensão: a classe oficial do processo precisa confirmar a matéria.");
     }
 
 
     const by = new Map<string, ProcessoDjenReal>();
-    const exclude = new Set<string>();
+    const exclude = new Set<string>(lista.map(item => item.processo.replace(/\D/g, '')));
+    try {
+      const saved = JSON.parse(localStorage.getItem(exclusionKey) || '[]');
+      if (Array.isArray(saved)) saved.filter(value => typeof value === 'string' && /^\d{20}$/.test(value)).forEach(value => exclude.add(value));
+    } catch { /* O histórico local é opcional. */ }
     const cnpjDigits = cnpj.replace(/\D/g, "");
     const sigla = tribunal.trim().toUpperCase() || undefined;
     let queries: string[];
@@ -181,7 +184,6 @@ export default function GeradorProcessosPage() {
     } else if (somenteBuscaApreensao) {
       queries = [
         "busca e apreensão",
-        "b.a.",
         "busca e apreensão em alienação fiduciária",
         "busca e apreensao",
       ];
@@ -198,25 +200,32 @@ export default function GeradorProcessosPage() {
       let n = 0;
       for (const it of items) {
         const d = it.processo.replace(/\D/g, "");
-        if (by.has(d)) continue;
+        if (by.has(d) || exclude.has(d)) continue;
         by.set(d, it);
         exclude.add(d);
         n++;
         if (by.size >= target) break;
       }
-      if (n) setLista([...by.values()]);
+      if (n) {
+        setLista([...by.values()]);
+        try { localStorage.setItem(exclusionKey, JSON.stringify([...exclude].slice(-20000))); } catch {}
+      }
       return n;
     };
 
     try {
-      outer: for (const q of queries) {
+      outer: for (const window of windows) {
+        scanDataInicio = window.inicio;
+        scanDataFim = window.fim;
+        for (const q of queries) {
         if (by.size >= target || stopRef.current) break;
 
         let pagina = 1;
         let paginasVazias = 0;
+        const pageFingerprints = new Set<string>();
 
-        while (pagina <= 25 && by.size < target && !stopRef.current) {
-          pushLog("info", `Texto “${q}” · pág ${pagina} · ${scanDataInicio}→${scanDataFim}`);
+        while ( by.size < target && !stopRef.current) {
+          pushLog("info", `DJEN · texto “${q}” · pág ${pagina} · ${scanDataInicio}→${scanDataFim}`);
           let res = await djenBuscaTexto({
             texto: q,
             dataInicio: scanDataInicio,
@@ -224,13 +233,19 @@ export default function GeradorProcessosPage() {
             pagina,
             itensPorPagina: 50,
             siglaTribunal: sigla,
+            signal: controller.signal,
           });
 
           // 429 → espera crescente e repete a MESMA página (até 6x)
           let retries = 0;
-          while (res.rateLimited && retries < 6 && !stopRef.current) {
+          while (res.rateLimited && retries < 3 && !stopRef.current) {
             retries++;
-            const espera = 3 * retries;
+            const waitMs = djenRetryDelay(retries - 1, res.retryAfter);
+            if (waitMs > 60000) {
+              pushLog('err', `DJEN pediu ${Math.ceil(waitMs / 1000)}s de espera. Consulta pausada; tente mais tarde.`);
+              break outer;
+            }
+            const espera = Math.ceil(waitMs / 1000);
             pushLog("warn", `429 — espera ${espera}s e repete pág ${pagina}`);
             await sleep(espera * 1000);
             res = await djenBuscaTexto({
@@ -240,26 +255,12 @@ export default function GeradorProcessosPage() {
               pagina,
               itensPorPagina: 50,
               siglaTribunal: sigla,
+            signal: controller.signal,
             });
           }
 
-          // WAF/HTML → espera longa e repete a MESMA página (até 3x)
-          let wafTries = 0;
-          while (res.htmlBlocked && wafTries < 3 && !stopRef.current) {
-            wafTries++;
-            pushLog("warn", `Bloqueio WAF — espera 20s e repete pág ${pagina} (${wafTries}/3)`);
-            await sleep(20000);
-            res = await djenBuscaTexto({
-              texto: q,
-              dataInicio: scanDataInicio,
-              dataFim: scanDataFim,
-              pagina,
-              itensPorPagina: 50,
-              siglaTribunal: sigla,
-            });
-          }
-          if (res.htmlBlocked) {
-            pushLog("err", "DJEN segue bloqueando após 3 esperas — tente mais tarde (o bloqueio expira sozinho).");
+          if (res.htmlBlocked || res.rateLimited) {
+            pushLog("err", res.htmlBlocked ? "DJEN devolveu uma página de bloqueio. Consulta interrompida; tente mais tarde." : "DJEN continua limitando as consultas após três tentativas. Consulta interrompida.");
             break outer;
           }
           if (res.geoBlocked) {
@@ -271,6 +272,13 @@ export default function GeradorProcessosPage() {
             break;
           }
 
+          if (stopRef.current || controller.signal.aborted) break outer;
+          const fingerprint = res.items.map(it => `${it.id || it.hash || cnjOficial(it)}:${it.data_disponibilizacao || ''}`).sort().join('|');
+          if (fingerprint && pageFingerprints.has(fingerprint)) {
+            pushLog('warn', `DJEN repetiu a página ${pagina}; avançando para a próxima consulta.`);
+            break;
+          }
+          if (fingerprint) pageFingerprints.add(fingerprint);
           // ---- filtros F1/F2 (ou só busca e apreensão) e higiene, localmente ----
           const bruto = res.items.length;
           const rows: ProcessoDjenReal[] = [];
@@ -289,7 +297,7 @@ export default function GeradorProcessosPage() {
               continue;
             }
             // Somente busca e apreensão: aceita só itens com BA no clause ou teor.
-            if (somenteBuscaApreensao && !blobTemBuscaApreensao(blob)) {
+            if (somenteBuscaApreensao && !isClasseBuscaApreensao(it.nomeClasse)) {
               skipFiltro++;
               continue;
             }
@@ -352,12 +360,12 @@ export default function GeradorProcessosPage() {
             rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla));
           }
 
+          const added = add(rows);
           pushLog(
-            rows.length ? "ok" : "warn",
-            `Pág ${pagina}: aceitos ${rows.length}/${bruto} · filtro_F1F2:${skipFiltro} sem_nome:${skipNome} sigilo:${skipSigilo} teor:${skipTeor} dup:${skipDup} sem_num:${skipCnj}`
+            added ? "ok" : "warn",
+            `Pág ${pagina}: adicionados ${added}/${bruto} · filtro_F1F2:${skipFiltro} sem_nome:${skipNome} sigilo:${skipSigilo} teor:${skipTeor} dup:${skipDup} sem_num:${skipCnj}`
           );
 
-          const added = add(rows);
           if (added) pushLog("ok", `Progresso ${by.size}/${target} (+${added})`);
 
           if (bruto === 0) {
@@ -370,9 +378,10 @@ export default function GeradorProcessosPage() {
           await sleep(1200); // ritmo de leitura — sem rajada
         }
         if (by.size >= target || stopRef.current) break outer;
+        }
       }
     } catch (e: any) {
-      pushLog("err", `Erro inesperado: ${e?.message || String(e)}`);
+      pushLog(e?.name === 'AbortError' ? 'info' : 'err', e?.name === 'AbortError' ? 'Consulta interrompida. Os resultados já obtidos foram mantidos.' : `DJEN: ${e?.message || String(e)}`);
     }
 
     setLista([...by.values()]);
@@ -403,8 +412,8 @@ export default function GeradorProcessosPage() {
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
-      <main className="flex-1 min-w-0 flex flex-col max-h-screen overflow-hidden">
-        <div className="p-4 border-b space-y-3 shrink-0 overflow-y-auto max-h-[48vh]">
+      <main className="flex-1 min-w-0 flex flex-col h-dvh overflow-y-auto">
+        <div className="p-4 border-b space-y-3">
           <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
           <p className="text-xs text-muted-foreground">
             Fonte <strong>DJEN</strong> (Comunica PJe): publicações reais, CNJ oficial da API.
@@ -521,7 +530,7 @@ export default function GeradorProcessosPage() {
               <Button
                 variant="destructive"
                 className="h-9 text-xs font-black uppercase"
-                onClick={() => (stopRef.current = true)}
+                onClick={() => { stopRef.current = true; abortRef.current?.abort(); }}
               >
                 <Square className="w-3 h-3" /> Parar
               </Button>
@@ -557,7 +566,7 @@ export default function GeradorProcessosPage() {
               const improcedente = !extinto && anProc.isImprocedente;
               const semCumpr = anProc.elegivel;
               const idadeLbl = rotuloIdade(p.data);
-              const baClareadoLocal = blobTemBuscaApreensao(`${p.status_detectado} ${p.situacao_hint}`);
+              const baClareadoLocal = p.ba_djen === true;
               return (
                 <article key={p.processo} className="border rounded-xl p-3 space-y-1">
                   <div className="flex flex-wrap justify-between gap-2">
@@ -672,7 +681,7 @@ function toRow(
   const statusLabel = FILTROS_STATUS.find((f) => f.id === decisao)?.nomeTribunal || decisao || "";
   const materiaHits = matchMateria(String(it.texto || ""), materiaOn);
   const matLabel = materiaHits.map((id) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal).filter(Boolean).join(" · ");
-  const baClareadoLocal = blobTemBuscaApreensao(`${it.nomeClasse || ""} ${it.texto || ""}`);
+  const baClareadoLocal = isClasseBuscaApreensao(it.nomeClasse);
   const decisaoLabel = {
     extinto_sem_merito: "Extinto sem resolução do mérito",
     extinto_com_merito: "Extinto com resolução do mérito",

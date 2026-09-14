@@ -24,6 +24,8 @@ export function buildAtendimentoMirrorRow(input: {
   situacao: string;
   actorId?: string | null;
   actorName?: string;
+  ownerId?: string | null;
+  atendidoEm?: string;
 }) : SheetsWriteRow {
   return {
     protocolo: input.protocolo,
@@ -37,7 +39,11 @@ export function buildAtendimentoMirrorRow(input: {
     Observacao: input.observacao,
     Situacao: input.situacao,
     AtendidoPor: input.actorName || input.actorId || null,
-    Responsavel: input.actorName || input.actorId || null,
+    ...(input.ownerId ? { Responsavel: input.ownerId, CreatedBy: input.ownerId, created_by: input.ownerId } : {}),
+    ultimo_retorno: input.ultimoRetorno,
+    proximo_retorno: input.proximoPrazo,
+    atendido_em: input.atendidoEm,
+    updated_at: input.atendidoEm,
     atendido_por: input.actorId || null,
     edited_by: input.actorId || null,
   };
@@ -73,7 +79,7 @@ function parseBody(text: string) {
   }
   try {
     const json = JSON.parse(text || "{}");
-    return { ok: !!(json?.ok ?? true), json };
+    return { ok: (json?.ok === true || json?.success === true || Number(json?.written ?? json?.updated ?? json?.added ?? 0) > 0) && json?.ok !== false && json?.success !== false && !json?.error, json };
   } catch {
     return { ok: false, error: "Resposta não-JSON do webhook: " + slice.slice(0, 180) };
   }
@@ -86,7 +92,7 @@ async function sheetsGet(params: Record<string, string>): Promise<{ ok: boolean;
   try {
     const res = await fetch(`${url}?${q.toString()}`, { method: "GET", redirect: "follow", cache: "no-store" });
     const parsed = parseBody(await res.text());
-    return { ...parsed, status: res.status };
+    return { ...parsed, ok: res.ok && parsed.ok, status: res.status };
   } catch (e: any) {
     return { ok: false, error: e?.message || "Falha GET Sheets", status: 0 };
   }
@@ -108,7 +114,7 @@ async function sheetsPost(body: Record<string, unknown>, timeoutMs = 4500): Prom
       signal: controller.signal,
     });
     const parsed = parseBody(await res.text());
-    return { ...parsed, status: res.status };
+    return { ...parsed, ok: res.ok && parsed.ok, status: res.status };
   } catch (e: any) {
     return { ok: false, error: e?.name === "AbortError" ? "Webhook Sheets excedeu 30s." : (e?.message || "Falha POST Sheets"), status: 0 };
   } finally {

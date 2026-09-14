@@ -1,5 +1,6 @@
 "use client";
 
+import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { useAdmin } from "@/hooks/use-admin";
 
 /**
@@ -619,7 +620,7 @@ function WhatsAppTerminalInner() {
         protocolo: selected.protocolo,
         situacao,
         observacao: attForm.observacao || selected.observacao || "",
-        proximoPrazo: situacao === "ENCERRADO" ? "" : proximo || selected.proximoPrazo,
+        proximoPrazo: situacao === "ENCERRADO" ? "" : proximo,
         via: "whatsapp-terminal",
         filaLista: attForm.filaLista || "normal",
       });
@@ -642,7 +643,8 @@ function WhatsAppTerminalInner() {
             situacao === "ENCERRADO"
               ? "Caso encerrado"
               : "Atendimento registrado",
-          description: `${selected.cliente} · ${(res as any).ultimoRetorno || "hoje"} · sincronizado com Tarefas/Processos`,
+          description: res.message,
+          action: res.mirror?.attempted && !res.mirror.ok ? <AtendimentoSyncRetry protocolos={[selected.protocolo]}/> : undefined,
         });
       } else {
         toast({

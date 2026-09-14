@@ -1,6 +1,7 @@
 
 
 import type { CaseStatus } from './case-logic';
+import { isCasoEncerrado } from './status-encerrado';
 
 const TZ = 'America/Sao_Paulo';
 
@@ -111,6 +112,7 @@ export function statusEfetivo(c: {
   statusManual?: string | null;
   situacao?: string | null;
 }): CaseStatus {
+  if (isCasoEncerrado(c)) return 'Encerrado';
   const manual = String(c.statusManual || 'Automatico');
   const fixed = ['Caso Crítico', 'Arquivado', 'Encerrado'];
   if (manual && manual !== 'Automatico' && fixed.includes(manual)) {

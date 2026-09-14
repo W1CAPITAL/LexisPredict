@@ -1,5 +1,6 @@
 "use client";
 
+import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { canRodarEmpresaScan, canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 
 import { CaseGlassList } from '@/components/cases/case-glass-list';
@@ -377,7 +378,7 @@ export default function ProcessosEmpresaPage() {
         protocolo: attending.protocolo,
         situacao,
         observacao: attendanceForm.observacao.trim() || attending.observacao || "",
-        proximoPrazo: situacao === "ENCERRADO" ? "" : attendanceForm.proximoRetorno || attending.proximoPrazo,
+        proximoPrazo: situacao === "ENCERRADO" ? "" : attendanceForm.proximoRetorno,
         via: "processos-da-empresa",
         filaLista: attendanceForm.filaLista || "normal",
       });
@@ -387,7 +388,8 @@ export default function ProcessosEmpresaPage() {
         await load();
         toast({
           title: "Atendimento registrado",
-          description: `${attending.cliente} • ${situacao} • ${(res as any).ultimoRetorno || ""} · sync Tarefas/WhatsApp`,
+          description: res.message,
+          action: res.mirror?.attempted && !res.mirror.ok ? <AtendimentoSyncRetry protocolos={[attending.protocolo]}/> : undefined,
         });
       } else {
         toast({ title: "Falha ao registrar", description: (res as any).message || "Sem retorno do servidor", variant: "destructive" });

@@ -55,6 +55,14 @@ export function AgentDock() {
     }
   }, [out]);
 
+  useEffect(() => {
+    const show = () => setOpen(v => !v);
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    window.addEventListener('lexis-open-agents', show);
+    window.addEventListener('keydown', escape);
+    return () => { window.removeEventListener('lexis-open-agents', show); window.removeEventListener('keydown', escape); };
+  }, []);
+
   const meta = useMemo(() => catalog[agentId], [catalog, agentId]);
 
   const run = async () => {
@@ -371,14 +379,7 @@ export function AgentDock() {
         </div>
       )}
 
-      <button
-        type="button"
-        className="pointer-events-auto fixed top-3 left-3 z-[91] flex h-10 items-center gap-2 rounded-full border border-zinc-600 bg-zinc-950 px-3 text-sm font-bold text-white shadow-xl hover:bg-zinc-900"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Bot className="h-4 w-4 text-emerald-400" />
-        {open ? "Fechar" : "Agentes"}
-      </button>
+
     </div>
   );
 }

@@ -52,6 +52,7 @@ export interface DjenClientResult {
   error?: string;
   items: DjenItemRaw[];
   count?: number;
+  retryAfter?: string | null;
 }
 
 const DJEN_URL = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
@@ -73,6 +74,7 @@ function plainText(html: string): string {
 export async function djenBuscaTexto(
   opts: {
     texto: string;
+    signal?: AbortSignal;
     dataInicio: string;
     dataFim: string;
     pagina?: number;
@@ -92,6 +94,9 @@ export async function djenBuscaTexto(
   }
 
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  if (opts.signal?.aborted) controller.abort();
+  opts.signal?.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(() => controller.abort(), 28000);
   try {
     const res = await fetch(`${DJEN_URL}?${params.toString()}`, {
@@ -101,10 +106,10 @@ export async function djenBuscaTexto(
       cache: "no-store",
     });
     if (res.status === 403) {
-      return { ok: false, status: 403, geoBlocked: true, error: "DJEN 403", items: [] };
+      return { ok: false, status: 403, htmlBlocked: true, error: "DJEN recusou a consulta (403). Tente mais tarde.", items: [] };
     }
     if (res.status === 429) {
-      return { ok: false, status: 429, rateLimited: true, error: "DJEN 429", items: [] };
+      return { ok: false, status: 429, rateLimited: true, retryAfter: res.headers.get("Retry-After"), error: "DJEN 429", items: [] };
     }
     const text = await res.text();
     const trimmed = text.trim();
@@ -112,8 +117,8 @@ export async function djenBuscaTexto(
       return {
         ok: false,
         status: res.status,
-        htmlBlocked: true,
-        error: `HTTP ${res.status} + HTML (WAF)`,
+        htmlBlocked: trimmed.startsWith("<"),
+        error: trimmed.startsWith("<") ? `DJEN respondeu HTML (HTTP ${res.status}). Consulta bloqueada.` : `DJEN indisponível (HTTP ${res.status}).`,
         items: [],
       };
     }
@@ -130,11 +135,12 @@ export async function djenBuscaTexto(
     return { ok: true, items: rawItems, count: data.count ?? rawItems.length };
   } catch (e: any) {
     if (e?.name === "AbortError") {
-      return { ok: false, error: "Timeout DJEN (28s)", items: [] };
+      return { ok: false, error: opts.signal?.aborted ? "Consulta interrompida." : "Timeout DJEN (28s)", items: [] };
     }
     return { ok: false, error: e?.message || "Falha de rede no DJEN", items: [] };
   } finally {
     clearTimeout(timeout);
+    opts.signal?.removeEventListener('abort', cancel);
   }
 }
 

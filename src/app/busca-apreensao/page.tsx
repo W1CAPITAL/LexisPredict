@@ -254,13 +254,14 @@ export default function BuscaApreensaoPage() {
   const runLoop = async (from: number) => {
     cancelRef.current.cancelled = false;
     const q = queueRef.current;
+    const retries = new Map<number, number>();
     for (let i = from; i < q.length; i++) {
       if (cancelRef.current.cancelled) return;
       if (statusRef.current === "paused") return;
       const item = q[i];
       setIndex(i);
       setCurrent(item);
-      setLogs((prev) => [`→ ${item.nome}`, ...prev].slice(0, 80));
+      setLogs((prev) => [`DJEN/${preferredMotor} · ${item.protocolos.join(", ") || "sem CNJ"} · ${item.nome}`, ...prev].slice(0, 80));
       try {
         const res = await scanOneClienteBaAction(item.nome, {
           advogadoNome: item.advogadoNome,
@@ -274,7 +275,15 @@ export default function BuscaApreensaoPage() {
           continue;
         }
         if (res.isRateLimited) {
-          setLogs((prev) => [`429 rate limit — aguardando`, ...prev]);
+          const attempt = (retries.get(i) || 0) + 1;
+          retries.set(i, attempt);
+          if (attempt > 3) {
+            statusRef.current = "paused";
+            setStatus("paused");
+            setLogs(prev => [`DJEN · ${item.protocolos.join(", ")} · pausado após três tentativas (429). Retome mais tarde.`, ...prev]);
+            return;
+          }
+          setLogs((prev) => [`DJEN · 429 · tentativa ${attempt}/3 — aguardando`, ...prev]);
           await sleep(DELAY_ON_429_MS, cancelRef.current);
           i--;
           continue;

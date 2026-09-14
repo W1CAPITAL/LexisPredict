@@ -1,3 +1,4 @@
+import { evidenciaOrdemBa, isClasseBuscaApreensao } from './ba-evidence';
 /**
  * Lógica BA — tipos claros + filtro geográfico (UF carteira × UF do mandado).
  */
@@ -200,18 +201,20 @@ export function textoIndicaBuscaApreensao(texto: string): {
  */
 export function detectarBaCompleto(opts: {
   texto: string;
+  classe?: string | null;
   processoDjen: string | null;
   tribunalSigla: string | null;
   protocolosCarteira: string[];
 }): BaDeteccao {
-  const det = textoIndicaBuscaApreensao(opts.texto);
+  const evidence = isClasseBuscaApreensao(opts.classe) ? evidenciaOrdemBa(opts.texto) : null;
+  const det = evidence ? textoIndicaBuscaApreensao(evidence) : { hit: false, motivo: null, tipo: null };
   const geo = avaliarGeo({
     protocolosCarteira: opts.protocolosCarteira,
     processoDjen: opts.processoDjen,
     tribunalSigla: opts.tribunalSigla,
   });
 
-  let alertarOperacional = det.hit;
+  let alertarOperacional = det.hit && opts.protocolosCarteira.some(p => mesmoCnj(p, opts.processoDjen));
   if (det.hit && geo.distante) {
     // Mandado longe do estado do processo da carteira: não alarmar como BA local
     alertarOperacional = false;
@@ -273,9 +276,6 @@ export function publicacaoBateComCarteira(opts: {
     return { ok: true, motivoMatch: 'Nome do cliente no teor' };
   }
 
-  if ((protocolosCarteira || []).length === 1 && textoIndicaBuscaApreensao(texto).hit) {
-    return { ok: true, motivoMatch: 'Único CNJ da carteira + teor BA' };
-  }
 
   return { ok: false, motivoMatch: 'Sem vínculo cliente/CNJ' };
 }

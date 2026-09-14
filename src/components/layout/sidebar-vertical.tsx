@@ -1,437 +1,103 @@
 "use client";
 
-/**
- * Sidebar vertical leve: CSS transitions (sem framer por item) para não travar.
- * Redimensionar, pin, busca, mais ferramentas, drag reorder.
- */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { LayoutDashboard, ListTodo, Briefcase, FolderOpen, PauseCircle, ShieldAlert, Gavel, Hash, MessageCircle, CalendarDays, FileText, BarChart3, Users, ShieldCheck, Kanban, Wallet, Calculator, Bot, MessagesSquare, Upload, Settings, Search, Menu, PanelLeftClose, PanelLeftOpen, LogOut, Zap, StickyNote, PlayCircle, BrainCircuit, Crown, Monitor, Scale } from 'lucide-react';
+import { useAuth } from '@/components/auth/auth-provider';
+import { useAdmin } from '@/hooks/use-admin';
+import { usePlano } from '@/hooks/use-plano';
+import { filterNavByPlan, planTemScanner } from '@/lib/planos-pacotes';
+import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard, ListTodo, CalendarDays, Briefcase, FolderOpen, Gavel, Upload,
-  Kanban, Wallet, FileText, Scale, ClipboardList, Bot, Monitor, MessageCircle,
-  MessagesSquare, BarChart3, BrainCircuit, ShieldAlert, PauseCircle, ShieldCheck,
-  Users, Settings, StickyNote, PlayCircle, LogOut, Menu, X, Zap, Crown,
-  Calculator, Hash, Search, Pin, PinOff, GripVertical, type LucideIcon,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  flattenNavItems, loadNavPreferences, saveNavPreferences, type NavPreferences,
-} from "@/lib/nav-preferences";
-import { filterNavByPlan, planTemScanner } from "@/lib/planos-pacotes";
-import { useAuth } from "@/components/auth/auth-provider";
-import { useAdmin } from "@/hooks/use-admin";
-import { usePlano } from "@/hooks/use-plano";
-import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-type NavItem = { label: string; href: string; icon: LucideIcon };
-
-const LS_PINNED = "lexis_sidebar_vertical_pinned";
-const LS_WIDTH = "lexis_sidebar_vertical_width";
-const MIN_W = 72;
-const MAX_W = 320;
-const DEFAULT_W = 248;
-
-function buildNavItems(opts: {
-  isAdmin: boolean; isSuperAdmin: boolean; plan: string;
-  showMore: boolean; query: string; navPrefs: NavPreferences;
-}): NavItem[] {
-  const { isAdmin, isSuperAdmin, plan, showMore, query, navPrefs } = opts;
-  const primary: NavItem[] = [
-    { label: "Painel", href: "/", icon: LayoutDashboard },
-    { label: "Fila", href: "/tarefas", icon: ListTodo },
-    { label: "Meus processos", href: "/cases", icon: Briefcase },
-    { label: "Empresa", href: "/processos", icon: FolderOpen },
-    { label: "Encerrados", href: "/encerrados-revisao", icon: ShieldAlert },
-    { label: "Parados", href: "/processos-parados", icon: PauseCircle },
-    { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
-    { label: "Gerador", href: "/gerador-processos", icon: Hash },
-    { label: "Dossiê", href: "/report", icon: BarChart3 },
-    { label: "Config", href: "/settings", icon: Settings },
-  ];
-  const secondary: NavItem[] = [
-    { label: "Agenda", href: "/agenda", icon: CalendarDays },
-    { label: "Procedentes", href: "/cumprimentos-procedentes", icon: Scale },
-    
-    { label: "Predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
-    { label: "Dossiê", href: "/report", icon: BarChart3 },
-    { label: "OCR", href: "/tools/ocr", icon: FileText },
-    { label: "CRM", href: "/crm", icon: Kanban },
-    { label: "Follow-ups", href: "/crm/followups", icon: ListTodo },
-    { label: "Chat equipe", href: "/mensagens", icon: MessagesSquare },
-    { label: "Offline", href: "/offline", icon: Monitor },
-    { label: "Finanças", href: "/financas", icon: Wallet },
-    { label: "Cálculos", href: "/calculos", icon: Calculator },
-    { label: "Documentos", href: "/documents", icon: FileText },
-    { label: "Veredito", href: "/veredito", icon: Scale },
-    { label: "Assistente", href: "/chat", icon: Bot },
-    { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
-    { label: "Indicadores", href: "/analytics", icon: BarChart3 },
-    { label: "Insights", href: "/insights", icon: BrainCircuit },
-    { label: "Urgências", href: "/urgency", icon: ShieldAlert },
-    { label: "Prêmios", href: "/premios", icon: Crown },
-  ];
-  const rest: NavItem[] = [];
-  if (isAdmin) {
-    rest.push(
-      { label: "Supervisão", href: "/supervisao", icon: ShieldCheck },
-      { label: "Equipe", href: "/team", icon: Users },
-      { label: "Auditoria", href: "/auditoria", icon: ShieldCheck },
-    );
-    if (isSuperAdmin) {
-      rest.push({ label: "Segurança", href: "/security", icon: ShieldAlert });
-      rest.push({ label: "Superadmin", href: "/superadmin", icon: Crown });
-    }
-  }
-  rest.push(
-    { label: "Treinamento", href: "/onboarding", icon: PlayCircle },
-    { label: "Notas", href: "/notes", icon: StickyNote },
-    { label: "Config", href: "/settings", icon: Settings },
-  );
-  let items = flattenNavItems(primary, secondary, rest, navPrefs, showMore);
-  items = filterNavByPlan(items as any, isSuperAdmin ? "maximo" : (plan as any));
-  const q = query.trim().toLowerCase();
-  if (q) {
-    items = items.filter(
-      (it) => it.label.toLowerCase().includes(q) || it.href.toLowerCase().includes(q)
-    );
-  }
-  return items as NavItem[];
-}
+const sections = [
+  { title: 'Dia a dia', items: [
+    ['Painel', '/', LayoutDashboard], ['Fila de atendimento', '/tarefas', ListTodo],
+    ['Meus processos', '/cases', Briefcase], ['Processos da empresa', '/processos', FolderOpen],
+    ['Processos parados', '/processos-parados', PauseCircle], ['Encerrados a revisar', '/encerrados-revisao', ShieldAlert],
+    ['Busca e apreensão', '/busca-apreensao', Gavel], ['Gerador de processos', '/gerador-processos', Hash],
+    ['WhatsApp', '/whatsapp', MessageCircle], ['Agenda', '/agenda', CalendarDays],
+  ]},
+  { title: 'Documentos e análise', items: [
+    ['Peças e documentos', '/documents', FileText], ['Dossiê operacional', '/report', BarChart3],
+    ['Procedentes', '/cumprimentos-procedentes', Scale], ['OCR', '/tools/ocr', FileText],
+    ['Importar carteira', '/import', Upload], ['Assistente', '/chat', Bot],
+    ['Veredito', '/veredito', Scale], ['Indicadores', '/analytics', BarChart3],
+    ['Insights', '/insights', BrainCircuit], ['Urgências', '/urgency', ShieldAlert],
+    ['Investigação predatória', '/investigacao-predatoria', Search],
+  ]},
+  { title: 'Gestão', items: [
+    ['CRM', '/crm', Kanban], ['Retornos comerciais', '/crm/followups', ListTodo],
+    ['Finanças', '/financas', Wallet], ['Cálculos', '/calculos', Calculator],
+    ['Chat da equipe', '/mensagens', MessagesSquare], ['Notas', '/notes', StickyNote],
+    ['Treinamento', '/onboarding', PlayCircle], ['Offline', '/offline', Monitor], ['Prêmios', '/premios', Crown],
+  ]},
+] as const;
+const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export function SidebarVertical() {
   const pathname = usePathname();
-  const router = useRouter();
   const { profile, signOut } = useAuth();
-  const { canScan, isAdmin, isSuperAdmin } = useAdmin();
+  const { isAdmin, isSuperAdmin, canScan } = useAdmin();
   const { plan } = usePlano();
   const { status, toggleMinimize } = useDataJudScanStore();
-
-  const [open, setOpen] = useState(true);
-  const [pinned, setPinned] = useState(true);
-  const [width, setWidth] = useState(DEFAULT_W);
-  const [mobile, setMobile] = useState(false);
-  const [showMore, setShowMore] = useState(false);
-  const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const uid = (profile as any)?.auth_user_id || (profile as any)?.id || null;
-  // Carrega na key do usuário já no mount: aba fixada ("Mais ferramentas") não pode
-  // sumir ao trocar de aba / F5 por causa de leitura inicial com a key "anon".
-  const [navPrefs, setNavPrefs] = useState<NavPreferences>(() => loadNavPreferences(uid));
-  const [dragHref, setDragHref] = useState<string | null>(null);
-  const widthRef = useRef(DEFAULT_W);
-
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [query, setQuery] = useState('');
+  const desktopNav = useRef<HTMLElement>(null);
+  const uid = profile?.auth_user_id || 'session';
+  const scrollKey = `lexis-nav-scroll-v2:${uid}`;
   useEffect(() => {
     try {
-      if (localStorage.getItem(LS_PINNED) === "0") {
-        setPinned(false);
-        setOpen(false);
-      }
-      const w = Number(localStorage.getItem(LS_WIDTH) || DEFAULT_W);
-      if (w >= MIN_W && w <= MAX_W) {
-        setWidth(w);
-        widthRef.current = w;
-      }
-    } catch { /* */ }
-  }, []);
-
+      setCollapsed(localStorage.getItem('lexis-sidebar-compact-v2') === '1');
+      if (desktopNav.current) desktopNav.current.scrollTop = Number(sessionStorage.getItem(scrollKey) || 0);
+    } catch { /* Optional display preferences. */ }
+  }, [scrollKey]);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
   useEffect(() => {
-    setNavPrefs(loadNavPreferences(uid));
-    const on = () => setNavPrefs(loadNavPreferences(uid));
-    window.addEventListener("lexis-nav-prefs", on);
-    return () => window.removeEventListener("lexis-nav-prefs", on);
-  }, [uid]);
-
-  useEffect(() => { setMobile(false); }, [pathname]);
-
-  const canScanEffective = canScan && planTemScanner(plan as any);
-
-  const navItems = useMemo(
-    () =>
-      buildNavItems({
-        isAdmin, isSuperAdmin,
-        plan: isSuperAdmin ? "maximo" : String(plan || "essencial"),
-        showMore, query, navPrefs,
-      }),
-    [isAdmin, isSuperAdmin, plan, showMore, query, navPrefs]
-  );
-
-  const togglePin = () => {
-    setPinned((p) => {
-      const next = !p;
-      try { localStorage.setItem(LS_PINNED, next ? "1" : "0"); } catch { /* */ }
-      setOpen(next);
-      return next;
-    });
-  };
-
-  const onResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = widthRef.current;
-    let last = startW;
-    const onMove = (ev: MouseEvent) => {
-      last = Math.min(MAX_W, Math.max(MIN_W, startW + (ev.clientX - startX)));
-      widthRef.current = last;
-      // atualiza DOM direto para não re-render a cada pixel
-      const el = document.getElementById("lexis-sidebar-v");
-      if (el) el.style.width = `${last}px`;
-    };
-    const onUp = () => {
-      setWidth(last);
-      setOpen(last > 100);
-      try { localStorage.setItem(LS_WIDTH, String(last)); } catch { /* */ }
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    const update = (event: Event) => setCollapsed(Boolean((event as CustomEvent).detail?.compact));
+    window.addEventListener('lexis-nav-display', update);
+    return () => window.removeEventListener('lexis-nav-display', update);
   }, []);
-
-  const onDragStart = (href: string) => (e: React.DragEvent) => {
-    setDragHref(href);
-    e.dataTransfer.setData("text/plain", href);
-    e.dataTransfer.effectAllowed = "move";
-  };
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-  const onDrop = (targetHref: string) => (e: React.DragEvent) => {
-    e.preventDefault();
-    const from = e.dataTransfer.getData("text/plain") || dragHref;
-    setDragHref(null);
-    if (!from || from === targetHref) return;
-    const prefs = loadNavPreferences(uid);
-    const hrefs = navItems.map((i) => i.href);
-    const order = [...(prefs.order || [])];
-    const list = (order.length ? order : hrefs).filter((h) => hrefs.includes(h));
-    for (const h of hrefs) if (!list.includes(h)) list.push(h);
-    const fi = list.indexOf(from);
-    const ti = list.indexOf(targetHref);
-    if (fi < 0 || ti < 0) return;
-    list.splice(fi, 1);
-    list.splice(ti, 0, from);
-    saveNavPreferences({ order: list }, uid);
-    window.dispatchEvent(new Event("lexis-nav-prefs"));
-  };
-
-  const nome = String(profile?.nome || "Operador").trim();
-  const displayW = open || pinned ? width : MIN_W;
-  const expanded = displayW > 120;
-
-  const body = (
-    <div className="flex flex-col h-full min-h-0 bg-card/80 backdrop-blur-md border-r border-border/40 relative">
-      <div className="flex items-center gap-2 p-3 border-b border-border/40 shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Lexis" className="h-9 w-9 rounded-xl object-contain bg-white/90 p-0.5 shrink-0" />
-        {expanded && (
-          <div className="min-w-0 flex-1 transition-opacity duration-200">
-            <p className="text-[13px] font-black truncate">LexisPredict</p>
-            <p className="text-[10px] text-muted-foreground truncate">Gabinete</p>
-          </div>
-        )}
-      </div>
-
-      <div className={cn("flex items-center gap-1 px-2 pt-2 shrink-0", !expanded && "flex-col")}>
-        <button
-          type="button"
-          title="Buscar"
-          onClick={() => { setSearchOpen((v) => !v); if (!open) setOpen(true); }}
-          className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-primary/10 border border-transparent hover:border-primary/15 transition-colors duration-150"
-        >
-          <Search size={16} />
-        </button>
-        <button
-          type="button"
-          title={pinned ? "Fixo" : "Auto-recolher"}
-          onClick={togglePin}
-          className={cn(
-            "h-9 w-9 rounded-xl flex items-center justify-center border transition-colors duration-150",
-            pinned ? "bg-primary/12 text-primary border-primary/25" : "hover:bg-muted/60 border-transparent"
-          )}
-        >
-          {pinned ? <Pin size={15} /> : <PinOff size={15} />}
-        </button>
-        {expanded && (
-          <button
-            type="button"
-            title="Restaurar ocultas"
-            className="h-9 px-2 rounded-xl text-[10px] font-bold text-muted-foreground hover:bg-muted/50"
-            onClick={() => {
-              saveNavPreferences({ hidden: [] }, uid);
-              window.dispatchEvent(new Event("lexis-nav-prefs"));
-            }}
-          >
-            ↺
-          </button>
-        )}
-      </div>
-
-      {searchOpen && expanded && (
-        <div className="px-2 pt-2 shrink-0">
-          <input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar no menu…"
-            className="w-full h-9 rounded-xl border border-border/50 bg-background/80 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/25"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") { setSearchOpen(false); setQuery(""); }
-            }}
-          />
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => {
-          try { window.dispatchEvent(new Event("lexis-need-scanner")); } catch { /* */ }
-          if (canScanEffective) toggleMinimize();
-        }}
-        className={cn(
-          "mx-2 mt-2 flex items-center gap-2 rounded-xl px-2.5 py-2 text-left shrink-0",
-          "bg-gradient-to-r from-rose-500/20 via-amber-400/15 to-violet-500/20 border border-white/10",
-          "hover:brightness-110 transition-[filter] duration-150"
-        )}
-        title="DataJud + DJEN"
-      >
-        <Zap className={cn("h-4 w-4 text-amber-500 shrink-0", status === "running" && "animate-pulse")} />
-        {expanded && <span className="text-[11px] font-black truncate">DataJud + DJEN</span>}
-      </button>
-
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-0.5 mt-1 min-h-0 [scrollbar-width:thin]">
-        {navItems.map((it) => {
-          const active =
-            pathname === it.href || (it.href !== "/" && pathname.startsWith(it.href));
-          const Icon = it.icon;
-          return (
-            <div
-              key={it.href + it.label}
-              draggable
-              onDragStart={onDragStart(it.href)}
-              onDragOver={onDragOver}
-              onDrop={onDrop(it.href)}
-              className={cn(dragHref === it.href && "opacity-40")}
-            >
-              <Link
-                href={it.href}
-                title={it.label}
-                prefetch={false}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  const prefs = loadNavPreferences(uid);
-                  if (!prefs.hidden.includes(it.href)) {
-                    saveNavPreferences({ hidden: [...prefs.hidden, it.href] }, uid);
-                    window.dispatchEvent(new Event("lexis-nav-prefs"));
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-2 rounded-xl px-2 py-2 text-[13px] group",
-                  "transition-colors duration-150 border border-transparent",
-                  "hover:bg-primary/10 hover:border-primary/15 hover:text-foreground",
-                  active
-                    ? "bg-primary/12 text-primary font-semibold border-primary/20"
-                    : "text-muted-foreground"
-                )}
-              >
-                <span className="text-muted-foreground/40 opacity-0 group-hover:opacity-100 w-3 shrink-0 transition-opacity duration-150 cursor-grab">
-                  <GripVertical size={12} />
-                </span>
-                <span className="shrink-0 transition-transform duration-150 ease-out group-hover:-translate-y-0.5">
-                  <Icon className="h-4 w-4" strokeWidth={1.75} />
-                </span>
-                {expanded && <span className="truncate flex-1">{it.label}</span>}
-              </Link>
-            </div>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={() => { setShowMore((v) => !v); if (!open) setOpen(true); }}
-          className={cn(
-            "w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-bold",
-            "transition-colors duration-150 border border-transparent hover:bg-primary/10",
-            showMore ? "bg-primary/10 text-primary" : "text-muted-foreground"
-          )}
-        >
-          <span className="h-4 w-4 flex items-center justify-center text-sm">{showMore ? "−" : "+"}</span>
-          {expanded && <span>{showMore ? "Recolher" : "Mais ferramentas"}</span>}
-        </button>
-      </nav>
-
-      <div className="p-3 border-t border-border/40 space-y-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <Avatar className="h-8 w-8 shrink-0">
-            {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} /> : null}
-            <AvatarFallback className="text-[10px] font-bold">
-              {nome.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          {expanded && (
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-bold truncate">{nome}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{profile?.cargo || "Operador"}</p>
-            </div>
-          )}
-          <ThemeToggle />
-        </div>
-        <button
-          type="button"
-          className="flex items-center gap-2 w-full rounded-xl px-2 py-2 text-[12px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors duration-150"
-          onClick={async () => { await signOut(); router.push("/login"); }}
-        >
-          <LogOut className="h-4 w-4" />
-          {expanded && "Sair"}
-        </button>
-      </div>
-
-      <div
-        onMouseDown={onResizeStart}
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize z-20 hover:bg-primary/30 active:bg-primary/50"
-        title="Largura"
-      />
+  const groups = useMemo(() => {
+    const all = sections.map(section => ({ title: String(section.title), items: section.items.map(([label, href, icon]) => ({ label, href, icon })) }));
+    const team = [];
+    if (isAdmin) team.push({ label: 'Supervisão', href: '/supervisao', icon: ShieldCheck }, { label: 'Equipe', href: '/team', icon: Users }, { label: 'Auditoria', href: '/auditoria', icon: ShieldCheck });
+    if (isSuperAdmin) team.push({ label: 'Segurança', href: '/security', icon: ShieldAlert }, { label: 'Administração', href: '/superadmin', icon: Crown });
+    if (team.length) all.splice(1, 0, { title: 'Equipe e supervisão', items: team as any });
+    return all.map(group => ({ ...group, items: filterNavByPlan(group.items, isSuperAdmin ? 'maximo' : plan).filter(item => !query || normalize(`${item.label} ${item.href}`).includes(normalize(query))) })).filter(group => group.items.length);
+  }, [query, plan, isAdmin, isSuperAdmin]);
+  const openAgents = () => { setMobileOpen(false); window.dispatchEvent(new Event('lexis-open-agents')); };
+  const body = (compact: boolean, mobile: boolean) => <div className="flex h-full min-h-0 flex-col bg-card text-card-foreground">
+    <div className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
+      <Link href="/" className="flex min-w-0 flex-1 items-center gap-2" aria-label="LexisPredict — Painel"><img src="/logo.png" alt="" className="h-8 w-8 shrink-0 rounded-lg object-contain" />{!compact && <span className="truncate text-sm font-semibold">LexisPredict</span>}</Link>
+      {!mobile && <button className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" aria-label={compact ? 'Expandir menu' : 'Recolher menu'} onClick={() => setCollapsed(v => { try { localStorage.setItem('lexis-sidebar-compact-v2', v ? '0' : '1'); } catch {} return !v; })}>{compact ? <PanelLeftOpen size={18}/> : <PanelLeftClose size={18}/>}</button>}
     </div>
-  );
-
-  return (
-    <>
-      <aside
-        id="lexis-sidebar-v"
-        className="hidden md:flex flex-col shrink-0 h-screen sticky top-0 z-40 overflow-hidden will-change-[width]"
-        style={{
-          width: displayW,
-          transition: "width 180ms ease-out",
-        }}
-        onMouseEnter={() => { if (!pinned) setOpen(true); }}
-        onMouseLeave={() => { if (!pinned) setOpen(false); }}
-      >
-        {body}
-      </aside>
-
-      <div className="md:hidden fixed top-3 left-3 z-[100]">
-        <button
-          type="button"
-          className="h-11 w-11 rounded-xl border bg-background/90 backdrop-blur shadow flex items-center justify-center"
-          onClick={() => setMobile(true)}
-        >
-          <Menu size={20} />
-        </button>
-      </div>
-      {mobile && (
-        <div className="md:hidden fixed inset-0 z-[110] bg-background/70 backdrop-blur-sm">
-          <div className="absolute left-0 top-0 bottom-0 w-[min(300px,92vw)] bg-card shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
-            <button type="button" className="absolute right-3 top-3 z-20" onClick={() => setMobile(false)}>
-              <X />
-            </button>
-            <div className="h-full pt-1 overflow-hidden">{body}</div>
-          </div>
-        </div>
-      )}
-    </>
-  );
+    <div className="shrink-0 space-y-2 border-b p-2">
+      <button onClick={openAgents} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-secondary px-3 text-sm font-medium hover:bg-muted" title="Agentes"><Bot size={18}/>{!compact && 'Agentes'}</button>
+      {!compact && <label className="flex h-11 items-center gap-2 rounded-lg border bg-background px-3"><Search size={16} className="shrink-0 text-muted-foreground"/><input aria-label="Buscar no menu" placeholder="Buscar no menu" value={query} onChange={e => setQuery(e.target.value)} className="w-full min-w-0 bg-transparent text-sm outline-none"/></label>}
+    </div>
+    <nav ref={mobile ? undefined : desktopNav} aria-label="Menu principal" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]" onScroll={e => { if (!mobile) try { sessionStorage.setItem(scrollKey, String(e.currentTarget.scrollTop)); } catch {} }}>
+      {groups.map(group => <section key={group.title} className="mb-3">
+        {!compact && <p className="px-3 py-2 text-xs font-medium text-muted-foreground">{group.title}</p>}
+        {group.items.map(item => { const Icon = item.icon; const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href + '/')); return <Link key={item.href} href={item.href} prefetch={false} title={item.label} aria-current={active ? 'page' : undefined} onClick={() => setMobileOpen(false)} className={cn('mb-0.5 flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring', compact && 'justify-center px-1', active ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-muted text-card-foreground')}><Icon className="h-[18px] w-[18px] shrink-0"/>{!compact && <span className="min-w-0 leading-snug">{item.label}</span>}</Link>; })}
+      </section>)}
+      {!groups.length && <p className="p-3 text-sm text-muted-foreground">Nenhuma opção encontrada.</p>}
+    </nav>
+    <div className="shrink-0 space-y-1 border-t p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      {canScan && planTemScanner(plan) && <button onClick={() => { window.dispatchEvent(new Event('lexis-need-scanner')); toggleMinimize(); }} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-muted" title="Scanner DataJud e DJEN"><Zap size={18} className={status === 'running' ? 'animate-pulse' : ''}/>{!compact && (status === 'running' ? 'Consulta em andamento' : 'Scanner DataJud / DJEN')}</button>}
+      <Link href="/settings" className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm hover:bg-muted" title="Configurações"><Settings size={18}/>{!compact && 'Configurações'}</Link>
+      <div className="flex min-h-11 items-center gap-2 px-2">{!compact && <span className="min-w-0 flex-1 truncate text-xs" title={profile?.nome}>{profile?.nome || 'Minha conta'}</span>}<ThemeToggle/><button aria-label="Sair desta sessão" title="Sair desta sessão" onClick={() => void signOut()} className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted"><LogOut size={17}/></button></div>
+    </div>
+  </div>;
+  return <>
+    <aside data-lexis-sidebar className={cn('sticky top-0 hidden h-dvh shrink-0 overflow-hidden border-r md:block', collapsed ? 'w-24' : 'w-64')}>{body(collapsed, false)}</aside>
+    <div data-lexis-mobile-nav className="fixed inset-x-0 top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-end gap-2 border-b bg-card px-2 pb-1 text-card-foreground md:hidden">
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetTrigger asChild><button aria-label="Abrir menu" className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted"><Menu size={22}/></button></SheetTrigger><SheetContent side="left" className="z-[100] h-dvh w-[min(340px,92vw)] p-0"><SheetTitle className="sr-only">Navegação</SheetTitle><SheetDescription className="sr-only">Todas as áreas do LexisPredict, organizadas por atividade.</SheetDescription>{body(false, true)}</SheetContent></Sheet>
+      <button onClick={openAgents} className="flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium hover:bg-muted"><Bot size={18}/>Agentes</button><span className="ml-auto flex h-11 items-center px-2 text-xs font-semibold">LexisPredict</span>
+    </div>
+  </>;
 }

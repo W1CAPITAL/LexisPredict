@@ -26,12 +26,7 @@ export function temBaCarteira(c: LegalCase, baHits?: BaHitIndex): boolean {
 }
 
 export function temNovidadeIdentificada(c: LegalCase): boolean {
-  return !!(
-    resolveTemNovoAndamento(c) ||
-    c.tem_novo_andamento ||
-    (c as any).tem_atualizacao_pos_retorno ||
-    (c as any).djen_nova_comunicacao
-  );
+  return resolveTemNovoAndamento(c);
 }
 
 export function temAudienciaPendente(c: LegalCase): boolean {

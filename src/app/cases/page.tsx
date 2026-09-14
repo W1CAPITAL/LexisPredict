@@ -1,5 +1,6 @@
 "use client";
 
+import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
@@ -537,10 +538,12 @@ function CasesContent() {
       );
       const proximo = isEncerrado
         ? ''
-        : (attendanceForm.proximoRetorno || targets[0]?.proximoPrazo || '');
+        : attendanceForm.proximoRetorno;
       let ok = 0;
+      const pending: string[] = [];
+      const failures: string[] = [];
       const byProto: Record<string, any> = {};
-      for (const c of targets.slice(0, 40)) {
+      for (const c of targets) {
         try {
           const r = await registrarAtendimentoCompletoAction({
             protocolo: c.protocolo,
@@ -552,14 +555,16 @@ function CasesContent() {
           });
           if (r?.success) {
             ok += 1;
+            if (r.mirror?.attempted && !r.mirror.ok) pending.push(c.protocolo);
             byProto[c.protocolo] = {
+              ...r.case,
               ultimoRetorno: (r as any).ultimoRetorno || todayStr,
               proximoPrazo: isEncerrado ? '' : proximo,
               situacao: attendanceForm.situacao,
               observacao: attendanceForm.observacao || c.observacao,
             };
-          }
-        } catch { /* */ }
+          } else failures.push(`${c.protocolo}: ${r.message}`);
+        } catch (error: any) { failures.push(`${c.protocolo}: ${error?.message || 'Falha ao salvar'}`); }
       }
       if (ok > 0) {
         {
@@ -582,11 +587,12 @@ function CasesContent() {
             })
           );
         }
-        setIsAttendanceOpen(false);
-        setActiveGroup(null);
+        if (!failures.length) { setIsAttendanceOpen(false); setActiveGroup(null); }
         toast({
-          title: isEncerrado ? 'Encerrado e contabilizado' : 'Atendimento registrado',
-          description: `Último retorno ${todayStr}${proximo ? ` · Próximo ${proximo}` : ''} · ${ok} processo(s)`,
+          title: failures.length ? "Atendimento parcialmente salvo" : isEncerrado ? 'Encerrado e contabilizado' : 'Atendimento registrado',
+          description: `${ok}/${targets.length} processo(s) salvo(s). ${failures.length ? failures.slice(0, 2).join(' · ') : pending.length ? `${pending.length} aguardando confirmação da planilha.` : 'Retornos atualizados.'}`,
+          variant: failures.length ? 'destructive' : undefined,
+          action: pending.length ? <AtendimentoSyncRetry protocolos={pending}/> : undefined,
         });
         try {
           const fresh = await fetchRepoCases();

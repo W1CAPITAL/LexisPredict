@@ -31,7 +31,7 @@ describe("ops-linha", () => {
       { situacao: "ENCERRADO", status: "Arquivado", evento_resumo: "baixa" } as any,
       {
         situacao: "EM ANDAMENTO",
-        status: "Vencido",
+        status: "Vencido", proximoPrazo: "2000-01-01",
         evento_resumo: "Contestação. Prazo para réplica.",
       } as any,
     ]);
@@ -41,7 +41,7 @@ describe("ops-linha", () => {
 
   it("compareOps ordena maior score primeiro", () => {
     const a = { status: "No Prazo", evento_resumo: "citação" } as any;
-    const b = { status: "Vencido", evento_resumo: "prazo" } as any;
+    const b = { status: "Vencido", proximoPrazo: "2000-01-01", evento_resumo: "prazo" } as any;
     expect(compareOps(a, b)).toBeGreaterThan(0);
   });
 });

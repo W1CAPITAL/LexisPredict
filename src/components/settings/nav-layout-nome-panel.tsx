@@ -53,29 +53,7 @@ export function NavLayoutNomePanel() {
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur p-4 space-y-4">
-      <div>
-        <h3 className="text-sm font-black">Layout do menu</h3>
-        <p className="text-[11px] text-muted-foreground">Dock embaixo (Windows) ou barra vertical à esquerda.</p>
-        <div className="flex flex-wrap gap-2 mt-3">
-          <Button
-            type="button"
-            variant={mode === "dock" ? "default" : "outline"}
-            className="gap-2"
-            onClick={() => applyMode("dock")}
-          >
-            <PanelBottom size={16} /> Horizontal (dock)
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "vertical" ? "default" : "outline"}
-            className="gap-2"
-            onClick={() => applyMode("vertical")}
-          >
-            <PanelLeft size={16} /> Vertical
-          </Button>
-        </div>
-      </div>
-      <div className="border-t border-border/50 pt-4 space-y-2">
+      <div className="space-y-2">
         <Label className="text-[10px] font-black uppercase">Nome completo (aparece no Hall de Prêmios)</Label>
         <Input
           value={nome}

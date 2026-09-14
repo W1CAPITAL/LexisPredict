@@ -1,4 +1,5 @@
 "use client";
+import { Crown } from 'lucide-react';
 import { NavLayoutNomePanel } from "@/components/settings/nav-layout-nome-panel";
 
 import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
@@ -136,7 +137,7 @@ export default function SettingsPage() {
   const [pwdConfirm, setPwdConfirm] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
-  const [activeTab, setActiveTab] = useState('Menu');
+  const [activeTab, setActiveTab] = useState('Conta');
   const [settingsBoot, setSettingsBoot] = useState(true);
   const [settingsQuery, setSettingsQuery] = useState('');
   const [chatNotifOn, setChatNotifOn] = useState(false);
@@ -567,7 +568,7 @@ export default function SettingsPage() {
     <div className="flex h-screen bg-background/80 font-sans text-foreground overflow-hidden relative z-10">
       <Sidebar />
       <PageLoadingBar active={settingsBoot} />
-      <main className="lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="lexis-main-pad flex-1 flex flex-col h-dvh min-w-0 overflow-y-auto">
         {/* hero header */}
         <header className="shrink-0 border-b border-border/50 bg-card/40 backdrop-blur-md">
           <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">
@@ -587,11 +588,6 @@ export default function SettingsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ThemeToggle />
-                {isSuperadmin && (
-                  <Button asChild variant="outline" size="sm" className="h-9 rounded-xl text-xs font-bold">
-                    <Link href="/ops"><Database size={14} className="mr-1.5" /> Dados</Link>
-                  </Button>
-                )}
                 <Badge variant="secondary" className="text-[10px] font-bold rounded-lg">
                   LexisPredict
                 </Badge>
@@ -630,11 +626,59 @@ export default function SettingsPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1">
           <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
-            {/* perfil + planos em faixa */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <section className="lg:col-span-1 rounded-2xl border border-border/60 bg-card/70 backdrop-blur-md p-5 shadow-sm">
+            {/* navegação horizontal em chips */}
+            <nav className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+              {[
+                { id: "Plano", label: "Assinatura", icon: <Crown size={14} />, keywords: "plano assinatura licenca pagamento" },
+                { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
+                { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
+                { id: "Personalizacao", label: "Personalização", icon: <Wand2 size={14} />, keywords: "ui prefs metal botoes" },
+                { id: "Hardware", label: "Visual / tema", icon: <Palette size={14} />, keywords: "tema cores wallpaper fundo visual hardware" },
+                { id: "Banca", label: "Banca", icon: <Gavel size={14} />, keywords: "advogado oab banca" },
+                { id: "Knowledge", label: "Conhecimento", icon: <BookOpen size={14} />, keywords: "conhecimento base docs scripts" },
+                { id: "Engine", label: "Núcleo IA", icon: <Cpu size={14} />, keywords: "ia motor neural engine modelo" },
+                ...(isMasterUnlocked
+                  ? [{ id: "Export", label: "Export master", icon: <Archive size={14} />, keywords: "export backup zip codigo" }]
+                  : []),
+              ]
+                .filter((item) => {
+                  const q = settingsQuery.trim().toLowerCase();
+                  if (!q) return true;
+                  return (
+                    item.label.toLowerCase().includes(q) ||
+                    item.keywords.includes(q) ||
+                    item.id.toLowerCase().includes(q)
+                  );
+                })
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveTab(item.id)}
+                    className={cn(
+                      "shrink-0 flex items-center gap-2 h-10 px-3.5 rounded-full text-xs font-bold border transition-all duration-150",
+                      activeTab === item.id
+                        ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
+                        : "bg-card/60 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    )}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ))}
+            </nav>
+
+            {/* conteúdo da aba */}
+            <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm p-4 sm:p-6 min-h-[50vh] shadow-sm">
+              {settingsBoot ? (
+                <PageLoading label="Abrindo configurações…" full />
+              ) : (
+              <>
+                            {activeTab === 'Conta' && (
+                <div className="space-y-6 max-w-xl">
+              <section className="rounded-2xl border border-border/60 bg-card/70 backdrop-blur-md p-5 shadow-sm">
                 <div className="flex items-center gap-4">
                   <div className="relative group shrink-0">
                     <Avatar className="w-16 h-16 border-2 border-primary/25 shadow-md">
@@ -706,73 +750,7 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className="lg:col-span-2 space-y-3">
-                {isSuperadmin && (
-                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 mb-2">
-                      Superadmin · planos e prazos
-                    </p>
-                    <PlanosAdminBloqueio />
-                  </div>
-                )}
-                <details className="rounded-2xl border border-border/60 bg-card/50 p-4">
-                  <summary className="cursor-pointer text-sm font-semibold">Planos da empresa</summary>
-                  <div className="mt-3 overflow-auto max-h-[70vh]">
-                    <PlanosEmpresaPanel />
-                  </div>
-                </details>
-              </section>
-            </div>
 
-            {/* navegação horizontal em chips */}
-            <nav className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
-              {[
-                { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
-                { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
-                { id: "Personalizacao", label: "Personalização", icon: <Wand2 size={14} />, keywords: "ui prefs metal botoes" },
-                { id: "Hardware", label: "Visual / tema", icon: <Palette size={14} />, keywords: "tema cores wallpaper fundo visual hardware" },
-                { id: "Banca", label: "Banca", icon: <Gavel size={14} />, keywords: "advogado oab banca" },
-                { id: "Knowledge", label: "Conhecimento", icon: <BookOpen size={14} />, keywords: "conhecimento base docs scripts" },
-                { id: "Engine", label: "Núcleo IA", icon: <Cpu size={14} />, keywords: "ia motor neural engine modelo" },
-                ...(isMasterUnlocked
-                  ? [{ id: "Export", label: "Export master", icon: <Archive size={14} />, keywords: "export backup zip codigo" }]
-                  : []),
-              ]
-                .filter((item) => {
-                  const q = settingsQuery.trim().toLowerCase();
-                  if (!q) return true;
-                  return (
-                    item.label.toLowerCase().includes(q) ||
-                    item.keywords.includes(q) ||
-                    item.id.toLowerCase().includes(q)
-                  );
-                })
-                .map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveTab(item.id)}
-                    className={cn(
-                      "shrink-0 flex items-center gap-2 h-10 px-3.5 rounded-full text-xs font-bold border transition-all duration-150",
-                      activeTab === item.id
-                        ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
-                        : "bg-card/60 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                    )}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </button>
-                ))}
-            </nav>
-
-            {/* conteúdo da aba */}
-            <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm p-4 sm:p-6 min-h-[50vh] shadow-sm">
-              {settingsBoot ? (
-                <PageLoading label="Abrindo configurações…" full />
-              ) : (
-              <>
-                            {activeTab === 'Conta' && (
-                <div className="space-y-6 max-w-xl">
                   <Card className="border border-border/60 shadow-sm rounded-2xl">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -780,7 +758,7 @@ export default function SettingsPage() {
                         Trocar senha de acesso
                       </CardTitle>
                       <p className="text-xs text-muted-foreground font-normal mt-1">
-                        Altera a senha da sua conta no LexisPredict (login). Não altera a senha master de exportação.
+                        Altere a senha usada para entrar no aplicativo.
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4 pt-2">
@@ -863,6 +841,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {activeTab === 'Plano' && <div className="space-y-6 max-w-3xl"><PlanosEmpresaPanel />{isSuperadmin && <details className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">Administrar assinaturas</summary><div className="mt-4"><PlanosAdminBloqueio /></div></details>}</div>}
               {activeTab === 'Menu' && (
                 <div className="max-w-3xl space-y-6 animate-in fade-in duration-500">
                   <NavLayoutNomePanel />
@@ -871,7 +850,7 @@ export default function SettingsPage() {
                     <Label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Personalizacao do Menu Lateral</Label>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Organize os itens do menu lateral. Arraste para reordenar, oculte ou mostre conforme sua necessidade.
+                    Ajuste a apresentação do menu no computador. As telas de uso diário aparecem primeiro.
                   </p>
                   <NavLayoutPanel />
                 </div>

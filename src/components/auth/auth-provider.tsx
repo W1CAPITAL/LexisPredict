@@ -57,7 +57,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const router = useRouter();
-  const initialized = useRef(false);
   const fetchingProfile = useRef(false);
   const lastUserId = useRef<string | null>(null);
   const lastRefreshAt = useRef(0);
@@ -156,8 +155,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
 
     if (!supabase) {
       setLoading(false);
@@ -165,9 +162,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     // Boot: libera UI assim que souber se há sessão (perfil em paralelo)
-    const bootDeadline = window.setTimeout(() => setLoading(false), 2500);
+    let disposed = false;
+    const bootDeadline = window.setTimeout(() => {
+      if (!disposed) {
+        setSessionError('A conexão demorou. Tente entrar novamente.');
+        setLoading(false);
+      }
+    }, 15000);
 
     supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
+      if (disposed) return;
       const sessionUser = data.session?.user ?? null;
       setUser(sessionUser);
       setLoading(false); // UI livre já
@@ -175,11 +179,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (sessionUser) {
         loadProfile(sessionUser.id).catch(() => {});
       }
+    }).catch(() => {
+      if (!disposed) {
+        setSessionError('Não foi possível verificar a sessão. Confira sua conexão.');
+        setLoading(false);
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+      if (disposed) return;
+      setLoading(false);
+      window.clearTimeout(bootDeadline);
       const sessionUser = session?.user ?? null;
 
       if (event === 'TOKEN_REFRESHED') {
@@ -201,12 +213,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(sessionUser);
 
       if (event === 'SIGNED_IN' && sessionUser) {
-        registrarLoginAction(sessionUser.email).catch(() => {});
+        window.setTimeout(() => {
+          if (!disposed) void registrarLoginAction(sessionUser.email).catch(() => {});
+        }, 0);
       }
 
       if (sessionUser) {
         if (lastUserId.current !== sessionUser.id) {
-          loadProfile(sessionUser.id).catch(() => {});
+          window.setTimeout(() => {
+            if (!disposed) void loadProfile(sessionUser.id).catch(() => {});
+          }, 0);
         }
       } else if (event !== 'INITIAL_SESSION') {
         setProfile(null);
@@ -228,6 +244,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, 45 * 60 * 1000); // rede de segurança a cada 45 min
 
     return () => {
+      disposed = true;
       window.clearTimeout(bootDeadline);
       window.clearInterval(tick);
       document.removeEventListener('visibilitychange', onVisible);
@@ -238,7 +255,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     if (!supabase) return;
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     } catch {
       /* */
     }

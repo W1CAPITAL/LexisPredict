@@ -1,0 +1,285 @@
+{
+  "repositorio": "W1CAPITAL/LexisPredict",
+  "commit_base": "a09bab9d0c7642aaef9eb6ad9153c06230e15555",
+  "tipo": "incremental: copiar na raiz do repositório existente",
+  "excluir": [],
+  "validacao": {
+    "testes": "86/86 passaram",
+    "typecheck": "passou",
+    "lint": "passou",
+    "build": "passou com avisos não bloqueantes",
+    "servicos_reais": "não testados"
+  },
+  "arquivos": [
+    {
+      "caminho": "README-PATCH.md",
+      "sha256": "e404fe81cb883b793d7e5068577ddf3017076199dab30bd312c65d504244f076",
+      "bytes": 7951
+    },
+    {
+      "caminho": "docs/correcoes-2026-09-14/REGISTRO-SEGUNDO-CEREBRO.md",
+      "sha256": "088fe3d54e7b545d7982c552358476305ff1fec397f684b7667482c59ab24ba7",
+      "bytes": 798
+    },
+    {
+      "caminho": "docs/correcoes-2026-09-14/VALIDACAO.md",
+      "sha256": "03507af571cfac8bd082e610f4aaa562a35ed60db5532365659df1597ffefc8e",
+      "bytes": 2876
+    },
+    {
+      "caminho": "eslint.config.mjs",
+      "sha256": "47e5d4ea8472d2862779db650841e19c43d9919fe25408e6932692679067350f",
+      "bytes": 713
+    },
+    {
+      "caminho": "middleware.ts",
+      "sha256": "8f72b02981def78fa216d09cdaedd8a04ffa8bf636fb0e6f691cf475c0c6cef7",
+      "bytes": 5249
+    },
+    {
+      "caminho": "next.config.ts",
+      "sha256": "4bf64c2624bceaf8b88021f187bd793d419d4a1f9a6c428dd32b3766f2a9ec54",
+      "bytes": 4111
+    },
+    {
+      "caminho": "package-lock.json",
+      "sha256": "301f6b942f5658224b5ed8b492156ec2aa99d3f21ffdf901b751b295dd46e5d9",
+      "bytes": 694682
+    },
+    {
+      "caminho": "package.json",
+      "sha256": "fa79ff3f3c5f2aa5869cc448ecb448892f4c7a592c8529d3083474cd7635f4de",
+      "bytes": 3746
+    },
+    {
+      "caminho": "src/app/actions/ba-metrics-actions.ts",
+      "sha256": "5fe04c445f611a872506cec02fb6c9192b7a746d7575e35dd9201d517c3ed4d6",
+      "bytes": 2016
+    },
+    {
+      "caminho": "src/app/actions/busca-apreensao-actions.ts",
+      "sha256": "ce63477929e9e7164fc5dcb304f671be12072778a61c97f288a6270792dc4777",
+      "bytes": 15734
+    },
+    {
+      "caminho": "src/app/actions/case-actions.ts",
+      "sha256": "85f6f39f8e0f0e45fb6ca1e317a53049696252c72db7bf3a08cbc61cf8efc8b8",
+      "bytes": 67987
+    },
+    {
+      "caminho": "src/app/actions/case-save-actions.test.ts",
+      "sha256": "dd06c33d8fb543d4cd161ff5ce5bc9556927a467a50192bb5a7cf65e284ba324",
+      "bytes": 4636
+    },
+    {
+      "caminho": "src/app/actions/case-save-actions.ts",
+      "sha256": "5a6614c5b690b240fa18971629c84c5adba47fcb1f843f1d92df55340d933f46",
+      "bytes": 34572
+    },
+    {
+      "caminho": "src/app/busca-apreensao/page.tsx",
+      "sha256": "393e61f9498f6f9516f85b3e3e0d7bfa7c79fd8009585254a41aca1279c3baa6",
+      "bytes": 23953
+    },
+    {
+      "caminho": "src/app/cases/page.tsx",
+      "sha256": "bc8a7a806cb4c5d48501665d5d5294b49c9a17979391944175ccc66afcbc13c6",
+      "bytes": 82900
+    },
+    {
+      "caminho": "src/app/gerador-processos/page.tsx",
+      "sha256": "fb9e0efe7684c238d60bbcd15fcc1544212934cadd1a3de726f338e410f95a3a",
+      "bytes": 29878
+    },
+    {
+      "caminho": "src/app/globals.css",
+      "sha256": "1b45e020ba06edd521de18dcbfdea69bdb1d52284c73b4d5300fbfe0b25d6114",
+      "bytes": 11209
+    },
+    {
+      "caminho": "src/app/login/page.tsx",
+      "sha256": "f526616e0529bf91642e43a5ffa932f51584bc85cd3e03e0656dc05b1fdf69c2",
+      "bytes": 10809
+    },
+    {
+      "caminho": "src/app/page.tsx",
+      "sha256": "6b9c9764b880606545c6f1975faf4510288308458eee52b968027460d505d27e",
+      "bytes": 43050
+    },
+    {
+      "caminho": "src/app/processos/page.tsx",
+      "sha256": "bfa5cc9d1d40a503c3b72c722260cbc84f113aac2f3a705330e80765b40dc474",
+      "bytes": 55579
+    },
+    {
+      "caminho": "src/app/settings/page.tsx",
+      "sha256": "4d03a25fe28df92dbeb94b7682f8d3d9c4bb384601e10c3fd92245d3aed91aac",
+      "bytes": 96782
+    },
+    {
+      "caminho": "src/app/tarefas/page.tsx",
+      "sha256": "aa37f51bb81cb97564916054cc5453146bc13cf787c8f08611d77dbbc80cdea2",
+      "bytes": 69418
+    },
+    {
+      "caminho": "src/app/whatsapp/page.tsx",
+      "sha256": "addea64e8f35174c35602ca6122aa72a51382cefd849f2e4314c2f142ca811fb",
+      "bytes": 79809
+    },
+    {
+      "caminho": "src/components/agents/agent-dock.tsx",
+      "sha256": "23d1058ef51f86fdd5f9c67ba7f9a498a14f1a223c9a52fad5f96ab15558e714",
+      "bytes": 15013
+    },
+    {
+      "caminho": "src/components/atendimento-sync-retry.tsx",
+      "sha256": "cee3874f1cb482a7a8345b3f2fca95dd19e9dd5e08c073d7b7010e7ea42674ae",
+      "bytes": 1096
+    },
+    {
+      "caminho": "src/components/auth/auth-provider.tsx",
+      "sha256": "2145b9c078037401f8073aa739ba662942fc79f1aa7418b7515eaca854a7104e",
+      "bytes": 8705
+    },
+    {
+      "caminho": "src/components/layout/sidebar-vertical.tsx",
+      "sha256": "56c678db512febcff276f15e90c3b675c825489a9fede10b2c9e55dcd364d6ec",
+      "bytes": 10151
+    },
+    {
+      "caminho": "src/components/layout/sidebar.tsx",
+      "sha256": "41c9444364151ed7b98af6a74eebad1f7c9e8f714cd438d8d2e85aa0ec6f3e9b",
+      "bytes": 80
+    },
+    {
+      "caminho": "src/components/settings/nav-layout-nome-panel.tsx",
+      "sha256": "e620c003dc3e55f945f24c526f6c965242c05db51b7112a513ae26c35da1f7fd",
+      "bytes": 2346
+    },
+    {
+      "caminho": "src/components/settings/nav-layout-panel.tsx",
+      "sha256": "b465cd754de9b413a77f93c593730f763ede779a80859ecd8f6422ed35ecf936",
+      "bytes": 1418
+    },
+    {
+      "caminho": "src/components/settings/planos-empresa-panel.tsx",
+      "sha256": "2405ebe5fce8430e6825269eab0c98f11d7e8c4fa56b78cb913ed246d5863520",
+      "bytes": 1585
+    },
+    {
+      "caminho": "src/lib/ba-evidence.ts",
+      "sha256": "7a4c0911d5057cfcf3b7e9d1bbc76b7d0354528d761930fa8a3b20a92bb6343f",
+      "bytes": 1608
+    },
+    {
+      "caminho": "src/lib/ba-real.ts",
+      "sha256": "7c09612854e192d11cb5969cfbb1bfa805821c322aa32e8cf27013fcfd405c4d",
+      "bytes": 942
+    },
+    {
+      "caminho": "src/lib/busca-apreensao-logic.ts",
+      "sha256": "9229f83bd7a97671da2cff3a683bfec4f31b896fc060cc48b572c1a91ed7636e",
+      "bytes": 10200
+    },
+    {
+      "caminho": "src/lib/carteira-kpis.ts",
+      "sha256": "2d1e06977003b455cd61e3bbee81ab65126a13e434ae0089faee0d206349d6a9",
+      "bytes": 1697
+    },
+    {
+      "caminho": "src/lib/case-identity.ts",
+      "sha256": "b0305c07375670a6964a2484df26d4d8db2e6db25693ec9f203aa25643fb7acc",
+      "bytes": 943
+    },
+    {
+      "caminho": "src/lib/case-logic.ts",
+      "sha256": "3f3bc818c822527d19300ab794c81c60ea17e78592eba8240e83e89cc237cc8c",
+      "bytes": 13930
+    },
+    {
+      "caminho": "src/lib/dashboard-metrics.ts",
+      "sha256": "385f6d3a1a5c11b95397fa10bf57a6e55ee2d37950c17af237adb7e4c52d9c1f",
+      "bytes": 8831
+    },
+    {
+      "caminho": "src/lib/djen-client.ts",
+      "sha256": "23c0d7b626ac5d86ffabdc2cd8f8821965ef059a3a9101a1c215528486f68223",
+      "bytes": 11407
+    },
+    {
+      "caminho": "src/lib/djen-scan-control.ts",
+      "sha256": "4afe884ec8fc5bf3949dbb3230e81316f7f97d6555c26660f29b52e11654fb27",
+      "bytes": 1929
+    },
+    {
+      "caminho": "src/lib/extrato-distribuicao-parse.test.ts",
+      "sha256": "4ad32789498315c5152b17a511c0aa7b1723e78b935643e3f487c556d41154c6",
+      "bytes": 1181
+    },
+    {
+      "caminho": "src/lib/flags-operacionais.ts",
+      "sha256": "04680cbeb96ab3e4ed422993a7e637d57160cf8b4f7e34ba9fd5bdedcc51c250",
+      "bytes": 3238
+    },
+    {
+      "caminho": "src/lib/hybrid/sheets-server.test.ts",
+      "sha256": "46590948c09804f94987fb884b19f07ca65bcb675ae1336e16e20d61b70a53e4",
+      "bytes": 1317
+    },
+    {
+      "caminho": "src/lib/hybrid/sheets-server.ts",
+      "sha256": "d019d755a0e9ae7be852bc6b88df8ec9865c69a8f550f89934b26fd6036302c0",
+      "bytes": 6994
+    },
+    {
+      "caminho": "src/lib/kpi-unificado.ts",
+      "sha256": "7bbf130ce6b5b745c8eaccb551dfa84ba602f0019628138f952eb886f664b7c2",
+      "bytes": 4839
+    },
+    {
+      "caminho": "src/lib/novidade.ts",
+      "sha256": "1f6862c70f2d99f659ddcd916d5de01d68d252ffeb2d55e0ce7027a5072dd260",
+      "bytes": 1595
+    },
+    {
+      "caminho": "src/lib/operacao-regression.test.ts",
+      "sha256": "5931aadc28103cff18f6d9a80674a639bd98454fef82ea4c0514b6468cb32291",
+      "bytes": 6789
+    },
+    {
+      "caminho": "src/lib/ops-linha.test.ts",
+      "sha256": "0103dd48ee3e45368d3061aa8382fd5fc33dc3cc05f08bd633d38c971b182232",
+      "bytes": 1690
+    },
+    {
+      "caminho": "src/lib/prazo-status.ts",
+      "sha256": "94c7b1898fabda984f4f42ad42ecab2a16ddfe6e00fe7bfd2fbc66e9a38cdaa2",
+      "bytes": 3831
+    },
+    {
+      "caminho": "src/lib/server-db.ts",
+      "sha256": "1de1e650646ec1c8c84a738ae0929ce8073371deda9524be222caf50cad00b93",
+      "bytes": 44627
+    },
+    {
+      "caminho": "src/lib/supabase.ts",
+      "sha256": "b0f700892bbf18def9014c07fba479bb884eb68ebe31c58da870c6efeb966558",
+      "bytes": 2605
+    },
+    {
+      "caminho": "src/lib/supabase/browser.ts",
+      "sha256": "b1dccda7ad8506bf5cee83fc576f8349e229dff3107270ad013a5fed0e4b6aef",
+      "bytes": 1985
+    },
+    {
+      "caminho": "src/lib/supabase/client.ts",
+      "sha256": "3181de9030ea9204db8d1fa47f303c88c82dc0a03e47d6011ff4bc925e9f2681",
+      "bytes": 474
+    },
+    {
+      "caminho": "src/middleware.ts",
+      "sha256": "dada17b153523599a3349de4a68ed0c7ee200614d44818c2181e0a1b982142b8",
+      "bytes": 237
+    }
+  ]
+}

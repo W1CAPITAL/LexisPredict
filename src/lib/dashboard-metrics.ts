@@ -1,3 +1,4 @@
+import { computeKpiUnificado } from './kpi-unificado';
 /**
  * Métricas do Dashboard + Índice de Risco Global explicável.
  */
@@ -45,7 +46,8 @@ export function buildDashboardMetrics(cases: LegalCase[], labels?: {
     statusSemPrazo: labels?.statusSemPrazo || 'Sem Prazo',
   };
 
-  const ativos = cases.filter((c) => !isCasoEncerrado(c));
+  const unified = computeKpiUnificado(cases);
+  const ativos = unified.ativosList;
   const activeTotal = ativos.length;
 
   const countVencido = ativos.filter((c) => {
@@ -60,7 +62,7 @@ export function buildDashboardMetrics(cases: LegalCase[], labels?: {
   const countNovoAndamento = ativos.filter((c) => resolveTemNovoAndamento(c)).length;
   const countEncerradoTribunal = ativos.filter((c) => !!c.datajud_encerrado_tribunal).length;
   const countCumprimento = ativos.filter((c) => !!c.em_cumprimento_sentenca).length;
-  const countBA = ativos.filter((c) => !!(c as any).indicio_busca_apreensao).length;
+  const countBA = unified.countBA;
 
   const countProcedente = ativos.filter((c) => isSentencaProcedente(c)).length;
   const countImprocedente = ativos.filter((c) => isSentencaImprocedente(c)).length;
@@ -81,6 +83,7 @@ export function buildDashboardMetrics(cases: LegalCase[], labels?: {
     countBA,
     countNovoAndamento,
     countEncerradoTribunal,
+    caseScores: unified.caseScores,
   });
 
   const statusData = [
@@ -98,10 +101,10 @@ export function buildDashboardMetrics(cases: LegalCase[], labels?: {
     countAtencao,
     countSaudavel,
     countSemPrazo,
-    riskScore: risk.score,
-    riskLabel: risk.label,
-    riskColor: risk.color,
-    riskExplanation: risk,
+    riskScore: unified.riskScore,
+    riskLabel: unified.riskLabel,
+    riskColor: unified.riskColor,
+    riskExplanation: { ...risk, label: unified.riskLabel, color: unified.riskColor },
     statusData,
     countNovoAndamento,
     rateAndamento,
@@ -126,6 +129,7 @@ export function computeRiskIndex(input: {
   countBA: number;
   countNovoAndamento: number;
   countEncerradoTribunal: number;
+  caseScores?: number[];
 }): RiskExplanation {
   const N = input.activeTotal;
 
@@ -190,14 +194,14 @@ export function computeRiskIndex(input: {
       id: 'encerrado_tj',
       label: 'Encerrado no tribunal (ainda ativo no CRM)',
       count: input.countEncerradoTribunal,
-      weight: 0.15,
+      weight: 0,
       meaning: 'Baixa/trânsito detectado — conferir e eventualmente encerrar no Lexis.',
     },
     {
       id: 'no_prazo',
       label: 'No prazo',
       count: input.countSaudavel,
-      weight: 0.08,
+      weight: 0,
       meaning: 'Carteira saudável — peso residual de monitoramento.',
     },
   ];
@@ -208,7 +212,7 @@ export function computeRiskIndex(input: {
   }));
 
   const riskSum = factors.reduce((s, f) => s + f.contribution, 0);
-  const score = N > 0 ? Math.min(100, Math.round((riskSum / N) * 100)) : 0;
+  const score = N > 0 ? (input.caseScores ? Math.round(input.caseScores.reduce((a, b) => a + b, 0) / N) : Math.min(100, Math.round(riskSum / (N * 4.2) * 100))) : 0;
 
   let label = 'BAIXO';
   let color = 'text-emerald-600';
@@ -236,7 +240,7 @@ export function computeRiskIndex(input: {
       ? 'Sem processos ativos — índice zerado.'
       : `Índice ${score}/100 (${label}): média ponderada da pressão operacional sobre ${N} processo(s) ativo(s). ` +
         (top.length
-          ? `Principais drivers: ${top
+          ? `Sinais para conferir: ${top
               .map((f) => `${f.label} (${f.count}× peso ${f.weight})`)
               .join('; ')}.`
           : '');
@@ -260,7 +264,7 @@ export function computeRiskIndex(input: {
     label,
     color,
     formula:
-      'score = min(100, round((Σ count×peso / N_ativos)×100)). NÃO mede chance de êxito na ação; mede pressão de fila + sinais críticos (B.A., vencidos, audiências sem aviso).',
+      'Cada processo ativo recebe apenas o maior peso entre vencimento, BA confirmada e novidade. O índice é a média desses pesos. Baixas do tribunal não somam risco. As contagens de sinais podem se sobrepor.',
     summary,
     factors,
     recommendations,
