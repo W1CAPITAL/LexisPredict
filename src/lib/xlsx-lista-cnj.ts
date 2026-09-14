@@ -9,10 +9,11 @@ function cell(col: string, row: number, val: string) {
 }
 const H = [
   "processo","nome_completo","telefone","telefone_fonte","email","cpf","cnpj",
+  "placa","renavam",
   "endereco","cep","bairro","municipio","uf","situacao_cadastral","enrich_fonte",
   "classe","tribunal","data","situacao_hint","link","teor",
 ] as const;
-const C = "ABCDEFGHIJKLMNOPQRST".split("");
+const C = "ABCDEFGHIJKLMNOPQRSTUVWX".split("");
 
 export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
   const header = `<row r="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
@@ -20,6 +21,7 @@ export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<
     const r = idx + 2;
     const vals = [
       p.processo,p.nome_completo,p.telefone,p.telefone_fonte,p.email,p.cpf,p.cnpj,
+      p.placa || "", p.renavam || "",
       p.endereco,p.cep,p.bairro,p.municipio,p.uf,p.situacao_cadastral,p.enrich_fonte,
       p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor,
     ];

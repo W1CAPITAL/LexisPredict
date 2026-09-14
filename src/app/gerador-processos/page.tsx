@@ -48,6 +48,7 @@ import {
   formatCpfMasked,
   TRIBUNAIS_DJEN,
 } from "@/lib/djen-cpf-extract";
+import { extractVeiculoFromDjenText } from "@/lib/djen-veiculo-extract";
 
 
 const isoHoje = () => new Date().toISOString().slice(0, 10);
@@ -112,6 +113,7 @@ export default function GeradorProcessosPage() {
   const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(false);
   /** Só aceita publicação com CPF válido no teor DJEN (PJe MG etc.) */
   const [somenteComCpf, setSomenteComCpf] = useState(false);
+  const [somenteComPlaca, setSomenteComPlaca] = useState(false);
   const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
@@ -370,7 +372,12 @@ export default function GeradorProcessosPage() {
             const telefoneAutor =
               exibirTelefoneAutor ? extractTelefonePorContexto(it.texto, nome) : "";
             const cpfPub = extractCpfFromDjenText(blob);
+            const veic = extractVeiculoFromDjenText(blob);
             if (somenteComCpf && !cpfPub) {
+              skipFiltro++;
+              continue;
+            }
+            if (somenteComPlaca && !veic.placa) {
               skipFiltro++;
               continue;
             }
@@ -378,7 +385,7 @@ export default function GeradorProcessosPage() {
               skipFiltro++;
               continue;
             }
-            rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla, cpfPub));
+            rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla, cpfPub, veic.placa, veic.renavam));
           }
 
           const added = add(rows);
@@ -538,6 +545,11 @@ export default function GeradorProcessosPage() {
                 on={somenteComCpf}
                 label="Só com CPF no teor DJEN"
               />
+              <Chip
+                onClick={() => setSomenteComPlaca((p) => !p)}
+                on={somenteComPlaca}
+                label="Só com placa no teor DJEN"
+              />
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
@@ -656,6 +668,11 @@ export default function GeradorProcessosPage() {
                           CPF {formatCpfMasked(p.cpf)}
                         </p>
                       )}
+                      {p.placa && (
+                        <p className="text-[11px] font-mono text-amber-700 dark:text-amber-400">
+                          Placa {p.placa}{p.renavam ? ` · RENAVAM ${p.renavam}` : ""}
+                        </p>
+                      )}
                     </div>
                     {p.link && (
                       <a
@@ -715,7 +732,9 @@ function toRow(
   statusOn: FiltroStatusId[],
   materiaOn: FiltroMateriaId[],
   sigla?: string,
-  cpfExtra?: string
+  cpfExtra?: string,
+  placaExtra?: string,
+  renavamExtra?: string
 ): ProcessoDjenReal {
   const tel = telefoneAutor || "";
   const decisao = classificarSentenca(String(it.texto || ""));
@@ -738,6 +757,8 @@ function toRow(
     email: "",
     cpf: cpfExtra || extractCpfFromDjenText(String(it.texto || "")) || "",
     cnpj: "",
+    placa: placaExtra || "",
+    renavam: renavamExtra || "",
     endereco: "",
     cep: "",
     bairro: "",

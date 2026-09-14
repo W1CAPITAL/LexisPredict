@@ -184,6 +184,10 @@ export interface ProcessoDjenReal {
   filtros: string;
   consultavel: boolean;
   ba_djen?: boolean;
+  /** Placa extraída do teor DJEN (público), se houver */
+  placa?: string;
+  /** RENAVAM só se rotulado no teor */
+  renavam?: string;
 }
 
 export interface ScanLogLine {
