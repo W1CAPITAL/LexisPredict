@@ -43,6 +43,11 @@ import {
   rotuloIdade,
   isEsferaPenal,
 } from "@/lib/procedente-sem-cumprimento";
+import {
+  extractCpfFromDjenText,
+  formatCpfMasked,
+  TRIBUNAIS_DJEN,
+} from "@/lib/djen-cpf-extract";
 
 
 const isoHoje = () => new Date().toISOString().slice(0, 10);
@@ -105,6 +110,8 @@ export default function GeradorProcessosPage() {
     return d.includes("busca_apreensao") ? d : [...d, "busca_apreensao"];
   });
   const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(false);
+  /** Só aceita publicação com CPF válido no teor DJEN (PJe MG etc.) */
+  const [somenteComCpf, setSomenteComCpf] = useState(false);
   const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
@@ -157,7 +164,8 @@ export default function GeradorProcessosPage() {
       if (Array.isArray(saved)) saved.filter(value => typeof value === 'string' && /^\d{20}$/.test(value)).forEach(value => exclude.add(value));
     } catch { /* O histórico local é opcional. */ }
     const cnpjDigits = cnpj.replace(/\D/g, "");
-    const sigla = tribunal.trim().toUpperCase() || undefined;
+    const siglaRaw = tribunal.trim().toUpperCase();
+    const sigla = !siglaRaw || siglaRaw === "TODOS" || siglaRaw === "ALL" ? undefined : siglaRaw;
     let queries: string[];
     let scanDataInicio = dataInicio;
     let scanDataFim = dataFim;
@@ -182,11 +190,19 @@ export default function GeradorProcessosPage() {
         );
       }
     } else if (somenteBuscaApreensao) {
+      // Fora da carteira: só DJEN público · B.A. / alienação
       queries = [
         "busca e apreensão",
         "busca e apreensão em alienação fiduciária",
         "busca e apreensao",
+        "ação de busca e apreensão",
+        "mandado de busca e apreensão",
+        "alienação fiduciária busca",
       ];
+      pushLog(
+        "info",
+        `Modo SÓ BUSCA E APREENSÃO · tribunal=${sigla || "TODOS"} · fora da carteira Lexis (só DJEN)`
+      );
     } else {
       queries = queriesDosFiltros(statusOn, materiaOn) || [];
     }
@@ -353,11 +369,16 @@ export default function GeradorProcessosPage() {
             }
             const telefoneAutor =
               exibirTelefoneAutor ? extractTelefonePorContexto(it.texto, nome) : "";
+            const cpfPub = extractCpfFromDjenText(blob);
+            if (somenteComCpf && !cpfPub) {
+              skipFiltro++;
+              continue;
+            }
             if (exigeTelefone && !String(telefoneAutor || "").replace(/\D/g, "")) {
               skipFiltro++;
               continue;
             }
-            rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla));
+            rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla, cpfPub));
           }
 
           const added = add(rows);
@@ -507,18 +528,32 @@ export default function GeradorProcessosPage() {
                   }
                 />
               ))}
-              {somenteBuscaApreensao && (
-                <Chip
-                  onClick={() => setSomenteBuscaApreensao((p) => !p)}
-                  on={somenteBuscaApreensao}
-                  label="✓ Somente busca e apreensão"
-                />
-              )}
+              <Chip
+                onClick={() => setSomenteBuscaApreensao((p) => !p)}
+                on={somenteBuscaApreensao}
+                label="Somente busca e apreensão (fora da carteira)"
+              />
+              <Chip
+                onClick={() => setSomenteComCpf((p) => !p)}
+                on={somenteComCpf}
+                label="Só com CPF no teor DJEN"
+              />
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
             <Input className="h-9 w-20" value={alvo} onChange={(e) => setAlvo(e.target.value)} title="Alvo" />
-            <Input className="h-9 w-24 uppercase" value={tribunal} onChange={(e) => setTribunal(e.target.value)} />
+            <select
+              className="h-9 min-w-[9rem] rounded-md border border-border bg-background px-2 text-[11px] font-semibold uppercase"
+              value={tribunal}
+              onChange={(e) => setTribunal(e.target.value)}
+              title="Tribunal DJEN (vazio = todos)"
+            >
+              {TRIBUNAIS_DJEN.map((tj) => (
+                <option key={tj.id || "all"} value={tj.id}>
+                  {tj.label}
+                </option>
+              ))}
+            </select>
             <Input className="h-9 w-36" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
             <Input className="h-9 w-36" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
             <Input className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
@@ -616,6 +651,11 @@ export default function GeradorProcessosPage() {
                           {p.telefone}
                         </p>
                       )}
+                      {p.cpf && (
+                        <p className="text-[11px] font-mono text-sky-600 dark:text-sky-400">
+                          CPF {formatCpfMasked(p.cpf)}
+                        </p>
+                      )}
                     </div>
                     {p.link && (
                       <a
@@ -674,7 +714,8 @@ function toRow(
   telefoneAutor: string,
   statusOn: FiltroStatusId[],
   materiaOn: FiltroMateriaId[],
-  sigla?: string
+  sigla?: string,
+  cpfExtra?: string
 ): ProcessoDjenReal {
   const tel = telefoneAutor || "";
   const decisao = classificarSentenca(String(it.texto || ""));
@@ -695,7 +736,7 @@ function toRow(
     nome_completo: nome,
     telefone: tel,
     email: "",
-    cpf: "",
+    cpf: cpfExtra || extractCpfFromDjenText(String(it.texto || "")) || "",
     cnpj: "",
     endereco: "",
     cep: "",
