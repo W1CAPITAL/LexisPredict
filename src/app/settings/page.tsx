@@ -570,19 +570,19 @@ export default function SettingsPage() {
       <PageLoadingBar active={settingsBoot} />
       <main className="lexis-main-pad flex-1 flex flex-col h-dvh min-w-0 overflow-y-auto">
         {/* hero header */}
-        <header className="shrink-0 border-b border-border/50 bg-card/40 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">
+        <header className="shrink-0 border-b border-border bg-card">
+          <div className="mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/30 to-violet-500/20 border border-primary/30 flex items-center justify-center shadow-sm shrink-0">
+                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
                   <Settings className="text-primary" size={22} />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl font-black tracking-tight truncate">
+                  <h1 className="text-xl font-semibold tracking-tight truncate">
                     Configurações
                   </h1>
                   <p className="text-xs text-muted-foreground">
-                    Conta, visual, menu, banca, IA e segurança do gabinete
+                    Gerencie sua conta, assinatura e preferências.
                   </p>
                 </div>
               </div>
@@ -601,35 +601,20 @@ export default function SettingsPage() {
                 <Input
                   value={settingsQuery}
                   onChange={(e) => setSettingsQuery(e.target.value)}
-                  placeholder="Buscar configuração (senha, tema, menu, banca…)"
+                  aria-label="Buscar configuração"
+                  placeholder="Buscar configuração"
                   className="pl-9 h-11 rounded-xl bg-background/80 border-border/60"
                 />
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {[
-                  { id: "Menu", label: "Menu" },
-                  { id: "Conta", label: "Conta" },
-                  { id: "Hardware", label: "Visual" },
-                  { id: "Banca", label: "Banca" },
-                ].map((q) => (
-                  <button
-                    key={q.id}
-                    type="button"
-                    onClick={() => { setActiveTab(q.id); setSettingsQuery(""); }}
-                    className="shrink-0 h-11 px-3 rounded-xl border border-border/50 bg-background/50 text-xs font-bold hover:bg-primary/10 hover:border-primary/30 transition-colors"
-                  >
-                    {q.label}
-                  </button>
-                ))}
-              </div>
+
             </div>
           </div>
         </header>
 
         <div className="flex-1">
-          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+          <div className="mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
             {/* navegação horizontal em chips */}
-            <nav className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            <nav aria-label="Seções das configurações" className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
               {[
                 { id: "Plano", label: "Assinatura", icon: <Crown size={14} />, keywords: "plano assinatura licenca pagamento" },
                 { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
@@ -656,12 +641,13 @@ export default function SettingsPage() {
                   <button
                     key={item.id}
                     type="button"
+                    aria-current={activeTab === item.id ? "page" : undefined}
                     onClick={() => setActiveTab(item.id)}
                     className={cn(
-                      "shrink-0 flex items-center gap-2 h-10 px-3.5 rounded-full text-xs font-bold border transition-all duration-150",
+                      "shrink-0 flex items-center gap-2 h-11 px-3.5 rounded-lg text-sm font-medium border transition-colors",
                       activeTab === item.id
-                        ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
-                        : "bg-card/60 border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                        ? "bg-foreground text-background border-foreground"
+                        : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted"
                     )}
                   >
                     {item.icon}
@@ -671,7 +657,7 @@ export default function SettingsPage() {
             </nav>
 
             {/* conteúdo da aba */}
-            <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm p-4 sm:p-6 min-h-[50vh] shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-4 sm:p-6 min-h-[50vh]">
               {settingsBoot ? (
                 <PageLoading label="Abrindo configurações…" full />
               ) : (
@@ -841,7 +827,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {activeTab === 'Plano' && <div className="space-y-6 max-w-3xl"><PlanosEmpresaPanel />{isSuperadmin && <details className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">Administrar assinaturas</summary><div className="mt-4"><PlanosAdminBloqueio /></div></details>}</div>}
+              {activeTab === 'Plano' && <div className="space-y-6"><PlanosEmpresaPanel />{isSuperadmin && <details className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">Administrar assinaturas</summary><div className="mt-4"><PlanosAdminBloqueio /></div></details>}</div>}
               {activeTab === 'Menu' && (
                 <div className="max-w-3xl space-y-6 animate-in fade-in duration-500">
                   <NavLayoutNomePanel />

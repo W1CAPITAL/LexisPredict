@@ -1,127 +1,76 @@
-/**
- * LexisPredict UI — mudança VISÍVEL em todo o app.
- */
-
+/* Superfícies e cores compartilhadas do aplicativo. */
 :root {
-  --lx-radius: 1rem;
-  --lx-shadow: 0 2px 8px rgb(15 23 42 / 0.08), 0 12px 32px rgb(15 23 42 / 0.06);
-  --lx-shadow-lg: 0 8px 30px rgb(15 23 42 / 0.12);
-  --lx-border: rgb(15 23 42 / 0.1);
-  --lx-muted: #64748b;
-  --primary: 160 84% 32%;
+  --background: 210 25% 97%;
+  --foreground: 222 35% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 35% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 35% 14%;
+  --primary: 164 80% 26%;
   --primary-foreground: 0 0% 100%;
+  --secondary: 210 20% 94%;
+  --secondary-foreground: 222 30% 20%;
+  --muted: 210 20% 95%;
+  --muted-foreground: 215 16% 42%;
+  --accent: 160 25% 94%;
+  --accent-foreground: 164 60% 23%;
+  --destructive: 0 72% 43%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 20% 87%;
+  --input: 214 20% 80%;
+  --ring: 164 80% 26%;
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 222 35% 14%;
+  --sidebar-primary: 164 80% 26%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 160 25% 94%;
+  --sidebar-accent-foreground: 164 60% 23%;
+  --sidebar-border: 214 20% 87%;
+  --sidebar-ring: 164 80% 26%;
+  --lx-radius: 0.75rem;
+  --lx-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  --lx-shadow-lg: 0 12px 36px rgb(15 23 42 / 0.14);
+  --lx-border: hsl(var(--border));
+  --lx-muted: hsl(var(--muted-foreground));
 }
-
-.dark, html.dark, [data-theme="dark"] {
-  --lx-shadow: 0 4px 24px rgb(0 0 0 / 0.45);
-  --lx-border: rgb(255 255 255 / 0.1);
-  --lx-muted: #a1a1aa;
-  --background: 240 6% 7%;
-  --card: 240 5% 10%;
-  --primary: 158 64% 42%;
-}
-
-/* Fundo e texto base */
 html body {
-  background: #f1f5f9 !important;
-  color: #0f172a !important;
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
 }
-html.dark body,
-.dark body {
-  background: #0c0c0e !important;
-  color: #f4f4f5 !important;
-}
-
-/* Cards em todo o app */
-.rounded-2xl.border,
-.rounded-xl.border,
-.card,
-[data-slot="card"] {
-  border-color: var(--lx-border) !important;
-  box-shadow: var(--lx-shadow) !important;
-  background: #ffffff !important;
-}
-.dark .rounded-2xl.border,
-.dark .rounded-xl.border,
-.dark .card {
-  background: #18181b !important;
-  border-color: rgb(255 255 255 / 0.1) !important;
-}
-
-/* KPI / métricas */
 .lexis-metric {
-  border-radius: 1rem;
-  border: 1px solid var(--lx-border);
-  background: #fff;
-  padding: 1.15rem;
+  border-radius: var(--lx-radius);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  padding: 1rem;
   box-shadow: var(--lx-shadow);
 }
-.dark .lexis-metric { background: #18181b; }
-.lexis-metric:hover { box-shadow: var(--lx-shadow-lg); transform: translateY(-2px); }
 .lexis-metric-label {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--lx-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: hsl(var(--muted-foreground));
 }
 .lexis-metric-value {
   font-size: 1.75rem;
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  font-feature-settings: "tnum" 1;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
 }
-
-/* Botões primary */
-button.bg-primary,
-.bg-primary {
-  background: hsl(160 84% 32%) !important;
-  color: #fff !important;
-}
-.dark button.bg-primary,
-.dark .bg-primary {
-  background: hsl(158 64% 42%) !important;
-}
-
-/* Sidebar accent */
-aside .bg-primary,
-[data-sidebar] .bg-primary {
-  background: hsl(160 84% 32%) !important;
-}
-
-/* Charts tooltip */
 .recharts-default-tooltip {
-  background: #0f172a !important;
-  border: 1px solid rgb(255 255 255 / 0.15) !important;
-  border-radius: 12px !important;
-  color: #f8fafc !important;
-  padding: 10px 12px !important;
+  background: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: var(--lx-shadow-lg);
 }
-.recharts-tooltip-label,
-.recharts-tooltip-item { color: #f1f5f9 !important; }
-.recharts-cartesian-axis-tick text { fill: #64748b !important; font-size: 11px !important; }
-
-/* Dialogs */
-[role="dialog"] {
-  border-radius: 1.25rem !important;
-  box-shadow: var(--lx-shadow-lg) !important;
-}
-
-/* Agent dock legacy class */
-.lexis-agent-fab {
-  /* handled inline in component */
-}
-
-/* Page enter */
-main { animation: lx-in 0.3s ease-out; }
-@keyframes lx-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
-
-/* Status chips */
+.recharts-tooltip-label { color: hsl(var(--popover-foreground)) !important; }
+.recharts-cartesian-axis-tick text { fill: hsl(var(--muted-foreground)); }
 [data-status="Vencido"] {
-  background: rgb(239 68 68 / 0.15) !important;
-  color: #b91c1c !important;
+  background: rgb(239 68 68 / 0.12);
+  color: #b91c1c;
 }
-.dark [data-status="Vencido"] { color: #fca5a5 !important; }
+.dark [data-status="Vencido"] { color: #fca5a5; }

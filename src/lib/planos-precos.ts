@@ -32,8 +32,7 @@ export const PLANOS_PRECOS: Record<PlanId, PlanoPreco> = {
       "Processos, fila, tarefas e agenda",
       "Clientes, equipe, notas e permissões",
       "Importação e exportação de planilhas",
-      "Chat da equipe e onboarding guiado",
-      "Auditoria operacional e notificações",
+      "Equipe e guia de uso",
     ],
     naoInclui: ["Scanner DataJud/DJEN", "Gerador DJEN", "CRM e cobrança"],
   },
@@ -49,11 +48,10 @@ export const PLANOS_PRECOS: Record<PlanId, PlanoPreco> = {
       "Tudo do Essencial",
       "Scanner DataJud + DJEN",
       "Gerador de processos automáticos (intervalo + XLSX)",
-      "Relatório da equipe em PDF",
       "Cumprimentos, BA, parados e alertas",
       "Veredito, peças, OCR e IA operacional",
-      "WhatsApp com controle anti-ban",
-      "Supervisão da carteira e relatório PDF",
+      "Atendimento pelo WhatsApp",
+      "Supervisão da carteira, auditoria e notificações",
     ],
     naoInclui: ["CRM completo e régua de cobrança"],
   },
@@ -104,7 +102,7 @@ export function formatBRL(n: number) {
 /** Mensal equivalente quando paga o anual */
 export function mensalDoAnual(plan: PlanId): number {
   const p = PLANOS_PRECOS[plan];
-  return Math.round(p.valorAnual / 12);
+  return Math.round((p.valorAnual / 12) * 100) / 100;
 }
 
 /** Economia vs 12× mensal */
