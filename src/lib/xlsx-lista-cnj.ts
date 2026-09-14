@@ -7,28 +7,55 @@ function esc(s: string) {
 function cell(col: string, row: number, val: string) {
   return `<c r="${col}${row}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
 }
+
+/** Cabeçalhos legíveis para operação */
 const H = [
-  "processo","nome_completo","telefone","telefone_fonte","email","cpf","cnpj",
-  "placa","renavam",
-  "endereco","cep","bairro","municipio","uf","situacao_cadastral","enrich_fonte",
-  "classe","tribunal","data","situacao_hint","link","teor",
+  "Processo (CNJ)",
+  "Cliente / Autor",
+  "Telefone",
+  "CPF",
+  "Placa",
+  "RENAVAM",
+  "Sem advogado",
+  "Tipo B.A.",
+  "Inicio do processo",
+  "Flags",
+  "Classe",
+  "Tribunal",
+  "Data DJEN",
+  "Situacao",
+  "Link DJEN",
+  "Teor (resumo)",
 ] as const;
-const C = "ABCDEFGHIJKLMNOPQRSTUVWX".split("");
+
+const C = "ABCDEFGHIJKLMNOP".split("");
 
 export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
   const header = `<row r="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
   const data = lista.map((p, idx) => {
     const r = idx + 2;
     const vals = [
-      p.processo,p.nome_completo,p.telefone,p.telefone_fonte,p.email,p.cpf,p.cnpj,
-      p.placa || "", p.renavam || "",
-      p.endereco,p.cep,p.bairro,p.municipio,p.uf,p.situacao_cadastral,p.enrich_fonte,
-      p.classe,p.tribunal,p.data,p.situacao_hint,p.link,p.assunto_ou_teor,
+      p.processo,
+      p.nome_completo,
+      p.telefone,
+      p.cpf,
+      p.placa || "",
+      p.renavam || "",
+      p.sem_advogado || "NAO",
+      p.tipo_ba || "",
+      p.ba_inicio || "NAO",
+      p.flags || "",
+      p.classe,
+      p.tribunal,
+      p.data,
+      p.situacao_hint,
+      p.link,
+      p.assunto_ou_teor,
     ];
     return `<row r="${r}">${vals.map((v,i)=>cell(C[i],r,String(v??""))).join("")}</row>`;
   }).join("");
   const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${header}${data}</sheetData></worksheet>`;
-  const wb = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="djen" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const wb = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="BA_DJEN" sheetId="1" r:id="rId1"/></sheets></workbook>`;
   const rels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
   const wbRels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`;
   const ct = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`;

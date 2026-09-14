@@ -1,61 +1,97 @@
 /**
- * Flags opcionais do modo B.A. no gerador DJEN (fora da carteira).
- * Só atuam quando o usuário ativa o chip correspondente.
+ * Flags e classificação B.A. no gerador DJEN (fora da carteira).
+ * Padrão = B.A. de VEÍCULO (alienação fiduciária / cível).
+ * Criminal é modo separado e opcional.
  */
 import { isClasseBuscaApreensao, normalizarTextoBa } from "@/lib/ba-evidence";
 
-/** Publicação é de busca e apreensão (classe ou teor). */
-export function isPublicacaoBuscaApreensao(nomeClasse: unknown, texto: unknown): boolean {
-  const blob = `${nomeClasse || ""} ${texto || ""}`;
-  return (
-    isClasseBuscaApreensao(nomeClasse) ||
-    isClasseBuscaApreensao(blob) ||
-    /busca\s+e\s+apreens/i.test(String(blob))
-  );
+/** Indícios de esfera criminal / tráfico / inquérito — NUNCA no modo veículo. */
+export function isBaCriminalOuTrafico(texto: unknown, nomeClasse?: unknown): boolean {
+  const t = normalizarTextoBa(`${nomeClasse || ""} ${texto || ""}`);
+  if (!t) return false;
+  if (/\bACAO\s+PENAL\b|\bPROCESSO\s+PENAL\b|\bINQUERITO\s+POLICIAL\b/.test(t)) return true;
+  if (/\bCODIGO\s+PENAL\b|\bCP\s*,?\s*ART\b|\bCPP\b/.test(t)) return true;
+  if (/\bTRAFICO\b|\bENTORPECENTES?\b|\sLEI\s+11\.?343\b|\bDROGAS?\b/.test(t)) return true;
+  if (/\bARMAS?\b.*\bFOGO\b|\bPORTE\s+ILEGAL\b|\bLEI\s+10\.?826\b/.test(t)) return true;
+  if (/\bHOMICIDIO\b|\bROUBO\b|\bFURTO\b|\bLATROCINIO\b|\bESTELIONATO\b/.test(t) && /\bBUSCA\s+E\s+APREENSAO\b/.test(t))
+    return true;
+  if (/\bJURI\b|\bEXECUCAO\s+PENAL\b|\bMEDIDA\s+DE\s+SEGURANCA\b/.test(t)) return true;
+  if (/\bDELEGACIA\b|\bDELEGADO\b|\bPOLICIA\s+CIVIL\b|\bPOLICIA\s+MILITAR\b|\bMPF\b|\bMINISTERIO\s+PUBLICO\b.*\bDENUNCIA\b/.test(t)) {
+    if (/\bBUSCA\s+E\s+APREENSAO\b|\bMANDADO\s+DE\s+BUSCA\b/.test(t)) return true;
+  }
+  if (/\bMANDADO\s+DE\s+BUSCA\s+E\s+APREENSAO\s+DOMICILIAR\b/.test(t)) return true;
+  if (/\bAPREENSAO\s+DE\s+(?:ENTORPECENTE|DROGA|ARMAMENTO|MUNICAO)\b/.test(t)) return true;
+  // classe tipicamente criminal
+  if (/\bPENAL\b/.test(t) && /\bBUSCA|APREENSAO\b/.test(t)) return true;
+  return false;
 }
 
-/**
- * Início / fase inicial da B.A.: distribuição, citação, liminar, expedição de mandado.
- * Exclui fases avançadas (leilão, consolidação, cumprimento, alienação já consolidada).
- */
+/** B.A. de veículo / fiduciária / cível (financiamento, alienação). */
+export function isBaVeiculoOuFiduciaria(texto: unknown, nomeClasse?: unknown): boolean {
+  const t = normalizarTextoBa(`${nomeClasse || ""} ${texto || ""}`);
+  if (!t) return false;
+  if (isBaCriminalOuTrafico(texto, nomeClasse)) return false;
+
+  const veic =
+    /\bVEICULO\b|\bAUTOMOVEL\b|\bCAMINHAO\b|\bMOTOCICLETA\b|\bCARRO\b|\bPLACA\b|\bRENAVAM\b|\bCHASSI\b/.test(t) ||
+    /\bALIENACAO\s+FIDUCIARIA\b|\bFIDUCIANTE\b|\bFIDUCIARIO\b|\bCREDOR\s+FIDUCIARIO\b/.test(t) ||
+    /\bFINANCIAMENTO\b|\bCONTRATO\s+DE\s+FINANCIAMENTO\b|\bBANCO\b|\bFINANCEIRA\b/.test(t) ||
+    /\bDECRETO[- ]LEI\s+911\b|\bDL\s+911\b|\bLEI\s+13\.?043\b/.test(t) ||
+    /\bBUSCA\s+E\s+APREENSAO\b/.test(t) && /\bCIVEL\b|\bPROCEDIMENTO\s+COMUM\b/.test(t);
+
+  // classe explícita B.A. cível sem criminal
+  if (isClasseBuscaApreensao(nomeClasse) && !isBaCriminalOuTrafico(texto, nomeClasse)) {
+    // se tem indício criminal no teor, já retornou false acima
+    // classe BA pura: exige não ser criminal; se teor só tem BA genérico, aceita como cível/veículo
+    return true;
+  }
+
+  return veic || (/\bBUSCA\s+E\s+APREENSAO\b/.test(t) && !isBaCriminalOuTrafico(texto, nomeClasse));
+}
+
+/** Publicação de B.A. no modo ativo (veículo padrão ou criminal se flag). */
+export function isPublicacaoBuscaApreensao(
+  nomeClasse: unknown,
+  texto: unknown,
+  opts?: { modoCriminal?: boolean }
+): boolean {
+  const blob = `${nomeClasse || ""} ${texto || ""}`;
+  const temBa =
+    isClasseBuscaApreensao(nomeClasse) ||
+    isClasseBuscaApreensao(blob) ||
+    /busca\s+e\s+apreens/i.test(String(blob));
+
+  if (!temBa) return false;
+
+  if (opts?.modoCriminal) {
+    return isBaCriminalOuTrafico(texto, nomeClasse);
+  }
+  // padrão: veículo/cível — exclui criminal
+  if (isBaCriminalOuTrafico(texto, nomeClasse)) return false;
+  return isBaVeiculoOuFiduciaria(texto, nomeClasse) || isClasseBuscaApreensao(nomeClasse);
+}
+
 export function isBaInicioProcesso(texto: unknown, nomeClasse?: unknown): boolean {
   const t = normalizarTextoBa(`${nomeClasse || ""} ${texto || ""}`);
   if (!t) return false;
+  if (/\bLEILAO\b|\bHASTA\b|\bCONSOLIDACAO\s+DA\s+PROPRIEDADE\b|\bARREMATACAO\b/.test(t)) return false;
+  if (/\bCUMPRIMENTO\s+DE\s+SENTENCA\b|\bEXECUCAO\s+DE\s+TITULO\b/.test(t)) return false;
+  if (/\bSENTENCA\s+(?:DE\s+)?PROCEDENCIA|\bJULGO\s+PROCEDENTE|\bTRANSITO\s+EM\s+JULGADO\b/.test(t)) return false;
 
-  // Fases avançadas → não é início
-  if (
-    /\bLEILAO\b|\bHASTA\b|\bCONSOLIDACAO\s+DA\s+PROPRIEDADE\b|\bARREMATACAO\b/.test(t)
-  ) {
-    return false;
-  }
-  if (/\bCUMPRIMENTO\s+DE\s+SENTENCA\b|\bEXECUCAO\s+DE\s+TITULO\b/.test(t)) {
-    return false;
-  }
-  if (/\bSENTENCA\s+(?:DE\s+)?PROCEDENCIA|\bJULGO\s+PROCEDENTE|\bTRANSITO\s+EM\s+JULGADO\b/.test(t)) {
-    return false;
-  }
-
-  const inicio =
+  return (
     /\bDISTRIBUICAO\b|\bDISTRIBUIDO\b|\bAUTOS\s+DISTRIBUIDOS\b/.test(t) ||
     /\bCITACAO\b|\bCITE[- ]SE\b|\bCITADO\b/.test(t) ||
-    /\bLIMINAR\b/.test(t) && (/\bDEFIRO\b|\bDEFERIDA\b|\bDETERMINO\b|\bEXPED/.test(t) || /BUSCA/.test(t)) ||
+    (/\bLIMINAR\b/.test(t) && (/\bDEFIRO\b|\bDEFERIDA\b|\bDETERMINO\b|\bEXPED/.test(t) || /BUSCA/.test(t))) ||
     /\bEXPEDICAO\s+DE\s+MANDADO\b|\bEXPECA[- ]SE\s+MANDADO\b|\bMANDADO\s+DE\s+BUSCA\b/.test(t) ||
     /\bFASE\s+INICIAL\b|\bINICIAL\s+PROTOCOLADA\b|\bPETICAO\s+INICIAL\b/.test(t) ||
-    /\bDEFIRO\s+.{0,40}BUSCA\s+E\s+APREENSAO\b|\bDETERMINO\s+.{0,40}APREENSAO\b/.test(t) ||
-    /\bINTIME[- ]SE\s+.{0,60}FIDUCI/.test(t);
-
-  return inicio;
+    /\bDEFIRO\s+.{0,40}BUSCA\s+E\s+APREENSAO\b|\bDETERMINO\s+.{0,40}APREENSAO\b/.test(t)
+  );
 }
 
-/**
- * Sem advogado identificável no teor: sem OAB da parte autora / menção explícita.
- * Não confunde com OAB do juízo ou "advogado dativo" genérico sem número.
- */
 export function isSemAdvogadoNoTeor(texto: unknown): boolean {
   const raw = String(texto || "");
   const t = normalizarTextoBa(raw);
 
-  // Menção explícita
   if (
     /\bSEM\s+ADVOGADO\b|\bNAO\s+CONSTA\s+ADVOGADO\b|\bPARTE\s+SEM\s+PATRONO\b|\bEM\s+CAUSA\s+PROPRIA\b|\bJUS\s+POSTULANDI\b/.test(
       t
@@ -63,24 +99,25 @@ export function isSemAdvogadoNoTeor(texto: unknown): boolean {
   ) {
     return true;
   }
-
-  // Há OAB típica (UF 123456) → tem advogado
   if (/\bOAB\s*[\/\-]?\s*[A-Z]{2}\s*[nNº°\.]*\s*\d{3,6}\b/i.test(raw)) return false;
   if (/\bOAB\s*[\/\-]\s*[A-Z]{2}\b/i.test(raw) && /\d{3,6}/.test(raw)) return false;
-
-  // "Dr(a)." + nome + OAB pattern already covered; "advogado:" sozinho sem número ainda conta como possível
   if (/\bADVOGADO[A]?\s*[:\-]\s*[A-ZÀ-Ú]{3,}/.test(t) && /\d{3,6}/.test(raw)) return false;
-
-  // Sem nenhum indício de OAB no texto → trata como sem advogado no teor público
   if (!/\bOAB\b/i.test(raw)) return true;
-
-  // Só a palavra OAB sem número de inscrição
   if (/\bOAB\b/i.test(raw) && !/\d{3,6}/.test(raw)) return true;
-
   return false;
 }
 
-/** Queries DJEN quando flag "início do processo" está ativa. */
+export function queriesBaVeiculo(): string[] {
+  return [
+    "busca e apreensao alienacao fiduciaria",
+    "busca e apreensao veiculo",
+    "busca e apreensao",
+    "alienacao fiduciaria",
+    "mandado de busca e apreensao veiculo",
+    "acao de busca e apreensao",
+  ];
+}
+
 export function queriesBaInicio(): string[] {
   return [
     "busca e apreensao liminar",
@@ -92,14 +129,15 @@ export function queriesBaInicio(): string[] {
   ];
 }
 
-/** Queries base do modo só B.A. */
-export function queriesBaBase(): string[] {
+/** Só se o usuário ativar o modo criminal separado. */
+export function queriesBaCriminal(): string[] {
   return [
-    "busca e apreensao",
-    "busca e apreensão",
-    "alienacao fiduciaria",
-    "mandado de busca e apreensao",
-    "acao de busca e apreensao",
-    "busca e apreensao em alienacao fiduciaria",
+    "busca e apreensao criminal",
+    "mandado de busca e apreensao domiciliar",
+    "busca e apreensao trafico",
+    "busca e apreensao entorpecentes",
   ];
 }
+
+/** Alias legado */
+export const queriesBaBase = queriesBaVeiculo;

@@ -188,6 +188,13 @@ export interface ProcessoDjenReal {
   placa?: string;
   /** RENAVAM só se rotulado no teor */
   renavam?: string;
+  /** SIM se teor sem OAB / sem advogado */
+  sem_advogado?: string;
+  /** veiculo | criminal */
+  tipo_ba?: string;
+  /** SIM se fase inicial */
+  ba_inicio?: string;
+  flags?: string;
 }
 
 export interface ScanLogLine {

@@ -5,8 +5,10 @@ import {
   isPublicacaoBuscaApreensao,
   isBaInicioProcesso,
   isSemAdvogadoNoTeor,
+  isBaCriminalOuTrafico,
   queriesBaInicio,
-  queriesBaBase,
+  queriesBaVeiculo,
+  queriesBaCriminal,
 } from '@/lib/ba-djen-flags';
 import { splitDjenDateRange, djenRetryDelay, waitForDjen } from '@/lib/djen-scan-control';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -124,6 +126,8 @@ export default function GeradorProcessosPage() {
   /** Flags opcionais B.A. (só valem com modo B.A. ligado) */
   const [baInicioProcesso, setBaInicioProcesso] = useState(false);
   const [baSemAdvogado, setBaSemAdvogado] = useState(false);
+  /** Separado: B.A. criminal/tráfico — NÃO misturar com veículo */
+  const [baModoCriminal, setBaModoCriminal] = useState(false);
   const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
@@ -202,15 +206,20 @@ export default function GeradorProcessosPage() {
         );
       }
     } else if (somenteBuscaApreensao) {
-      queries = baInicioProcesso
-        ? [...queriesBaInicio(), ...queriesBaBase()]
-        : queriesBaBase();
-      pushLog(
-        "info",
-        `Modo SÓ B.A. · tribunal=${sigla || "TODOS"} · fora da carteira` +
-          (baInicioProcesso ? " · flag INÍCIO do processo" : "") +
-          (baSemAdvogado ? " · flag SEM ADVOGADO" : "")
-      );
+      if (baModoCriminal) {
+        queries = queriesBaCriminal();
+        pushLog("info", `Modo B.A. CRIMINAL (separado) · tribunal=${sigla || "TODOS"}`);
+      } else {
+        queries = baInicioProcesso
+          ? [...queriesBaInicio(), ...queriesBaVeiculo()]
+          : queriesBaVeiculo();
+        pushLog(
+          "info",
+          `Modo B.A. VEÍCULO/FIDUCIÁRIA · tribunal=${sigla || "TODOS"} · exclui criminal/tráfico` +
+            (baInicioProcesso ? " · INÍCIO" : "") +
+            (baSemAdvogado ? " · SEM ADVOGADO" : "")
+        );
+      }
     } else {
       queries = queriesDosFiltros(statusOn, materiaOn) || [];
     }
@@ -321,11 +330,16 @@ export default function GeradorProcessosPage() {
               continue;
             }
             if (somenteBuscaApreensao) {
-              if (!isPublicacaoBuscaApreensao(it.nomeClasse, it.texto)) {
+              if (!isPublicacaoBuscaApreensao(it.nomeClasse, it.texto, { modoCriminal: baModoCriminal })) {
                 skipFiltro++;
                 continue;
               }
-              if (baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse)) {
+              // Modo veículo: garantia extra — nunca criminal/tráfico
+              if (!baModoCriminal && isBaCriminalOuTrafico(it.texto, it.nomeClasse)) {
+                skipFiltro++;
+                continue;
+              }
+              if (!baModoCriminal && baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse)) {
                 skipFiltro++;
                 continue;
               }
@@ -400,7 +414,21 @@ export default function GeradorProcessosPage() {
               skipFiltro++;
               continue;
             }
-            rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla, cpfPub, veic.placa, veic.renavam));
+            const semAdv = isSemAdvogadoNoTeor(it.texto);
+            const inicio = isBaInicioProcesso(it.texto, it.nomeClasse);
+            const tipoBa = baModoCriminal ? "criminal" : "veiculo";
+            rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla, cpfPub, veic.placa, veic.renavam, {
+              sem_advogado: semAdv ? "SIM" : "NAO",
+              tipo_ba: somenteBuscaApreensao ? tipoBa : "",
+              ba_inicio: inicio ? "SIM" : "NAO",
+              flags: [
+                somenteBuscaApreensao ? (baModoCriminal ? "BA_CRIMINAL" : "BA_VEICULO") : "",
+                semAdv ? "SEM_ADVOGADO" : "",
+                inicio ? "INICIO_PROCESSO" : "",
+                cpfPub ? "COM_CPF" : "",
+                veic.placa ? "COM_PLACA" : "",
+              ].filter(Boolean).join(" | "),
+            }));
           }
 
           const added = add(rows);
@@ -558,10 +586,22 @@ export default function GeradorProcessosPage() {
               {somenteBuscaApreensao && (
                 <>
                   <Chip
-                    onClick={() => setBaInicioProcesso((p) => !p)}
-                    on={baInicioProcesso}
-                    label="B.A. no início do processo"
+                    onClick={() => { setBaModoCriminal(false); }}
+                    on={!baModoCriminal}
+                    label="B.A. VEÍCULO (padrão — sem criminal)"
                   />
+                  <Chip
+                    onClick={() => setBaModoCriminal((p) => !p)}
+                    on={baModoCriminal}
+                    label="B.A. CRIMINAL (opção separada)"
+                  />
+                  {!baModoCriminal && (
+                    <Chip
+                      onClick={() => setBaInicioProcesso((p) => !p)}
+                      on={baInicioProcesso}
+                      label="B.A. no início do processo"
+                    />
+                  )}
                   <Chip
                     onClick={() => setBaSemAdvogado((p) => !p)}
                     on={baSemAdvogado}
@@ -702,6 +742,17 @@ export default function GeradorProcessosPage() {
                           Placa {p.placa}{p.renavam ? ` · RENAVAM ${p.renavam}` : ""}
                         </p>
                       )}
+                      {p.sem_advogado === "SIM" && (
+                        <p className="text-[10px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                          Sem advogado
+                        </p>
+                      )}
+                      {p.tipo_ba && (
+                        <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                          B.A. {p.tipo_ba === "criminal" ? "criminal" : "veículo"}
+                          {p.ba_inicio === "SIM" ? " · início" : ""}
+                        </p>
+                      )}
                     </div>
                     {p.link && (
                       <a
@@ -763,7 +814,8 @@ function toRow(
   sigla?: string,
   cpfExtra?: string,
   placaExtra?: string,
-  renavamExtra?: string
+  renavamExtra?: string,
+  extra?: { sem_advogado?: string; tipo_ba?: string; ba_inicio?: string; flags?: string }
 ): ProcessoDjenReal {
   const tel = telefoneAutor || "";
   const decisao = classificarSentenca(String(it.texto || ""));
@@ -788,6 +840,10 @@ function toRow(
     cnpj: "",
     placa: placaExtra || "",
     renavam: renavamExtra || "",
+    sem_advogado: extra?.sem_advogado || "NAO",
+    tipo_ba: extra?.tipo_ba || "",
+    ba_inicio: extra?.ba_inicio || "NAO",
+    flags: extra?.flags || "",
     endereco: "",
     cep: "",
     bairro: "",
