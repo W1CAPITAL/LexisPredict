@@ -21,7 +21,6 @@ import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card'
 import { BiCompliancePanel } from '@/components/dashboard/bi-compliance-panel';
-import { SuiteIdentityStrip } from '@/components/dashboard/suite-identity-strip';
 
 const EfferdPanel = memo(EfferdPanelRaw);
 const OfficeStats = dynamic(() => import('@/components/dashboard/office-stats').then((m) => m.OfficeStats), {
@@ -268,7 +267,7 @@ export default function Dashboard() {
     <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
-        <header className="admin-page-header h-auto flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:px-10 gap-4 shrink-0 z-40">
+        <header className="admin-page-header relative h-auto flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 sm:px-8 gap-3 shrink-0">
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
               <LayoutDashboard size={20} className="text-foreground" />
@@ -323,7 +322,7 @@ export default function Dashboard() {
           </div>
 
           <ScrollArea className="flex-1 overflow-auto">
-            <TabsContent value="overview" className="p-4 sm:p-10 space-y-10 m-0 max-w-[1600px] mx-auto w-full">
+            <TabsContent value="overview" className="p-3 sm:p-5 space-y-5 m-0 max-w-[1600px] mx-auto w-full">
             {isEmpty && (
               <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-border/30 rounded-2xl space-y-6 text-center animate-in fade-in duration-500 bg-card/30">
                 <div className="w-20 h-20 rounded-2xl bg-black text-white flex items-center justify-center shadow-[10px_10px_0px_#00D1FF]">
@@ -351,7 +350,15 @@ export default function Dashboard() {
             {/* EFFORD — topo do dashboard */}
             <div className="mb-6">
               <section className="rounded-2xl border border-border/50 bg-card/50 p-3 sm:p-5 shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-3 px-1">Indicadores</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Indicadores</p>
+                  <nav className="flex flex-wrap gap-1.5 text-[10px] font-semibold">
+                    <a href="/cases" className="rounded-md border border-border/60 px-2 py-1 hover:bg-muted">Processos</a>
+                    <a href="/tarefas" className="rounded-md border border-border/60 px-2 py-1 hover:bg-muted">Fila</a>
+                    <a href="/processos-parados" className="rounded-md border border-border/60 px-2 py-1 hover:bg-muted">Parados</a>
+                    <a href="/report" className="rounded-md border border-border/60 px-2 py-1 hover:bg-muted">Dossiê</a>
+                  </nav>
+                </div>
                 <EfferdPanel
                   totalProcessos={cases.length}
                   ativos={metrics.activeTotal}
