@@ -63,7 +63,9 @@ export function SidebarDock() {
   const [query, setQuery] = useState("");
 
   const extras = useMemo(() => {
-    const items = more.map(([label, href, icon]) => ({ label, href, icon }));
+    // label: string — admin/superadmin labels are not in the `more` const union
+    const items: { label: string; href: string; icon: React.ComponentType<{ className?: string; size?: number | string }> }[] =
+      more.map(([label, href, icon]) => ({ label, href, icon }));
     if (isAdmin) {
       items.push(
         { label: "Supervisão", href: "/supervisao", icon: ShieldCheck },
