@@ -1,6 +1,13 @@
 "use client";
 
 import { isClasseBuscaApreensao } from '@/lib/ba-evidence';
+import {
+  isPublicacaoBuscaApreensao,
+  isBaInicioProcesso,
+  isSemAdvogadoNoTeor,
+  queriesBaInicio,
+  queriesBaBase,
+} from '@/lib/ba-djen-flags';
 import { splitDjenDateRange, djenRetryDelay, waitForDjen } from '@/lib/djen-scan-control';
 import { useAuth } from '@/components/auth/auth-provider';
 import React, { useEffect, useRef, useState } from "react";
@@ -114,6 +121,9 @@ export default function GeradorProcessosPage() {
   /** Só aceita publicação com CPF válido no teor DJEN (PJe MG etc.) */
   const [somenteComCpf, setSomenteComCpf] = useState(false);
   const [somenteComPlaca, setSomenteComPlaca] = useState(false);
+  /** Flags opcionais B.A. (só valem com modo B.A. ligado) */
+  const [baInicioProcesso, setBaInicioProcesso] = useState(false);
+  const [baSemAdvogado, setBaSemAdvogado] = useState(false);
   const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
@@ -192,18 +202,14 @@ export default function GeradorProcessosPage() {
         );
       }
     } else if (somenteBuscaApreensao) {
-      // Fora da carteira: só DJEN público · B.A. / alienação
-      queries = [
-        "busca e apreensao",
-        "busca e apreensão",
-        "alienacao fiduciaria",
-        "mandado de busca e apreensao",
-        "acao de busca e apreensao",
-        "busca e apreensao em alienacao fiduciaria",
-      ];
+      queries = baInicioProcesso
+        ? [...queriesBaInicio(), ...queriesBaBase()]
+        : queriesBaBase();
       pushLog(
         "info",
-        `Modo SÓ BUSCA E APREENSÃO · tribunal=${sigla || "TODOS"} · fora da carteira Lexis (só DJEN)`
+        `Modo SÓ B.A. · tribunal=${sigla || "TODOS"} · fora da carteira` +
+          (baInicioProcesso ? " · flag INÍCIO do processo" : "") +
+          (baSemAdvogado ? " · flag SEM ADVOGADO" : "")
       );
     } else {
       queries = queriesDosFiltros(statusOn, materiaOn) || [];
@@ -287,8 +293,7 @@ export default function GeradorProcessosPage() {
           }
           if (!res.ok) {
             pushLog("err", String(res.error || "falha na consulta"));
-            // não aborta o modo inteiro: tenta próxima query/janela
-            break; // sai só desta paginação desta query
+            break;
           }
 
           if (stopRef.current || controller.signal.aborted) break outer;
@@ -315,13 +320,16 @@ export default function GeradorProcessosPage() {
               skipSigilo++;
               continue;
             }
-            // Somente B.A.: classe OU teor (muitos TJ publicam B.A. em classe cível genérica)
             if (somenteBuscaApreensao) {
-              const baOk =
-                isClasseBuscaApreensao(it.nomeClasse) ||
-                isClasseBuscaApreensao(blob) ||
-                /busca\s+e\s+apreens/i.test(blob);
-              if (!baOk) {
+              if (!isPublicacaoBuscaApreensao(it.nomeClasse, it.texto)) {
+                skipFiltro++;
+                continue;
+              }
+              if (baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse)) {
+                skipFiltro++;
+                continue;
+              }
+              if (baSemAdvogado && !isSemAdvogadoNoTeor(it.texto)) {
                 skipFiltro++;
                 continue;
               }
@@ -547,6 +555,20 @@ export default function GeradorProcessosPage() {
                 on={somenteBuscaApreensao}
                 label="Somente busca e apreensão (fora da carteira)"
               />
+              {somenteBuscaApreensao && (
+                <>
+                  <Chip
+                    onClick={() => setBaInicioProcesso((p) => !p)}
+                    on={baInicioProcesso}
+                    label="B.A. no início do processo"
+                  />
+                  <Chip
+                    onClick={() => setBaSemAdvogado((p) => !p)}
+                    on={baSemAdvogado}
+                    label="Sem advogado no teor"
+                  />
+                </>
+              )}
               <Chip
                 onClick={() => setSomenteComCpf((p) => !p)}
                 on={somenteComCpf}
