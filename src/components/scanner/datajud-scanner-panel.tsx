@@ -197,7 +197,7 @@ export function DataJudScannerPanel() {
           <section className="p-5 bg-violet-50 border-2 border-violet-600/30 space-y-3">
              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-violet-900">Claude AI (OmniRoute)</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-violet-900">Claude na cascata</p>
                   <p className="text-[8px] font-bold text-violet-700/80 uppercase mt-1">
                     Análise neural de flags · só após ativar
                   </p>

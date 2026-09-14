@@ -88,13 +88,7 @@ export type CascadeResult = {
 
 export function buildEngineList(preferred?: string): CascadeEngine[] {
   const engines: CascadeEngine[] = [
-    {
-      id: 'omniroute',
-      url: 'omniroute',
-      key: cleanGatewayBaseUrl(process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL) || undefined,
-      model: process.env.OMNIROUTE_MODEL || process.env.OMNIROUTE_MODEL_CLAUDE || 'auto/best-chat',
-      kind: 'omniroute',
-    },
+
     {
       id: 'claude',
       url: 'https://api.anthropic.com/v1/messages',
@@ -144,14 +138,7 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
     },
   ];
   let list = engines.filter((e) => {
-    if (e.id === 'omniroute') {
-      return !!(
-        process.env.OMNIROUTE_API_KEY ||
-        process.env.OMNIROUTE_BASE_URL ||
-        process.env.AI_GATEWAY_BASE_URL
-      );
-    }
-    return !!e.key;
+    return e.id !== 'omniroute' && !!e.key;
   });
   const pref = (preferred || 'claude').toLowerCase();
   const idx = list.findIndex((e) => e.id === pref || pref.includes(e.id) || e.id.includes(pref));
@@ -373,154 +360,7 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     }
   }
 
-  // --- OmniRoute (só se preferred for omni/claude/auto) ---
-  const omni = cleanGatewayBaseUrl(process.env.OMNIROUTE_BASE_URL || process.env.AI_GATEWAY_BASE_URL || '');
-  const wantOmni =
-    preferred === 'auto' ||
-    preferred.includes('omni') ||
-    preferred === 'claude' ||
-    preferred.includes('anthropic');
-
-  if (omni.trim() && wantOmni) {
-    try {
-      const cleaned = cleanGatewayBaseUrl(omni);
-      if (!cleaned.startsWith('http')) {
-        throw new Error(`OMNIROUTE_BASE_URL inválida: "${String(omni).slice(0, 40)}"`);
-      }
-      const base = cleaned.endsWith('/v1') ? cleaned : `${cleaned}/v1`;
-      const key =
-        process.env.OMNIROUTE_API_KEY ||
-        process.env.ANTHROPIC_API_KEY ||
-        process.env.OPENAI_API_KEY ||
-        'omni';
-      const msgs: Array<{ role: string; content: string }> = [];
-      if (system) msgs.push({ role: 'system', content: system });
-      for (const h of history) msgs.push(h);
-      msgs.push({ role: 'user', content: user });
-
-      // Modelos: NÃO use claude-sonnet-4-* se Anthropic não estiver cadastrado no painel OmniRoute
-      // (isso gera HTTP 404 "No active credentials for provider: anthropic").
-      // Preferir modelos uteis; evitar auto/best-free que roteia para felo-chat / lixo
-      const modelCandidates = [
-        process.env.OMNIROUTE_MODEL_CLAUDE,
-        process.env.OMNIROUTE_MODEL,
-        process.env.ANTHROPIC_MODEL,
-        'claude-sonnet-4-20250514',
-        'claude-3-5-sonnet-latest',
-        'anthropic/claude-sonnet-4',
-        'auto/best-chat',
-        'gpt-4o-mini',
-        'auto',
-      ].filter((v, i, a) => !!v && a.indexOf(v) === i) as string[];
-
-      const t0 = Date.now();
-      let lastStatus = 0;
-      let lastBody: any = {};
-
-      for (const model of modelCandidates) {
-        const res = await fetch(`${base}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${key}`,
-            accept: 'application/json',
-          },
-          body: JSON.stringify({
-            model,
-            messages: msgs,
-            max_tokens: opts.max_tokens ?? 4096,
-            temperature: opts.temperature ?? 0.3,
-            stream: false,
-          }),
-          signal: AbortSignal.timeout(90000),
-        });
-        lastStatus = res.status;
-        const ct = res.headers.get('content-type') || '';
-        const rawText = await res.text();
-        let raw: any = {};
-        try {
-          raw = JSON.parse(rawText);
-        } catch {
-          // SSE / stream acidental
-          if (rawText.includes('data:')) {
-            const parts = rawText
-              .split('\n')
-              .filter((l) => l.startsWith('data:'))
-              .map((l) => l.replace(/^data:\s*/, '').trim())
-              .filter((l) => l && l !== '[DONE]');
-            let acc = '';
-            for (const p of parts) {
-              try {
-                const j = JSON.parse(p);
-                acc += j?.choices?.[0]?.delta?.content || j?.choices?.[0]?.message?.content || '';
-              } catch {
-                /* */
-              }
-            }
-            if (acc.trim()) {
-              const latencyMs = Date.now() - t0;
-              return {
-                text: acc.trim(),
-                engineId: 'omniroute',
-                model,
-                latencyMs,
-                latency: latencyMs,
-                tokens: 0,
-                gateway: base,
-              };
-            }
-          }
-          raw = { error: { message: rawText.slice(0, 200) } };
-        }
-        lastBody = raw;
-
-        if (res.ok) {
-          const text =
-            raw?.choices?.[0]?.message?.content ||
-            raw?.choices?.[0]?.text ||
-            '';
-          const resolvedModel = String(raw?.model || model || '');
-          const trimmed = String(text).trim();
-          // Rejeita felo-chat e respostas vazias/emoji
-          if (
-            /felo/i.test(resolvedModel) ||
-            isLowQualityAiText(trimmed, resolvedModel)
-          ) {
-            errors.push(
-              `omniroute[${resolvedModel}]: resposta baixa qualidade (${trimmed.slice(0, 40) || 'vazio'})`
-            );
-            continue;
-          }
-          if (trimmed) {
-            const latencyMs = Date.now() - t0;
-            return {
-              text: trimmed,
-              engineId: 'omniroute',
-              model: resolvedModel,
-              latencyMs,
-              latency: latencyMs,
-              tokens: raw?.usage?.total_tokens,
-              gateway: base,
-            };
-          }
-        }
-
-        // 404/402 neste modelo → tenta próximo; não aborta a cascata inteira
-        const msg = raw?.error?.message || `HTTP ${res.status}`;
-        errors.push(`omniroute[${model}]: ${msg}`);
-        if (res.status === 401 || res.status === 403) break;
-      }
-
-      if (lastStatus && !errors.length) {
-        errors.push(`omniroute: HTTP ${lastStatus}`);
-      }
-    } catch (e: any) {
-      errors.push(`omniroute: ${e?.message || e}`);
-    }
-    // NÃO bloquear fallback por "modo exclusivo" no OmniRoute:
-    // se o gateway falhou (404 credenciais Anthropic, 402, etc.), segue para xAI/Groq/etc.
-    // Só encerra se forceEngineId for estritamente omniroute E não houver lista depois.
-  }
+  // OmniRoute removido. Cascata segue MiniMax → Claude → Grok → Groq → NVIDIA → OpenRouter.
 
   // --- Lista de engines filtrada: se exclusive, só o id pedido ---
   let list = buildEngineList(preferred === 'auto' ? undefined : preferred);

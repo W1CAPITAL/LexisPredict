@@ -201,3 +201,36 @@ export async function liberarEmpresaPlanoAction(
     return { ok: false, persisted: false, error: e?.message || "falha" };
   }
 }
+
+
+export async function trocarMeuPlanoAction(plan: PlanId, ciclo?: "mensal" | "anual") {
+  const ctx = await getUserContext();
+  const empresaId = String(ctx?.empresa_id || "").trim();
+  if (!empresaId) return { ok: false, error: "Sem empresa" };
+  const pode =
+    !!(ctx as any)?.isSuperAdmin ||
+    !!(ctx as any)?.isAdministrador ||
+    !!(ctx as any)?.isSupervisor;
+  if (!pode) return { ok: false, error: "Só administrador da empresa troca o plano." };
+  const p = normalizePlanId(plan);
+  const dias = ciclo === "anual" ? 365 : 30;
+  const expiresAt = new Date(Date.now() + dias * 86400000).toISOString();
+  try {
+    const { getSupabaseAdmin } = await import("@/lib/server-db");
+    const admin = await getSupabaseAdmin();
+    if (!admin) return { ok: false, error: "Service role ausente" };
+    const { error } = await admin
+      .from("empresas")
+      .update({
+        plano: p,
+        plano_bloqueado: false,
+        plano_bloqueio_motivo: null,
+        plano_expira_em: expiresAt,
+      })
+      .eq("id", empresaId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, plan: p, ciclo: ciclo || "mensal", expiresAt };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || "falha" };
+  }
+}

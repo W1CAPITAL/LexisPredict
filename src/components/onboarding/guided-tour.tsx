@@ -77,7 +77,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     title: "Bem-vindo ao LexisPredict",
     content:
-      "SaaS multi-tenant de operacao juridica: carteira, prazos, atendimento, auditoria CNJ (DataJud), diario oficial (DJEN), documentos, equipe e IA (Claude/OmniRoute + cascata). Este guia percorre o menu real do app — use como treinamento de novos operadores.",
+      "SaaS multi-tenant de operacao juridica: carteira, prazos, atendimento, auditoria CNJ (DataJud), diario oficial (DJEN), documentos, equipe e IA (cascata de IA + cascata). Este guia percorre o menu real do app — use como treinamento de novos operadores.",
     icon: <Sparkles />,
     route: "/",
     porQue: "Entender o mapa antes de operar volume.",
@@ -106,7 +106,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     title: "Fila de contato (Tarefas)",
     content:
-      "Ordem de atendimento: criticos e novidades antes de prazo generico. Cards por cliente. Sugerir resposta gera mensagens para WhatsApp/e-mail (scripts Lexis + IA Claude/OmniRoute). Auditoria 3D nesta tela consulta so DJEN (rapido). Registre o contato para zerar a fila.",
+      "Ordem de atendimento: criticos e novidades antes de prazo generico. Cards por cliente. Sugerir resposta gera mensagens para WhatsApp/e-mail (scripts Lexis + IA cascata de IA). Auditoria 3D nesta tela consulta so DJEN (rapido). Registre o contato para zerar a fila.",
     icon: <ListTodo />,
     route: "/tarefas",
     porQue: "Nao perder retorno ao cliente apos novidade no tribunal.",
@@ -136,7 +136,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     title: "Scanner tribunal (DataJud + DJEN)",
     content:
-      "Motor de sincronizacao: DataJud (movimentos CNJ) e DJEN (diario). Use RESUME para continuar de onde parou; FULL reinicia a fila. Consulta 1 a 1 (botao na linha) e mais confiavel que o lote quando o log mostra Tempo esgotado. Timeout no lote NAO significa ausencia de movimento — clique no processo e consulte de novo. Flags: novidade, encerrado tribunal, cumprimento, B.A. Flags: novidade, encerrado, cumprimento, indicios BA. IA opcional (Claude/OmniRoute) classifica eventos — escolha o motor no scanner e veja no log qual IA rodou.",
+      "Motor de sincronizacao: DataJud (movimentos CNJ) e DJEN (diario). Use RESUME para continuar de onde parou; FULL reinicia a fila. Consulta 1 a 1 (botao na linha) e mais confiavel que o lote quando o log mostra Tempo esgotado. Timeout no lote NAO significa ausencia de movimento — clique no processo e consulte de novo. Flags: novidade, encerrado tribunal, cumprimento, B.A. Flags: novidade, encerrado, cumprimento, indicios BA. IA opcional (cascata de IA) classifica eventos — escolha o motor no scanner e veja no log qual IA rodou.",
     icon: <Globe />,
     route: "/",
     porQue: "Atualizar a carteira sem abrir processo a processo no tribunal.",
@@ -160,12 +160,12 @@ const TOUR_STEPS: TourStep[] = [
     ganho: "Alerta operacional precoce.",
     metrica: "Matches na carteira vs ruido.",
     tempo: "5–15 min",
-    dicas: ["Priorize nome do cliente; advogado e criterio auxiliar.", "Claude/OmniRoute reduz falso positivo."],
+    dicas: ["Priorize nome do cliente; advogado e criterio auxiliar.", "cascata de IA reduz falso positivo."],
   },
   {
     title: "Assistente IA (/chat)",
     content:
-      "Copiloto geral: qualquer pergunta (nao so processo). Anexe PDF ou imagem (decisao ou qualquer documento). Pensamento visivel em perguntas complexas. CNJ na mensagem dispara consulta DJEN automatica. Motores: Claude/OmniRoute, Groq, xAI, OpenRouter, GPT4Free (fallback gratis), etc.",
+      "Copiloto geral: qualquer pergunta (nao so processo). Anexe PDF ou imagem (decisao ou qualquer documento). Pensamento visivel em perguntas complexas. CNJ na mensagem dispara consulta DJEN automatica. Motores: cascata de IA, Groq, xAI, OpenRouter, GPT4Free (fallback gratis), etc.",
     icon: <Bot />,
     route: "/chat",
     porQue: "Acelerar analise, redacao e leitura de pecas.",
@@ -301,12 +301,12 @@ const TOUR_STEPS: TourStep[] = [
     ganho: "Pecas e IA alinhadas ao escritorio.",
     metrica: "Zero peca com advogado incompleto.",
     tempo: "10–20 min setup",
-    dicas: ["Nunca cole API keys na UI — so no Vercel Env.", "GPT4Free e fallback; preferira Claude/OmniRoute."],
+    dicas: ["Nunca cole API keys na UI — so no Vercel Env.", "GPT4Free e fallback; preferira cascata de IA."],
   },
   {
     title: "Indicadores, Urgencias e Relatorios",
     content:
-      "Analytics da carteira, urgencias e relatorios (incluindo enriquecimento Claude/OmniRoute quando configurado). Dossie operacional estrategico (PDF premium) a partir do dashboard/processo — risco, timeline, DJEN, plano de acao.",
+      "Analytics da carteira, urgencias e relatorios (incluindo enriquecimento cascata de IA quando configurado). Dossie operacional estrategico (PDF premium) a partir do dashboard/processo — risco, timeline, DJEN, plano de acao.",
     icon: <BarChart3 />,
     route: "/analytics",
     porQue: "Gestao e prestacao de contas com evidencia.",

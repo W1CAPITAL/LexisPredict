@@ -268,7 +268,7 @@ export function AgentDock() {
                   <option value="claude">Claude</option>
                   <option value="xai">xAI Grok</option>
                   <option value="groq">Groq</option>
-                  <option value="omni">OmniRoute</option>
+                  <option value="omni">Cascata</option>
                 </select>
               ) : null}
             </div>

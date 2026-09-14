@@ -25,11 +25,11 @@ import {
   type DossieEditableFields,
 } from "@/app/actions/dossie-cliente-action";
 
-/** Default = Claude / OmniRoute (sem local_only no enriquecimento) */
+/** Default = Claude na cascata */
 const MOTORS = [
-  { id: "claude", label: "Claude / OmniRoute (padrão)" },
-  { id: "omniroute", label: "OmniRoute gateway" },
-  { id: "auto", label: "Auto (OmniRoute → Grok → Groq)" },
+  { id: "claude", label: "Claude (cascata)" },
+  { id: "omniroute", label: "Cascata automática" },
+  { id: "auto", label: "Auto (Claude → Grok → Groq)" },
   { id: "xai", label: "xAI Grok" },
   { id: "groq-llama", label: "Groq Llama" },
 ];
