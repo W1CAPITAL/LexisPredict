@@ -194,12 +194,12 @@ export default function GeradorProcessosPage() {
     } else if (somenteBuscaApreensao) {
       // Fora da carteira: só DJEN público · B.A. / alienação
       queries = [
-        "busca e apreensão",
-        "busca e apreensão em alienação fiduciária",
         "busca e apreensao",
-        "ação de busca e apreensão",
-        "mandado de busca e apreensão",
-        "alienação fiduciária busca",
+        "busca e apreensão",
+        "alienacao fiduciaria",
+        "mandado de busca e apreensao",
+        "acao de busca e apreensao",
+        "busca e apreensao em alienacao fiduciaria",
       ];
       pushLog(
         "info",
@@ -287,7 +287,8 @@ export default function GeradorProcessosPage() {
           }
           if (!res.ok) {
             pushLog("err", String(res.error || "falha na consulta"));
-            break;
+            // não aborta o modo inteiro: tenta próxima query/janela
+            break; // sai só desta paginação desta query
           }
 
           if (stopRef.current || controller.signal.aborted) break outer;
@@ -314,10 +315,16 @@ export default function GeradorProcessosPage() {
               skipSigilo++;
               continue;
             }
-            // Somente busca e apreensão: aceita só itens com BA no clause ou teor.
-            if (somenteBuscaApreensao && !isClasseBuscaApreensao(it.nomeClasse)) {
-              skipFiltro++;
-              continue;
+            // Somente B.A.: classe OU teor (muitos TJ publicam B.A. em classe cível genérica)
+            if (somenteBuscaApreensao) {
+              const baOk =
+                isClasseBuscaApreensao(it.nomeClasse) ||
+                isClasseBuscaApreensao(blob) ||
+                /busca\s+e\s+apreens/i.test(blob);
+              if (!baOk) {
+                skipFiltro++;
+                continue;
+              }
             }
             const digits = cnjOficial(it); // SEMPRE o campo oficial da API
             if (!digits) {

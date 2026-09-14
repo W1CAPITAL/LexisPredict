@@ -113,12 +113,22 @@ export async function djenBuscaTexto(
     }
     const text = await res.text();
     const trimmed = text.trim();
+    if (!trimmed) {
+      return {
+        ok: false,
+        status: res.status,
+        error: `DJEN respondeu vazio (HTTP ${res.status}). Tente outro intervalo de datas ou tribunal.`,
+        items: [],
+      };
+    }
     if (!res.ok || trimmed.startsWith("<") || /<!doctype html/i.test(trimmed)) {
       return {
         ok: false,
         status: res.status,
-        htmlBlocked: trimmed.startsWith("<"),
-        error: trimmed.startsWith("<") ? `DJEN respondeu HTML (HTTP ${res.status}). Consulta bloqueada.` : `DJEN indisponível (HTTP ${res.status}).`,
+        htmlBlocked: trimmed.startsWith("<") || /<!doctype html/i.test(trimmed),
+        error: trimmed.startsWith("<") || /<!doctype html/i.test(trimmed)
+          ? `DJEN respondeu HTML/WAF (HTTP ${res.status}). Bloqueio de rede — tente outro horário ou rede.`
+          : `DJEN indisponível (HTTP ${res.status}): ${trimmed.slice(0, 120)}`,
         items: [],
       };
     }
@@ -126,9 +136,21 @@ export async function djenBuscaTexto(
     try {
       data = JSON.parse(trimmed);
     } catch {
-      return { ok: false, status: res.status, error: "Resposta não é JSON", items: [] };
+      return {
+        ok: false,
+        status: res.status,
+        error: `Resposta não é JSON (HTTP ${res.status}): ${trimmed.slice(0, 100)}`,
+        items: [],
+      };
     }
-    const rawItems: DjenItemRaw[] = Array.isArray(data.items) ? data.items : [];
+    // API às vezes devolve items em status/mensagem sem array
+    const rawItems: DjenItemRaw[] = Array.isArray(data.items)
+      ? data.items
+      : Array.isArray(data.content)
+        ? data.content
+        : Array.isArray(data)
+          ? data
+          : [];
     for (const it of rawItems) {
       (it as any).texto = plainText(String(it.texto || ""));
     }
