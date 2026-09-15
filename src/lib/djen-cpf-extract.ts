@@ -4,41 +4,18 @@
  */
 import { cpfValido } from "@/lib/cpf-cnpj";
 
-const RE_LABELED =
-  /\bCPF\s*[:\-]?\s*(\d{3}\.?\d{3}\.?\d{3}[\-\/]?\d{2}|\d{11})\b/gi;
-const RE_MASKED = /\b(\d{3}\.\d{3}\.\d{3}\-\d{2})\b/g;
-const RE_DIGITS11 = /(?<!\d)(\d{11})(?!\d)/g;
+function digitsOnly(s: string): string { return String(s || "").replace(/\D/g, ""); }
 
-function digitsOnly(s: string): string {
-  return String(s || "").replace(/\D/g, "");
-}
-
-/** Retorna o primeiro CPF com dígitos verificadores válidos no texto. */
+/** Só o número rotulado ou formatado; valida ambos os dígitos verificadores. */
 export function extractCpfFromDjenText(texto: string | null | undefined): string {
   const t = String(texto || "");
-  if (!t.trim()) return "";
-
-  const candidates: string[] = [];
-
-  let m: RegExpExecArray | null;
-  RE_LABELED.lastIndex = 0;
-  while ((m = RE_LABELED.exec(t)) !== null) {
-    candidates.push(digitsOnly(m[1]));
-  }
-  RE_MASKED.lastIndex = 0;
-  while ((m = RE_MASKED.exec(t)) !== null) {
-    candidates.push(digitsOnly(m[1]));
-  }
-  // só digits soltos se houver label CPF perto (evita CNJ)
-  if (/cpf/i.test(t)) {
-    RE_DIGITS11.lastIndex = 0;
-    while ((m = RE_DIGITS11.exec(t)) !== null) {
-      candidates.push(m[1]);
+  const labeled = /\bCPF(?:\s*\/\s*MF)?\s*(?:n[.º°o]*\s*)?[:\-]?\s*(\d{3}\.?\d{3}\.?\d{3}[\-\/]?\d{2})(?!\d)/gi;
+  const formatted = /(?<!\d)(\d{3}\.\d{3}\.\d{3}-\d{2})(?!\d)/g;
+  for (const regex of [labeled, formatted]) {
+    for (const match of t.matchAll(regex)) {
+      const d = digitsOnly(match[1]);
+      if (cpfValido(d)) return d;
     }
-  }
-
-  for (const d of candidates) {
-    if (d.length === 11 && cpfValido(d)) return d;
   }
   return "";
 }

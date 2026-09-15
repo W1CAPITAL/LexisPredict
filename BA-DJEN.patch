@@ -1,0 +1,1260 @@
+diff --git a/src/app/gerador-processos/page.tsx b/src/app/gerador-processos/page.tsx
+index e1cd736..ae89aca 100644
+--- a/src/app/gerador-processos/page.tsx
++++ b/src/app/gerador-processos/page.tsx
+@@ -1,6 +1,5 @@
+ "use client";
+ 
+-import { isClasseBuscaApreensao } from '@/lib/ba-evidence';
+ import {
+   isPublicacaoBuscaApreensao,
+   isBaInicioProcesso,
+@@ -22,7 +21,8 @@ import {
+   djenLink,
+   type DjenItemRaw,
+   extractTelefonePorContexto,
+-  extractNomeDoAutor,
++  extractEmailFromDjenText,
++  dataPublicacaoNaJanela,
+ } from "@/lib/djen-client";
+ import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
+ import {
+@@ -33,7 +33,6 @@ import {
+   passaFiltrosCombinados,
+   matchMateria,
+   textoTemCnpj,
+-  extractTelefoneSeguro,
+   extractNomeCompletoFromDjen,
+   formatCnjMasked,
+   isSegredoOuSigilo,
+@@ -48,7 +47,6 @@ import { Download, Loader2, Search, ExternalLink, Square } from "lucide-react";
+ import {
+   analisarProcedenteSemCumprimento,
+   queriesProcedenteSemCumprimento,
+-  naJanelaPrescricao,
+   rotuloIdade,
+   isEsferaPenal,
+ } from "@/lib/procedente-sem-cumprimento";
+@@ -63,14 +61,15 @@ import { extractVeiculoFromDjenText } from "@/lib/djen-veiculo-extract";
+ const isoHoje = () => new Date().toISOString().slice(0, 10);
+ const isoIni = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+ 
+-function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
++function Chip({ on, label, onClick, disabled }: { on: boolean; label: string; onClick: () => void; disabled?: boolean }) {
+   return (
+     <button
+       type="button"
+       onClick={onClick}
++      disabled={disabled}
+       aria-pressed={on}
+       className={
+-        "text-[11px] rounded-lg border px-2.5 py-1.5 font-medium " +
++        "min-h-11 text-xs rounded-lg border px-3 py-2 font-medium disabled:opacity-60 " +
+         (on
+           ? "border-primary bg-primary text-primary-foreground"
+           : "border-border/60 text-muted-foreground")
+@@ -111,7 +110,7 @@ export default function GeradorProcessosPage() {
+   const abortRef = useRef<AbortController | null>(null);
+   useEffect(() => () => { abortRef.current?.abort(); }, []);
+   const [alvo, setAlvo] = useState("60");
+-  const [tribunal, setTribunal] = useState("TJSP");
++  const [tribunal, setTribunal] = useState("");
+   const [dataInicio, setDataInicio] = useState(isoIni);
+   const [dataFim, setDataFim] = useState(isoHoje);
+   const [statusOn, setStatusOn] = useState<FiltroStatusId[]>(() => filtrosDefaultStatus());
+@@ -119,7 +118,7 @@ export default function GeradorProcessosPage() {
+     const d = filtrosDefaultMateria();
+     return d.includes("busca_apreensao") ? d : [...d, "busca_apreensao"];
+   });
+-  const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(false);
++  const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(true);
+   /** Só aceita publicação com CPF válido no teor DJEN (PJe MG etc.) */
+   const [somenteComCpf, setSomenteComCpf] = useState(false);
+   const [somenteComPlaca, setSomenteComPlaca] = useState(false);
+@@ -128,7 +127,7 @@ export default function GeradorProcessosPage() {
+   const [baSemAdvogado, setBaSemAdvogado] = useState(false);
+   /** Separado: B.A. criminal/tráfico — NÃO misturar com veículo */
+   const [baModoCriminal, setBaModoCriminal] = useState(false);
+-  const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
++  const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(true);
+   const [cnpj, setCnpj] = useState("");
+   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
+   const [exigeTelefone, setExigeTelefone] = useState(false);
+@@ -169,7 +168,7 @@ export default function GeradorProcessosPage() {
+     pushLog("info", `DJEN · Alvo ${target} · ${windows.length} intervalos · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`);
+     pushLog("info", "Consulta DIRETA do seu navegador ao DJEN (Comunica PJe) — usa o IP da sua rede, não o do servidor.");
+     if (somenteBuscaApreensao) {
+-      pushLog("info", "Busca e apreensão: a classe oficial do processo precisa confirmar a matéria.");
++      pushLog("info", "B.A.: classificação pela classe e pelo teor; veículo e criminal são separados.");
+     }
+ 
+ 
+@@ -186,7 +185,7 @@ export default function GeradorProcessosPage() {
+     let scanDataInicio = dataInicio;
+     let scanDataFim = dataFim;
+ 
+-    if (modoProcedenteSemCumprimento) {
++    if (modoProcedenteSemCumprimento && !somenteBuscaApreensao) {
+       // Mesma lógica de F1/F2 (queriesDosFiltros) + queries de procedência.
+       // Datas = formulário (DJEN costuma devolver 0 em janela ~2021–2022).
+       const base = queriesDosFiltros(statusOn, materiaOn) || [];
+@@ -223,6 +222,7 @@ export default function GeradorProcessosPage() {
+     } else {
+       queries = queriesDosFiltros(statusOn, materiaOn) || [];
+     }
++    queries = [...new Set(queries)];
+     if (!queries.length) {
+       pushLog("err", "Nenhuma query para buscar.");
+       setBusy(false);
+@@ -321,7 +321,11 @@ export default function GeradorProcessosPage() {
+             skipTeor = 0,
+             skipCnpj = 0,
+             skipFiltro = 0,
+-            skipNome = 0;
++            skipNome = 0,
++            skipData = 0,
++            skipCpf = 0,
++            skipPlaca = 0,
++            skipTelefone = 0;
+ 
+           for (const it of res.items) {
+             const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
+@@ -339,7 +343,7 @@ export default function GeradorProcessosPage() {
+                 skipFiltro++;
+                 continue;
+               }
+-              if (!baModoCriminal && baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse)) {
++              if (!baModoCriminal && baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse, { dataInicio, dataFim })) {
+                 skipFiltro++;
+                 continue;
+               }
+@@ -353,10 +357,14 @@ export default function GeradorProcessosPage() {
+               skipCnj++;
+               continue;
+             }
+-            if (exclude.has(digits)) {
++            if (exclude.has(digits) || rows.some(row => row.processo.replace(/\D/g, "") === digits)) {
+               skipDup++;
+               continue;
+             }
++            if (!dataPublicacaoNaJanela(it.data_disponibilizacao, scanDataInicio, scanDataFim)) {
++              skipData++;
++              continue;
++            }
+             if (!teorConsultavel(it.texto)) {
+               skipTeor++;
+               continue;
+@@ -377,7 +385,7 @@ export default function GeradorProcessosPage() {
+             }
+             // modoProcedente: filtro é analisarProcedenteSemCumprimento abaixo
+ 
+-            if (modoProcedenteSemCumprimento) {
++            if (modoProcedenteSemCumprimento && !somenteBuscaApreensao) {
+               if (isEsferaPenal(blob)) {
+                 skipFiltro++;
+                 continue;
+@@ -389,40 +397,28 @@ export default function GeradorProcessosPage() {
+               }
+             }
+ 
+-            const nome =
+-              extractNomeCompletoFromDjen({
+-                texto: it.texto,
+-                destinatarios: (it as any).destinatarios,
+-              }) || "";
+-            if (!nome) {
+-              skipNome++;
+-              continue;
+-            }
+-            const telefoneAutor =
+-              exibirTelefoneAutor ? extractTelefonePorContexto(it.texto, nome) : "";
+-            const cpfPub = extractCpfFromDjenText(blob);
+-            const veic = extractVeiculoFromDjenText(blob);
+-            if (somenteComCpf && !cpfPub) {
+-              skipFiltro++;
+-              continue;
+-            }
+-            if (somenteComPlaca && !veic.placa) {
+-              skipFiltro++;
+-              continue;
+-            }
+-            if (exigeTelefone && !String(telefoneAutor || "").replace(/\D/g, "")) {
+-              skipFiltro++;
+-              continue;
+-            }
++            const cpfPub = extractCpfFromDjenText(it.texto);
++            const veic = extractVeiculoFromDjenText(it.texto);
++            if (somenteComCpf && !cpfPub) { skipCpf++; continue; }
++            if (somenteComPlaca && !veic.placa) { skipPlaca++; continue; }
++            const nome = extractNomeCompletoFromDjen({
++              texto: it.texto,
++              destinatarios: it.destinatarios?.map(d => ({ nome: d.nome || d.nomeDestinatario, polo: d.polo || d.tipoPolo })),
++            });
++            const telefoneAutor = (exibirTelefoneAutor || exigeTelefone) ? extractTelefonePorContexto(it.texto, nome) : "";
++            if (exigeTelefone && !telefoneAutor) { skipTelefone++; continue; }
++            if (!nome) { skipNome++; continue; }
+             const semAdv = isSemAdvogadoNoTeor(it.texto);
+-            const inicio = isBaInicioProcesso(it.texto, it.nomeClasse);
+-            const tipoBa = baModoCriminal ? "criminal" : "veiculo";
++            const criminal = isPublicacaoBuscaApreensao(it.nomeClasse, it.texto, { modoCriminal: true });
++            const veiculo = isPublicacaoBuscaApreensao(it.nomeClasse, it.texto);
++            const tipoBa = criminal ? "criminal" : veiculo ? "veiculo" : "";
++            const inicio = veiculo && isBaInicioProcesso(it.texto, it.nomeClasse, { dataInicio, dataFim });
+             rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla, cpfPub, veic.placa, veic.renavam, {
+               sem_advogado: semAdv ? "SIM" : "NAO",
+-              tipo_ba: somenteBuscaApreensao ? tipoBa : "",
++              tipo_ba: tipoBa,
+               ba_inicio: inicio ? "SIM" : "NAO",
+               flags: [
+-                somenteBuscaApreensao ? (baModoCriminal ? "BA_CRIMINAL" : "BA_VEICULO") : "",
++                tipoBa === "criminal" ? "BA_CRIMINAL" : tipoBa === "veiculo" ? "BA_VEICULO" : "",
+                 semAdv ? "SEM_ADVOGADO" : "",
+                 inicio ? "INICIO_PROCESSO" : "",
+                 cpfPub ? "COM_CPF" : "",
+@@ -434,7 +430,7 @@ export default function GeradorProcessosPage() {
+           const added = add(rows);
+           pushLog(
+             added ? "ok" : "warn",
+-            `Pág ${pagina}: adicionados ${added}/${bruto} · filtro_F1F2:${skipFiltro} sem_nome:${skipNome} sigilo:${skipSigilo} teor:${skipTeor} dup:${skipDup} sem_num:${skipCnj}`
++            `Pág ${pagina}: adicionados ${added}/${bruto} · filtro_F1F2:${skipFiltro} sem_nome:${skipNome} sigilo:${skipSigilo} teor:${skipTeor} dup:${skipDup} sem_num:${skipCnj} fora_data:${skipData} cnpj:${skipCnpj} sem_cpf:${skipCpf} sem_placa:${skipPlaca} sem_fone:${skipTelefone}`
+           );
+ 
+           if (added) pushLog("ok", `Progresso ${by.size}/${target} (+${added})`);
+@@ -488,10 +484,12 @@ export default function GeradorProcessosPage() {
+           <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
+           <p className="text-xs text-muted-foreground">
+             Fonte <strong>DJEN</strong> (Comunica PJe): publicações reais, CNJ oficial da API.
+-            Por padrão gera <strong>sem telefone</strong> — marque a opção abaixo só se quiser exigir contato no teor.
++            CPF, placa, RENAVAM, email e telefone vêm somente do teor público, quando disponíveis.
++            Os filtros de presença só descartam publicações quando ativados.
+           </p>
+           <label className="flex items-center gap-2 text-[11px] font-semibold">
+             <input
++              disabled={busy}
+               type="checkbox"
+               checked={exigeTelefone}
+               onChange={(e) => setExigeTelefone(e.target.checked)}
+@@ -501,10 +499,11 @@ export default function GeradorProcessosPage() {
+           <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 space-y-2">
+             <label className="flex items-start gap-2 text-[11px] font-semibold">
+               <input
++              disabled={busy}
+                 type="checkbox"
+                 className="mt-0.5"
+                 checked={modoProcedenteSemCumprimento}
+-                onChange={(e) => setModoProcedenteSemCumprimento(e.target.checked)}
++                onChange={(e) => { setModoProcedenteSemCumprimento(e.target.checked); if (e.target.checked) setSomenteBuscaApreensao(false); }}
+               />
+               <span>
+                 <span className="text-emerald-700 dark:text-emerald-400 font-black uppercase tracking-wide">
+@@ -522,7 +521,7 @@ export default function GeradorProcessosPage() {
+                 type="checkbox"
+                 className="mt-0.5"
+                 checked={priorizarParados4a}
+-                disabled={!modoProcedenteSemCumprimento}
++                disabled={busy || !modoProcedenteSemCumprimento}
+                 onChange={(e) => setPriorizarParados4a(e.target.checked)}
+               />
+               <span>
+@@ -545,6 +544,7 @@ export default function GeradorProcessosPage() {
+             <div className="flex flex-wrap gap-1.5 mt-1">
+               {FILTROS_STATUS.map((f) => (
+                 <Chip
++                  disabled={busy}
+                   key={f.id}
+                   on={statusOn.includes(f.id as FiltroStatusId)}
+                   label={f.nomeTribunal}
+@@ -566,6 +566,7 @@ export default function GeradorProcessosPage() {
+             <div className="flex flex-wrap gap-1.5 mt-1">
+               {FILTROS_MATERIA.map((f) => (
+                 <Chip
++                  disabled={busy}
+                   key={f.id}
+                   on={materiaOn.includes(f.id as FiltroMateriaId)}
+                   label={f.nomeTribunal}
+@@ -579,30 +580,38 @@ export default function GeradorProcessosPage() {
+                 />
+               ))}
+               <Chip
+-                onClick={() => setSomenteBuscaApreensao((p) => !p)}
++                  disabled={busy}
++                onClick={() => {
++                  if (!somenteBuscaApreensao) { setBaModoCriminal(false); setModoProcedenteSemCumprimento(false); }
++                  setSomenteBuscaApreensao(!somenteBuscaApreensao);
++                }}
+                 on={somenteBuscaApreensao}
+                 label="Somente busca e apreensão (fora da carteira)"
+               />
+               {somenteBuscaApreensao && (
+                 <>
+                   <Chip
++                  disabled={busy}
+                     onClick={() => { setBaModoCriminal(false); }}
+                     on={!baModoCriminal}
+                     label="B.A. VEÍCULO (padrão — sem criminal)"
+                   />
+                   <Chip
+-                    onClick={() => setBaModoCriminal((p) => !p)}
++                  disabled={busy}
++                    onClick={() => { setBaModoCriminal(true); setBaInicioProcesso(false); }}
+                     on={baModoCriminal}
+                     label="B.A. CRIMINAL (opção separada)"
+                   />
+                   {!baModoCriminal && (
+                     <Chip
++                  disabled={busy}
+                       onClick={() => setBaInicioProcesso((p) => !p)}
+                       on={baInicioProcesso}
+                       label="B.A. no início do processo"
+                     />
+                   )}
+                   <Chip
++                  disabled={busy}
+                     onClick={() => setBaSemAdvogado((p) => !p)}
+                     on={baSemAdvogado}
+                     label="Sem advogado no teor"
+@@ -610,20 +619,26 @@ export default function GeradorProcessosPage() {
+                 </>
+               )}
+               <Chip
++                  disabled={busy}
+                 onClick={() => setSomenteComCpf((p) => !p)}
+                 on={somenteComCpf}
+                 label="Só com CPF no teor DJEN"
+               />
+               <Chip
++                  disabled={busy}
+                 onClick={() => setSomenteComPlaca((p) => !p)}
+                 on={somenteComPlaca}
+                 label="Só com placa no teor DJEN"
+               />
+             </div>
+           </div>
++          <p className="text-xs text-muted-foreground">
++            Datas = janela da publicação DJEN. Com “início” ligado, o teor precisa anunciar um ato inicial de B.A.; menções históricas não bastam.
++            “Sem advogado” indica somente ausência de inscrição no teor. Filtros F1/F2 não se aplicam ao modo B.A.
++          </p>
+           <div className="flex flex-wrap gap-2 items-end">
+-            <Input className="h-9 w-20" value={alvo} onChange={(e) => setAlvo(e.target.value)} title="Alvo" />
+-            <select
++            <Input disabled={busy} className="h-9 w-20" value={alvo} onChange={(e) => setAlvo(e.target.value)} title="Alvo" />
++            <select disabled={busy} aria-label="Tribunal DJEN"
+               className="h-9 min-w-[9rem] rounded-md border border-border bg-background px-2 text-[11px] font-semibold uppercase"
+               value={tribunal}
+               onChange={(e) => setTribunal(e.target.value)}
+@@ -635,9 +650,9 @@ export default function GeradorProcessosPage() {
+                 </option>
+               ))}
+             </select>
+-            <Input className="h-9 w-36" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+-            <Input className="h-9 w-36" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+-            <Input className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
++            <Input disabled={busy} className="h-9 w-36" aria-label="Publicação: data inicial" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
++            <Input disabled={busy} className="h-9 w-36" aria-label="Publicação: data final" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
++            <Input disabled={busy} className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
+             {!busy ? (
+               <Button onClick={iniciar} className="h-9 text-xs font-black uppercase gap-1">
+                 <Search className="w-4 h-4" /> Buscar
+@@ -661,8 +676,9 @@ export default function GeradorProcessosPage() {
+             </Button>
+             <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+               <input
++              disabled={busy}
+                 type="checkbox"
+-                checked={exibirTelefoneAutor}
++                checked={exibirTelefoneAutor || exigeTelefone}
+                 onChange={(e) => setExibirTelefoneAutor(e.target.checked)}
+               />
+               Achar telefone do autor quando disponível
+@@ -691,7 +707,7 @@ export default function GeradorProcessosPage() {
+                         <p className="font-mono text-sm font-bold">{p.processo}</p>
+                         {baClareadoLocal && (
+                           <span className="text-[10px] font-black uppercase rounded-full px-2 py-0.5 border bg-amber-500/15 text-amber-600 border-amber-500/40">
+-                            BUSCA E APRENSÃO
++                            BUSCA E APREENSÃO
+                           </span>
+                         )}
+                         <span
+@@ -732,23 +748,24 @@ export default function GeradorProcessosPage() {
+                           {p.telefone}
+                         </p>
+                       )}
++                      {p.email && <p className="text-xs break-all">{p.email}</p>}
+                       {p.cpf && (
+                         <p className="text-[11px] font-mono text-sky-600 dark:text-sky-400">
+                           CPF {formatCpfMasked(p.cpf)}
+                         </p>
+                       )}
+-                      {p.placa && (
++                      {(p.placa || p.renavam) && (
+                         <p className="text-[11px] font-mono text-amber-700 dark:text-amber-400">
+-                          Placa {p.placa}{p.renavam ? ` · RENAVAM ${p.renavam}` : ""}
++                          {p.placa ? `Placa ${p.placa}` : ""}{p.renavam ? ` · RENAVAM ${p.renavam}` : ""}
+                         </p>
+                       )}
+                       {p.sem_advogado === "SIM" && (
+-                        <p className="text-[10px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-400">
++                        <p className="inline-flex rounded-md border px-2 py-1 text-xs text-rose-700 dark:text-rose-300">
+                           Sem advogado
+                         </p>
+                       )}
+                       {p.tipo_ba && (
+-                        <p className="text-[10px] font-semibold uppercase text-muted-foreground">
++                        <p className="inline-flex rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground">
+                           B.A. {p.tipo_ba === "criminal" ? "criminal" : "veículo"}
+                           {p.ba_inicio === "SIM" ? " · início" : ""}
+                         </p>
+@@ -815,14 +832,14 @@ function toRow(
+   cpfExtra?: string,
+   placaExtra?: string,
+   renavamExtra?: string,
+-  extra?: { sem_advogado?: string; tipo_ba?: string; ba_inicio?: string; flags?: string }
++  extra?: Pick<ProcessoDjenReal, "sem_advogado" | "tipo_ba" | "ba_inicio" | "flags">
+ ): ProcessoDjenReal {
+   const tel = telefoneAutor || "";
+   const decisao = classificarSentenca(String(it.texto || ""));
+   const statusLabel = FILTROS_STATUS.find((f) => f.id === decisao)?.nomeTribunal || decisao || "";
+   const materiaHits = matchMateria(String(it.texto || ""), materiaOn);
+   const matLabel = materiaHits.map((id) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal).filter(Boolean).join(" · ");
+-  const baClareadoLocal = isClasseBuscaApreensao(it.nomeClasse);
++  const baClareadoLocal = !!extra?.tipo_ba;
+   const decisaoLabel = {
+     extinto_sem_merito: "Extinto sem resolução do mérito",
+     extinto_com_merito: "Extinto com resolução do mérito",
+@@ -835,7 +852,7 @@ function toRow(
+     processo: formatCnjMasked(digits),
+     nome_completo: nome,
+     telefone: tel,
+-    email: "",
++    email: extractEmailFromDjenText(it.texto),
+     cpf: cpfExtra || extractCpfFromDjenText(String(it.texto || "")) || "",
+     cnpj: "",
+     placa: placaExtra || "",
+diff --git a/src/lib/ba-djen-flags.ts b/src/lib/ba-djen-flags.ts
+index da4ed6e..482dd85 100644
+--- a/src/lib/ba-djen-flags.ts
++++ b/src/lib/ba-djen-flags.ts
+@@ -1,143 +1,90 @@
+-/**
+- * Flags e classificação B.A. no gerador DJEN (fora da carteira).
+- * Padrão = B.A. de VEÍCULO (alienação fiduciária / cível).
+- * Criminal é modo separado e opcional.
+- */
+-import { isClasseBuscaApreensao, normalizarTextoBa } from "@/lib/ba-evidence";
++import { normalizarTextoBa } from "@/lib/ba-evidence";
+ 
+-/** Indícios de esfera criminal / tráfico / inquérito — NUNCA no modo veículo. */
++const BA = /\bBUSCA\s+E\s+APREENSAO\b/;
++const textoBa = (texto: unknown, classe?: unknown) => normalizarTextoBa(`${classe ?? ""} ${texto ?? ""}`);
++
++/** Esfera penal é sempre excluída do modo veículo, mesmo com veículo no teor. */
+ export function isBaCriminalOuTrafico(texto: unknown, nomeClasse?: unknown): boolean {
+-  const t = normalizarTextoBa(`${nomeClasse || ""} ${texto || ""}`);
+-  if (!t) return false;
+-  if (/\bACAO\s+PENAL\b|\bPROCESSO\s+PENAL\b|\bINQUERITO\s+POLICIAL\b/.test(t)) return true;
+-  if (/\bCODIGO\s+PENAL\b|\bCP\s*,?\s*ART\b|\bCPP\b/.test(t)) return true;
+-  if (/\bTRAFICO\b|\bENTORPECENTES?\b|\sLEI\s+11\.?343\b|\bDROGAS?\b/.test(t)) return true;
+-  if (/\bARMAS?\b.*\bFOGO\b|\bPORTE\s+ILEGAL\b|\bLEI\s+10\.?826\b/.test(t)) return true;
+-  if (/\bHOMICIDIO\b|\bROUBO\b|\bFURTO\b|\bLATROCINIO\b|\bESTELIONATO\b/.test(t) && /\bBUSCA\s+E\s+APREENSAO\b/.test(t))
+-    return true;
+-  if (/\bJURI\b|\bEXECUCAO\s+PENAL\b|\bMEDIDA\s+DE\s+SEGURANCA\b/.test(t)) return true;
+-  if (/\bDELEGACIA\b|\bDELEGADO\b|\bPOLICIA\s+CIVIL\b|\bPOLICIA\s+MILITAR\b|\bMPF\b|\bMINISTERIO\s+PUBLICO\b.*\bDENUNCIA\b/.test(t)) {
+-    if (/\bBUSCA\s+E\s+APREENSAO\b|\bMANDADO\s+DE\s+BUSCA\b/.test(t)) return true;
+-  }
+-  if (/\bMANDADO\s+DE\s+BUSCA\s+E\s+APREENSAO\s+DOMICILIAR\b/.test(t)) return true;
+-  if (/\bAPREENSAO\s+DE\s+(?:ENTORPECENTE|DROGA|ARMAMENTO|MUNICAO)\b/.test(t)) return true;
+-  // classe tipicamente criminal
+-  if (/\bPENAL\b/.test(t) && /\bBUSCA|APREENSAO\b/.test(t)) return true;
+-  return false;
++  const t = textoBa(texto, nomeClasse);
++  return /\b(?:ACAO|PROCESSO)\s+PENAL\b|\bINQUERITO\b|\bCRIMINAL\b|\bCODIGO\s+(?:DE\s+PROCESSO\s+)?PENAL\b|\bCP(?:P)?\b/.test(t)
++    || /\bTRAFICO\b|\bENTORPECENTES?\b|\bLEI\s+(?:N[.º°O]*\s*)?11[.\s]?343\b|\bARMAS?\s+DE\s+FOGO\b/.test(t)
++    || /\bJURI\b|\bEXECUCAO\s+PENAL\b/.test(t)
++    || (/\bHOMICIDIO\b|\bROUBO\b|\bFURTO\b|\bLATROCINIO\b/.test(t) && BA.test(t))
++    || (/\bDELEGACIA\b|\bDELEGADO\b/.test(t) && /MANDADO\s+DE\s+BUSCA/.test(t))
++    || /\bMANDADO\s+(?:DE\s+BUSCA(?:\s+E\s+APREENSAO)?\s+)?DOMICILIAR\b|\bAPREENSAO\s+(?:DE|DAS?)\s+(?:DROGAS?|ARMAS?|ENTORPECENTES?|MUNICOES)\b/.test(t);
+ }
+ 
+-/** B.A. de veículo / fiduciária / cível (financiamento, alienação). */
+ export function isBaVeiculoOuFiduciaria(texto: unknown, nomeClasse?: unknown): boolean {
+-  const t = normalizarTextoBa(`${nomeClasse || ""} ${texto || ""}`);
+-  if (!t) return false;
+   if (isBaCriminalOuTrafico(texto, nomeClasse)) return false;
++  const t = textoBa(texto, nomeClasse);
++  return /\b(?:VEICULOS?|AUTOMOVEIS|AUTOMOVEL|MOTOCICLETA|CAMINHAO|CARRO|PLACA|RENAVAM|CHASSI)\b/.test(t)
++    || /\bALIENACAO\s+FIDUCIARIA\b|\bFIDUCIANT[EA]\b|\bFIDUCIARI[OA]\b|\bFINANCIAMENTO\b|\bBANCO\b|\bFINANCEIRA\b/.test(t)
++    || /\b(?:DECRETO[- ]LEI|D\.?\s*L\.?)\s*(?:N[.º°O]*\s*)?911\b/.test(t)
++    || (BA.test(t) && /\bCIVEL\b|\bPROCEDIMENTO\s+COMUM\b/.test(t));
++}
+ 
+-  const veic =
+-    /\bVEICULO\b|\bAUTOMOVEL\b|\bCAMINHAO\b|\bMOTOCICLETA\b|\bCARRO\b|\bPLACA\b|\bRENAVAM\b|\bCHASSI\b/.test(t) ||
+-    /\bALIENACAO\s+FIDUCIARIA\b|\bFIDUCIANTE\b|\bFIDUCIARIO\b|\bCREDOR\s+FIDUCIARIO\b/.test(t) ||
+-    /\bFINANCIAMENTO\b|\bCONTRATO\s+DE\s+FINANCIAMENTO\b|\bBANCO\b|\bFINANCEIRA\b/.test(t) ||
+-    /\bDECRETO[- ]LEI\s+911\b|\bDL\s+911\b|\bLEI\s+13\.?043\b/.test(t) ||
+-    /\bBUSCA\s+E\s+APREENSAO\b/.test(t) && /\bCIVEL\b|\bPROCEDIMENTO\s+COMUM\b/.test(t);
+-
+-  // classe explícita B.A. cível sem criminal
+-  if (isClasseBuscaApreensao(nomeClasse) && !isBaCriminalOuTrafico(texto, nomeClasse)) {
+-    // se tem indício criminal no teor, já retornou false acima
+-    // classe BA pura: exige não ser criminal; se teor só tem BA genérico, aceita como cível/veículo
+-    return true;
+-  }
+-
+-  return veic || (/\bBUSCA\s+E\s+APREENSAO\b/.test(t) && !isBaCriminalOuTrafico(texto, nomeClasse));
++export function isPublicacaoBuscaApreensao(nomeClasse: unknown, texto: unknown, opts?: { modoCriminal?: boolean }): boolean {
++  if (!BA.test(textoBa(texto, nomeClasse))) return false;
++  return opts?.modoCriminal
++    ? isBaCriminalOuTrafico(texto, nomeClasse)
++    : isBaVeiculoOuFiduciaria(texto, nomeClasse);
+ }
+ 
+-/** Publicação de B.A. no modo ativo (veículo padrão ou criminal se flag). */
+-export function isPublicacaoBuscaApreensao(
+-  nomeClasse: unknown,
++/** Usa somente o ato publicado. Classe, relatório e precedente não provam início. */
++export function isBaInicioProcesso(
+   texto: unknown,
+-  opts?: { modoCriminal?: boolean }
++  nomeClasse?: unknown,
++  janela?: { dataInicio: string; dataFim: string },
+ ): boolean {
+-  const blob = `${nomeClasse || ""} ${texto || ""}`;
+-  const temBa =
+-    isClasseBuscaApreensao(nomeClasse) ||
+-    isClasseBuscaApreensao(blob) ||
+-    /busca\s+e\s+apreens/i.test(String(blob));
+-
+-  if (!temBa) return false;
+-
+-  if (opts?.modoCriminal) {
+-    return isBaCriminalOuTrafico(texto, nomeClasse);
+-  }
+-  // padrão: veículo/cível — exclui criminal
+-  if (isBaCriminalOuTrafico(texto, nomeClasse)) return false;
+-  return isBaVeiculoOuFiduciaria(texto, nomeClasse) || isClasseBuscaApreensao(nomeClasse);
+-}
+-
+-export function isBaInicioProcesso(texto: unknown, nomeClasse?: unknown): boolean {
+-  const t = normalizarTextoBa(`${nomeClasse || ""} ${texto || ""}`);
+-  if (!t) return false;
+-  if (/\bLEILAO\b|\bHASTA\b|\bCONSOLIDACAO\s+DA\s+PROPRIEDADE\b|\bARREMATACAO\b/.test(t)) return false;
+-  if (/\bCUMPRIMENTO\s+DE\s+SENTENCA\b|\bEXECUCAO\s+DE\s+TITULO\b/.test(t)) return false;
+-  if (/\bSENTENCA\s+(?:DE\s+)?PROCEDENCIA|\bJULGO\s+PROCEDENTE|\bTRANSITO\s+EM\s+JULGADO\b/.test(t)) return false;
+-
+-  return (
+-    /\bDISTRIBUICAO\b|\bDISTRIBUIDO\b|\bAUTOS\s+DISTRIBUIDOS\b/.test(t) ||
+-    /\bCITACAO\b|\bCITE[- ]SE\b|\bCITADO\b/.test(t) ||
+-    (/\bLIMINAR\b/.test(t) && (/\bDEFIRO\b|\bDEFERIDA\b|\bDETERMINO\b|\bEXPED/.test(t) || /BUSCA/.test(t))) ||
+-    /\bEXPEDICAO\s+DE\s+MANDADO\b|\bEXPECA[- ]SE\s+MANDADO\b|\bMANDADO\s+DE\s+BUSCA\b/.test(t) ||
+-    /\bFASE\s+INICIAL\b|\bINICIAL\s+PROTOCOLADA\b|\bPETICAO\s+INICIAL\b/.test(t) ||
+-    /\bDEFIRO\s+.{0,40}BUSCA\s+E\s+APREENSAO\b|\bDETERMINO\s+.{0,40}APREENSAO\b/.test(t)
+-  );
++  if (!isPublicacaoBuscaApreensao(nomeClasse, texto)) return false;
++  let t = normalizarTextoBa(texto)
++    .replace(/<[^>]*>/g, " ")
++    .replace(/[“«][\s\S]*?[”»]|"[^"]*"/g, " ");
++  const repub = /\bREPUBLICA(?:CAO|DO|DA)\b/.test(t);
++  const dispositivo = [...t.matchAll(/ANTE O EXPOSTO|ISTO POSTO|DIANTE DO EXPOSTO|PASSO A DECIDIR|DECIDO\s*:/g)].at(-1);
++  if (dispositivo?.index !== undefined) t = t.slice(dispositivo.index);
++  else if (/\bJURISPRUDENCIA\b|\bEMENTA\b|\bPRECEDENTE\b/.test(t)) return false;
++  if (/\bLEILAO\b|\bHASTA\b|\bARREMATACAO\b|\bCONSOLIDACAO\s+DA\s+PROPRIEDADE\b|\bCUMPRIMENTO\s+DE\s+SENTENCA\b|\bEXECUCAO\s+DE\s+TITULO\b|\bTRANSITO\s+EM\s+JULGADO\b|\bSENTENCA\s+(?:(?:DE|DE\s+MERITO)\s+)?(?:IM)?PROCEDEN|\bJULGO\s+(?:PARCIALMENTE\s+)?(?:IM)?PROCEDENTE/.test(t)) return false;
++  const novaCitacao = /\bNOVA\s+(?:DISTRIBUICAO|CITACAO)\b|\bCITE[- ]SE\s+NOVAMENTE\b/;
++  if (repub && !novaCitacao.test(t)) return false;
++  const mantem = /\bMANTENHO\b.{0,50}\bLIMINAR\b/.test(t);
++  const trechos = t.split(/\n+|;|(?<=[.!?])\s+/);
++  return trechos.some((s) => {
++    if (!s.trim()) return false;
++    if (/\bJURISPRUDENCIA\b|\bEMENTA\b|\bPRECEDENTE\b|\bCONFORME\b|\bHISTORICO\b|\bANTERIORMENTE\b|\bOUTRORA\b|\bHAVIA\b|\bFOI\b|\bJA\s+(?:CITAD|DISTRIBUID|DEFERID)|\bREQUER(?:EU)?\b|\bPLEITE(?:IA|OU)\b|\bSOLICIT(?:A|OU)\b/.test(s)) return false;
++    if (/\bINDEFIRO\b|\bINDEFERID|\bREVOGO\b|\bREVOGAD|\bNAO\b|\bPENDENTE\b|\bAGUARD|\bSEM\s+CITACAO\b/.test(s)) return false;
++    // A data do protocolo pode anteceder a publicação. Datas no relato de
++    // andamento não são prova de início atual; a janela principal é da publicação.
++    if (/INTIME[- ]SE|INTIMACAO/.test(s) && !/CITE[- ]SE|DEFIRO|EXPECA[- ]SE|DETERMINO/.test(s)) return false;
++    if (janela && /INTIME[- ]SE|INTIMACAO|ANDAMENTO|MANTENHO|ANTIG[OA]/.test(t)) {
++      const anoAto = s.match(/(?:DISTRIBUI(?:DO|DA|CAO)|CITACAO|LIMINAR\s+DEFERIDA)\s+(?:EM|DE|NO\s+ANO\s+DE)\s+(\d{4})\b/);
++      if (anoAto && (anoAto[1] < janela.dataInicio.slice(0, 4) || anoAto[1] > janela.dataFim.slice(0, 4))) return false;
++      const dates = [...s.matchAll(/\b(\d{2})\/(\d{2})\/(\d{4})\b|\b(\d{4})-(\d{2})-(\d{2})\b/g)];
++      if (dates.some(m => {
++        const iso = m[4] ? `${m[4]}-${m[5]}-${m[6]}` : `${m[3]}-${m[2]}-${m[1]}`;
++        return iso < janela.dataInicio || iso > janela.dataFim;
++      })) return false;
++    }
++    const citacao = /\bCITE[- ]SE\b|\b(?:DETERMINO|ORDENO|EXPECA[- ]SE)\b.{0,35}\bCITACAO\b|^\s*(?:ATO\s+DE\s+)?CITACAO\b/.test(s);
++    const distribuicao = /\bDISTRIBUICAO\b|\bDISTRIBUID[OA]S?\b/.test(s) && !/\bREDISTRIBU|\bCERTIDAO\b.{0,30}\bANTIGA\b/.test(s);
++    if (mantem) return /\bCITE[- ]SE\b/.test(s) || ((citacao || distribuicao) && novaCitacao.test(s));
++    return citacao || distribuicao
++      || /\bPETICAO\s+INICIAL\s+(?:PROTOCOLADA|DISTRIBUIDA)\b|\bFASE\s+INICIAL\b/.test(s)
++      || /\b(?:DEFIRO|CONCEDO)\b.{0,60}\bLIMINAR\b|\bLIMINAR\s+(?:DE\s+BUSCA\s+E\s+APREENSAO\s+)?DEFERIDA\b/.test(s)
++      || /\b(?:EXPEDICAO|EXPECA[- ]SE)\s+(?:DE\s+|O\s+)?MANDADO\s+DE\s+(?:BUSCA|APREENSAO)\b/.test(s)
++      || /\bDEFIRO\b.{0,45}\bBUSCA\s+E\s+APREENSAO\b|\b(?:DETERMINO|DETERMINADA|DETERMINACAO\s+DE)\b.{0,45}\bAPREENSAO\s+DO\s+VEICULO\b/.test(s);
++  });
+ }
+ 
+ export function isSemAdvogadoNoTeor(texto: unknown): boolean {
+-  const raw = String(texto || "");
+-  const t = normalizarTextoBa(raw);
+-
+-  if (
+-    /\bSEM\s+ADVOGADO\b|\bNAO\s+CONSTA\s+ADVOGADO\b|\bPARTE\s+SEM\s+PATRONO\b|\bEM\s+CAUSA\s+PROPRIA\b|\bJUS\s+POSTULANDI\b/.test(
+-      t
+-    )
+-  ) {
+-    return true;
+-  }
+-  if (/\bOAB\s*[\/\-]?\s*[A-Z]{2}\s*[nNº°\.]*\s*\d{3,6}\b/i.test(raw)) return false;
+-  if (/\bOAB\s*[\/\-]\s*[A-Z]{2}\b/i.test(raw) && /\d{3,6}/.test(raw)) return false;
+-  if (/\bADVOGADO[A]?\s*[:\-]\s*[A-ZÀ-Ú]{3,}/.test(t) && /\d{3,6}/.test(raw)) return false;
+-  if (!/\bOAB\b/i.test(raw)) return true;
+-  if (/\bOAB\b/i.test(raw) && !/\d{3,6}/.test(raw)) return true;
+-  return false;
+-}
+-
+-export function queriesBaVeiculo(): string[] {
+-  return [
+-    "busca e apreensao alienacao fiduciaria",
+-    "busca e apreensao veiculo",
+-    "busca e apreensao",
+-    "alienacao fiduciaria",
+-    "mandado de busca e apreensao veiculo",
+-    "acao de busca e apreensao",
+-  ];
+-}
+-
+-export function queriesBaInicio(): string[] {
+-  return [
+-    "busca e apreensao liminar",
+-    "defiro a liminar de busca e apreensao",
+-    "expedicao de mandado de busca",
+-    "mandado de busca e apreensao",
+-    "busca e apreensao cite-se",
+-    "distribuicao busca e apreensao",
+-  ];
+-}
+-
+-/** Só se o usuário ativar o modo criminal separado. */
+-export function queriesBaCriminal(): string[] {
+-  return [
+-    "busca e apreensao criminal",
+-    "mandado de busca e apreensao domiciliar",
+-    "busca e apreensao trafico",
+-    "busca e apreensao entorpecentes",
+-  ];
++  const t = normalizarTextoBa(texto);
++  // Inscrição explícita prevalece sobre frase sobre outra parte sem patrono.
++  if (/\bOAB\s*[\/:.\-]?\s*(?:[A-Z]{2}\s*[/\-]?\s*(?:N[.º°O]*\s*)?\d{3,6}|(?:N[.º°O]*\s*)?\d{3,6}\s*[/\-]\s*[A-Z]{2})\b/.test(t)) return false;
++  if (/\bADVOGAD[OA]\b.{0,100}\bINSCRI(?:CAO|TO|TA)\b.{0,35}\b\d{3,6}\b/.test(t)) return false;
++  return true; // Apenas ausência de inscrição no teor, não certidão de representação.
+ }
+ 
+-/** Alias legado */
++export const queriesBaVeiculo = () => ["busca e apreensao alienacao fiduciaria", "busca e apreensao veiculo", "busca e apreensao", "alienacao fiduciaria", "mandado de busca e apreensao veiculo"];
++export const queriesBaInicio = () => ["busca e apreensao liminar", "defiro a liminar de busca e apreensao", "expedicao de mandado de busca", "busca e apreensao cite-se", "distribuicao busca e apreensao"];
++export const queriesBaCriminal = () => ["busca e apreensao criminal", "mandado de busca e apreensao domiciliar", "busca e apreensao trafico", "busca e apreensao entorpecentes"];
+ export const queriesBaBase = queriesBaVeiculo;
+diff --git a/src/lib/djen-client.ts b/src/lib/djen-client.ts
+index 907f6ed..7c738a6 100644
+--- a/src/lib/djen-client.ts
++++ b/src/lib/djen-client.ts
+@@ -57,9 +57,10 @@ export interface DjenClientResult {
+ 
+ const DJEN_URL = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
+ 
+-function plainText(html: string): string {
++export function plainText(html: string): string {
+   return String(html || "")
+     .replace(/<br\s*\/?>/gi, "\n")
++    .replace(/<\/(?:p|div|li|tr)>/gi, "\n")
+     .replace(/<[^>]+>/g, " ")
+     .replace(/&nbsp;/g, " ")
+     .replace(/&amp;/g, "&")
+@@ -144,6 +145,9 @@ export async function djenBuscaTexto(
+       };
+     }
+     // API às vezes devolve items em status/mensagem sem array
++    if (data == null || (!Array.isArray(data) && !Array.isArray(data.items) && !Array.isArray(data.content))) {
++      return { ok: false, status: res.status, error: "DJEN retornou JSON sem uma lista de publicações. Tente novamente mais tarde.", items: [] };
++    }
+     const rawItems: DjenItemRaw[] = Array.isArray(data.items)
+       ? data.items
+       : Array.isArray(data.content)
+@@ -151,10 +155,8 @@ export async function djenBuscaTexto(
+         : Array.isArray(data)
+           ? data
+           : [];
+-    for (const it of rawItems) {
+-      (it as any).texto = plainText(String(it.texto || ""));
+-    }
+-    return { ok: true, items: rawItems, count: data.count ?? rawItems.length };
++    const items = rawItems.filter(it => it && typeof it === "object").map(it => ({ ...it, texto: plainText(String(it.texto || "")) }));
++    return { ok: true, items, count: data.count ?? items.length };
+   } catch (e: any) {
+     if (e?.name === "AbortError") {
+       return { ok: false, error: opts.signal?.aborted ? "Consulta interrompida." : "Timeout DJEN (28s)", items: [] };
+@@ -171,66 +173,41 @@ export async function djenBuscaTexto(
+  */
+ export function extractNomeDoAutor(texto: string | null | undefined): string {
+   const t = String(texto || "");
+-  if (!t) return "";
+-  const re = /(?:AUTOR|REQUERENTE|EXEQUENTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.'\-]{6,80}?)(?:\s{2,}|\s+ADVOGADO|\s+R[EÉ]U|$) /i;
+-  const m = t.match(re);
+-  if (m?.[1]) {
+-    const n = m[1].trim().slice(0, 80);
+-    if (n.length >= 6) return n;
+-  }
+-  return "";
++  const match = t.match(/\b(?:AUTOR(?:A)?|REQUERENTE|EXEQUENTE)\s*[:\-–]\s*([^\n;]{3,150}?)(?=\s+(?:ADVOGAD[OA]|OAB|R[EÉ]U|REQUERIDO|CPF|CNPJ|TELEFONE|TEL|EMAIL|E-MAIL|DECIS[AÃ]O|VISTOS)\b|\n|;|$)/i);
++  return match?.[1]?.trim().replace(/[,\s]+$/, "").slice(0, 120) || "";
+ }
+ 
+-/**
+- * Extração de telefone do próprio teor.
+- * Só confia quando o número aparece junto do nome do autor/requerente
+- * ou numa linha que menciona intimar/citir/citar a parte pelo nome —
+- * para evitar pegar telefone de terceiros citados no mesmo teor.
+- */
+-export function extractTelefonePorContexto(
+-  texto: string | null | undefined,
+-  nomeAutor?: string
+-): string {
+-  const t = String(texto || "");
+-  if (!t || t.length < 20) return "";
+-
+-  const cleaned = t.replace(/\b\d{7}-\d{2}\.\d{4}\.\d.\d{2}.\d{4}\b/g, " ");
+-  const re = /(?:\+?55\s*)?(?:\(?(\d{2,3})\)?\s*)?(?:\(?(\d{4,5})\)?[-\s]?)(\d{4})/g;
+-  const candidatos: Array<{ digits: string; idx: number }> = [];
+-  let m: RegExpExecArray | null;
+-  while ((m = re.exec(cleaned))) {
+-    const ddd = m[1] ? m[1].replace(/\D/g, "") : "";
+-    const p1 = m[2] ? m[2].replace(/\D/g, "") : "";
+-    const p2 = m[3] ? m[3].replace(/\D/g, "") : "";
+-    const digits = (ddd + p1 + p2).replace(/\D/g, "").slice(0, 11);
+-    if (digits.length >= 9) {
+-      candidatos.push({ digits, idx: m.index });
+-    }
+-  }
+-  if (candidatos.length === 0) return "";
+-
+-  if (nomeAutor) {
+-    const nomeLower = nomeAutor.toLowerCase();
+-    const best = candidatos.slice().sort((a, b) => a.idx - b.idx)[0];
+-    if (best) {
+-      const sliceAround = t.slice(Math.max(0, best.idx - 400), best.idx + 400).toLowerCase();
+-      if (sliceAround.includes(nomeLower) || sliceAround.includes(nomeLower.replace(/\s+/g, ""))) {
+-        return formatTelefone(best.digits);
+-      }
+-    }
+-  }
++export function extractEmailFromDjenText(texto: string | null | undefined): string {
++  return String(texto || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
++}
+ 
+-  const first = candidatos[0];
+-  if (first) {
+-    const sliceAround = t.slice(Math.max(0, first.idx - 400), first.idx + 400);
+-    const lower = sliceAround.toLowerCase();
+-    if (!/(advogado|escritório|oab)/i.test(lower)) {
+-      return formatTelefone(first.digits);
+-    }
++/** Exige indicação de contato ou nome próximo; ignora números documentais. */
++export function extractTelefonePorContexto(texto: string | null | undefined, nomeAutor?: string): string {
++  const t = String(texto || "");
++  const re = /(?<![\d.])(?:\+?55[ -]*)?\(?([1-9]\d)\)?[ -]*(9\d{4}|[2-5]\d{3})[ -]?(\d{4})(?![\d.-])/g;
++  for (const match of t.matchAll(re)) {
++    const index = match.index!;
++    const before = t.slice(Math.max(0, index - 90), index);
++    if (/\b(?:CPF|CNPJ|RENAVAM|OAB|PROCESSO|PROTOCOLO|CHASSI)\s*(?:n[.º°o]*\s*)?[:\-]?\s*$/i.test(before)) continue;
++    const labeled = /(?:telefone|tel\.?|celular|whats(?:app)?|contato)\s*[:\-]?\s*$/i.test(before);
++    const clause = before.split(/[;\n]/).at(-1) || "";
++    if (/advogad[oa]|escrit[oó]rio|oab|cart[oó]rio|secretaria/i.test(clause)) continue;
++    const nearName = !!nomeAutor && clause.toLocaleLowerCase().includes(nomeAutor.toLocaleLowerCase());
++    if (labeled || nearName) return formatTelefone(match[1] + match[2] + match[3]);
+   }
+   return "";
+ }
+ 
++/** A janela é a data oficial da publicação, nunca uma data extraída do teor. */
++export function dataPublicacaoNaJanela(data: unknown, inicio: string, fim: string): boolean {
++  const raw = String(data || "");
++  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
++  const iso = br ? `${br[3]}-${br[2]}-${br[1]}` : raw.slice(0, 10);
++  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
++  const time = Date.parse(`${iso}T00:00:00Z`);
++  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === iso && iso >= inicio && iso <= fim;
++}
++
+ function formatTelefone(digits: string): string {
+   const d = digits.replace(/\D/g, "");
+   if (d.length === 11) {
+@@ -316,12 +293,13 @@ export async function djenBuscaNomeParte(
+     }
+     const text = await res.text();
+     const trimmed = text.trim();
++    if (!trimmed) return { ok: false, status: res.status, error: `DJEN respondeu vazio (HTTP ${res.status}). Tente novamente mais tarde.`, items: [] };
+     if (!res.ok || trimmed.startsWith("<") || /<!doctype html/i.test(trimmed)) {
+       return {
+         ok: false,
+         status: res.status,
+-        htmlBlocked: true,
+-        error: `HTTP ${res.status} + HTML (WAF)`,
++        htmlBlocked: trimmed.startsWith("<"),
++        error: trimmed.startsWith("<") ? `DJEN respondeu HTML/WAF (HTTP ${res.status}). Tente mais tarde.` : `DJEN indisponível (HTTP ${res.status}).`,
+         items: [],
+       };
+     }
+@@ -331,11 +309,12 @@ export async function djenBuscaNomeParte(
+     } catch {
+       return { ok: false, status: res.status, error: "Resposta não é JSON", items: [] };
+     }
+-    const rawItems: DjenItemRaw[] = Array.isArray(data.items) ? data.items : [];
+-    for (const it of rawItems) {
+-      (it as any).texto = plainText(String(it.texto || ""));
++    if (data == null || (!Array.isArray(data) && !Array.isArray(data.items) && !Array.isArray(data.content))) {
++      return { ok: false, status: res.status, error: "DJEN retornou JSON sem uma lista de publicações. Tente novamente mais tarde.", items: [] };
+     }
+-    return { ok: true, items: rawItems, count: data.count ?? rawItems.length };
++    const rawItems: DjenItemRaw[] = Array.isArray(data.items) ? data.items : Array.isArray(data.content) ? data.content : Array.isArray(data) ? data : [];
++    const items = rawItems.filter(it => it && typeof it === "object").map(it => ({ ...it, texto: plainText(String(it.texto || "")) }));
++    return { ok: true, items, count: data.count ?? items.length };
+   } catch (e: any) {
+     if (e?.name === "AbortError") {
+       return { ok: false, error: "Timeout DJEN (28s)", items: [] };
+diff --git a/src/lib/djen-cpf-extract.ts b/src/lib/djen-cpf-extract.ts
+index 85acedc..e36b774 100644
+--- a/src/lib/djen-cpf-extract.ts
++++ b/src/lib/djen-cpf-extract.ts
+@@ -4,42 +4,19 @@
+  */
+ import { cpfValido } from "@/lib/cpf-cnpj";
+ 
+-const RE_LABELED =
+-  /\bCPF\s*[:\-]?\s*(\d{3}\.?\d{3}\.?\d{3}[\-\/]?\d{2}|\d{11})\b/gi;
+-const RE_MASKED = /\b(\d{3}\.\d{3}\.\d{3}\-\d{2})\b/g;
+-const RE_DIGITS11 = /(?<!\d)(\d{11})(?!\d)/g;
++function digitsOnly(s: string): string { return String(s || "").replace(/\D/g, ""); }
+ 
+-function digitsOnly(s: string): string {
+-  return String(s || "").replace(/\D/g, "");
+-}
+-
+-/** Retorna o primeiro CPF com dígitos verificadores válidos no texto. */
++/** Só o número rotulado ou formatado; valida ambos os dígitos verificadores. */
+ export function extractCpfFromDjenText(texto: string | null | undefined): string {
+   const t = String(texto || "");
+-  if (!t.trim()) return "";
+-
+-  const candidates: string[] = [];
+-
+-  let m: RegExpExecArray | null;
+-  RE_LABELED.lastIndex = 0;
+-  while ((m = RE_LABELED.exec(t)) !== null) {
+-    candidates.push(digitsOnly(m[1]));
+-  }
+-  RE_MASKED.lastIndex = 0;
+-  while ((m = RE_MASKED.exec(t)) !== null) {
+-    candidates.push(digitsOnly(m[1]));
+-  }
+-  // só digits soltos se houver label CPF perto (evita CNJ)
+-  if (/cpf/i.test(t)) {
+-    RE_DIGITS11.lastIndex = 0;
+-    while ((m = RE_DIGITS11.exec(t)) !== null) {
+-      candidates.push(m[1]);
++  const labeled = /\bCPF(?:\s*\/\s*MF)?\s*(?:n[.º°o]*\s*)?[:\-]?\s*(\d{3}\.?\d{3}\.?\d{3}[\-\/]?\d{2})(?!\d)/gi;
++  const formatted = /(?<!\d)(\d{3}\.\d{3}\.\d{3}-\d{2})(?!\d)/g;
++  for (const regex of [labeled, formatted]) {
++    for (const match of t.matchAll(regex)) {
++      const d = digitsOnly(match[1]);
++      if (cpfValido(d)) return d;
+     }
+   }
+-
+-  for (const d of candidates) {
+-    if (d.length === 11 && cpfValido(d)) return d;
+-  }
+   return "";
+ }
+ 
+diff --git a/src/lib/djen-veiculo-extract.ts b/src/lib/djen-veiculo-extract.ts
+index 5548fb1..22baa38 100644
+--- a/src/lib/djen-veiculo-extract.ts
++++ b/src/lib/djen-veiculo-extract.ts
+@@ -1,89 +1,24 @@
+-/**
+- * Extrai placa e indícios de RENAVAM do teor DJEN (publicação pública).
+- * Não consulta SINESP/DETRAN — só texto já publicado.
+- */
+-
+-/** Mercosul ABC1D23 ou antiga ABC-1234 / ABC1234 */
+-const RE_PLACA_LABELED =
+-  /\b(?:placa|ve[ií]culo\s+de\s+placa|autom[oó]vel\s+placa)\s*[:\-]?\s*([A-Z]{3}\-?\d[A-Z0-9]\d{2}|[A-Z]{3}\-?\d{4})\b/gi;
+-const RE_PLACA_MERC = /\b([A-Z]{3}\d[A-Z]\d{2})\b/g;
+-const RE_PLACA_OLD = /\b([A-Z]{3}\-?\d{4})\b/g;
+-
+-const RE_RENAVAM_LABELED =
+-  /\bRENAVAM\s*[:\-]?\s*(\d{9,11})\b/gi;
+-
+-const BLACKLIST = new Set([
+-  "BRASIL",
+-  "ESTADO",
+-  "MINAS",
+-  "GERAIS",
+-  "SAOPA",
+-  "TRIBU",
+-]);
+-
+-function normalizePlate(raw: string): string {
+-  return String(raw || "")
+-    .toUpperCase()
+-    .replace(/[^A-Z0-9]/g, "");
+-}
++/** Identificadores publicados no teor; não consulta cadastro de veículos. */
++export type VeiculoDjen = { placa: string; renavam: string };
+ 
+-function looksLikePlate(p: string): boolean {
+-  if (p.length !== 7) return false;
+-  if (BLACKLIST.has(p.slice(0, 5))) return false;
+-  // antiga: 3 letras + 4 dígitos
+-  if (/^[A-Z]{3}\d{4}$/.test(p)) return true;
+-  // mercosul: 3 letras + dígito + letra + 2 dígitos
+-  if (/^[A-Z]{3}\d[A-Z]\d{2}$/.test(p)) return true;
+-  return false;
++export function formatPlaca(raw: string): string {
++  const p = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
++  return /^[A-Z]{3}\d{4}$/.test(p) ? `${p.slice(0, 3)}-${p.slice(3)}` : p;
+ }
+ 
+ export function extractPlacaFromDjenText(texto: string | null | undefined): string {
+   const t = String(texto || "").toUpperCase();
+-  if (!t.trim()) return "";
+-
+-  const candidates: string[] = [];
+-  let m: RegExpExecArray | null;
+-
+-  RE_PLACA_LABELED.lastIndex = 0;
+-  while ((m = RE_PLACA_LABELED.exec(t)) !== null) {
+-    candidates.push(normalizePlate(m[1]));
+-  }
+-  if (/placa/i.test(t)) {
+-    RE_PLACA_MERC.lastIndex = 0;
+-    while ((m = RE_PLACA_MERC.exec(t)) !== null) candidates.push(normalizePlate(m[1]));
+-    RE_PLACA_OLD.lastIndex = 0;
+-    while ((m = RE_PLACA_OLD.exec(t)) !== null) candidates.push(normalizePlate(m[1]));
+-  }
+-
+-  for (const p of candidates) {
+-    if (looksLikePlate(p)) return formatPlaca(p);
+-  }
+-  return "";
++  const labeled = /\bPLACAS?\s*(?:N[.º°O]*\s*)?[:\-]?\s*([A-Z]{3}[ -]?\d[A-Z0-9]\d{2})\b/;
++  const bare = /\b([A-Z]{3}[- ]?\d[A-Z0-9]\d{2})\b/;
++  const match = t.match(labeled) || t.match(bare);
++  return match ? formatPlaca(match[1]) : "";
+ }
+ 
+ export function extractRenavamFromDjenText(texto: string | null | undefined): string {
+-  const t = String(texto || "");
+-  let m: RegExpExecArray | null;
+-  RE_RENAVAM_LABELED.lastIndex = 0;
+-  while ((m = RE_RENAVAM_LABELED.exec(t)) !== null) {
+-    const d = m[1].replace(/\D/g, "");
+-    if (d.length >= 9 && d.length <= 11) return d;
+-  }
+-  return "";
+-}
+-
+-export function formatPlaca(p: string): string {
+-  const n = normalizePlate(p);
+-  if (n.length !== 7) return n;
+-  if (/^[A-Z]{3}\d{4}$/.test(n)) return `${n.slice(0, 3)}-${n.slice(3)}`;
+-  return n; // mercosul sem hífen
++  const match = String(texto || "").match(/\bRENAVAM\s*(?:n[.º°o]*\s*)?[:\-]?\s*(\d{9,11})(?!\d)/i);
++  return match?.[1] || ""; // Texto: preserva zeros; não afirma validação cadastral.
+ }
+ 
+-export type VeiculoDjen = { placa: string; renavam: string };
+-
+ export function extractVeiculoFromDjenText(texto: string | null | undefined): VeiculoDjen {
+-  return {
+-    placa: extractPlacaFromDjenText(texto),
+-    renavam: extractRenavamFromDjenText(texto),
+-  };
++  return { placa: extractPlacaFromDjenText(texto), renavam: extractRenavamFromDjenText(texto) };
+ }
+diff --git a/src/lib/revisional-tribunal-filtros.ts b/src/lib/revisional-tribunal-filtros.ts
+index b2aa8e0..4fb61a8 100644
+--- a/src/lib/revisional-tribunal-filtros.ts
++++ b/src/lib/revisional-tribunal-filtros.ts
+@@ -1,3 +1,4 @@
++import { extractNomeDoAutor } from "@/lib/djen-client";
+ import {
+   cnjDvValido,
+   extractCnjSeguro,
+@@ -141,22 +142,8 @@ export function extractNomeCompletoFromDjen(item: {
+   texto?: string | null;
+   destinatarios?: Array<{ nome?: string; polo?: string }> | null;
+ }): string {
+-  const dest = item.destinatarios || [];
+-  const ativo = dest.find((d) => /ativ|autor|requerente|exequente/i.test(String(d.polo || "")));
+-  if (ativo?.nome && !/banco|s\/a|ltda|estado/i.test(ativo.nome)) return clean(ativo.nome);
+-  const m = String(item.texto || "").match(
+-    /(?:AUTOR|REQUERENTE|EXEQUENTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç'\s\.]{5,90}?)(?:\s{2,}|\s+ADVOGADO|\s+R[EÉ]U|\n|$)/i
+-  );
+-  if (m?.[1] && !/banco|estado/i.test(m[1])) return clean(m[1]);
+-  const any = dest.find((d) => d.nome && String(d.nome).length >= 8 && !/banco|s\/a/i.test(d.nome));
+-  return any?.nome ? clean(any.nome) : "";
+-}
+-function clean(raw: string) {
+-  return String(raw)
+-    .replace(/\s+/g, " ")
+-    .split(/\s+(?:ADVOGADO|OAB|R[EÉ]U)/i)[0]
+-    .trim()
+-    .slice(0, 90);
++  const ativo = (item.destinatarios || []).find(d => /^(?:A|ATIVO|AUTOR|AUTORA|REQUERENTE|EXEQUENTE)$/i.test(String(d.polo || "").trim()));
++  return String(ativo?.nome || extractNomeDoAutor(item.texto)).replace(/\s+/g, " ").trim().slice(0, 120);
+ }
+ 
+ export interface ProcessoDjenReal {
+@@ -189,11 +176,11 @@ export interface ProcessoDjenReal {
+   /** RENAVAM só se rotulado no teor */
+   renavam?: string;
+   /** SIM se teor sem OAB / sem advogado */
+-  sem_advogado?: string;
++  sem_advogado?: "SIM" | "NAO";
+   /** veiculo | criminal */
+-  tipo_ba?: string;
++  tipo_ba?: "veiculo" | "criminal" | "";
+   /** SIM se fase inicial */
+-  ba_inicio?: string;
++  ba_inicio?: "SIM" | "NAO";
+   flags?: string;
+ }
+ 
+diff --git a/src/lib/xlsx-lista-cnj.ts b/src/lib/xlsx-lista-cnj.ts
+index 8f6b6a5..4cfd6d3 100644
+--- a/src/lib/xlsx-lista-cnj.ts
++++ b/src/lib/xlsx-lista-cnj.ts
+@@ -2,10 +2,10 @@ import JSZip from "jszip";
+ import type { ProcessoDjenReal } from "@/lib/revisional-tribunal-filtros";
+ 
+ function esc(s: string) {
+-  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
++  return String(s ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "").slice(0, 32767).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+ }
+ function cell(col: string, row: number, val: string) {
+-  return `<c r="${col}${row}" t="inlineStr"><is><t>${esc(val)}</t></is></c>`;
++  return `<c r="${col}${row}" s="${row === 1 ? 1 : 2}" t="inlineStr"><is><t xml:space="preserve">${esc(val)}</t></is></c>`;
+ }
+ 
+ /** Cabeçalhos legíveis para operação */
+@@ -13,6 +13,7 @@ const H = [
+   "Processo (CNJ)",
+   "Cliente / Autor",
+   "Telefone",
++  "Email",
+   "CPF",
+   "Placa",
+   "RENAVAM",
+@@ -28,16 +29,17 @@ const H = [
+   "Teor (resumo)",
+ ] as const;
+ 
+-const C = "ABCDEFGHIJKLMNOP".split("");
++const C = "ABCDEFGHIJKLMNOPQ".split("");
+ 
+ export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
+-  const header = `<row r="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
++  const header = `<row r="1" ht="32" customHeight="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
+   const data = lista.map((p, idx) => {
+     const r = idx + 2;
+     const vals = [
+       p.processo,
+       p.nome_completo,
+       p.telefone,
++      p.email,
+       p.cpf,
+       p.placa || "",
+       p.renavam || "",
+@@ -52,18 +54,23 @@ export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<
+       p.link,
+       p.assunto_ou_teor,
+     ];
+-    return `<row r="${r}">${vals.map((v,i)=>cell(C[i],r,String(v??""))).join("")}</row>`;
++    return `<row r="${r}" ht="60" customHeight="1">${vals.map((v,i)=>cell(C[i],r,String(v??""))).join("")}</row>`;
+   }).join("");
+-  const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${header}${data}</sheetData></worksheet>`;
++  const last = Math.max(1, lista.length + 1);
++  const widths = [26, 34, 21, 32, 18, 14, 17, 18, 16, 22, 46, 35, 12, 16, 36, 50, 80];
++  const cols = widths.map((width, i) => `<col min="${i+1}" max="${i+1}" width="${width}" customWidth="1"/>`).join("");
++  const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:Q${last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols>${cols}</cols><sheetData>${header}${data}</sheetData><autoFilter ref="A1:Q${last}"/></worksheet>`;
+   const wb = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="BA_DJEN" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+   const rels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+-  const wbRels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`;
+-  const ct = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`;
++  const wbRels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
++  const ct = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
++  const styles = `<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF173C35"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="49" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+   const zip = new JSZip();
++  zip.file("xl/styles.xml", styles);
+   zip.file("[Content_Types].xml", ct);
+   zip.folder("_rels")!.file(".rels", rels);
+   zip.folder("xl")!.file("workbook.xml", wb);
+   zip.folder("xl")!.folder("_rels")!.file("workbook.xml.rels", wbRels);
+   zip.folder("xl")!.folder("worksheets")!.file("sheet1.xml", sheet);
+-  return zip.generateAsync({ type: "blob" });
++  return zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+ }
+diff --git a/src/lib/ba-djen-flags.test.ts b/src/lib/ba-djen-flags.test.ts
+new file mode 100644
+index 0000000..6342146
+--- /dev/null
++++ b/src/lib/ba-djen-flags.test.ts
+@@ -0,0 +1,41 @@
++import { describe, it, expect } from "vitest";
++import { isBaCriminalOuTrafico, isBaVeiculoOuFiduciaria, isPublicacaoBuscaApreensao, isBaInicioProcesso, isSemAdvogadoNoTeor, queriesBaInicio, queriesBaVeiculo, queriesBaCriminal } from "./ba-djen-flags";
++const classe = "Busca e Apreensão em Alienação Fiduciária";
++const janela = { dataInicio: "2026-08-16", dataFim: "2026-09-15" };
++describe("Modos B.A.", () => {
++  it.each(["Ação penal", "Inquérito", "CP, art. 157", "CPP", "Tráfico", "Lei 11.343", "Arma de fogo", "Homicídio", "Roubo", "Furto", "Latrocínio", "Júri", "Execução penal", "Delegacia: mandado de busca", "Mandado domiciliar", "Apreensão de drogas", "Apreensão de arma"])("isola %s mesmo com veículo", texto => {
++    const t = `Busca e apreensão de veículo. ${texto}.`;
++    expect(isBaCriminalOuTrafico(t)).toBe(true);
++    expect(isBaVeiculoOuFiduciaria(t, classe)).toBe(false);
++    expect(isPublicacaoBuscaApreensao(classe, t)).toBe(false);
++    expect(isPublicacaoBuscaApreensao(classe, t, { modoCriminal: true })).toBe(true);
++  });
++  it.each(["veículo", "alienação fiduciária", "fiduciário", "banco", "financiamento", "DL 911", "procedimento comum"])("aceita contexto %s", contexto => {
++    expect(isPublicacaoBuscaApreensao("", `Busca e apreensão: ${contexto}`)).toBe(true);
++  });
++  it("não presume veículo para B.A. genérica ou assunto sem B.A.", () => {
++    expect(isPublicacaoBuscaApreensao("", "Busca e apreensão de documentos")).toBe(false);
++    expect(isPublicacaoBuscaApreensao("", "Financiamento de automóvel")).toBe(false);
++    expect(isPublicacaoBuscaApreensao("Busca e Apreensão Cível", "Intime-se.")).toBe(true);
++  });
++  it("consultas ASCII separadas", () => {
++    expect([...queriesBaVeiculo(), ...queriesBaInicio(), ...queriesBaCriminal()].every(q => /^[\x00-\x7f]+$/.test(q))).toBe(true);
++    expect(queriesBaVeiculo().some(q => /criminal|trafico/.test(q))).toBe(false);
++  });
++});
++describe("Ato inicial, não histórico", () => {
++  it.each(["Distribuição do processo.", "Autos distribuídos em 16/08/2026.", "Petição inicial protocolada em 15/08/2026.", "Cite-se o réu.", "Citação do requerido.", "Defiro a liminar de busca e apreensão.", "Liminar deferida.", "Expedição de mandado de busca e apreensão.", "Expeça-se mandado de busca e apreensão.", "Petição inicial protocolada.", "Processo em fase inicial.", "Defiro a busca e apreensão.", "Determino a apreensão do veículo.", "Mantenho a liminar. Cite-se novamente.", "Mantenho a liminar. Cite-se o requerido."])("aceita %s", t => {
++    expect(isBaInicioProcesso(t, classe, janela)).toBe(true);
++  });
++  it.each(["Leilão do veículo. Cite-se.", "Hasta pública. Liminar deferida.", "Consolidação da propriedade após liminar.", "Arrematação do veículo.", "Cumprimento de sentença, após distribuição.", "Execução de título.", "Sentença improcedente. Liminar deferida em 2020.", "Julgo procedente o pedido.", "Trânsito em julgado.", "Mantenho a liminar de busca e apreensão.", "Intime-se o autor sobre o andamento.", "Petição inicial juntada para consulta.", "Mandado de busca e apreensão devolvido sem cumprimento.", "Foi deferida a liminar em 2020. Intime-se sobre o andamento.", "Distribuído em 2022. Intime-se.", "Distribuição em 12/02/2022. Intime-se.", "Republicação de despacho: defiro a liminar de busca e apreensão.", "Jurisprudência: defiro a liminar de busca e apreensão.", "O autor requer a citação e a busca e apreensão.", "Indefiro a liminar. Aguarde-se.", "Intime-se para informar a data de distribuição.", "Vistos. Citado em 2020, o réu pede prazo. Intime-se."])("rejeita %s", t => {
++    expect(isBaInicioProcesso(t, classe, janela)).toBe(false);
++  });
++  it("descarta relatório e citação literal", () => {
++    expect(isBaInicioProcesso('Consta a decisão “Defiro a liminar de busca e apreensão”. Intime-se.', classe, janela)).toBe(false);
++    expect(isBaInicioProcesso('Distribuição em 2020. Ante o exposto, intime-se sobre o laudo.', classe, janela)).toBe(false);
++  });
++});
++describe("Representação apenas no teor", () => {
++  it.each(["Sem advogado", "Não consta advogado", "Causa própria", "Jus postulandi", "Autor: Banco Exemplo. Cite-se."])("sinaliza %s", t => expect(isSemAdvogadoNoTeor(t)).toBe(true));
++  it.each(["OAB/SP 123456", "OAB/MG nº 12345", "OAB 12345/SP", "Advogado nomeado, inscrição 12345", "Sem advogado. Autor com OAB/SP 123456."])("inscrição prevalece: %s", t => expect(isSemAdvogadoNoTeor(t)).toBe(false));
++});
+diff --git a/src/lib/djen-gerador.test.ts b/src/lib/djen-gerador.test.ts
+new file mode 100644
+index 0000000..0415a13
+--- /dev/null
++++ b/src/lib/djen-gerador.test.ts
+@@ -0,0 +1,68 @@
++import { afterEach, describe, expect, it, vi } from "vitest";
++import JSZip from "jszip";
++import { extractCpfFromDjenText } from "./djen-cpf-extract";
++import { extractVeiculoFromDjenText } from "./djen-veiculo-extract";
++import { extractEmailFromDjenText, extractTelefonePorContexto, djenBuscaTexto, dataPublicacaoNaJanela, cnjOficial } from "./djen-client";
++import { extractNomeCompletoFromDjen, type ProcessoDjenReal } from "./revisional-tribunal-filtros";
++import { xlsxProcessosDjenReal } from "./xlsx-lista-cnj";
++afterEach(() => vi.unstubAllGlobals());
++describe("Dados publicados", () => {
++  it("extrai CPF válido e preserva zeros do RENAVAM", () => {
++    const t = 'CPF/MF nº 529.982.247-25; placa ABC1D23; RENAVAM nº 00123456789; email contato@example.org; telefone (11) 99999-1234';
++    expect(extractCpfFromDjenText(t)).toBe('52998224725');
++    expect(extractVeiculoFromDjenText(t)).toEqual({ placa: 'ABC1D23', renavam: '00123456789' });
++    expect(extractEmailFromDjenText(t)).toBe('contato@example.org');
++    expect(extractTelefonePorContexto(t)).toBe('(11) 99999-1234');
++  });
++  it("não usa CPF inválido, mascarado ou RENAVAM como CPF/telefone", () => {
++    expect(extractCpfFromDjenText('CPF 111.111.111-11')).toBe('');
++    expect(extractCpfFromDjenText('CPF ***.982.247-**; RENAVAM 52998224725')).toBe('');
++    expect(extractTelefonePorContexto('CPF: 52998224725')).toBe('');
++    expect(extractTelefonePorContexto('RENAVAM: 52998224725')).toBe('');
++    expect(extractTelefonePorContexto('Advogado: Fulano, telefone (11) 99999-1234')).toBe('');
++  });
++  it("aceita placa antiga e considera todos os contatos até achar um válido", () => {
++    expect(extractVeiculoFromDjenText('Placas: abc-1234')).toEqual({ placa: 'ABC-1234', renavam: '' });
++    expect(extractTelefonePorContexto('CPF 52998224725; telefone (31) 3333-1234')).toBe('(31) 3333-1234');
++  });
++  it("não troca autor banco por réu", () => {
++    expect(extractNomeCompletoFromDjen({ destinatarios: [{nome:'Banco Exemplo S.A.',polo:'A'}, {nome:'Pessoa Exemplo',polo:'P'}] })).toBe('Banco Exemplo S.A.');
++    expect(extractNomeCompletoFromDjen({texto:'Autor: Banco Exemplo S.A. Réu: Pessoa Exemplo'})).toBe('Banco Exemplo S.A.');
++    expect(extractNomeCompletoFromDjen({destinatarios:[{nome:'Pessoa Exemplo',polo:'P'}]})).toBe('');
++  });
++});
++describe("DJEN público e datas", () => {
++  const opts = {texto:'busca e apreensao',dataInicio:'2026-08-16',dataFim:'2026-09-15',siglaTribunal:'TJMG'};
++  it.each([['','vazio'],['<html>Bloqueado</html>','HTML/WAF'],['null','sem uma lista'],['{"mensagem":"erro"}','sem uma lista'],['invalid','não é JSON']])('resposta %s é erro claro', async (body,message) => {
++    vi.stubGlobal('fetch',vi.fn(async()=>new Response(body)));
++    const result=await djenBuscaTexto(opts);
++    expect(result.ok).toBe(false); expect(result.error).toContain(message);
++  });
++  it("usa os parâmetros oficiais, incluindo tribunal e datas", async () => {
++    const fetchMock=vi.fn(async (_input: string | URL | Request)=>new Response(JSON.stringify({items:[],count:0})));
++    vi.stubGlobal('fetch',fetchMock);
++    expect((await djenBuscaTexto(opts)).ok).toBe(true);
++    const url=new URL(String(fetchMock.mock.calls[0][0]));
++    expect(url.origin).toBe('https://comunicaapi.pje.jus.br');
++    expect(url.searchParams.get('dataDisponibilizacaoInicio')).toBe(opts.dataInicio);
++    expect(url.searchParams.get('dataDisponibilizacaoFim')).toBe(opts.dataFim);
++    expect(url.searchParams.get('siglaTribunal')).toBe('TJMG');
++  });
++  it("limites inclusivos, rejeita data inválida e nunca extrai CNJ do teor", () => {
++    expect(dataPublicacaoNaJanela('2026-08-16',opts.dataInicio,opts.dataFim)).toBe(true);
++    expect(dataPublicacaoNaJanela('2026-09-15T12:00:00',opts.dataInicio,opts.dataFim)).toBe(true);
++    expect(dataPublicacaoNaJanela('2022-09-15',opts.dataInicio,opts.dataFim)).toBe(false);
++    expect(dataPublicacaoNaJanela('2026-02-31','2026-01-01','2026-12-31')).toBe(false);
++    expect(cnjOficial({texto:'Processo 1000000-00.2026.8.26.0100'})).toBe(null);
++  });
++});
++it("XLSX com 17 colunas, texto seguro, filtros e cabeçalho congelado", async () => {
++  const row = { processo:'0000000-00.2026.8.26.0100', nome_completo:'=EXEMPLO()', telefone:'(11) 99999-1234', email:'teste@example.org', cpf:'01234567890', placa:'ABC1D23',renavam:'00123456789',sem_advogado:'SIM',tipo_ba:'veiculo',ba_inicio:'SIM',flags:'BA_VEICULO | SEM_ADVOGADO',classe:'Busca e Apreensão',tribunal:'TJSP',data:'2026-09-15',situacao_hint:'Inicial',link:'https://comunica.pje.jus.br',assunto_ou_teor:'Teor & <texto>\u0000' } as ProcessoDjenReal;
++  const blob=await xlsxProcessosDjenReal([row]);
++  const zip=await JSZip.loadAsync(await blob.arrayBuffer());
++  const xml=await zip.file('xl/worksheets/sheet1.xml')!.async('string');
++  expect(xml).toContain('r="Q1"'); expect(xml).toContain('Email');expect(xml).toContain('00123456789');
++  expect(xml).toContain('teste@example.org'); expect(xml).toContain('state="frozen"');expect(xml).toContain('autoFilter ref="A1:Q2"');
++  expect(xml).not.toContain('<f>');expect(xml).not.toContain('\u0000');
++  expect(await zip.file('xl/workbook.xml')!.async('string')).toContain('name="BA_DJEN"');
++});
+diff --git a/docs/LEIA-ME-BA-DJEN.md b/docs/LEIA-ME-BA-DJEN.md
+new file mode 100644
+index 0000000..c15fda9
+--- /dev/null
++++ b/docs/LEIA-ME-BA-DJEN.md
+@@ -0,0 +1,29 @@
++# Gerador DJEN — B.A. veículo
++
++Base: `95fb60bf5cc0caab2ee4df812e7776159dd23f94` (15/09/2026).
++
++Extraia os arquivos na raiz de uma branch de revisão, preservando as pastas. Se esses arquivos mudaram após a base, mescle o diff. O pacote inclui os arquivos completos, testes e `BA-DJEN.patch`. Não aplique as duas formas sobrepostas.
++
++## Uso
++
++“Somente busca e apreensão” inicia ligado, com veículo selecionado. Criminal é um modo exclusivo. Ao religar o master, veículo volta a ser o padrão. Início e ausência de advogado só filtram quando ativados; CPF, placa e telefone são filtros globais opcionais. F1/F2 não filtram no modo B.A.
++
++Datas são enviadas como `dataDisponibilizacaoInicio/Fim` e conferidas na data oficial da publicação. Início exige ato inicial no teor, desconsidera citações/relatórios identificáveis e rejeita fases finais, manutenção isolada de liminar e republicação sem novo ato inaugural. Uma data de protocolo anterior à publicação não muda a janela do formulário.
++
++CPF tem validação de dígitos; placa e RENAVAM são extraídos do texto, sem validação cadastral. Email e telefone vêm do teor, sem assegurar titularidade. Telefone é extraído quando a opção de busca está ligada (padrão) ou quando exigido. “Sem advogado” significa ausência de inscrição no teor; inscrição explícita prevalece. O autor, inclusive banco, não é substituído por um destinatário do polo passivo.
++
++Fonte exclusiva: DJEN público. Sem SINESP, DETRAN, carteira como fonte, enriquecimento externo ou IA. Deduplicação pelo CNJ oficial e histórico local de resultados; não consulta a carteira para excluir processos nela existentes.
++
++## Arquivos
++
++- `ba-djen-flags.ts`: modos, critérios de início, advogado e queries ASCII.
++- `djen-cpf-extract.ts`: CPF válido rotulado/formatado; evita confundir RENAVAM.
++- `djen-veiculo-extract.ts`: placas antiga/Mercosul e RENAVAM textual.
++- `djen-client.ts`: erros de corpo vazio/HTML/JSON, datas, nomes, email e telefone contextual.
++- `revisional-tribunal-filtros.ts`: campos tipados e autor pelo polo ativo/teor.
++- `xlsx-lista-cnj.ts`: aba BA_DJEN, 17 colunas, email, larguras, filtro, cabeçalho congelado e valores textuais seguros.
++- `gerador-processos/page.tsx`: chips, aceite, datas, dedup, campos, badges e contadores de descarte.
++
++## Validação
++
++`npm run typecheck` e 172 testes passaram (86 testes novos). ESLint dos arquivos alterados sem erros. Cinco cenários da página real passaram no Chromium com DJEN e autenticação simulados. Não foi feito deploy, consulta de dados reais, teste de disponibilidade do DJEN ou build de produção. A classificação é textual e conservadora; não comprova a data de ajuizamento nem representação no processo.

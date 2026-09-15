@@ -1,6 +1,5 @@
 "use client";
 
-import { isClasseBuscaApreensao } from '@/lib/ba-evidence';
 import {
   isPublicacaoBuscaApreensao,
   isBaInicioProcesso,
@@ -22,7 +21,8 @@ import {
   djenLink,
   type DjenItemRaw,
   extractTelefonePorContexto,
-  extractNomeDoAutor,
+  extractEmailFromDjenText,
+  dataPublicacaoNaJanela,
 } from "@/lib/djen-client";
 import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
 import {
@@ -33,7 +33,6 @@ import {
   passaFiltrosCombinados,
   matchMateria,
   textoTemCnpj,
-  extractTelefoneSeguro,
   extractNomeCompletoFromDjen,
   formatCnjMasked,
   isSegredoOuSigilo,
@@ -48,7 +47,6 @@ import { Download, Loader2, Search, ExternalLink, Square } from "lucide-react";
 import {
   analisarProcedenteSemCumprimento,
   queriesProcedenteSemCumprimento,
-  naJanelaPrescricao,
   rotuloIdade,
   isEsferaPenal,
 } from "@/lib/procedente-sem-cumprimento";
@@ -63,14 +61,15 @@ import { extractVeiculoFromDjenText } from "@/lib/djen-veiculo-extract";
 const isoHoje = () => new Date().toISOString().slice(0, 10);
 const isoIni = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
-function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+function Chip({ on, label, onClick, disabled }: { on: boolean; label: string; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={on}
       className={
-        "text-[11px] rounded-lg border px-2.5 py-1.5 font-medium " +
+        "min-h-11 text-xs rounded-lg border px-3 py-2 font-medium disabled:opacity-60 " +
         (on
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border/60 text-muted-foreground")
@@ -111,7 +110,7 @@ export default function GeradorProcessosPage() {
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => { abortRef.current?.abort(); }, []);
   const [alvo, setAlvo] = useState("60");
-  const [tribunal, setTribunal] = useState("TJSP");
+  const [tribunal, setTribunal] = useState("");
   const [dataInicio, setDataInicio] = useState(isoIni);
   const [dataFim, setDataFim] = useState(isoHoje);
   const [statusOn, setStatusOn] = useState<FiltroStatusId[]>(() => filtrosDefaultStatus());
@@ -119,7 +118,7 @@ export default function GeradorProcessosPage() {
     const d = filtrosDefaultMateria();
     return d.includes("busca_apreensao") ? d : [...d, "busca_apreensao"];
   });
-  const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(false);
+  const [somenteBuscaApreensao, setSomenteBuscaApreensao] = useState(true);
   /** Só aceita publicação com CPF válido no teor DJEN (PJe MG etc.) */
   const [somenteComCpf, setSomenteComCpf] = useState(false);
   const [somenteComPlaca, setSomenteComPlaca] = useState(false);
@@ -128,7 +127,7 @@ export default function GeradorProcessosPage() {
   const [baSemAdvogado, setBaSemAdvogado] = useState(false);
   /** Separado: B.A. criminal/tráfico — NÃO misturar com veículo */
   const [baModoCriminal, setBaModoCriminal] = useState(false);
-  const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(false);
+  const [exibirTelefoneAutor, setExibirTelefoneAutor] = useState(true);
   const [cnpj, setCnpj] = useState("");
   const [lista, setLista] = useState<ProcessoDjenReal[]>([]);
   const [exigeTelefone, setExigeTelefone] = useState(false);
@@ -169,7 +168,7 @@ export default function GeradorProcessosPage() {
     pushLog("info", `DJEN · Alvo ${target} · ${windows.length} intervalos · sem sigilo · ${tribunal} · ${dataInicio} até ${dataFim}`);
     pushLog("info", "Consulta DIRETA do seu navegador ao DJEN (Comunica PJe) — usa o IP da sua rede, não o do servidor.");
     if (somenteBuscaApreensao) {
-      pushLog("info", "Busca e apreensão: a classe oficial do processo precisa confirmar a matéria.");
+      pushLog("info", "B.A.: classificação pela classe e pelo teor; veículo e criminal são separados.");
     }
 
 
@@ -186,7 +185,7 @@ export default function GeradorProcessosPage() {
     let scanDataInicio = dataInicio;
     let scanDataFim = dataFim;
 
-    if (modoProcedenteSemCumprimento) {
+    if (modoProcedenteSemCumprimento && !somenteBuscaApreensao) {
       // Mesma lógica de F1/F2 (queriesDosFiltros) + queries de procedência.
       // Datas = formulário (DJEN costuma devolver 0 em janela ~2021–2022).
       const base = queriesDosFiltros(statusOn, materiaOn) || [];
@@ -223,6 +222,7 @@ export default function GeradorProcessosPage() {
     } else {
       queries = queriesDosFiltros(statusOn, materiaOn) || [];
     }
+    queries = [...new Set(queries)];
     if (!queries.length) {
       pushLog("err", "Nenhuma query para buscar.");
       setBusy(false);
@@ -321,7 +321,11 @@ export default function GeradorProcessosPage() {
             skipTeor = 0,
             skipCnpj = 0,
             skipFiltro = 0,
-            skipNome = 0;
+            skipNome = 0,
+            skipData = 0,
+            skipCpf = 0,
+            skipPlaca = 0,
+            skipTelefone = 0;
 
           for (const it of res.items) {
             const blob = `${it.nomeClasse || ""} ${it.texto || ""}`;
@@ -339,7 +343,7 @@ export default function GeradorProcessosPage() {
                 skipFiltro++;
                 continue;
               }
-              if (!baModoCriminal && baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse)) {
+              if (!baModoCriminal && baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse, { dataInicio, dataFim })) {
                 skipFiltro++;
                 continue;
               }
@@ -353,8 +357,12 @@ export default function GeradorProcessosPage() {
               skipCnj++;
               continue;
             }
-            if (exclude.has(digits)) {
+            if (exclude.has(digits) || rows.some(row => row.processo.replace(/\D/g, "") === digits)) {
               skipDup++;
+              continue;
+            }
+            if (!dataPublicacaoNaJanela(it.data_disponibilizacao, scanDataInicio, scanDataFim)) {
+              skipData++;
               continue;
             }
             if (!teorConsultavel(it.texto)) {
@@ -377,7 +385,7 @@ export default function GeradorProcessosPage() {
             }
             // modoProcedente: filtro é analisarProcedenteSemCumprimento abaixo
 
-            if (modoProcedenteSemCumprimento) {
+            if (modoProcedenteSemCumprimento && !somenteBuscaApreensao) {
               if (isEsferaPenal(blob)) {
                 skipFiltro++;
                 continue;
@@ -389,40 +397,28 @@ export default function GeradorProcessosPage() {
               }
             }
 
-            const nome =
-              extractNomeCompletoFromDjen({
-                texto: it.texto,
-                destinatarios: (it as any).destinatarios,
-              }) || "";
-            if (!nome) {
-              skipNome++;
-              continue;
-            }
-            const telefoneAutor =
-              exibirTelefoneAutor ? extractTelefonePorContexto(it.texto, nome) : "";
-            const cpfPub = extractCpfFromDjenText(blob);
-            const veic = extractVeiculoFromDjenText(blob);
-            if (somenteComCpf && !cpfPub) {
-              skipFiltro++;
-              continue;
-            }
-            if (somenteComPlaca && !veic.placa) {
-              skipFiltro++;
-              continue;
-            }
-            if (exigeTelefone && !String(telefoneAutor || "").replace(/\D/g, "")) {
-              skipFiltro++;
-              continue;
-            }
+            const cpfPub = extractCpfFromDjenText(it.texto);
+            const veic = extractVeiculoFromDjenText(it.texto);
+            if (somenteComCpf && !cpfPub) { skipCpf++; continue; }
+            if (somenteComPlaca && !veic.placa) { skipPlaca++; continue; }
+            const nome = extractNomeCompletoFromDjen({
+              texto: it.texto,
+              destinatarios: it.destinatarios?.map(d => ({ nome: d.nome || d.nomeDestinatario, polo: d.polo || d.tipoPolo })),
+            });
+            const telefoneAutor = (exibirTelefoneAutor || exigeTelefone) ? extractTelefonePorContexto(it.texto, nome) : "";
+            if (exigeTelefone && !telefoneAutor) { skipTelefone++; continue; }
+            if (!nome) { skipNome++; continue; }
             const semAdv = isSemAdvogadoNoTeor(it.texto);
-            const inicio = isBaInicioProcesso(it.texto, it.nomeClasse);
-            const tipoBa = baModoCriminal ? "criminal" : "veiculo";
+            const criminal = isPublicacaoBuscaApreensao(it.nomeClasse, it.texto, { modoCriminal: true });
+            const veiculo = isPublicacaoBuscaApreensao(it.nomeClasse, it.texto);
+            const tipoBa = criminal ? "criminal" : veiculo ? "veiculo" : "";
+            const inicio = veiculo && isBaInicioProcesso(it.texto, it.nomeClasse, { dataInicio, dataFim });
             rows.push(toRow(it, digits, nome, telefoneAutor, statusOn, materiaOn, sigla, cpfPub, veic.placa, veic.renavam, {
               sem_advogado: semAdv ? "SIM" : "NAO",
-              tipo_ba: somenteBuscaApreensao ? tipoBa : "",
+              tipo_ba: tipoBa,
               ba_inicio: inicio ? "SIM" : "NAO",
               flags: [
-                somenteBuscaApreensao ? (baModoCriminal ? "BA_CRIMINAL" : "BA_VEICULO") : "",
+                tipoBa === "criminal" ? "BA_CRIMINAL" : tipoBa === "veiculo" ? "BA_VEICULO" : "",
                 semAdv ? "SEM_ADVOGADO" : "",
                 inicio ? "INICIO_PROCESSO" : "",
                 cpfPub ? "COM_CPF" : "",
@@ -434,7 +430,7 @@ export default function GeradorProcessosPage() {
           const added = add(rows);
           pushLog(
             added ? "ok" : "warn",
-            `Pág ${pagina}: adicionados ${added}/${bruto} · filtro_F1F2:${skipFiltro} sem_nome:${skipNome} sigilo:${skipSigilo} teor:${skipTeor} dup:${skipDup} sem_num:${skipCnj}`
+            `Pág ${pagina}: adicionados ${added}/${bruto} · filtro_F1F2:${skipFiltro} sem_nome:${skipNome} sigilo:${skipSigilo} teor:${skipTeor} dup:${skipDup} sem_num:${skipCnj} fora_data:${skipData} cnpj:${skipCnpj} sem_cpf:${skipCpf} sem_placa:${skipPlaca} sem_fone:${skipTelefone}`
           );
 
           if (added) pushLog("ok", `Progresso ${by.size}/${target} (+${added})`);
@@ -488,10 +484,12 @@ export default function GeradorProcessosPage() {
           <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
           <p className="text-xs text-muted-foreground">
             Fonte <strong>DJEN</strong> (Comunica PJe): publicações reais, CNJ oficial da API.
-            Por padrão gera <strong>sem telefone</strong> — marque a opção abaixo só se quiser exigir contato no teor.
+            CPF, placa, RENAVAM, email e telefone vêm somente do teor público, quando disponíveis.
+            Os filtros de presença só descartam publicações quando ativados.
           </p>
           <label className="flex items-center gap-2 text-[11px] font-semibold">
             <input
+              disabled={busy}
               type="checkbox"
               checked={exigeTelefone}
               onChange={(e) => setExigeTelefone(e.target.checked)}
@@ -501,10 +499,11 @@ export default function GeradorProcessosPage() {
           <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 space-y-2">
             <label className="flex items-start gap-2 text-[11px] font-semibold">
               <input
+              disabled={busy}
                 type="checkbox"
                 className="mt-0.5"
                 checked={modoProcedenteSemCumprimento}
-                onChange={(e) => setModoProcedenteSemCumprimento(e.target.checked)}
+                onChange={(e) => { setModoProcedenteSemCumprimento(e.target.checked); if (e.target.checked) setSomenteBuscaApreensao(false); }}
               />
               <span>
                 <span className="text-emerald-700 dark:text-emerald-400 font-black uppercase tracking-wide">
@@ -522,7 +521,7 @@ export default function GeradorProcessosPage() {
                 type="checkbox"
                 className="mt-0.5"
                 checked={priorizarParados4a}
-                disabled={!modoProcedenteSemCumprimento}
+                disabled={busy || !modoProcedenteSemCumprimento}
                 onChange={(e) => setPriorizarParados4a(e.target.checked)}
               />
               <span>
@@ -545,6 +544,7 @@ export default function GeradorProcessosPage() {
             <div className="flex flex-wrap gap-1.5 mt-1">
               {FILTROS_STATUS.map((f) => (
                 <Chip
+                  disabled={busy}
                   key={f.id}
                   on={statusOn.includes(f.id as FiltroStatusId)}
                   label={f.nomeTribunal}
@@ -566,6 +566,7 @@ export default function GeradorProcessosPage() {
             <div className="flex flex-wrap gap-1.5 mt-1">
               {FILTROS_MATERIA.map((f) => (
                 <Chip
+                  disabled={busy}
                   key={f.id}
                   on={materiaOn.includes(f.id as FiltroMateriaId)}
                   label={f.nomeTribunal}
@@ -579,30 +580,38 @@ export default function GeradorProcessosPage() {
                 />
               ))}
               <Chip
-                onClick={() => setSomenteBuscaApreensao((p) => !p)}
+                  disabled={busy}
+                onClick={() => {
+                  if (!somenteBuscaApreensao) { setBaModoCriminal(false); setModoProcedenteSemCumprimento(false); }
+                  setSomenteBuscaApreensao(!somenteBuscaApreensao);
+                }}
                 on={somenteBuscaApreensao}
                 label="Somente busca e apreensão (fora da carteira)"
               />
               {somenteBuscaApreensao && (
                 <>
                   <Chip
+                  disabled={busy}
                     onClick={() => { setBaModoCriminal(false); }}
                     on={!baModoCriminal}
                     label="B.A. VEÍCULO (padrão — sem criminal)"
                   />
                   <Chip
-                    onClick={() => setBaModoCriminal((p) => !p)}
+                  disabled={busy}
+                    onClick={() => { setBaModoCriminal(true); setBaInicioProcesso(false); }}
                     on={baModoCriminal}
                     label="B.A. CRIMINAL (opção separada)"
                   />
                   {!baModoCriminal && (
                     <Chip
+                  disabled={busy}
                       onClick={() => setBaInicioProcesso((p) => !p)}
                       on={baInicioProcesso}
                       label="B.A. no início do processo"
                     />
                   )}
                   <Chip
+                  disabled={busy}
                     onClick={() => setBaSemAdvogado((p) => !p)}
                     on={baSemAdvogado}
                     label="Sem advogado no teor"
@@ -610,20 +619,26 @@ export default function GeradorProcessosPage() {
                 </>
               )}
               <Chip
+                  disabled={busy}
                 onClick={() => setSomenteComCpf((p) => !p)}
                 on={somenteComCpf}
                 label="Só com CPF no teor DJEN"
               />
               <Chip
+                  disabled={busy}
                 onClick={() => setSomenteComPlaca((p) => !p)}
                 on={somenteComPlaca}
                 label="Só com placa no teor DJEN"
               />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Datas = janela da publicação DJEN. Com “início” ligado, o teor precisa anunciar um ato inicial de B.A.; menções históricas não bastam.
+            “Sem advogado” indica somente ausência de inscrição no teor. Filtros F1/F2 não se aplicam ao modo B.A.
+          </p>
           <div className="flex flex-wrap gap-2 items-end">
-            <Input className="h-9 w-20" value={alvo} onChange={(e) => setAlvo(e.target.value)} title="Alvo" />
-            <select
+            <Input disabled={busy} className="h-9 w-20" value={alvo} onChange={(e) => setAlvo(e.target.value)} title="Alvo" />
+            <select disabled={busy} aria-label="Tribunal DJEN"
               className="h-9 min-w-[9rem] rounded-md border border-border bg-background px-2 text-[11px] font-semibold uppercase"
               value={tribunal}
               onChange={(e) => setTribunal(e.target.value)}
@@ -635,9 +650,9 @@ export default function GeradorProcessosPage() {
                 </option>
               ))}
             </select>
-            <Input className="h-9 w-36" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-            <Input className="h-9 w-36" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
-            <Input className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
+            <Input disabled={busy} className="h-9 w-36" aria-label="Publicação: data inicial" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+            <Input disabled={busy} className="h-9 w-36" aria-label="Publicação: data final" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+            <Input disabled={busy} className="h-9 w-36 font-mono" placeholder="CNPJ opcional" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
             {!busy ? (
               <Button onClick={iniciar} className="h-9 text-xs font-black uppercase gap-1">
                 <Search className="w-4 h-4" /> Buscar
@@ -661,8 +676,9 @@ export default function GeradorProcessosPage() {
             </Button>
             <label className="flex items-center gap-2 text-[11px] cursor-pointer">
               <input
+              disabled={busy}
                 type="checkbox"
-                checked={exibirTelefoneAutor}
+                checked={exibirTelefoneAutor || exigeTelefone}
                 onChange={(e) => setExibirTelefoneAutor(e.target.checked)}
               />
               Achar telefone do autor quando disponível
@@ -691,7 +707,7 @@ export default function GeradorProcessosPage() {
                         <p className="font-mono text-sm font-bold">{p.processo}</p>
                         {baClareadoLocal && (
                           <span className="text-[10px] font-black uppercase rounded-full px-2 py-0.5 border bg-amber-500/15 text-amber-600 border-amber-500/40">
-                            BUSCA E APRENSÃO
+                            BUSCA E APREENSÃO
                           </span>
                         )}
                         <span
@@ -732,23 +748,24 @@ export default function GeradorProcessosPage() {
                           {p.telefone}
                         </p>
                       )}
+                      {p.email && <p className="text-xs break-all">{p.email}</p>}
                       {p.cpf && (
                         <p className="text-[11px] font-mono text-sky-600 dark:text-sky-400">
                           CPF {formatCpfMasked(p.cpf)}
                         </p>
                       )}
-                      {p.placa && (
+                      {(p.placa || p.renavam) && (
                         <p className="text-[11px] font-mono text-amber-700 dark:text-amber-400">
-                          Placa {p.placa}{p.renavam ? ` · RENAVAM ${p.renavam}` : ""}
+                          {p.placa ? `Placa ${p.placa}` : ""}{p.renavam ? ` · RENAVAM ${p.renavam}` : ""}
                         </p>
                       )}
                       {p.sem_advogado === "SIM" && (
-                        <p className="text-[10px] font-black uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                        <p className="inline-flex rounded-md border px-2 py-1 text-xs text-rose-700 dark:text-rose-300">
                           Sem advogado
                         </p>
                       )}
                       {p.tipo_ba && (
-                        <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                        <p className="inline-flex rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground">
                           B.A. {p.tipo_ba === "criminal" ? "criminal" : "veículo"}
                           {p.ba_inicio === "SIM" ? " · início" : ""}
                         </p>
@@ -815,14 +832,14 @@ function toRow(
   cpfExtra?: string,
   placaExtra?: string,
   renavamExtra?: string,
-  extra?: { sem_advogado?: string; tipo_ba?: string; ba_inicio?: string; flags?: string }
+  extra?: Pick<ProcessoDjenReal, "sem_advogado" | "tipo_ba" | "ba_inicio" | "flags">
 ): ProcessoDjenReal {
   const tel = telefoneAutor || "";
   const decisao = classificarSentenca(String(it.texto || ""));
   const statusLabel = FILTROS_STATUS.find((f) => f.id === decisao)?.nomeTribunal || decisao || "";
   const materiaHits = matchMateria(String(it.texto || ""), materiaOn);
   const matLabel = materiaHits.map((id) => FILTROS_MATERIA.find((f) => f.id === id)?.nomeTribunal).filter(Boolean).join(" · ");
-  const baClareadoLocal = isClasseBuscaApreensao(it.nomeClasse);
+  const baClareadoLocal = !!extra?.tipo_ba;
   const decisaoLabel = {
     extinto_sem_merito: "Extinto sem resolução do mérito",
     extinto_com_merito: "Extinto com resolução do mérito",
@@ -835,7 +852,7 @@ function toRow(
     processo: formatCnjMasked(digits),
     nome_completo: nome,
     telefone: tel,
-    email: "",
+    email: extractEmailFromDjenText(it.texto),
     cpf: cpfExtra || extractCpfFromDjenText(String(it.texto || "")) || "",
     cnpj: "",
     placa: placaExtra || "",

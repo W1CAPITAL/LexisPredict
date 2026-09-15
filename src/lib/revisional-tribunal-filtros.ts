@@ -1,3 +1,4 @@
+import { extractNomeDoAutor } from "@/lib/djen-client";
 import {
   cnjDvValido,
   extractCnjSeguro,
@@ -141,22 +142,8 @@ export function extractNomeCompletoFromDjen(item: {
   texto?: string | null;
   destinatarios?: Array<{ nome?: string; polo?: string }> | null;
 }): string {
-  const dest = item.destinatarios || [];
-  const ativo = dest.find((d) => /ativ|autor|requerente|exequente/i.test(String(d.polo || "")));
-  if (ativo?.nome && !/banco|s\/a|ltda|estado/i.test(ativo.nome)) return clean(ativo.nome);
-  const m = String(item.texto || "").match(
-    /(?:AUTOR|REQUERENTE|EXEQUENTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç'\s\.]{5,90}?)(?:\s{2,}|\s+ADVOGADO|\s+R[EÉ]U|\n|$)/i
-  );
-  if (m?.[1] && !/banco|estado/i.test(m[1])) return clean(m[1]);
-  const any = dest.find((d) => d.nome && String(d.nome).length >= 8 && !/banco|s\/a/i.test(d.nome));
-  return any?.nome ? clean(any.nome) : "";
-}
-function clean(raw: string) {
-  return String(raw)
-    .replace(/\s+/g, " ")
-    .split(/\s+(?:ADVOGADO|OAB|R[EÉ]U)/i)[0]
-    .trim()
-    .slice(0, 90);
+  const ativo = (item.destinatarios || []).find(d => /^(?:A|ATIVO|AUTOR|AUTORA|REQUERENTE|EXEQUENTE)$/i.test(String(d.polo || "").trim()));
+  return String(ativo?.nome || extractNomeDoAutor(item.texto)).replace(/\s+/g, " ").trim().slice(0, 120);
 }
 
 export interface ProcessoDjenReal {
@@ -189,11 +176,11 @@ export interface ProcessoDjenReal {
   /** RENAVAM só se rotulado no teor */
   renavam?: string;
   /** SIM se teor sem OAB / sem advogado */
-  sem_advogado?: string;
+  sem_advogado?: "SIM" | "NAO";
   /** veiculo | criminal */
-  tipo_ba?: string;
+  tipo_ba?: "veiculo" | "criminal" | "";
   /** SIM se fase inicial */
-  ba_inicio?: string;
+  ba_inicio?: "SIM" | "NAO";
   flags?: string;
 }
 

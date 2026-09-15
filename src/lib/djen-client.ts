@@ -57,9 +57,10 @@ export interface DjenClientResult {
 
 const DJEN_URL = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 
-function plainText(html: string): string {
+export function plainText(html: string): string {
   return String(html || "")
     .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|li|tr)>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
@@ -144,6 +145,9 @@ export async function djenBuscaTexto(
       };
     }
     // API às vezes devolve items em status/mensagem sem array
+    if (data == null || (!Array.isArray(data) && !Array.isArray(data.items) && !Array.isArray(data.content))) {
+      return { ok: false, status: res.status, error: "DJEN retornou JSON sem uma lista de publicações. Tente novamente mais tarde.", items: [] };
+    }
     const rawItems: DjenItemRaw[] = Array.isArray(data.items)
       ? data.items
       : Array.isArray(data.content)
@@ -151,10 +155,8 @@ export async function djenBuscaTexto(
         : Array.isArray(data)
           ? data
           : [];
-    for (const it of rawItems) {
-      (it as any).texto = plainText(String(it.texto || ""));
-    }
-    return { ok: true, items: rawItems, count: data.count ?? rawItems.length };
+    const items = rawItems.filter(it => it && typeof it === "object").map(it => ({ ...it, texto: plainText(String(it.texto || "")) }));
+    return { ok: true, items, count: data.count ?? items.length };
   } catch (e: any) {
     if (e?.name === "AbortError") {
       return { ok: false, error: opts.signal?.aborted ? "Consulta interrompida." : "Timeout DJEN (28s)", items: [] };
@@ -171,64 +173,39 @@ export async function djenBuscaTexto(
  */
 export function extractNomeDoAutor(texto: string | null | undefined): string {
   const t = String(texto || "");
-  if (!t) return "";
-  const re = /(?:AUTOR|REQUERENTE|EXEQUENTE)\s*[:\-–]\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.'\-]{6,80}?)(?:\s{2,}|\s+ADVOGADO|\s+R[EÉ]U|$) /i;
-  const m = t.match(re);
-  if (m?.[1]) {
-    const n = m[1].trim().slice(0, 80);
-    if (n.length >= 6) return n;
+  const match = t.match(/\b(?:AUTOR(?:A)?|REQUERENTE|EXEQUENTE)\s*[:\-–]\s*([^\n;]{3,150}?)(?=\s+(?:ADVOGAD[OA]|OAB|R[EÉ]U|REQUERIDO|CPF|CNPJ|TELEFONE|TEL|EMAIL|E-MAIL|DECIS[AÃ]O|VISTOS)\b|\n|;|$)/i);
+  return match?.[1]?.trim().replace(/[,\s]+$/, "").slice(0, 120) || "";
+}
+
+export function extractEmailFromDjenText(texto: string | null | undefined): string {
+  return String(texto || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+}
+
+/** Exige indicação de contato ou nome próximo; ignora números documentais. */
+export function extractTelefonePorContexto(texto: string | null | undefined, nomeAutor?: string): string {
+  const t = String(texto || "");
+  const re = /(?<![\d.])(?:\+?55[ -]*)?\(?([1-9]\d)\)?[ -]*(9\d{4}|[2-5]\d{3})[ -]?(\d{4})(?![\d.-])/g;
+  for (const match of t.matchAll(re)) {
+    const index = match.index!;
+    const before = t.slice(Math.max(0, index - 90), index);
+    if (/\b(?:CPF|CNPJ|RENAVAM|OAB|PROCESSO|PROTOCOLO|CHASSI)\s*(?:n[.º°o]*\s*)?[:\-]?\s*$/i.test(before)) continue;
+    const labeled = /(?:telefone|tel\.?|celular|whats(?:app)?|contato)\s*[:\-]?\s*$/i.test(before);
+    const clause = before.split(/[;\n]/).at(-1) || "";
+    if (/advogad[oa]|escrit[oó]rio|oab|cart[oó]rio|secretaria/i.test(clause)) continue;
+    const nearName = !!nomeAutor && clause.toLocaleLowerCase().includes(nomeAutor.toLocaleLowerCase());
+    if (labeled || nearName) return formatTelefone(match[1] + match[2] + match[3]);
   }
   return "";
 }
 
-/**
- * Extração de telefone do próprio teor.
- * Só confia quando o número aparece junto do nome do autor/requerente
- * ou numa linha que menciona intimar/citir/citar a parte pelo nome —
- * para evitar pegar telefone de terceiros citados no mesmo teor.
- */
-export function extractTelefonePorContexto(
-  texto: string | null | undefined,
-  nomeAutor?: string
-): string {
-  const t = String(texto || "");
-  if (!t || t.length < 20) return "";
-
-  const cleaned = t.replace(/\b\d{7}-\d{2}\.\d{4}\.\d.\d{2}.\d{4}\b/g, " ");
-  const re = /(?:\+?55\s*)?(?:\(?(\d{2,3})\)?\s*)?(?:\(?(\d{4,5})\)?[-\s]?)(\d{4})/g;
-  const candidatos: Array<{ digits: string; idx: number }> = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(cleaned))) {
-    const ddd = m[1] ? m[1].replace(/\D/g, "") : "";
-    const p1 = m[2] ? m[2].replace(/\D/g, "") : "";
-    const p2 = m[3] ? m[3].replace(/\D/g, "") : "";
-    const digits = (ddd + p1 + p2).replace(/\D/g, "").slice(0, 11);
-    if (digits.length >= 9) {
-      candidatos.push({ digits, idx: m.index });
-    }
-  }
-  if (candidatos.length === 0) return "";
-
-  if (nomeAutor) {
-    const nomeLower = nomeAutor.toLowerCase();
-    const best = candidatos.slice().sort((a, b) => a.idx - b.idx)[0];
-    if (best) {
-      const sliceAround = t.slice(Math.max(0, best.idx - 400), best.idx + 400).toLowerCase();
-      if (sliceAround.includes(nomeLower) || sliceAround.includes(nomeLower.replace(/\s+/g, ""))) {
-        return formatTelefone(best.digits);
-      }
-    }
-  }
-
-  const first = candidatos[0];
-  if (first) {
-    const sliceAround = t.slice(Math.max(0, first.idx - 400), first.idx + 400);
-    const lower = sliceAround.toLowerCase();
-    if (!/(advogado|escritório|oab)/i.test(lower)) {
-      return formatTelefone(first.digits);
-    }
-  }
-  return "";
+/** A janela é a data oficial da publicação, nunca uma data extraída do teor. */
+export function dataPublicacaoNaJanela(data: unknown, inicio: string, fim: string): boolean {
+  const raw = String(data || "");
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const iso = br ? `${br[3]}-${br[2]}-${br[1]}` : raw.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const time = Date.parse(`${iso}T00:00:00Z`);
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === iso && iso >= inicio && iso <= fim;
 }
 
 function formatTelefone(digits: string): string {
@@ -316,12 +293,13 @@ export async function djenBuscaNomeParte(
     }
     const text = await res.text();
     const trimmed = text.trim();
+    if (!trimmed) return { ok: false, status: res.status, error: `DJEN respondeu vazio (HTTP ${res.status}). Tente novamente mais tarde.`, items: [] };
     if (!res.ok || trimmed.startsWith("<") || /<!doctype html/i.test(trimmed)) {
       return {
         ok: false,
         status: res.status,
-        htmlBlocked: true,
-        error: `HTTP ${res.status} + HTML (WAF)`,
+        htmlBlocked: trimmed.startsWith("<"),
+        error: trimmed.startsWith("<") ? `DJEN respondeu HTML/WAF (HTTP ${res.status}). Tente mais tarde.` : `DJEN indisponível (HTTP ${res.status}).`,
         items: [],
       };
     }
@@ -331,11 +309,12 @@ export async function djenBuscaNomeParte(
     } catch {
       return { ok: false, status: res.status, error: "Resposta não é JSON", items: [] };
     }
-    const rawItems: DjenItemRaw[] = Array.isArray(data.items) ? data.items : [];
-    for (const it of rawItems) {
-      (it as any).texto = plainText(String(it.texto || ""));
+    if (data == null || (!Array.isArray(data) && !Array.isArray(data.items) && !Array.isArray(data.content))) {
+      return { ok: false, status: res.status, error: "DJEN retornou JSON sem uma lista de publicações. Tente novamente mais tarde.", items: [] };
     }
-    return { ok: true, items: rawItems, count: data.count ?? rawItems.length };
+    const rawItems: DjenItemRaw[] = Array.isArray(data.items) ? data.items : Array.isArray(data.content) ? data.content : Array.isArray(data) ? data : [];
+    const items = rawItems.filter(it => it && typeof it === "object").map(it => ({ ...it, texto: plainText(String(it.texto || "")) }));
+    return { ok: true, items, count: data.count ?? items.length };
   } catch (e: any) {
     if (e?.name === "AbortError") {
       return { ok: false, error: "Timeout DJEN (28s)", items: [] };
