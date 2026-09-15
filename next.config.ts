@@ -51,6 +51,13 @@ const nextConfig: NextConfig = {
   },
   headers: async () => [
     {
+      source: "/consulta-bases/:path*",
+      headers: [
+        { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+        { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+      ],
+    },
+    {
       source: "/:path*",
       headers: [
         { key: "X-Frame-Options", value: "DENY" },
