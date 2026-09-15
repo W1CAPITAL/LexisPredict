@@ -24,7 +24,7 @@ const sections = [
   { title: 'Documentos e análise', items: [
     ['Peças e documentos', '/documents', FileText], ['Dossiê operacional', '/report', BarChart3],
     ['Procedentes', '/cumprimentos-procedentes', Scale], ['OCR', '/tools/ocr', FileText],
-    ['Importar carteira', '/import', Upload], ['Visualizador CSV', '/visualizador-csv', FileSpreadsheet], ['Visualizador DB', '/visualizador-db', Database], ['Assistente', '/chat', Bot],
+    ['Importar carteira', '/import', Upload], ['Consulta de bases', '/consulta-bases', Database], ['Visualizador CSV', '/visualizador-csv', FileSpreadsheet], ['Visualizador DB', '/visualizador-db', Database], ['Assistente', '/chat', Bot],
     ['Veredito', '/veredito', Scale], ['Indicadores', '/analytics', BarChart3],
     ['Insights', '/insights', BrainCircuit], ['Urgências', '/urgency', ShieldAlert],
     ['Investigação predatória', '/investigacao-predatoria', Search],

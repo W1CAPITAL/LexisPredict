@@ -39,6 +39,7 @@ const more = [
   ["Procedentes", "/cumprimentos-procedentes", Scale],
   ["OCR", "/tools/ocr", FileText],
   ["Importar", "/import", Upload],
+  ["Consulta bases", "/consulta-bases", Database],
   ["CSV local", "/visualizador-csv", FileSpreadsheet],
   ["DB local", "/visualizador-db", Database],
   ["Assistente", "/chat", Bot],
