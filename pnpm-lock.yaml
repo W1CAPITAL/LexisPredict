@@ -83,6 +83,9 @@ importers:
       '@sparticuz/chromium':
         specifier: ^131.0.1
         version: 131.0.1
+      '@sqlite.org/sqlite-wasm':
+        specifier: 3.53.4-build1
+        version: 3.53.4-build1
       '@supabase/ssr':
         specifier: ^0.5.2
         version: 0.5.2(@supabase/supabase-js@2.116.0(@opentelemetry/api@1.9.1))
@@ -124,7 +127,7 @@ importers:
         version: 11.18.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       genkit:
         specifier: ^1.29.0
-        version: 1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)
+        version: 1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)
       gsap:
         specifier: ^3.13.0
         version: 3.15.0
@@ -2520,6 +2523,10 @@ packages:
   '@sparticuz/chromium@131.0.1':
     resolution: {integrity: sha512-VfmHkQmb/Px0zjwdSQwjRMwFw63Qfj+g4Giumz4jiAGEpXHgIZk6xEwlUz6yiUHVDveK2TEgMR2MR6I3okOE7w==}
     engines: {node: '>= 16'}
+
+  '@sqlite.org/sqlite-wasm@3.53.4-build1':
+    resolution: {integrity: sha512-U8pvL0patYHMgieD8JxxYJTlh9m1LUX8+BDYb7MiKQzBI89f2qbdmdcG/PvnPaLm9wsBbv4VlVG453ixnxBOnA==}
+    engines: {node: '>=22'}
 
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
@@ -6028,9 +6035,9 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@genkit-ai/ai@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))':
+  '@genkit-ai/ai@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))':
     dependencies:
-      '@genkit-ai/core': 1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))
+      '@genkit-ai/core': 1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))
       '@opentelemetry/api': 1.9.1
       '@types/node': 20.19.43
       colorette: 2.0.20
@@ -6051,7 +6058,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@genkit-ai/core@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))':
+  '@genkit-ai/core@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.52.1
@@ -6075,7 +6082,7 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
-      '@genkit-ai/firebase': 1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))
+      '@genkit-ai/firebase': 1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))
     transitivePeerDependencies:
       - '@google-cloud/firestore'
       - bufferutil
@@ -6086,18 +6093,18 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@genkit-ai/firebase@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))':
+  '@genkit-ai/firebase@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))':
     dependencies:
-      '@genkit-ai/google-cloud': 1.42.0(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))
-      '@google-cloud/firestore': 7.11.6
+      '@genkit-ai/google-cloud': 1.42.0(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))
+      '@google-cloud/firestore': 9.1.0
       firebase-admin: 14.4.0
-      genkit: 1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)
+      genkit: 1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)
     transitivePeerDependencies:
       - encoding
       - supports-color
     optional: true
 
-  '@genkit-ai/google-cloud@1.42.0(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))':
+  '@genkit-ai/google-cloud@1.42.0(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))':
     dependencies:
       '@google-cloud/firestore': 7.11.6
       '@google-cloud/logging-winston': 6.0.2(winston@3.19.0)
@@ -6115,7 +6122,7 @@ snapshots:
       '@opentelemetry/sdk-metrics': 1.25.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-node': 0.52.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 1.25.1(@opentelemetry/api@1.9.1)
-      genkit: 1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)
+      genkit: 1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)
       google-auth-library: 9.15.1
       node-fetch: 3.3.2
       winston: 3.19.0
@@ -8269,6 +8276,8 @@ snapshots:
       - debug
       - react-native-b4a
 
+  '@sqlite.org/sqlite-wasm@3.53.4-build1': {}
+
   '@standard-schema/utils@0.3.0': {}
 
   '@supabase/auth-js@2.116.0':
@@ -9804,10 +9813,10 @@ snapshots:
       - utf-8-validate
       - zod
 
-  genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0):
+  genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0):
     dependencies:
-      '@genkit-ai/ai': 1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))
-      '@genkit-ai/core': 1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@7.11.6)(firebase-admin@14.4.0))
+      '@genkit-ai/ai': 1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))
+      '@genkit-ai/core': 1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0)(genkit@1.42.0(@google-cloud/firestore@9.1.0)(firebase-admin@14.4.0))
       uuid: 10.0.0
     transitivePeerDependencies:
       - '@google-cloud/firestore'
