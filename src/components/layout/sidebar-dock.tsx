@@ -8,7 +8,7 @@ import {
   Gavel, Hash, MessageCircle, CalendarDays, FileText, BarChart3, Users,
   ShieldCheck, Kanban, Wallet, Calculator, Bot, MessagesSquare, Upload,
   Settings, Search, Menu, LogOut, Zap, StickyNote, PlayCircle, BrainCircuit,
-  Crown, Monitor, Scale,
+  Crown, Monitor, Scale, FileSpreadsheet,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
@@ -39,6 +39,7 @@ const more = [
   ["Procedentes", "/cumprimentos-procedentes", Scale],
   ["OCR", "/tools/ocr", FileText],
   ["Importar", "/import", Upload],
+  ["CSV local", "/visualizador-csv", FileSpreadsheet],
   ["Assistente", "/chat", Bot],
   ["Veredito", "/veredito", Scale],
   ["Indicadores", "/analytics", BarChart3],
