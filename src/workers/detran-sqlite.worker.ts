@@ -43,10 +43,8 @@ function normalizeValue(value: unknown): Cell | string {
 
 async function initialize() {
   if (sqlite3) return;
-  sqlite3 = await sqlite3InitModule({
-    print: () => undefined,
-    printErr: (message: unknown) => post("log", { message: String(message) }),
-  });
+  // @sqlite.org/sqlite-wasm tipa init sem argumentos; print/printErr não são aceitos no tipo atual
+  sqlite3 = await sqlite3InitModule();
   if (!sqlite3.oo1?.OpfsDb) {
     throw new Error("Este navegador não oferece SQLite OPFS. Use Chrome, Edge ou Firefox atualizado.");
   }
