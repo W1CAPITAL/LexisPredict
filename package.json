@@ -44,6 +44,7 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "@react-pdf/renderer": "^4.2.1",
     "@sparticuz/chromium": "^131.0.1",
+    "@sqlite.org/sqlite-wasm": "3.53.4-build1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.48.1",
     "@types/sql.js": "^1.4.11",
