@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ListTodo, Briefcase, FolderOpen, PauseCircle, ShieldAlert, Gavel, Hash, MessageCircle, CalendarDays, FileText, BarChart3, Users, ShieldCheck, Kanban, Wallet, Calculator, Bot, MessagesSquare, Upload, Settings, Search, Menu, PanelLeftClose, PanelLeftOpen, LogOut, Zap, StickyNote, PlayCircle, BrainCircuit, Crown, Monitor, Scale } from 'lucide-react';
+import { LayoutDashboard, ListTodo, Briefcase, FolderOpen, PauseCircle, ShieldAlert, Gavel, Hash, MessageCircle, CalendarDays, FileText, FileSpreadsheet, BarChart3, Users, ShieldCheck, Kanban, Wallet, Calculator, Bot, MessagesSquare, Upload, Settings, Search, Menu, PanelLeftClose, PanelLeftOpen, LogOut, Zap, StickyNote, PlayCircle, BrainCircuit, Crown, Monitor, Scale } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAdmin } from '@/hooks/use-admin';
 import { usePlano } from '@/hooks/use-plano';
@@ -24,7 +24,7 @@ const sections = [
   { title: 'Documentos e análise', items: [
     ['Peças e documentos', '/documents', FileText], ['Dossiê operacional', '/report', BarChart3],
     ['Procedentes', '/cumprimentos-procedentes', Scale], ['OCR', '/tools/ocr', FileText],
-    ['Importar carteira', '/import', Upload], ['Assistente', '/chat', Bot],
+    ['Importar carteira', '/import', Upload], ['Visualizador CSV', '/visualizador-csv', FileSpreadsheet], ['Assistente', '/chat', Bot],
     ['Veredito', '/veredito', Scale], ['Indicadores', '/analytics', BarChart3],
     ['Insights', '/insights', BrainCircuit], ['Urgências', '/urgency', ShieldAlert],
     ['Investigação predatória', '/investigacao-predatoria', Search],
