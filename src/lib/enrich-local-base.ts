@@ -1,4 +1,4 @@
-/** Normalização e cruzamento gerador ↔ base local (DETRAN/CSV no PC). */
+/** Normalização e cruzamento gerador ↔ bases locais (DETRAN SPT_USERS / Credilink). */
 
 export function onlyDigits(v: unknown): string {
   return String(v ?? "").replace(/\D/g, "");
@@ -21,12 +21,10 @@ export type EnrichHit = {
   cpf?: string;
   telefone?: string;
   email?: string;
-  extra?: string;
 };
 
 export type EnrichQuery = { cpf?: string; nome?: string };
 
-/** Monta Sets a partir da lista do gerador (poucas dezenas/centenas). */
 export function buildQueryIndex(items: EnrichQuery[]) {
   const cpfs = new Set<string>();
   const nomes = new Set<string>();
@@ -39,6 +37,50 @@ export function buildQueryIndex(items: EnrichQuery[]) {
   return { cpfs, nomes };
 }
 
+/** Preferência de colunas conforme amostras reais. */
+export function pickColumns(headers: string[]) {
+  const H = headers.map((h) => h.trim());
+  const lower = H.map((h) => h.toLowerCase());
+  const find = (...preds: ((h: string) => boolean)[]) => {
+    for (const p of preds) {
+      const i = lower.findIndex(p);
+      if (i >= 0) return H[i];
+    }
+    return "";
+  };
+
+  // DETRAN: CPF_NUMBER | Credilink: CPF
+  const cpf = find(
+    (h) => h === "cpf_number",
+    (h) => h === "cpf",
+    (h) => h.includes("cpf")
+  );
+  // DETRAN: NAME | Credilink: NOME
+  const nome = find(
+    (h) => h === "name",
+    (h) => h === "nome",
+    (h) => h.includes("nome") && !h.includes("mae") && !h.includes("pai") && !h.includes("social")
+  );
+  // DETRAN: TELEPHONE_MOBILE > TELEPHONE > TELEPHONE_MOBILE2
+  const telefone = find(
+    (h) => h === "telephone_mobile",
+    (h) => h === "telephone_mobile2",
+    (h) => h === "telephone",
+    (h) => h.includes("mobile"),
+    (h) => h.includes("celular"),
+    (h) => h.includes("whats"),
+    (h) => h.includes("telefone") || h.includes("telephone") || h === "tel"
+  );
+  // EMAIL / EMAIL_OPTIONAL
+  const email = find(
+    (h) => h === "email",
+    (h) => h === "email_optional",
+    (h) => h.includes("email") || h.includes("e-mail")
+  );
+
+  return { cpf, nome, telefone, email };
+}
+
 export function matchRow(
   row: Record<string, string>,
   map: { cpf?: string; nome?: string; telefone?: string; email?: string },
@@ -46,14 +88,21 @@ export function matchRow(
 ): EnrichHit {
   const cpfVal = onlyDigits(map.cpf ? row[map.cpf] : "");
   const nomeVal = normName(map.nome ? row[map.nome] : "");
-  const tel = map.telefone ? String(row[map.telefone] || "").trim() : "";
+  const telRaw = map.telefone ? String(row[map.telefone] || "").trim() : "";
   const email = map.email ? String(row[map.email] || "").trim() : "";
 
   if (cpfVal.length === 11 && index.cpfs.has(cpfVal)) {
-    return { matched: true, match_by: "cpf", nome: nomeVal, cpf: cpfVal, telefone: tel, email };
+    return { matched: true, match_by: "cpf", nome: nomeVal, cpf: cpfVal, telefone: telRaw, email };
   }
   if (nomeVal.length >= 8 && index.nomes.has(nomeVal)) {
-    return { matched: true, match_by: "nome", nome: nomeVal, cpf: cpfVal || undefined, telefone: tel, email };
+    return {
+      matched: true,
+      match_by: "nome",
+      nome: nomeVal,
+      cpf: cpfVal.length === 11 ? cpfVal : undefined,
+      telefone: telRaw,
+      email,
+    };
   }
   return { matched: false };
 }

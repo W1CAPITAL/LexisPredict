@@ -6,6 +6,7 @@ import {
   matchRow,
   onlyDigits,
   normName,
+  pickColumns,
   type EnrichHit,
   type EnrichQuery,
 } from "../lib/enrich-local-base";
@@ -29,14 +30,12 @@ function detectDelim(line: string) {
 }
 
 function autoMap(headers: string[], mapping: Record<string, string>) {
+  const auto = pickColumns(headers);
   return {
-    cpf: mapping.cpf && headers.includes(mapping.cpf) ? mapping.cpf : headers.find((h) => /cpf/i.test(h)) || "",
-    nome: mapping.nome && headers.includes(mapping.nome) ? mapping.nome : headers.find((h) => /nome/i.test(h)) || "",
-    telefone:
-      mapping.telefone && headers.includes(mapping.telefone)
-        ? mapping.telefone
-        : headers.find((h) => /tel|celular|fone|whats/i.test(h)) || "",
-    email: mapping.email && headers.includes(mapping.email) ? mapping.email : headers.find((h) => /e-?mail/i.test(h)) || "",
+    cpf: mapping.cpf && headers.includes(mapping.cpf) ? mapping.cpf : auto.cpf,
+    nome: mapping.nome && headers.includes(mapping.nome) ? mapping.nome : auto.nome,
+    telefone: mapping.telefone && headers.includes(mapping.telefone) ? mapping.telefone : auto.telefone,
+    email: mapping.email && headers.includes(mapping.email) ? mapping.email : auto.email,
   };
 }
 
@@ -177,9 +176,10 @@ async function enrichFromDbFile(file: File, queries: EnrichQuery[], table: strin
   const telCol = mapping.telefone || "telefone";
   const colsInfo = db.exec(`PRAGMA table_info("${tname.replace(/"/g, '""')}")`);
   const colNames = (colsInfo[0]?.values || []).map((r) => String(r[1]));
-  const cpfC = colNames.find((c) => /cpf/i.test(c)) || cpfCol;
-  const nomeC = colNames.find((c) => /nome/i.test(c)) || nomeCol;
-  const telC = colNames.find((c) => /tel|cel|fone|whats/i.test(c)) || telCol;
+  const picked = pickColumns(colNames);
+  const cpfC = picked.cpf || cpfCol;
+  const nomeC = picked.nome || nomeCol;
+  const telC = picked.telefone || telCol;
 
   for (const cpf of index.cpfs) {
     const sql = `SELECT * FROM "${tname.replace(/"/g, '""')}" WHERE REPLACE(REPLACE(REPLACE(CAST("${cpfC.replace(/"/g, '""')}" AS TEXT),'.',''),'-',''),' ','') = ? LIMIT 2`;
