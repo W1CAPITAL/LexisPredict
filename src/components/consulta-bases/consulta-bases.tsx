@@ -148,6 +148,12 @@ export function ConsultaBases() {
   const [detranProgress, setDetranProgress] = useState(0);
   const [detranError, setDetranError] = useState("");
   const [detranCapped, setDetranCapped] = useState(false);
+  const [detranBrowseOffset, setDetranBrowseOffset] = useState(0);
+  const [detranBrowseTotal, setDetranBrowseTotal] = useState(0);
+  const [credilinkByteOffset, setCredilinkByteOffset] = useState(0);
+  const [credilinkBrowseDone, setCredilinkBrowseDone] = useState(false);
+  const [detranStatus, setDetranStatus] = useState("");
+  const [credilinkStatus, setCredilinkStatus] = useState("");
 
   const [credilinkFile, setCredilinkFile] = useState<FileInfo>();
   const [credilinkColumns, setCredilinkColumns] = useState<string[]>([]);
@@ -167,20 +173,33 @@ export function ConsultaBases() {
   const detranMatrix = detranRows.map((row) => detranColumns.map((column) => row[column]));
 
   useEffect(() => {
-    const dbWorker = new Worker(new URL("../../workers/detran-sqlite.worker.ts", import.meta.url));
-    const csvWorker = new Worker(new URL("../../workers/credilink-csv.worker.ts", import.meta.url));
+    const dbWorker = new Worker(new URL("../../workers/detran-sqlite.worker.ts", import.meta.url), { type: "module" });
+    const csvWorker = new Worker(new URL("../../workers/credilink-csv.worker.ts", import.meta.url), { type: "module" });
     detranWorker.current = dbWorker;
     credilinkWorker.current = csvWorker;
 
     dbWorker.onmessage = (event) => {
       const message = event.data;
-      if (message.type === "import-progress") setDetranProgress(Math.round((message.loaded / message.total) * 100));
+      if (message.type === "import-progress") {
+        const pct = message.total ? Math.round((message.loaded / message.total) * 100) : 0;
+        setDetranProgress(Math.max(1, pct)); // evita ficar preso em 0% visual
+      }
+      if (message.type === "log") {
+        setDetranError(""); // limpa
+      }
       if (message.type === "ready") {
         const schemas = message.schemas as DbSchema[];
         setDetranFile(message.file); setDetranSchemas(schemas); setDetranTable(schemas[0].name);
         setDetranMapping(autoMapping(schemas[0].columns)); setDetranProgress(100); setDetranBusy(false);
       }
-      if (message.type === "results") { setDetranRows(message.rows); setDetranCapped(message.capped); setDetranBusy(false); }
+      if (message.type === "results") { setDetranRows(message.rows); setDetranCapped(message.capped); setDetranBusy(false); setDetranStatus(""); }
+      if (message.type === "browse" && message.rows && !message.columns) {
+        setDetranRows(message.rows);
+        setDetranBrowseOffset(message.offset || 0);
+        setDetranBrowseTotal(message.total || 0);
+        setDetranBusy(false);
+        setDetranStatus(`Visualizando ${message.offset + 1}–${message.offset + message.rows.length} de ${message.total}`);
+      }
       if (message.type === "deleted") { setDetranFile(undefined); setDetranSchemas([]); setDetranRows([]); setDetranProgress(0); setDetranBusy(false); }
       if (message.type === "error") { setDetranError(message.message); setDetranBusy(false); }
     };
@@ -189,7 +208,8 @@ export function ConsultaBases() {
       if (message.type === "search-progress") setCredilinkProgress(Math.round((message.loaded / message.total) * 100));
       if (message.type === "ready") {
         setCredilinkFile(message.file); setCredilinkColumns(message.columns); setCredilinkMapping(autoMapping(message.columns));
-        setCredilinkProgress(0); setCredilinkBusy(false);
+        setCredilinkProgress(100); setCredilinkBusy(false); setCredilinkStatus("Cabeçalho lido. Busque ou visualize páginas de 200 linhas.");
+        if (message.dataStart) setCredilinkByteOffset(message.dataStart);
       }
       if (message.type === "results") { setCredilinkRows(message.rows); setCredilinkCapped(message.capped); setCredilinkBusy(false); setCredilinkProgress(100); }
       if (message.type === "error") { setCredilinkError(message.message); setCredilinkBusy(false); }
@@ -199,20 +219,34 @@ export function ConsultaBases() {
 
   function openDetran(file: File) {
     if (!/\.(db|sqlite|sqlite3)$/i.test(file.name)) { setDetranError("Descompacte o ZIP e selecione um arquivo .db, .sqlite ou .sqlite3."); return; }
-    setDetranError(""); setDetranBusy(true); setDetranProgress(0); setDetranRows([]);
+    setDetranError(""); setDetranBusy(true); setDetranProgress(1); setDetranRows([]);
+    setDetranStatus(`Copiando ${formatBytes(file.size)} para OPFS local (não sobe para a Vercel)…`);
     void navigator.storage?.persist?.();
     detranWorker.current?.postMessage({ type: "import", file });
   }
 
+  function browseDetran(offset = 0) {
+    if (!detranTable) { setDetranError("Selecione a tabela."); return; }
+    setDetranBusy(true); setDetranError("");
+    detranWorker.current?.postMessage({ type: "browse", table: detranTable, offset, limit: 100 });
+  }
+
+  function browseCredilink(byteOffset?: number) {
+    setCredilinkBusy(true); setCredilinkError("");
+    credilinkWorker.current?.postMessage({ type: "browse", byteOffset: byteOffset ?? credilinkByteOffset, limit: 200 });
+  }
+
   function openCredilink(file: File) {
     if (!/\.csv$/i.test(file.name)) { setCredilinkError("Descompacte o ZIP e selecione o arquivo .csv."); return; }
-    setCredilinkError(""); setCredilinkBusy(true); setCredilinkProgress(0); setCredilinkRows([]);
+    setCredilinkError(""); setCredilinkBusy(true); setCredilinkProgress(1); setCredilinkRows([]);
+    setCredilinkStatus(`Lendo cabeçalho de ${formatBytes(file.size)} no seu PC…`);
+    setCredilinkByteOffset(0);
     credilinkWorker.current?.postMessage({ type: "open", file, encoding: credilinkEncoding });
   }
 
   function searchDetran() {
     setDetranError(""); setDetranRows([]); setDetranBusy(true); setDetranCapped(false);
-    detranWorker.current?.postMessage({ type: "query", table: detranTable, field: detranField, query: detranQuery, mapping: detranMapping, limit: 500 });
+    detranWorker.current?.postMessage({ type: "query", table: detranTable, field: detranField, query: detranQuery, mapping: detranMapping, limit: 2000 });
   }
 
   function searchCredilink() {
@@ -223,7 +257,7 @@ export function ConsultaBases() {
   return <div className="space-y-5">
     <Alert className="border-emerald-500/30 bg-emerald-500/5">
       <ShieldCheck className="text-emerald-600" /><AlertTitle>Modo local — Supabase bloqueado por arquitetura</AlertTitle>
-      <AlertDescription>Esta tela não possui chamada de upload nem gravação no Supabase. A consulta acontece no seu navegador. O DETRAN cria somente uma cópia local privada no armazenamento do navegador para permitir a leitura de arquivos grandes.</AlertDescription>
+      <AlertDescription>Sem upload para Vercel/GitHub. DETRAN: cópia local OPFS no Chrome (pode levar muitos minutos em arquivos de 4 GB — a barra deve sair de 0%). CSV: leitura direta do arquivo no PC. Visualizar milhares de páginas é por paginação; 14 milhões de linhas na tela trava o navegador.</AlertDescription>
     </Alert>
 
     <Tabs defaultValue="detran" className="space-y-5">
@@ -238,7 +272,14 @@ export function ConsultaBases() {
             {detranBusy && detranProgress < 100 && <div className="space-y-2"><div className="flex justify-between text-sm"><span>Preparando cópia local…</span><span>{detranProgress}%</span></div><Progress value={detranProgress} /></div>}
             {detranError && <Alert variant="destructive"><AlertCircle /><AlertTitle>Erro no DETRAN</AlertTitle><AlertDescription>{detranError}</AlertDescription></Alert>}
             {detranFile && <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary"><CheckCircle2 data-icon="inline-start" /> Pronto</Badge><Badge variant="outline"><HardDrive data-icon="inline-start" /> {detranFile.name}</Badge><Badge variant="outline">{formatBytes(detranFile.size)}</Badge><Button variant="ghost" size="sm" onClick={() => { detranWorker.current?.postMessage({ type: "close" }); setDetranFile(undefined); setDetranSchemas([]); setDetranRows([]); }}><X data-icon="inline-start" /> Fechar</Button><Button variant="outline" size="sm" disabled={detranBusy} onClick={() => { setDetranBusy(true); detranWorker.current?.postMessage({ type: "delete" }); }}>Remover cópia local</Button></div>}
-            {!!detranSchemas.length && <><label className="block space-y-1.5 text-sm"><span className="font-medium">Tabela do banco</span><select className="h-10 w-full rounded-md border bg-background px-3 sm:max-w-md" value={detranTable} onChange={(event) => { const table = event.target.value; const schema = detranSchemas.find((item) => item.name === table); setDetranTable(table); setDetranMapping(autoMapping(schema?.columns || [])); setDetranRows([]); }}>{detranSchemas.map((schema) => <option key={schema.name}>{schema.name}</option>)}</select></label><MappingFields columns={selectedSchema?.columns || []} value={detranMapping} onChange={setDetranMapping} /><QueryForm field={detranField} query={detranQuery} busy={detranBusy} disabled={!detranMapping[detranField]} onField={setDetranField} onQuery={setDetranQuery} onSearch={searchDetran} /></>}
+            {!!detranSchemas.length && <><label className="block space-y-1.5 text-sm"><span className="font-medium">Tabela do banco</span><select className="h-10 w-full rounded-md border bg-background px-3 sm:max-w-md" value={detranTable} onChange={(event) => { const table = event.target.value; const schema = detranSchemas.find((item) => item.name === table); setDetranTable(table); setDetranMapping(autoMapping(schema?.columns || [])); setDetranRows([]); }}>{detranSchemas.map((schema) => <option key={schema.name}>{schema.name}</option>)}</select></label><MappingFields columns={selectedSchema?.columns || []} value={detranMapping} onChange={setDetranMapping} /><QueryForm field={detranField} query={detranQuery} busy={detranBusy} disabled={!detranMapping[detranField]} onField={setDetranField} onQuery={setDetranQuery} onSearch={searchDetran} />
+            <div className="flex flex-wrap gap-2 items-center mt-2">
+              <Button type="button" variant="outline" size="sm" disabled={!detranFile || !detranTable || detranBusy} onClick={() => browseDetran(0)}>Visualizar (100 linhas)</Button>
+              <Button type="button" variant="outline" size="sm" disabled={!detranFile || !detranTable || detranBusy || detranBrowseOffset <= 0} onClick={() => browseDetran(Math.max(0, detranBrowseOffset - 100))}>Anterior</Button>
+              <Button type="button" variant="outline" size="sm" disabled={!detranFile || !detranTable || detranBusy || (detranBrowseTotal > 0 && detranBrowseOffset + 100 >= detranBrowseTotal)} onClick={() => browseDetran(detranBrowseOffset + 100)}>Próxima</Button>
+              {detranStatus ? <span className="text-xs text-muted-foreground">{detranStatus}</span> : null}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">4–5 GB: a barra sobe ao copiar para OPFS no Chrome (não é upload Vercel). Não dá para renderizar 14 milhões de linhas na tela — use busca ou páginas de 100.</p></>}
           </CardContent>
         </Card>
         {detranCapped && <Alert><AlertCircle /><AlertTitle>Resultado limitado</AlertTitle><AlertDescription>Foram exibidos os primeiros 500 registros. Refine o termo para reduzir a lista.</AlertDescription></Alert>}
@@ -251,7 +292,13 @@ export function ConsultaBases() {
             {credilinkBusy && <div className="space-y-2"><div className="flex justify-between text-sm"><span>{credilinkFile ? "Varrendo o arquivo…" : "Lendo cabeçalho…"}</span><span>{credilinkProgress}%</span></div><Progress value={credilinkProgress} /></div>}
             {credilinkError && <Alert variant="destructive"><AlertCircle /><AlertTitle>Erro no Credilink</AlertTitle><AlertDescription>{credilinkError}</AlertDescription></Alert>}
             {credilinkFile && <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary"><CheckCircle2 data-icon="inline-start" /> Pronto</Badge><Badge variant="outline"><FileSpreadsheet data-icon="inline-start" /> {credilinkFile.name}</Badge><Badge variant="outline">{formatBytes(credilinkFile.size)}</Badge><Button variant="ghost" size="sm" onClick={() => { credilinkWorker.current?.postMessage({ type: "close" }); setCredilinkFile(undefined); setCredilinkColumns([]); setCredilinkRows([]); }}><X data-icon="inline-start" /> Fechar</Button></div>}
-            {!!credilinkColumns.length && <><MappingFields columns={credilinkColumns} value={credilinkMapping} onChange={setCredilinkMapping} /><QueryForm field={credilinkField} query={credilinkQuery} busy={credilinkBusy} disabled={!credilinkMapping[credilinkField]} onField={setCredilinkField} onQuery={setCredilinkQuery} onSearch={searchCredilink} /></>}
+            {!!credilinkColumns.length && <><MappingFields columns={credilinkColumns} value={credilinkMapping} onChange={setCredilinkMapping} /><QueryForm field={credilinkField} query={credilinkQuery} busy={credilinkBusy} disabled={!credilinkMapping[credilinkField]} onField={setCredilinkField} onQuery={setCredilinkQuery} onSearch={searchCredilink} />
+            <div className="flex flex-wrap gap-2 items-center mt-2">
+              <Button type="button" variant="outline" size="sm" disabled={!credilinkFile || credilinkBusy} onClick={() => { setCredilinkByteOffset(0); browseCredilink(0); }}>Visualizar (200 linhas)</Button>
+              <Button type="button" variant="outline" size="sm" disabled={!credilinkFile || credilinkBusy || credilinkBrowseDone} onClick={() => browseCredilink()}>Próximas 200</Button>
+              {credilinkStatus ? <span className="text-xs text-muted-foreground">{credilinkStatus}</span> : null}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">CSV grande: busca no PC, máx. 2000 hits. Visualização página a página.</p></>}
           </CardContent>
         </Card>
         {credilinkCapped && <Alert><AlertCircle /><AlertTitle>Resultado limitado</AlertTitle><AlertDescription>Foram exibidos os primeiros 500 registros. Refine o termo para reduzir a lista.</AlertDescription></Alert>}
