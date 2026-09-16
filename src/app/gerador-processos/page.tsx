@@ -138,7 +138,7 @@ export default function GeradorProcessosPage() {
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [exp, setExp] = useState(false);
-  const [enrichMode, setEnrichMode] = useState<"off" | "csv" | "detran-opfs">("off");
+  const [enrichMode, setEnrichMode] = useState<"off" | "csv" | "db" | "detran-opfs">("off");
   const [enrichFile, setEnrichFile] = useState<File | null>(null);
   const [enrichProgress, setEnrichProgress] = useState(0);
   const [enrichStatus, setEnrichStatus] = useState("");
@@ -344,14 +344,18 @@ export default function GeradorProcessosPage() {
                 skipFiltro++;
                 continue;
               }
-              // Modo veículo: garantia extra — nunca criminal/tráfico
               if (!baModoCriminal && isBaCriminalOuTrafico(it.texto, it.nomeClasse)) {
                 skipFiltro++;
                 continue;
               }
-              if (!baModoCriminal && baInicioProcesso && !isBaInicioProcesso(it.texto, it.nomeClasse, { dataInicio, dataFim })) {
-                skipFiltro++;
-                continue;
+              // "Início" é OPCIONAL e frouxo: só descarta se flag ligada E teor claramente de 2º grau/apelação
+              if (!baModoCriminal && baInicioProcesso) {
+                const cls = String(it.nomeClasse || "");
+                if (/apela[cç][aã]o|agravo|embargos/i.test(cls)) {
+                  skipFiltro++;
+                  continue;
+                }
+                // não exige mais isBaInicioProcesso estrito (zerava tudo)
               }
               if (baSemAdvogado && !isSemAdvogadoNoTeor(it.texto)) {
                 skipFiltro++;
@@ -411,8 +415,10 @@ export default function GeradorProcessosPage() {
               texto: it.texto,
               destinatarios: it.destinatarios?.map(d => ({ nome: d.nome || d.nomeDestinatario, polo: d.polo || d.tipoPolo })),
             });
-            const telefoneAutor = (exibirTelefoneAutor || exigeTelefone) ? extractTelefonePorContexto(it.texto, nome) : "";
-            if (exigeTelefone && !telefoneAutor) { skipTelefone++; continue; }
+            // Telefone/email do tribunal só se NÃO for enriquecer com base local
+            const usarTelTribunal = enrichMode === "off" && (exibirTelefoneAutor || exigeTelefone);
+            const telefoneAutor = usarTelTribunal ? extractTelefonePorContexto(it.texto, nome) : "";
+            if (exigeTelefone && enrichMode === "off" && !telefoneAutor) { skipTelefone++; continue; }
             if (!nome) { skipNome++; continue; }
             const semAdv = isSemAdvogadoNoTeor(it.texto);
             const criminal = isPublicacaoBuscaApreensao(it.nomeClasse, it.texto, { modoCriminal: true });
@@ -512,13 +518,28 @@ export default function GeradorProcessosPage() {
           };
           w.addEventListener("message", onMsg);
           if (enrichMode === "csv") {
-            if (!enrichFile) {
+            const files = enrichFiles.length ? enrichFiles : (enrichFile ? [enrichFile] : []);
+            if (!files.length) {
               w.removeEventListener("message", onMsg);
-              reject(new Error("Selecione o CSV local para cruzar"));
+              reject(new Error("Selecione 1+ CSV (ou pasta com partes)"));
               return;
             }
-            setEnrichStatus("Cruzando com CSV no PC…");
-            w.postMessage({ type: "enrich-csv", file: enrichFile, queries, mapping: {} });
+            setEnrichStatus(`Cruzando ${files.length} CSV(s) no PC…`);
+            w.postMessage({ type: "enrich-csv-multi", files, queries, mapping: {} });
+          } else if (enrichMode === "db") {
+            if (!enrichDbFile) {
+              w.removeEventListener("message", onMsg);
+              reject(new Error("Selecione o .db DETRAN nesta aba"));
+              return;
+            }
+            setEnrichStatus("Cruzando .db no PC (sql.js)…");
+            w.postMessage({
+              type: "enrich-db-file",
+              file: enrichDbFile,
+              queries,
+              table: "SPT_USERS",
+              mapping: { cpf: "cpf", nome: "nome", telefone: "telefone" },
+            });
           } else {
             setEnrichStatus("Cruzando com DETRAN (OPFS)…");
             w.postMessage({
@@ -546,16 +567,18 @@ export default function GeradorProcessosPage() {
             } as any;
           }
           n++;
-          const tel = hit.telefone || p.telefone || "";
+          // Telefone/email: preferir SEMPRE a base local no cruzamento (não o teor do tribunal)
           return {
             ...p,
-            telefone: p.telefone || tel,
+            telefone: hit.telefone || "",
+            email: hit.email || p.email || "",
             cpf: p.cpf || hit.cpf || "",
             base_local_match: hit.match_by === "cpf" ? "CPF" : "NOME",
             base_local_telefone: hit.telefone || "",
             base_local_cpf: hit.cpf || "",
             base_local_nome: hit.nome || "",
             enrich_fonte: "base_local_pc",
+            telefone_fonte: hit.telefone ? "base_local_pc" : "",
           } as any;
         });
         setEnrichStatus(`Enriquecido: ${n}/${out.length} com match na base local`);
@@ -774,10 +797,30 @@ export default function GeradorProcessosPage() {
                 <select className="h-9 rounded-md border bg-background px-2 text-xs" value={enrichMode} onChange={(e) => setEnrichMode(e.target.value as any)}>
                   <option value="off">Sem cruzamento</option>
                   <option value="csv">CSV no PC (Credilink etc.)</option>
-                  <option value="detran-opfs">DETRAN já aberto no OPFS (Consulta bases)</option>
+                  <option value="db">DETRAN .db no PC (esta aba)</option>
+                  <option value="detran-opfs">DETRAN já no OPFS (Consulta bases)</option>
                 </select>
                 {enrichMode === "csv" && (
-                  <input type="file" accept=".csv,text/csv" className="text-xs" onChange={(e) => setEnrichFile(e.target.files?.[0] || null)} />
+                  <div className="flex flex-col gap-1">
+                    <input type="file" accept=".csv,text/csv" multiple className="text-xs" onChange={(e) => {
+                      const files = e.target.files ? Array.from(e.target.files) : [];
+                      setEnrichFiles(files);
+                      setEnrichFile(files[0] || null);
+                    }} />
+                    <label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <input type="file" className="text-xs" multiple /* @ts-expect-error webkitdirectory */ {...({ webkitdirectory: "", directory: "" } as any)} onChange={(e) => {
+                        const files = e.target.files ? Array.from(e.target.files).filter((f) => /\.csv$/i.test(f.name)) : [];
+                        setEnrichFiles(files);
+                        setEnrichFile(files[0] || null);
+                        setEnrichStatus(files.length ? `${files.length} CSV(s) da pasta` : "Nenhum CSV na pasta");
+                      }} />
+                      ou pasta com várias partes (ex.: 1351 CSVs)
+                    </label>
+                    {enrichFiles.length > 0 && <span className="text-[10px]">{enrichFiles.length} arquivo(s) pronto(s)</span>}
+                  </div>
+                )}
+                {enrichMode === "db" && (
+                  <input type="file" accept=".db,.sqlite,.sqlite3" className="text-xs" onChange={(e) => setEnrichDbFile(e.target.files?.[0] || null)} />
                 )}
               </div>
               {(enrichProgress > 0 || enrichStatus) && (

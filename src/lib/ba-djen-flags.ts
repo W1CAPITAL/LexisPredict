@@ -24,10 +24,12 @@ export function isBaVeiculoOuFiduciaria(texto: unknown, nomeClasse?: unknown): b
 }
 
 export function isPublicacaoBuscaApreensao(nomeClasse: unknown, texto: unknown, opts?: { modoCriminal?: boolean }): boolean {
-  if (!BA.test(textoBa(texto, nomeClasse))) return false;
-  return opts?.modoCriminal
-    ? isBaCriminalOuTrafico(texto, nomeClasse)
-    : isBaVeiculoOuFiduciaria(texto, nomeClasse);
+  const blob = textoBa(texto, nomeClasse);
+  if (!BA.test(blob)) return false;
+  if (opts?.modoCriminal) return isBaCriminalOuTrafico(texto, nomeClasse);
+  // Veículo/padrão: aceita B.A. cível/fiduciária OU qualquer B.A. que não seja criminal
+  if (isBaCriminalOuTrafico(texto, nomeClasse)) return false;
+  return isBaVeiculoOuFiduciaria(texto, nomeClasse) || true;
 }
 
 /** Usa somente o ato publicado. Classe, relatório e precedente não provam início. */
