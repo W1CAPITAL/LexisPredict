@@ -94,8 +94,8 @@ function QueryForm({ field, query, busy, disabled, onField, onQuery, onSearch }:
     <select aria-label="Tipo de consulta" className="h-10 rounded-md border bg-background px-3 text-sm" value={field} onChange={(event) => onField(event.target.value as SearchField)}>
       {(Object.keys(FIELD_LABELS) as SearchField[]).map((key) => <option key={key} value={key}>{FIELD_LABELS[key]}</option>)}
     </select>
-    <Input aria-label="Termo da consulta" value={query} onChange={(event) => onQuery(event.target.value)} placeholder={`Digite ${FIELD_LABELS[field].toLowerCase()} para consultar`} />
-    <Button type="submit" disabled={disabled || busy || !query.trim()}>
+    <Input aria-label="Termo da consulta" value={query} onChange={(event) => onQuery(event.target.value)} placeholder={`Pesquisar no arquivo local (ex.: nome completo)…`} />
+    <Button type="submit" disabled={disabled || busy || !query.trim()} title="Buscar só neste arquivo local (até 2000 resultados)">
       {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Search data-icon="inline-start" />}
       {busy ? "Consultando…" : "Consultar"}
     </Button>
@@ -257,7 +257,7 @@ export function ConsultaBases() {
   return <div className="space-y-5">
     <Alert className="border-emerald-500/30 bg-emerald-500/5">
       <ShieldCheck className="text-emerald-600" /><AlertTitle>Modo local — Supabase bloqueado por arquitetura</AlertTitle>
-      <AlertDescription>Sem upload para Vercel/GitHub. DETRAN: cópia local OPFS no Chrome (pode levar muitos minutos em arquivos de 4 GB — a barra deve sair de 0%). CSV: leitura direta do arquivo no PC. Visualizar milhares de páginas é por paginação; 14 milhões de linhas na tela trava o navegador.</AlertDescription>
+      <AlertDescription>Consulta só no arquivo do seu PC (não sobe para a Vercel). Digite nome, CPF ou telefone — a busca percorre o DB/CSV local e mostra até 2000 resultados na tela (como uma busca Google, mas só nesta base). Carregar 14 milhões de linhas de uma vez trava o navegador; use a busca ou “próxima página” para folhear.</AlertDescription>
     </Alert>
 
     <Tabs defaultValue="detran" className="space-y-5">
@@ -279,7 +279,7 @@ export function ConsultaBases() {
               <Button type="button" variant="outline" size="sm" disabled={!detranFile || !detranTable || detranBusy || (detranBrowseTotal > 0 && detranBrowseOffset + 100 >= detranBrowseTotal)} onClick={() => browseDetran(detranBrowseOffset + 100)}>Próxima</Button>
               {detranStatus ? <span className="text-xs text-muted-foreground">{detranStatus}</span> : null}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">4–5 GB: a barra sobe ao copiar para OPFS no Chrome (não é upload Vercel). Não dá para renderizar 14 milhões de linhas na tela — use busca ou páginas de 100.</p></>}
+            <p className="text-[11px] text-muted-foreground mt-1">Fluxo principal: digite o nome (ou CPF/telefone) e busque — até 2000 linhas na tabela. “Visualizar” só folheia 100 por página. Arquivo 4–5 GB: espere a barra ao copiar para OPFS (local).</p></>}
           </CardContent>
         </Card>
         {detranCapped && <Alert><AlertCircle /><AlertTitle>Resultado limitado</AlertTitle><AlertDescription>Foram exibidos os primeiros 500 registros. Refine o termo para reduzir a lista.</AlertDescription></Alert>}
@@ -298,7 +298,7 @@ export function ConsultaBases() {
               <Button type="button" variant="outline" size="sm" disabled={!credilinkFile || credilinkBusy || credilinkBrowseDone} onClick={() => browseCredilink()}>Próximas 200</Button>
               {credilinkStatus ? <span className="text-xs text-muted-foreground">{credilinkStatus}</span> : null}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">CSV grande: busca no PC, máx. 2000 hits. Visualização página a página.</p></>}
+            <p className="text-[11px] text-muted-foreground mt-1">Fluxo principal: busca por nome/CPF/telefone no CSV local (até 2000 na tela). “Visualizar” = 200 por página.</p></>}
           </CardContent>
         </Card>
         {credilinkCapped && <Alert><AlertCircle /><AlertTitle>Resultado limitado</AlertTitle><AlertDescription>Foram exibidos os primeiros 500 registros. Refine o termo para reduzir a lista.</AlertDescription></Alert>}
