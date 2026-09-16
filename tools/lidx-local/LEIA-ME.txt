@@ -1,0 +1,63 @@
+LEXISPREDICT - INDICE LOCAL V2
+
+1. Extraia a pasta WINDOWS inteira do ZIP. Nao execute de dentro do ZIP.
+2. Abra config.json e confira os caminhos. O Node ja aponta para:
+   %USERPROFILE%\Downloads\node-portable\node-v22.14.0-win-x64\node.exe
+   Nao precisa instalar npm, Python ou better-sqlite3.
+3. De dois cliques em GERAR-INDICE.bat. Pode fechar a janela depois de iniciado.
+4. VER-PROGRESSO.bat mostra progresso e erros. Espere CONCLUIDO no log.
+5. No app atualizado, abra /gerador-processos, escolha
+   "Indice comprimido .lidx (todas as colunas)" e selecione indice-completo.lidx.
+   Busque processos e clique XLSX. A consulta ocorre neste navegador.
+
+ARQUIVOS DE ENTRADA
+- A configuracao aceita varios objetos em sources: .db SQLite ou .csv.
+- O caminho DETRAN tenta dentran-sp.db e depois detran-sp.db.
+- Sem table, todas as tabelas de usuario do SQLite sao lidas. Para restringir,
+  acrescente "table": "SPT_USERS" ao objeto dessa fonte.
+- Para usar SPT_USERS_part1.csv em vez do banco, substitua o objeto SQLite
+  por {"path":"C:\\caminho\\SPT_USERS_part1.csv","encoding":"utf-8"}.
+- CSV: virgula, ponto e virgula e tab sao detectados no cabecalho. Aspas,
+  virgulas internas e quebras de linha sao preservadas. Se necessario,
+  especifique "delimiter":";". Arquivo ANSI: "encoding":"windows-1252".
+- Caminhos no JSON usam \\ ou /. Nao apague as aspas.
+- Campos e zeros originais ficam preservados. CPFs de 9/10 digitos so ganham
+  zeros na CHAVE de busca se os verificadores conferirem; o original nao muda.
+
+RESULTADO NO XLSX
+BA_DJEN: processos + telefone, email, CPF, nome e situacao da base local.
+BASE_LOCAL: uma linha por registro encontrado, todas as colunas originais,
+           arquivo, tabela, numero do registro e CNJ que originou a consulta.
+VALORES_LONGOS: aparece somente para valores acima de 30.000 caracteres,
+               divididos em partes identificadas, sem truncamento silencioso.
+As colunas locais ficam vazias se nao houver correspondencia.
+CPF informado tem prioridade. CPF nao encontrado nao recai em nome diferente.
+Nome exato normalizado: acentos, caixa e espacos sao normalizados; nao ha busca
+aproximada. Se houver CPFs diferentes para o mesmo nome, marca AMBIGUO sem
+copiar dados. Um nome unico sem CPF pode corresponder a um unico registro.
+Com um CPF unico identificado pelo nome, sao reunidas todas as fontes dele.
+Acima de 1.000 registros para uma chave, marca AMBIGUO para revisao em vez de
+exportar uma lista incompleta. Todos continuam preservados no indice.
+Telefone: TELEPHONE_MOBILE, depois TELEPHONE e alternativas. Credilink sem
+telefone nao inventa fone. Os dados DJEN permanecem separados dos dados locais.
+
+EXECUCAO E TAMANHO
+- PARAR.bat solicita cancelamento; aguarde a confirmacao no log. Na ordenacao
+  SQLite, o cancelamento e verificado quando o banco devolve os primeiros dados.
+- A leitura e sequencial; compressao em blocos e ordenacao em disco evitam
+  carregar milhoes de pessoas na RAM. O indice permite consultas por partes.
+- A primeira geracao precisa ler as fontes completas. Tempo e tamanho dependem
+  da base e do disco; nao ha promessa de minutos nem de um arquivo minusculo.
+- Reserve espaco para saida e temporarios (como referencia, 2-3x o tamanho das
+  fontes, podendo variar). O indice comprime os registros; as chaves de busca
+  usam 32 bytes cada para permitir acesso direto sem varrer o arquivo inteiro.
+- A saida existente nunca e sobrescrita. Para gerar novamente, mude output ou
+  mova o .lidx anterior. A geracao interrompida recomeca do inicio.
+- Se o Windows desligar ou o processo for encerrado a forca, confira no Gerenciador
+  de Tarefas que build-lidx.mjs nao esta rodando. So entao remova os temporarios
+  indice-completo.lidx.lock, .part e .work.sqlite antes de reiniciar.
+- Arquivo LIDX v1 do pacote antigo precisa ser regenerado: ele nao contem as
+  colunas perdidas. Nao e possivel recuperar essas colunas apenas daquele indice.
+- O indice nao e criptografado. Mantenha-o local, como suas bases originais.
+  Publique somente a pasta GITHUB do pacote; nunca publique bases ou indice.
+- Em outro dispositivo, selecione uma copia local do indice novamente.

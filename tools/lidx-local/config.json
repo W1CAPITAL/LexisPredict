@@ -1,0 +1,15 @@
+{
+  "node": "%USERPROFILE%\\Downloads\\node-portable\\node-v22.14.0-win-x64\\node.exe",
+  "output": "indice-completo.lidx",
+  "sources": [
+    {
+      "path": "%USERPROFILE%\\Downloads\\detran-sp\\dentran-sp.db",
+      "fallback": "%USERPROFILE%\\Downloads\\detran-sp\\detran-sp.db",
+      "type": "sqlite"
+    },
+    {
+      "path": "%USERPROFILE%\\Downloads\\12m_credilink.com.br_sample\\12m_credilink.com.br_sample.csv",
+      "encoding": "utf-8"
+    }
+  ]
+}

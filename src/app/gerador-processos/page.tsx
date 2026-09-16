@@ -25,6 +25,7 @@ import {
   dataPublicacaoNaJanela,
 } from "@/lib/djen-client";
 import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
+import type { LocalMatch } from "@/lib/lidx-local";
 import { onlyDigits, normName } from "@/lib/enrich-local-base";
 import {
   FILTROS_STATUS,
@@ -138,10 +139,15 @@ export default function GeradorProcessosPage() {
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [exp, setExp] = useState(false);
-  const [enrichMode, setEnrichMode] = useState<"off" | "csv" | "db" | "detran-opfs">("off");
+  const [enrichMode, setEnrichMode] = useState<"off" | "lidx" | "csv" | "db" | "detran-opfs">("off");
   const [enrichFile, setEnrichFile] = useState<File | null>(null);
+  const [enrichFiles, setEnrichFiles] = useState<File[]>([]);
+  const [enrichDbFile, setEnrichDbFile] = useState<File | null>(null);
   const [enrichProgress, setEnrichProgress] = useState(0);
   const [enrichStatus, setEnrichStatus] = useState("");
+  const [lidxFile, setLidxFile] = useState<File | null>(null);
+  const cancelLidxRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => cancelLidxRef.current?.(), []);
   const enrichWorkerRef = useRef<Worker | null>(null);
   const stopRef = useRef(false);
   const logEnd = useRef<HTMLDivElement>(null);
@@ -496,7 +502,35 @@ export default function GeradorProcessosPage() {
     setEnrichProgress(0);
     try {
       let out = lista.map((p) => ({ ...p }));
-      if (enrichMode !== "off") {
+      if (enrichMode === "lidx") {
+        if (!lidxFile) throw new Error("Selecione o indice-completo.lidx gerado no Windows.");
+        setEnrichStatus("Consultando o índice local…");
+        const matches = await new Promise<LocalMatch[]>((resolve, reject) => {
+          const w = new Worker(new URL("../../workers/lidx-local.worker.ts", import.meta.url), { type: "module" });
+          const finish = () => { w.terminate(); cancelLidxRef.current = null; };
+          cancelLidxRef.current = () => { finish(); reject(new Error("Cruzamento cancelado.")); };
+          w.onerror = () => { finish(); reject(new Error("Falha ao iniciar consulta local. Recarregue a página e tente novamente.")); };
+          w.onmessage = ev => {
+            const m = ev.data;
+            if (m.type === "progress") {
+              setEnrichProgress(m.total ? Math.round(m.done / m.total * 100) : 0);
+              setEnrichStatus(`Consultando ${m.done}/${m.total} processos no índice local…`);
+            } else if (m.type === "done") { finish(); resolve(m.results); }
+            else if (m.type === "error") { finish(); reject(new Error(m.message)); }
+          };
+          w.postMessage({ file: lidxFile, queries: out.map(p => ({ cpf: p.cpf, nome: p.nome_completo })) });
+        });
+        out = out.map((p, i) => {
+          const m = matches[i], matched = m.status === "CPF" || m.status === "NOME";
+          return { ...p, base_local_match: matched ? m.status : "", base_local_status: m.status,
+            base_local_telefone: m.telefone, base_local_cpf: m.cpf, base_local_nome: m.nome,
+            base_local_email: m.email, base_local_registros: m.registros };
+        });
+        const found = matches.filter(m => m.registros.length).length;
+        const ambiguous = matches.filter(m => m.status === "AMBIGUO").length;
+        setEnrichStatus(`${found}/${out.length} encontrados; ${ambiguous} nomes ambíguos. Todas as colunas na aba BASE_LOCAL do XLSX.`);
+        pushLog("ok", `Índice local: ${found} encontrados; ${ambiguous} ambíguos sem preenchimento automático.`);
+      } else if (enrichMode !== "off") {
         const queries = out.map((p) => ({ cpf: p.cpf || "", nome: p.nome_completo || "" }));
         const hits = await new Promise<Record<string, any>>((resolve, reject) => {
           const w = enrichWorkerRef.current;
@@ -607,7 +641,7 @@ export default function GeradorProcessosPage() {
           <h1 className="text-xl font-black">Gerador de processos automáticos</h1>
           <p className="text-xs text-muted-foreground">
             Fonte <strong>DJEN</strong> (Comunica PJe): publicações reais, CNJ oficial da API.
-            CPF, placa, RENAVAM, email e telefone vêm somente do teor público, quando disponíveis.
+            CPF, placa e RENAVAM vêm do teor público. No XLSX, o cruzamento local acrescenta os dados das suas bases em colunas separadas.
             Os filtros de presença só descartam publicações quando ativados.
           </p>
           <label className="flex items-center gap-2 text-[11px] font-semibold">
@@ -792,14 +826,19 @@ export default function GeradorProcessosPage() {
             
             <div className="rounded-xl border border-border/60 p-3 space-y-2 bg-card/40">
               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Enriquecer XLSX com base local (sem Supabase)</p>
-              <p className="text-[11px] text-muted-foreground">Cruza nome/CPF do DJEN com CSV ou DETRAN no seu PC. Match → preenche colunas; senão em branco. Não sobe arquivo para a nuvem.</p>
+              <p className="text-[11px] text-muted-foreground">O índice LIDX v2 consulta suas bases neste dispositivo. Todas as colunas encontradas vão para a aba BASE_LOCAL. Sem correspondência ou com homônimos, os dados locais ficam em branco.</p>
               <div className="flex flex-wrap gap-2 items-center">
-                <select className="h-9 rounded-md border bg-background px-2 text-xs" value={enrichMode} onChange={(e) => setEnrichMode(e.target.value as any)}>
+                <select className="h-9 rounded-md border bg-background px-2 text-xs" disabled={exp} value={enrichMode} onChange={(e) => setEnrichMode(e.target.value as any)}>
                   <option value="off">Sem cruzamento</option>
+                  <option value="lidx">Índice comprimido .lidx (todas as colunas)</option>
                   <option value="csv">CSV no PC (Credilink etc.)</option>
                   <option value="db">DETRAN .db no PC (esta aba)</option>
                   <option value="detran-opfs">DETRAN já no OPFS (Consulta bases)</option>
                 </select>
+                {enrichMode === "lidx" && (
+                  <input aria-label="Índice local LIDX" disabled={exp} type="file" accept=".lidx" className="text-xs" onChange={e => { setLidxFile(e.target.files?.[0] || null); setEnrichStatus(""); setEnrichProgress(0); }} />
+                )}
+                {exp && enrichMode === "lidx" && <Button variant="outline" onClick={() => cancelLidxRef.current?.()}>Cancelar cruzamento</Button>}
                 {enrichMode === "csv" && (
                   <div className="flex flex-col gap-1">
                     <input type="file" accept=".csv,text/csv" multiple className="text-xs" onChange={(e) => {
@@ -808,7 +847,7 @@ export default function GeradorProcessosPage() {
                       setEnrichFile(files[0] || null);
                     }} />
                     <label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <input type="file" className="text-xs" multiple /* @ts-expect-error webkitdirectory */ {...({ webkitdirectory: "", directory: "" } as any)} onChange={(e) => {
+                      <input type="file" className="text-xs" multiple {...({ webkitdirectory: "", directory: "" } as any)} onChange={(e) => {
                         const files = e.target.files ? Array.from(e.target.files).filter((f) => /\.csv$/i.test(f.name)) : [];
                         setEnrichFiles(files);
                         setEnrichFile(files[0] || null);

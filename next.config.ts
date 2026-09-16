@@ -36,7 +36,11 @@ const nextConfig: NextConfig = {
     },
     optimizePackageImports: ["lucide-react", "date-fns"],
   },
-  webpack: (config, { dev }) => {
+  webpack: (config, { dev, isServer }) => {
+    if (!isServer) {
+      // sql.js usa fs apenas no Node; o leitor do navegador usa fetch/File.
+      config.resolve.fallback = { ...config.resolve.fallback, fs: false };
+    }
     config.cache = {
       type: "filesystem",
       compression: "gzip",

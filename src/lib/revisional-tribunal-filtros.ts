@@ -147,6 +147,13 @@ export function extractNomeCompletoFromDjen(item: {
 }
 
 export interface ProcessoDjenReal {
+  base_local_match?: string;
+  base_local_status?: string;
+  base_local_telefone?: string;
+  base_local_cpf?: string;
+  base_local_nome?: string;
+  base_local_email?: string;
+  base_local_registros?: import('./lidx-local').LocalRecord[];
   processo: string;
   nome_completo: string;
   telefone: string;
