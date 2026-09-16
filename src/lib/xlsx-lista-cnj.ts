@@ -27,9 +27,13 @@ const H = [
   "Situacao",
   "Link DJEN",
   "Teor (resumo)",
+  "Base local (match)",
+  "Tel. base local",
+  "CPF base local",
+  "Nome base local",
 ] as const;
 
-const C = "ABCDEFGHIJKLMNOPQ".split("");
+const C = "ABCDEFGHIJKLMNOPQRSTU".split("");
 
 export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<Blob> {
   const header = `<row r="1" ht="32" customHeight="1">${H.map((h,i)=>cell(C[i],1,h)).join("")}</row>`;
@@ -53,13 +57,17 @@ export async function xlsxProcessosDjenReal(lista: ProcessoDjenReal[]): Promise<
       p.situacao_hint,
       p.link,
       p.assunto_ou_teor,
+      (p as any).base_local_match || "",
+      (p as any).base_local_telefone || "",
+      (p as any).base_local_cpf || "",
+      (p as any).base_local_nome || "",
     ];
     return `<row r="${r}" ht="60" customHeight="1">${vals.map((v,i)=>cell(C[i],r,String(v??""))).join("")}</row>`;
   }).join("");
   const last = Math.max(1, lista.length + 1);
-  const widths = [26, 34, 21, 32, 18, 14, 17, 18, 16, 22, 46, 35, 12, 16, 36, 50, 80];
+  const widths = [26, 34, 21, 32, 18, 14, 17, 18, 16, 22, 46, 35, 12, 16, 36, 50, 80, 16, 18, 18, 28];
   const cols = widths.map((width, i) => `<col min="${i+1}" max="${i+1}" width="${width}" customWidth="1"/>`).join("");
-  const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:Q${last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols>${cols}</cols><sheetData>${header}${data}</sheetData><autoFilter ref="A1:Q${last}"/></worksheet>`;
+  const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:U${last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols>${cols}</cols><sheetData>${header}${data}</sheetData><autoFilter ref="A1:U${last}"/></worksheet>`;
   const wb = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="BA_DJEN" sheetId="1" r:id="rId1"/></sheets></workbook>`;
   const rels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
   const wbRels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;

@@ -25,6 +25,7 @@ import {
   dataPublicacaoNaJanela,
 } from "@/lib/djen-client";
 import { xlsxProcessosDjenReal } from "@/lib/xlsx-lista-cnj";
+import { onlyDigits, normName } from "@/lib/enrich-local-base";
 import {
   FILTROS_STATUS,
   FILTROS_MATERIA,
@@ -137,6 +138,11 @@ export default function GeradorProcessosPage() {
   const [logs, setLogs] = useState<ScanLogLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [exp, setExp] = useState(false);
+  const [enrichMode, setEnrichMode] = useState<"off" | "csv" | "detran-opfs">("off");
+  const [enrichFile, setEnrichFile] = useState<File | null>(null);
+  const [enrichProgress, setEnrichProgress] = useState(0);
+  const [enrichStatus, setEnrichStatus] = useState("");
+  const enrichWorkerRef = useRef<Worker | null>(null);
   const stopRef = useRef(false);
   const logEnd = useRef<HTMLDivElement>(null);
 
@@ -459,18 +465,112 @@ export default function GeradorProcessosPage() {
     setBusy(false);
   };
 
+
+  useEffect(() => {
+    const w = new Worker(new URL("../../workers/enrich-local.worker.ts", import.meta.url), { type: "module" });
+    enrichWorkerRef.current = w;
+    w.onmessage = (ev) => {
+      const m = ev.data;
+      if (m.type === "enrich-progress") {
+        const pct = m.total ? Math.round((Number(m.loaded) / Number(m.total)) * 100) : 0;
+        setEnrichProgress(Math.max(1, pct));
+        if (m.matched != null) setEnrichStatus(`Varredura local… ${m.matched} match(es)`);
+      }
+      if (m.type === "error") {
+        setEnrichStatus(m.message || "Erro no enriquecimento");
+        setExp(false);
+      }
+    };
+    return () => w.terminate();
+  }, []);
+
   const baixar = async () => {
     if (!lista.length) return;
     setExp(true);
+    setEnrichProgress(0);
     try {
-      const blob = await xlsxProcessosDjenReal(lista);
+      let out = lista.map((p) => ({ ...p }));
+      if (enrichMode !== "off") {
+        const queries = out.map((p) => ({ cpf: p.cpf || "", nome: p.nome_completo || "" }));
+        const hits = await new Promise<Record<string, any>>((resolve, reject) => {
+          const w = enrichWorkerRef.current;
+          if (!w) return reject(new Error("Worker de enriquecimento indisponível"));
+          const onMsg = (ev: MessageEvent) => {
+            const m = ev.data;
+            if (m.type === "enrich-progress") {
+              const pct = m.total ? Math.round((Number(m.loaded) / Number(m.total)) * 100) : 0;
+              setEnrichProgress(Math.max(1, pct));
+            }
+            if (m.type === "enrich-done") {
+              w.removeEventListener("message", onMsg);
+              resolve(m.hits || {});
+            }
+            if (m.type === "error") {
+              w.removeEventListener("message", onMsg);
+              reject(new Error(m.message || "Falha ao enriquecer"));
+            }
+          };
+          w.addEventListener("message", onMsg);
+          if (enrichMode === "csv") {
+            if (!enrichFile) {
+              w.removeEventListener("message", onMsg);
+              reject(new Error("Selecione o CSV local para cruzar"));
+              return;
+            }
+            setEnrichStatus("Cruzando com CSV no PC…");
+            w.postMessage({ type: "enrich-csv", file: enrichFile, queries, mapping: {} });
+          } else {
+            setEnrichStatus("Cruzando com DETRAN (OPFS)…");
+            w.postMessage({
+              type: "enrich-detran-opfs",
+              queries,
+              table: "SPT_USERS",
+              mapping: { cpf: "cpf", nome: "nome", telefone: "telefone" },
+            });
+          }
+        });
+
+        let n = 0;
+        out = out.map((p) => {
+          const d = onlyDigits(p.cpf);
+          const keyC = d.length === 11 ? `cpf:${d}` : "";
+          const keyN = `nome:${normName(p.nome_completo)}`;
+          const hit = (keyC && hits[keyC]?.matched ? hits[keyC] : null) || (hits[keyN]?.matched ? hits[keyN] : null);
+          if (!hit) {
+            return {
+              ...p,
+              base_local_match: "",
+              base_local_telefone: "",
+              base_local_cpf: "",
+              base_local_nome: "",
+            } as any;
+          }
+          n++;
+          const tel = hit.telefone || p.telefone || "";
+          return {
+            ...p,
+            telefone: p.telefone || tel,
+            cpf: p.cpf || hit.cpf || "",
+            base_local_match: hit.match_by === "cpf" ? "CPF" : "NOME",
+            base_local_telefone: hit.telefone || "",
+            base_local_cpf: hit.cpf || "",
+            base_local_nome: hit.nome || "",
+            enrich_fonte: "base_local_pc",
+          } as any;
+        });
+        setEnrichStatus(`Enriquecido: ${n}/${out.length} com match na base local`);
+        pushLog("ok", `Base local: ${n} processo(s) com nome/CPF encontrado(s); demais em branco`);
+      }
+
+      const blob = await xlsxProcessosDjenReal(out as any);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `djen-processos-${lista.length}.xlsx`;
+      a.download = `djen-processos-${out.length}.xlsx`;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (e: any) {
       pushLog("err", `XLSX: ${e?.message || e}`);
+      setEnrichStatus(e?.message || "Erro");
     } finally {
       setExp(false);
     }
@@ -666,6 +766,24 @@ export default function GeradorProcessosPage() {
                 <Square className="w-3 h-3" /> Parar
               </Button>
             )}
+            
+            <div className="rounded-xl border border-border/60 p-3 space-y-2 bg-card/40">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Enriquecer XLSX com base local (sem Supabase)</p>
+              <p className="text-[11px] text-muted-foreground">Cruza nome/CPF do DJEN com CSV ou DETRAN no seu PC. Match → preenche colunas; senão em branco. Não sobe arquivo para a nuvem.</p>
+              <div className="flex flex-wrap gap-2 items-center">
+                <select className="h-9 rounded-md border bg-background px-2 text-xs" value={enrichMode} onChange={(e) => setEnrichMode(e.target.value as any)}>
+                  <option value="off">Sem cruzamento</option>
+                  <option value="csv">CSV no PC (Credilink etc.)</option>
+                  <option value="detran-opfs">DETRAN já aberto no OPFS (Consulta bases)</option>
+                </select>
+                {enrichMode === "csv" && (
+                  <input type="file" accept=".csv,text/csv" className="text-xs" onChange={(e) => setEnrichFile(e.target.files?.[0] || null)} />
+                )}
+              </div>
+              {(enrichProgress > 0 || enrichStatus) && (
+                <p className="text-[11px] text-muted-foreground">{enrichStatus} {enrichProgress ? `· ${enrichProgress}%` : ""}</p>
+              )}
+            </div>
             <Button
               variant="secondary"
               onClick={baixar}
