@@ -275,8 +275,13 @@ function CasesContent() {
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });
 
   const loadData = useCallback(async () => {
-    setLoading(false);
+    setLoading(true);
     try {
+      try { invalidateCarteiraCache(); } catch { /* */ }
+      try {
+        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
+        invalidateCarteiraClientCache();
+      } catch { /* */ }
       const empId = (profile as any)?.empresa_id || null;
       await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
@@ -1073,7 +1078,7 @@ function CasesContent() {
                 Novo Processo
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary">
+            <Button variant="ghost" size="icon" onClick={loadData} disabled={loading} className="h-10 w-10 rounded-xl hover:bg-secondary" title="Recarregar">
               <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />
             </Button>
           </div>

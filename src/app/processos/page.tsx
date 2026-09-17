@@ -185,13 +185,7 @@ export default function ProcessosEmpresaPage() {
   const PAGE_SIZE = 24;
 
   const load = async () => {
-    const cached = peekCarteiraCache(null, "empresa");
-    if (cached?.cases?.length) {
-      setCases(cached.cases as any);
-      setLoading(false);
-    } else {
-      setLoading(true);
-    }
+    setLoading(true);
     try {
       const res = await fetchCompanyProcessosAction();
       const list = res?.cases || [];
@@ -660,10 +654,12 @@ export default function ProcessosEmpresaPage() {
               <Users size={12} className="mr-1.5" /> {profile?.cargo}
             </Badge>
             <button
-              onClick={load}
-              className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors disabled:opacity-60"
             >
-              <RefreshCcw size={14} className={cn(loading && "animate-spin")} /> Atualizar
+              <RefreshCcw size={14} className={cn(loading && "animate-spin text-primary")} /> Atualizar
             </button>
             <Link
               href="/cases?new=1"

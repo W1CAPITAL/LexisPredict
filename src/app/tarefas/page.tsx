@@ -264,11 +264,16 @@ export default function TarefasPage() {
   };
 
   const loadData = useCallback(async () => {
-    setLoading(false);
+    setLoading(true);
     try {
+      try { invalidateCarteiraCache(); } catch { /* */ }
+      try {
+        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
+        invalidateCarteiraClientCache();
+      } catch { /* */ }
       const empId = (profile as any)?.empresa_id || null;
       const _pack = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
+        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases(), { force: true })) || [],
         empresaId: empId,
         scope: "mine",
         onShow: (data) => { if (Array.isArray(data)) startTransition(() => setCases(data)); },
@@ -789,7 +794,7 @@ const handleSaveAttendance = async () => {
                 Novo Processo
               </Link>
             </Button>
-            <Button variant="ghost" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl hover:bg-secondary"><RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} /></Button>
+            <Button variant="ghost" size="icon" onClick={loadData} disabled={loading} className="h-10 w-10 rounded-xl hover:bg-secondary" title="Recarregar"><RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} /></Button>
           </div>
         </header>
 

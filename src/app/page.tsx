@@ -110,8 +110,16 @@ export default function Dashboard() {
   }, []);
 
   const loadData = useCallback(async () => {
-    setLoading(false);
+    setLoading(true);
     try {
+      try {
+        const { invalidateCarteiraCache } = await import('@/lib/session-carteira-cache');
+        invalidateCarteiraCache();
+      } catch { /* */ }
+      try {
+        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
+        invalidateCarteiraClientCache();
+      } catch { /* */ }
       const cachedRun = await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
         scope: "mine",
@@ -297,8 +305,7 @@ export default function Dashboard() {
                 <FileDown size={16} className="mr-2 hidden sm:inline" /> Dossiê Operacional
               </Link>
             </MetalButton>
-            <MetalButton preset="silver" strength={1} variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar">
-               <RefreshCcw size={18} className={cn(loading && "animate-spin text-primary")} />
+            <MetalButton preset="silver" strength={1} variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar" disabled={loading}><RefreshCcw size={18} className={loading ? "animate-spin text-primary" : ""} />
             </MetalButton>
             {lastSync && (
               <span className="hidden md:flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 shrink-0" title={new Date(lastSync).toLocaleString('pt-BR')}>
@@ -341,7 +348,7 @@ export default function Dashboard() {
                     <Link href="/import">Importar Carteira</Link>
                   </Button>
                   <MetalButton preset="silver" strength={1} variant="outline" size="sm" onClick={loadData} className="h-11 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest">
-                    <RefreshCcw size={14} className="mr-2" /> Recarregar
+                    <RefreshCcw size={14} className={"mr-2" + (loading ? " animate-spin" : "")} /> Recarregar
                   </MetalButton>
                 </div>
               </div>
