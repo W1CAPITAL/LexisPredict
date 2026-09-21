@@ -22,7 +22,7 @@ import { useRouter } from 'next/navigation';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth } from '@/components/auth/auth-provider';
 import { safetyLoginAction } from '@/app/actions/safety-mode-actions';
-import { isQuotaOrBillingError, saveSafetySession } from '@/lib/hybrid/safety-mode';
+import { isQuotaOrBillingError, saveSafetySession, loadSafetySession } from '@/lib/hybrid/safety-mode';
 import { getTenantBrand } from '@/lib/tenant-brand';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -45,6 +45,11 @@ export default function LoginPage() {
   useEffect(() => {
     let safetyTimeout: NodeJS.Timeout;
 
+    const safetyNow = loadSafetySession();
+    if (safetyNow?.active) {
+      window.location.replace('/');
+      return;
+    }
     if (!authLoading && user) {
       router.replace('/');
       router.refresh();
@@ -66,20 +71,27 @@ export default function LoginPage() {
     try {
       const loginEmail = email.trim().toLowerCase();
       const trySheets = async (reason: string) => {
-        const sheetUser = loginEmail.includes("@") ? loginEmail.split("@")[0] : loginEmail;
-        const safety = await safetyLoginAction(sheetUser, password);
-        if (!safety.ok) {
-          toast({ title: "Modo segurança", description: safety.error || "Planilha recusou o login.", variant: "destructive" });
+        const candidates = Array.from(new Set([
+          loginEmail,
+          loginEmail.includes("@") ? loginEmail.split("@")[0] : "",
+        ].filter(Boolean)));
+        let safety: Awaited<ReturnType<typeof safetyLoginAction>> | null = null;
+        for (const candidate of candidates) {
+          safety = await safetyLoginAction(candidate, password);
+          if (safety.ok) break;
+        }
+        if (!safety?.ok) {
+          toast({ title: "Planilha recusou o login", description: safety?.error || "Confira e-mail e senha da aba Usuarios.", variant: "destructive" });
           setIsSubmitting(false);
           return;
         }
         saveSafetySession({
           active: true,
           reason,
-          user: safety.user as any,
+          user: { ...(safety.user as any), email: (safety.user as any)?.email || loginEmail },
           at: new Date().toISOString(),
         });
-        toast({ title: "Modo segurança", description: "Banco fora. Entrando pela planilha (aba Usuarios)." });
+        toast({ title: "Modo segurança", description: "Entrando pela planilha. Carteira vem da aba Processos." });
         window.location.replace("/");
       };
 
@@ -88,10 +100,17 @@ export default function LoginPage() {
         return;
       }
 
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const authPromise = supabase.auth.signInWithPassword({
         email: loginEmail,
         password: password
       });
+      const timed = await Promise.race([
+        authPromise,
+        new Promise<{ data: any; error: any }>((resolve) =>
+          setTimeout(() => resolve({ data: { user: null, session: null }, error: { message: "timeout quota" } }), 4500)
+        ),
+      ]);
+      const { data, error: authError } = timed;
 
       if (authError) {
         const msg = String((authError as any)?.message || authError);
@@ -115,7 +134,8 @@ export default function LoginPage() {
     }
   };
 
-  if (!authLoading && user) {
+  const safetyBoot = typeof window !== "undefined" ? loadSafetySession() : null;
+  if (!authLoading && user && !safetyBoot?.active && !(user as any)?.safety) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-[#0b1220] to-slate-950 space-y-8 font-sans p-6 text-center relative overflow-hidden">
         <div className="absolute inset-0 opacity-20 pointer-events-none select-none">

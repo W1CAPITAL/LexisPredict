@@ -51,6 +51,12 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthPage = path === '/login' || path === '/signup';
   const isPublic = isAuthPage || path.startsWith('/termos') || path.startsWith('/api/') || /\.[a-z0-9]+$/i.test(path);
+  const safetyOn = request.cookies.get('lexis_safety')?.value === '1';
+  if (safetyOn && !isAuthPage) {
+    response.headers.set('Cache-Control', 'private, no-store');
+    return applySecurityHeaders(response);
+  }
+  if (safetyOn && isAuthPage) return redirect('/');
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const redirect = (pathname: string) => {
@@ -76,7 +82,13 @@ export async function middleware(request: NextRequest) {
         },
       },
     });
-    const { data: { user } } = await client.auth.getUser();
+    let user: { id?: string } | null = null;
+    try {
+      const got = await client.auth.getUser();
+      user = got.data?.user ?? null;
+    } catch {
+      user = null;
+    }
     if (!user && !isPublic) return redirect('/login');
     if (user && isAuthPage) return redirect('/');
     const adminPath = ADMIN_ONLY.some(p => path === p || path.startsWith(`${p}/`));

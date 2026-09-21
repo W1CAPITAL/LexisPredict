@@ -38,16 +38,43 @@ export function loadSafetySession(): SafetySession | null {
   }
 }
 
+function cookieSecure() {
+  return typeof window !== "undefined" && window.location.protocol === "https:" ? "; secure" : "";
+}
+
+function writeCookie(name: string, value: string, maxAge = 60 * 60 * 24 * 7) {
+  if (typeof document === "undefined") return;
+  const v = encodeURIComponent(String(value || "").slice(0, 180));
+  document.cookie = `${name}=${v}; path=/; max-age=${maxAge}; samesite=lax${cookieSecure()}`;
+}
+
+function clearCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; path=/; max-age=0; samesite=lax`;
+}
+
+/** Cookies que o middleware lê. Sem isso o app volta para /login e trava no splash. */
+export function writeSafetyCookies(user: SafetyUser) {
+  writeCookie("lexis_safety", "1");
+  writeCookie("lexis_user_email", user.email || user.login);
+  writeCookie("lexis_safety_login", user.login);
+  writeCookie("lexis_safety_nome", user.nome || user.login);
+  writeCookie("lexis_user_role", perfilToCargo(user.perfil));
+  if (user.email) writeCookie("lexis_user_email", user.email);
+}
+
 export function saveSafetySession(sess: SafetySession) {
   if (typeof window === "undefined") return;
   localStorage.setItem(SAFETY_SESSION_KEY, JSON.stringify(sess));
   localStorage.setItem(SAFETY_FLAG_KEY, "1");
+  writeSafetyCookies(sess.user);
 }
 
 export function clearSafetySession() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(SAFETY_SESSION_KEY);
   localStorage.removeItem(SAFETY_FLAG_KEY);
+  ["lexis_safety", "lexis_safety_login", "lexis_safety_nome", "lexis_user_role"].forEach(clearCookie);
 }
 
 export function enqueueSafetyWrite(row: Record<string, unknown>) {

@@ -110,11 +110,29 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
 
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
+  if ((ctx as any).safety) {
+    const { sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
+    const { sheetRowsToLegalCases } = await import("@/lib/hybrid/sheets-case-map");
+    const listed = await sheetsListProcessos({ limit: 5000 });
+    let cases = sheetRowsToLegalCases(listed.rows || []);
+    const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
+    if (!wide) {
+      const nome = String(ctx.nome || "").toLowerCase();
+      const email = String(ctx.email || "").toLowerCase();
+      cases = cases.filter((c: any) => {
+        const dono = String(c.atendente || c.created_by || "").toLowerCase();
+        return (nome && dono.includes(nome.split(" ")[0])) || (email && dono.includes(email));
+      });
+    }
+    return cases;
+  }
   if (!ctx.empresa_id) return [];
-  // Superadmin / Supervisor: todos. Demais: só os próprios.
-  // Híbrido NÃO lê da planilha aqui — senão o app "não atualiza" após save no Postgres.
   const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
-  return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
+  try {
+    return await getStoredCasesForEmpresa(ctx.empresa_id, wide);
+  } catch {
+    return [];
+  }
 }
 
 export async function syncRepoCases(cases: LegalCase[]) {

@@ -31,7 +31,40 @@ export async function getSupabaseAdmin() {
 }
 
 const resolveUserContext = cache(async () => {
-  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, weight: 0 };
+  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, weight: 0, safety: false };
+  try {
+    const { cookies } = await import("next/headers");
+    const jar = await cookies();
+    if (jar.get("lexis_safety")?.value === "1") {
+      const email = decodeURIComponent(jar.get("lexis_user_email")?.value || jar.get("lexis_safety_login")?.value || "");
+      const nome = decodeURIComponent(jar.get("lexis_safety_nome")?.value || email);
+      const cargoRaw = decodeURIComponent(jar.get("lexis_user_role")?.value || "Operador");
+      const cargo = (cargoRaw as UserRole) || "Operador";
+      const isSuperAdmin = /super/i.test(cargo);
+      const isSupervisor = /superv/i.test(cargo);
+      const empresa_id =
+        jar.get("lexis_empresa_id")?.value ||
+        process.env.LEXIS_SAFETY_EMPRESA_ID ||
+        "d37fd4bb-1c71-4dca-b97e-292355918d39";
+      return {
+        auth_id: email || nome,
+        empresa_id,
+        cargo,
+        email: email || null,
+        nome: nome || null,
+        isSuperAdmin,
+        isSupervisor,
+        isViewer: false,
+        isMasterView: isSuperAdmin || isSupervisor,
+        isAdministrador: /admin/i.test(cargo) && !isSupervisor,
+        isEmpresaWide: isSuperAdmin || isSupervisor,
+        weight: ROLE_WEIGHTS[cargo] || 40,
+        safety: true,
+      };
+    }
+  } catch {
+    /* cookies() só no request */
+  }
   const requestClient = await createRequestClient();
   if (!requestClient) return empty;
   const { data: { user }, error } = await requestClient.auth.getUser();

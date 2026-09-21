@@ -12,7 +12,7 @@ import { supabase, UserProfile, isSupabaseConfigured } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { registrarLoginAction } from '@/app/actions/auditoria-actions';
-import { loadSafetySession, clearSafetySession, perfilToCargo } from '@/lib/hybrid/safety-mode';
+import { loadSafetySession, clearSafetySession, perfilToCargo, writeSafetyCookies } from '@/lib/hybrid/safety-mode';
 
 interface AuthContextType {
   user: any | null;
@@ -159,6 +159,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const safety = loadSafetySession();
     if (safety?.active) {
+      writeSafetyCookies(safety.user);
       const cargo = perfilToCargo(safety.user.perfil);
       setUser({ id: safety.user.login, email: safety.user.email || safety.user.login, safety: true });
       setProfile({
