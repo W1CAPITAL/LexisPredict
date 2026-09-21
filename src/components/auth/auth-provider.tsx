@@ -12,6 +12,7 @@ import { supabase, UserProfile, isSupabaseConfigured } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { registrarLoginAction } from '@/app/actions/auditoria-actions';
+import { loadSafetySession, clearSafetySession, perfilToCargo } from '@/lib/hybrid/safety-mode';
 
 interface AuthContextType {
   user: any | null;
@@ -156,6 +157,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
 
+    const safety = loadSafetySession();
+    if (safety?.active) {
+      const cargo = perfilToCargo(safety.user.perfil);
+      setUser({ id: safety.user.login, email: safety.user.email || safety.user.login, safety: true });
+      setProfile({
+        id: safety.user.login,
+        auth_user_id: safety.user.login,
+        empresa_id: "sheets",
+        nome: safety.user.nome,
+        email: safety.user.email || safety.user.login,
+        cargo,
+        role: String(safety.user.perfil || "operador").toLowerCase(),
+        created_at: safety.at,
+      });
+      setLoading(false);
+      return () => {};
+    }
     if (!supabase) {
       setLoading(false);
       return;
@@ -253,9 +271,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [goLogin, loadProfile, refreshSession]);
 
   const signOut = async () => {
-    if (!supabase) return;
     try {
-      await supabase.auth.signOut({ scope: 'local' });
+      clearSafetySession();
+      if (supabase) await supabase.auth.signOut({ scope: 'local' });
     } catch {
       /* */
     }

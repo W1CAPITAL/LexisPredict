@@ -177,3 +177,36 @@ export async function sheetsPing() {
   const r = await sheetsGet({ action: "ping", ping: "1" });
   return { ok: r.ok, error: r.error, json: r.json };
 }
+
+
+export async function sheetsAuthLogin(usuario: string, senha: string) {
+  const r = await sheetsServerPost({
+    action: "auth",
+    usuario,
+    login: usuario,
+    senha,
+  });
+  if (!r.ok) return { ok: false as const, error: r.error || r.json?.error || "Planilha recusou o login" };
+  const user = r.json?.user || {};
+  return {
+    ok: true as const,
+    token: String(r.json?.token || ""),
+    user: {
+      login: String(user.usuario || user.login || usuario),
+      nome: String(user.nome || usuario),
+      perfil: String(user.perfil || "operador"),
+      escritorio: String(user.escritorio || ""),
+      email: String(user.email || ""),
+    },
+  };
+}
+
+export async function sheetsListUsers() {
+  const r = await sheetsServerPost({ action: "users", admin: true });
+  if (!r.ok) {
+    const g = await sheetsServerPost({ action: "list_users" });
+    if (!g.ok) return { ok: false as const, users: [] as any[], error: r.error };
+    return { ok: true as const, users: g.json?.users || [] };
+  }
+  return { ok: true as const, users: r.json?.users || [] };
+}

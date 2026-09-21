@@ -21,6 +21,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth } from '@/components/auth/auth-provider';
+import { safetyLoginAction } from '@/app/actions/safety-mode-actions';
+import { isQuotaOrBillingError, saveSafetySession } from '@/lib/hybrid/safety-mode';
 import { getTenantBrand } from '@/lib/tenant-brand';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -60,20 +62,43 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (!supabase) {
-      toast({ title: "Login indisponível", description: "A conexão do aplicativo ainda não foi configurada.", variant: "destructive" });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const loginEmail = email.trim().toLowerCase();
+      const trySheets = async (reason: string) => {
+        const sheetUser = loginEmail.includes("@") ? loginEmail.split("@")[0] : loginEmail;
+        const safety = await safetyLoginAction(sheetUser, password);
+        if (!safety.ok) {
+          toast({ title: "Modo segurança", description: safety.error || "Planilha recusou o login.", variant: "destructive" });
+          setIsSubmitting(false);
+          return;
+        }
+        saveSafetySession({
+          active: true,
+          reason,
+          user: safety.user as any,
+          at: new Date().toISOString(),
+        });
+        toast({ title: "Modo segurança", description: "Banco fora. Entrando pela planilha (aba Usuarios)." });
+        window.location.replace("/");
+      };
+
+      if (!supabase) {
+        await trySheets("Supabase não configurado");
+        return;
+      }
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: password
       });
 
       if (authError) {
+        const msg = String((authError as any)?.message || authError);
+        if (isQuotaOrBillingError(msg) || /fetch|network|timeout|521|402|429/i.test(msg)) {
+          await trySheets(msg);
+          return;
+        }
         toast({ title: "Erro de Acesso", description: "Credenciais inválidas.", variant: "destructive" });
         setIsSubmitting(false);
       } else if (data.user && data.session) {
