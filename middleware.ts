@@ -50,13 +50,13 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
   const isAuthPage = path === '/login' || path === '/signup';
-  const isPublic = isAuthPage || path.startsWith('/termos') || path.startsWith('/api/') || /\.[a-z0-9]+$/i.test(path);
+  const isPublic =
+    isAuthPage ||
+    path.startsWith('/termos') ||
+    path.startsWith('/api/') ||
+    path.startsWith('/modo-seguranca') ||
+    /\.[a-z0-9]+$/i.test(path);
   const safetyOn = request.cookies.get('lexis_safety')?.value === '1';
-  if (safetyOn && !isAuthPage) {
-    response.headers.set('Cache-Control', 'private, no-store');
-    return applySecurityHeaders(response);
-  }
-  if (safetyOn && isAuthPage) return redirect('/');
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const redirect = (pathname: string) => {
@@ -69,6 +69,11 @@ export async function middleware(request: NextRequest) {
     next.headers.set('Cache-Control', 'private, no-store');
     return applySecurityHeaders(next);
   };
+  if (safetyOn) {
+    if (isAuthPage) return redirect("/modo-seguranca");
+    response.headers.set("Cache-Control", "private, no-store");
+    return applySecurityHeaders(response);
+  }
   if (url && key && (!isPublic || isAuthPage)) {
     const client = createServerClient(url, key, {
       cookies: {

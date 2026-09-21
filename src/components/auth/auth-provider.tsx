@@ -160,6 +160,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const safety = loadSafetySession();
     if (safety?.active) {
       writeSafetyCookies(safety.user);
+      try { (supabase as any)?.realtime?.disconnect?.(); } catch { /* banco fora */ }
       const cargo = perfilToCargo(safety.user.perfil);
       setUser({ id: safety.user.login, email: safety.user.email || safety.user.login, safety: true });
       setProfile({

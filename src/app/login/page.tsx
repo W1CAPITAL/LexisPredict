@@ -22,7 +22,7 @@ import { useRouter } from 'next/navigation';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth } from '@/components/auth/auth-provider';
 import { safetyLoginAction } from '@/app/actions/safety-mode-actions';
-import { isQuotaOrBillingError, saveSafetySession, loadSafetySession } from '@/lib/hybrid/safety-mode';
+import { isQuotaOrBillingError, saveSafetySession, loadSafetySession, writeSafetyCookies } from '@/lib/hybrid/safety-mode';
 import { getTenantBrand } from '@/lib/tenant-brand';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -47,11 +47,12 @@ export default function LoginPage() {
 
     const safetyNow = loadSafetySession();
     if (safetyNow?.active) {
-      window.location.replace('/');
+      writeSafetyCookies(safetyNow.user);
+      window.location.replace('/modo-seguranca');
       return;
     }
     if (!authLoading && user) {
-      router.replace('/');
+      router.replace('/modo-seguranca');
       router.refresh();
       // Uma única tentativa suave — evita loop assign('/') ↔ /login
       safetyTimeout = setTimeout(() => {
@@ -92,7 +93,7 @@ export default function LoginPage() {
           at: new Date().toISOString(),
         });
         toast({ title: "Modo segurança", description: "Entrando pela planilha. Carteira vem da aba Processos." });
-        window.location.replace("/");
+        window.location.replace("/modo-seguranca");
       };
 
       if (!supabase) {
@@ -133,30 +134,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
-  const safetyBoot = typeof window !== "undefined" ? loadSafetySession() : null;
-  if (!authLoading && user && !safetyBoot?.active && !(user as any)?.safety) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-[#0b1220] to-slate-950 space-y-8 font-sans p-6 text-center relative overflow-hidden">
-        <div className="absolute inset-0 opacity-20 pointer-events-none select-none">
-          <div className="text-[20rem] font-black absolute -top-40 -left-20 text-white/10">LEXIS</div>
-          <div className="text-[20rem] font-black absolute -bottom-40 -right-20 text-white/10">PREDICT</div>
-        </div>
-        <div className="w-20 h-20 bg-white text-black border-2 border-white flex items-center justify-center shadow-[12px_12px_0px_#00D1FF] rounded-2xl animate-in zoom-in-95 duration-700">
-          {logoAsset ? (
-            <Image src={logoAsset.imageUrl} alt="Logo" width={56} height={56} className="rounded-xl" />
-          ) : (
-            <ShieldCheck size={40} className="text-primary" />
-          )}
-        </div>
-        <div className="space-y-4">
-          <h1 className="text-2xl font-black uppercase tracking-tighter text-white">Acesso confirmado</h1>
-          <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Abrindo sua carteira…</p>
-        </div>
-        <Loader2 className="animate-spin text-primary" size={32} />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#080c16] p-6 font-sans relative overflow-hidden text-foreground">
