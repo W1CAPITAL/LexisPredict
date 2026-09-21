@@ -120,7 +120,32 @@ function onOpen() {
     .addItem("Garantir abas e cabeçalhos", "ensureSheetsUI")
     .addItem("Criar usuário (login/senha)", "uiCriarUsuario")
     .addItem("Listar usuários", "uiListarUsuarios")
+    .addItem("Distribuir Assistente (KRIS / ADRIANA / DAVI)", "uiDistribuirAssistente")
     .addToUi();
+}
+
+function uiDistribuirAssistente() {
+  var nomes = ["KRIS", "ADRIANA", "DAVI ALVES FIGUEREDO"];
+  var sh = getProcSheet_();
+  var headers = headers_(sh);
+  var map = headerMap_(headers);
+  var cA = findCol_(map, ["assistente", "responsavel", "created_by"]);
+  if (cA < 0) {
+    SpreadsheetApp.getUi().alert("Coluna Assistente não encontrada.");
+    return;
+  }
+  var last = sh.getLastRow();
+  if (last <= HEADER_ROW) {
+    SpreadsheetApp.getUi().alert("Aba Processos vazia.");
+    return;
+  }
+  var range = sh.getRange(HEADER_ROW + 1, cA + 1, last - HEADER_ROW, 1);
+  var vals = range.getValues();
+  for (var i = 0; i < vals.length; i++) {
+    vals[i][0] = nomes[i % nomes.length];
+  }
+  range.setValues(vals);
+  SpreadsheetApp.getUi().alert("Assistente distribuído em rodízio: KRIS, ADRIANA, DAVI ALVES FIGUEREDO (" + vals.length + " linhas).");
 }
 
 function ensureSheetsUI() {
@@ -659,9 +684,11 @@ function doPost(e) {
 function publicUser_(us) {
   return {
     usuario: us.u,
+    login: us.u,
     nome: us.nome,
     perfil: us.perfil,
     escritorio: us.escritorio,
+    email: us.email || us.u,
     access: roleAccess(us.perfil)
   };
 }
@@ -779,6 +806,7 @@ function doAuth_(body) {
     nome: String(found[cN >= 0 ? cN : 0] || login),
     perfil: String(found[cP >= 0 ? cP : 0] || "operador"),
     escritorio: String(found[cE >= 0 ? cE : 0] || ""),
+    email: String(cEml >= 0 ? found[cEml] : found[cL] || login),
     exp: Date.now() + SESS_DURATION_MS
   };
   PropertiesService.getScriptProperties().setProperty(SESS_PREFIX + token, JSON.stringify(sess));

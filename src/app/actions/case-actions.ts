@@ -113,16 +113,19 @@ export async function fetchRepoCases() {
   if ((ctx as any).safety) {
     const { sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
     const { sheetRowsToLegalCases } = await import("@/lib/hybrid/sheets-case-map");
-    const listed = await sheetsListProcessos({ limit: 5000 });
+    const listed = await sheetsListProcessos({ limit: 8000 });
     let cases = sheetRowsToLegalCases(listed.rows || []);
-    const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
-    if (!wide) {
+    const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor || ctx.isAdministrador);
+    const comDono = cases.filter((c: any) => String(c.atendente || c.created_by || "").trim());
+    if (!wide && comDono.length > Math.max(20, cases.length * 0.3)) {
       const nome = String(ctx.nome || "").toLowerCase();
       const email = String(ctx.email || "").toLowerCase();
-      cases = cases.filter((c: any) => {
+      const key = (nome.split(" ")[0] || email.split("@")[0] || "").toLowerCase();
+      const filtered = cases.filter((c: any) => {
         const dono = String(c.atendente || c.created_by || "").toLowerCase();
-        return (nome && dono.includes(nome.split(" ")[0])) || (email && dono.includes(email));
+        return key && dono.includes(key);
       });
+      if (filtered.length) cases = filtered;
     }
     return cases;
   }

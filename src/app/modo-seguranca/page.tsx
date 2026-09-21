@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchRepoCases } from "@/app/actions/case-actions";
+import { listSafetyCarteiraAction } from "@/app/actions/safety-carteira-actions";
 import { loadSafetySession, writeSafetyCookies, clearSafetySession } from "@/lib/hybrid/safety-mode";
 import Link from "next/link";
 
@@ -19,6 +19,7 @@ type Row = {
 export default function ModoSegurancaPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [err, setErr] = useState("");
+  const [meta, setMeta] = useState("");
   const [loading, setLoading] = useState(true);
   const sess = typeof window !== "undefined" ? loadSafetySession() : null;
 
@@ -28,17 +29,21 @@ export default function ModoSegurancaPage() {
     let alive = true;
     (async () => {
       try {
-        const list = await fetchRepoCases();
-        if (alive) setRows(Array.isArray(list) ? list : []);
+        const res = await listSafetyCarteiraAction();
+        if (!alive) return;
+        setRows(res.rows || []);
+        setMeta(`${res.totalVisivel} visíveis · ${res.totalPlanilha} na planilha`);
+        if (!res.ok) setErr(res.error || "Webhook da planilha não respondeu.");
+        if (res.ok && res.totalPlanilha === 0) {
+          setErr("Planilha respondeu, mas a aba Processos está vazia. Cole a planilha com Assistente.");
+        }
       } catch (e: any) {
-        if (alive) setErr(e?.message || "Não foi possível ler a planilha.");
+        if (alive) setErr(e?.message || "Falha ao ler a planilha.");
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   return (
@@ -51,28 +56,23 @@ export default function ModoSegurancaPage() {
             <p className="text-sm text-slate-300">
               {sess?.user?.nome || sess?.user?.login || "Usuário da aba Usuarios"} · banco fora do ar
             </p>
+            {meta ? <p className="text-xs text-slate-400">{meta}</p> : null}
           </div>
           <div className="flex gap-2">
-            <Link href="/tarefas" className="rounded-md bg-white px-3 py-2 text-xs font-bold text-slate-900">
-              Fila
-            </Link>
-            <Link href="/processos" className="rounded-md border border-white/30 px-3 py-2 text-xs font-bold">
-              Processos
-            </Link>
-            <button
-              type="button"
-              className="rounded-md border border-white/30 px-3 py-2 text-xs"
-              onClick={() => {
-                clearSafetySession();
-                window.location.replace("/login");
-              }}
-            >
-              Sair
-            </button>
+            <Link href="/tarefas" className="rounded-md bg-white px-3 py-2 text-xs font-bold text-slate-900">Fila</Link>
+            <Link href="/processos" className="rounded-md border border-white/30 px-3 py-2 text-xs font-bold">Processos</Link>
+            <button type="button" className="rounded-md border border-white/30 px-3 py-2 text-xs" onClick={() => { clearSafetySession(); window.location.replace("/login"); }}>Sair</button>
           </div>
         </header>
         {loading ? <p className="text-sm text-slate-400">Lendo aba Processos…</p> : null}
-        {err ? <p className="text-sm text-red-300">{err}</p> : null}
+        {err ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+            {err}
+            <p className="mt-2 text-xs text-amber-200/80">
+              Vercel → LEXIS_SHEETS_WEBHOOK_URL (/exec) e LEXIS_SHEETS_TOKEN. Apps Script: web app, acesso qualquer pessoa.
+            </p>
+          </div>
+        ) : null}
         <p className="text-sm text-slate-400">{rows.length} processo(s)</p>
         <div className="overflow-auto rounded-lg border border-white/10">
           <table className="min-w-full text-left text-sm">
@@ -88,7 +88,7 @@ export default function ModoSegurancaPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.slice(0, 400).map((r, i) => (
+              {rows.slice(0, 500).map((r, i) => (
                 <tr key={String(r.protocolo || i)} className="border-t border-white/10">
                   <td className="px-3 py-2">{r.atendente || r.created_by || "—"}</td>
                   <td className="px-3 py-2">{r.cliente || "—"}</td>
