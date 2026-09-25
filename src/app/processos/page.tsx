@@ -4,12 +4,12 @@ import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { canRodarEmpresaScan, canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
 
 import { CaseGlassList } from '@/components/cases/case-glass-list';
+import { ProcessosCommandCenter } from '@/components/processos/processos-command-center';
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * Processos da Empresa — todos os perfis usam a página normalmente.
- * Única restrição por cargo: botão "Rodar empresa" (scanner em lote) = Supervisão/Superadmin.
- * Trilha de auditoria: quem atendeu, quem editou, quem apagou.
+ * Processos da Empresa — visão consolidada exclusiva de Supervisor/Superadmin.
+ * Trilha separa atendimento de edição para preservar crédito operacional.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -35,6 +35,8 @@ import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSe
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { fetchProcessosEmpresaKpisAction } from "@/app/actions/processos-kpis-action";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
+import { DataJudScannerPanel } from "@/components/scanner/datajud-scanner-panel";
+import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { isEmpresaW1Principal } from "@/lib/w1-empresa";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
 import { LegalCase, formatDateToISO } from "@/lib/case-logic";
@@ -147,6 +149,11 @@ export default function ProcessosEmpresaPage() {
   /** Só o botão "Rodar empresa" (lote empresa) exige Supervisão/Superadmin. Resto da página é livre. */
   const canRodarEmpresa = canRodarEmpresaScan(profile as any);
   const canAssignOwner = canAssignOwnerRule(profile as any);
+  const openScanner = useDataJudScanStore((s) => s.openScanner);
+  const scannerStatus = useDataJudScanStore((s) => s.status);
+  const scannerManualStatus = useDataJudScanStore((s) => s.manualStatus);
+  const scannerDone = useDataJudScanStore((s) => s.done);
+  const scannerTotal = useDataJudScanStore((s) => s.total);
 
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [searchHits, setSearchHits] = useState<LegalCase[] | null>(null);
@@ -297,25 +304,15 @@ export default function ProcessosEmpresaPage() {
     try {
       const iso = formatDateToISO(editing.ultimoRetorno) || "";
       const prazoIso = formatDateToISO(editing.proximoPrazo) || editing.proximoPrazo || "";
-      let updated: LegalCase = {
+      const updated: LegalCase = {
         ...editing,
         proximoPrazo: prazoIso,
         statusManual: "Automatico" as any,
         ultimoRetorno: iso || editing.ultimoRetorno,
-        atendido_por:
-          (profile as any)?.auth_user_id ||
-          (profile as any)?.id ||
-          (editing as any).atendido_por,
+        ...patchAuditoriaEdicao(
+          (profile as any)?.auth_user_id || (profile as any)?.id
+        ),
       } as LegalCase;
-      if (iso && (isAtendidoHoje(iso) || isAtendidoNestaSemana(iso))) {
-        updated = {
-          ...updated,
-          ...patchAtendimentoComEdicao(
-            (profile as any)?.auth_user_id || (profile as any)?.id,
-            iso
-          ),
-        } as LegalCase;
-      }
       const payload = { ...updated } as any;
       delete payload.force_transfer_owner;
       delete payload.__transfer_owner;
@@ -325,12 +322,6 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("edicao", [editing.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
         });
-        if (iso && isAtendidoHoje(iso)) {
-          await registrarAtendimentoAction([editing.protocolo], {
-            via: "processos-editar",
-            ultimoRetorno: iso,
-          });
-        }
         setEditOpen(false);
         setEditing(null);
         await load();
@@ -464,9 +455,10 @@ export default function ProcessosEmpresaPage() {
     }
   };
 
-  const exportCsv = () => {
+  const exportCsv = (exportRows?: LegalCase[]) => {
+    const rowsToExport = exportRows?.length ? exportRows : filtered;
     const head = ["cliente", "protocolo", "advogado", "escritorio", "tribunal", "status", "ultimoRetorno", "indicio_busca_apreensao", "criado_por"];
-    const lines = cases.map((c) =>
+    const lines = rowsToExport.map((c) =>
       [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, c.status, c.ultimoRetorno, c.indicio_busca_apreensao ? "SIM" : "NAO", nomeByAuth.get(String(c.created_by || "")) || ""]
         .map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`)
         .join(";")
@@ -637,327 +629,44 @@ export default function ProcessosEmpresaPage() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden min-h-0">
       <Sidebar />
       <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
-        <header className="shrink-0 border-b border-border/60 bg-card p-3 sm:px-6 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
-              <ShieldCheck size={20} />
-            </div>
-            <div>
-              <h1 className="font-black text-sm sm:text-base tracking-tight uppercase">Processos da Empresa</h1>
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                Visão geral da carteira • atendimento conta para quem clicou Atender · dono (Criado por) não muda
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="h-8 px-3 rounded-xl font-black uppercase text-[8px] border-primary/40 text-primary">
-              <Users size={12} className="mr-1.5" /> {profile?.cargo}
-            </Badge>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors disabled:opacity-60"
-            >
-              <RefreshCcw size={14} className={cn(loading && "animate-spin text-primary")} /> Atualizar
-            </button>
-            <Link
-              href="/cases?new=1"
-              className="h-9 rounded-xl bg-black text-white hover:bg-primary hover:text-black px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
-            >
-              <Plus size={14} /> Novo Processo
-            </Link>
-            <button
-              onClick={exportCsv}
-              className="h-9 rounded-xl border border-border/60 bg-card/60 hover:bg-card text-foreground px-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider transition-colors"
-            >
-              <FileDown size={14} /> CSV
-            </button>
-          </div>
-        </header>
+        <DataJudScannerPanel />
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
-<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              <Kpi icon={<Briefcase size={16} />} label="Processos" value={loading ? "…" : (totalCount || cases.length)} tone="primary" />
-              <Kpi icon={<Activity size={16} />} label="Ativos" value={loading ? "…" : (ativosCount || ativos.length)} />
-              <Kpi icon={<CalendarClock size={16} />} label="Atendidos semana" value={loading ? "…" : (atendidosSemanaSrv || atendidosSemana)} tone="ok" hint={labelSemanaAtual()} />
-              <Kpi icon={<FileSearch size={16} />} label="Editados app" value={loading ? "…" : auditadosSemana} tone="ok" hint="salvamentos no app" />
-              <Kpi icon={<Gavel size={16} />} label="Tribunal (sem.)" value={loading ? "…" : auditadosTribunal} hint="DataJud/DJEN" />
-              <Kpi icon={<CheckCircle2 size={16} />} label="Editados app" value={loading ? "…" : editadosApp} hint="salvar no app" />
-              <Kpi icon={<ShieldAlert size={16} />} label="Vencidos" value={loading ? "…" : (vencidosCount || vencidos.length)} tone={(vencidosCount || vencidos.length) > 0 ? "danger" : "default"} />
-            </div>
-
-            <EncerrarScannerPanel
-              cases={cases}
-              authUserId={(profile as any)?.auth_user_id || (profile as any)?.id || null}
-              empresaId={(profile as any)?.empresa_id || null}
-              visaoEmpresa
-              canRodarEmpresa={canRodarEmpresa}
-              onDone={() => { try { void load(); } catch { /* */ } }}
-            />
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <Kpi icon={<Users size={16} />} label="Top Atendentes" value={loading ? "…" : topAtendentes.length || "—"} tone="primary" hint="crédito = atendido_por, não o dono" />
-              {topAtendentes.slice(0, 5).map((a, i) => {
-                const uid = String(a.userId || "").toLowerCase();
-                const isSistema =
-                  /SISTEMA\s*INTERNO/i.test(String(a.userNome || "")) ||
-                  /W1\s*CONTROL/i.test(String(a.userNome || "")) ||
-                  uid === "af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5";
-                return (
-                  <Kpi
-                    key={a.userId || i}
-                    icon={<UserCheck size={16} />}
-                    label={isSistema ? "SISTEMA INTERNO" : a.userNome}
-                    value={a.semana}
-                    tone="ok"
-                    hint={
-                      isSistema
-                        ? `Feito por Davi · Semana: ${a.semana} · Dia: ${a.dia} · Mês: ${a.mes}`
-                        : `Semana: ${a.semana} · Dia: ${a.dia} · Mês: ${a.mes}`
-                    }
-                  />
-                );
-              })}
-            </div>
-
-            <div className="premium-card overflow-hidden">
-              <div className="bg-secondary/40 dark:bg-card/70 px-5 sm:px-7 py-4 border-b border-border/30 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Eye size={16} className="text-primary" />
-                  <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Todos os processos da empresa</h3>
-                </div>
-                <div className="flex items-center gap-2 flex-1 sm:flex-none sm:min-w-[320px]">
-                  <div className="relative flex-1">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="Buscar cliente, protocolo, advogado, tribunal…"
-                      className="pl-9 h-9 rounded-xl text-[11px]"
-                    />
-                  </div>
-                  {(q || statusFilter || baOnly || silencioOnly) ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQ("");
-                        setStatusFilter("");
-                        setBaOnly(false);
-                        setSilencioOnly(false);
-                        setSearchHits(null);
-                        try { localStorage.removeItem("lexis_processos_filters_v1"); } catch { /* */ }
-                      }}
-                      className="h-9 rounded-xl border border-border/60 px-3 text-[10px] font-black uppercase text-muted-foreground hover:text-foreground"
-                    >
-                      Limpar filtros
-                    </button>
-                  ) : null}
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="h-9 rounded-xl border border-border/60 bg-card px-3 text-[10px] font-bold uppercase"
-                  >
-                    <option value="">Todos os status</option>
-                    {Array.from(new Set(cases.map((c) => c.status).filter(Boolean))).sort().map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => setBaOnly(!baOnly)}
-                    className={cn(
-                      "h-9 rounded-xl border px-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-colors shrink-0",
-                      baOnly
-                        ? "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400"
-                        : "border-border/60 bg-card/60 hover:bg-card text-muted-foreground"
-                    )}
-                    title="Filtrar apenas processos com indício de busca e apreensão"
-                  >
-                    <ShieldAlert size={13} /> B.A. real {baCount > 0 ? `(${baCount})` : ""}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSilencioOnly(!silencioOnly)}
-                    className={cn(
-                      "h-9 rounded-xl border px-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-colors shrink-0",
-                      silencioOnly
-                        ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
-                        : "border-border/60 bg-card/60 hover:bg-card text-muted-foreground"
-                    )}
-                  >
-                    Silêncio ≥45d
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortOps(!sortOps)}
-                    className={cn(
-                      "h-9 rounded-xl border px-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-colors shrink-0",
-                      sortOps
-                        ? "border-primary/50 bg-primary/10 text-primary"
-                        : "border-border/60 bg-card/60 hover:bg-card text-muted-foreground"
-                    )}
-                  >
-                    Score ops
-                  </button>
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-24 space-y-3">
-                  <Loader2 className="animate-spin text-primary" size={28} />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Carregando carteira da empresa…</p>
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="py-24 text-center space-y-3 opacity-60">
-                  <Briefcase className="mx-auto" size={40} />
-                  <p className="text-[10px] font-black uppercase tracking-widest">{searching ? "Buscando na empresa…" : "Nenhum processo encontrado"}.</p>
-                </div>
-              ) : (
-                <div className="max-h-[min(75vh,720px)] min-h-[200px] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-background/30 backdrop-blur-md p-2">
-                  <CaseGlassList
-                    items={visibleItems as any}
-                    ownerNameByAuth={nomeByAuth}
-                    onEdit={(c) => {
-                      setEditing(c as any);
-                      setEditOpen(true);
-                    }}
-                    onLogReturn={(c) => openAttendance(c as any)}
-                  />
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 pb-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                      Mostrando{" "}
-                      <span className="text-foreground tabular-nums">
-                        {Math.min(visibleCount, filtered.length)}
-                      </span>{" "}
-                      de{" "}
-                      <span className="text-foreground tabular-nums">{filtered.length}</span>
-                      {" "}carregados
-                      {totalCount > filtered.length && (
-                        <>
-                          {" · "}
-                          <span className="text-primary tabular-nums">{totalCount}</span>
-                          {" na empresa"}
-                        </>
-                      )}
-                      {loadingMore && " · carregando…"}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {(hasServerMore || cases.length < totalCount) && (
-                        <Button
-                          type="button"
-                          variant="default"
-                          size="sm"
-                          disabled={loadingMore}
-                          onClick={() => void loadMoreFromServer()}
-                          className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider"
-                        >
-                          {loadingMore ? "Carregando…" : "Carregar mais da empresa"}
-                        </Button>
-                      )}
-                      {hasMore && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-10 px-5 rounded-xl font-black uppercase text-[10px] tracking-wider border-primary/40 text-primary hover:bg-primary/5 transition-colors flex items-center gap-2"
-                            >
-                              <ChevronDown size={14} />
-                              Ver mais
-                              <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[9px] font-black">
-                                {remaining}
-                              </span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="center" className="w-56 rounded-xl border-2 border-border">
-                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                              Quantos a mais?
-                            </DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-[11px] font-bold uppercase cursor-pointer"
-                              onClick={() => showMore(25)}
-                            >
-                              +25 processos
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-[11px] font-bold uppercase cursor-pointer"
-                              onClick={() => showMore(50)}
-                            >
-                              +50 processos
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-[11px] font-bold uppercase cursor-pointer"
-                              onClick={() => showMore(100)}
-                            >
-                              +100 processos
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-[11px] font-bold uppercase cursor-pointer"
-                              onClick={() => showMore(200)}
-                            >
-                              +200 processos
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-[11px] font-black uppercase cursor-pointer text-primary"
-                              onClick={showAll}
-                            >
-                              Ver todos ({filtered.length})
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                      {visibleCount > PAGE_SIZE && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={showLess}
-                          className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider text-muted-foreground hover:text-foreground"
-                        >
-                          <ChevronUp size={14} className="mr-1" />
-                          Mostrar menos
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-              </div>
-            )}
-            </div>
-
-            <section className="premium-card p-5 sm:p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Activity size={16} className="text-primary" />
-                <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Atividade recente da empresa</h3>
-              </div>
-              {recentFeed.length === 0 ? (
-                <p className="text-[10px] font-black uppercase text-muted-foreground/40 text-center py-10">
-                  Nenhum registro de auditoria ainda. Após atender, editar ou apagar um processo, a atividade aparece aqui.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {recentFeed.map((a) => {
-                    const meta = ACTION_META[a.action || ""];
-                    return (
-                      <div key={a.id} className="rounded-xl border border-border/50 bg-secondary/10 p-3.5 flex items-start gap-3">
-                        <div className={cn("w-8 h-8 rounded-lg border flex items-center justify-center shrink-0", meta ? meta.tone : "bg-muted text-muted-foreground")}>
-                          {meta ? meta.icon : <Eye size={13} />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase truncate">{a.user_nome || "—"}</p>
-                          <p className="text-[9px] font-bold uppercase text-muted-foreground/70 truncate">
-                            {meta ? meta.label : a.action} · {a.protocolo_ref}
-                          </p>
-                          <p className="text-[8px] font-mono text-muted-foreground/50 mt-1">{fmtTime(a.created_at)}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </div>
+          <ProcessosCommandCenter
+            items={filtered}
+            totalCount={totalCount || cases.length}
+            ativosCount={ativosCount || ativos.length}
+            vencidosCount={vencidosCount || vencidos.length}
+            loading={loading}
+            searching={searching}
+            query={q}
+            onQueryChange={setQ}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            baOnly={baOnly}
+            onBaOnlyChange={setBaOnly}
+            silencioOnly={silencioOnly}
+            onSilencioOnlyChange={setSilencioOnly}
+            sortOps={sortOps}
+            onSortOpsChange={setSortOps}
+            onRefresh={() => void load()}
+            canScan={canRodarEmpresa}
+            onScan={canRodarEmpresa ? openScanner : undefined}
+            scannerLabel={
+              scannerStatus === "running"
+                ? `Scanner nuvem ${scannerDone}/${scannerTotal || "…"}`
+                : scannerManualStatus === "running"
+                  ? "Scanner local em execução"
+                  : "Atualizar DataJud"
+            }
+            onEdit={(item) => {
+              setEditing(item);
+              setEditOpen(true);
+            }}
+            onAttend={(item) => openAttendance(item)}
+            onExportCsv={exportCsv}
+            ownerNameByAuth={nomeByAuth}
+          />
         </div>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
