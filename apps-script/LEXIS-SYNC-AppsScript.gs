@@ -330,7 +330,7 @@ function readRows_(opts) {
   var data = sh.getDataRange().getValues();
   var map = headerMap_(headers);
   var keyIdx = findCol_(map, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
-  var ownerIdx = findCol_(map, ["Responsavel", "CreatedBy", "created_by", "criado_por"]);
+  var ownerIdx = findCol_(map, ["Assistente", "Responsavel", "CreatedBy", "created_by", "criado_por"]);
   var user = norm(opts.responsavel || "");
   var isAdmin = !!opts.admin;
 
@@ -434,7 +434,7 @@ function writeRecords_(rows, actor, allowInsert) {
     var protoIdx = findCol_(hmap, ["Protocolo", "protocolo", "cnj", "processo", "numero"]);
     if (protoIdx < 0) throw new Error("coluna-chave (Protocolo/CNJ) não encontrada");
 
-    var ownerIdx = findCol_(hmap, ["Responsavel", "CreatedBy", "created_by", "criado_por"]);
+    var ownerIdx = findCol_(hmap, ["Assistente", "Responsavel", "CreatedBy", "created_by", "criado_por"]);
     var empresaIdx = findCol_(hmap, ["EmpresaId", "empresa_id", "empresaId"]);
     var updatedIdx = findCol_(hmap, ["updated_at", "updatedAt"]);
     var editedByIdx = findCol_(hmap, ["edited_by", "editado_por"]);
@@ -511,9 +511,17 @@ function writeRecords_(rows, actor, allowInsert) {
 
       var dados = record.dados && typeof record.dados === "object" ? record.dados : {};
       headers.forEach(function(header, i) {
+        var wanted = norm(header);
+        var directKeys = Object.keys(record || {});
+        for (var dk = 0; dk < directKeys.length; dk++) {
+          if (norm(directKeys[dk]) === wanted) {
+            current[i] = toCell_(record[directKeys[dk]]);
+            return;
+          }
+        }
         var value = valueForField_(record, header, dados);
-        // NUNCA apaga valor antigo porque uma coluna não veio no payload.
-        if (value === undefined || value === null || String(value) === "") return;
+        // Campo ausente no payload preserva a célula atual; vazio explícito limpa a célula.
+        if (value === undefined || value === null) return;
         current[i] = toCell_(value);
       });
       current[protoIdx] = protocol;
@@ -547,10 +555,10 @@ function writeRecords_(rows, actor, allowInsert) {
 
     appendIndexRows_(index.sheet, indexAdds);
     SpreadsheetApp.flush();
-    var written = updates - rejected.length;
+    var written = updates;
     return {
       ok: true,
-      updated: updates,
+      updated: Math.max(0, updates - added),
       added: added,
       written: written,
       rejected: rejected,
@@ -676,7 +684,7 @@ function listAction_(body) {
   if (body.responsavel && !isAdmin) {
     var owner = norm(body.responsavel);
     rows = rows.filter(function (r) {
-      return norm(r.Responsavel || r.CreatedBy || r.created_by || r.responsavel || "") === owner;
+      return norm(r.Assistente || r.Responsavel || r.CreatedBy || r.created_by || r.responsavel || "") === owner;
     });
   }
   return {
