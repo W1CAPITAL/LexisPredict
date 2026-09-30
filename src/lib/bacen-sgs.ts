@@ -90,12 +90,12 @@ export async function taxaMediaNaData(
 ): Promise<{ data: string; valor: number; codigo: number } | null> {
   const alvo = dataContrato.slice(0, 10);
   // busca janela ampla
-  const ini = '01/01/2015';
+  const ini = '01/01/2000';
   const [y, m, d] = alvo.split('-');
   const fim = `${d}/${m}/${y}`;
   try {
     const pts = await fetchSerieBacen(codigo, ini, fim);
-    if (!pts.length) return taxaMediaMaisRecente(codigo);
+    if (!pts.length) return null;
     let best = pts[0];
     for (const p of pts) {
       if (p.data <= alvo) best = p;
@@ -112,7 +112,7 @@ export function labelSerie(codigo: number): string {
   if (!entry) return `SGS ${codigo}`;
   const map: Record<string, string> = {
     VEICULOS_PF: 'Veículos PF (25471)',
-    CREDITO_PESSOAL: 'Crédito pessoal (20742)',
+    CREDITO_PESSOAL: 'Crédito pessoal histórico a.m. (25464)',\n    CREDITO_PESSOAL_ANUAL: 'Crédito pessoal histórico a.a. (20742)',\n    CREDITO_PESSOAL_SEM_GARANTIA: 'Crédito pessoal sem garantia a.m. (29977)',\n    CREDITO_PESSOAL_SEM_GARANTIA_ANUAL: 'Crédito pessoal sem garantia a.a. (29974)',\n    CREDITO_PESSOAL_COM_GARANTIA: 'Crédito pessoal com garantia a.m. (29976)',\n    CREDITO_PESSOAL_COM_GARANTIA_ANUAL: 'Crédito pessoal com garantia a.a. (29973)',\n    CREDITO_PESSOAL_COMPOSICAO_DIVIDAS: 'Composição de dívidas a.m. (25465)',
     CHEQUE_ESPECIAL: 'Cheque especial (25463)',
     MEDIA_GERAL: 'Média geral crédito (20714)',
     SELIC: 'Selic (11)',
