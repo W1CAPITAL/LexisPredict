@@ -18,6 +18,11 @@ import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
 import { fetchDataJud } from '@/lib/datajud';
+import {
+  canRunOperationalScanner,
+  canUseAllOperationalFeatures,
+  resolveCaseScope,
+} from '@/lib/roles';
 
 /** Uma retentativa em timeout/rede para DataJud/DJEN (não multiplica lote). */
 async function withOneRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
@@ -113,19 +118,16 @@ export async function fetchRepoCases() {
   if ((ctx as any).safety) {
     const { sheetsListProcessos } = await import("@/lib/hybrid/sheets-server");
     const { sheetRowsToLegalCases } = await import("@/lib/hybrid/sheets-case-map");
-    const listed = await sheetsListProcessos({ limit: 8000 });
+    const listed = await sheetsListProcessos({ limit: 5000 });
     let cases = sheetRowsToLegalCases(listed.rows || []);
-    const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor || ctx.isAdministrador);
-    const comDono = cases.filter((c: any) => String(c.atendente || c.created_by || "").trim());
-    if (!wide && comDono.length > Math.max(20, cases.length * 0.3)) {
+    const wide = !!(ctx.isSuperAdmin || ctx.isSupervisor);
+    if (!wide) {
       const nome = String(ctx.nome || "").toLowerCase();
       const email = String(ctx.email || "").toLowerCase();
-      const key = (nome.split(" ")[0] || email.split("@")[0] || "").toLowerCase();
-      const filtered = cases.filter((c: any) => {
+      cases = cases.filter((c: any) => {
         const dono = String(c.atendente || c.created_by || "").toLowerCase();
-        return key && dono.includes(key);
+        return (nome && dono.includes(nome.split(" ")[0])) || (email && dono.includes(email));
       });
-      if (filtered.length) cases = filtered;
     }
     return cases;
   }
@@ -438,17 +440,20 @@ export async function auditCaseCoreSystem(
     } catch { /* */ }
   }
 
-    if (!datajudOk && !djenOk) {
-    // Soft-fail: UI ainda abre; mostra toast. Nao derruba como 500.
+  if (!datajudOk && !djenOk) {
+    // Falha real de fonte. Nunca afirmar que "sem itens" = offline:
+    // datajudOk/djenOk ficam true quando a consulta respondeu validamente, mesmo vazia.
     return {
       success: true,
       offline: true,
-      error:
-        'OFFLINE: DataJud e DJEN sem retorno (rede, 403 geo, rate limit ou CNJ). Confira deploy em gru1 e tente de novo.',
-      case: target,
-      casePatch: {
-        djen_consultado_em: new Date().toISOString(),
+      error: 'Não foi possível consultar as fontes externas agora.',
+      message: 'DataJud e DJEN ficaram indisponíveis nesta tentativa. Nenhum dado existente foi alterado.',
+      sourceStatus: {
+        datajud: { requested: mode === 'datajud' || mode === 'both', ok: false },
+        djen: { requested: mode === 'djen' || mode === 'both', ok: false },
       },
+      case: target,
+      casePatch: {},
       movimentos: [],
       comunicacoes: [],
     };
@@ -873,6 +878,11 @@ export async function auditCaseCoreSystem(
     const updatedCase = processarCaso({ ...target, ...patch });
   return {
     success: true,
+    offline: false,
+    sourceStatus: {
+      datajud: { requested: mode === 'datajud' || mode === 'both', ok: datajudOk },
+      djen: { requested: mode === 'djen' || mode === 'both', ok: djenOk },
+    },
     casePatch: patch,
     case: updatedCase,
     movimentos: normalizeMovimentosList(movimentos).slice(0, 80),
@@ -883,62 +893,333 @@ export async function auditCaseCoreSystem(
   };
 }
 
+export async function applyBrowserDjenResultAction(
+  protocolo: string,
+  payload: { items?: any[]; count?: number }
+) {
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id } = ctx;
+
+  if (!canRunOperationalScanner(ctx as any)) {
+    return {
+      success: false as const,
+      error: 'Scanner disponível para Administrador, Supervisor ou Superadmin.',
+      comunicacoes: [] as any[],
+    };
+  }
+  if (!empresa_id || !auth_id) {
+    return { success: false as const, error: 'Sessão expirada.', comunicacoes: [] as any[] };
+  }
+
+  const digits = String(protocolo || '').replace(/\D/g, '');
+  if (digits.length !== 20) {
+    return { success: false as const, error: 'CNJ inválido.', comunicacoes: [] as any[] };
+  }
+
+  const masked =
+    `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+  const variants = Array.from(new Set([String(protocolo || '').trim(), digits, masked])).filter(Boolean);
+
+  const admin = await getSupabaseAdmin();
+  const { data: rows, error: readError } = await admin
+    .from('processos')
+    .select('*')
+    .eq('empresa_id', empresa_id)
+    .in('protocolo_ref', variants)
+    .limit(1);
+
+  if (readError) {
+    return { success: false as const, error: readError.message, comunicacoes: [] as any[] };
+  }
+
+  const row = rows?.[0];
+  if (!row) {
+    return { success: false as const, error: 'Processo não encontrado na carteira.', comunicacoes: [] as any[] };
+  }
+
+  if (resolveCaseScope(ctx as any) === 'mine' && String(row.created_by || '') !== String(auth_id)) {
+    return {
+      success: false as const,
+      error: 'Você só pode escanear processos da sua própria carteira.',
+      comunicacoes: [] as any[],
+    };
+  }
+
+  // Nunca confiar em payload arbitrário do navegador: limita tamanho e exige
+  // que cada publicação pertença ao mesmo CNJ consultado.
+  const comunicacoes = (Array.isArray(payload?.items) ? payload.items : [])
+    .slice(0, 60)
+    .map((item: any) => {
+      const itemDigits = String(item?.numeroProcesso || item?.numero_processo || '').replace(/\D/g, '');
+      if (itemDigits !== digits) return null;
+
+      const texto = String(
+        item?.texto ||
+        item?.conteudo ||
+        item?.textoPublicacao ||
+        item?.descricao ||
+        item?.inteiroTeor ||
+        ''
+      )
+        .replace(/\u0000/g, '')
+        .slice(0, 30000);
+
+      return {
+        id: item?.id != null ? String(item.id).slice(0, 160) : '',
+        hash: item?.hash ? String(item.hash).slice(0, 300) : undefined,
+        data_disponibilizacao: item?.data_disponibilizacao
+          ? String(item.data_disponibilizacao).slice(0, 40)
+          : null,
+        siglaTribunal: item?.siglaTribunal ? String(item.siglaTribunal).slice(0, 30) : null,
+        tipoComunicacao: item?.tipoComunicacao ? String(item.tipoComunicacao).slice(0, 120) : null,
+        nomeOrgao: item?.nomeOrgao ? String(item.nomeOrgao).slice(0, 300) : null,
+        texto,
+        numero_processo: digits,
+        meio: item?.meio ? String(item.meio).slice(0, 20) : null,
+        link: item?.link ? String(item.link).slice(0, 1200) : null,
+        tipoDocumento: item?.tipoDocumento ? String(item.tipoDocumento).slice(0, 120) : null,
+        nomeClasse: item?.nomeClasse ? String(item.nomeClasse).slice(0, 200) : null,
+      };
+    })
+    .filter(Boolean) as any[];
+
+  const target = processarCaso({
+    ...(row.dados && typeof row.dados === 'object' ? row.dados : {}),
+    id: String(row.id),
+    protocolo: row.protocolo_ref,
+    ultimoRetorno: row.ultimo_retorno,
+    djen_nova_comunicacao: row.djen_nova_comunicacao,
+    djen_ultima_data: row.djen_ultima_data,
+    djen_ultimo_resumo: row.djen_ultimo_resumo,
+    djen_ultimo_link: row.djen_ultimo_link,
+    djen_count: row.djen_count,
+  });
+
+  const djenSync = detectarNovaComunicacaoDjen(target.ultimoRetorno, comunicacoes);
+  const dataDjenRef = djenSync.dataUltima || target.djen_ultima_data || null;
+  const resumoKw =
+    djenSync.resumo ||
+    (comunicacoes[0]?.texto ? summarizeDjenKeywords(comunicacoes[0].texto) : null) ||
+    target.djen_ultimo_resumo ||
+    null;
+
+  const patch: Record<string, any> = {
+    djen_nova_comunicacao:
+      djenSync.alerta === true ||
+      (!!target.djen_nova_comunicacao &&
+        movimentoAindaPosRetorno(dataDjenRef, target.ultimoRetorno)),
+    djen_ultima_data: djenSync.dataUltima || target.djen_ultima_data || null,
+    djen_ultimo_resumo: resumoKw,
+    djen_ultimo_link:
+      djenSync.link ||
+      resolveDjenPublicacaoLink(comunicacoes[0], digits) ||
+      target.djen_ultimo_link ||
+      null,
+    djen_count: Number.isFinite(Number(payload?.count))
+      ? Number(payload.count)
+      : comunicacoes.length,
+    djen_consultado_em: new Date().toISOString(),
+  };
+
+  if (djenSync.alerta && comunicacoes[0]?.texto) {
+    const classified = classifyEventFromText(comunicacoes[0].texto);
+    patch.evento_tipo = classified.tipo;
+    patch.evento_resumo = resumoKw || classified.label;
+  }
+
+  // Reaproveita o motor executivo com o teor oficial que veio do navegador.
+  try {
+    if (comunicacoes.length) {
+      const djenTextos = comunicacoes
+        .map((item: any) => String(item.texto || '').trim())
+        .filter(Boolean)
+        .slice(0, 60);
+
+      const targetAny = target as any;
+      const detalhesExecucao =
+        targetAny?.detalhes_execucao && typeof targetAny.detalhes_execucao === 'object'
+          ? targetAny.detalhes_execucao
+          : {};
+      const classeCodigo =
+        detalhesExecucao?.classeCodigo ??
+        targetAny?.classeCodigo ??
+        targetAny?.classe_codigo ??
+        null;
+
+      const analise = analisarProcedenciaECumprimento(
+        [],
+        classeCodigo != null ? Number(classeCodigo) : null,
+        target.datajud_ultimo_nome || null,
+        djenTextos
+      );
+
+      if (analise.is_procedente) patch.is_procedente = true;
+      if (analise.procedente_motivo) patch.procedente_motivo = analise.procedente_motivo;
+      if (analise.em_cumprimento_sentenca || analise.cumprimento_encerrado) {
+        patch.em_cumprimento_sentenca = true;
+        patch.cumprimento_pendente_necessario = false;
+      } else if (analise.cumprimento_pendente_necessario) {
+        patch.cumprimento_pendente_necessario = true;
+      }
+      patch.cumprimento_ativo = !!analise.cumprimento_ativo;
+      patch.cumprimento_encerrado = !!analise.cumprimento_encerrado;
+      patch.status_executivo = analise.status_executivo || (target as any).status_executivo || null;
+      if (analise.data_transito_julgado) patch.data_transito_julgado = analise.data_transito_julgado;
+    }
+  } catch {
+    // A classificação é auxiliar; nunca invalida uma consulta DJEN que respondeu.
+  }
+
+  const persisted = await updateCaseDataJudSystem(String(row.id), patch);
+  if (!persisted?.success) {
+    return {
+      success: false as const,
+      error: persisted?.error || 'Não foi possível salvar o resultado DJEN.',
+      comunicacoes,
+    };
+  }
+
+  try {
+    await logScanMetric({
+      empresaId: String(empresa_id),
+      source: 'djen',
+      success: true,
+      protocolo: digits,
+    });
+  } catch {}
+
+  return {
+    success: true as const,
+    offline: false,
+    sourceStatus: {
+      djen: { requested: true, ok: true, via: 'browser' },
+    },
+    casePatch: patch,
+    case: processarCaso({ ...target, ...patch }),
+    comunicacoes,
+    count: Number.isFinite(Number(payload?.count)) ? Number(payload.count) : comunicacoes.length,
+    message: comunicacoes.length
+      ? `${comunicacoes.length} publicação(ões) DJEN localizada(s).`
+      : 'Consulta DJEN concluída. Nenhuma publicação foi localizada no período.',
+  };
+}
+
 export async function scanSingleCaseAction(
   protocolo: string,
   options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
 ) {
   const ctx = await getUserContext();
-  const { empresa_id } = ctx;
-  if ((ctx as any).isViewer || String(ctx.cargo || '').toLowerCase().includes('visualiz')) {
+  const { empresa_id, auth_id } = ctx;
+  if (!canRunOperationalScanner(ctx as any)) {
     return {
       success: false,
-      error: 'Modo visualização: scanner tribunal bloqueado neste perfil.',
+      offline: false,
+      error: 'Scanner disponível para Administrador, Supervisor ou Superadmin.',
+      casePatch: {},
+      sourceStatus: {
+        datajud: { requested: options.mode !== 'djen', ok: false },
+        djen: { requested: options.mode !== 'datajud', ok: false },
+      },
       movimentos: [],
       comunicacoes: [],
     };
   }
-  if (!empresa_id) return { success: false, error: '401', movimentos: [], comunicacoes: [] };
-  const safeEmpresaId = String(empresa_id);
+  if (!empresa_id || !auth_id) {
+    return {
+      success: false,
+      offline: false,
+      error: '401',
+      casePatch: {},
+      sourceStatus: {
+        datajud: { requested: options.mode !== 'djen', ok: false },
+        djen: { requested: options.mode !== 'datajud', ok: false },
+      },
+      movimentos: [],
+      comunicacoes: [],
+    };
+  }
 
+  const safeEmpresaId = String(empresa_id);
+  if (resolveCaseScope(ctx as any) === 'mine') {
+    const admin = await getSupabaseAdmin();
+    const raw = String(protocolo || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    const variants = [raw];
+    if (digits && digits !== raw) variants.push(digits);
+    if (digits.length === 20) {
+      variants.push(
+        `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`
+      );
+    }
+    const { data: rows } = await admin
+      .from('processos')
+      .select('created_by')
+      .eq('empresa_id', safeEmpresaId)
+      .in('protocolo_ref', Array.from(new Set(variants)))
+      .limit(1);
+
+    const owner = String(rows?.[0]?.created_by || '');
+    if (!owner || owner !== String(auth_id)) {
+      return {
+        success: false,
+        offline: false,
+        error: 'Você só pode escanear processos da sua própria carteira.',
+        casePatch: {},
+        sourceStatus: {
+          datajud: { requested: options.mode !== 'djen', ok: false },
+          djen: { requested: options.mode !== 'datajud', ok: false },
+        },
+        movimentos: [],
+        comunicacoes: [],
+      };
+    }
+  }
+
+  const mode = options.mode || 'both';
   const useFast = options.fast === true;
+
+  const requestedSourcesOk = (result: any) => {
+    const s = result?.sourceStatus || {};
+    const datajudOk =
+      mode === 'djen' ? true : s?.datajud?.ok === true;
+    const djenOk =
+      mode === 'datajud' ? true : s?.djen?.ok === true;
+    return datajudOk && djenOk;
+  };
+
   let res = await auditCaseCoreSystem(
     protocolo,
     safeEmpresaId,
-    options.mode || 'both',
+    mode,
     { fast: useFast, useClaudeAi: options.useClaudeAi === true }
   );
-  const mov = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
-  const com = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
-  // 2ª tentativa sem fast se veio vazio (timeout/rate)
-  if ((!mov.length && !com.length) && useFast) {
+
+  // Retry only when a requested source actually failed.
+  // Empty successful result is a valid tribunal response and must not be retried as "offline".
+  if (!requestedSourcesOk(res) && useFast) {
     res = await auditCaseCoreSystem(
       protocolo,
       safeEmpresaId,
-      options.mode || 'both',
+      mode,
       { fast: false, useClaudeAi: options.useClaudeAi === true }
     );
   }
-  const mov2 = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
-  const com2 = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
-  if (!mov2.length && !com2.length) {
-    return {
-      ...res,
-      success: true,
-      offline: true,
-      movimentos: [],
-      comunicacoes: [],
-      error:
-        (res as any)?.error ||
-        'Sem movimentos DataJud/DJEN. Possíveis causas: timeout, 403 geográfico, CNJ fora do índice ou rede. Tente novamente em alguns segundos.',
-      message:
-        (res as any)?.message ||
-        'Cronologia vazia — não significa ausência de andamento no tribunal.',
-    };
-  }
+
+  const movimentos = Array.isArray((res as any)?.movimentos) ? (res as any).movimentos : [];
+  const comunicacoes = Array.isArray((res as any)?.comunicacoes) ? (res as any).comunicacoes : [];
+  const sourcesOk = requestedSourcesOk(res);
+
   return {
     ...res,
-    movimentos: mov2,
-    comunicacoes: com2,
+    success: true,
+    offline: !sourcesOk,
+    movimentos,
+    comunicacoes,
+    error: sourcesOk ? undefined : ((res as any)?.error || 'Fonte externa indisponível nesta tentativa.'),
+    message:
+      sourcesOk && !movimentos.length && !comunicacoes.length
+        ? 'Consulta concluída. Nenhuma movimentação/publicação foi localizada no período consultado.'
+        : (res as any)?.message,
   };
 }
 
@@ -952,6 +1233,16 @@ export async function scanOneDjenAction(protocolo: string) {
 
 export async function runDataJudScanAction(empresaId: string) {
   try {
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id || !ctx.auth_id) {
+      return { success: false, error: 'Sessão expirada.' };
+    }
+    if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
+      return { success: false, error: 'Rodar a empresa inteira exige Supervisor ou Superadmin.' };
+    }
+    if (!ctx.isSuperAdmin && String(empresaId) !== String(ctx.empresa_id)) {
+      return { success: false, error: 'Supervisor só pode operar a própria empresa.' };
+    }
     if (!empresaId) return { success: false, error: 'Missing ID' };
     const { getGlobalPendingProcessesSystem } = await import('@/lib/server-db');
     const LIMIT = 20;
@@ -1002,8 +1293,11 @@ export async function fetchTeamPerformanceAction() {
     getStoredCasesForEmpresa,
     getUserContext,
   } = await import('@/lib/server-db');
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { users: [], cases: [] };
+  const ctx = await getUserContext();
+  const { empresa_id } = ctx;
+  if (!empresa_id || (!ctx.isSupervisor && !ctx.isSuperAdmin)) {
+    return { users: [], cases: [] };
+  }
   const [users, cases] = await Promise.all([
     getEmpresaUsers(),
     getStoredCasesForEmpresa(empresa_id, true),
@@ -1052,8 +1346,9 @@ export async function registrarAuditoriaEventAction(
 }
 
 /**
- * Visão da empresa inteira (todos os perfis): todos os processos da empresa
- * + trilha de auditoria (quem atendeu/editou/apagou) + usuários.
+ * Visão operacional:
+ * - Administrador: somente seus processos.
+ * - Supervisor/Superadmin: empresa inteira + auditoria + usuários + ranking.
  */
 export async function fetchCompanyProcessosAction() {
   const {
@@ -1078,24 +1373,29 @@ export async function fetchCompanyProcessosAction() {
     const ctx = await getUserContext();
     const empresa_id = ctx.empresa_id;
     if (!empresa_id) return empty;
+    const companyWide = resolveCaseScope(ctx as any) === 'empresa';
+    if (!companyWide) {
+      return { ...empty, error: "supervisao_required" };
+    }
 
-    // 1) Métricas leves + 2) 1ª página da lista + 3) audit/users — em paralelo
+    // /processos é a visão consolidada da empresa e exige escopo wide.
     const { fetchRankingAtendentesEmpresaAction } = await import(
       "@/app/actions/ranking-atendentes-action"
     );
 
     const [metrics, casesPage, audit, users] = await Promise.all([
-      fetchRankingAtendentesEmpresaAction(5).catch((e: any) => {
-        console.error("[company] metrics", e?.message);
-        return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
-      }),
-      // 1ª página — 300 linhas (tabela); total vem do COUNT
+      companyWide
+        ? fetchRankingAtendentesEmpresaAction(5).catch((e: any) => {
+            console.error("[company] metrics", e?.message);
+            return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
+          })
+        : Promise.resolve({ ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 }),
       getStoredCasesPageForEmpresa(empresa_id, 500, 0, true, { onlyAtivos: true }).catch((e: any) => {
         console.error("[company] page ativos", e?.message);
         return [] as any[];
       }),
-      fetchAuditoriaLogsAction(empresa_id).catch(() => []),
-      getEmpresaUsers().catch(() => []),
+      companyWide ? fetchAuditoriaLogsAction(empresa_id).catch(() => []) : Promise.resolve([]),
+      companyWide ? getEmpresaUsers().catch(() => []) : Promise.resolve([]),
     ]);
 
     let cases = Array.isArray(casesPage) ? casesPage : [];
@@ -1139,18 +1439,22 @@ export async function fetchCompanyProcessosAction() {
 }
 
 export async function clearDataJudAuditAction(protocolo: string) {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false };
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id } = ctx;
+  if (!empresa_id || !auth_id) return { success: false };
 
   const admin = await getSupabaseAdmin();
   const { data: dbItem } = await admin
     .from('processos')
-    .select('id, dados, protocolo_ref')
+    .select('id, dados, protocolo_ref, created_by')
     .eq('protocolo_ref', protocolo)
     .eq('empresa_id', empresa_id)
     .maybeSingle();
 
   if (!dbItem) return { success: false };
+  if (!ctx.isSupervisor && !ctx.isSuperAdmin && String(dbItem.created_by || '') !== String(auth_id)) {
+    return { success: false, error: 'Acesso restrito à sua própria carteira.' };
+  }
 
   const patch = {
     tem_atualizacao_pos_retorno: false,
@@ -1180,8 +1484,12 @@ export async function clearDataJudAuditAction(protocolo: string) {
  */
 export async function recalibrateCasesAction() {
   try {
-    const { empresa_id } = await getUserContext();
+    const ctx = await getUserContext();
+    const { empresa_id } = ctx;
     if (!empresa_id) return { success: false, error: 'Sessão expirada', updated: 0 };
+    if (!canUseAllOperationalFeatures(ctx as any)) {
+      return { success: false, error: 'Função disponível para Administrador, Supervisor ou Superadmin.', updated: 0 };
+    }
 
     const cases = await getStoredCasesForEmpresa(empresa_id, true);
     if (!cases.length) return { success: true, updated: 0, message: 'Nenhum processo.' };
@@ -1338,12 +1646,9 @@ export async function getCumprimentosEProcedentesAction() {
  * Chamado pelo scanner automático ou manualmente pela aba.
  */
 export async function enriquecerProcedenciaAction(protocolo: string) {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false };
-
   try {
-    // Lote5: BOTH + fast:false — DJEN carrega teor da sentença (DataJud sozinho = texto pobre)
-    const res = await auditCaseCoreSystem(protocolo, empresa_id, 'both', {
+    const res = await scanSingleCaseAction(protocolo, {
+      mode: 'both',
       fast: false,
     });
     if (!res || (res as any).success === false) {
@@ -1374,12 +1679,17 @@ export async function enriquecerProcedenciaAction(protocolo: string) {
  * Rápido — ideal antes de exportar ou para popular a aba.
  */
 export async function reclassificarExecutivoCarteiraAction() {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id) return { success: false, updated: 0, error: 'Sem sessão' };
+  const ctx = await getUserContext();
+  const { empresa_id, auth_id } = ctx;
+  if (!empresa_id || !auth_id) return { success: false, updated: 0, error: 'Sem sessão' };
+  if (!canUseAllOperationalFeatures(ctx as any)) {
+    return { success: false, updated: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
+  }
 
   try {
     const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
     const admin = await getSupabaseAdmin();
+    const companyWide = resolveCaseScope(ctx as any) === 'empresa';
 
     let page = 0;
     const pageSize = 500;
@@ -1388,14 +1698,17 @@ export async function reclassificarExecutivoCarteiraAction() {
     let hits = 0;
 
     while (true) {
-      const { data: rows, error } = await admin
+      let query = admin
         .from('processos')
         .select(
-          'id, protocolo_ref, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
+          'id, protocolo_ref, created_by, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
         )
         .eq('empresa_id', empresa_id)
         .range(page * pageSize, page * pageSize + pageSize - 1);
 
+      if (!companyWide) query = query.eq('created_by', auth_id);
+
+      const { data: rows, error } = await query;
       if (error) throw new Error(error.message);
       if (!rows?.length) break;
 
@@ -1560,9 +1873,12 @@ export async function batchScanExecutivoAction(opts?: {
 }) {
   const ctx = await getUserContext();
   const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin, cargo } = ctx;
-  if (!empresa_id) return { success: false, done: 0, error: 'Sem sessão' };
+  if (!empresa_id || !auth_id) return { success: false, done: 0, error: 'Sem sessão' };
+  if (!canUseAllOperationalFeatures(ctx as any)) {
+    return { success: false, done: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
+  }
 
-  const escopoEmpresa = !!(isSuperAdmin || isSupervisor);
+  const escopoEmpresa = resolveCaseScope(ctx as any) === 'empresa';
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
   const onlyMissing = opts?.onlyMissing !== false;
   const priorizarEncerrados = opts?.priorizarEncerrados !== false;

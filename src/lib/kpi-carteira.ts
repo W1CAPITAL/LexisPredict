@@ -3,7 +3,7 @@ import {
   countAtendidosNestaSemana,
   countAtendidosSemanaDoUsuario,
   countAtendidosHojeDoUsuario,
-  isAtendidoHoje,
+  casoAtendidoHoje,
   casoAtendidoNestaSemana,
   labelSemanaAtual,
   pickUltimoRetorno,
@@ -34,7 +34,7 @@ export function computeKpiCarteira(
   const list = cases || [];
   return {
     atendidosSemana: countAtendidosNestaSemana(list, ref),
-    atendidosHoje: list.filter((c) => isAtendidoHoje(pickUltimoRetorno(c), ref)).length,
+    atendidosHoje: list.filter((c) => casoAtendidoHoje(c, ref)).length,
     editadosSemana: countEditadosAppSemana(list, ref),
     editadosHoje: countEditadosAppHoje(list, ref),
     tribunalSemana: countAuditadosTribunalSemana(list, ref),

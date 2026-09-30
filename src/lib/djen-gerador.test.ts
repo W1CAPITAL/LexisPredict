@@ -56,13 +56,13 @@ describe("DJEN público e datas", () => {
     expect(cnjOficial({texto:'Processo 1000000-00.2026.8.26.0100'})).toBe(null);
   });
 });
-it("XLSX com 17 colunas, texto seguro, filtros e cabeçalho congelado", async () => {
+it("XLSX com 23 colunas, texto seguro, cruzamento local, filtros e cabeçalho congelado", async () => {
   const row = { processo:'0000000-00.2026.8.26.0100', nome_completo:'=EXEMPLO()', telefone:'(11) 99999-1234', email:'teste@example.org', cpf:'01234567890', placa:'ABC1D23',renavam:'00123456789',sem_advogado:'SIM',tipo_ba:'veiculo',ba_inicio:'SIM',flags:'BA_VEICULO | SEM_ADVOGADO',classe:'Busca e Apreensão',tribunal:'TJSP',data:'2026-09-15',situacao_hint:'Inicial',link:'https://comunica.pje.jus.br',assunto_ou_teor:'Teor & <texto>\u0000' } as ProcessoDjenReal;
   const blob=await xlsxProcessosDjenReal([row]);
   const zip=await JSZip.loadAsync(await blob.arrayBuffer());
   const xml=await zip.file('xl/worksheets/sheet1.xml')!.async('string');
-  expect(xml).toContain('r="Q1"'); expect(xml).toContain('Email');expect(xml).toContain('00123456789');
-  expect(xml).toContain('teste@example.org'); expect(xml).toContain('state="frozen"');expect(xml).toContain('autoFilter ref="A1:Q2"');
+  expect(xml).toContain('r="Q1"'); expect(xml).toContain('r="W1"'); expect(xml).toContain('Email');expect(xml).toContain('00123456789');
+  expect(xml).toContain('Situacao do cruzamento'); expect(xml).toContain('teste@example.org'); expect(xml).toContain('state="frozen"');expect(xml).toContain('autoFilter ref="A1:W2"');
   expect(xml).not.toContain('<f>');expect(xml).not.toContain('\u0000');
   expect(await zip.file('xl/workbook.xml')!.async('string')).toContain('name="BA_DJEN"');
 });

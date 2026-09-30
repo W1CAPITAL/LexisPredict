@@ -71,7 +71,7 @@ export function DataJudScannerPanel() {
   if (!allowed) {
     if (isMinimized || (status === 'idle' && manualStatus === 'idle')) return null;
     return (
-      <div className="fixed bottom-6 right-6 z-[200] w-[360px] rounded-2xl border-2 border-red-500/40 bg-card p-4 shadow-2xl space-y-2">
+      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-[200] w-[calc(100vw-1.5rem)] max-w-[360px] rounded-2xl border-2 border-red-500/40 bg-card p-4 shadow-2xl space-y-2 md:bottom-6 md:right-6 md:w-[360px]">
         <div className="flex items-center gap-2 text-red-600">
           <Lock size={16} />
           <p className="text-[10px] font-black uppercase tracking-widest">Scanner indisponível</p>
@@ -94,7 +94,7 @@ export function DataJudScannerPanel() {
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-6 right-6 z-[200] animate-in slide-in-from-bottom-4">
+      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-[200] animate-in slide-in-from-bottom-4 md:bottom-6 md:right-6">
         <Button onClick={toggleMinimize} className="h-14 w-14 rounded-full bg-black text-white shadow-2xl border-2 border-primary hover:scale-105 transition-transform">
           <div className="relative">
             <Zap className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
@@ -109,13 +109,16 @@ export function DataJudScannerPanel() {
 
   return (
     <div className={cn(
-      "fixed bottom-6 right-6 z-[200] w-[450px] bg-white border-2 border-black shadow-[20px_20px_0px_rgba(0,0,0,0.1)] transition-all animate-in slide-in-from-bottom-4 flex flex-col h-[85vh]",
+      "fixed bottom-5 right-5 z-[200] w-[460px] overflow-hidden rounded-2xl border border-[#dbe5f2] bg-white shadow-[0_24px_80px_rgba(7,29,53,.24)] transition-all animate-in slide-in-from-bottom-4 flex flex-col h-[82vh]",
       ui.scanner
     )}>
-      <div className="bg-black text-white p-4 flex items-center justify-between border-b-2 border-black shrink-0">
+      <div className="bg-[linear-gradient(90deg,#082944,#061d35)] !text-white p-4 flex items-center justify-between border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner Omnipresente v9.6</h3>
+          <div>
+            <h3 className="text-[10px] font-black uppercase tracking-widest">Scanner da carteira · DataJud + DJEN</h3>
+            <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-[.12em] text-white/55">Local no dispositivo · Nuvem no worker Vercel</p>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={toggleMinimize} className="h-7 w-7 text-white hover:bg-white/10"><ChevronDown size={14} /></Button>
@@ -126,7 +129,7 @@ export function DataJudScannerPanel() {
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-8">
           {/* SELEÇÃO DE MODO */}
-          <section className="p-5 bg-[#f8f9fb] border-2 border-black/5 space-y-4">
+          <section className="rounded-xl border border-[#dfe7f2] bg-[#f7f9fc] p-5 space-y-4">
              <div className="flex items-center gap-2 mb-2">
                 <Settings2 size={14} className="text-primary" />
                 <p className="text-[10px] font-black uppercase tracking-widest">Modo de Operação</p>
@@ -227,12 +230,12 @@ export function DataJudScannerPanel() {
           </section>
 
           {/* ENGINE 1: CLOUD AUDIT (DATAJUD + DJEN) */}
-          <section className="p-5 bg-slate-50 border-2 border-black/5 space-y-6">
+          <section className="rounded-xl border border-[#dfe7f2] bg-[#f7f9fc] p-5 space-y-6">
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                    <CloudLightning className={cn("text-primary", status === 'running' && "animate-pulse")} size={16} />
                    <p className="text-[10px] font-black uppercase">
-                   Ciclo de Nuvem (Hybrid Audit)
+                   Nuvem sob demanda · sem cron
                    {scanScope === "cumprimento" ? " · CUMPRIMENTO" : " · FULL"}
                  </p>
                  <p className="text-[8px] font-medium text-muted-foreground mt-1">
@@ -248,8 +251,8 @@ export function DataJudScannerPanel() {
                   <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
                     Auditoria assíncrona 3D via servidor. Agora varre Tribunal + DJEN simultaneamente.
                   </p>
-                  <Button onClick={startCloudScan} className="w-full h-11 bg-black text-white font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#00D1FF] hover:shadow-none transition-all">
-                    Ativar Ciclo de Nuvem
+                  <Button onClick={startCloudScan} className="w-full h-11 rounded-xl bg-[#1f6fff] text-white font-black uppercase text-[10px] hover:bg-[#145de0] transition-all">
+                    Escanear carteira na nuvem
                   </Button>
                </div>
              ) : (
@@ -275,10 +278,10 @@ export function DataJudScannerPanel() {
           </section>
 
           {/* ENGINE 2: MANUAL SCANNER */}
-          <section className="p-5 bg-white border-2 border-black space-y-6 shadow-[6px_6px_0px_rgba(0,0,0,0.05)]">
+          <section className="rounded-xl border border-[#bfd2ee] bg-white p-5 space-y-6 shadow-sm">
              <div className="flex items-center gap-2">
                 <Terminal className={cn("text-primary", manualStatus === 'running' && "animate-pulse")} size={16} />
-                <p className="text-[10px] font-black uppercase">Scanner Local ({scanMode.toUpperCase()} · {scanScope === "cumprimento" ? "CUMPRIMENTO" : "FULL"})</p>
+                <p className="text-[10px] font-black uppercase">Local / navegador ({scanMode.toUpperCase()} · {scanScope === "cumprimento" ? "CUMPRIMENTO" : "FULL"})</p>
                 <p className="text-[8px] text-muted-foreground font-medium mt-0.5">
                   {scanScope === "cumprimento"
                     ? "Sincroniza carteira → filtra candidatos → DataJud+DJEN 1 a 1. Use BOTH para teor completo."
@@ -296,9 +299,9 @@ export function DataJudScannerPanel() {
                       void startManualScan({ scope: scanScope });
                     }}
                     disabled={false}
-                    className="w-full h-11 bg-white text-black font-black uppercase text-[10px] rounded-none border-2 border-black shadow-[4px_4px_0px_#000] hover:shadow-none transition-all"
+                    className="w-full h-11 rounded-xl border border-[#1f6fff] bg-white text-[#145de0] font-black uppercase text-[10px] hover:bg-[#eef5ff] transition-all"
                   >
-                    Iniciar Varredura Local
+                    Escanear carteira local
                   </Button>
                </div>
              ) : (

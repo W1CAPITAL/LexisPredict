@@ -63,8 +63,8 @@ import { ui } from '@/lib/responsive-ui';
 import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
-import { fetchRepoCases } from '@/app/actions/case-actions';
-import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
+import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
@@ -74,6 +74,8 @@ import Link from 'next/link';
 import { getTranslation } from '@/lib/i18n';
 import { useAppStore } from '@/store/use-app-store';
 import { useDataJudScanStore } from '@/store/use-datajud-scan-store';
+import { useAdmin } from '@/hooks/use-admin';
+import { resolveCaseScope } from '@/lib/roles';
 import {
   ResponsiveContainer,
   PieChart,
@@ -92,6 +94,8 @@ import { RevisionalJuridicoKpis } from "@/components/dashboard/revisional-juridi
 
 export default function Dashboard() {
   const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
+  const { profile } = useAdmin();
+  const caseScope = resolveCaseScope(profile as any);
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -112,18 +116,25 @@ export default function Dashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      try {
-        const { invalidateCarteiraCache } = await import('@/lib/session-carteira-cache');
-        invalidateCarteiraCache();
-      } catch { /* */ }
-      try {
-        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
-        invalidateCarteiraClientCache();
-      } catch { /* */ }
+      const empId = (profile as any)?.empresa_id || null;
+      if (!empId) return;
+
       const cachedRun = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchRepoCases()) || [],
-        scope: "mine",
-        onShow: (caseData) => { if (Array.isArray(caseData)) setCases(caseData); },
+        fetchNetwork: async () =>
+          await fetchCarteiraAllClient({
+            empresaId: empId,
+            pageSize: 300,
+            onPage: (partial, page) => {
+              if (page === 0) setLoading(false);
+              setCases(partial);
+            },
+          }),
+        empresaId: empId,
+        scope: caseScope,
+        onShow: (caseData, source) => {
+          if (Array.isArray(caseData)) setCases(caseData);
+          if (source === 'cache') setLoading(false);
+        },
         allowStaleKpiFallback: true,
       });
       const caseData = cachedRun.cases;
@@ -138,7 +149,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [setCases, updateLastSync]);
+  }, [setCases, updateLastSync, profile, caseScope]);
 
   useEffect(() => {
     setMounted(true);
@@ -275,43 +286,27 @@ export default function Dashboard() {
     <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
-        <header className="admin-page-header relative h-auto flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 sm:px-8 gap-3 shrink-0">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-3">
-              <LayoutDashboard size={20} className="text-foreground" />
-              <h1 className="admin-page-title text-base sm:text-xl text-foreground">{t.dashboard}</h1>
-            </div>
-            <p className="hidden sm:block text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Visão da carteira</p>
+        <header className="admin-page-header relative flex shrink-0 items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <LayoutDashboard size={14} /> Painel
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">
+              Olá, {String(profile?.nome || 'Usuário').split(/\s+/)[0]}!
+            </h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">
+              Aqui está o panorama da sua operação jurídica hoje.
+            </p>
           </div>
-          <div className="flex items-center gap-3 sm:gap-4">
-            {(metrics.countNovoAndamento > 0 || metrics.countBA > 0) && (
-              <Badge
-                variant="destructive"
-                className="h-8 px-3 rounded-xl font-semibold text-[9px] sm:text-[10px] flex items-center gap-1.5 sm:gap-2 max-w-[min(100%,280px)]"
-                title="Processos com andamento novo após o último contato e/ou indício de busca e apreensão ainda sem tratamento"
-              >
-                <AlertCircle size={14} className="shrink-0" />
-                <span className="truncate">
-                  {metrics.countBA > 0 && metrics.countNovoAndamento > 0
-                    ? `${metrics.countNovoAndamento} novidade(s) · ${metrics.countBA} B.A.`
-                    : metrics.countBA > 0
-                      ? `${metrics.countBA} indício(s) de busca e apreensão`
-                      : `${metrics.countNovoAndamento} andamento(s) novo(s) sem atendimento`}
-                </span>
-              </Badge>
-            )}
-            <MetalButton preset="chromatic" strength={1} variant="outline" size="sm" asChild className={cn("h-10 px-4 sm:px-6 rounded-full text-[11px] font-black uppercase tracking-wider", ui.touch)}>
+          <div className="hidden items-center gap-3 lg:flex">
+            <Button variant="outline" size="sm" asChild className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <Link href="/report">
-                <FileDown size={16} className="mr-2 hidden sm:inline" /> Dossiê Operacional
+                <FileDown size={15} className="mr-2" /> Relatório
               </Link>
-            </MetalButton>
-            <MetalButton preset="silver" strength={1} variant="secondary" size="icon" onClick={loadData} className="h-10 w-10 rounded-full" aria-label="Atualizar" disabled={loading}><RefreshCcw size={18} className={loading ? "animate-spin text-primary" : ""} />
-            </MetalButton>
-            {lastSync && (
-              <span className="hidden md:flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 shrink-0" title={new Date(lastSync).toLocaleString('pt-BR')}>
-                <Clock size={10} /> {new Date(lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
+            </Button>
+            <Button variant="outline" size="icon" onClick={loadData} className="h-10 w-10 rounded-xl border-[#dce5f1] bg-white" aria-label="Atualizar" disabled={loading}>
+              <RefreshCcw size={17} className={loading ? "animate-spin text-primary" : ""} />
+            </Button>
           </div>
         </header>
 

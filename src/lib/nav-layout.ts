@@ -1,18 +1,18 @@
-/** Preferência de menu: dock horizontal (padrão) ou sidebar vertical. */
+/** Preferência legada de menu. O shell comercial atual usa sidebar vertical. */
 
 export type NavLayoutMode = "dock" | "vertical";
 
 const KEY = "lexis_nav_layout_v1";
 
 export function loadNavLayout(): NavLayoutMode {
-  if (typeof window === "undefined") return "dock";
+  if (typeof window === "undefined") return "vertical";
   try {
     const v = localStorage.getItem(KEY);
     if (v === "vertical" || v === "dock") return v;
   } catch {
     /* */
   }
-  return "dock";
+  return "vertical";
 }
 
 export function saveNavLayout(mode: NavLayoutMode) {

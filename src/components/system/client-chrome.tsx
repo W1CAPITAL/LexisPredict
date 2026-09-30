@@ -72,10 +72,6 @@ const HybridSyncBadge = dynamic(
   { ssr: false }
 );
 
-const SafetyModeBanner = dynamic(
-  () => import("@/components/hybrid/safety-mode-banner").then((m) => m.SafetyModeBanner),
-  { ssr: false }
-);
 
 const HybridAutoSync = dynamic(
   () =>
@@ -133,7 +129,6 @@ export function ClientChrome() {
 
   return (
     <>
-      <SafetyModeBanner />
       <NavProgress />
       <UiPrefsApplier />
       {tourReady ? <GuidedTour /> : null}

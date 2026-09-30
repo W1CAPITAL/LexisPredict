@@ -1,6 +1,7 @@
 "use client";
 
 import { useAdmin } from "@/hooks/use-admin";
+import { resolveCaseScope } from "@/lib/roles";
 
 /**
  * Processos parados (com ação possível) v2 — reativação com estados sem_scan / confirmado.
@@ -77,7 +78,7 @@ const FAIXAS: { id: FaixaParado; label: string }[] = [
 type FiltroEstado = "todos" | "confirmados" | "sem_scan" | "tratados" | "pendentes";
 
 export default function ProcessosParadosPage() {
-  const { canScan, canCopy, canExport } = useAdmin();
+  const { canScan, canCopy, canExport, profile } = useAdmin();
   const [batchScanning, setBatchScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<string>("");
   const [pendingResume, setPendingResume] = useState<ParadosScanCheckpoint | null>(null);
@@ -105,6 +106,8 @@ export default function ProcessosParadosPage() {
     try {
       await loadCarteiraComCache({
         fetchNetwork: async () => (await fetchRepoCases()) || [],
+        empresaId: (profile as any)?.empresa_id || null,
+        scope: resolveCaseScope(profile as any),
         onShow: (data) => {
           if (Array.isArray(data)) setCases(data);
         },
@@ -115,7 +118,7 @@ export default function ProcessosParadosPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, profile]);
 
   useEffect(() => {
     load();

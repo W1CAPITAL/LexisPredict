@@ -1,9 +1,11 @@
 /**
- * LexisPredict — middleware unificado
- * Sessão Supabase + headers de segurança + ACL de rotas.
+ * LexisPredict Commercial — middleware SaaS
+ * Supabase Auth + tenant/billing gate + ACL + headers de segurança.
  */
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { hrefLiberado, normalizePlanId, pacotesDoPlano } from '@/lib/planos-pacotes'
+import { operatorRouteAllowed, resolveRole } from '@/lib/roles'
 
 const ROLE_WEIGHT: Record<string, number> = {
   Superadmin: 100,
@@ -13,8 +15,33 @@ const ROLE_WEIGHT: Record<string, number> = {
   Visualizador: 20,
 }
 
-const ADMIN_ONLY = ['/supervisao', '/auditoria', '/team']
-const SUPERADMIN_ONLY = ['/security']
+const SUPERVISOR_ONLY = ['/processos', '/supervisao', '/auditoria', '/team']
+const SUPERADMIN_ONLY = ['/security', '/superadmin', '/ops']
+
+const PUBLIC_API = [
+  '/api/health',
+  '/api/version',
+  '/api/commercial/health',
+  '/api/integration/sheetspredict',
+  '/api/webhook',
+  '/api/webhooks',
+]
+
+const OPERATIONAL_API = [
+  '/api/datajud-search',
+  '/api/datajud-status',
+  '/api/datajud-trigger',
+  '/api/datajud-worker',
+  '/api/djen-proxy',
+  '/api/scan-health',
+  '/api/queue',
+]
+
+const FINANCIAL_API = ['/api/crm']
+
+function starts(path: string, roots: string[]) {
+  return roots.some((root) => path === root || path.startsWith(`${root}/`))
+}
 
 function applySecurityHeaders(res: NextResponse) {
   res.headers.set('X-Frame-Options', 'DENY')
@@ -28,14 +55,14 @@ function applySecurityHeaders(res: NextResponse) {
       'Content-Security-Policy',
       [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net",
         "worker-src 'self' blob:",
-        "child-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com",
+        "child-src 'self' blob:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: blob: https:",
         "font-src 'self' https://fonts.gstatic.com data:",
-        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com https://comunicaapi.pje.jus.br https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
-        "frame-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://*.highrevenueformat.com",
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com https://comunicaapi.pje.jus.br",
+        "frame-src 'self' blob:",
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'",
@@ -47,65 +74,194 @@ function applySecurityHeaders(res: NextResponse) {
 }
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
-  const path = request.nextUrl.pathname;
-  const isAuthPage = path === '/login' || path === '/signup';
-  const isPublic =
-    isAuthPage ||
-    path.startsWith('/termos') ||
-    path.startsWith('/api/') ||
-    path.startsWith('/modo-seguranca') ||
-    /\.[a-z0-9]+$/i.test(path);
-  const safetyOn = request.cookies.get('lexis_safety')?.value === '1';
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const redirect = (pathname: string) => {
-    const target = request.nextUrl.clone();
-    target.pathname = pathname;
-    target.search = '';
-    const next = NextResponse.redirect(target);
-    // Refresh cookies must also reach redirects (Safari/PWA included).
-    for (const cookie of response.cookies.getAll()) next.cookies.set(cookie);
-    next.headers.set('Cache-Control', 'private, no-store');
-    return applySecurityHeaders(next);
-  };
-  if (safetyOn) {
-    if (isAuthPage) return redirect("/modo-seguranca");
-    response.headers.set("Cache-Control", "private, no-store");
-    return applySecurityHeaders(response);
+  let response = NextResponse.next({ request })
+  const path = request.nextUrl.pathname
+  const isApi = path.startsWith('/api/')
+  const isAuthPage = path === '/login' || path === '/signup'
+  const isTenantSetupPage = path === '/setup-empresa'
+  const isFirstRunPage = path === '/primeiro-acesso'
+  const isStaticFile = /\.[a-z0-9]+$/i.test(path)
+  const isPublicApi = starts(path, PUBLIC_API)
+  const isPublic = isAuthPage || path.startsWith('/termos') || path === '/modo-seguranca' || isPublicApi || isStaticFile
+  const isGuest = request.cookies.get('lexis_guest')?.value === '1'
+
+  if (isGuest && !isAuthPage) {
+    response.headers.set('Cache-Control', 'private, no-store')
+    response.headers.set('X-Lexis-Guest', '1')
+    return applySecurityHeaders(response)
   }
-  if (url && key && (!isPublic || isAuthPage)) {
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  const copyAuthCookies = (target: NextResponse) => {
+    for (const cookie of response.cookies.getAll()) target.cookies.set(cookie)
+    return target
+  }
+
+  const json = (body: unknown, status: number) =>
+    applySecurityHeaders(copyAuthCookies(NextResponse.json(body, { status })))
+
+  const redirect = (pathname: string) => {
+    const target = request.nextUrl.clone()
+    target.pathname = pathname
+    target.search = ''
+    const next = copyAuthCookies(NextResponse.redirect(target))
+    next.headers.set('Cache-Control', 'private, no-store')
+    return applySecurityHeaders(next)
+  }
+
+  if (!url || !key) {
+    if (isPublic) return applySecurityHeaders(response)
+    if (isApi) return json({ ok: false, error: 'supabase_not_configured' }, 503)
+    return redirect('/login')
+  }
+
+  if (!isPublic || isAuthPage) {
     const client = createServerClient(url, key, {
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
-          const previous = response.cookies.getAll();
-          response = NextResponse.next({ request });
-          for (const cookie of previous) response.cookies.set(cookie);
-          for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, options);
+          for (const { name, value } of cookiesToSet) request.cookies.set(name, value)
+          const previous = response.cookies.getAll()
+          response = NextResponse.next({ request })
+          for (const cookie of previous) response.cookies.set(cookie)
+          for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, options)
         },
       },
-    });
-    let user: { id?: string } | null = null;
+    })
+
+    let user: { id?: string } | null = null
     try {
-      const got = await client.auth.getUser();
-      user = got.data?.user ?? null;
+      const got = await client.auth.getUser()
+      user = got.data?.user ?? null
     } catch {
-      user = null;
+      user = null
     }
-    if (!user && !isPublic) return redirect('/login');
-    if (user && isAuthPage) return redirect('/');
-    const adminPath = ADMIN_ONLY.some(p => path === p || path.startsWith(`${p}/`));
-    const superPath = [...SUPERADMIN_ONLY, '/superadmin', '/ops'].some(p => path === p || path.startsWith(`${p}/`));
-    if (user && (adminPath || superPath)) {
-      const { data: profile } = await client.from('usuarios').select('cargo').eq('auth_user_id', user.id).maybeSingle();
-      const role = profile?.cargo || '';
-      if ((superPath && role !== 'Superadmin') || (adminPath && (ROLE_WEIGHT[role] || 0) < 60)) return redirect('/');
+
+    if (!user && !isPublic) {
+      return isApi ? json({ ok: false, error: 'unauthenticated' }, 401) : redirect('/login')
     }
-    response.headers.set('Cache-Control', 'private, no-store');
+    if (user && isAuthPage) return redirect('/')
+
+    if (user?.id) {
+      const { data: profile, error: profileError } = await client
+        .from('usuarios')
+        .select('cargo, role, empresa_id')
+        .eq('auth_user_id', user.id)
+        .maybeSingle()
+
+      if (profileError || !profile) {
+        if (!profileError && isTenantSetupPage) {
+          response.headers.set('Cache-Control', 'private, no-store')
+          return applySecurityHeaders(response)
+        }
+        if (isApi) return json({ ok: false, error: 'tenant_profile_missing' }, 403)
+        return redirect('/setup-empresa')
+      }
+
+      const role = resolveRole({ cargo: profile.cargo, role: (profile as any).role })
+      const isSuperAdmin = role === 'Superadmin'
+      if (isTenantSetupPage && isSuperAdmin) return redirect('/')
+      const supervisorPath = starts(path, SUPERVISOR_ONLY)
+      const superPath = starts(path, SUPERADMIN_ONLY)
+      const roleWeight = ROLE_WEIGHT[role] || 0
+
+      if ((superPath && !isSuperAdmin) || (supervisorPath && roleWeight < ROLE_WEIGHT.Supervisor)) {
+        return isApi ? json({ ok: false, error: 'forbidden' }, 403) : redirect('/')
+      }
+
+      // Operador usa somente o conjunto operacional essencial.
+      if (role === 'Operador') {
+        if (!isApi && !operatorRouteAllowed(path)) {
+          return redirect('/cases')
+        }
+        if (isApi && (starts(path, OPERATIONAL_API) || starts(path, FINANCIAL_API))) {
+          return json({ ok: false, error: 'role_required', required: 'Administrador' }, 403)
+        }
+      }
+
+      if (!isSuperAdmin) {
+        const empresaId = String(profile.empresa_id || '')
+        if (!empresaId) {
+          if (isTenantSetupPage) {
+            response.headers.set('Cache-Control', 'private, no-store')
+            return applySecurityHeaders(response)
+          }
+          return isApi ? json({ ok: false, error: 'tenant_missing' }, 403) : redirect('/setup-empresa')
+        }
+
+        const { data: empresa, error: empresaError } = await client
+          .from('empresas')
+          .select('plano, plano_expira_em, plano_bloqueado, billing_status, onboarding_completed')
+          .eq('id', empresaId)
+          .maybeSingle()
+
+        if (empresaError) {
+          return isApi ? json({ ok: false, error: 'tenant_lookup_failed' }, 503) : redirect('/settings')
+        }
+        if (!empresa) {
+          if (isTenantSetupPage) {
+            response.headers.set('Cache-Control', 'private, no-store')
+            return applySecurityHeaders(response)
+          }
+          return isApi ? json({ ok: false, error: 'tenant_not_found' }, 409) : redirect('/setup-empresa')
+        }
+        if (isTenantSetupPage) return redirect('/')
+
+        const billingStatus = String(empresa.billing_status || '').toLowerCase()
+        const billingActive = billingStatus === 'active'
+
+        if (billingActive && !empresa.onboarding_completed) {
+          if (!isFirstRunPage) return redirect('/primeiro-acesso')
+          response.headers.set('Cache-Control', 'private, no-store')
+          return applySecurityHeaders(response)
+        }
+
+        if (isFirstRunPage) {
+          if (!billingActive) return redirect('/settings')
+          return redirect('/')
+        }
+
+        const plan = normalizePlanId(empresa.plano || 'essencial')
+        const exp = empresa.plano_expira_em ? new Date(empresa.plano_expira_em).getTime() : null
+        const expired = exp !== null && Number.isFinite(exp) && exp < Date.now()
+        const blocked = Boolean(empresa.plano_bloqueado) || ['past_due', 'suspended', 'canceled'].includes(billingStatus)
+        const billingBypass = path.startsWith('/settings') || path === '/api/commercial/me'
+
+        if ((blocked || expired) && !billingBypass) {
+          return isApi
+            ? json({ ok: false, error: blocked ? 'subscription_blocked' : 'subscription_expired' }, 402)
+            : redirect('/settings')
+        }
+
+        const awaitingActivation = billingStatus === 'pending'
+        if (awaitingActivation && !billingBypass) {
+          return isApi
+            ? json({ ok: false, error: 'subscription_pending' }, 402)
+            : redirect('/settings')
+        }
+
+        if (!isApi && !billingBypass && !hrefLiberado(path, plan)) {
+          return redirect('/settings')
+        }
+
+        if (isApi && !billingBypass) {
+          const packs = pacotesDoPlano(plan)
+          if (starts(path, OPERATIONAL_API) && !packs.includes('operacional')) {
+            return json({ ok: false, error: 'plan_required', package: 'operacional' }, 403)
+          }
+          if (starts(path, FINANCIAL_API) && !packs.includes('financeiro')) {
+            return json({ ok: false, error: 'plan_required', package: 'financeiro' }, 403)
+          }
+        }
+      }
+    }
+
+    response.headers.set('Cache-Control', 'private, no-store')
   }
-  return applySecurityHeaders(response);
+
+  return applySecurityHeaders(response)
 }
 
 export const config = {

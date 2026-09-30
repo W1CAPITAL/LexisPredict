@@ -6,6 +6,7 @@ import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
+import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
 
 function iso(v: unknown): string | null {
   if (v === undefined || v === null) return null;
@@ -76,6 +77,17 @@ async function loadProcessoRow(empresaId: string, protocolo: string): Promise<Re
     if (data?.[0]) return data[0];
   }
   return null;
+}
+
+function canAccessExistingCase(
+  ctx: Awaited<ReturnType<typeof getUserContext>>,
+  row: Record<string, any> | null
+): boolean {
+  if (!row) return true;
+  if (resolveCaseScope(ctx as any) === 'empresa') return true;
+  if (!ctx.auth_id) return false;
+  const owner = String(row.created_by || row.dados?.created_by || '').trim();
+  return !!owner && owner === String(ctx.auth_id);
 }
 
 async function persistToDatabase(
@@ -290,17 +302,49 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     }
 
     const existing = await loadProcessoRow(empresa_id, processed.protocolo);
+    if (existing && !canAccessExistingCase(ctx, existing)) {
+      return { success: false, message: 'Você só pode editar processos da sua própria carteira.' };
+    }
 
-    // Editing never transfers ownership. New cases belong to the authenticated creator.
-    processed.created_by = existing ? (existing.created_by ?? existing.dados?.created_by ?? null) : auth_id;
+    // Edição nunca transfere propriedade.
+    // Novo processo: Administrador/Operador cria para si; Supervisor/Superadmin
+    // pode atribuir a um usuário válido da mesma empresa.
+    if (existing) {
+      processed.created_by = existing.created_by ?? existing.dados?.created_by ?? null;
+    } else if ((ctx.isSupervisor || ctx.isSuperAdmin) && (caseData as any).created_by) {
+      const requestedOwner = String((caseData as any).created_by).trim();
+      const admin = await getSupabaseAdmin();
+      const { data: ownerProfile } = await admin
+        .from('usuarios')
+        .select('auth_user_id')
+        .eq('empresa_id', empresa_id)
+        .eq('auth_user_id', requestedOwner)
+        .maybeSingle();
+      processed.created_by = ownerProfile?.auth_user_id || auth_id;
+    } else {
+      processed.created_by = auth_id;
+    }
     if (existing?.protocolo_ref) processed.protocolo = existing.protocolo_ref;
 
-    const previousReturn = String(existing?.ultimo_retorno || existing?.UltimoRetorno || existing?.dados?.ultimoRetorno || existing?.dados?.ultimo_retorno || '');
-    const currentReturn = String(processed.ultimoRetorno || processed.ultimo_retorno || '');
+    // Edição de campo, inclusive ultimo_retorno, NÃO é atendimento.
+    // Crédito de atendimento só nasce em fluxo explícito (__force_atendido)
+    // ou em registrarAtendimentoCompletoAction.
     const forceAtendido = (caseData as any).__force_atendido === true;
-    if (auth_id && (forceAtendido || (currentReturn && currentReturn !== previousReturn))) {
+    if (auth_id && forceAtendido) {
       processed.atendido_por = auth_id;
       processed.atendido_em = new Date().toISOString();
+    } else if (existing) {
+      // Preserva o crédito anterior sem transferi-lo para quem apenas editou.
+      processed.atendido_por =
+        existing.atendido_por ??
+        existing.dados?.atendido_por ??
+        processed.atendido_por ??
+        null;
+      processed.atendido_em =
+        existing.atendido_em ??
+        existing.dados?.atendido_em ??
+        processed.atendido_em ??
+        null;
     }
 
     let actorName = String((ctx as any).nome || (ctx as any).name || (ctx as any).email || '').trim();
@@ -397,6 +441,9 @@ export async function registrarAtendimentoCompletoAction(input: {
     let protocolo = String(input.protocolo).trim();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado na carteira.' };
+    if (!canAccessExistingCase(ctx, existing)) {
+      return { success: false, message: 'Você só pode atender processos da sua própria carteira.' };
+    }
 
     protocolo = existing.protocolo_ref;
     const hoje = hojeBrasilYmd();
@@ -498,14 +545,23 @@ export async function registrarAtendimentoAction(protocolos: string[], extra: Re
 export async function deleteOneCaseAction(protocolo: string): Promise<{ success: boolean; message: string }> {
   try {
     const ctx = await getUserContext();
-    if (!ctx.empresa_id || !protocolo) return { success: false, message: 'Sessão ou protocolo inválido.' };
+    if (!ctx.empresa_id || !ctx.auth_id || !protocolo) return { success: false, message: 'Sessão ou protocolo inválido.' };
+    if (!canDeleteCase(ctx as any)) {
+      return { success: false, message: 'Operador não possui permissão para excluir processos.' };
+    }
 
     const admin = await getSupabaseAdmin();
+    const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
+    if (!existing) return { success: false, message: 'Processo não encontrado.' };
+    if (!canAccessExistingCase(ctx, existing)) {
+      return { success: false, message: 'Você só pode excluir processos da sua própria carteira.' };
+    }
+
     const { error } = await admin
       .from('processos')
       .delete()
       .eq('empresa_id', ctx.empresa_id)
-      .eq('protocolo_ref', protocolo);
+      .eq('id', existing.id);
     if (error) return { success: false, message: error.message };
 
     if (sheetsWebhookConfigured()) {
@@ -591,6 +647,7 @@ export async function stampAndLogEdicaoAction(protocolo: string, extra: Record<s
     const admin = await getSupabaseAdmin();
     const { data: row } = await admin.from('processos').select('*').eq('empresa_id', ctx.empresa_id).eq('protocolo_ref', protocolo).maybeSingle();
     if (!row) return { success: false };
+    if (!canAccessExistingCase(ctx, row)) return { success: false };
 
     const dados = { ...(row.dados || {}), ...extra, auditado_por: ctx.auth_id, auditado_em: now, edited_by: ctx.auth_id, edited_at: now };
     const { error } = await admin.from('processos').update({ dados, updated_at: now }).eq('id', row.id);
@@ -611,6 +668,7 @@ export async function retryAtendimentoMirrorAction(protocolo: string) {
   const row = await loadProcessoRow(ctx.empresa_id, protocolo);
   const pending = row?.dados?.atendimento_sync;
   if (!row || !pending?.input) return { success: false, message: 'Nenhum espelho pendente para este processo.' };
+  if (!canAccessExistingCase(ctx, row)) return { success: false, message: 'Acesso restrito à sua própria carteira.' };
   if (pending.state === 'synced') return { success: true, message: 'Planilha já atualizada.' };
   const mirror = await mirrorAtendimento({ ...pending.input, empresaId: ctx.empresa_id, protocolo: row.protocolo_ref });
   if (!mirror.ok) return { success: false, message: mirror.reason || 'A planilha ainda não confirmou a atualização.' };

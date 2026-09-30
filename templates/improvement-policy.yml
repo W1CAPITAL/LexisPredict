@@ -1,0 +1,45 @@
+version: 1
+product: LexisPredict
+mode: proposal_only
+
+autonomous:
+  allowed:
+    - inspect_logs
+    - inspect_ci
+    - inspect_supabase_schema_readonly
+    - profile_performance
+    - run_unit_tests
+    - run_typecheck
+    - run_playwright_on_owned_app
+    - create_branch
+    - edit_code_in_branch
+    - create_non_destructive_migration_file
+    - open_draft_pr
+  blocked_without_human_approval:
+    - merge_pr
+    - deploy_production
+    - change_secrets
+    - apply_destructive_migration
+    - change_billing
+    - elevate_roles
+    - disable_rls
+    - train_on_customer_pii
+    - bypass_captcha_or_waf
+
+quality_gates:
+  typecheck: required
+  unit_tests: required
+  e2e: required_for_auth_tenant_billing
+  tenant_isolation: required
+  rollback_plan: required
+  metrics_before_after: required
+
+performance_targets:
+  auth_should_not_restart_on_tab_focus: true
+  first_case_page_limit: 200
+  progressive_case_page_size: 300
+  synthetic_scale_tests:
+    - 1
+    - 200
+    - 2000
+    - 10000

@@ -5,6 +5,7 @@ import { loadScanQueue, saveScanQueue, clearScanQueue, remainingProtocolos } fro
  */
 import { create } from 'zustand';
 import { scanSingleCaseAction } from '@/app/actions/case-actions';
+import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { prioritizeScanQueue } from '@/lib/case-filters';
@@ -48,6 +49,7 @@ interface DataJudScanState {
   closed: number;
   pending: number;
   cycles: number;
+  cloudStartedAt: string | null;
 
   manualStatus: ScanStatus;
   manualTotal: number;
@@ -70,6 +72,7 @@ interface DataJudScanState {
   courtHealthMap: Record<string, CourtHealth>;
 
   toggleMinimize: () => void;
+  openScanner: () => void;
   startCloudScan: () => void;
   pauseCloudScan: () => void;
   startManualScan: (opts?: { resume?: boolean; scope?: ScanScope }) => Promise<void>;
@@ -83,6 +86,7 @@ interface DataJudScanState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let cloudPollBusy = false;
 const CLOUD_POLL_MS = 15000; // espera worker terminar DataJud antes do próximo tiro
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
@@ -94,6 +98,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   closed: 0,
   pending: 0,
   cycles: 0,
+  cloudStartedAt: null,
 
   manualStatus: 'idle',
   manualTotal: 0,
@@ -114,6 +119,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   courtHealthMap: {},
 
   toggleMinimize: () => set((state) => ({ isMinimized: !state.isMinimized })),
+  openScanner: () => set({ isMinimized: false }),
 
   addLog: (log) =>
     set((state) => {
@@ -174,13 +180,21 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   startCloudScan: () => {
     const scope = get().scanScope || 'full';
     const mode = get().scanMode || 'both';
-    set({ status: 'running', isMinimized: false, cycles: 0 });
+    const cloudStartedAt = new Date().toISOString();
+    set({
+      status: 'running',
+      isMinimized: false,
+      cycles: 0,
+      cloudStartedAt,
+      done: 0,
+      pending: 0,
+    });
     get().addLog({
       protocolo: 'SISTEMA',
       message:
         scope === 'cumprimento'
-          ? `Nuvem Hybrid · escopo CUMPRIMENTO · modo ${String(mode).toUpperCase()} — micro-lotes só de candidatos a proceder/instaurar`
-          : `Nuvem Hybrid · escopo FULL · modo ${String(mode).toUpperCase()} — carteira rotativa`,
+          ? `Nuvem sob demanda · CUMPRIMENTO · ${String(mode).toUpperCase()} · sem cron`
+          : `Nuvem sob demanda · CARTEIRA INTEIRA · ${String(mode).toUpperCase()} · sem cron`,
       latency: 0,
       success: true,
       type: 'ok',
@@ -188,8 +202,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
     });
     if (pollTimer) clearInterval(pollTimer);
-    get().pollStatus();
-    pollTimer = setInterval(() => get().pollStatus(), CLOUD_POLL_MS);
+    void get().pollStatus();
+    pollTimer = setInterval(() => void get().pollStatus(), CLOUD_POLL_MS);
   },
 
   pauseCloudScan: () => {
@@ -245,10 +259,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
     });
 
-    // Inclui ENCERRADOS/ARQUIVADOS: scanner verifica se falta instaurar cumprimento ou se está realmente fechado
+    // Sempre sincroniza a carteira inteira no início de uma nova varredura.
+    // Assim uma tela paginada com 200 itens não limita um tenant com 2.000+ processos.
     let allLocal = useAppStore.getState().cases || [];
-    // Lote4: escopo CUMPRIMENTO — atualiza carteira do servidor antes de filtrar (evita fila vazia)
-    if (scope === 'cumprimento') {
+    if (!resume || scope === 'cumprimento' || allLocal.length === 0) {
       try {
         const { fetchRepoCases } = await import('@/app/actions/case-actions');
         const remote = await fetchRepoCases();
@@ -259,15 +273,22 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           allLocal = remote;
           get().addLog({
             protocolo: 'SISTEMA',
-            message: `Carteira sincronizada: ${remote.length} processo(s) para filtrar cumprimento`,
+            message: `Carteira completa sincronizada: ${remote.length} processo(s)`,
             latency: 0,
             success: true,
             type: 'ok',
             engine: 'Local',
           });
         }
-      } catch (e) {
-        console.warn('[startManualScan] sync cumprimento', e);
+      } catch (e: any) {
+        get().addLog({
+          protocolo: 'SISTEMA',
+          message: `Falha ao sincronizar carteira completa: ${e?.message || e}`,
+          latency: 0,
+          success: false,
+          type: 'error',
+          engine: 'Local',
+        });
       }
     }
     const nEnc = allLocal.filter((c) => isCasoEncerrado(c)).length;
@@ -418,6 +439,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
     }
 
+    const forceFullPass = !resume && scope === 'full';
     let failStreak = 0;
     for (const c of cases) {
       if (get().manualStatus !== 'running') break;
@@ -442,7 +464,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           skip = false;
         }
       }
-      if (skip) {
+      if (skip && !forceFullPass) {
         set((s) => ({ manualDone: s.manualDone + 1 }));
         get().addLog({
           protocolo: c.protocolo,
@@ -472,9 +494,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       // mode explícito: both | datajud | djen
       let res: any;
       try {
-        res = await scanSingleCaseAction(c.protocolo, {
+        res = await scanInteractiveCase(c.protocolo, {
           mode,
-          // Lote5: cumprimento precisa de teor completo (DJEN) — não fast
+          // DJEN tenta primeiro pelo navegador do operador; DataJud continua server-side.
           fast: scope === 'cumprimento' ? false : true,
           useClaudeAi: useClaude,
         });
@@ -626,6 +648,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       closed: 0,
       pending: 0,
       cycles: 0,
+      cloudStartedAt: null,
       manualStatus: 'idle',
       manualDone: 0,
       manualTotal: 0,
@@ -638,32 +661,48 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   /**
-   * Nuvem contínua SEM Cron:
-   * a cada poll dispara worker (micro-lote) + lê métricas.
-   * NÃO para quando pending===0 — continua reprocessando os mais antigos (rotação 24h).
+   * Nuvem sob demanda SEM Cron:
+   * cada poll espera um micro-lote terminar e para quando a sessão chega a N/N.
    */
   pollStatus: async () => {
-    if (get().status !== 'running') return;
+    if (get().status !== 'running' || cloudPollBusy) return;
+    cloudPollBusy = true;
+
     try {
+      const st = get();
+      const mode = st.scanMode || 'both';
+      const scope = st.scanScope || 'full';
+      const since = st.cloudStartedAt || new Date().toISOString();
+
       set((s) => ({ cycles: s.cycles + 1 }));
 
-      // Fire-and-forget: worker mode=both
-      const mode = get().scanMode || 'both';
-      const scope = get().scanScope || 'full';
-      fetch('/api/datajud-trigger', {
+      // O browser mantém esta sessão viva. Cada chamada processa um micro-lote
+      // e só retorna depois do worker terminar; não existe dependência de Cron.
+      const trigger = await fetch('/api/datajud-trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, scope }),
-      }).catch(() => {});
+        body: JSON.stringify({ mode, scope, since }),
+      });
 
-      const res = await fetch('/api/datajud-status');
+      if (!trigger.ok) {
+        throw new Error(`worker HTTP ${trigger.status}`);
+      }
+
+      const params = new URLSearchParams({ mode, scope, since });
+      const res = await fetch(`/api/datajud-status?${params.toString()}`, {
+        cache: 'no-store',
+      });
       if (!res.ok) throw new Error('status');
+
       const metrics = await res.json();
+      const pendingForMode = Number(metrics.pending ?? 0);
+      const totalForMode = Number(metrics.total ?? 0);
+      const auditedForMode = Math.max(0, totalForMode - pendingForMode);
 
       set({
-        total: metrics.total ?? 0,
-        done: metrics.audited ?? 0,
-        pending: metrics.pending ?? 0,
+        total: totalForMode,
+        done: auditedForMode,
+        pending: pendingForMode,
         alerts: metrics.alerts ?? 0,
         cloudDjenAlerts: metrics.djenAlerts ?? 0,
         closed: metrics.closed ?? 0,
@@ -674,9 +713,35 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           get().addLog({ ...log, engine: log.engine || 'Nuvem' })
         );
       }
-      // NÃO set status done — vigilância contínua enquanto o operador mantiver "running"
-    } catch (e) {
-      console.warn('[Cloud Polling Error]', e);
+
+      if (totalForMode > 0 && pendingForMode === 0) {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        set({ status: 'done', done: totalForMode, pending: 0 });
+        get().addLog({
+          protocolo: 'SISTEMA',
+          message: `Varredura de nuvem concluída: ${totalForMode}/${totalForMode} processo(s) nesta sessão`,
+          latency: 0,
+          success: true,
+          type: 'ok',
+          engine: 'Nuvem',
+          source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
+        });
+      }
+    } catch (e: any) {
+      console.warn('[Cloud Scan Error]', e);
+      get().addLog({
+        protocolo: 'SISTEMA',
+        message: `Falha no micro-lote de nuvem: ${e?.message || e}`,
+        latency: 0,
+        success: false,
+        type: 'error',
+        engine: 'Nuvem',
+      });
+    } finally {
+      cloudPollBusy = false;
     }
   },
 }));

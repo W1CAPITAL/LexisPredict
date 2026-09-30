@@ -6,7 +6,7 @@ import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * Painel de Supervisão — visão geral da operação (não apenas a última semana).
- * Acessível a Supervisor / Administrador / Superadmin.
+ * Acessível somente a Supervisor / Superadmin.
  */
 
 import React, { useEffect, useState } from "react";
@@ -78,7 +78,7 @@ export default function SupervisaoPage() {
   const [procLimitByUser, setProcLimitByUser] = useState<Record<string, number>>({});
 
   const isSupervisor = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
-  const allowed = profile?.cargo === "Supervisor" || profile?.cargo === "Administrador" || checkIfSuperAdmin(profile);
+  const allowed = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
 
   const load = async () => {
     setLoading(true);
@@ -157,7 +157,7 @@ export default function SupervisaoPage() {
             <ShieldCheck className="mx-auto text-muted-foreground/40" size={48} />
             <h1 className="font-black uppercase tracking-tight text-lg">Acesso restrito</h1>
             <p className="text-[11px] font-bold uppercase text-muted-foreground tracking-widest">
-              O painel de supervisão está disponível para Supervisor, Administrador e Superadmin.
+              O painel de supervisão está disponível somente para Supervisor e Superadmin.
             </p>
           </div>
         </main>
@@ -169,63 +169,21 @@ export default function SupervisaoPage() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="shrink-0 border-b border-border/60 glass-header p-4 sm:px-8 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
-              <ShieldCheck size={20} />
-            </div>
-            <div>
-              <h1 className="font-black text-sm sm:text-base tracking-tight uppercase">Painel de Supervisão</h1>
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                Visão geral da empresa • atendimentos, carteira e sinais
-              </p>
-            </div>
+        <header className="flex shrink-0 flex-wrap items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <ShieldCheck size={14} /> Supervisão
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Supervisão</h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">Acompanhe a performance da sua equipe em tempo real.</p>
           </div>
-          <div className="flex items-center gap-3">
-            {isSupervisor && (
-              <Badge variant="outline" className="h-8 px-3 rounded-xl font-black uppercase text-[8px] border-primary/40 text-primary">
-                <Users size={12} className="mr-1.5" /> {profile?.cargo}
-              </Badge>
-            )}
-            
-            <Button asChild size="sm" className="h-9 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black">
-              <Link href="/cases?new=1">
-                <Plus size={14} className="mr-1.5 inline" />
-                Novo Processo
-              </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={load} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+              <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Atualizar
             </Button>
-<Button variant="outline" size="sm" onClick={load} className="h-9 rounded-xl" disabled={loading}>
-              <RefreshCcw size={14} className={cn("mr-1.5", loading && "animate-spin")} /> Atualizar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.print()}
-              disabled={!snap}
-              className="h-9 rounded-xl print:hidden"
-              title="Gera o relatório completo via impressão/Salvar como PDF do dispositivo"
-            >
-              <Printer size={14} className="mr-1.5" />
-              Imprimir / PDF completo
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleDownloadRelatorioEquipe}
-              disabled={!snap || pdfLoading}
-              className="h-9 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-zinc-800 print:hidden"
-            >
-              {pdfLoading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <FileDown size={14} className="mr-1.5" />}
-              Relatório da equipe
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadPdf}
-              disabled={!snap || pdfLoading}
-              className="h-9 rounded-xl border-primary/40 text-primary hover:bg-primary/10 print:hidden"
-            >
-              {pdfLoading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <FileDown size={14} className="mr-1.5" />}
-              Extrair PDF
+            <Button variant="outline" size="sm" onClick={handleDownloadRelatorioEquipe} disabled={!snap || pdfLoading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+              {pdfLoading ? <Loader2 size={15} className="mr-2 animate-spin" /> : <FileDown size={15} className="mr-2" />}
+              Exportar relatório
             </Button>
           </div>
         </header>

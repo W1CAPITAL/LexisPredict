@@ -18,6 +18,7 @@ import { RouteSnapshotWatcher } from "@/components/system/route-snapshot-watcher
 import { ThemeBoot } from "@/components/system/theme-boot";
 import { UiPrefsApplier } from "@/components/system/ui-prefs-applier";
 import { AUTHORITY_PRESETS, hexToHsl } from '@/lib/theme';
+import { GuestModeBanner } from '@/components/auth/guest-mode-banner';
 
 const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
   id: p.id,
@@ -218,6 +219,7 @@ export default function RootLayout({
           <ThemeBoot />
           <UiPrefsApplier />
           <div className="relative z-10 min-h-screen">
+            <GuestModeBanner />
             <ClientChrome />
             <RouteSnapshotWatcher />
             <LexisErrorBoundary>

@@ -11,7 +11,7 @@ export type AssignableUser = {
   cargo?: string;
 };
 
-/** Lista usuários da empresa para Supervisor/Superadmin/Administrador atribuir o contrato. */
+/** Lista usuários da empresa para Supervisor/Superadmin atribuir o contrato. */
 export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
@@ -35,6 +35,8 @@ export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
 
 /** Lista completa (inclui avatar_url) para UI de equipe/supervisão. */
 export async function getEmpresaUsersAction() {
+  const ctx = await getUserContext();
+  if (!ctx.empresa_id || (!ctx.isSupervisor && !ctx.isSuperAdmin)) return [];
   const users = await getEmpresaUsers();
   return users || [];
 }

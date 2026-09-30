@@ -61,6 +61,8 @@ export async function fetchProcessosEmpresaKpisAction(): Promise<ProcessosEmpres
     }
 
     const empresaId = String(ctx.empresa_id);
+    const authId = String(ctx.auth_id || '');
+    const companyWide = ctx.caseScope === "empresa" || !!(ctx.isSupervisor || ctx.isSuperAdmin);
     const pageSize = 1000;
     let offset = 0;
     let total = 0;
@@ -70,13 +72,20 @@ export async function fetchProcessosEmpresaKpisAction(): Promise<ProcessosEmpres
     let vencidos = 0;
 
     for (;;) {
-      const { data, error } = await admin
+      let query = admin
         .from("processos")
         .select(
           "status, status_interno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
         )
         .eq("empresa_id", empresaId)
         .range(offset, offset + pageSize - 1);
+
+      if (!companyWide) {
+        if (!authId) break;
+        query = query.eq("created_by", authId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("[processos-kpis]", error.message);

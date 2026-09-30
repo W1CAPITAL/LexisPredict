@@ -27,9 +27,10 @@ export function isPublicacaoBuscaApreensao(nomeClasse: unknown, texto: unknown, 
   const blob = textoBa(texto, nomeClasse);
   if (!BA.test(blob)) return false;
   if (opts?.modoCriminal) return isBaCriminalOuTrafico(texto, nomeClasse);
-  // Veículo/padrão: aceita B.A. cível/fiduciária OU qualquer B.A. que não seja criminal
+  // Veículo/padrão: exige contexto cível/fiduciário/veicular.
+  // B.A. genérica (documentos, objetos etc.) não entra no funil comercial de veículo.
   if (isBaCriminalOuTrafico(texto, nomeClasse)) return false;
-  return isBaVeiculoOuFiduciaria(texto, nomeClasse) || true;
+  return isBaVeiculoOuFiduciaria(texto, nomeClasse);
 }
 
 /** Usa somente o ato publicado. Classe, relatório e precedente não provam início. */

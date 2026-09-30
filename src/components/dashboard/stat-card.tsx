@@ -25,34 +25,32 @@ export function StatCard({ title, value, icon, trend, trendUp, color = 'primary'
   };
 
   return (
-    <div className="lexis-metric group">
-      <div className="flex justify-between items-start gap-3">
-        <div className="space-y-2 min-w-0">
-          <p className="lexis-metric-label truncate">{title}</p>
-          <h3 className="lexis-metric-value truncate">
+    <div className="lexis-metric group min-h-[118px]">
+      <div className="flex items-center gap-4">
+        <div className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl",
+          iconColors[color]
+        )}>
+          {React.cloneElement(icon as React.ReactElement<any>, { size: 22, strokeWidth: 2.15 })}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-bold text-[#19345c] truncate">{title}</p>
+          <h3 className="mt-1 text-[30px] font-black leading-none tracking-[-.035em] text-[#102447] tabular-nums">
             {value}
           </h3>
         </div>
-        <div className={cn(
-          "p-2.5 rounded-xl transition-transform duration-200 group-hover:scale-105 shrink-0",
-          iconColors[color]
-        )}>
-          {React.cloneElement(icon as React.ReactElement<any>, { size: 18, strokeWidth: 2.25 })}
-        </div>
       </div>
-      
+
       {trend && (
-        <div className="flex items-center gap-2 mt-4">
-          <div className={cn(
-            "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold",
-            trendUp
-              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400"
-              : "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-400"
+        <div className="mt-3 flex items-center gap-2 pl-16">
+          <span className={cn(
+            "inline-flex items-center gap-1 text-[12px] font-black",
+            trendUp ? "text-emerald-600" : "text-red-500"
           )}>
-            {trendUp ? <TrendingUp size={12} strokeWidth={2.5} /> : <TrendingDown size={12} strokeWidth={2.5} />}
+            {trendUp ? <TrendingUp size={13} strokeWidth={2.5} /> : <TrendingDown size={13} strokeWidth={2.5} />}
             {trend}
-          </div>
-          <span className="text-[10px] font-medium text-muted-foreground">dos ativos</span>
+          </span>
+          <span className="text-[10px] font-medium text-[#6d7f9b]">vs. período anterior</span>
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
-import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
+import { defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -43,8 +43,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
-import { fetchRepoCases, scanSingleCaseAction, recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
-import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
+import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
+import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchCarteiraPageClient, mergeCarteiraPages } from '@/lib/carteira-fetch-client';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { saveOneCaseAction, saveManyCasesAction, deleteOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
@@ -70,6 +72,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { getSinalCapa } from '@/lib/sinal-capa';
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo';
 import { descreverPrazo } from '@/lib/prazos-cpc';
+import { resolveCaseScope } from '@/lib/roles';
 
 const CaseRow = React.memo(({ 
   c, isOperador, onLogReturn, onEdit, onDelete, onScan, onSuggest, onDossie,
@@ -241,6 +244,9 @@ function CasesContent() {
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [remoteHasMore, setRemoteHasMore] = useState(false);
+  const [loadingMoreRemote, setLoadingMoreRemote] = useState(false);
+  const REMOTE_PAGE_SIZE = 200;
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
@@ -264,7 +270,17 @@ function CasesContent() {
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
   const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
 
-  const { isOperador, profile, isSupervisor, isSuperAdmin } = useAdmin();
+  const {
+    isOperador,
+    profile,
+    isSupervisor,
+    isSuperAdmin,
+    canDelete,
+    canScan,
+    canExport,
+    canCreate,
+    canUseAllOperational,
+  } = useAdmin();
   const kpiCarteira = useMemo(
     () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
     [cases, profile]
@@ -275,23 +291,63 @@ function CasesContent() {
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });
 
   const loadData = useCallback(async () => {
+    const empId = (profile as any)?.empresa_id || null;
+    if (!empId) return;
+
     setLoading(true);
     try {
-      try { invalidateCarteiraCache(); } catch { /* */ }
-      try {
-        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
-        invalidateCarteiraClientCache();
-      } catch { /* */ }
-      const empId = (profile as any)?.empresa_id || null;
       await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchRepoCases()) || [],
+        fetchNetwork: async () => {
+          const page = await fetchCarteiraPageClient({
+            empresaId: empId,
+            limit: REMOTE_PAGE_SIZE,
+            offset: 0,
+          });
+          setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
+          return page;
+        },
         empresaId: empId,
-        scope: "mine",
-        onShow: (data) => { if (Array.isArray(data)) setCases(data); },
+        scope: resolveCaseScope(profile as any),
+        onShow: (data) => {
+          if (Array.isArray(data)) setCases(data);
+        },
         allowStaleKpiFallback: true,
       });
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [setCases, profile]);
+
+  const loadMoreFromSupabase = useCallback(async () => {
+    const empId = (profile as any)?.empresa_id || null;
+    if (!empId || loadingMoreRemote || !remoteHasMore) return;
+
+    setLoadingMoreRemote(true);
+    try {
+      const current = useAppStore.getState().cases as LegalCase[];
+      const page = await fetchCarteiraPageClient({
+        empresaId: empId,
+        limit: REMOTE_PAGE_SIZE,
+        offset: current.length,
+      });
+      const merged = mergeCarteiraPages(current, page);
+      setCases(merged);
+      writeCarteiraCache(
+        merged,
+        empId,
+        resolveCaseScope(profile as any)
+      );
+      setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
+    } catch (e: any) {
+      toast({
+        title: 'Não foi possível carregar mais processos',
+        description: e?.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingMoreRemote(false);
+    }
+  }, [profile, loadingMoreRemote, remoteHasMore, setCases, toast]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -376,7 +432,7 @@ function CasesContent() {
     setLoading(true);
     try {
       // Auditoria 3D: so DJEN (rapido)
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'djen', fast: false });
+      const res = await scanInteractiveCase(c.protocolo, { mode: 'djen', fast: false });
       const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
         case: (res as any).case || c,
@@ -390,12 +446,19 @@ function CasesContent() {
       if ((res as any).casePatch) {
         updateCaseByProtocolo(c.protocolo, ((res as any).casePatch as Record<string, any>) || {});
       }
+      const djenStatus = (res as any).sourceStatus?.djen;
       toast({
-        title: coms.length ? `DJEN: ${coms.length} publicacao(oes)` : 'DJEN sem retorno',
-        description: coms.length
-          ? 'Auditoria 3D (somente diario oficial).'
-          : String((res as any).error || 'Sem publicacoes no periodo ou falha de rede.'),
-        variant: coms.length ? 'default' : 'destructive',
+        title: djenStatus?.ok
+          ? coms.length
+            ? `DJEN: ${coms.length} publicação(ões)`
+            : 'DJEN consultado'
+          : 'DJEN indisponível',
+        description: djenStatus?.ok
+          ? coms.length
+            ? `Consulta oficial concluída via ${djenStatus.via === 'browser' ? 'navegador' : 'servidor'}.`
+            : 'Consulta concluída normalmente. Nenhuma publicação foi localizada no período.'
+          : String(djenStatus?.error || (res as any).error || 'Não foi possível consultar o DJEN agora.'),
+        variant: djenStatus?.ok ? 'default' : 'destructive',
       });
     } catch (e: any) {
       toast({ title: 'Falha Auditoria 3D', description: e?.message || 'Erro DJEN', variant: 'destructive' });
@@ -410,7 +473,7 @@ function CasesContent() {
     setAiDraft(null);
     try {
       // Auditoria unificada: DataJud + DJEN (obrigatorio para Sugerir resposta)
-      const res = await scanSingleCaseAction(c.protocolo, { mode: 'both', fast: false });
+      const res = await scanInteractiveCase(c.protocolo, { mode: 'both', fast: false });
       const movimentos = normalizeMovList((res as any).movimentos);
       const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       const caseData = (res as any).case || c;
@@ -451,14 +514,25 @@ function CasesContent() {
       if ((res as any).casePatch) {
         updateCaseByProtocolo(c.protocolo, (res as any).casePatch || {});
       }
+      const sourceStatus = (res as any).sourceStatus;
+      const anySourceOk = !!(sourceStatus?.datajud?.ok || sourceStatus?.djen?.ok);
       toast({
         title: suggestions.length
           ? `${suggestions.length} resposta(s) pronta(s)`
-          : 'Auditoria unificada',
-        description: movimentos.length || comunicacoes.length
-          ? `${movimentos.length} mov. DataJud · ${comunicacoes.length} DJEN`
-          : ((res as any).error || (res as any).message || 'Sem movimentos — timeout, 403 geo ou CNJ ausente no índice. Tente de novo (não use fast).'),
-        variant: movimentos.length || comunicacoes.length ? 'default' : 'destructive',
+          : anySourceOk
+            ? 'Auditoria concluída'
+            : 'Fontes temporariamente indisponíveis',
+        description:
+          (res as any).message ||
+          [
+            sourceStatus?.datajud?.ok
+              ? `DataJud: ${movimentos.length} movimento(s)`
+              : 'DataJud indisponível',
+            sourceStatus?.djen?.ok
+              ? `DJEN: ${comunicacoes.length} publicação(ões)`
+              : 'DJEN indisponível',
+          ].join(' · '),
+        variant: anySourceOk ? 'default' : 'destructive',
       });
     } catch (e: any) {
       toast({
@@ -600,7 +674,11 @@ function CasesContent() {
           action: pending.length ? <AtendimentoSyncRetry protocolos={pending}/> : undefined,
         });
         try {
-          const fresh = await fetchRepoCases();
+          const fresh = await fetchCarteiraPageClient({
+            empresaId: String((profile as any)?.empresa_id || ''),
+            limit: REMOTE_PAGE_SIZE,
+            offset: 0,
+          });
           if (Array.isArray(fresh) && fresh.length) {
             // mescla: não perde o retorno acabado de gravar se o fetch vier stale
             setCases(
@@ -1027,60 +1105,32 @@ function CasesContent() {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
-<div className="px-4 sm:px-6 pt-4">
-            <OpsOrbitalStrip nodes={opsNodes} className="mb-4" />
+<header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <Briefcase size={14} /> Processos
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Meus Processos</h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">Acompanhe e gerencie sua carteira de processos.</p>
           </div>
-
-        <header className="h-auto border-b border-border/50 bg-card/60 backdrop-blur-xl flex items-center justify-between p-4 sm:px-10 shrink-0 z-40">
-          <div className="flex items-center gap-4">
-             <Briefcase size={20} className="text-primary" />
-             <h1 className="font-black text-xl text-foreground uppercase tracking-tight">Carteira do Gabinete</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleExportXlsx}
-              disabled={exporting}
-              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-              Exportar XLSX
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              disabled={exporting}
-              className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-border/50 hover:bg-secondary"
-            >
-              {exporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileDown size={16} className="mr-2" />}
-              CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRecalibratePrazos}
-              disabled={isRecalibrating || loading}
-              className="h-10 px-3 rounded-xl font-black uppercase text-[9px] tracking-widest border-2 border-border/50 hover:bg-secondary"
-              title="Recalcular Vencido / É Hoje / Atenção a partir do próximo prazo"
-            >
-              {isRecalibrating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CalendarDays className="w-4 h-4 mr-1" />}
-              Recalibrar Prazos
-            </Button>
-            {isOperador && (
-              <Button
-                size="sm"
-                onClick={handleNewCase}
-                className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black"
-              >
-                <Plus size={16} className="mr-2" />
-                Novo Processo
+          <div className="flex flex-wrap items-center gap-2">
+            {canExport ? (
+              <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={exporting} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+                {exporting ? <Loader2 size={15} className="mr-2 animate-spin" /> : <FileDown size={15} className="mr-2" />}
+                Exportar
+              </Button>
+            ) : null}
+            {canUseAllOperational ? (
+              <Button variant="outline" size="sm" onClick={handleRecalibratePrazos} disabled={isRecalibrating || loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+                {isRecalibrating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-2 h-4 w-4" />}
+                Recalibrar prazos
+              </Button>
+            ) : null}
+            {canCreate && (
+              <Button size="sm" onClick={handleNewCase} className="h-10 rounded-xl bg-[#1f6fff] px-5 font-bold text-white hover:bg-[#145de0]">
+                <Plus size={16} className="mr-2" /> Novo processo
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={loadData} disabled={loading} className="h-10 w-10 rounded-xl hover:bg-secondary" title="Recarregar">
-              <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} />
-            </Button>
           </div>
         </header>
 
@@ -1126,15 +1176,18 @@ function CasesContent() {
               <CaseGlassList
                 items={visibleItems}
                 isOperador={isOperador}
+                canEdit={isOperador}
+                canDelete={canDelete}
+                canScan={canScan}
                 selectable={canAssignOwner}
                 selected={selectedProtos}
                 onToggleSelect={toggleSelectProto}
                 onLogReturn={handleLogReturn}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onScan={handleSingleScan}
+                onScan={canScan ? handleSingleScan : undefined}
                 onSuggest={handleSuggestClick}
-                onDossie={handleDossieProcesso}
+                onDossie={canExport ? handleDossieProcesso : undefined}
               />
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 py-4 px-4 border-t border-border/30 bg-card/40">
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -1196,6 +1249,22 @@ function CasesContent() {
                       Mostrar menos
                     </Button>
                   )}
+                  {remoteHasMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={loadingMoreRemote}
+                      onClick={() => void loadMoreFromSupabase()}
+                      className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-wider border-sky-500/40 text-sky-700 dark:text-sky-300"
+                    >
+                      {loadingMoreRemote ? (
+                        <Loader2 size={14} className="mr-2 animate-spin" />
+                      ) : (
+                        <Download size={14} className="mr-2" />
+                      )}
+                      Carregar +{REMOTE_PAGE_SIZE} do Supabase
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1204,8 +1273,8 @@ function CasesContent() {
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
           <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
-            <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
-              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3">
+            <DialogHeader className="p-4 sm:p-6 bg-black !text-white shrink-0">
+              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3 !text-white">
                 <FileSearch className="text-primary" /> Auditoria Unificada (Audit 3D)
               </DialogTitle>
             </DialogHeader>
@@ -1219,7 +1288,7 @@ function CasesContent() {
                         <div key={i} className={cn("relative p-5 border-2 rounded-xl transition-all", item.type === 'djen' ? "border-blue-600 bg-blue-50/10 shadow-[4px_4px_0px_#2563eb]" : "border-slate-200 bg-slate-50/50")}>
                           <div className="flex items-start justify-between mb-3">
                              <div className="flex items-center gap-2">
-                                <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
+                                <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600 !text-white" : "bg-slate-600 !text-white")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
                                 {item.type === 'djen' && (
                                   <div className="flex items-center gap-2 flex-wrap">
                                     {(item.raw.link || historyResult?.case.djen_ultimo_link) && (
@@ -1235,7 +1304,7 @@ function CasesContent() {
                                         try {
                                           const texto = (item.raw.texto || item.raw.conteudo || historyResult?.case.djen_ultimo_resumo || '').toString();
                                           const res = await generateDjenPublicationPDFAction({
-                                            titulo: item.raw.tipoComunicacao || item.raw.tipoDocumento || item.title || 'PUBLICAÇÃO DJEN',
+                                            titulo: item.title || item.raw.tipoDocumento || item.raw.tipoComunicacao || 'PUBLICAÇÃO DJEN',
                                             protocolo: historyResult?.case.protocolo || '',
                                             data: item.date ? item.date.toLocaleDateString('pt-BR') : 'S/D',
                                             orgao: item.raw.nomeOrgao || item.subtitle || '',
@@ -1261,7 +1330,7 @@ function CasesContent() {
                                         try {
                                           const texto = (item.raw.texto || item.raw.conteudo || historyResult?.case.djen_ultimo_resumo || '').toString();
                                           const res = await generateDjenPublicationPDFAction({
-                                            titulo: item.raw.tipoComunicacao || item.raw.tipoDocumento || item.title || 'PUBLICAÇÃO DJEN',
+                                            titulo: item.title || item.raw.tipoDocumento || item.raw.tipoComunicacao || 'PUBLICAÇÃO DJEN',
                                             protocolo: historyResult?.case.protocolo || '',
                                             data: item.date ? item.date.toLocaleDateString('pt-BR') : 'S/D',
                                             orgao: item.raw.nomeOrgao || item.subtitle || '',
@@ -1342,10 +1411,10 @@ function CasesContent() {
                   <section className="space-y-6 pt-6 border-t">
                     <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Rascunho opcional (IA)</h3>
                     <div className="bg-black text-white p-6 space-y-4 rounded-xl">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Só gera se você clicar — não mistura com Sugerir Resposta</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest !text-white flex items-center gap-2"><Bot size={12}/> Só gera se você clicar — não mistura com Sugerir Resposta</p>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                          <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 bg-white/10 border-white/20 !text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-white border-2 border-black rounded-lg">
                             <SelectItem value="local_only" className="text-[9px] font-black uppercase">Script Lexis (sem IA)</SelectItem>
                             <SelectItem value="claude" className="text-[9px] font-black uppercase">Claude AI (OmniRoute)</SelectItem>
@@ -1361,7 +1430,7 @@ function CasesContent() {
                   </section>
                 </div>
               </ScrollArea>
-              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
+              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black !text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
             </div>
           </DialogContent>
         </Dialog>

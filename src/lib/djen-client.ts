@@ -72,6 +72,192 @@ export function plainText(html: string): string {
     .trim();
 }
 
+/**
+ * Consulta interativa por CNJ diretamente no navegador.
+ *
+ * Motivo: o Comunica PJe pode limitar IPs de datacenter. Esta função usa o IP
+ * do usuário e considera "0 publicações" uma resposta válida, não uma falha.
+ */
+export async function djenBuscaProcesso(
+  opts: {
+    protocolo: string;
+    signal?: AbortSignal;
+    dataInicio?: string;
+    dataFim?: string;
+    siglaTribunal?: string;
+    itensPorPagina?: number;
+  }
+): Promise<DjenClientResult> {
+  const digits = String(opts.protocolo || "").replace(/\D/g, "");
+  if (digits.length !== 20) {
+    return { ok: false, error: "CNJ inválido: informe um número com 20 dígitos.", items: [] };
+  }
+
+  const dataFim = opts.dataFim || new Date().toISOString().slice(0, 10);
+  const dataInicio =
+    opts.dataInicio ||
+    new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const masked =
+    `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+
+  const queryOne = async (numeroProcesso: string): Promise<DjenClientResult> => {
+    const params = new URLSearchParams({
+      numeroProcesso,
+      dataDisponibilizacaoInicio: dataInicio,
+      dataDisponibilizacaoFim: dataFim,
+      pagina: "1",
+      itensPorPagina: String(Math.min(opts.itensPorPagina || 50, 100)),
+    });
+
+    if (opts.siglaTribunal && !/^outros$/i.test(opts.siglaTribunal)) {
+      params.append("siglaTribunal", opts.siglaTribunal.toUpperCase());
+    }
+
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    if (opts.signal?.aborted) controller.abort();
+    opts.signal?.addEventListener("abort", cancel, { once: true });
+    const timeout = setTimeout(() => controller.abort(), 28000);
+
+    try {
+      const res = await fetch(`${DJEN_URL}?${params.toString()}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      if (res.status === 403) {
+        return {
+          ok: false,
+          status: 403,
+          geoBlocked: true,
+          error: "O DJEN recusou esta rede temporariamente (403).",
+          items: [],
+        };
+      }
+      if (res.status === 429) {
+        return {
+          ok: false,
+          status: 429,
+          rateLimited: true,
+          retryAfter: res.headers.get("Retry-After"),
+          error: "O DJEN pediu uma pausa por excesso de consultas (429).",
+          items: [],
+        };
+      }
+
+      const raw = await res.text();
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        return {
+          ok: false,
+          status: res.status,
+          error: `DJEN respondeu vazio (HTTP ${res.status}).`,
+          items: [],
+        };
+      }
+
+      if (!res.ok || trimmed.startsWith("<") || /<!doctype html/i.test(trimmed)) {
+        return {
+          ok: false,
+          status: res.status,
+          htmlBlocked: trimmed.startsWith("<") || /<!doctype html/i.test(trimmed),
+          error:
+            trimmed.startsWith("<") || /<!doctype html/i.test(trimmed)
+              ? "O DJEN respondeu com bloqueio de rede/WAF."
+              : `DJEN indisponível (HTTP ${res.status}).`,
+          items: [],
+        };
+      }
+
+      let data: any;
+      try {
+        data = JSON.parse(trimmed);
+      } catch {
+        return {
+          ok: false,
+          status: res.status,
+          error: "O DJEN retornou uma resposta inválida.",
+          items: [],
+        };
+      }
+
+      if (
+        data == null ||
+        (!Array.isArray(data) &&
+          !Array.isArray(data.items) &&
+          !Array.isArray(data.content))
+      ) {
+        return {
+          ok: false,
+          status: res.status,
+          error: "O DJEN respondeu sem uma lista de publicações.",
+          items: [],
+        };
+      }
+
+      const rawItems: DjenItemRaw[] = Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(data.content)
+          ? data.content
+          : Array.isArray(data)
+            ? data
+            : [];
+
+      const items = rawItems
+        .filter((it) => it && typeof it === "object")
+        .map((it) => ({ ...it, texto: plainText(String(it.texto || "")) }));
+
+      return { ok: true, status: res.status, items, count: data.count ?? items.length };
+    } catch (e: any) {
+      if (e?.name === "AbortError") {
+        return {
+          ok: false,
+          error: opts.signal?.aborted ? "Consulta interrompida." : "Tempo esgotado ao consultar o DJEN.",
+          items: [],
+        };
+      }
+      return {
+        ok: false,
+        error: e?.message || "Falha de rede ao consultar o DJEN.",
+        items: [],
+      };
+    } finally {
+      clearTimeout(timeout);
+      opts.signal?.removeEventListener("abort", cancel);
+    }
+  };
+
+  // Alguns ambientes aceitam a forma mascarada e outros a forma numérica.
+  // Consulta as duas apenas quando necessário e deduplica pelo identificador/hash.
+  const first = await queryOne(digits);
+  if (!first.ok) return first;
+  if (first.items.length) return first;
+
+  const second = await queryOne(masked);
+  if (!second.ok) {
+    // A primeira consulta foi válida e retornou zero: isso continua sendo
+    // "consulta concluída, sem publicações", não uma indisponibilidade.
+    return first;
+  }
+
+  const seen = new Set<string>();
+  const items = [...first.items, ...second.items].filter((item) => {
+    const key = String(item.hash || item.id || item.numeroProcesso || item.numero_processo || JSON.stringify(item));
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return {
+    ok: true,
+    status: second.status || first.status,
+    items,
+    count: Math.max(Number(first.count || 0), Number(second.count || 0), items.length),
+  };
+}
+
 export async function djenBuscaTexto(
   opts: {
     texto: string;

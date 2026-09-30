@@ -18,6 +18,7 @@ export type AssinaturaStatus = {
   blocked: boolean;
   blockedReason?: string;
   origem?: string;
+  validatedAt?: number;
 };
 
 const KEY = "lexis_empresa_assinaturas_v1";
@@ -46,9 +47,10 @@ export function saveAssinatura(empresaId: string, data: AssinaturaStatus) {
 export function getAssinatura(
   empresaId?: string | null,
   fallback: AssinaturaStatus = {
-    plan: "maximo",
+    plan: "essencial",
     expiresAt: null,
-    blocked: false,
+    blocked: true,
+    blockedReason: "validating_subscription",
   }
 ): AssinaturaStatus {
   if (!empresaId) return fallback;
@@ -114,13 +116,23 @@ export const ROTAS_SEM_PLANO = [
   "/signup",
   "/termos",
   "/settings",
+  "/setup-empresa",
+  "/primeiro-acesso",
 ];
 
 export function rotaPermitidaSemPlano(pathname: string): boolean {
   const p = String(pathname || "/");
-  if (p.startsWith("/login") || p === "/login") return true;
+
+  // Rotas públicas de autenticação/onboarding nunca dependem de assinatura.
+  if (p === "/login" || p.startsWith("/login/")) return true;
+  if (p === "/signup" || p.startsWith("/signup/")) return true;
+  if (p === "/termos" || p.startsWith("/termos/")) return true;
   if (p.startsWith("/auth")) return true;
-  // Configurações: pode ver upgrade/Pix, mas o gate ainda cobre o restante
-  if (p.startsWith("/settings")) return true;
+
+  // Rotas necessárias para uma conta autenticada resolver o próprio acesso.
+  if (p === "/setup-empresa" || p.startsWith("/setup-empresa/")) return true;
+  if (p === "/primeiro-acesso" || p.startsWith("/primeiro-acesso/")) return true;
+  if (p === "/settings" || p.startsWith("/settings/")) return true;
+
   return false;
 }

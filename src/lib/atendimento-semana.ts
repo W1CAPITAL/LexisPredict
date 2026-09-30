@@ -98,6 +98,53 @@ export function pickUltimoRetorno(c: any): string | null {
   return v != null ? String(v) : null;
 }
 
+const INTERNAL_ATTENDANCE_ACTORS = new Set([
+  'af1b75ea-cb64-4ebc-b4ad-ce1ce1fc01c5',
+  'sistema-interno',
+  'scanner',
+  'trigger',
+  'cron',
+  'bot',
+]);
+
+export function pickAtendidoPor(c: any): string | null {
+  if (!c || typeof c !== 'object') return null;
+  const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  const value =
+    c.atendido_por ??
+    c.atendidoPor ??
+    d.atendido_por ??
+    d.atendidoPor ??
+    null;
+  const actor = value != null ? String(value).trim() : '';
+  return actor || null;
+}
+
+export function isAtendimentoHumano(c: any): boolean {
+  const actor = pickAtendidoPor(c);
+  if (!actor) return false;
+  const normalized = actor.trim().toLowerCase();
+  if (INTERNAL_ATTENDANCE_ACTORS.has(normalized)) return false;
+  return !/sistema interno|w1 control|trigger db|^sistema$|^scanner$|^cron$|^bot$/i.test(normalized);
+}
+
+/** Data do evento humano; ultimo_retorno continua sendo a data operacional do retorno. */
+export function pickDataAtendimento(c: any): string | null {
+  if (!c || typeof c !== 'object') return null;
+  const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  const raw =
+    c.atendido_em ??
+    c.atendidoEm ??
+    d.atendido_em ??
+    d.atendidoEm ??
+    pickUltimoRetorno(c);
+  return raw != null ? String(raw) : null;
+}
+
+export function casoAtendidoHoje(c: any, ref = new Date()): boolean {
+  return isAtendimentoHumano(c) && isAtendidoHoje(pickDataAtendimento(c), ref);
+}
+
 export function isAtendidoNestaSemana(
   ultimoRetorno?: string | null,
   ref = new Date()
@@ -110,9 +157,8 @@ export function isAtendidoNestaSemana(
 
 /** Aceita string OU objeto caso */
 export function casoAtendidoNestaSemana(c: any, ref = new Date()): boolean {
-  if (c == null) return false;
-  if (typeof c === 'string') return isAtendidoNestaSemana(c, ref);
-  return isAtendidoNestaSemana(pickUltimoRetorno(c), ref);
+  if (c == null || typeof c === 'string') return false;
+  return isAtendimentoHumano(c) && isAtendidoNestaSemana(pickDataAtendimento(c), ref);
 }
 
 export type AtendimentoDia = {
@@ -133,7 +179,8 @@ export function buildAtendimentosPorDiaSemana(
   const counts = [0, 0, 0, 0, 0, 0, 0]; // sun..sat
 
   for (const c of cases || []) {
-    const raw = pickUltimoRetorno(c as any);
+    if (!isAtendimentoHumano(c)) continue;
+    const raw = pickDataAtendimento(c as any);
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
     if (!isWithinInterval(d, { start, end })) continue;
@@ -153,10 +200,7 @@ export function countAtendidosNestaSemana(
   cases: Array<{ ultimoRetorno?: string | null; ultimo_retorno?: string | null }>,
   ref = new Date()
 ): number {
-  return (cases || []).filter((c) => {
-    const raw = pickUltimoRetorno(c) ?? (c as any).ultimoRetorno ?? (c as any).ultimo_retorno;
-    return isAtendidoNestaSemana(raw, ref);
-  }).length;
+  return (cases || []).filter((c) => casoAtendidoNestaSemana(c, ref)).length;
 }
 
 export function labelSemanaAtual(ref = new Date()): string {
@@ -194,18 +238,13 @@ export function countAtendimentosPorUsuario(
   const userCounts = new Map<string, { dia: number; semana: number; mes: number }>();
 
   for (const c of cases || []) {
-    const raw = pickUltimoRetorno(c);
+    if (!isAtendimentoHumano(c)) continue;
+    const raw = pickDataAtendimento(c);
     if (!raw) continue;
     const d = parseUltimoAtendimento(raw);
     if (!d) continue;
 
-    const userId = String(
-      (c as any).atendido_por ??
-        (c as any).atendidoPor ??
-        (c as any).edited_by ??
-        (c as any).updated_by ??
-        ''
-    ).trim();
+    const userId = String(pickAtendidoPor(c) || '').trim();
     if (!userId) continue;
 
     const entry = userCounts.get(userId) || { dia: 0, semana: 0, mes: 0 };
@@ -280,8 +319,8 @@ export function countAtendidosSemanaDoUsuario(
   const uid = String(userId);
   return (cases || []).filter((c) => {
     if (!casoAtendidoNestaSemana(c, ref)) return false;
-    // Só quem registrou o atendimento (não o dono do processo)
-    const por = c.atendido_por ?? c.atendidoPor ?? c.edited_by ?? c.updated_by ?? null;
+    // Só quem registrou o atendimento humano (nunca edited_by/updated_by).
+    const por = pickAtendidoPor(c);
     return por != null && String(por) === uid;
   }).length;
 }
@@ -294,8 +333,8 @@ export function countAtendidosHojeDoUsuario(
   if (!userId) return 0;
   const uid = String(userId);
   return (cases || []).filter((c) => {
-    if (!isAtendidoHoje(pickUltimoRetorno(c), ref)) return false;
-    const por = c.atendido_por ?? c.atendidoPor ?? c.edited_by ?? c.updated_by ?? null;
+    if (!casoAtendidoHoje(c, ref)) return false;
+    const por = pickAtendidoPor(c);
     return por != null && String(por) === uid;
   }).length;
 }
@@ -355,9 +394,8 @@ export function isAtendidoNoPeriodo(
 }
 
 export function casoAtendidoNoPeriodo(c: any, periodo: PeriodoRelatorio, ref = new Date()): boolean {
-  if (c == null) return false;
-  if (typeof c === 'string') return isAtendidoNoPeriodo(c, periodo, ref);
-  return isAtendidoNoPeriodo(pickUltimoRetorno(c), periodo, ref);
+  if (c == null || typeof c === 'string') return false;
+  return isAtendimentoHumano(c) && isAtendidoNoPeriodo(pickDataAtendimento(c), periodo, ref);
 }
 
 export function countAtendidosNoPeriodo(cases: any[], periodo: PeriodoRelatorio, ref = new Date()): number {
@@ -389,7 +427,8 @@ export function buildAtendimentosPorDiaPeriodo(
   }
 
   for (const c of cases || []) {
-    const d = parseUltimoAtendimento(pickUltimoRetorno(c));
+    if (!isAtendimentoHumano(c)) continue;
+    const d = parseUltimoAtendimento(pickDataAtendimento(c));
     if (!d || !isWithinInterval(d, { start, end })) continue;
     const ymd = format(d, 'yyyy-MM-dd');
     const bucket = days.find((x) => x.ymd === ymd);

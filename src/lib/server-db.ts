@@ -8,6 +8,7 @@ import { cache } from 'react';
 import { uniqueCases } from './case-identity';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { canSupervisaoCarteira, isSuperAdminProfile } from './auth-supervisao';
+import { resolveCaseScope } from './roles';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -31,40 +32,9 @@ export async function getSupabaseAdmin() {
 }
 
 const resolveUserContext = cache(async () => {
-  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, weight: 0, safety: false };
-  try {
-    const { cookies } = await import("next/headers");
-    const jar = await cookies();
-    if (jar.get("lexis_safety")?.value === "1") {
-      const email = decodeURIComponent(jar.get("lexis_user_email")?.value || jar.get("lexis_safety_login")?.value || "");
-      const nome = decodeURIComponent(jar.get("lexis_safety_nome")?.value || email);
-      const cargoRaw = decodeURIComponent(jar.get("lexis_user_role")?.value || "Operador");
-      const cargo = (cargoRaw as UserRole) || "Operador";
-      const isSuperAdmin = /super/i.test(cargo);
-      const isSupervisor = /superv/i.test(cargo);
-      const empresa_id =
-        jar.get("lexis_empresa_id")?.value ||
-        process.env.LEXIS_SAFETY_EMPRESA_ID ||
-        "d37fd4bb-1c71-4dca-b97e-292355918d39";
-      return {
-        auth_id: email || nome,
-        empresa_id,
-        cargo,
-        email: email || null,
-        nome: nome || null,
-        isSuperAdmin,
-        isSupervisor,
-        isViewer: false,
-        isMasterView: isSuperAdmin || isSupervisor,
-        isAdministrador: /admin/i.test(cargo) && !isSupervisor,
-        isEmpresaWide: isSuperAdmin || isSupervisor,
-        weight: ROLE_WEIGHTS[cargo] || 40,
-        safety: true,
-      };
-    }
-  } catch {
-    /* cookies() só no request */
-  }
+  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, caseScope: 'mine' as const, weight: 0, safety: false };
+  // Commercial web: identidade vem exclusivamente do Supabase Auth.
+  // Cookies/planilha/"safety mode" não podem criar contexto de tenant.
   const requestClient = await createRequestClient();
   if (!requestClient) return empty;
   const { data: { user }, error } = await requestClient.auth.getUser();
@@ -80,13 +50,18 @@ const resolveUserContext = cache(async () => {
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = isSuperAdminProfile(profile) || checkIfSuperAdmin(profile);
   const isSupervisor = canSupervisaoCarteira(profile) || checkIfSupervisor(profile);
-  // Visão de carteira integral: Superadmin, Supervisor e Visualizador (vê empresa toda)
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
-  // Lote1: só Superadmin e Supervisor veem todos os casos.
-  const isMasterView = isSuperAdmin || isSupervisor;
+  // Fonte única de escopo comercial.
+  const caseScope = resolveCaseScope({
+    cargo,
+    role: profile?.role,
+    isSuperAdmin,
+    isSupervisor,
+  });
+  const isMasterView = caseScope === 'empresa';
   const isAdministrador =
-    /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer;
-  const isEmpresaWide = isSuperAdmin || isSupervisor || isViewer || isAdministrador;
+    /admin/i.test(String(profile?.cargo || cargo || '')) && !isViewer && !isSupervisor && !isSuperAdmin;
+  const isEmpresaWide = isMasterView;
 
   return { 
     auth_id: profile?.auth_user_id || null,
@@ -100,6 +75,7 @@ const resolveUserContext = cache(async () => {
     isMasterView,
     isAdministrador,
     isEmpresaWide,
+    caseScope,
     weight: ROLE_WEIGHTS[cargo] || 0
   };
 });
@@ -179,12 +155,11 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
 
   const context = await getUserContext();
   if (context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
-  const { auth_id, isSuperAdmin, isSupervisor } = context as any;
+  const { auth_id } = context as any;
 
-  // isAdmin=true → /processos (empresa toda)
-  // Superadmin/Supervisor → carteira completa em Cases/Dashboard
-  // Operador/Admin → SOMENTE created_by = auth_id
-  const wantAll = isAdmin === true || !!(isSuperAdmin || isSupervisor);
+  // O parâmetro isAdmin é legado e NÃO amplia visibilidade.
+  // O escopo vem exclusivamente de resolveCaseScope().
+  const wantAll = resolveCaseScope(context as any) === 'empresa';
 
   const mapRows = (rows: any[]): LegalCase[] => {
     const out: LegalCase[] = [];
@@ -302,7 +277,8 @@ export async function getStoredCasesPageForEmpresa(
 
   try {
     const context = await getUserContext();
-    const { auth_id, isMasterView } = context;
+    const { auth_id } = context;
+    const caseScope = resolveCaseScope(context as any);
     const onlyAtivos = opts?.onlyAtivos === true;
 
     let query = client
@@ -317,7 +293,8 @@ export async function getStoredCasesPageForEmpresa(
       query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
     }
 
-    if (!isAdmin && !isMasterView && !(context as any).isEmpresaWide && auth_id) {
+    if (caseScope === 'mine') {
+      if (!auth_id) return [];
       query = query.eq("created_by", auth_id);
     }
 
@@ -435,11 +412,56 @@ function mapProcessoRow(item: any): LegalCase {
 export async function getGlobalPendingProcessesSystem(
   limit: number,
   empresaId: string,
-  opts?: { scope?: 'full' | 'cumprimento' }
+  opts?: {
+    scope?: 'full' | 'cumprimento';
+    mode?: 'datajud' | 'djen' | 'both';
+    since?: string | null;
+  }
 ): Promise<LegalCase[]> {
   const scope = opts?.scope === 'cumprimento' ? 'cumprimento' : 'full';
+  const mode = opts?.mode === 'datajud' || opts?.mode === 'djen' ? opts.mode : 'both';
+  const since = opts?.since ? String(opts.since) : null;
 
   const admin = await getSupabaseAdmin();
+
+  // Sessão manual (sem cron): quando existe "since", pega somente processos
+  // que ainda não foram consultados desde o início desta varredura.
+  if (since) {
+    const condition =
+      mode === 'datajud'
+        ? `datajud_consultado_em.is.null,datajud_consultado_em.lt.${since}`
+        : mode === 'djen'
+          ? `djen_consultado_em.is.null,djen_consultado_em.lt.${since}`
+          : [
+              'datajud_consultado_em.is.null',
+              `datajud_consultado_em.lt.${since}`,
+              'djen_consultado_em.is.null',
+              `djen_consultado_em.lt.${since}`,
+            ].join(',');
+
+    const { data: sessionRows, error: sessionError } = await admin
+      .from('processos')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .or(condition)
+      .order('scan_priority', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(Math.max(limit * 20, 120));
+
+    if (sessionError) {
+      console.error('[getGlobalPendingProcessesSystem] session', sessionError);
+      return [];
+    }
+
+    let sessionCases = (sessionRows || []).map(mapProcessoRow);
+
+    if (scope === 'cumprimento') {
+      const { isCandidatoCumprimentoScan } = await import('@/lib/scan-scope-cumprimento');
+      sessionCases = sessionCases.filter((item) => isCandidatoCumprimentoScan(item));
+    }
+
+    return sessionCases.slice(0, limit);
+  }
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
   const statusFilter = `(${statusExcluidos.map(s => `"${s}"`).join(',')})`;
 
@@ -559,34 +581,52 @@ export async function getGlobalPendingProcessesSystem(
   return out;
 }
 
-export async function getScanStatusMetrics(empresaId: string) {
+export async function getScanStatusMetrics(
+  empresaId: string,
+  opts?: {
+    mode?: 'datajud' | 'djen' | 'both';
+    since?: string | null;
+    scope?: 'full' | 'cumprimento';
+  }
+) {
   const admin = await getSupabaseAdmin();
-  const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
-  const statusFilter = `(${statusExcluidos.map(s => `"${s}"`).join(',')})`;
+  const mode = opts?.mode === 'datajud' || opts?.mode === 'djen' ? opts.mode : 'both';
+  const since = opts?.since ? String(opts.since) : null;
 
   const { count: total } = await admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
     .eq('empresa_id', empresaId);
 
-  // Carteira ativa (não encerrada no gabinete)
-  const { count: active } = await admin
+  let pendingQuery = admin
     .from('processos')
     .select('*', { count: 'exact', head: true })
-    .eq('empresa_id', empresaId)
-    .not('status', 'in', statusFilter);
+    .eq('empresa_id', empresaId);
 
-  // Ainda sem nenhuma consulta DataJud
-  const { count: neverScanned } = await admin
-    .from('processos')
-    .select('*', { count: 'exact', head: true })
-    .eq('empresa_id', empresaId)
-    .not('status', 'in', statusFilter)
-    .is('datajud_consultado_em', null);
+  if (since) {
+    const condition =
+      mode === 'datajud'
+        ? `datajud_consultado_em.is.null,datajud_consultado_em.lt.${since}`
+        : mode === 'djen'
+          ? `djen_consultado_em.is.null,djen_consultado_em.lt.${since}`
+          : [
+              'datajud_consultado_em.is.null',
+              `datajud_consultado_em.lt.${since}`,
+              'djen_consultado_em.is.null',
+              `djen_consultado_em.lt.${since}`,
+            ].join(',');
+    pendingQuery = pendingQuery.or(condition);
+  } else if (mode === 'datajud') {
+    pendingQuery = pendingQuery.is('datajud_consultado_em', null);
+  } else if (mode === 'djen') {
+    pendingQuery = pendingQuery.is('djen_consultado_em', null);
+  } else {
+    pendingQuery = pendingQuery.or(
+      'datajud_consultado_em.is.null,djen_consultado_em.is.null'
+    );
+  }
 
-  const activeN = active || 0;
-  const pendingN = neverScanned || 0;
-  const auditedN = Math.max(0, activeN - pendingN);
+  const { count: pending } = await pendingQuery;
 
   const { count: alerts } = await admin
     .from('processos')
@@ -606,21 +646,27 @@ export async function getScanStatusMetrics(empresaId: string) {
     .eq('empresa_id', empresaId)
     .eq('datajud_encerrado_tribunal', true);
 
+  const orderColumn = mode === 'djen' ? 'djen_consultado_em' : 'datajud_consultado_em';
   const { data: recent } = await admin
     .from('processos')
-    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao, datajud_ultimo_nome, datajud_consultado_em')
+    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao, datajud_ultimo_nome, datajud_consultado_em, djen_consultado_em')
     .eq('empresa_id', empresaId)
-    .not('datajud_consultado_em', 'is', null)
-    .order('datajud_consultado_em', { ascending: false })
+    .not(orderColumn, 'is', null)
+    .order(orderColumn, { ascending: false })
     .limit(10);
 
+  const totalN = total || 0;
+  const pendingN = pending || 0;
+
   return {
-    total: total || 0,
+    total: totalN,
     pending: pendingN,
+    audited: Math.max(0, totalN - pendingN),
     alerts: alerts || 0,
     djenAlerts: djenAlerts || 0,
     closed: closed || 0,
-    audited: auditedN,
+    mode,
+    since,
     recentLogs: recent?.map(r => ({
       protocolo: r.protocolo_ref,
       message: r.datajud_encerrado_tribunal
@@ -794,95 +840,134 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
   return { success: true };
 }
 
-export async function saveStoredCasesForEmpresa(cases: LegalCase[], empresaId: string, isAdmin = false): Promise<{ success: boolean; message: string }> {
+export async function saveStoredCasesForEmpresa(
+  cases: LegalCase[],
+  empresaId: string,
+  _isAdmin = false
+): Promise<{ success: boolean; message: string }> {
   try {
-    const { auth_id } = await getUserContext();
-    const client = isAdmin ? await getSupabaseAdmin() : (supabase || (await getSupabaseAdmin()));
-    if (!client) return { success: false, message: 'Cliente indisponível.' };
+    const ctx = await getUserContext();
+    const { auth_id } = ctx;
+    const caseScope = resolveCaseScope(ctx as any);
+    if (!auth_id || !ctx.empresa_id) {
+      return { success: false, message: 'Sessão expirada.' };
+    }
+    if (ctx.empresa_id !== empresaId) {
+      return { success: false, message: 'Acesso à empresa não autorizado.' };
+    }
 
-    const protos = (cases || []).map((c) => c.protocolo).filter(Boolean);
+    const admin = await getSupabaseAdmin();
+    const protos = (cases || []).map((item) => String(item.protocolo || '').trim()).filter(Boolean);
     const ownerByProto = new Map<string, string>();
+
     if (protos.length) {
-      const chunk = 200;
-      for (let i = 0; i < protos.length; i += chunk) {
-        const slice = protos.slice(i, i + chunk);
-        const { data: rows } = await client
+      const size = 200;
+      for (let i = 0; i < protos.length; i += size) {
+        const slice = protos.slice(i, i + size);
+        const { data: rows, error } = await admin
           .from('processos')
           .select('protocolo_ref, created_by')
           .eq('empresa_id', empresaId)
           .in('protocolo_ref', slice);
-        for (const r of rows || []) {
-          if (r.created_by) ownerByProto.set(String(r.protocolo_ref), String(r.created_by));
+
+        if (error) throw error;
+        for (const row of rows || []) {
+          if (row.created_by) {
+            ownerByProto.set(String(row.protocolo_ref), String(row.created_by));
+          }
         }
       }
     }
 
-    const payload = (cases || []).map((c) => {
-      const owner =
-        ownerByProto.get(String(c.protocolo)) ||
-        (c as any).created_by ||
-        auth_id ||
-        null;
-      return {
+    const denied: string[] = [];
+    const payload = (cases || []).flatMap((item) => {
+      const protocolo = String(item.protocolo || '').trim();
+      if (!protocolo) return [];
+
+      const existingOwner = ownerByProto.get(protocolo) || null;
+      if (caseScope === 'mine' && existingOwner && existingOwner !== auth_id) {
+        denied.push(protocolo);
+        return [];
+      }
+
+      const owner = caseScope === 'empresa'
+        ? existingOwner || String((item as any).created_by || auth_id)
+        : auth_id;
+
+      return [{
         empresa_id: empresaId,
-        // Só envia created_by se ainda não existe dono no banco (insert)
-        ...(ownerByProto.has(String(c.protocolo))
-          ? {}
-          : owner
-            ? { created_by: owner }
-            : {}),
-        protocolo_ref: c.protocolo,
-        advogado: c.advogado || 'NÃO ATRIBUÍDO',
-        escritorio: c.escritorio || null,
-        status: c.status || 'Sem Prazo',
-        risco: (c as any).risco || 'Normal',
-        proximo_retorno: formatDateToISO(c.proximoPrazo),
-        ultimo_retorno: formatDateToISO(c.ultimoRetorno),
-        tribunal: c.tribunal || 'Outros',
-        telefone: c.telefone || '',
-        observacoes: c.observacao || '',
-        datajud_ultimo_movimento: c.datajud_ultimo_movimento,
-        datajud_ultimo_nome: c.datajud_ultimo_nome,
-        datajud_consultado_em: c.datajud_consultado_em,
-        tem_atualizacao_pos_retorno: !!c.tem_atualizacao_pos_retorno,
-        datajud_encerrado_tribunal: !!c.datajud_encerrado_tribunal,
-        datajud_encerrado_motivo: c.datajud_encerrado_motivo,
-        datajud_hash: c.datajud_hash || null,
-        indicio_busca_apreensao: !!c.indicio_busca_apreensao,
-        busca_apreensao_confianca: c.busca_apreensao_confianca,
-        busca_apreensao_motivo: c.busca_apreensao_motivo,
-        busca_apreensao_consultado_em: c.busca_apreensao_consultado_em,
-        em_cumprimento_sentenca: !!c.em_cumprimento_sentenca,
-        cumprimento_sentenca_motivo: c.cumprimento_sentenca_motivo,
-        cumprimento_sentenca_consultado_em: c.cumprimento_sentenca_consultado_em,
-        djen_nova_comunicacao: !!c.djen_nova_comunicacao,
-        djen_ultimo_resumo: c.djen_ultimo_resumo,
-        djen_ultimo_link: c.djen_ultimo_link,
-        djen_ultima_data: c.djen_ultima_data,
-        dados: { ...c, created_by: owner },
-      };
+        ...(existingOwner ? {} : { created_by: owner }),
+        protocolo_ref: protocolo,
+        advogado: item.advogado || 'NÃO ATRIBUÍDO',
+        escritorio: item.escritorio || null,
+        status: item.status || 'Sem Prazo',
+        risco: (item as any).risco || 'Normal',
+        proximo_retorno: formatDateToISO(item.proximoPrazo),
+        ultimo_retorno: formatDateToISO(item.ultimoRetorno),
+        tribunal: item.tribunal || 'Outros',
+        telefone: item.telefone || '',
+        observacoes: item.observacao || '',
+        datajud_ultimo_movimento: item.datajud_ultimo_movimento,
+        datajud_ultimo_nome: item.datajud_ultimo_nome,
+        datajud_consultado_em: item.datajud_consultado_em,
+        tem_atualizacao_pos_retorno: !!item.tem_atualizacao_pos_retorno,
+        datajud_encerrado_tribunal: !!item.datajud_encerrado_tribunal,
+        datajud_encerrado_motivo: item.datajud_encerrado_motivo,
+        datajud_hash: item.datajud_hash || null,
+        indicio_busca_apreensao: !!item.indicio_busca_apreensao,
+        busca_apreensao_confianca: item.busca_apreensao_confianca,
+        busca_apreensao_motivo: item.busca_apreensao_motivo,
+        busca_apreensao_consultado_em: item.busca_apreensao_consultado_em,
+        em_cumprimento_sentenca: !!item.em_cumprimento_sentenca,
+        cumprimento_sentenca_motivo: item.cumprimento_sentenca_motivo,
+        cumprimento_sentenca_consultado_em: item.cumprimento_sentenca_consultado_em,
+        djen_nova_comunicacao: !!item.djen_nova_comunicacao,
+        djen_ultimo_resumo: item.djen_ultimo_resumo,
+        djen_ultimo_link: item.djen_ultimo_link,
+        djen_ultima_data: item.djen_ultima_data,
+        dados: { ...item, created_by: owner },
+      }];
     });
+
+    if (!payload.length && denied.length) {
+      return {
+        success: false,
+        message: 'Os processos informados pertencem a outro usuário da empresa.',
+      };
+    }
 
     const chunkSize = 50;
     for (let i = 0; i < payload.length; i += chunkSize) {
       const chunk = payload.slice(i, i + chunkSize);
-      // upsert sem created_by quando já existe: Postgres upsert replaces columns sent —
-      // por isso omitimos created_by se já há dono (mapa).
-      const { error: upsertError } = await client
+      const { error: upsertError } = await admin
         .from('processos')
         .upsert(chunk, { onConflict: 'protocolo_ref, empresa_id' });
       if (upsertError) throw upsertError;
     }
 
-    return { success: true, message: "Sincronia concluída." };
+    return {
+      success: true,
+      message: denied.length
+        ? `Sincronia concluída. ${denied.length} processo(s) de outros usuários foram ignorados.`
+        : 'Sincronia concluída.',
+    };
   } catch (error: any) {
-    return { success: false, message: error.message || "Erro desconhecido no repositório." };
+    return {
+      success: false,
+      message: error.message || 'Erro desconhecido no repositório.',
+    };
   }
 }
 
 export async function listAllEmpresasSystem() {
+  const ctx = await getUserContext();
+  if (!ctx.isSuperAdmin) return [];
   const admin = await getSupabaseAdmin();
-  const { data } = await admin.from('empresas').select('id, nome');
+  const { data, error } = await admin
+    .from('empresas')
+    .select('id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact')
+    .order('nome', { ascending: true });
+  if (error) throw error;
   return data || [];
 }
 
@@ -971,38 +1056,220 @@ export async function deleteStoredNote(id: string): Promise<{ success: boolean }
 }
 
 export async function getEmpresaUsers(): Promise<UserProfile[]> {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return [];
-  const { data, error } = await supabase.from('usuarios').select('*').eq('empresa_id', empresa_id).order('nome', { ascending: true });
+  const ctx = await getUserContext();
+  const { empresa_id } = ctx;
+  if (!empresa_id || (!ctx.isSupervisor && !ctx.isSuperAdmin)) return [];
+  const admin = await getSupabaseAdmin();
+  const { data, error } = await admin
+    .from('usuarios')
+    .select('*')
+    .eq('empresa_id', empresa_id)
+    .order('nome', { ascending: true });
+  if (error) return [];
   return (data as UserProfile[]) || [];
 }
 
 export async function createEmpresaUserAction(userData: any) {
-  const { isSuperAdmin, empresa_id } = await getUserContext();
-  if (!isSuperAdmin || !empresa_id) return { success: false, error: 'Permissão insuficiente.' };
+  const ctx = await getUserContext();
+  const { empresa_id, isSupervisor, isSuperAdmin } = ctx;
+  if (!empresa_id || (!isSupervisor && !isSuperAdmin)) {
+    return { success: false, error: 'Apenas Supervisor ou Superadmin gerencia a equipe.' };
+  }
+
+  const requestedRole = String(userData?.cargo || 'Operador') as UserRole;
+  if (requestedRole === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Somente Superadmin pode criar outro Superadmin.' };
+  }
+
+  const allowedForSupervisor: UserRole[] = [
+    'Supervisor',
+    'Administrador',
+    'Operador',
+    'Visualizador',
+  ];
+  if (!isSuperAdmin && !allowedForSupervisor.includes(requestedRole)) {
+    return { success: false, error: 'Cargo não permitido para Supervisor.' };
+  }
+
+  const email = String(userData?.email || '').trim().toLowerCase();
+  const password = String(userData?.password || '');
+  const nome = String(userData?.nome || '').trim().toUpperCase();
+
+  if (!email.includes('@')) return { success: false, error: 'E-mail inválido.' };
+  if (password.length < 8) return { success: false, error: 'A senha inicial deve ter ao menos 8 caracteres.' };
+  if (!nome) return { success: false, error: 'Nome obrigatório.' };
+
   const adminClient = await getSupabaseAdmin();
+
   try {
-    const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({ email: userData.email, password: userData.password, email_confirm: true, user_metadata: { full_name: userData.nome } });
-    if (authError) throw authError;
-    const { error: profileError } = await adminClient.from('usuarios').insert({ auth_user_id: authUser.user.id, empresa_id: empresa_id, nome: userData.nome.toUpperCase(), email: userData.email.toLowerCase(), cargo: userData.cargo || 'Operador' });
-    if (profileError) throw profileError;
+    const { data: existing } = await adminClient
+      .from('usuarios')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (existing?.id) {
+      return { success: false, error: 'Já existe um usuário com este e-mail.' };
+    }
+
+    const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: nome },
+      app_metadata: { lexis_commercial: true },
+    });
+    if (authError || !authUser.user) throw authError || new Error('Falha ao criar usuário no Auth.');
+
+    const { error: profileError } = await adminClient.from('usuarios').insert({
+      auth_user_id: authUser.user.id,
+      empresa_id,
+      nome,
+      email,
+      cargo: requestedRole,
+      role:
+        requestedRole === 'Supervisor'
+          ? 'supervisor'
+          : requestedRole === 'Administrador'
+            ? 'admin'
+            : requestedRole === 'Visualizador'
+              ? 'viewer'
+              : requestedRole === 'Superadmin'
+                ? 'superadmin'
+                : 'operator',
+    });
+
+    if (profileError) {
+      try { await adminClient.auth.admin.deleteUser(authUser.user.id); } catch {}
+      throw profileError;
+    }
+
+    try {
+      await adminClient.from('commercial_audit_log').insert({
+        empresa_id,
+        actor_user_id: ctx.auth_id,
+        event: 'team.user_created',
+        payload: { created_auth_user_id: authUser.user.id, email, cargo: requestedRole },
+      });
+    } catch {}
+
     return { success: true };
-  } catch (e: any) { return { success: false, error: e.message }; }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Falha ao criar usuário.' };
+  }
 }
 
 export async function removeEmpresaUser(id: string) {
-  const { empresa_id, isMasterView } = await getUserContext();
-  if (!isMasterView) return { success: false, error: 'Permissão insuficiente.' };
-  const { error } = await supabase.from('usuarios').delete().eq('id', id).eq('empresa_id', empresa_id);
-  return { success: !error, error: error?.message };
+  const ctx = await getUserContext();
+  const { empresa_id, isSupervisor, isSuperAdmin, auth_id } = ctx;
+  if (!empresa_id || (!isSupervisor && !isSuperAdmin)) {
+    return { success: false, error: 'Apenas Supervisor ou Superadmin gerencia a equipe.' };
+  }
+
+  const admin = await getSupabaseAdmin();
+  const { data: target, error: readError } = await admin
+    .from('usuarios')
+    .select('id, auth_user_id, cargo, email')
+    .eq('id', id)
+    .eq('empresa_id', empresa_id)
+    .maybeSingle();
+
+  if (readError) return { success: false, error: readError.message };
+  if (!target) return { success: false, error: 'Usuário não encontrado na empresa.' };
+  if (String(target.auth_user_id || '') === String(auth_id || '')) {
+    return { success: false, error: 'Você não pode revogar o próprio acesso.' };
+  }
+  if (target.cargo === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Supervisor não pode remover Superadmin.' };
+  }
+
+  const { error } = await admin
+    .from('usuarios')
+    .delete()
+    .eq('id', id)
+    .eq('empresa_id', empresa_id);
+
+  if (error) return { success: false, error: error.message };
+
+  if (target.auth_user_id) {
+    try { await admin.auth.admin.deleteUser(String(target.auth_user_id)); } catch {}
+  }
+
+  try {
+    await admin.from('commercial_audit_log').insert({
+      empresa_id,
+      actor_user_id: auth_id,
+      event: 'team.user_removed',
+      payload: { removed_user_id: target.auth_user_id, email: target.email, cargo: target.cargo },
+    });
+  } catch {}
+
+  return { success: true };
 }
 
 export async function updateUserRole(userId: string, newRole: UserRole) {
-  const { empresa_id, isSuperAdmin, weight } = await getUserContext();
+  const ctx = await getUserContext();
+  const { empresa_id, isSupervisor, isSuperAdmin, auth_id } = ctx;
+  if (!empresa_id || (!isSupervisor && !isSuperAdmin)) {
+    return { success: false, error: 'Apenas Supervisor ou Superadmin altera cargos.' };
+  }
+
+  if (newRole === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Somente Superadmin pode conceder Superadmin.' };
+  }
+
+  const admin = await getSupabaseAdmin();
+  const { data: target, error: readError } = await admin
+    .from('usuarios')
+    .select('id, auth_user_id, cargo')
+    .eq('id', userId)
+    .eq('empresa_id', empresa_id)
+    .maybeSingle();
+
+  if (readError) return { success: false, error: readError.message };
+  if (!target) return { success: false, error: 'Usuário não encontrado na empresa.' };
+  if (String(target.auth_user_id || '') === String(auth_id || '')) {
+    return { success: false, error: 'Altere seu próprio cargo somente pelo Superadmin.' };
+  }
+  if (target.cargo === 'Superadmin' && !isSuperAdmin) {
+    return { success: false, error: 'Supervisor não pode alterar Superadmin.' };
+  }
+
+  const actorWeight = isSuperAdmin ? 100 : 80;
   const targetWeight = ROLE_WEIGHTS[newRole] || 0;
-  if (!isSuperAdmin && weight <= targetWeight) return { success: false, error: 'Autoridade insuficiente.' };
-  const { error } = await supabase.from('usuarios').update({ cargo: newRole }).eq('id', userId).eq('empresa_id', empresa_id);
-  return { success: !error, error: error?.message };
+  if (!isSuperAdmin && actorWeight <= targetWeight && newRole !== 'Supervisor') {
+    return { success: false, error: 'Autoridade insuficiente para esse cargo.' };
+  }
+
+  const role =
+    newRole === 'Supervisor'
+      ? 'supervisor'
+      : newRole === 'Administrador'
+        ? 'admin'
+        : newRole === 'Visualizador'
+          ? 'viewer'
+          : newRole === 'Superadmin'
+            ? 'superadmin'
+            : 'operator';
+
+  const { error } = await admin
+    .from('usuarios')
+    .update({ cargo: newRole, role })
+    .eq('id', userId)
+    .eq('empresa_id', empresa_id);
+
+  if (error) return { success: false, error: error.message };
+
+  try {
+    await admin.from('commercial_audit_log').insert({
+      empresa_id,
+      actor_user_id: auth_id,
+      event: 'team.role_changed',
+      payload: { target_user_id: target.auth_user_id, from: target.cargo, to: newRole },
+    });
+  } catch {}
+
+  return { success: true };
 }
 
 export async function getWhatsAppHistory(phone: string) {
@@ -1197,10 +1464,12 @@ export async function fetchAuditoriaLogsAction(
 ): Promise<any[]> {
   try {
     const ctx = await getUserContext();
+    if (!ctx.isSupervisor && !ctx.isSuperAdmin) return [];
     const empresa = empresaId || ctx.empresa_id;
-    if (!empresa || !supabase) return [];
+    if (!empresa || empresa !== ctx.empresa_id) return [];
 
-    const { data, error } = await supabase
+    const admin = await getSupabaseAdmin();
+    const { data, error } = await admin
       .from('auditoria_logs_app')
       .select('*')
       .eq('empresa_id', empresa)

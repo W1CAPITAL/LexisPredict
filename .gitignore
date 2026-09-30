@@ -1,102 +1,191 @@
-# --- Dependências ---
+# =============================================================================
+# LexisPredict Commercial
+# Next.js + TypeScript + pnpm + Supabase + Vercel
+# Firebase remains only as optional/legacy tooling.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Dependencies / package managers
+# -----------------------------------------------------------------------------
 node_modules/
+**/node_modules/
+
 .pnp
-.pnp.js
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+.pnp.*
+.pnpm-store/
+.npm/
+.yarn/cache/
+.yarn/unplugged/
 .yarn/install-state.gz
 
-# --- Next.js / build ---
+# Lockfiles are intentionally NOT ignored.
+# Keep pnpm-lock.yaml / package-lock.json / yarn.lock versioned.
+
+# -----------------------------------------------------------------------------
+# Next.js / Vercel / build output
+# -----------------------------------------------------------------------------
 .next/
 out/
-build/
 dist/
+build/
+.open-next/
+.vercel/
 .turbo/
-*.tsbuildinfo
-next-env.d.ts
+.swc/
 
-# --- Testes / cobertura ---
+next-env.d.ts
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Tests / coverage
+# -----------------------------------------------------------------------------
 coverage/
 .nyc_output/
+.vitest/
 playwright-report/
 test-results/
 blob-report/
 
-# --- Logs / debug ---
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-*.log
-
-# --- Sistema ---
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*~
-
-# --- Ambiente e segredos (NUNCA commitar) ---
+# -----------------------------------------------------------------------------
+# Environment variables / secrets
+# -----------------------------------------------------------------------------
 .env
 .env.*
 !.env.example
-!.env*.example
+!.env.*.example
+
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Private keys / certificates / service-account credentials
 *.pem
 *.key
 *.p12
 *.pfx
-id_rsa
-id_rsa.pub
-*.secret
-secrets/
-.secrets/
+*.crt
+*.cer
+*.jks
+*.keystore
 
-# Chaves e service accounts
-serviceAccountKey.json
-*-service-account.json
-firebase-adminsdk*.json
-google-credentials.json
-credentials.json
-.gcloud/
+service-account*.json
+service_account*.json
+credentials*.json
+secrets*.json
+*-firebase-adminsdk-*.json
 
-# --- Supabase local ---
-supabase/.env
+# -----------------------------------------------------------------------------
+# Supabase local state
+# Keep supabase/migrations/** and supabase/config.toml versioned.
+# -----------------------------------------------------------------------------
+.supabase/
 supabase/.temp/
 supabase/.branches/
+supabase/.env
+supabase/.env.*
+!supabase/.env.example
+!supabase/.env.*.example
 
-# --- Vercel / deploy local ---
-.vercel
-.vercel/
+# -----------------------------------------------------------------------------
+# Firebase local/generated state
+# -----------------------------------------------------------------------------
+firebase-debug.log
+firebase-debug.*.log
+firebase-*.zip
+.firebase/
+emulator-ui/
+hosting/.cache/
 
-# --- IDE ---
+# Current project treats Firebase deployment configuration as local/legacy.
+.firebaserc
+/firebase.json
+
+# Firebase Functions local secrets/build state
+/functions/.env
+/functions/.env.*
+!/functions/.env.example
+!/functions/.env.*.example
+
+# -----------------------------------------------------------------------------
+# Large local databases / indexes
+# Never send local client datasets to GitHub or Vercel.
+# -----------------------------------------------------------------------------
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.lidx
+
+/data/
+/datasets/
+/bases/
+/local-data/
+/private-data/
+/uploads/
+
+# -----------------------------------------------------------------------------
+# Runtime / temporary files
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+.tmp/
+.cache/
+*.cache
+*.pid
+*.pid.lock
+*.seed
+*.retry
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -----------------------------------------------------------------------------
+# Editor / IDE
+# -----------------------------------------------------------------------------
 .idea/
 .vscode/*
 !.vscode/extensions.json
-!.vscode/settings.json.example
-*.code-workspace
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 
-# --- Dados locais / dumps (podem conter PII) ---
-*.sql.bak
-*.dump
-*.sqlite
-*.db
-/tmp/
-/temp/
-uploads/
-.cache/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*~
 
-# --- Artefatos de pacotes locais (ZIPS de deploy, etc.) ---
-LexisPredict-*.zip
-*.zip
-!public/**/*.zip
-
-# --- Chrome / Playwright ---
-.playwright/
-chromium/
-
-# --- OS / misc ---
-ehthumbs.db
+# -----------------------------------------------------------------------------
+# OS generated files
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
 Desktop.ini
+
+# -----------------------------------------------------------------------------
+# Local artifacts / generated exports
+# -----------------------------------------------------------------------------
+artifacts/
+.local/
+local/
+downloads/
+
+# Keep examples/placeholders explicitly versionable when needed.
+!.gitkeep

@@ -29,7 +29,7 @@ export function loadEmpresaPlanos(): EmpresaPlanoMap {
   }
 }
 
-export function planoDaEmpresa(empresaId?: string | null, fallback: PlanId = "maximo"): PlanId {
+export function planoDaEmpresa(empresaId?: string | null, fallback: PlanId = "essencial"): PlanId {
   if (!empresaId) return fallback;
   const ass = getAssinatura(empresaId);
   if (ass?.plan) return normalizePlanId(ass.plan);

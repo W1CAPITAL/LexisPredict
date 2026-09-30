@@ -1,6 +1,6 @@
 {
   "name": "lexispredict",
-  "version": "1.15.0",
+  "version": "2.0.0-parity.1",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
@@ -16,7 +16,8 @@
     "security": "node scripts/security-scan.mjs",
     "autoimprove": "node scripts/selfimprove/cycle.mjs --publicar",
     "autoimprove:rapido": "node scripts/selfimprove/cycle.mjs --publicar --sem-testes",
-    "autoimprove:publicar": "node scripts/selfimprove/publish.mjs"
+    "autoimprove:publicar": "node scripts/selfimprove/publish.mjs",
+    "commercial:check": "node scripts/commercial-check.mjs"
   },
   "dependencies": {
     "@heyputer/puter.js": "^2.1.0",
@@ -62,6 +63,7 @@
     "gsap": "^3.13.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.475.0",
+    "mammoth": "^1.12.3",
     "metal-fx": "^1.0.4",
     "next": "15.5.23",
     "pdf-parse": "^1.1.1",

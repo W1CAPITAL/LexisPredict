@@ -9,7 +9,7 @@ import { ProtocoloChip } from '@/components/ops/protocolo-chip';
 import { descreverPrazoForense } from '@/lib/calendario-tj';
 import { useAdmin } from '@/hooks/use-admin';
 
-import { OpsOrbitalStrip, defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
+import { defaultOpsNodes } from "@/components/ui/ops-orbital-strip";
 
 import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 /**
@@ -86,13 +86,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { fetchRepoCases, syncRepoCases, scanSingleCaseAction, registrarAtendimentoAction,
+import { syncRepoCases, registrarAtendimentoAction,
   registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
+import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
-import { fetchCarteiraDeduped } from '@/lib/carteira-fetch-client';
+import { fetchCarteiraAllClient, invalidateCarteiraClientCache } from '@/lib/carteira-fetch-client';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -117,7 +118,7 @@ import {  isCasoEncerrado, isBaixaTribunal  } from '@/lib/status-encerrado';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
-import { useAuth } from '@/components/auth/auth-provider';
+import { resolveCaseScope } from '@/lib/roles';
 import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst } from '@/lib/djen';
 // djenTextsRecentFirst usado no rascunho;
 import { buildUnifiedTimeline } from '@/lib/timeline-normalize';
@@ -146,7 +147,7 @@ interface TaskGroup {
 }
 
 export default function TarefasPage() {
-  const { canCopy, canExport, canScan, isViewer } = useAdmin();
+  const { canCopy, canExport, canScan, isViewer, profile } = useAdmin();
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
   const LIST_PAGE_SIZE = 80;
@@ -185,7 +186,6 @@ export default function TarefasPage() {
   const [isGeneratingAIDraft, setIsGeneratingAIDraft] = useState(false);
   const [selectedMotor, setSelectedMotor] = useState<string>('omni');
 
-  const { profile } = useAuth();
   const kpiCarteira = useMemo(
     () => computeKpiCarteira(cases as any, { userId: (profile as any)?.auth_user_id || (profile as any)?.id }),
     [cases, profile]
@@ -266,17 +266,25 @@ export default function TarefasPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      try { invalidateCarteiraCache(); } catch { /* */ }
-      try {
-        const { invalidateCarteiraClientCache } = await import('@/lib/carteira-fetch-client');
-        invalidateCarteiraClientCache();
-      } catch { /* */ }
       const empId = (profile as any)?.empresa_id || null;
+      if (!empId) return;
+
       const _pack = await loadCarteiraComCache({
-        fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases(), { force: true })) || [],
+        fetchNetwork: async () =>
+          await fetchCarteiraAllClient({
+            empresaId: empId,
+            pageSize: 300,
+            onPage: (partial, page) => {
+              startTransition(() => setCases(partial));
+              if (page === 0) setLoading(false);
+            },
+          }),
         empresaId: empId,
-        scope: "mine",
-        onShow: (data) => { if (Array.isArray(data)) startTransition(() => setCases(data)); },
+        scope: resolveCaseScope(profile as any),
+        onShow: (data, source) => {
+          if (Array.isArray(data)) startTransition(() => setCases(data));
+          if (source === 'cache') setLoading(false);
+        },
         allowStaleKpiFallback: true,
       });
       const data = _pack.cases;
@@ -285,10 +293,6 @@ export default function TarefasPage() {
         if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
       } catch { /* */ }
       if (Array.isArray(data)) setCases(data);
-      // Cache de outra sessão/empresa zerando a fila no browser: força rede limpa
-      if (Array.isArray(data) && data.length === 0) {
-        try { invalidateCarteiraCache(); } catch { /* */ }
-      }
     } finally { setLoading(false); }
   }, [profile]);
 
@@ -298,7 +302,7 @@ export default function TarefasPage() {
     if (!protocolo) return;
     setLoading(true);
     try {
-      const res = await scanSingleCaseAction(protocolo, { mode: 'djen', fast: false });
+      const res = await scanInteractiveCase(protocolo, { mode: 'djen', fast: false });
       appendScanLog({ cnj: protocolo, motor: 'djen', ok: (res as any)?.success !== false });
       const coms = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
       setHistoryResult({
@@ -313,10 +317,19 @@ export default function TarefasPage() {
       if ((res as any).case) {
         setCases((prev) => prev.map((c) => (c.protocolo === protocolo ? (res as any).case! : c)));
       }
+      const djenStatus = (res as any).sourceStatus?.djen;
       toast({
-        title: coms.length ? `DJEN: ${coms.length}` : 'DJEN sem retorno',
-        description: coms.length ? 'Auditoria 3D' : String((res as any).error || 'Sem publicacoes'),
-        variant: coms.length ? 'default' : 'destructive',
+        title: djenStatus?.ok
+          ? coms.length
+            ? `DJEN: ${coms.length} publicação(ões)`
+            : 'DJEN consultado'
+          : 'DJEN indisponível',
+        description: djenStatus?.ok
+          ? coms.length
+            ? `Consulta oficial concluída via ${djenStatus.via === 'browser' ? 'navegador' : 'servidor'}.`
+            : 'Consulta concluída normalmente. Nenhuma publicação foi localizada no período.'
+          : String(djenStatus?.error || (res as any).error || 'Não foi possível consultar o DJEN agora.'),
+        variant: djenStatus?.ok ? 'default' : 'destructive',
       });
     } catch (e: any) {
       toast({ title: 'Falha Auditoria 3D', description: e?.message || 'Erro', variant: 'destructive' });
@@ -330,7 +343,7 @@ export default function TarefasPage() {
     setLoading(true);
     setAiDraft(null);
     try {
-      const res = await scanSingleCaseAction(protocolo, { mode: 'both', fast: false });
+      const res = await scanInteractiveCase(protocolo, { mode: 'both', fast: false });
       appendScanLog({ cnj: protocolo, motor: 'datajud+djen', ok: (res as any)?.success !== false });
       const movimentos = Array.isArray((res as any).movimentos) ? (res as any).movimentos.slice(0, 80) : [];
       const comunicacoes = Array.isArray((res as any).comunicacoes) ? (res as any).comunicacoes : [];
@@ -775,26 +788,21 @@ const handleSaveAttendance = async () => {
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
       <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
-        <header className="h-auto border-b border-border/50 bg-card flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 sm:px-6 gap-3 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-black text-white rounded-lg shadow-lg"><CheckCircle size={20} className="text-primary" /></div>
-            <h1 className="font-black text-base sm:text-xl text-foreground uppercase tracking-tight">Fila de atendimento</h1>
-            <span className="ml-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground tabular-nums" title={kpiCarteira.semanaLabel}>
-              Atendidos sem.: {kpiCarteira.atendidosSemana}
-              <span className="ml-2">Réplica {opsKpis.replicaPendente}</span>
-              <span className="ml-2">Silêncio {opsKpis.silencio45}</span>
-              <span className="ml-2 text-[9px] font-bold">J/K próximo caso</span>
-            </span>
+        <header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
+              <CheckCircle size={14} /> Tarefas
+            </p>
+            <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Tarefas</h1>
+            <p className="mt-2 text-sm font-medium text-[#617693]">Organize e acompanhe a execução das atividades da sua equipe.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="h-9 px-4 border-none bg-primary/5 text-primary font-black uppercase text-[10px]">Audit Híbrida Ativa</Badge>
-            <Button asChild size="sm" className="h-10 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-black text-white hover:bg-primary hover:text-black">
-              <Link href="/cases?new=1">
-                <Plus size={16} className="mr-2 inline" />
-                Novo Processo
-              </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+              <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Recarregar carteira
             </Button>
-            <Button variant="ghost" size="icon" onClick={loadData} disabled={loading} className="h-10 w-10 rounded-xl hover:bg-secondary" title="Recarregar"><RefreshCcw className={cn("w-5 h-5", loading && "animate-spin text-primary")} /></Button>
+            <Button asChild size="sm" className="h-10 rounded-xl bg-[#1f6fff] px-5 font-bold text-white hover:bg-[#145de0]">
+              <Link href="/cases?new=1"><Plus size={15} className="mr-2" /> Nova tarefa</Link>
+            </Button>
           </div>
         </header>
 
@@ -969,7 +977,13 @@ const handleSaveAttendance = async () => {
                   <Button
                     type="button"
                     className="h-9 text-[10px] font-black uppercase"
-                    onClick={() => { try { invalidateCarteiraCache(); } catch { /* */ } loadData(); }}
+                    onClick={() => {
+                      try {
+                        invalidateCarteiraCache();
+                        invalidateCarteiraClientCache();
+                      } catch { /* cache best effort */ }
+                      void loadData();
+                    }}
                   >
                     Recarregar carteira
                   </Button>
@@ -1008,8 +1022,8 @@ const handleSaveAttendance = async () => {
 
         <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
           <DialogContent className="sm:max-w-[950px] w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden h-[90vh] flex flex-col">
-            <DialogHeader className="p-4 sm:p-6 bg-black text-white shrink-0">
-              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
+            <DialogHeader className="p-4 sm:p-6 bg-black !text-white shrink-0">
+              <DialogTitle className="font-black uppercase tracking-tight text-lg sm:text-xl flex items-center gap-3 !text-white"><History size={24} className="text-primary"/> Auditoria Unificada (Audit 3D)</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col flex-1 bg-white overflow-hidden min-h-0">
               <ScrollArea className="flex-1 w-full h-full">
@@ -1023,7 +1037,7 @@ const handleSaveAttendance = async () => {
                          <div key={i} className={cn("relative p-5 border-2 rounded-xl transition-all", item.type === 'djen' ? "border-blue-600 bg-blue-50/10 shadow-[4px_4px_0px_#2563eb]" : "border-slate-200 bg-slate-50/50")}>
                            <div className="flex items-start justify-between mb-3">
                              <div className="flex items-center gap-3">
-                               <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600" : "bg-slate-500")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
+                               <Badge className={cn("text-[8px] font-black uppercase rounded-none", item.type === 'djen' ? "bg-blue-600 !text-white" : "bg-slate-600 !text-white")}>{item.type === 'djen' ? 'Diário Oficial' : 'Tribunal'}</Badge>
                                {item.type === 'djen' && (item.raw.link || historyResult?.case?.djen_ultimo_link) && (
                                  <a href={item.raw.link || historyResult?.case?.djen_ultimo_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[8px] font-black text-blue-600 uppercase hover:underline">
                                    <Globe size={10} /> Abrir no D.O.
@@ -1053,11 +1067,11 @@ const handleSaveAttendance = async () => {
 
                   <section className="space-y-6 pt-6 border-t">
                     <h3 className={cn("text-amber-600 flex items-center gap-2", ui.label)}><Sparkles size={14} /> Rascunho com IA (opcional)</h3>
-                    <div className="bg-black text-white p-4 sm:p-6 space-y-4 rounded-xl">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
+                    <div className="bg-black !text-white p-4 sm:p-6 space-y-4 rounded-xl [&_*]:selection:bg-white/20">
+                      <p className="text-[9px] font-black uppercase tracking-widest !text-white flex items-center gap-2"><Bot size={12}/> Motor Neural Lexis</p>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Select value={selectedMotor} onValueChange={setSelectedMotor}>
-                          <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 bg-white/10 border-white/20 !text-white font-black uppercase text-[10px] rounded-lg flex-1"><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-popover text-popover-foreground border rounded-lg">
                             <SelectItem value="local_only" className="text-[9px] font-black uppercase">Motor Lexis Soberano</SelectItem>
                             <SelectItem value="claude" className="text-[9px] font-black uppercase">Claude AI (OmniRoute)</SelectItem>
@@ -1102,7 +1116,7 @@ const handleSaveAttendance = async () => {
                   </section>
                 </div>
               </ScrollArea>
-              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
+              <DialogFooter className="p-4 bg-secondary/10 border-t shrink-0"><Button onClick={() => setIsHistoryModalOpen(false)} className="bg-black !text-white font-black uppercase text-[10px] px-8 rounded-xl h-12 w-full">Fechar Auditoria</Button></DialogFooter>
             </div>
           </DialogContent>
         </Dialog>

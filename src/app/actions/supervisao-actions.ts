@@ -120,6 +120,9 @@ export async function getSupervisaoSnapshotAction(
   try {
     const ctx = await getUserContext();
     if (!ctx.empresa_id) return { success: false, error: 'Sessão expirada.' };
+    if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
+      return { success: false, error: 'Acesso restrito a Supervisor ou Superadmin.' };
+    }
 
     const cases = await getStoredCasesForEmpresa(ctx.empresa_id, false);
     if (!cases || !cases.length) {

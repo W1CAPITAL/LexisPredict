@@ -21,6 +21,9 @@ import { getOperacaoSistemaLabel } from "@/lib/operacao-sistema";
 type Props = {
   items: LegalCase[];
   isOperador?: boolean;
+  canScan?: boolean;
+  canDelete?: boolean;
+  canEdit?: boolean;
   selectable?: boolean;
   selected?: Set<string>;
   onToggleSelect?: (protocolo: string, on: boolean) => void;
@@ -109,6 +112,9 @@ function resolveOwnerName(
 export function CaseGlassList({
   items,
   isOperador,
+  canScan = false,
+  canDelete = false,
+  canEdit = false,
   selectable,
   selected,
   onToggleSelect,
@@ -206,18 +212,21 @@ export function CaseGlassList({
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
-              <IconBtn title="Scan" onClick={async () => {
-                if (!onScan) return;
-                setBusy(protoRaw + "s");
-                await onScan(c);
-                setBusy(null);
-              }}>
-                {busy === protoRaw + "s" ? <Loader2 size={14} className="animate-spin" /> : <FileSearch size={14} />}
-              </IconBtn>
-              <IconBtn title="Editar" onClick={() => onEdit?.(c)}><Pencil size={14} /></IconBtn>
+              {canScan && onScan ? (
+                <IconBtn title="Scan" onClick={async () => {
+                  setBusy(protoRaw + "s");
+                  await onScan(c);
+                  setBusy(null);
+                }}>
+                  {busy === protoRaw + "s" ? <Loader2 size={14} className="animate-spin" /> : <FileSearch size={14} />}
+                </IconBtn>
+              ) : null}
+              {canEdit && onEdit ? (
+                <IconBtn title="Editar" onClick={() => onEdit(c)}><Pencil size={14} /></IconBtn>
+              ) : null}
               <IconBtn title="Registrar atendimento" onClick={() => onLogReturn?.(c)}><MessageSquare size={14} /></IconBtn>
               {onDossie && <IconBtn title="Dossiê" onClick={() => onDossie(c)}><FileText size={14} /></IconBtn>}
-              {isOperador && onDelete && (
+              {canDelete && onDelete && (
                 <IconBtn title="Excluir" danger onClick={() => onDelete(String(c.id))}><Trash2 size={14} /></IconBtn>
               )}
             </div>

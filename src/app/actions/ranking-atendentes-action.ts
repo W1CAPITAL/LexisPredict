@@ -66,6 +66,9 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
     if (!ctx?.empresa_id) {
       return { ok: false, ranking: [], totalLinhas: 0, error: "sem empresa" };
     }
+    if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
+      return { ok: false, ranking: [], totalLinhas: 0, error: "supervisao_required" };
+    }
     const admin = await getSupabaseAdmin();
     if (!admin) {
       return { ok: false, ranking: [], totalLinhas: 0, error: "admin" };
@@ -151,8 +154,10 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       if (!nome) nome = auth ? nameById[auth] || "Operador" : "Operador";
 
       const sistema = isSistemaNome(nome, auth);
-      const userKey = sistema ? SISTEMA_KEY : auth || nome.toLowerCase();
-      const display = sistema ? "SISTEMA INTERNO" : nome;
+      if (sistema) continue;
+
+      const userKey = auth || nome.toLowerCase();
+      const display = nome;
 
       if (!byUser.has(userKey)) {
         byUser.set(userKey, { dia: new Set(), semana: new Set(), mes: new Set(), nome: display });
@@ -163,7 +168,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
       if (isWithinInterval(when, { start: monthStart, end: monthEnd })) acc.mes.add(proto);
       if (isWithinInterval(when, { start: weekStart, end: weekEnd })) {
         acc.semana.add(proto);
-        if (!sistema) semanaEmpresa.add(proto);
+        semanaEmpresa.add(proto);
       }
       if (isAtendidoHoje(ymdBr, ref)) acc.dia.add(proto);
     }
@@ -175,15 +180,10 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
         dia: c.dia.size,
         semana: c.semana.size,
         mes: c.mes.size,
-        subtitle: userId === SISTEMA_KEY ? "Feito por Davi Alves Figueredo · W1 Control" : undefined,
+        subtitle: undefined,
       }))
       .filter((r) => r.semana > 0 || r.dia > 0 || r.mes > 0)
-      .sort((a, b) => {
-        // sistema vai no fim do top se empate de semana
-        if (a.userId === SISTEMA_KEY && b.userId !== SISTEMA_KEY) return 1;
-        if (b.userId === SISTEMA_KEY && a.userId !== SISTEMA_KEY) return -1;
-        return b.semana - a.semana || b.dia - a.dia || b.mes - a.mes;
-      })
+      .sort((a, b) => b.semana - a.semana || b.dia - a.dia || b.mes - a.mes)
       .slice(0, Math.max(8, limit));
 
     return {

@@ -219,6 +219,26 @@ UI (Next.js 15)
 
 ---
 
+## Paridade funcional W1 / W2
+
+As edições W1 e W2 compartilham o mesmo núcleo funcional. Diferenças de organização, deploy, identidade visual ou configuração comercial não devem criar divergência de capacidade.
+
+A base comum inclui:
+
+- operação jurídica, Process Command Center, DataJud/DJEN, CRM, WhatsApp, relatórios e offline;
+- escopo por cargo com carteira própria para Operador/Administrador e visão empresarial para Supervisor/Superadmin;
+- planos, onboarding, provisioning de tenant e controles comerciais;
+- notificações reais e preferências por usuário;
+- Cognitive Platform, memória/evidência/quality gate, AI Lab, Plugin Hub, Research e World Lab;
+- API de serviço para integração autenticada com SheetsPredict;
+- modo convidado/demonstração;
+- modo de contingência por Google Sheets em superfície isolada e autenticada;
+- Apps Script com preservação de campos ausentes, limpeza explícita e coluna `Assistente` reconhecida como proprietário.
+
+A meta de manutenção é **feature parity**: uma correção positiva de núcleo deve ser portada para as duas edições, salvo quando depender exclusivamente da identidade ou infraestrutura de uma organização.
+
+---
+
 ## Notas honestas
 
 | Assunto | Verdade |

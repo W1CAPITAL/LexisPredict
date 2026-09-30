@@ -42,6 +42,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/notes",
     "/onboarding",
     "/settings",
+    "/planos",
     "/login",
     "/signup",
     "/team",
@@ -63,6 +64,9 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/automacao-judicial",
     "/ia-sync",
     "/chat",
+    "/ai-lab",
+    "/plugins",
+    "/world-lab",
     "/chat-ia",
     "/chatbot-separado",
     "/substabelecimento",
@@ -95,6 +99,7 @@ const ALWAYS = new Set([
   "/login",
   "/signup",
   "/settings",
+  "/planos",
   "/onboarding",
   "/termos",
 ]);
@@ -109,11 +114,11 @@ export function normalizePlanId(raw?: string | null): PlanId {
   if (s === "operacional" || s === "ops") return "operacional";
   if (s === "financeiro" || s === "crm") return "financeiro";
   if (s === "essencial" || s === "base") return "essencial";
-  return "maximo";
+  return "essencial";
 }
 
 export function pacotesDoPlano(plan: PlanId): PacoteId[] {
-  return PLAN_PACOTES[plan] || PLAN_PACOTES.maximo;
+  return PLAN_PACOTES[plan] || PLAN_PACOTES.essencial;
 }
 
 export function hrefLiberado(href: string, plan: PlanId): boolean {

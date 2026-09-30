@@ -1,6 +1,8 @@
 "use client";
 import { Crown } from 'lucide-react';
 import { NavLayoutNomePanel } from "@/components/settings/nav-layout-nome-panel";
+import { NotificationSettingsPanel } from "@/components/settings/notification-settings-panel";
+import { SecurityLimitsPanel } from "@/components/settings/security-limits-panel";
 
 import { verifyMasterPasswordAction } from "@/app/actions/master-auth-actions";
 import { changePasswordAction } from "@/app/actions/change-password-action";
@@ -100,6 +102,7 @@ import { fetchKnowledgeDocsAction, uploadKnowledgeDocAction, deleteKnowledgeDocA
 import { saveAs } from 'file-saver';
 import { useAuth } from '@/components/auth/auth-provider';
 import { checkIfSuperAdmin } from '@/lib/supabase';
+import { usePlano } from '@/hooks/use-plano';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -140,12 +143,25 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Conta');
   const [settingsBoot, setSettingsBoot] = useState(true);
   const [settingsQuery, setSettingsQuery] = useState('');
-  const [chatNotifOn, setChatNotifOn] = useState(false);
+  const { profile } = useAuth();
+  const { billingStatus } = usePlano();
+
   useEffect(() => {
-    const id = window.setTimeout(() => setSettingsBoot(false), 300);
+    const email = String(profile?.email || '').trim().toLowerCase();
+    const current = settingsQuery.trim().toLowerCase();
+    if (email && current === email) setSettingsQuery('');
+  }, [profile?.email, settingsQuery]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettingsBoot(false), 180);
+    try {
+      const section = new URLSearchParams(window.location.search).get("section");
+      if (section) setActiveTab(section);
+    } catch {
+      /* query preference is best effort */
+    }
     return () => window.clearTimeout(id);
   }, []);
-  const { profile } = useAuth();
   
   const [advogados, setAdvogados] = useState<any[]>([]);
   const [loadingBanca, setLoadingBanca] = useState(false);
@@ -238,9 +254,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    try {
-      setChatNotifOn(localStorage.getItem('lexis_chat_notif') === 'granted');
-    } catch { /* */ }
     const savedIA = localStorage.getItem('lexisPredict_preferred_ia') || 'xai';
     setIaModel(savedIA === 'airforce' ? 'xai' : savedIA);
     setIsMasterUnlocked(localStorage.getItem('lexis_master_unlock') === 'true');
@@ -564,13 +577,35 @@ export default function SettingsPage() {
 
   if (!mounted) return null;
 
+  if (billingStatus === 'pending' && !isSuperadmin) {
+    return (
+      <div className="flex min-h-screen bg-background text-foreground">
+        <Sidebar />
+        <main className="lexis-main-pad min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="mx-auto max-w-6xl space-y-5">
+            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+                Aguardando ativação
+              </p>
+              <h1 className="mt-2 text-2xl font-black tracking-tight">Conclua a liberação do seu plano</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Enquanto a assinatura estiver pendente, somente a área de planos fica disponível. Após pagamento ou uso de um token válido, o LexisPredict abre a configuração inicial de personalização.
+              </p>
+            </div>
+            <PlanosEmpresaPanel />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-background/80 font-sans text-foreground overflow-hidden relative z-10">
       <Sidebar />
       <PageLoadingBar active={settingsBoot} />
       <main className="lexis-main-pad flex-1 flex flex-col h-dvh min-w-0 overflow-y-auto">
         {/* hero header */}
-        <header className="shrink-0 border-b border-border bg-card">
+        <header className="shrink-0 bg-transparent">
           <div className="mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
@@ -578,11 +613,11 @@ export default function SettingsPage() {
                   <Settings className="text-primary" size={22} />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xl font-semibold tracking-tight truncate">
+                  <h1 className="text-[28px] font-black tracking-[-.04em] text-[#102447] truncate">
                     Configurações
                   </h1>
-                  <p className="text-xs text-muted-foreground">
-                    Gerencie sua conta, assinatura e preferências.
+                  <p className="text-sm text-[#617693]">
+                    Conta, notificações, segurança, assinatura e preferências do ambiente.
                   </p>
                 </div>
               </div>
@@ -599,10 +634,24 @@ export default function SettingsPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
+                  type="search"
+                  name="lexispredict-settings-filter"
                   value={settingsQuery}
                   onChange={(e) => setSettingsQuery(e.target.value)}
+                  onFocus={(e) => {
+                    const email = String(profile?.email || '').trim().toLowerCase();
+                    if (email && e.currentTarget.value.trim().toLowerCase() === email) {
+                      e.currentTarget.value = '';
+                      setSettingsQuery('');
+                    }
+                  }}
                   aria-label="Buscar configuração"
                   placeholder="Buscar configuração"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  data-1p-ignore="true"
+                  data-lpignore="true"
                   className="pl-9 h-11 rounded-xl bg-background/80 border-border/60"
                 />
               </div>
@@ -612,11 +661,13 @@ export default function SettingsPage() {
         </header>
 
         <div className="flex-1">
-          <div className="mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+          <div className="mx-auto grid w-full max-w-[1500px] items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[250px_minmax(0,1fr)]">
             {/* navegação horizontal em chips */}
-            <nav aria-label="Seções das configurações" className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            <nav aria-label="Seções das configurações" className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin] lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-[#dfe7f2] lg:bg-white lg:p-2">
               {[
                 { id: "Plano", label: "Assinatura", icon: <Crown size={14} />, keywords: "plano assinatura licenca pagamento" },
+                { id: "Notificacoes", label: "Notificações", icon: <Bell size={14} />, keywords: "notificacao alerta prazo djen datajud tarefa navegador" },
+                { id: "Seguranca", label: "Segurança e limites", icon: <ShieldCheck size={14} />, keywords: "seguranca rls tenant cargo limite rate auth" },
                 { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
                 { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
                 { id: "Personalizacao", label: "Personalização", icon: <Wand2 size={14} />, keywords: "ui prefs metal botoes" },
@@ -644,10 +695,10 @@ export default function SettingsPage() {
                     aria-current={activeTab === item.id ? "page" : undefined}
                     onClick={() => setActiveTab(item.id)}
                     className={cn(
-                      "shrink-0 flex items-center gap-2 h-11 px-3.5 rounded-lg text-sm font-medium border transition-colors",
+                      "shrink-0 flex items-center gap-2 h-11 px-3.5 rounded-xl text-sm font-bold border transition-colors lg:w-full",
                       activeTab === item.id
-                        ? "bg-foreground text-background border-foreground"
-                        : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? "border-[#cfe0ff] bg-[#eef5ff] text-[#145bd7]"
+                        : "border-transparent bg-transparent text-[#607590] hover:bg-[#f5f8fc] hover:text-[#18365f]"
                     )}
                   >
                     {item.icon}
@@ -657,11 +708,19 @@ export default function SettingsPage() {
             </nav>
 
             {/* conteúdo da aba */}
-            <div className="rounded-xl border border-border bg-card p-4 sm:p-6 min-h-[50vh]">
+            <div className="min-h-[55vh] rounded-2xl border border-[#dfe7f2] bg-white p-4 shadow-[0_2px_10px_rgba(16,36,71,.035)] sm:p-6">
               {settingsBoot ? (
                 <PageLoading label="Abrindo configurações…" full />
               ) : (
               <>
+                            {activeTab === 'Notificacoes' && (
+                <NotificationSettingsPanel />
+              )}
+
+              {activeTab === 'Seguranca' && (
+                <SecurityLimitsPanel />
+              )}
+
                             {activeTab === 'Conta' && (
                 <div className="space-y-6 max-w-xl">
               <section className="rounded-2xl border border-border/60 bg-card/70 backdrop-blur-md p-5 shadow-sm">
@@ -690,49 +749,8 @@ export default function SettingsPage() {
                     <p className="text-[11px] text-muted-foreground truncate mt-0.5">{profile?.email}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge variant="outline" className="text-[9px] rounded-md">{profile?.cargo || "perfil"}</Badge>
-                      {chatNotifOn ? (
-                        <Badge className="text-[9px] rounded-md bg-emerald-500/15 text-emerald-600 border-0">Notif. chat ON</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[9px] rounded-md text-muted-foreground">Notif. chat off</Badge>
-                      )}
                     </div>
                   </div>
-                </div>
-                {/* notificação chat */}
-                <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Bell size={16} className="text-primary shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold">Notificações do chat equipe</p>
-                      <p className="text-[10px] text-muted-foreground">Avisos de novas mensagens</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={chatNotifOn}
-                    onCheckedChange={async (on) => {
-                      if (on) {
-                        try {
-                          if ("Notification" in window) {
-                            const p = await Notification.requestPermission();
-                            if (p === "granted") {
-                              localStorage.setItem("lexis_chat_notif", "granted");
-                              setChatNotifOn(true);
-                              toast({ title: "Notificações ativadas" });
-                              return;
-                            }
-                          }
-                          toast({ title: "Permissão negada no navegador", variant: "destructive" });
-                          setChatNotifOn(false);
-                        } catch {
-                          setChatNotifOn(false);
-                        }
-                      } else {
-                        localStorage.setItem("lexis_chat_notif", "dismissed");
-                        setChatNotifOn(false);
-                        toast({ title: "Notificações desativadas no app" });
-                      }
-                    }}
-                  />
                 </div>
               </section>
 

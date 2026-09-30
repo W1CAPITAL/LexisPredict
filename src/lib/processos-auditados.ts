@@ -2,8 +2,8 @@
  * KPIs separados:
  * - Editados no app (auditado_em) = qualquer salvamento/edição no Lexis
  * - Tribunal (DataJud/DJEN) = só consulta CNJ
- * Atendimento continua em ultimo_retorno (atendimento-semana.ts).
- * Se a edição gravar ultimo_retorno, conta nos DOIS: editado + atendido.
+ * Atendimento exige atendido_por humano e usa atendido_em/ultimo_retorno
+ * (atendimento-semana.ts). Edição isolada nunca conta como atendimento.
  */
 import { isWithinInterval, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';

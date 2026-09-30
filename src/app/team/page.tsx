@@ -71,10 +71,10 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
 };
 
 const ROLE_HELP = [
-  { cargo: 'Operador', desc: 'Fila, processos, funil CRM, atendimento. Nao ve consolidado financeiro da empresa.' },
-  { cargo: 'Administrador', desc: 'Equipe, CRM consolidado, configuracoes da empresa, relatorios.' },
-  { cargo: 'Supervisor', desc: 'Visao da carteira inteira, supervisao, financeiro consolidado, auditoria.' },
-  { cargo: 'Visualizador', desc: 'Somente leitura — treinamento ou socio observador.' },
+  { cargo: 'Operador', desc: 'Operação reduzida, atendimento e somente os próprios processos.' },
+  { cargo: 'Administrador', desc: 'Todas as funções operacionais, mas somente os próprios processos.' },
+  { cargo: 'Supervisor', desc: 'Visão da empresa inteira, supervisão por usuário, equipe e auditoria.' },
+  { cargo: 'Visualizador', desc: 'Consulta em modo leitura dentro do escopo permitido.' },
 ];
 
 export default function TeamManagement() {
@@ -132,7 +132,7 @@ export default function TeamManagement() {
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSuperAdmin || isSaving) return;
+    if ((!isSupervisor && !isSuperAdmin) || isSaving) return;
 
     setIsSaving(true);
     try {
@@ -261,7 +261,7 @@ export default function TeamManagement() {
               </TabsList>
             </Tabs>
 
-            {isSuperAdmin && (
+            {(isSupervisor || isSuperAdmin) && (
               <Button onClick={() => setIsNewUserOpen(true)} className="bg-primary text-primary-foreground font-black h-10 px-6 rounded-xl uppercase text-[10px] tracking-widest shadow-xl">
                 <UserPlus size={16} className="mr-2" /> Novo Membro
               </Button>
@@ -492,7 +492,7 @@ export default function TeamManagement() {
            <DialogContent className="sm:max-w-[450px] rounded-2xl border-none shadow-2xl">
               <form onSubmit={handleAddUser}>
                  <DialogHeader className="p-6 bg-secondary/20 border-b">
-                    <DialogTitle className="font-black uppercase tracking-tight">Provisionar Operador</DialogTitle>
+                    <DialogTitle className="font-black uppercase tracking-tight">Provisionar usuário</DialogTitle>
                     <DialogDescription className="sr-only">Preencha os dados abaixo para criar um novo usuário no gabinete.</DialogDescription>
                  </DialogHeader>
                  <div className="p-6 space-y-4">
@@ -517,7 +517,7 @@ export default function TeamManagement() {
                     </div>
                     <div className="grid gap-2">
                        <Label className="uppercase text-[9px] font-black">Senha Inicial</Label>
-                       <Input type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} className="rounded-xl" required />
+                       <Input type="password" minLength={8} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} className="rounded-xl" required />
                     </div>
                  </div>
                  <DialogFooter className="p-6 pt-0">

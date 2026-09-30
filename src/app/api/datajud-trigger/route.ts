@@ -3,9 +3,10 @@
  */
 import { NextResponse } from 'next/server';
 import { getUserContext } from '@/lib/server-db';
-import { headers } from 'next/headers';
+import { runCloudScanBatch } from '@/lib/cloud-scan-batch';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
@@ -14,35 +15,24 @@ export async function POST(request: Request) {
 
     let mode = 'both';
     let scope = 'full';
+    let since: string | null = null;
     try {
       const body = await request.clone().json().catch(() => ({}));
       if (body?.mode && ['datajud', 'djen', 'both'].includes(body.mode)) mode = body.mode;
       if (body?.scope && ['full', 'cumprimento'].includes(body.scope)) scope = body.scope;
+      if (body?.since) since = String(body.since);
     } catch {
       /* ignore */
     }
 
-    const h = await headers();
-    const host = h.get('host');
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : `${protocol}://${host}`;
+    const worker = await runCloudScanBatch({
+      empresaId: String(empresa_id),
+      mode: mode as 'datajud' | 'djen' | 'both',
+      scope: scope as 'full' | 'cumprimento',
+      since,
+    });
 
-    // Fire-and-forget worker
-    fetch(
-      `${baseUrl}/api/datajud-worker?empresa_id=${encodeURIComponent(empresa_id)}&mode=${encodeURIComponent(mode)}&scope=${encodeURIComponent(scope)}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.DATAJUD_WORKER_SECRET}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ mode, scope }),
-      }
-    ).catch(() => {});
-
-    return NextResponse.json({ started: true, mode, scope });
+    return NextResponse.json({ started: true, mode, scope, since, worker });
   } catch (error: any) {
     return NextResponse.json({ started: false, error: error.message }, { status: 500 });
   }

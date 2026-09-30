@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  context: { empresa_id: 'empresa-1', auth_id: 'supervisor-1', nome: 'Supervisora', isViewer: false },
+  context: {
+    empresa_id: 'empresa-1',
+    auth_id: 'supervisor-1',
+    nome: 'Supervisora',
+    cargo: 'Supervisor',
+    isViewer: false,
+    isSupervisor: true,
+    isSuperAdmin: false,
+  },
   row: {} as any,
   patches: [] as any[],
   conditions: [] as Array<[string, unknown]>,
@@ -37,6 +45,9 @@ beforeEach(() => {
   state.row = { id: 'row-1', protocolo_ref: '1000000-12.2026.8.26.0100', empresa_id: 'empresa-1', created_by: 'operador-2', cliente: 'Cliente', updated_at: '2026-09-01T12:00:00Z', proximo_retorno: '2026-09-15', dados: { situacao: 'EM ANDAMENTO' } };
   state.patches = []; state.conditions = []; state.conflict = false; state.writeError = false;
   state.context.isViewer = false;
+  state.context.cargo = 'Supervisor';
+  state.context.isSupervisor = true;
+  state.context.isSuperAdmin = false;
   state.audit.mockReset(); state.mirror.mockReset();
   state.mirror.mockResolvedValue({ attempted: true, ok: false, reason: 'Planilha indisponível' });
 });

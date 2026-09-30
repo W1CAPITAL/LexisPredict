@@ -1,22 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
-import { SidebarVertical } from "./sidebar-vertical";
 import { SidebarDock } from "./sidebar-dock";
+import { SidebarVertical } from "./sidebar-vertical";
+import {
+  loadNavLayout,
+  type NavLayoutMode,
+} from "@/lib/nav-layout";
 
+/**
+ * Navegação adaptativa:
+ * - mobile mantém o shell mobile oficial;
+ * - desktop respeita a preferência Vertical ou Dock Horizontal.
+ * A preferência é aplicada imediatamente pelo evento lexis-nav-layout.
+ */
 export function Sidebar() {
-  const [mode, setMode] = useState<NavLayoutMode>("dock");
+  const [mode, setMode] = useState<NavLayoutMode>("vertical");
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
-    setMode(loadNavLayout());
-    const onChange = (event: Event) => {
-      const next = (event as CustomEvent).detail?.mode as NavLayoutMode | undefined;
-      setMode(next === "vertical" || next === "dock" ? next : loadNavLayout());
+    const media = window.matchMedia("(min-width: 768px)");
+
+    const syncViewport = () => setIsDesktop(media.matches);
+    const syncMode = () => setMode(loadNavLayout());
+    const onLayoutChange = (event: Event) => {
+      const next = (event as CustomEvent<{ mode?: NavLayoutMode }>).detail?.mode;
+      if (next === "dock" || next === "vertical") {
+        setMode(next);
+        return;
+      }
+      syncMode();
     };
-    window.addEventListener("lexis-nav-layout", onChange);
-    return () => window.removeEventListener("lexis-nav-layout", onChange);
+
+    syncViewport();
+    syncMode();
+
+    media.addEventListener?.("change", syncViewport);
+    window.addEventListener("lexis-nav-layout", onLayoutChange);
+
+    return () => {
+      media.removeEventListener?.("change", syncViewport);
+      window.removeEventListener("lexis-nav-layout", onLayoutChange);
+    };
   }, []);
 
-  return mode === "vertical" ? <SidebarVertical /> : <SidebarDock />;
+  if (!isDesktop) {
+    return <SidebarVertical />;
+  }
+
+  return mode === "dock" ? <SidebarDock /> : <SidebarVertical />;
 }

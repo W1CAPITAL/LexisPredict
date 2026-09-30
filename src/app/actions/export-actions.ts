@@ -11,6 +11,7 @@ import { rowExecutivoExport } from '@/lib/export-executivo-row';
 import { getUserContext, getStoredCasesForEmpresa, registrarAuditoriaAction } from '@/lib/server-db';
 import { buildDossieXlsxBase64, buildProcessosProfissionalXlsxBase64 } from '@/lib/xlsx-dossie-builder';
 import { EXPORT_HEADERS, tribunalFromProtocolo } from '@/lib/xlsx-schema';
+import { canExportOperationalData } from '@/lib/roles';
 
 type Row = Record<string, any>;
 
@@ -28,8 +29,9 @@ async function auditarExportacao(tipo: string, cases: Row[], extra: Record<strin
 
 /**
  * Carrega carteira para exportação:
- * - Supervisor / Superadmin / Administrador → TODOS os processos da empresa
- * - Operador / Visualizador → apenas os processos do próprio usuário
+ * - Supervisor / Superadmin → TODOS os processos da empresa
+ * - Administrador → apenas os próprios processos, com exportação permitida
+ * - Operador / Visualizador → exportação bloqueada
  */
 async function loadCasesForSession(): Promise<{
   cases: Row[];
@@ -41,17 +43,18 @@ async function loadCasesForSession(): Promise<{
   const ctx = await getUserContext();
   const { empresa_id, email, isMasterView, isSuperAdmin, isSupervisor, cargo } = ctx as any;
   if (!empresa_id) throw new Error('Sessão expirada. Refaça o login.');
+  if (!canExportOperationalData(ctx as any)) {
+    throw new Error('Seu cargo não possui permissão para exportar dados operacionais.');
+  }
 
   const fullCarteira = !!(
     isMasterView ||
     isSuperAdmin ||
     isSupervisor ||
     cargo === 'Superadmin' ||
-    cargo === 'Supervisor' ||
-    cargo === 'Administrador'
+    cargo === 'Supervisor'
   );
 
-  // isAdmin=true usa service role e NÃO filtra por created_by
   const stored = await getStoredCasesForEmpresa(empresa_id, fullCarteira);
   if (!stored?.length) {
     throw new Error('Nenhum processo na carteira visível para exportar.');
@@ -59,7 +62,7 @@ async function loadCasesForSession(): Promise<{
 
   const escopo = fullCarteira
     ? `Carteira completa da empresa (${cargo || 'Supervisor/Superadmin'}) — ${stored.length} processo(s)`
-    : `Carteira do operador logado (${cargo || 'Operador'}) — ${stored.length} processo(s)`;
+    : `Carteira própria (${cargo || 'Usuário'}) — ${stored.length} processo(s)`;
 
   return {
     cases: stored as Row[],
