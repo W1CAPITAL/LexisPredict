@@ -112,7 +112,13 @@ export function labelSerie(codigo: number): string {
   if (!entry) return `SGS ${codigo}`;
   const map: Record<string, string> = {
     VEICULOS_PF: 'Veículos PF (25471)',
-    CREDITO_PESSOAL: 'Crédito pessoal histórico a.m. (25464)',\n    CREDITO_PESSOAL_ANUAL: 'Crédito pessoal histórico a.a. (20742)',\n    CREDITO_PESSOAL_SEM_GARANTIA: 'Crédito pessoal sem garantia a.m. (29977)',\n    CREDITO_PESSOAL_SEM_GARANTIA_ANUAL: 'Crédito pessoal sem garantia a.a. (29974)',\n    CREDITO_PESSOAL_COM_GARANTIA: 'Crédito pessoal com garantia a.m. (29976)',\n    CREDITO_PESSOAL_COM_GARANTIA_ANUAL: 'Crédito pessoal com garantia a.a. (29973)',\n    CREDITO_PESSOAL_COMPOSICAO_DIVIDAS: 'Composição de dívidas a.m. (25465)',
+    CREDITO_PESSOAL: 'Crédito pessoal histórico a.m. (25464)',
+    CREDITO_PESSOAL_ANUAL: 'Crédito pessoal histórico a.a. (20742)',
+    CREDITO_PESSOAL_SEM_GARANTIA: 'Crédito pessoal sem garantia a.m. (29977)',
+    CREDITO_PESSOAL_SEM_GARANTIA_ANUAL: 'Crédito pessoal sem garantia a.a. (29974)',
+    CREDITO_PESSOAL_COM_GARANTIA: 'Crédito pessoal com garantia a.m. (29976)',
+    CREDITO_PESSOAL_COM_GARANTIA_ANUAL: 'Crédito pessoal com garantia a.a. (29973)',
+    CREDITO_PESSOAL_COMPOSICAO_DIVIDAS: 'Composição de dívidas a.m. (25465)',
     CHEQUE_ESPECIAL: 'Cheque especial (25463)',
     MEDIA_GERAL: 'Média geral crédito (20714)',
     SELIC: 'Selic (11)',
