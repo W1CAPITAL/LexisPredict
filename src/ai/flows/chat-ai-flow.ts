@@ -9,7 +9,7 @@ import { parseThinkingAnswer, isSimplePrompt } from '@/lib/ai/chat-parse';
 import { extractCnjFromText } from '@/lib/ai/motors';
 import { buildCognitivePlan } from '@/lib/cognitive/orchestrator';
 import { retrieveMemory } from '@/lib/cognitive/memory';
-import { runQualityGate } from '@/lib/cognitive/quality';
+import { runQualityGate } from '@/lib/cognitive/quality';\nimport { revisionalBankContext } from '@/lib/legal/revisional-bank-skill';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
 Hoje: ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
@@ -171,7 +171,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
 
   history.push({ role: 'user', content: userContent });
 
-  const planHint = `\n\nMODO INTERNO: ${cognitivePlan.intent}. Priorize evidencias fornecidas, regras deterministicas e contexto recuperado antes de conhecimento geral.`;
+  const planHint = `\n\nMODO INTERNO: ${cognitivePlan.intent}. Priorize evidencias fornecidas, regras deterministicas e contexto recuperado antes de conhecimento geral.`;\n  const revisionalHint = revisionalBankContext(pergunta + ' ' + String(input.pdfText || '').slice(0, 4000));\n  const revisionalSystem = revisionalHint ? `\\n\\n${revisionalHint}` : '';
 
   try {
     const r = await runCascade({
@@ -183,7 +183,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
             ? undefined
             : preferred,
       surface: 'chat',
-      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint,
+      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem,
       messages: history,
       images: input.images,
       temperature: simple ? 0.5 : input.temperature ?? 0.35,
