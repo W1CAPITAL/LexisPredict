@@ -251,11 +251,22 @@ export default function DocumentGenerator() {
             <div className="mb-6">
               <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Central de Documentos</h2>
               <p className="text-[10px] font-bold uppercase text-black/50 mt-1">
-                Gere procurações, substabelecimentos, habilitações, revogações e modelos de peças
+                Gere e edite petições, procurações, substabelecimentos, recursos, MLE, notificações e cumprimento de sentença
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Link href="/documents/generator" className="text-left bg-[#fffaf0] border-2 border-[#6f1d2b] rounded-none shadow-[8px_8px_0px_#b89b5e] p-6 hover:-translate-y-0.5 transition-all group">
+                <div className="w-12 h-12 bg-[#6f1d2b] text-[#f7df9b] flex items-center justify-center mb-4">
+                  <FileText size={22} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-1 text-[#6f1d2b]">Central de Peças Jurídicas</p>
+                <p className="text-[10px] font-bold uppercase text-black/50 mb-3">17 modelos · editor livre · PDF + RTF · importar processo</p>
+                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-[#6f1d2b]">
+                  Abrir gerador completo <ArrowRight size={12} />
+                </span>
+              </Link>
+
               <button
                 type="button"
                 onClick={() => setHub(false)}
