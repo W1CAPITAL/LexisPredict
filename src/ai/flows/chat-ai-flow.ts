@@ -11,6 +11,7 @@ import { buildCognitivePlan } from '@/lib/cognitive/orchestrator';
 import { retrieveMemory } from '@/lib/cognitive/memory';
 import { runQualityGate } from '@/lib/cognitive/quality';
 import { revisionalBankContext } from '@/lib/legal/revisional-bank-skill';
+import { khojLegalContext } from '@/lib/ai/khoj-bridge';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
 Hoje: ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
@@ -175,6 +176,8 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const planHint = `\n\nMODO INTERNO: ${cognitivePlan.intent}. Priorize evidencias fornecidas, regras deterministicas e contexto recuperado antes de conhecimento geral.`;
   const revisionalHint = revisionalBankContext(pergunta + ' ' + String(input.pdfText || '').slice(0, 4000));
   const revisionalSystem = revisionalHint ? `\n\n${revisionalHint}` : '';
+  const khojContext = simple ? '' : await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000));
+  const khojSystem = khojContext ? `\n\n${khojContext}` : '';
 
   try {
     const r = await runCascade({
@@ -186,7 +189,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
             ? undefined
             : preferred,
       surface: 'chat',
-      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem,
+      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + khojSystem,
       messages: history,
       images: input.images,
       temperature: simple ? 0.5 : input.temperature ?? 0.35,
