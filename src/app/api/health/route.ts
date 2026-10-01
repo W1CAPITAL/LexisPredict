@@ -17,6 +17,7 @@ export async function GET() {
     app: "lexispredict",
     version: process.env.npm_package_version || process.env.NEXT_PUBLIC_APP_VERSION || "unknown",
     supabaseEnv: hasSupabase,
+    khojEnv: Boolean(process.env.KHOJ_URL && (process.env.KHOJ_TOKEN || process.env.KHOJ_API_TOKEN)),
     node: process.version,
     uptimeSec: Math.round(process.uptime()),
     ts: new Date().toISOString(),
