@@ -307,3 +307,17 @@ Software **proprietário**. Proibida cópia, redistribuição ou exploração co
   <a href="https://w1capital.github.io/LexisPredict/">🗺️ Abrir mapa graphify ao vivo</a><br/>
   <sub>LexisPredict · W1 Capital · Gabinete digital para quem opera de verdade</sub>
 </p>
+
+
+## Khoj Second Brain / RAG
+
+O LexisPredict pode usar um servidor Khoj externo como camada opcional de RAG, memória e agentes, sem incorporar o código AGPL do Khoj ao repositório. Configure apenas no backend/Vercel:
+
+```dotenv
+KHOJ_URL=https://SEU-KHOJ
+KHOJ_TOKEN=seu-token-api
+KHOJ_AGENT_SLUG=
+KHOJ_ALWAYS=0
+```
+
+Em perguntas jurídicas, documentos, PDFs, contratos, jurisprudência, pesquisa e memória, o chat consulta o Khoj quando ele estiver configurado. Falha ou ausência do Khoj não bloqueia o LexisPredict; o fluxo normal continua com DataJud/DJEN e a cascata de IA existente.
