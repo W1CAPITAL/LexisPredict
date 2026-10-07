@@ -216,7 +216,7 @@ export async function middleware(request: NextRequest) {
             response.headers.set('X-Lexis-Auth-Warning', 'tenant_lookup_failed')
             return applySecurityHeaders(response)
           }
-          return redirect('/settings?reason=tenant_lookup_failed')
+          return redirect('/settings')
         }
         if (!empresa) {
           if (isTenantSetupPage) {
