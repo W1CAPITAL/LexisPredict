@@ -64,11 +64,29 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
   }
 
   const admin = await getSupabaseAdmin();
-  const { data, error } = await admin
+  let data: any = null;
+  let error: any = null;
+  let legacyCommercialSchema = false;
+
+  const full = await admin
     .from("empresas")
     .select("id, plano, plano_bloqueado, plano_expira_em, billing_status")
     .eq("id", empresaId)
     .maybeSingle();
+
+  data = full.data;
+  error = full.error;
+
+  if (error && /billing_status|column .* does not exist/i.test(String(error.message || ""))) {
+    legacyCommercialSchema = true;
+    const legacy = await admin
+      .from("empresas")
+      .select("id, plano, plano_bloqueado, plano_expira_em")
+      .eq("id", empresaId)
+      .maybeSingle();
+    data = legacy.data;
+    error = legacy.error;
+  }
 
   if (error || !data) {
     return {
@@ -85,10 +103,18 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
     };
   }
 
-  const expiresAt = data.plano_expira_em || null;
+  const plan = normalizePlanId(data.plano || "essencial");
+  const expiresAt =
+    legacyCommercialSchema && plan === "maximo"
+      ? null
+      : data.plano_expira_em || null;
   const expired = !!expiresAt && new Date(expiresAt).getTime() < Date.now();
-  const billingStatus = String(data.billing_status || "").trim().toLowerCase();
-  const billingActive = billingStatus === "active" || billingStatus === "trialing";
+  const billingStatus = legacyCommercialSchema
+    ? (plan === "maximo" ? "active" : "")
+    : String(data.billing_status || "").trim().toLowerCase();
+  const billingActive = legacyCommercialSchema
+    ? plan === "maximo"
+    : billingStatus === "active" || billingStatus === "trialing";
   const billingBlocked = ["past_due", "suspended", "canceled"].includes(billingStatus);
   const blocked = !!data.plano_bloqueado || billingBlocked;
   const pending = !billingActive && !billingBlocked;
@@ -97,7 +123,7 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
     ok: billingActive && !blocked && !expired,
     authenticated: true,
     empresaId,
-    plan: normalizePlanId(data.plano || "essencial"),
+    plan,
     blocked,
     expired,
     expiresAt,
