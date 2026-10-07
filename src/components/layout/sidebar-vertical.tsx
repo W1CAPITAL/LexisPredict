@@ -138,6 +138,13 @@ export function SidebarVertical() {
       "/agenda": "Veja prazos e compromissos.",
       "/report": "Gere relatórios quando precisar.",
       "/settings": "Conta, equipe e preferências.",
+      "/processos": "Visão completa da carteira da empresa.",
+      "/crm": "Clientes, negócios e acompanhamento comercial.",
+      "/gerador-processos": "Cadastre e organize novos processos.",
+      "/chat": "Assistente para dúvidas e análise.",
+      "/financas": "Valores e lançamentos financeiros.",
+      "/calculos": "Ferramentas de cálculo jurídico/financeiro.",
+      "/import": "Importe uma carteira em lote.",
       "/processos-parados": "Casos sem andamento recente.",
       "/encerrados-revisao": "Casos encerrados para conferir.",
       "/cumprimentos-procedentes": "Cumprimentos que exigem ação.",
@@ -182,7 +189,11 @@ export function SidebarVertical() {
       return;
     }
     setNavigatingTo(href);
-    router.push(href);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => router.push(href));
+    } else {
+      router.push(href);
+    }
   };
 
   const openToolsMenu = () => {
