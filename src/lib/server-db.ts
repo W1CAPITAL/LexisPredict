@@ -1117,7 +1117,7 @@ export async function getEmpresaUsers(): Promise<UserProfile[]> {
   const admin = await getSupabaseAdmin();
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, auth_user_id, empresa_id, nome, email, cargo, role, avatar_url, ativo')
+    .select('id, auth_user_id, empresa_id, nome, email, cargo, role, avatar_url, ativo, created_at')
     .eq('empresa_id', empresa_id)
     .order('nome', { ascending: true });
   if (error) return [];
