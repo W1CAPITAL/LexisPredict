@@ -24,6 +24,7 @@ const PUBLIC_API = [
   '/api/version',
   '/api/commercial/health',
   '/api/integration/sheetspredict',
+  '/api/integration/wa-auto/auth',
   '/api/webhook',
   '/api/webhooks',
 ]
