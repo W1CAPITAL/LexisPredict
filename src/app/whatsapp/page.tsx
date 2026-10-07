@@ -57,7 +57,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  fetchRepoCases,
+  fetchRepoCasesPageAction,
   registrarAtendimentoAction,
   registrarAtendimentoCompletoAction,
   scanSingleCaseAction,
@@ -72,9 +72,13 @@ import {
   importEvolutionHistoryBulkAction,
   listEvolutionChatsAction,
   fetchEvolutionChatByJidAction,
+  whatsappBridgeHealthAction,
+  listWhatsAppChatsAction,
+  fetchWhatsAppChatByJidAction,
 } from "@/app/actions/whatsapp-actions";
 import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
+import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
 import { suggestScripts } from "@/lib/script-processual/suggest";
 import { plainTextFromDjen, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst} from "@/lib/djen";
 import { buildUnifiedTimeline } from "@/lib/timeline-normalize";
@@ -172,6 +176,8 @@ function WhatsAppTerminalInner() {
   const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
+  const [bridgeProvider, setBridgeProvider] = useState<"waauto" | "evolution" | null>(null);
+  const [caseSearchHits, setCaseSearchHits] = useState<LegalCase[] | null>(null);
 
   const [attSaving, setAttSaving] = useState(false);
   const [attOpen, setAttOpen] = useState(false);
@@ -217,7 +223,7 @@ function WhatsAppTerminalInner() {
   const loadCases = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchRepoCases();
+      const data = await fetchRepoCasesPageAction(350, 0, true);
       const list = Array.isArray(data) ? data : [];
       // Mesma base da aba Processos: processarCaso para status/prazo/flags
       setCases(
@@ -240,11 +246,49 @@ function WhatsAppTerminalInner() {
     loadCases();
   }, [loadCases]);
 
+  useEffect(() => {
+    let active = true;
+    void whatsappBridgeHealthAction()
+      .then((res) => {
+        if (!active) return;
+        setEvolutionOk(!!res?.success);
+        setBridgeProvider((res?.provider as "waauto" | "evolution") || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setEvolutionOk(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (listSource !== "carteira") {
+      setCaseSearchHits(null);
+      return;
+    }
+    const term = q.trim();
+    if (term.length < 2) {
+      setCaseSearchHits(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void searchCompanyProcessosAction(term)
+        .then((res) => {
+          if (res?.ok) setCaseSearchHits((res.cases || []) as LegalCase[]);
+          else setCaseSearchHits([]);
+        })
+        .catch(() => setCaseSearchHits([]));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [q, listSource]);
+
   const contacts = useMemo(() => {
     const term = q.trim().toLowerCase();
     const termDigits = term.replace(/\D/g, "");
     // Sempre considera a carteira inteira (com e sem telefone) — senão a busca some nomes
-    let base = cases.filter((c): c is LegalCase => c != null);
+    let base = (caseSearchHits ?? cases).filter((c): c is LegalCase => c != null);
     // Com busca: prioriza match de nome/protocolo/tel em TODOS
     if (term) {
       base = base.filter((c) => {
@@ -282,7 +326,7 @@ function WhatsAppTerminalInner() {
       base = listSortMode === "mais_vencido" ? sorted : [...sorted].reverse();
     }
     return base;
-  }, [cases, q, listSortMode]);
+  }, [cases, caseSearchHits, q, listSortMode]);
 
   const loadHistory = useCallback(async (c: LegalCase) => {
     setHistLoading(true);
@@ -387,12 +431,12 @@ function WhatsAppTerminalInner() {
     setEvoLoading(true);
     try {
       const only = onlyGroups ?? evoOnlyGroups;
-      const res = await listEvolutionChatsAction({
+      const res = await listWhatsAppChatsAction({
         onlyGroups: only,
         limit: 300,
       });
       if (!res.success) {
-        toast({ title: "Evolution — chats", description: res.error || "Falha", variant: "destructive" });
+        toast({ title: "WhatsApp — chats", description: res.error || "Falha", variant: "destructive" });
         setEvoChats([]);
         return;
       }
@@ -400,7 +444,7 @@ function WhatsAppTerminalInner() {
       setEvoChats(list);
       const g = list.filter((c) => c.isGroup).length;
       toast({
-        title: "Chats Evolution",
+        title: bridgeProvider === "waauto" ? "Chats WA.Auto" : "Chats Evolution",
         description: only
           ? `${list.length} grupo(s) · clique para abrir`
           : `${list.length} chat(s) · ${g} grupo(s) · clique na linha`,
@@ -427,7 +471,7 @@ function WhatsAppTerminalInner() {
     setWaScripts([]);
     setHistLoading(true);
     try {
-      const res = await fetchEvolutionChatByJidAction(chat.jid);
+      const res = await fetchWhatsAppChatByJidAction(chat.jid);
       if (res.success) {
         setHistory(res.messages || []);
       } else {
@@ -1026,7 +1070,7 @@ function WhatsAppTerminalInner() {
               resolve({
                 success: false,
                 message:
-                  "Tempo esgotado (90s). Confira Evolution Manager (estado open) e EVOLUTION_INSTANCE=Lexis.",
+                  "Tempo esgotado (90s). Confira o WA.Auto; se ele estiver offline, o fallback Evolution também pode estar indisponível.",
               }),
             90000
           )
@@ -1034,12 +1078,15 @@ function WhatsAppTerminalInner() {
       ]);
       if (res?.success) {
         setEvolutionOk(true);
+        if ((res as any).provider === "waauto" || (res as any).provider === "evolution") {
+          setBridgeProvider((res as any).provider);
+        }
         const msg: ChatMsg = {
           id: `evo-${Date.now()}`,
           direction: "out",
           body: draft.trim(),
           at: new Date().toISOString(),
-          source: "evolution",
+          source: String((res as any).provider || bridgeProvider || "whatsapp"),
         };
         const next = [...history.filter((h) => h.direction !== "system"), msg];
         setHistory(next);
@@ -1060,7 +1107,7 @@ function WhatsAppTerminalInner() {
       } else {
         setEvolutionOk(false);
         toast({
-          title: "Evolution indisponível",
+          title: "WhatsApp automático indisponível",
           description: res?.message || "Use Abrir no WhatsApp (wa.me).",
           variant: "destructive",
         });
@@ -1102,7 +1149,7 @@ function WhatsAppTerminalInner() {
                   Terminal WhatsApp
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium truncate">
-                  Andamentos · motores IA · histórico · Evolution / wa.me
+                  Andamentos · IA · histórico · WA.Auto com fallback
                 </p>
               </div>
             </div>
@@ -1132,7 +1179,7 @@ function WhatsAppTerminalInner() {
               </Button>
               {evolutionOk === true && (
                 <Badge className="bg-emerald-600 text-[9px] uppercase">
-                  Evolution OK
+                  {bridgeProvider === "waauto" ? "WA.Auto online" : "Evolution online"}
                 </Badge>
               )}
               {evolutionOk === false && (
@@ -1140,7 +1187,7 @@ function WhatsAppTerminalInner() {
                   variant="outline"
                   className="text-[9px] uppercase text-amber-600 border-amber-300"
                 >
-                  Só wa.me
+                  Automação offline · wa.me disponível
                 </Badge>
               )}
               <Button
@@ -1180,7 +1227,7 @@ function WhatsAppTerminalInner() {
                     </button>
                     <button type="button" onClick={() => { setListSource("evolution"); setQ(""); void loadEvolutionChats(evoOnlyGroups); }}
                       className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "evolution" ? "bg-background shadow" : "text-muted-foreground")}>
-                      WA / Grupos
+                      WhatsApp / Grupos
                     </button>
                   </div>
                   {listSource === "evolution" && (
