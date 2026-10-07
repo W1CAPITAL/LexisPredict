@@ -110,10 +110,10 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
       : data.plano_expira_em || null;
   const expired = !!expiresAt && new Date(expiresAt).getTime() < Date.now();
   const billingStatus = legacyCommercialSchema
-    ? (plan === "maximo" ? "active" : "")
+    ? "active"
     : String(data.billing_status || "").trim().toLowerCase();
   const billingActive = legacyCommercialSchema
-    ? plan === "maximo"
+    ? true
     : billingStatus === "active" || billingStatus === "trialing";
   const billingBlocked = ["past_due", "suspended", "canceled"].includes(billingStatus);
   const blocked = !!data.plano_bloqueado || billingBlocked;
