@@ -19,6 +19,7 @@ const SUPERVISOR_ONLY = ['/processos', '/supervisao', '/auditoria', '/team']
 const SUPERADMIN_ONLY = ['/security', '/superadmin', '/ops']
 
 const PUBLIC_API = [
+  '/api/auth/login',
   '/api/health',
   '/api/version',
   '/api/commercial/health',
@@ -152,11 +153,20 @@ export async function middleware(request: NextRequest) {
         .maybeSingle()
 
       if (profileError || !profile) {
-        if (!profileError && isTenantSetupPage) {
+        // Nunca redirecionar uma rota para ela mesma. Em falha transitória do
+        // lookup, /setup-empresa e /settings precisam continuar acessíveis
+        // para diagnóstico/recuperação em vez de entrar em loop 30x.
+        if (isTenantSetupPage || path.startsWith('/settings')) {
           response.headers.set('Cache-Control', 'private, no-store')
+          if (profileError) response.headers.set('X-Lexis-Auth-Warning', 'profile_lookup_failed')
           return applySecurityHeaders(response)
         }
-        if (isApi) return json({ ok: false, error: 'tenant_profile_missing' }, 403)
+        if (isApi) {
+          return json(
+            { ok: false, error: profileError ? 'tenant_profile_lookup_failed' : 'tenant_profile_missing' },
+            profileError ? 503 : 403
+          )
+        }
         return redirect('/setup-empresa')
       }
 
@@ -198,7 +208,15 @@ export async function middleware(request: NextRequest) {
           .maybeSingle()
 
         if (empresaError) {
-          return isApi ? json({ ok: false, error: 'tenant_lookup_failed' }, 503) : redirect('/settings')
+          if (isApi) return json({ ok: false, error: 'tenant_lookup_failed' }, 503)
+          // /settings é a rota de recuperação. Se já estamos nela, jamais
+          // responder com redirect('/settings') novamente.
+          if (path.startsWith('/settings')) {
+            response.headers.set('Cache-Control', 'private, no-store')
+            response.headers.set('X-Lexis-Auth-Warning', 'tenant_lookup_failed')
+            return applySecurityHeaders(response)
+          }
+          return redirect('/settings?reason=tenant_lookup_failed')
         }
         if (!empresa) {
           if (isTenantSetupPage) {
