@@ -386,7 +386,7 @@ export function SidebarVertical() {
           type="button"
           onClick={openToolsMenu}
           aria-label="Abrir menu"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1769ff] text-white shadow-[0_8px_22px_rgba(23,105,255,.32)]"
+          className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-full bg-[#1769ff] text-white shadow-[0_8px_22px_rgba(23,105,255,.32)]"
         >
           <Menu className="h-[18px] w-[18px]" />
         </button>
@@ -458,7 +458,7 @@ export function SidebarVertical() {
       </nav>
 
       <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
-        <SheetContent side="left" data-lexis-mobile-drawer className="z-[110] w-[min(88vw,340px)] border-r border-[#dfe7f2] bg-white p-0">
+        <SheetContent side="left" data-lexis-mobile-drawer className="z-[110] flex w-[min(88vw,340px)] flex-col border-r border-[#dfe7f2] bg-white p-0">
           <SheetTitle className="sr-only">Mais ferramentas</SheetTitle>
           <SheetDescription className="sr-only">Recursos adicionais do LexisPredict</SheetDescription>
           <div className="border-b border-[#e2e8f2] px-4 pb-4 pt-3">
@@ -482,7 +482,7 @@ export function SidebarVertical() {
               />
             </label>
           </div>
-          <div className="max-h-[calc(100dvh-132px-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {mobileMenuItems.map((item) => {
               const Icon = item.icon;
               return (
