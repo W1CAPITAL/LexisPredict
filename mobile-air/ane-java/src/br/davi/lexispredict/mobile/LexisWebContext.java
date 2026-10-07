@@ -115,7 +115,7 @@ public class LexisWebContext extends FREContext {
                 failedUrl.replace("&", "&amp;")
                          .replace("<", "&lt;")
                          .replace(">", "&gt;")
-                         .replace(""", "&quot;");
+                         .replace(String.valueOf((char) 34), "&quot;");
 
         return "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>" +
                 "<style>body{margin:0;background:#070a12;color:#fff;font-family:sans-serif;display:flex;" +
