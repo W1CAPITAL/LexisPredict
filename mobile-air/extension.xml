@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension xmlns="http://ns.adobe.com/air/extension/51.3">
+  <id>br.davi.lexispredict.mobile.web</id>
+  <versionNumber>1.0.0</versionNumber>
+  <platforms>
+    <platform name="Android-ARM">
+      <applicationDeployment>
+        <nativeLibrary>lexisweb.jar</nativeLibrary>
+        <initializer>br.davi.lexispredict.mobile.LexisWebExtension</initializer>
+      </applicationDeployment>
+    </platform>
+    <platform name="Android-ARM64">
+      <applicationDeployment>
+        <nativeLibrary>lexisweb.jar</nativeLibrary>
+        <initializer>br.davi.lexispredict.mobile.LexisWebExtension</initializer>
+      </applicationDeployment>
+    </platform>
+  </platforms>
+</extension>
