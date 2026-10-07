@@ -117,8 +117,8 @@
 
   body.ops-ui {
     min-height: 100dvh;
-    padding-top: var(--lexis-mobile-topbar);
-    padding-bottom: var(--lexis-mobile-bottomnav);
+    padding-top: 0;
+    padding-bottom: 0;
     background: #f5f8fc;
     overflow-x: hidden;
   }
@@ -131,11 +131,28 @@
   [data-lexis-mobile-topbar] {
     height: var(--lexis-mobile-topbar) !important;
     padding-top: env(safe-area-inset-top);
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    transform: translateZ(0);
   }
 
   [data-lexis-mobile-bottom-nav] {
     height: var(--lexis-mobile-bottomnav) !important;
     padding-bottom: env(safe-area-inset-bottom);
+    padding-left: max(0.375rem, env(safe-area-inset-left));
+    padding-right: max(0.375rem, env(safe-area-inset-right));
+  }
+
+  body:has([data-lexis-mobile-topbar]) main {
+    padding-top: var(--lexis-mobile-topbar) !important;
+    padding-bottom: var(--lexis-mobile-bottomnav) !important;
+    min-height: 100dvh;
+    height: 100dvh;
+  }
+
+  body:has([data-lexis-mobile-topbar]) main > header {
+    position: relative;
+    z-index: 1;
   }
 
   .lexis-main-scroll {
