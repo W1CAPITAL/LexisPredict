@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  BookOpen,
   Bot,
   Briefcase,
   CalendarDays,
@@ -82,6 +83,7 @@ const extras: NavItem[] = [
 
 export function SidebarVertical() {
   const pathname = usePathname();
+  const router = useRouter();
   const { profile, signOut } = useAuth();
   const { role, isSupervisor, isSuperAdmin, canSeeCompany } = useAdmin();
   const { plan } = usePlano();
@@ -141,6 +143,58 @@ export function SidebarVertical() {
       ),
     [extraItems],
   );
+
+  const mobileMenuItems = useMemo(() => {
+    const descriptions: Record<string, string> = {
+      "/tarefas": "Veja quem precisa de atendimento agora.",
+      "/cases": "Encontre cliente, CNJ e histórico.",
+      "/whatsapp": "Converse e acompanhe mensagens.",
+      "/agenda": "Veja prazos e compromissos.",
+      "/report": "Gere relatórios quando precisar.",
+      "/settings": "Conta, equipe e preferências.",
+      "/processos-parados": "Casos sem andamento recente.",
+      "/encerrados-revisao": "Casos encerrados para conferir.",
+      "/cumprimentos-procedentes": "Cumprimentos que exigem ação.",
+      "/busca-apreensao": "Triagem de busca e apreensão.",
+      "/documents": "Peças, procurações e documentos.",
+      "/veredito": "Consulta pontual de processo.",
+      "/team": "Usuários e permissões.",
+      "/supervisao": "Visão da operação da equipe.",
+      "/auditoria": "Auditoria administrativa.",
+      "/superadmin": "Administração do sistema.",
+    };
+
+    const preferred = [
+      "/tarefas",
+      "/cases",
+      "/whatsapp",
+      "/agenda",
+      "/report",
+      "/settings",
+    ];
+
+    const combined = [...mainItems, ...mobileExtraItems];
+    const ordered = [
+      ...preferred.map((href) => combined.find((item) => item.href === href)),
+      ...combined.filter((item) => !preferred.includes(item.href)),
+    ].filter(Boolean) as Array<(typeof combined)[number]>;
+
+    const seen = new Set<string>();
+    return ordered
+      .filter((item) => {
+        if (seen.has(item.href)) return false;
+        seen.add(item.href);
+        return true;
+      })
+      .map((item) => ({ ...item, description: descriptions[item.href] || "Abrir ferramenta." }));
+  }, [mainItems, mobileExtraItems]);
+
+  const navigateMobile = (href: string) => {
+    setMobileOpen(false);
+    setToolsOpen(false);
+    if (pathname === href) return;
+    router.push(href);
+  };
 
   const active = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
@@ -284,22 +338,27 @@ export function SidebarVertical() {
         data-lexis-mobile-topbar
         className="fixed inset-x-0 top-0 z-40 flex items-end pb-2 border-b border-white/10 bg-[linear-gradient(135deg,#061d35_0%,#082944_55%,#0b3b67_100%)] px-3 text-white shadow-[0_10px_28px_rgba(4,22,41,.24)] md:hidden"
       >
-        <Link href="/" prefetch={false} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#2d7fff]/70 bg-[#07182d] shadow-[0_0_18px_rgba(31,111,255,.28)]">
+        <button
+          type="button"
+          onClick={() => navigateMobile("/")}
+          aria-label="Ir para o início"
+          className="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[#2d7fff]/70 bg-[#07182d] shadow-[0_0_18px_rgba(31,111,255,.28)]"
+        >
           <img src="/logo.png" alt="LexisPredict" className="h-6 w-6 object-contain" />
-        </Link>
+        </button>
         <div className="ml-2 min-w-0 flex-1">
           <p className="truncate text-[13px] font-black tracking-tight">Olá, {firstName}</p>
           <p className="truncate text-[9px] font-semibold uppercase tracking-[.14em] text-[#9fc2e4]">{mobileSection}</p>
         </div>
-        <Link
-          href="/settings"
-          prefetch={false}
+        <button
+          type="button"
+          onClick={() => navigateMobile("/settings")}
           aria-label="Configurações e notificações"
-          className="relative mr-1 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[.06] text-[#d8eaff]"
+          className="relative mr-1 flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/10 bg-white/[.06] text-[#d8eaff]"
         >
           <Bell className="h-[17px] w-[17px]" />
           <span className="absolute right-2 top-1.5 h-1.5 w-1.5 rounded-full bg-[#ff4d4f] ring-2 ring-[#082944]" />
-        </Link>
+        </button>
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
@@ -320,35 +379,65 @@ export function SidebarVertical() {
 
       <nav
         data-lexis-mobile-bottom-nav
-        className="fixed inset-x-0 bottom-0 z-40 grid h-[74px] grid-cols-5 border-t border-[#dfe7f2] bg-white/95 px-1.5 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.10)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[70] grid h-[76px] grid-cols-5 border-t border-[#dfe7f2] bg-white px-1.5 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.12)] md:hidden"
         aria-label="Navegação principal móvel"
       >
-        <Link href="/" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/") ? "text-[#1769ff]" : "text-[#6f8098]")}>
-          <LayoutDashboard className={cn("h-5 w-5", active("/") && "fill-[#1769ff]/10")} />
-          <span>Início</span>
-        </Link>
-        <Link href="/cases" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/cases") ? "text-[#1769ff]" : "text-[#6f8098]")}>
-          <Briefcase className="h-5 w-5" />
-          <span>Processos</span>
-        </Link>
+        {[
+          { label: "Início", href: "/", icon: LayoutDashboard },
+          { label: "Processos", href: "/cases", icon: Briefcase },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.href}
+              type="button"
+              data-mobile-nav-action
+              onClick={() => navigateMobile(item.href)}
+              className={cn(
+                "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
+                active(item.href) ? "text-[#1769ff]" : "text-[#6f8098]"
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+
         <button
           type="button"
+          data-mobile-nav-action
           onClick={handleOpenScanner}
-          aria-label="Abrir Scanner DataJud e DJEN"
-          className="relative -mt-5 flex min-w-0 flex-col items-center justify-center gap-1 text-[9px] font-black text-[#1769ff]"
+          aria-label="Atualizar processos no tribunal"
+          className="pointer-events-auto relative -mt-5 flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 text-[9px] font-black text-[#1769ff]"
         >
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-4 border-white bg-[linear-gradient(135deg,#1769ff,#00a8ff)] text-white shadow-[0_10px_26px_rgba(23,105,255,.34)]">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-4 border-white bg-[linear-gradient(135deg,#1769ff,#00a8ff)] text-white shadow-[0_10px_26px_rgba(23,105,255,.34)] active:scale-95">
             <Zap className="h-5 w-5" />
           </span>
-          <span>Scanner</span>
+          <span>Atualizar</span>
         </button>
-        <Link href="/tarefas" prefetch={false} className={cn("flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold", active("/tarefas") ? "text-[#1769ff]" : "text-[#6f8098]")}>
-          <ListTodo className="h-5 w-5" />
-          <span>Tarefas</span>
-        </Link>
-        <button type="button" onClick={() => setToolsOpen(true)} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold text-[#6f8098]">
-          <MoreHorizontal className="h-5 w-5" />
-          <span>Mais</span>
+
+        <button
+          type="button"
+          data-mobile-nav-action
+          onClick={() => navigateMobile("/whatsapp")}
+          className={cn(
+            "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
+            active("/whatsapp") ? "text-[#1769ff]" : "text-[#6f8098]"
+          )}
+        >
+          <MessageCircle className="h-5 w-5" />
+          <span>WhatsApp</span>
+        </button>
+
+        <button
+          type="button"
+          data-mobile-nav-action
+          onClick={() => setToolsOpen(true)}
+          className="pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold text-[#6f8098] active:bg-[#eef5ff]"
+        >
+          <Menu className="h-5 w-5" />
+          <span>Menu</span>
         </button>
       </nav>
 
@@ -357,8 +446,17 @@ export function SidebarVertical() {
           <SheetTitle className="sr-only">Mais ferramentas</SheetTitle>
           <SheetDescription className="sr-only">Recursos adicionais do LexisPredict</SheetDescription>
           <div className="border-b border-[#e2e8f2] px-4 pb-4 pt-3">
-            <p className="text-lg font-black text-[#102447]">Mais ferramentas</p>
-            <label className="mt-4 flex h-10 items-center gap-2 rounded-xl border border-[#dce5f1] bg-[#f7f9fc] px-3">
+            <p className="text-lg font-black text-[#102447]">Menu</p>
+            <p className="mt-1 text-xs text-[#6d7f9b]">Escolha o que você quer fazer.</p>
+            <button
+              type="button"
+              onClick={() => navigateMobile("/onboarding")}
+              className="mt-3 flex h-11 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#cfe0ff] bg-[#eef5ff] px-3 text-left text-sm font-bold text-[#145bd7]"
+            >
+              <BookOpen className="h-4 w-4" />
+              Aprender o app em 3 minutos
+            </button>
+            <label className="mt-3 flex h-10 items-center gap-2 rounded-xl border border-[#dce5f1] bg-[#f7f9fc] px-3">
               <Search className="h-4 w-4 text-[#6c7f9b]" />
               <input
                 value={query}
@@ -369,18 +467,23 @@ export function SidebarVertical() {
             </label>
           </div>
           <div className="max-h-[calc(100dvh-132px-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-            {mobileExtraItems.map((item) => {
+            {mobileMenuItems.map((item) => {
               const Icon = item.icon;
               return (
-                <Link
+                <button
+                  type="button"
                   key={item.href}
-                  href={item.href}
-                  onClick={() => setToolsOpen(false)}
-                  className="mb-1 flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-[#25466f] hover:bg-[#eef5ff] hover:text-[#125bd7]"
+                  onClick={() => navigateMobile(item.href)}
+                  className="mb-1 flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#25466f] active:bg-[#eef5ff]"
                 >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#1769ff]">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-bold">{item.label}</span>
+                    <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#6d7f9b]">{item.description}</span>
+                  </span>
+                </button>
               );
             })}
           </div>
