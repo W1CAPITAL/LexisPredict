@@ -126,24 +126,10 @@ export function SidebarVertical() {
     ).filter((item) => !q || `${item.label} ${item.href}`.toLowerCase().includes(q));
   }, [query, role, isSupervisor, isSuperAdmin, canSeeCompany, plan]);
 
-  const mobileExtraItems = useMemo(
-    () =>
-      extraItems.filter((item) =>
-        [
-          "/processos-parados",
-          "/encerrados-revisao",
-          "/cumprimentos-procedentes",
-          "/busca-apreensao",
-          "/documents",
-          "/veredito",
-          "/team",
-          "/supervisao",
-          "/auditoria",
-          "/superadmin",
-        ].includes(item.href),
-      ),
-    [extraItems],
-  );
+  // A barra inferior fica simples, mas o Menu deve ser completo.
+  // Assim nada "some" no mobile: todos os recursos liberados pelo plano/perfil
+  // continuam acessíveis sem poluir a navegação principal.
+  const mobileExtraItems = extraItems;
 
   const mobileMenuItems = useMemo(() => {
     const descriptions: Record<string, string> = {
