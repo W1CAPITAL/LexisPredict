@@ -9,6 +9,7 @@ import { uniqueCases } from './case-identity';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { canSupervisaoCarteira, isSuperAdminProfile } from './auth-supervisao';
 import { resolveCaseScope } from './roles';
+import { normalizePlanId } from './planos-pacotes';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -967,12 +968,31 @@ export async function listAllEmpresasSystem() {
   const ctx = await getUserContext();
   if (!ctx.isSuperAdmin) return [];
   const admin = await getSupabaseAdmin();
-  const { data, error } = await admin
+
+  const full = await admin
     .from('empresas')
     .select('id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact')
     .order('nome', { ascending: true });
-  if (error) throw error;
-  return data || [];
+
+  if (!full.error) return full.data || [];
+
+  if (/billing_status|plan_self_service_unlocked|onboarding_completed|nav_layout|sidebar_compact|column .* does not exist/i.test(String(full.error.message || ''))) {
+    const legacy = await admin
+      .from('empresas')
+      .select('id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo')
+      .order('nome', { ascending: true });
+    if (legacy.error) throw legacy.error;
+    return (legacy.data || []).map((row: any) => ({
+      ...row,
+      billing_status: normalizePlanId(row.plano || 'essencial') === 'maximo' ? 'active' : null,
+      plan_self_service_unlocked: false,
+      onboarding_completed: true,
+      nav_layout: 'vertical',
+      sidebar_compact: false,
+    }));
+  }
+
+  throw full.error;
 }
 
 export async function getStoredNotes(): Promise<any[]> {
