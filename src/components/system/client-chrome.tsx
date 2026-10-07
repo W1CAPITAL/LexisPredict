@@ -1,10 +1,16 @@
 /**
- * Chrome client-only. Scanner sob demanda (não no boot).
+ * Chrome client-only.
+ *
+ * Regra de desempenho:
+ * - nada pesado entra no caminho crítico da navegação;
+ * - Scanner e Agentes só montam quando o usuário pede;
+ * - serviços auxiliares entram depois que a tela já está utilizável.
  */
 "use client";
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { NavProgress } from "@/components/system/nav-progress";
 
 const GuidedTour = dynamic(
@@ -20,15 +26,14 @@ const DataJudScannerPanel = dynamic(
   { ssr: false }
 );
 
-const AppUpdateBanner = dynamic(
-  () =>
-    import("@/components/system/app-update-banner").then((m) => m.AppUpdateBanner),
+const AgentDock = dynamic(
+  () => import("@/components/agents/agent-dock").then((m) => m.AgentDock),
   { ssr: false }
 );
 
-const PacmanTrollOverlay = dynamic(
+const AppUpdateBanner = dynamic(
   () =>
-    import("@/components/troll/pacman-troll-overlay").then((m) => m.PacmanTrollOverlay),
+    import("@/components/system/app-update-banner").then((m) => m.AppUpdateBanner),
   { ssr: false }
 );
 
@@ -41,19 +46,6 @@ const LexisCommandPalette = dynamic(
   () =>
     import("@/components/sf-chrome/lexis-command-palette").then(
       (m) => m.LexisCommandPalette
-    ),
-  { ssr: false }
-);
-
-const AgentDock = dynamic(
-  () => import("@/components/agents/agent-dock").then((m) => m.AgentDock),
-  { ssr: false }
-);
-
-const LaunchAnnounceModal = dynamic(
-  () =>
-    import("@/components/system/launch-announce-modal").then(
-      (m) => m.LaunchAnnounceModal
     ),
   { ssr: false }
 );
@@ -72,7 +64,6 @@ const HybridSyncBadge = dynamic(
   { ssr: false }
 );
 
-
 const HybridAutoSync = dynamic(
   () =>
     import("@/components/hybrid/hybrid-auto-sync").then((m) => m.HybridAutoSync),
@@ -87,62 +78,74 @@ const ChatNotifPermission = dynamic(
   { ssr: false }
 );
 
-const DesktopDownloadBanner = dynamic(
-  () =>
-    import("@/components/system/desktop-download-banner").then(
-      (m) => m.DesktopDownloadBanner
-    ),
-  { ssr: false }
-);
-
 export function ClientChrome() {
+  const pathname = usePathname();
   const [scannerReady, setScannerReady] = useState(false);
+  const [agentReady, setAgentReady] = useState(false);
   const [tourReady, setTourReady] = useState(false);
+  const [deferredReady, setDeferredReady] = useState(false);
+  const [desktopExtras, setDesktopExtras] = useState(false);
 
   useEffect(() => {
     const enableScanner = () => setScannerReady(true);
-    window.addEventListener("lexis-need-scanner", enableScanner);
+    const enableAgents = () => setAgentReady(true);
+    const enableTour = () => setTourReady(true);
 
-    const idle =
+    window.addEventListener("lexis-need-scanner", enableScanner);
+    window.addEventListener("lexis-open-agents", enableAgents);
+    window.addEventListener("lexis-need-tour", enableTour);
+
+    // O guia pode ser iniciado pela página /onboarding.
+    if (pathname === "/onboarding") setTourReady(true);
+
+    // Pré-carrega somente serviços leves depois que a tela já respondeu ao usuário.
+    const idleCallback =
       "requestIdleCallback" in window
         ? (window as any).requestIdleCallback(
-            () => {
-              setTourReady(true);
-              setScannerReady(true);
-            },
-            { timeout: 8000 }
+            () => setDeferredReady(true),
+            { timeout: 5000 }
           )
         : null;
-    const fallback = window.setTimeout(() => {
-      setTourReady(true);
-      setScannerReady(true);
-    }, 5000);
+
+    const fallback = window.setTimeout(() => setDeferredReady(true), 3500);
+
+    // Recursos exclusivamente de desktop não entram no bundle crítico do celular.
+    const media = window.matchMedia("(min-width: 768px)");
+    const syncDesktop = () => setDesktopExtras(media.matches);
+    syncDesktop();
+    media.addEventListener?.("change", syncDesktop);
 
     return () => {
       window.removeEventListener("lexis-need-scanner", enableScanner);
+      window.removeEventListener("lexis-open-agents", enableAgents);
+      window.removeEventListener("lexis-need-tour", enableTour);
       window.clearTimeout(fallback);
-      if (idle != null && "cancelIdleCallback" in window) {
-        (window as any).cancelIdleCallback(idle);
+      if (idleCallback != null && "cancelIdleCallback" in window) {
+        (window as any).cancelIdleCallback(idleCallback);
       }
+      media.removeEventListener?.("change", syncDesktop);
     };
-  }, []);
+  }, [pathname]);
 
   return (
     <>
       <NavProgress />
       <UiPrefsApplier />
+
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
-      <AgentDock />
-      <LaunchAnnounceModal />
-      <AppUpdateBanner />
-      <DesktopDownloadBanner />
-      <PacmanTrollOverlay />
-      <LexisCommandPalette />
-      <ChatNotifPermission />
-      <HybridAutoSync />
-      <HybridSyncBadge compact />
-      <ChatRealtimeNotify />
+      {agentReady ? <AgentDock /> : null}
+
+      {deferredReady ? (
+        <>
+          <AppUpdateBanner />
+          <ChatNotifPermission />
+          <ChatRealtimeNotify />
+          <HybridAutoSync />
+          <HybridSyncBadge compact />
+          {desktopExtras ? <LexisCommandPalette /> : null}
+        </>
+      ) : null}
     </>
   );
 }
