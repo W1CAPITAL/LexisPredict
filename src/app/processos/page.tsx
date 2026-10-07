@@ -19,7 +19,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { fetchCompanyProcessosAction,
   fetchCompanyProcessosPageAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
-import { fetchRankingAtendentesEmpresaAction } from "@/app/actions/ranking-atendentes-action";
+import { } from "@/app/actions/ranking-atendentes-action";
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
 import { peekCarteiraCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
@@ -33,7 +33,7 @@ import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
-import { fetchProcessosEmpresaKpisAction } from "@/app/actions/processos-kpis-action";
+import { } from "@/app/actions/processos-kpis-action";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
 import { DataJudScannerPanel } from "@/components/scanner/datajud-scanner-panel";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
