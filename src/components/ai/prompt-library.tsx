@@ -16,6 +16,22 @@ export type Prompt = {
 
 export const LEXIS_PROMPTS: Prompt[] = [
   {
+    id: "bpmn-fluxo-juridico",
+    title: "Modelar processo BPMN",
+    description: "Fluxo jurídico/operacional em BPMN 2.0",
+    category: "Processos",
+    prompt:
+      "Modele o fluxo abaixo em BPMN 2.0. Identifique participantes, lanes/pools, evento inicial, tarefas, gateways, exceções, prazos e estados finais. Entregue primeiro um resumo humano do processo e depois o XML BPMN semântico. Não invente etapas ausentes; marque lacunas.\n\nFLUXO:\n",
+  },
+  {
+    id: "bpmn-revisar",
+    title: "Revisar BPMN",
+    description: "Procura deadlocks, caminhos presos e modelagem incorreta",
+    category: "Processos",
+    prompt:
+      "Revise este BPMN 2.0 como analista de processos. Explique o happy path, decisões e exceções; procure deadlock, execução duplicada, stuck token, unreachable, dead ends, start/end inválidos e problemas de pool/lane. Sugira correções sem inventar regra de negócio.\n\n",
+  },
+  {
     id: "resumo-processo",
     title: "Resumir processo",
     description: "Resumo executivo do CNJ / movimentações",
