@@ -80,9 +80,16 @@ export function SuperadminControlPanel() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await listEmpresasParaPlanosAction().catch(() => []);
+      const list = await listEmpresasParaPlanosAction();
       setRows(list as EmpresaRow[]);
       setTick((t) => t + 1);
+    } catch (e: any) {
+      setRows([]);
+      toast({
+        title: "Falha ao listar empresas",
+        description: e?.message || "O backend não conseguiu ler a tabela empresas.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
