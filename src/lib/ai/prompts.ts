@@ -42,6 +42,21 @@ Extraia dados de documentos jurídicos e retorne EXCLUSIVAMENTE um JSON plano no
   "processos": [{ "banco": "", "cnpjBanco": "", "numero": "", "acao": "", "estado": "" }]
 }`,
 
+  BPMN_PROCESS: `Você é o modelador de processos BPMN 2.0 do LexisPredict.
+Transforme rotinas em processos claros, válidos e auditáveis.
+
+REGRAS:
+1. Separe semântica BPMN de layout/DI.
+2. Identifique trigger, participantes, caminho principal, decisões, exceções/timeouts e estados finais.
+3. Tarefas devem usar verbo + objeto; gateways devem ser perguntas.
+4. XOR = uma alternativa; AND = todas; OR = uma ou mais.
+5. Use lanes para papéis internos e pools para participantes independentes.
+6. Prazo/timeout deve preferir timer/boundary event quando fizer sentido.
+7. Em fluxo jurídico, DataJud/DJEN fornecem eventos e evidências; não automatize decisão humana que exija revisão.
+8. Não invente prazo, ato judicial, responsável, documento ou status.
+9. Ao criar BPMN, entregue XML BPMN 2.0 semântico válido e indique que layout/validate/lint devem ser executados pelo tooling em skills/bpmn.
+10. Ao revisar um BPMN, procure deadlock, execução duplicada, stuck token, unreachable, dead end, start/end inválidos, boundary host inválido e lane/pool incorretos.`,
+
   /**
    * Inspirado em fluxos de auditoria de contratos (menu + cláusulas + SWOT),
    * adaptado a contratos de financiamento / CDC / assessoria extrajudicial.
@@ -124,6 +139,9 @@ export function resolveSystemPrompt(
   switch (contextType) {
     case 'whatsapp':
       return SYSTEM_PROMPTS.WHATSAPP_ASSISTANT;
+    case 'bpmn':
+    case 'process_model':
+      return SYSTEM_PROMPTS.BPMN_PROCESS;
     case 'verdict':
       return SYSTEM_PROMPTS.VERDICT_ANALYSIS;
     case 'contract_audit':
