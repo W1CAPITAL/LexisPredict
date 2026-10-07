@@ -94,7 +94,7 @@ export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult>
 
     const normalizedPlan = data.plano ? normalizePlanId(data.plano) : "essencial";
     const billingStatus = legacyCommercialSchema
-      ? (normalizedPlan === "maximo" ? "active" : "")
+      ? "active"
       : String(data.billing_status || "").trim().toLowerCase();
     const blockedByBilling = ["past_due", "suspended", "canceled"].includes(billingStatus);
 
@@ -110,7 +110,7 @@ export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult>
       blockedReason:
         data.plano_bloqueio_motivo ??
         (blockedByBilling ? billingStatus : null),
-      billingStatus: legacyCommercialSchema ? (normalizedPlan === "maximo" ? "active" : null) : data.billing_status ?? null,
+      billingStatus: legacyCommercialSchema ? "active" : data.billing_status ?? null,
       selfServiceUnlocked: !!data.plan_self_service_unlocked,
       onboardingCompleted: legacyCommercialSchema ? true : !!data.onboarding_completed,
       navLayout: data.nav_layout === "vertical" ? "vertical" : "dock",
@@ -357,11 +357,11 @@ export async function liberarEmpresaPlanoAction(
 
     const verifiedPlan = normalizePlanId((data as any).plano || "essencial");
     const verifiedBilling = legacyCommercialSchema
-      ? (verifiedPlan === "maximo" ? "active" : "")
+      ? "active"
       : String((data as any).billing_status || "").toLowerCase();
     const verifiedBlocked = !!(data as any).plano_bloqueado;
 
-    if (verifiedPlan !== p || (p === "maximo" && verifiedBilling !== "active") || verifiedBlocked) {
+    if (verifiedPlan !== p || verifiedBilling !== "active" || verifiedBlocked) {
       return {
         ok: false,
         persisted: false,
