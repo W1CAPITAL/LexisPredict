@@ -443,7 +443,7 @@ function WhatsAppTerminalInner() {
       if (res.provider === "waauto" || res.provider === "evolution") {
         setBridgeProvider(res.provider);
       }
-      const g = list.filter((c) => c.isGroup).length;
+      const g = list.filter((c: { isGroup: boolean }) => c.isGroup).length;
       toast({
         title: res.provider === "waauto" ? "Chats WA.Auto" : "Chats Evolution",
         description: only
@@ -479,7 +479,7 @@ function WhatsAppTerminalInner() {
         setHistory([]);
         toast({
           title: "Histórico",
-          description: res.error || "Sem mensagens neste chat",
+          description: ("error" in res ? res.error : null) || "Sem mensagens neste chat",
           variant: "destructive",
         });
       }
