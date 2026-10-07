@@ -208,7 +208,10 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, persisted: false, error: "Service role ausente." };
 
-    const { data, error } = await admin
+    let data: any = null;
+    let error: any = null;
+
+    const fullUpdate = await admin
       .from("empresas")
       .update({
         plano_bloqueado: true,
@@ -216,8 +219,25 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
         billing_status: "suspended",
       })
       .eq("id", id)
-      .select("id, plano, plano_bloqueado")
+      .select("id, plano, plano_bloqueado, billing_status")
       .maybeSingle();
+
+    data = fullUpdate.data;
+    error = fullUpdate.error;
+
+    if (error && /billing_status|column .* does not exist/i.test(String(error.message || ""))) {
+      const legacyUpdate = await admin
+        .from("empresas")
+        .update({
+          plano_bloqueado: true,
+          plano_bloqueio_motivo: motivo || "inadimplencia",
+        })
+        .eq("id", id)
+        .select("id, plano, plano_bloqueado")
+        .maybeSingle();
+      data = legacyUpdate.data;
+      error = legacyUpdate.error;
+    }
 
     if (error) {
       return {
