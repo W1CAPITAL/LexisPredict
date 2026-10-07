@@ -79,7 +79,7 @@ async function fetchCommercialState(empresaId: string): Promise<CommercialState>
         if (!error && data) {
           const normalizedPlan = normalizePlanId(data.plano || "essencial");
           const billingStatus = legacyCommercialSchema
-            ? (normalizedPlan === "maximo" ? "active" : "")
+            ? "active"
             : String(data.billing_status || "").trim().toLowerCase();
           const blockedByBilling = ["past_due", "suspended", "canceled"].includes(billingStatus);
           return {
@@ -95,7 +95,7 @@ async function fetchCommercialState(empresaId: string): Promise<CommercialState>
               data.plano_bloqueio_motivo ??
               (blockedByBilling ? billingStatus : null),
             billingStatus: legacyCommercialSchema
-              ? (normalizedPlan === "maximo" ? "active" : null)
+              ? "active"
               : data.billing_status ?? null,
             selfServiceUnlocked: legacyCommercialSchema ? false : !!data.plan_self_service_unlocked,
             onboardingCompleted: legacyCommercialSchema ? true : !!data.onboarding_completed,
