@@ -591,7 +591,8 @@ body:has([data-lexis-commercial-sidebar]) [role="dialog"] .bg-\[\#061d35\] * {
 @media (max-width: 767px) {
   [data-lexis-commercial-topbar] { display: none !important; }
   body:has([data-lexis-commercial-sidebar]) main {
-    padding-top: 56px;
+    padding-top: var(--lexis-mobile-topbar, calc(3.5rem + env(safe-area-inset-top))) !important;
+    padding-bottom: var(--lexis-mobile-bottomnav, calc(4.5rem + env(safe-area-inset-bottom))) !important;
   }
 }
 
@@ -599,4 +600,22 @@ body:has([data-lexis-commercial-sidebar]) [role="dialog"] .bg-\[\#061d35\] * {
   body:has([data-lexis-commercial-sidebar]) main {
     min-width: 0;
   }
+}
+
+
+/* Mobile shell hardening — evita topo duplicado, saltos e overflow horizontal. */
+@media (max-width: 767px) {
+  html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
+  body:has([data-lexis-mobile-topbar]) { padding-top: 0 !important; }
+  body:has([data-lexis-mobile-topbar]) main { scroll-padding-top: 1rem; }
+  body:has([data-lexis-mobile-topbar]) main > header { margin-top: 0 !important; }
+  [data-lexis-mobile-drawer] { padding-top: env(safe-area-inset-top); }
+  [data-lexis-settings-tabs] {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+  }
+  [data-lexis-settings-tabs]::-webkit-scrollbar { display: none; }
+  [data-lexis-settings-tab] { scroll-snap-align: start; white-space: nowrap; }
 }
