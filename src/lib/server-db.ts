@@ -198,21 +198,42 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     let page = 0;
     const pageSize = 500;
     let hasMore = true;
+    let useLegacyStar = false;
+
     while (hasMore) {
-      let query = cli
-        .from("processos")
-        .select("*")
-        .eq("empresa_id", empresaId)
-        .order("created_at", { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-      if (mode === "mine") {
-        if (!auth_id) return [];
-        // Somente meus processos (created_by = auth_id)
-        query = query.eq("created_by", auth_id);
+      const buildQuery = (columns: string) => {
+        let query = cli
+          .from("processos")
+          .select(columns)
+          .eq("empresa_id", empresaId)
+          .order("created_at", { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        if (mode === "mine") {
+          if (!auth_id) return null;
+          query = query.eq("created_by", auth_id);
+        }
+        return query;
+      };
+
+      const base = buildQuery(useLegacyStar ? "*" : PROCESSOS_LIST_COLUMNS);
+      if (!base) return [];
+
+      let result = await base;
+      if (
+        result.error &&
+        !useLegacyStar &&
+        /column .* does not exist|schema cache/i.test(String(result.error.message || ""))
+      ) {
+        useLegacyStar = true;
+        const legacy = buildQuery("*");
+        if (!legacy) return [];
+        result = await legacy;
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      if (data && data.length > 0) {
+
+      if (result.error) throw result.error;
+      const data = result.data || [];
+
+      if (data.length > 0) {
         allData = allData.concat(data);
         hasMore = data.length === pageSize;
         page++;
