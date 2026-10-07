@@ -45,7 +45,11 @@ async function fetchCommercialState(empresaId: string): Promise<CommercialState>
       // Leitura direta com RLS: evita uma Server Action + auth.getUser para cada
       // componente que usa usePlano(). O Supabase continua isolando o tenant.
       if (supabase) {
-        const { data, error } = await supabase
+        let data: any = null;
+        let error: any = null;
+        let legacyCommercialSchema = false;
+
+        const full = await supabase
           .from("empresas")
           .select(
             "id, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact"
@@ -53,23 +57,54 @@ async function fetchCommercialState(empresaId: string): Promise<CommercialState>
           .eq("id", empresaId)
           .maybeSingle();
 
+        data = full.data;
+        error = full.error;
+
+        if (
+          error &&
+          /billing_status|plan_self_service_unlocked|onboarding_completed|nav_layout|sidebar_compact|column .* does not exist/i.test(
+            String(error.message || "")
+          )
+        ) {
+          legacyCommercialSchema = true;
+          const legacy = await supabase
+            .from("empresas")
+            .select("id, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo")
+            .eq("id", empresaId)
+            .maybeSingle();
+          data = legacy.data;
+          error = legacy.error;
+        }
+
         if (!error && data) {
-          const billingStatus = String(data.billing_status || "").trim().toLowerCase();
+          const normalizedPlan = normalizePlanId(data.plano || "essencial");
+          const billingStatus = legacyCommercialSchema
+            ? (normalizedPlan === "maximo" ? "active" : "")
+            : String(data.billing_status || "").trim().toLowerCase();
           const blockedByBilling = ["past_due", "suspended", "canceled"].includes(billingStatus);
           return {
             ok: true,
             empresaId,
-            plan: normalizePlanId(data.plano || "essencial"),
-            expiresAt: data.plano_expira_em ?? null,
+            plan: normalizedPlan,
+            expiresAt:
+              legacyCommercialSchema && normalizedPlan === "maximo"
+                ? null
+                : data.plano_expira_em ?? null,
             blocked: !!data.plano_bloqueado || blockedByBilling,
             blockedReason:
               data.plano_bloqueio_motivo ??
               (blockedByBilling ? billingStatus : null),
-            billingStatus: data.billing_status ?? null,
-            selfServiceUnlocked: !!data.plan_self_service_unlocked,
-            onboardingCompleted: !!data.onboarding_completed,
-            navLayout: data.nav_layout === "vertical" ? "vertical" : "dock",
-            sidebarCompact: !!data.sidebar_compact,
+            billingStatus: legacyCommercialSchema
+              ? (normalizedPlan === "maximo" ? "active" : null)
+              : data.billing_status ?? null,
+            selfServiceUnlocked: legacyCommercialSchema ? false : !!data.plan_self_service_unlocked,
+            onboardingCompleted: legacyCommercialSchema ? true : !!data.onboarding_completed,
+            navLayout: legacyCommercialSchema
+              ? "vertical"
+              : data.nav_layout === "vertical"
+                ? "vertical"
+                : "dock",
+            sidebarCompact: legacyCommercialSchema ? false : !!data.sidebar_compact,
             setupRequired: false,
           } as CommercialState;
         }
