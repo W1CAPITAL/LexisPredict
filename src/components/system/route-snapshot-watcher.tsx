@@ -26,17 +26,24 @@ export function RouteSnapshotWatcher() {
       void captureCurrentRoute(pathname);
     };
 
-    if ("requestIdleCallback" in window) {
-      idle = (window as any).requestIdleCallback(run, { timeout: 5000 });
+    const requestIdle = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout?: number }) => number)
+      | undefined;
+
+    if (typeof requestIdle === "function") {
+      idle = requestIdle(run, { timeout: 5000 });
     } else {
-      timeout = window.setTimeout(run, 3000);
+      timeout = globalThis.setTimeout(run, 3000);
     }
 
     return () => {
       cancelled = true;
       if (timeout) window.clearTimeout(timeout);
-      if (idle != null && "cancelIdleCallback" in window) {
-        (window as any).cancelIdleCallback(idle);
+      const cancelIdle = (window as any).cancelIdleCallback as
+        | ((id: number) => void)
+        | undefined;
+      if (idle != null && typeof cancelIdle === "function") {
+        cancelIdle(idle);
       }
     };
   }, [pathname]);
