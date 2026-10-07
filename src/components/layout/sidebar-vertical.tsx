@@ -123,6 +123,25 @@ export function SidebarVertical() {
     ).filter((item) => !q || `${item.label} ${item.href}`.toLowerCase().includes(q));
   }, [query, role, isSupervisor, isSuperAdmin, plan]);
 
+  const mobileExtraItems = useMemo(
+    () =>
+      extraItems.filter((item) =>
+        [
+          "/processos-parados",
+          "/encerrados-revisao",
+          "/cumprimentos-procedentes",
+          "/busca-apreensao",
+          "/documents",
+          "/veredito",
+          "/team",
+          "/supervisao",
+          "/auditoria",
+          "/superadmin",
+        ].includes(item.href),
+      ),
+    [extraItems],
+  );
+
   const active = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 
@@ -263,7 +282,7 @@ export function SidebarVertical() {
 
       <div
         data-lexis-mobile-topbar
-        className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-white/10 bg-[linear-gradient(135deg,#061d35_0%,#082944_55%,#0b3b67_100%)] px-3 text-white shadow-[0_10px_28px_rgba(4,22,41,.24)] md:hidden"
+        className="fixed inset-x-0 top-0 z-40 flex items-end pb-2 border-b border-white/10 bg-[linear-gradient(135deg,#061d35_0%,#082944_55%,#0b3b67_100%)] px-3 text-white shadow-[0_10px_28px_rgba(4,22,41,.24)] md:hidden"
       >
         <Link href="/" prefetch={false} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#2d7fff]/70 bg-[#07182d] shadow-[0_0_18px_rgba(31,111,255,.28)]">
           <img src="/logo.png" alt="LexisPredict" className="h-6 w-6 object-contain" />
@@ -292,7 +311,7 @@ export function SidebarVertical() {
       </div>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="z-[100] w-[280px] border-0 p-0">
+        <SheetContent side="left" data-lexis-mobile-drawer className="z-[100] w-[min(84vw,320px)] border-0 p-0">
           <SheetTitle className="sr-only">Navegação</SheetTitle>
           <SheetDescription className="sr-only">Menu do LexisPredict</SheetDescription>
           <SidebarBody mobile />
@@ -334,10 +353,10 @@ export function SidebarVertical() {
       </nav>
 
       <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
-        <SheetContent side="left" className="z-[110] w-[360px] border-r border-[#dfe7f2] bg-white p-0">
+        <SheetContent side="left" data-lexis-mobile-drawer className="z-[110] w-[min(88vw,340px)] border-r border-[#dfe7f2] bg-white p-0">
           <SheetTitle className="sr-only">Mais ferramentas</SheetTitle>
           <SheetDescription className="sr-only">Recursos adicionais do LexisPredict</SheetDescription>
-          <div className="border-b border-[#e2e8f2] p-5">
+          <div className="border-b border-[#e2e8f2] px-4 pb-4 pt-3">
             <p className="text-lg font-black text-[#102447]">Mais ferramentas</p>
             <label className="mt-4 flex h-10 items-center gap-2 rounded-xl border border-[#dce5f1] bg-[#f7f9fc] px-3">
               <Search className="h-4 w-4 text-[#6c7f9b]" />
@@ -349,8 +368,8 @@ export function SidebarVertical() {
               />
             </label>
           </div>
-          <div className="max-h-[calc(100dvh-120px)] overflow-y-auto p-3">
-            {extraItems.map((item) => {
+          <div className="max-h-[calc(100dvh-132px-env(safe-area-inset-top))] overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            {mobileExtraItems.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
