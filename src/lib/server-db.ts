@@ -45,10 +45,14 @@ const resolveUserContext = cache(async () => {
     .select('id, empresa_id, cargo, email, auth_user_id, nome, role')
     .eq('auth_user_id', user.id)
     .maybeSingle();
-  if (profileError || !profile?.empresa_id) return empty;
+  if (profileError || !profile) return empty;
 
   const cargo = (profile?.cargo as UserRole) || 'Operador';
   const isSuperAdmin = isSuperAdminProfile(profile) || checkIfSuperAdmin(profile);
+  // Superadmin é global e pode administrar empresas sem estar vinculado a um tenant.
+  // Antes, a ausência de empresa_id zerava o contexto e fazia as Server Actions
+  // recusarem justamente quem deveria conseguir liberar planos.
+  if (!isSuperAdmin && !profile?.empresa_id) return empty;
   const isSupervisor = canSupervisaoCarteira(profile) || checkIfSupervisor(profile);
   const isViewer = checkIfViewer(profile) || /visualiz/i.test(String(profile?.cargo || ''));
   // Fonte única de escopo comercial.
