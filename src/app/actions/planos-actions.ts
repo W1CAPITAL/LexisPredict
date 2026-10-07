@@ -161,8 +161,8 @@ export async function listEmpresasParaPlanosAction(): Promise<EmpresaPlanoRow[]>
       nav_layout: r.nav_layout === "vertical" ? "vertical" : "dock",
       sidebar_compact: !!r.sidebar_compact,
     }));
-  } catch {
-    return [];
+  } catch (e: any) {
+    throw new Error(e?.message || "Falha ao listar empresas no Supabase.");
   }
 }
 
@@ -180,7 +180,13 @@ export async function salvarPlanoEmpresaAction(empresaId: string, plan: PlanId) 
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, persisted: false, error: "Service role ausente." };
 
-    const { error } = await admin.from("empresas").update({ plano: p }).eq("id", id);
+    const { data, error } = await admin
+      .from("empresas")
+      .update({ plano: p })
+      .eq("id", id)
+      .select("id, plano")
+      .maybeSingle();
+
     if (error) {
       return {
         ok: false,
@@ -190,7 +196,18 @@ export async function salvarPlanoEmpresaAction(empresaId: string, plan: PlanId) 
         missingColumns: /column .* does not exist/i.test(error.message || ""),
       };
     }
-    return { ok: true, persisted: true, plan: p };
+
+    const persistedPlan = data ? normalizePlanId((data as any).plano || "essencial") : null;
+    if (!data || persistedPlan !== p) {
+      return {
+        ok: false,
+        persisted: false,
+        error: "O banco não confirmou a alteração do plano.",
+        plan: p,
+      };
+    }
+
+    return { ok: true, persisted: true, plan: persistedPlan };
   } catch (e: any) {
     return { ok: false, persisted: false, error: e?.message || "Falha.", plan: p };
   }
