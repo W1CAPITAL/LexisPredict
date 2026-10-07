@@ -70,8 +70,6 @@ import {
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
   importEvolutionHistoryBulkAction,
-  listEvolutionChatsAction,
-  fetchEvolutionChatByJidAction,
   whatsappBridgeHealthAction,
   listWhatsAppChatsAction,
   fetchWhatsAppChatByJidAction,
