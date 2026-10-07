@@ -263,7 +263,13 @@ export async function middleware(request: NextRequest) {
         }
 
         const exp = empresa.plano_expira_em ? new Date(empresa.plano_expira_em).getTime() : null
-        const expired = exp !== null && Number.isFinite(exp) && exp < Date.now()
+        // No schema legado, Máximo é entitlement completo. Datas antigas de
+        // renovação eram informativas e não devem bloquear o gabinete.
+        const expired =
+          !(legacyCommercialSchema && plan === 'maximo') &&
+          exp !== null &&
+          Number.isFinite(exp) &&
+          exp < Date.now()
         const blocked = Boolean(empresa.plano_bloqueado) || ['past_due', 'suspended', 'canceled'].includes(billingStatus)
         const billingBypass = path.startsWith('/settings') || path === '/api/commercial/me'
 
