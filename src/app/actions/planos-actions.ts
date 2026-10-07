@@ -207,6 +207,19 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
       return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito." };
     }
 
+    const verifiedPlan = normalizePlanId((data as any).plano || "essencial");
+    const verifiedBilling = String((data as any).billing_status || "").toLowerCase();
+    const verifiedBlocked = !!(data as any).plano_bloqueado;
+    if (verifiedPlan !== p || verifiedBilling !== "active" || verifiedBlocked) {
+      return {
+        ok: false,
+        persisted: false,
+        error:
+          "O banco respondeu ao update, mas a assinatura não ficou ativa. " +
+          `plano=${verifiedPlan}, billing=${verifiedBilling || "vazio"}, bloqueado=${verifiedBlocked ? "sim" : "não"}.`,
+      };
+    }
+
     try {
       await admin.from("assinaturas").upsert(
         {
@@ -252,9 +265,12 @@ export async function liberarEmpresaPlanoAction(
         plano_bloqueio_motivo: null,
         plano_expira_em: expiresAt,
         billing_status: "active",
+        // Uma empresa liberada pelo Superadmin não pode continuar presa no
+        // gate de primeiro acesso/ativação comercial.
+        onboarding_completed: true,
       })
       .eq("id", id)
-      .select("id, plano, plano_bloqueado, plano_expira_em")
+      .select("id, plano, plano_bloqueado, plano_bloqueio_motivo, plano_expira_em, billing_status, onboarding_completed")
       .maybeSingle();
 
     if (error) {
@@ -304,9 +320,11 @@ export async function liberarEmpresaPlanoAction(
     return {
       ok: true,
       persisted: true,
-      plan: p,
+      plan: verifiedPlan,
       expiresAt: data.plano_expira_em,
-      blocked: false,
+      blocked: verifiedBlocked,
+      billingStatus: verifiedBilling,
+      onboardingCompleted: !!(data as any).onboarding_completed,
     };
   } catch (e: any) {
     return { ok: false, persisted: false, error: e?.message || "Falha." };
