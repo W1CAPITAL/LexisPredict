@@ -52,10 +52,10 @@ type NavItem = {
 };
 
 const core: NavItem[] = [
-  { label: "Painel", href: "/", icon: LayoutDashboard },
-  { label: "Meus Processos", href: "/cases", icon: Briefcase },
-  { label: "Processos", href: "/processos", icon: FolderOpen, company: true },
-  { label: "Tarefas", href: "/tarefas", icon: ListTodo },
+  { label: "Início", href: "/", icon: LayoutDashboard },
+  { label: "Processos", href: "/cases", icon: Briefcase },
+  { label: "Carteira da empresa", href: "/processos", icon: FolderOpen, company: true },
+  { label: "Hoje", href: "/tarefas", icon: ListTodo },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
@@ -113,21 +113,28 @@ export function SidebarVertical() {
     [role, isSupervisor, isSuperAdmin, canSeeCompany, plan],
   );
 
-  const extraItems = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return filterNavByPlan(
-      extras.filter(allowed).map((item) => ({
-        label: item.label,
-        href: item.href,
-        icon: item.icon,
-      })),
-      isSuperAdmin ? "maximo" : plan,
-    ).filter((item) => !q || `${item.label} ${item.href}`.toLowerCase().includes(q));
-  }, [query, role, isSupervisor, isSuperAdmin, canSeeCompany, plan]);
+  const extraItems = useMemo(
+    () =>
+      filterNavByPlan(
+        extras.filter(allowed).map((item) => ({
+          label: item.label,
+          href: item.href,
+          icon: item.icon,
+        })),
+        isSuperAdmin ? "maximo" : plan,
+      ),
+    [role, isSupervisor, isSuperAdmin, canSeeCompany, plan],
+  );
 
-  // A barra inferior fica simples, mas o Menu deve ser completo.
-  // Assim nada "some" no mobile: todos os recursos liberados pelo plano/perfil
-  // continuam acessíveis sem poluir a navegação principal.
+  const primaryItems = useMemo(
+    () =>
+      ["/", "/tarefas", "/cases", "/whatsapp"]
+        .map((href) => mainItems.find((item) => item.href === href))
+        .filter(Boolean) as Array<(typeof mainItems)[number]>,
+    [mainItems],
+  );
+
+  // Tudo continua disponível, mas fora do primeiro nível.
   const mobileExtraItems = extraItems;
 
   const mobileMenuItems = useMemo(() => {
@@ -173,14 +180,94 @@ export function SidebarVertical() {
     ].filter(Boolean) as Array<(typeof combined)[number]>;
 
     const seen = new Set<string>();
+    const q = query.trim().toLowerCase();
+
     return ordered
       .filter((item) => {
         if (seen.has(item.href)) return false;
         seen.add(item.href);
         return true;
       })
-      .map((item) => ({ ...item, description: descriptions[item.href] || "Abrir ferramenta." }));
-  }, [mainItems, mobileExtraItems]);
+      .map((item) => ({ ...item, description: descriptions[item.href] || "Abrir ferramenta." }))
+      .filter(
+        (item) =>
+          !q ||
+          `${item.label} ${item.description} ${item.href}`.toLowerCase().includes(q),
+      );
+  }, [mainItems, mobileExtraItems, query]);
+
+  const menuGroups = useMemo(() => {
+    const definitions = [
+      {
+        id: "dia",
+        label: "Trabalho do dia",
+        description: "Fila, prazos e casos que pedem ação agora.",
+        icon: ListTodo,
+        hrefs: [
+          "/tarefas",
+          "/agenda",
+          "/processos-parados",
+          "/encerrados-revisao",
+          "/cumprimentos-procedentes",
+          "/busca-apreensao",
+        ],
+      },
+      {
+        id: "casos",
+        label: "Casos e documentos",
+        description: "Carteira, peças, consultas e análise.",
+        icon: Briefcase,
+        hrefs: [
+          "/cases",
+          "/processos",
+          "/gerador-processos",
+          "/documents",
+          "/veredito",
+          "/chat",
+          "/calculos",
+        ],
+      },
+      {
+        id: "clientes",
+        label: "Clientes e negócio",
+        description: "WhatsApp, CRM, financeiro e relatórios.",
+        icon: MessageCircle,
+        hrefs: ["/whatsapp", "/crm", "/financas", "/report", "/import"],
+      },
+      {
+        id: "gestao",
+        label: "Gestão do sistema",
+        description: "Equipe, supervisão, auditoria e configurações.",
+        icon: ShieldCheck,
+        hrefs: ["/team", "/supervisao", "/auditoria", "/settings", "/superadmin"],
+      },
+    ];
+
+    const assigned = new Set(definitions.flatMap((group) => group.hrefs));
+    const groups = definitions
+      .map((group) => ({
+        ...group,
+        items: mobileMenuItems.filter((item) => group.hrefs.includes(item.href)),
+      }))
+      .filter((group) => group.items.length > 0);
+
+    const others = mobileMenuItems.filter(
+      (item) => !assigned.has(item.href) && item.href !== "/",
+    );
+
+    if (others.length) {
+      groups.push({
+        id: "outros",
+        label: "Outras ferramentas",
+        description: "Recursos menos usados e funções especializadas.",
+        icon: MoreHorizontal,
+        hrefs: others.map((item) => item.href),
+        items: others,
+      });
+    }
+
+    return groups;
+  }, [mobileMenuItems]);
 
   const navigateMobile = (href: string) => {
     setToolsOpen(false);
@@ -232,7 +319,8 @@ export function SidebarVertical() {
   );
   const firstName = displayName.trim().split(/\s+/)[0] || "Operação";
   const mobileSection =
-    mainItems.find((item) => active(item.href))?.label || "Operação jurídica";
+    [...mainItems, ...extraItems].find((item) => active(item.href))?.label ||
+    "Operação jurídica";
 
   const handleOpenScanner = () => {
     if (typeof window !== "undefined") {
@@ -265,7 +353,7 @@ export function SidebarVertical() {
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
         <div className="space-y-1.5">
-          {mainItems.map((item) => {
+          {primaryItems.map((item) => {
             const Icon = item.icon;
             const isActive = active(item.href);
             const showBadge = item.href === "/tarefas";
@@ -301,9 +389,9 @@ export function SidebarVertical() {
               <Zap className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate">Scanner DataJud + DJEN</span>
+              <span className="block truncate">Atualizar tribunal</span>
               <span className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[.12em] text-[#9fc2e4]">
-                Local · Nuvem · Both
+                DataJud + DJEN
               </span>
             </span>
             <ChevronRight className="h-4 w-4 text-[#8fb9e3] transition group-hover:translate-x-0.5 group-hover:text-white" />
@@ -316,9 +404,9 @@ export function SidebarVertical() {
             onClick={openToolsMenu}
             className="flex h-10 w-full items-center gap-3 rounded-lg px-3.5 text-[12px] font-semibold text-[#9fb9d2] hover:bg-white/[.06] hover:text-white"
           >
-            <MoreHorizontal className="h-4 w-4" />
-            Mais ferramentas
-            <ChevronRight className="ml-auto h-4 w-4" />
+            <Menu className="h-4 w-4" />
+            Central
+            <span className="ml-auto text-[9px] font-bold uppercase tracking-[.08em] text-[#7fa1c1]">tudo aqui</span>
           </button>
         </div>
       </nav>
@@ -459,11 +547,11 @@ export function SidebarVertical() {
 
       <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
         <SheetContent side="left" data-lexis-mobile-drawer className="z-[110] flex w-[min(88vw,340px)] flex-col border-r border-[#dfe7f2] bg-white p-0">
-          <SheetTitle className="sr-only">Mais ferramentas</SheetTitle>
-          <SheetDescription className="sr-only">Recursos adicionais do LexisPredict</SheetDescription>
+          <SheetTitle className="sr-only">Central do LexisPredict</SheetTitle>
+          <SheetDescription className="sr-only">Recursos agrupados por objetivo</SheetDescription>
           <div className="border-b border-[#e2e8f2] px-4 pb-4 pt-3">
-            <p className="text-lg font-black text-[#102447]">Menu</p>
-            <p className="mt-1 text-xs text-[#6d7f9b]">Escolha o que você quer fazer.</p>
+            <p className="text-lg font-black text-[#102447]">Central</p>
+            <p className="mt-1 text-xs leading-relaxed text-[#6d7f9b]">Encontre pelo que você quer fazer, não pelo nome do módulo.</p>
             <button
               type="button"
               onClick={() => navigateMobile("/onboarding")}
@@ -477,31 +565,90 @@ export function SidebarVertical() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar recurso"
+                placeholder="O que você quer fazer?"
                 className="w-full bg-transparent text-sm outline-none"
               />
             </label>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-            {mobileMenuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  type="button"
-                  key={item.href}
-                  onClick={() => navigateMobile(item.href)}
-                  className="mb-1 flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#25466f] active:bg-[#eef5ff]"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#1769ff]">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block font-bold">{item.label}</span>
-                    <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#6d7f9b]">{item.description}</span>
-                  </span>
-                </button>
-              );
-            })}
+            {query.trim() ? (
+              <div className="space-y-1">
+                <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[.12em] text-[#8a9bb1]">
+                  Resultados
+                </p>
+                {mobileMenuItems.length ? (
+                  mobileMenuItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        type="button"
+                        key={item.href}
+                        onClick={() => navigateMobile(item.href)}
+                        className="flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#25466f] active:bg-[#eef5ff]"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#1769ff]">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-bold">{item.label}</span>
+                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#6d7f9b]">{item.description}</span>
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="rounded-xl bg-[#f7f9fc] p-4 text-center text-xs text-[#6d7f9b]">
+                    Não encontrei essa ação. Tente descrever com outras palavras.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {menuGroups.map((group, index) => {
+                  const GroupIcon = group.icon;
+                  return (
+                    <details
+                      key={group.id}
+                      open={index === 0}
+                      className="group overflow-hidden rounded-2xl border border-[#e0e8f3] bg-white"
+                    >
+                      <summary className="flex min-h-16 cursor-pointer list-none touch-manipulation items-center gap-3 px-3 py-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef5ff] text-[#1769ff]">
+                          <GroupIcon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-black text-[#193b67]">{group.label}</span>
+                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#73849c]">{group.description}</span>
+                        </span>
+                        <span className="rounded-full bg-[#f1f5fa] px-2 py-1 text-[10px] font-black text-[#6d7f9b]">
+                          {group.items.length}
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-[#8194ad] transition-transform group-open:rotate-90" />
+                      </summary>
+                      <div className="border-t border-[#e7edf5] bg-[#fbfcfe] p-2">
+                        {group.items.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <button
+                              type="button"
+                              key={item.href}
+                              onClick={() => navigateMobile(item.href)}
+                              className="flex min-h-13 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left active:bg-[#eef5ff]"
+                            >
+                              <Icon className="h-4 w-4 shrink-0 text-[#3975c6]" />
+                              <span className="min-w-0">
+                                <span className="block text-[13px] font-bold text-[#25466f]">{item.label}</span>
+                                <span className="block text-[10px] leading-snug text-[#7a8ba3]">{item.description}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

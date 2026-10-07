@@ -51,9 +51,32 @@ async function authHeaders(): Promise<Record<string, string>> {
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getSession();
-  const accessToken = String(data?.session?.access_token || "").trim();
-  if (!accessToken) throw new Error("Sessão LexisPredict não disponível para o WA.Auto.");
+  let { data } = await supabase.auth.getSession();
+  let session = data?.session || null;
+
+  const expiresAtMs = Number(session?.expires_at || 0) * 1000;
+  const needsRefresh =
+    !session?.access_token ||
+    !expiresAtMs ||
+    expiresAtMs <= Date.now() + 60_000;
+
+  if (needsRefresh) {
+    const refreshed = await supabase.auth.refreshSession();
+    session = refreshed.data?.session || session;
+  }
+
+  if (session?.access_token) {
+    const verified = await supabase.auth.getUser(session.access_token);
+    if (verified.error || !verified.data?.user) {
+      const refreshed = await supabase.auth.refreshSession();
+      session = refreshed.data?.session || null;
+    }
+  }
+
+  const accessToken = String(session?.access_token || "").trim();
+  if (!accessToken) {
+    throw new Error("Sessão LexisPredict expirada. Entre novamente para usar o WA.Auto.");
+  }
 
   return {
     Authorization: `Bearer ${accessToken}`,
