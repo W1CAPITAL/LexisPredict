@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ListTodo, Briefcase, FolderOpen, PauseCircle, ShieldAlert,
   Gavel, Hash, MessageCircle, CalendarDays, FileText, BarChart3, Users,
-  ShieldCheck, Kanban, Wallet, Calculator, Bot, MessagesSquare, Upload,
-  Settings, Search, Menu, LogOut, Zap, StickyNote, PlayCircle, BrainCircuit,
-  Crown, Monitor, Scale, FileSpreadsheet, Database, Globe2, Puzzle,
+  ShieldCheck, Kanban, Wallet, Calculator, Bot, Upload,
+  Settings, Search, Menu, LogOut, Zap,
+  Crown, Scale,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
