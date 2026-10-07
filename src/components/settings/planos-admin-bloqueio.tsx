@@ -120,7 +120,7 @@ export function PlanosAdminBloqueio() {
     setBusyId(empresaId);
     try {
       const res = await bloquearEmpresaPlanoAction(empresaId, "inadimplencia");
-      if (!res.ok) {
+      if (!res.ok || !(res as any).persisted) {
         toast({ title: "Não foi possível suspender", description: res.error, variant: "destructive" });
         return;
       }
@@ -140,7 +140,7 @@ export function PlanosAdminBloqueio() {
     try {
       const expiresAt = addDaysIso(draft.days);
       const res = await liberarEmpresaPlanoAction(row.id, draft.plan, expiresAt);
-      if (!res.ok) {
+      if (!res.ok || !(res as any).persisted) {
         toast({ title: "Não foi possível ativar", description: res.error, variant: "destructive" });
         return;
       }
