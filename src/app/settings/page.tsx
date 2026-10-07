@@ -144,7 +144,7 @@ export default function SettingsPage() {
   const [settingsBoot, setSettingsBoot] = useState(true);
   const [settingsQuery, setSettingsQuery] = useState('');
   const { profile } = useAuth();
-  const { billingStatus } = usePlano();
+  const { billingStatus, plan } = usePlano();
 
   useEffect(() => {
     const email = String(profile?.email || '').trim().toLowerCase();
@@ -577,7 +577,7 @@ export default function SettingsPage() {
 
   if (!mounted) return null;
 
-  if (billingStatus === 'pending' && !isSuperadmin) {
+  if (billingStatus === 'pending' && plan !== 'maximo' && !isSuperadmin) {
     return (
       <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar />
