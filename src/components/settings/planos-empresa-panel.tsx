@@ -15,7 +15,10 @@ import {
   mensalDoAnual,
   economiaAnual,
 } from "@/lib/planos-precos";
-import { trocarMeuPlanoAction } from "@/app/actions/planos-actions";
+import {
+  trocarMeuPlanoAction,
+  salvarPlanoEmpresaAction,
+} from "@/app/actions/planos-actions";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight,
@@ -96,7 +99,7 @@ export function PlanosEmpresaPanel() {
   const [ciclo, setCiclo] = useState<"mensal" | "anual">("mensal");
   const [busy, setBusy] = useState<PlanId | null>(null);
 
-  const currentPlan: PlanId = isSuperAdmin ? "maximo" : plan;
+  const currentPlan: PlanId = plan;
   const canChange = !!(isAdmin || isSuperAdmin) && !setupRequired;
 
   const acao = (id: PlanId) => {
@@ -154,6 +157,35 @@ export function PlanosEmpresaPanel() {
 
     setBusy(id);
     try {
+      if (isSuperAdmin) {
+        const empresaId = String(profile?.empresa_id || "").trim();
+        if (!empresaId) {
+          toast({
+            title: "Selecione uma empresa",
+            description: "Este Superadmin não está vinculado a uma empresa. Use o painel Superadmin para escolher o tenant que será alterado.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const r = await salvarPlanoEmpresaAction(empresaId, id);
+        if (!r.ok || !r.persisted) {
+          toast({
+            title: "Não foi possível alterar o plano",
+            description: r.error || "O banco não confirmou a alteração.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        toast({
+          title: "Plano alterado",
+          description: PLAN_LABEL[currentPlan] + " → " + PLAN_LABEL[id] + ". A alteração foi gravada no banco.",
+        });
+        window.location.reload();
+        return;
+      }
+
       const r = await trocarMeuPlanoAction(id, ciclo);
       if (!r.ok) {
         toast({
@@ -346,6 +378,8 @@ export function PlanosEmpresaPanel() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : atual ? (
                   <><Check className="mr-2 h-4 w-4" /> Plano atual</>
+                ) : isSuperAdmin ? (
+                  "Aplicar plano"
                 ) : tipo === "upgrade" ? (
                   "Selecionar plano"
                 ) : tipo === "downgrade" ? (
