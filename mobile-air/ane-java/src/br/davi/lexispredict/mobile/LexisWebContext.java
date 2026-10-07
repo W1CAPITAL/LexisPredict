@@ -7,11 +7,14 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.URLUtil;
@@ -151,9 +154,38 @@ public class LexisWebContext extends FREContext {
 
                 container = new FrameLayout(activity);
                 container.setBackgroundColor(Color.rgb(7, 10, 18));
+                container.setClipToPadding(true);
+
+                // Android 15+ (targetSdk 35) aplica edge-to-edge por padrão.
+                // Sem consumir os insets, a barra inferior web fica atrás da
+                // navegação por gestos e pode aparecer mas não receber toque.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    container.setOnApplyWindowInsetsListener((v, insets) -> {
+                        android.graphics.Insets bars = insets.getInsets(
+                                WindowInsets.Type.systemBars() |
+                                WindowInsets.Type.displayCutout()
+                        );
+                        v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                        return insets;
+                    });
+                    container.requestApplyInsets();
+                } else {
+                    container.setFitsSystemWindows(true);
+                }
 
                 webView = new WebView(activity);
                 webView.setBackgroundColor(Color.rgb(7, 10, 18));
+                webView.setFocusable(true);
+                webView.setFocusableInTouchMode(true);
+                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                webView.setVerticalScrollBarEnabled(false);
+                webView.setOnTouchListener((v, event) -> {
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                        v.requestFocus();
+                    }
+                    return false;
+                });
                 WebView.setWebContentsDebuggingEnabled(false);
 
                 WebSettings settings = webView.getSettings();
@@ -257,9 +289,12 @@ public class LexisWebContext extends FREContext {
                                 "(function(){try{" +
                                 "window.__LEXIS_ANDROID_AIR__=true;" +
                                 "document.documentElement.classList.add('lexis-native-app');" +
+                                "document.documentElement.style.setProperty('--lexis-native-app','1');" +
                                 "var m=document.querySelector('meta[name=viewport]');" +
                                 "if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}" +
                                 "m.content='width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover';" +
+                                "var n=document.querySelector('[data-lexis-mobile-bottom-nav]');" +
+                                "if(n){n.style.pointerEvents='auto';n.style.touchAction='manipulation';}" +
                                 "return 'ok';}catch(e){return String(e);}})();";
                         try {
                             view.evaluateJavascript(nativeScript, null);
