@@ -38,7 +38,7 @@ import { usePlano } from "@/hooks/use-plano";
 import { filterNavByPlan } from "@/lib/planos-pacotes";
 import { operatorRouteAllowed } from "@/lib/roles";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 
@@ -88,7 +88,6 @@ export function SidebarVertical() {
   const { role, isSupervisor, isSuperAdmin, canSeeCompany } = useAdmin();
   const { plan } = usePlano();
   const openScanner = useDataJudScanStore((state) => state.openScanner);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
@@ -177,7 +176,6 @@ export function SidebarVertical() {
   }, [mainItems, mobileExtraItems]);
 
   const navigateMobile = (href: string) => {
-    setMobileOpen(false);
     setToolsOpen(false);
     if (pathname === href) {
       setNavigatingTo(null);
@@ -188,17 +186,10 @@ export function SidebarVertical() {
   };
 
   const openToolsMenu = () => {
-    setMobileOpen(false);
-    // Radix precisa encerrar o primeiro focus-lock antes de abrir o segundo Sheet.
-    if (typeof window !== "undefined") {
-      window.setTimeout(() => setToolsOpen(true), 80);
-    } else {
-      setToolsOpen(true);
-    }
+    setToolsOpen(true);
   };
 
   useEffect(() => {
-    setMobileOpen(false);
     setToolsOpen(false);
     setNavigatingTo(null);
     setQuery("");
@@ -237,14 +228,13 @@ export function SidebarVertical() {
       window.dispatchEvent(new Event("lexis-need-scanner"));
     }
     openScanner();
-    setMobileOpen(false);
     setToolsOpen(false);
   };
 
   const SidebarBody = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="flex h-full flex-col bg-[linear-gradient(180deg,#061d35_0%,#082944_55%,#0a3554_100%)] text-white">
       <div className="flex h-[82px] shrink-0 items-center border-b border-white/10 px-5">
-        <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-3">
+        <Link href="/"  className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2d7fff] bg-[#07182d] shadow-[0_0_24px_rgba(31,111,255,.22)]">
             <img src="/logo.png" alt="LexisPredict" className="h-7 w-7 object-contain" />
           </div>
@@ -256,7 +246,7 @@ export function SidebarVertical() {
           </div>
         </Link>
         {mobile ? (
-          <button onClick={() => setMobileOpen(false)} className="ml-auto rounded-lg p-2 text-white/70 hover:bg-white/10">
+          <button  className="ml-auto rounded-lg p-2 text-white/70 hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         ) : null}
@@ -273,7 +263,7 @@ export function SidebarVertical() {
                 key={item.href}
                 href={item.href}
                
-                onClick={() => setMobileOpen(false)}
+                
                 className={cn(
                   "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold transition",
                   isActive
@@ -383,7 +373,7 @@ export function SidebarVertical() {
         </button>
         <button
           type="button"
-          onClick={() => setMobileOpen(true)}
+          onClick={openToolsMenu}
           aria-label="Abrir menu"
           className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1769ff] text-white shadow-[0_8px_22px_rgba(23,105,255,.32)]"
         >
@@ -391,13 +381,6 @@ export function SidebarVertical() {
         </button>
       </div>
 
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" data-lexis-mobile-drawer className="z-[100] w-[min(84vw,320px)] border-0 p-0">
-          <SheetTitle className="sr-only">Navegação</SheetTitle>
-          <SheetDescription className="sr-only">Menu do LexisPredict</SheetDescription>
-          <SidebarBody mobile />
-        </SheetContent>
-      </Sheet>
 
       <nav
         data-lexis-mobile-bottom-nav
