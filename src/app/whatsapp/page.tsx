@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { WaAutoConnectionCard } from "@/components/whatsapp/wa-auto-connection-card";
 import {
   fetchRepoCasesPageAction,
   registrarAtendimentoAction,
@@ -1191,17 +1192,6 @@ function WhatsAppTerminalInner() {
                   Automação offline · wa.me disponível
                 </Badge>
               )}
-              <Button asChild variant="outline" size="sm" className="h-9 rounded-xl gap-1.5 text-[10px] font-bold uppercase">
-                <a
-                  href="https://wa-auto-cloud.onrender.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Abrir WA.Auto para conectar ou escanear o QR"
-                >
-                  <ExternalLink size={13} />
-                  <span className="hidden sm:inline">Conectar WA.Auto</span>
-                </a>
-              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -1212,6 +1202,8 @@ function WhatsAppTerminalInner() {
               </Button>
             </div>
           </header>
+
+          <WaAutoConnectionCard />
 
           <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12">
             {/* Lista */}
