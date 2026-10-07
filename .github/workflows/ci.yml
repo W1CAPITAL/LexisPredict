@@ -48,3 +48,29 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ""
           DATAJUD_WORKER_SECRET: ""
           CRON_SECRET: ""
+
+
+  android-apk:
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup AIR SDK 51.3.4.3
+        uses: joshtynjala/setup-adobe-air-action@v2
+        with:
+          air-version: '51.3.4.3'
+          accept-license: true
+      - name: Build LexisPredict AIR APK
+        shell: pwsh
+        run: .\mobile-air\build.ps1
+      - name: Upload LexisPredict APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LexisPredict_AIR_ARM64_1.0.0
+          path: mobile-air/build/LexisPredict_AIR_ARM64_1.0.0.apk
+          if-no-files-found: error
