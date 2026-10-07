@@ -12,6 +12,10 @@ import {
   waAutoHealth,
   listWaAutoChats,
   fetchWaAutoChatByJid,
+  getWaAutoConnection,
+  connectWaAuto,
+  pairWaAuto,
+  logoutWaAuto,
 } from '@/lib/wa-auto-client';
 import { getWhatsAppHistory } from '@/lib/server-db';
 import { suggestScripts } from '@/lib/script-processual/suggest';
@@ -494,6 +498,30 @@ export async function importEvolutionHistoryBulkAction(opts?: {
       skipped: 0,
     };
   }
+}
+
+export async function waAutoConnectionAction() {
+  const res = await getWaAutoConnection();
+  if (!res.ok) return { success: false as const, error: res.error, connection: null };
+  return { success: true as const, connection: res.connection };
+}
+
+export async function waAutoConnectAction() {
+  const res = await connectWaAuto();
+  if (!res.ok) return { success: false as const, error: res.error, connection: null };
+  return { success: true as const, connection: res.connection };
+}
+
+export async function waAutoPairAction(phone: string) {
+  const res = await pairWaAuto(phone);
+  if (!res.ok) return { success: false as const, error: res.error, connection: null };
+  return { success: true as const, connection: res.connection };
+}
+
+export async function waAutoLogoutAction() {
+  const res = await logoutWaAuto();
+  if (!res.ok) return { success: false as const, error: res.error, connection: null };
+  return { success: true as const, connection: res.connection };
 }
 
 export async function whatsappBridgeHealthAction() {
