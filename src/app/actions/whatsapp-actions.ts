@@ -5,15 +5,49 @@
  * Não usa WhatsApp Web embutido no front (inseguro / instável).
  */
 
-import { sendTextMessageSafe, normalizeBrPhone } from '@/lib/evolution-api';
+import { sendTextMessageSafe, normalizeBrPhone, evolutionHealthCheck } from '@/lib/evolution-api';
+import {
+  isWaAutoConfigured,
+  sendViaWaAuto,
+  waAutoHealth,
+  listWaAutoChats,
+  fetchWaAutoChatByJid,
+} from '@/lib/wa-auto-client';
 import { getWhatsAppHistory } from '@/lib/server-db';
 import { suggestScripts } from '@/lib/script-processual/suggest';
 
 export async function sendWhatsAppAction(to: string, message: string) {
-  const result = await sendTextMessageSafe(to, message);
-  if (!result.ok) {
-    return { success: false, message: result.error || 'Falha no envio' };
+  // WA.Auto é o transporte principal quando configurado. Evolution permanece
+  // como fallback para não interromper atendimento durante migração.
+  let provider: 'waauto' | 'evolution' = 'evolution';
+  let raw: any = null;
+  let firstError = '';
+
+  if (isWaAutoConfigured()) {
+    const wa = await sendViaWaAuto(to, message);
+    if (wa.ok) {
+      provider = 'waauto';
+      raw = wa.raw;
+    } else {
+      firstError = wa.error || 'WA.Auto indisponível';
+    }
   }
+
+  if (!raw) {
+    const evolution = await sendTextMessageSafe(to, message);
+    if (!evolution.ok) {
+      return {
+        success: false,
+        message: firstError
+          ? `WA.Auto: ${firstError} | Evolution: ${evolution.error || 'falha'}`
+          : evolution.error || 'Falha no envio',
+        provider: isWaAutoConfigured() ? 'waauto+evolution' : 'evolution',
+      };
+    }
+    provider = 'evolution';
+    raw = evolution.raw;
+  }
+
   const phone = normalizeBrPhone(to);
   const ts = new Date().toISOString();
   // Grava OUTBOUND no Supabase (independente do webhook Evolution)
@@ -29,28 +63,30 @@ export async function sendWhatsAppAction(to: string, message: string) {
       contactNumber: phone,
       messageText: message,
       fromMe: true,
-      source: 'lexis-send',
+      source: provider === 'waauto' ? 'lexis-waauto' : 'lexis-evolution',
       timestamp: ts,
       empresaId,
-      raw: result.raw,
+      raw,
     });
     return {
       success: true,
-      data: result.raw,
+      data: raw,
       timestamp: ts,
       phone,
       persisted: saved.ok,
       persistError: saved.error || null,
+      provider,
     };
   } catch (e: any) {
     console.error('[whatsapp] falha ao persistir outbound', e);
     return {
       success: true,
-      data: result.raw,
+      data: raw,
       timestamp: ts,
       phone,
       persisted: false,
       persistError: e?.message || 'Falha ao gravar no Supabase',
+      provider,
     };
   }
 }
@@ -458,6 +494,49 @@ export async function importEvolutionHistoryBulkAction(opts?: {
       skipped: 0,
     };
   }
+}
+
+export async function whatsappBridgeHealthAction() {
+  const wa = await waAutoHealth();
+  if (wa.configured) {
+    return {
+      success: wa.ok,
+      provider: 'waauto' as const,
+      status: wa.status || (wa.ok ? 'ready' : 'offline'),
+      error: wa.error || null,
+    };
+  }
+
+  const evo = await evolutionHealthCheck();
+  return {
+    success: evo.configured && !evo.error,
+    provider: 'evolution' as const,
+    status: evo.error ? 'offline' : 'ready',
+    error: evo.error || null,
+  };
+}
+
+export async function listWhatsAppChatsAction(opts?: { onlyGroups?: boolean; limit?: number }) {
+  const wa = await listWaAutoChats(opts);
+  if (wa.configured) {
+    if (wa.ok) {
+      return { success: true, provider: 'waauto' as const, chats: wa.chats, error: null };
+    }
+    // WA.Auto configurado mas temporariamente fora: ainda tenta Evolution.
+  }
+
+  const evo = await listEvolutionChatsAction(opts);
+  return { ...evo, provider: 'evolution' as const };
+}
+
+export async function fetchWhatsAppChatByJidAction(jid: string) {
+  const wa = await fetchWaAutoChatByJid(jid, 80);
+  if (wa.configured && wa.ok) {
+    return { success: true, provider: 'waauto' as const, messages: wa.messages, jid };
+  }
+
+  const evo = await fetchEvolutionChatByJidAction(jid);
+  return { ...evo, provider: 'evolution' as const };
 }
 
 export async function listEvolutionChatsAction(opts?: { onlyGroups?: boolean; limit?: number }) {
