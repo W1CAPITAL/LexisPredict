@@ -10,6 +10,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { canSupervisaoCarteira, isSuperAdminProfile } from './auth-supervisao';
 import { resolveCaseScope } from './roles';
 import { normalizePlanId } from './planos-pacotes';
+import { PROCESSOS_LIST_COLUMNS } from './carteira-select';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -286,27 +287,35 @@ export async function getStoredCasesPageForEmpresa(
     const caseScope = resolveCaseScope(context as any);
     const onlyAtivos = opts?.onlyAtivos === true;
 
-    let query = client
-      .from('processos')
-      .select('*')
-      .eq('empresa_id', empresaId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    const runPage = async (columns: string) => {
+      let query = client
+        .from('processos')
+        .select(columns)
+        .eq('empresa_id', empresaId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    if (onlyAtivos) {
-      // PostgREST: not in (Arquivado, ENCERRADO, ...)
-      query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
+      if (onlyAtivos) {
+        query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
+      }
+
+      if (caseScope === 'mine') {
+        if (!auth_id) return { data: [] as any[], error: null };
+        query = query.eq("created_by", auth_id);
+      }
+
+      return await query;
+    };
+
+    // Caminho rápido: não transporta o JSON `dados` de milhares de processos.
+    // Se o banco legado não tiver alguma coluna tipada, cai para "*" sem quebrar.
+    let result = await runPage(PROCESSOS_LIST_COLUMNS);
+    if (result.error && /column .* does not exist|schema cache/i.test(String(result.error.message || ""))) {
+      result = await runPage("*");
     }
+    if (result.error) throw result.error;
 
-    if (caseScope === 'mine') {
-      if (!auth_id) return [];
-      query = query.eq("created_by", auth_id);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    return (data || []).map((item: any) => toLegalCase(item));
+    return (result.data || []).map((item: any) => toLegalCase(item));
   } catch (error) {
     console.error("[getStoredCasesPageForEmpresa]", error);
     return [];
@@ -1087,7 +1096,7 @@ export async function getEmpresaUsers(): Promise<UserProfile[]> {
   const admin = await getSupabaseAdmin();
   const { data, error } = await admin
     .from('usuarios')
-    .select('*')
+    .select('id, auth_user_id, empresa_id, nome, email, cargo, role, avatar_url, ativo')
     .eq('empresa_id', empresa_id)
     .order('nome', { ascending: true });
   if (error) return [];
@@ -1496,7 +1505,7 @@ export async function fetchAuditoriaLogsAction(
     const admin = await getSupabaseAdmin();
     const { data, error } = await admin
       .from('auditoria_logs_app')
-      .select('*')
+      .select('id, auth_user_id, user_nome, action, protocolo_ref, created_at, detalhes')
       .eq('empresa_id', empresa)
       .order('created_at', { ascending: false })
       .limit(limit);
