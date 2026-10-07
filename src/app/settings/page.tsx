@@ -606,17 +606,17 @@ export default function SettingsPage() {
       <main className="lexis-main-pad flex-1 flex flex-col h-dvh min-w-0 overflow-y-auto">
         {/* hero header */}
         <header className="shrink-0 bg-transparent">
-          <div className="mx-auto w-full px-4 sm:px-6 py-4 flex flex-col gap-4">
+          <div className="mx-auto w-full px-4 sm:px-6 pt-4 pb-3 flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
                   <Settings className="text-primary" size={22} />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-[28px] font-black tracking-[-.04em] text-[#102447] truncate">
+                  <h1 className="text-[25px] sm:text-[28px] font-black leading-tight tracking-[-.04em] text-[#102447] truncate">
                     Configurações
                   </h1>
-                  <p className="text-sm text-[#617693]">
+                  <p className="text-xs sm:text-sm leading-relaxed text-[#617693]">
                     Conta, notificações, segurança, assinatura e preferências do ambiente.
                   </p>
                 </div>
@@ -663,7 +663,7 @@ export default function SettingsPage() {
         <div className="flex-1">
           <div className="mx-auto grid w-full max-w-[1500px] items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[250px_minmax(0,1fr)]">
             {/* navegação horizontal em chips */}
-            <nav aria-label="Seções das configurações" className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin] lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-[#dfe7f2] lg:bg-white lg:p-2">
+            <nav data-lexis-settings-tabs aria-label="Seções das configurações" className="-mx-4 flex max-w-[calc(100vw-2rem)] gap-1.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:max-w-none lg:px-0 lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-[#dfe7f2] lg:bg-white lg:p-2">
               {[
                 { id: "Plano", label: "Assinatura", icon: <Crown size={14} />, keywords: "plano assinatura licenca pagamento" },
                 { id: "Notificacoes", label: "Notificações", icon: <Bell size={14} />, keywords: "notificacao alerta prazo djen datajud tarefa navegador" },
@@ -691,11 +691,12 @@ export default function SettingsPage() {
                 .map((item) => (
                   <button
                     key={item.id}
+                    data-lexis-settings-tab
                     type="button"
                     aria-current={activeTab === item.id ? "page" : undefined}
                     onClick={() => setActiveTab(item.id)}
                     className={cn(
-                      "shrink-0 flex items-center gap-2 h-11 px-3.5 rounded-xl text-sm font-bold border transition-colors lg:w-full",
+                      "shrink-0 flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl text-[13px] sm:text-sm font-bold border transition-colors lg:w-full",
                       activeTab === item.id
                         ? "border-[#cfe0ff] bg-[#eef5ff] text-[#145bd7]"
                         : "border-transparent bg-transparent text-[#607590] hover:bg-[#f5f8fc] hover:text-[#18365f]"
