@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ import {
   TestTube2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getTenantBrand } from "@/lib/tenant-brand";
@@ -41,24 +40,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, profile, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const router = useRouter();
   const logoAsset = PlaceHolderImages.find((img) => img.id === "app-logo");
-
-  useEffect(() => {
-    let safetyTimeout: NodeJS.Timeout;
-
-    if (!authLoading && user) {
-      router.replace("/");
-      router.refresh();
-      safetyTimeout = setTimeout(() => {
-        if (window.location.pathname.includes("/login") && user && profile) {
-          router.replace("/");
-        }
-      }, 1500);
-    }
-
-    return () => clearTimeout(safetyTimeout);
-  }, [user, profile, authLoading, router]);
 
   const enterGuest = async () => {
     try {
@@ -114,54 +96,52 @@ export default function LoginPage() {
         return;
       }
 
-      const authPromise = supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password,
-      });
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 8000);
 
-      const timed = await Promise.race([
-        authPromise,
-        new Promise<{ data: any; error: any }>((resolve) =>
-          setTimeout(
-            () =>
-              resolve({
-                data: { user: null, session: null },
-                error: { message: "timeout quota" },
-              }),
-            4500
-          )
-        ),
-      ]);
+      let response: Response;
+      try {
+        response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: loginEmail, password }),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+      } catch (error: any) {
+        window.clearTimeout(timeout);
+        const reason = error?.name === "AbortError" ? "timeout" : "Falha de rede";
+        await trySafety(reason);
+        return;
+      }
+      window.clearTimeout(timeout);
 
-      const { data, error: authError } = timed;
+      const payload = await response.json().catch(() => null);
 
-      if (authError) {
-        const msg = String((authError as any)?.message || authError);
-        if (isQuotaOrBillingError(msg) || /fetch|network|timeout|521|402|429/i.test(msg)) {
+      if (!response.ok || !payload?.ok) {
+        const msg = String(payload?.error || `HTTP ${response.status}`);
+        if (
+          response.status === 429 ||
+          response.status >= 500 ||
+          isQuotaOrBillingError(msg) ||
+          /fetch|network|timeout|521|402|429/i.test(msg)
+        ) {
           await trySafety(msg);
           return;
         }
+
         toast({
           title: "Não foi possível entrar",
-          description: "E-mail ou senha inválidos.",
+          description: msg || "E-mail ou senha inválidos.",
           variant: "destructive",
         });
         setIsSubmitting(false);
         return;
       }
 
-      if (data.user && data.session) {
-        const emailVal = (data.user.email || loginEmail).toLowerCase().trim();
-        if (emailVal) {
-          const isProd = window.location.protocol === "https:";
-          document.cookie =
-            "lexis_user_email=" +
-            emailVal +
-            "; path=/; max-age=31536000; samesite=lax" +
-            (isProd ? "; secure" : "");
-        }
-        window.location.replace("/");
-      }
+      // O endpoint já criou a sessão SSR e gravou os cookies que o middleware lê.
+      window.location.replace(String(payload.destination || "/"));
+      return;
     } catch {
       await trySafety("Falha de rede");
     }
@@ -178,9 +158,46 @@ export default function LoginPage() {
               <ShieldCheck className="h-8 w-8 text-sky-600" />
             )}
           </div>
-          <h1 className="mt-6 text-2xl font-black tracking-tight">Acesso confirmado</h1>
-          <p className="mt-2 text-sm text-slate-500">Preparando o ambiente da sua empresa…</p>
-          <Loader2 className="mt-6 h-6 w-6 animate-spin text-sky-600" />
+          <h1 className="mt-6 text-2xl font-black tracking-tight">Sessão identificada</h1>
+          <p className="mt-2 max-w-md text-sm text-slate-500">
+            O navegador está autenticado. Sincronize a sessão com o servidor para abrir o ambiente.
+          </p>
+          <div className="mt-6 flex w-full max-w-sm flex-col gap-2">
+            <Button
+              type="button"
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                try {
+                  if (supabase) await supabase.auth.refreshSession();
+                  window.location.replace(profile ? "/" : "/setup-empresa");
+                } catch {
+                  setIsSubmitting(false);
+                  toast({
+                    title: "Não foi possível sincronizar a sessão",
+                    description: "Saia da sessão atual e entre novamente.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+              Sincronizar e abrir
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  if (supabase) await supabase.auth.signOut({ scope: "local" });
+                } finally {
+                  window.location.replace("/login");
+                }
+              }}
+            >
+              Trocar conta
+            </Button>
+          </div>
         </div>
       </div>
     );
