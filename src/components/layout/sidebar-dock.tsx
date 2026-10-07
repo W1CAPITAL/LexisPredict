@@ -59,6 +59,19 @@ const more = [
   ["Notas", "/notes", StickyNote],
   ["Treinamento", "/onboarding", PlayCircle],
   ["Offline", "/offline", Monitor],
+  ["Chat IA", "/chat-ia", Bot],
+  ["Chatbot separado", "/chatbot-separado", MessagesSquare],
+  ["IA Sync", "/ia-sync", BrainCircuit],
+  ["Automação judicial", "/automacao-judicial", Zap],
+  ["Notificações", "/notificacoes", ShieldAlert],
+  ["Revisional", "/revisional", Calculator],
+  ["Substabelecimento", "/substabelecimento", FileText],
+  ["Habilitação / peça", "/habilitacao-peca", FileText],
+  ["Modelos", "/modelos", FileText],
+  ["Investigação predatória", "/investigacao-predatoria", Search],
+  ["Estatística CNJ", "/estatistica-cnj", BarChart3],
+  ["Ética operacional", "/etica-operacional", ShieldCheck],
+  ["Negócios", "/deals", Kanban],
 ] as const;
 
 export function SidebarDock() {
