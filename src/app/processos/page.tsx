@@ -200,27 +200,11 @@ export default function ProcessosEmpresaPage() {
       writeCarteiraCache(list, null, "empresa");
       setListOffset(list.length);
       setTotalCount(Number(res?.totalCount) || list.length);
-      let rankList = Array.isArray(res?.ranking) ? res.ranking : [];
-      let atendSem = Number(res?.atendidosSemana) || 0;
-      // Ranking e KPIs são independentes: execute em paralelo para não somar latências.
-      const [rankResult, kpiResult] = await Promise.allSettled([
-        fetchRankingAtendentesEmpresaAction(8),
-        fetchProcessosEmpresaKpisAction(),
-      ]);
-      if (rankResult.status === "fulfilled" && rankResult.value?.ok) {
-        if (rankResult.value.ranking?.length) rankList = rankResult.value.ranking;
-        if (typeof rankResult.value.atendidosSemana === "number") atendSem = rankResult.value.atendidosSemana;
-      }
+      const rankList = Array.isArray(res?.ranking) ? res.ranking : [];
       setTopAtendentesSrv(rankList.slice(0, 5));
-      setAtendidosSemanaSrv(atendSem);
-      // KPIs de carteira: mesma regra do Dashboard (empresa inteira), NÃO a amostra da tabela.
-      if (kpiResult.status === "fulfilled" && kpiResult.value?.ok) {
-        if (kpiResult.value.total > 0) setTotalCount(kpiResult.value.total);
-        setAtivosCount(kpiResult.value.ativos);
-        setVencidosCount(kpiResult.value.vencidos);
-      } else if (Number(res?.ativosCount) > 0) {
-        setAtivosCount(Number(res.ativosCount));
-      }
+      setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
+      if (Number(res?.ativosCount) >= 0) setAtivosCount(Number(res?.ativosCount) || 0);
+      if (Number((res as any)?.vencidosCount) >= 0) setVencidosCount(Number((res as any)?.vencidosCount) || 0);
       setAudit(res?.audit || []);
       setUsers(res?.users || []);
       if ((res as any)?.error) {
