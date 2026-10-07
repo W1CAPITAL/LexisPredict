@@ -201,16 +201,34 @@ export async function middleware(request: NextRequest) {
           return isApi ? json({ ok: false, error: 'tenant_missing' }, 403) : redirect('/setup-empresa')
         }
 
-        const { data: empresa, error: empresaError } = await client
+        let empresa: any = null
+        let empresaError: any = null
+        let legacyCommercialSchema = false
+
+        const fullEmpresa = await client
           .from('empresas')
           .select('plano, plano_expira_em, plano_bloqueado, billing_status, onboarding_completed')
           .eq('id', empresaId)
           .maybeSingle()
 
+        empresa = fullEmpresa.data
+        empresaError = fullEmpresa.error
+
+        // Compatibilidade com o banco legado da W1: instalações anteriores ao
+        // módulo comercial não possuem billing_status/onboarding_completed.
+        if (empresaError && /billing_status|onboarding_completed|column .* does not exist/i.test(String(empresaError.message || ''))) {
+          legacyCommercialSchema = true
+          const legacyEmpresa = await client
+            .from('empresas')
+            .select('plano, plano_expira_em, plano_bloqueado')
+            .eq('id', empresaId)
+            .maybeSingle()
+          empresa = legacyEmpresa.data
+          empresaError = legacyEmpresa.error
+        }
+
         if (empresaError) {
           if (isApi) return json({ ok: false, error: 'tenant_lookup_failed' }, 503)
-          // /settings é a rota de recuperação. Se já estamos nela, jamais
-          // responder com redirect('/settings') novamente.
           if (path.startsWith('/settings')) {
             response.headers.set('Cache-Control', 'private, no-store')
             response.headers.set('X-Lexis-Auth-Warning', 'tenant_lookup_failed')
@@ -227,10 +245,13 @@ export async function middleware(request: NextRequest) {
         }
         if (isTenantSetupPage) return redirect('/')
 
-        const billingStatus = String(empresa.billing_status || '').toLowerCase()
-        const billingActive = billingStatus === 'active'
+        const plan = normalizePlanId(empresa.plano || 'essencial')
+        const billingStatus = legacyCommercialSchema
+          ? (plan === 'maximo' ? 'active' : '')
+          : String(empresa.billing_status || '').toLowerCase()
+        const billingActive = legacyCommercialSchema ? plan === 'maximo' : billingStatus === 'active'
 
-        if (billingActive && !empresa.onboarding_completed) {
+        if (!legacyCommercialSchema && billingActive && !empresa.onboarding_completed) {
           if (!isFirstRunPage) return redirect('/primeiro-acesso')
           response.headers.set('Cache-Control', 'private, no-store')
           return applySecurityHeaders(response)
@@ -241,7 +262,6 @@ export async function middleware(request: NextRequest) {
           return redirect('/')
         }
 
-        const plan = normalizePlanId(empresa.plano || 'essencial')
         const exp = empresa.plano_expira_em ? new Date(empresa.plano_expira_em).getTime() : null
         const expired = exp !== null && Number.isFinite(exp) && exp < Date.now()
         const blocked = Boolean(empresa.plano_bloqueado) || ['past_due', 'suspended', 'canceled'].includes(billingStatus)
