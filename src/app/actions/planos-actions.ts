@@ -52,11 +52,29 @@ export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult>
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, error: "Cliente administrativo indisponível." };
 
-    const { data, error } = await admin
+    let data: any = null;
+    let error: any = null;
+    let legacyCommercialSchema = false;
+
+    const full = await admin
       .from("empresas")
       .select("id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact")
       .eq("id", empresaId)
       .maybeSingle();
+
+    data = full.data;
+    error = full.error;
+
+    if (error && /billing_status|plan_self_service_unlocked|onboarding_completed|nav_layout|sidebar_compact|column .* does not exist/i.test(String(error.message || ""))) {
+      legacyCommercialSchema = true;
+      const legacy = await admin
+        .from("empresas")
+        .select("id, nome, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo")
+        .eq("id", empresaId)
+        .maybeSingle();
+      data = legacy.data;
+      error = legacy.error;
+    }
 
     if (error) {
       const msg = String(error.message || "");
@@ -74,21 +92,24 @@ export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult>
       };
     }
 
-    const billingStatus = String(data.billing_status || "").trim().toLowerCase();
+    const normalizedPlan = data.plano ? normalizePlanId(data.plano) : "essencial";
+    const billingStatus = legacyCommercialSchema
+      ? (normalizedPlan === "maximo" ? "active" : "")
+      : String(data.billing_status || "").trim().toLowerCase();
     const blockedByBilling = ["past_due", "suspended", "canceled"].includes(billingStatus);
 
     return {
       ok: true,
       empresaId,
-      plan: data.plano ? normalizePlanId(data.plano) : "essencial",
+      plan: normalizedPlan,
       expiresAt: data.plano_expira_em ?? null,
       blocked: !!data.plano_bloqueado || blockedByBilling,
       blockedReason:
         data.plano_bloqueio_motivo ??
         (blockedByBilling ? billingStatus : null),
-      billingStatus: data.billing_status ?? null,
+      billingStatus: legacyCommercialSchema ? (normalizedPlan === "maximo" ? "active" : null) : data.billing_status ?? null,
       selfServiceUnlocked: !!data.plan_self_service_unlocked,
-      onboardingCompleted: !!data.onboarding_completed,
+      onboardingCompleted: legacyCommercialSchema ? true : !!data.onboarding_completed,
       navLayout: data.nav_layout === "vertical" ? "vertical" : "dock",
       sidebarCompact: !!data.sidebar_compact,
       setupRequired: false,
@@ -208,9 +229,11 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
     }
 
     const verifiedPlan = normalizePlanId((data as any).plano || "essencial");
-    const verifiedBilling = String((data as any).billing_status || "").toLowerCase();
+    const verifiedBilling = legacyCommercialSchema
+      ? (verifiedPlan === "maximo" ? "active" : "")
+      : String((data as any).billing_status || "").toLowerCase();
     const verifiedBlocked = !!(data as any).plano_bloqueado;
-    if (verifiedPlan !== p || verifiedBilling !== "active" || verifiedBlocked) {
+    if (verifiedPlan !== p || (p === "maximo" && verifiedBilling !== "active") || verifiedBlocked) {
       return {
         ok: false,
         persisted: false,
@@ -257,7 +280,11 @@ export async function liberarEmpresaPlanoAction(
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, persisted: false, error: "Service role ausente." };
 
-    const { data, error } = await admin
+    let data: any = null;
+    let error: any = null;
+    let legacyCommercialSchema = false;
+
+    const fullUpdate = await admin
       .from("empresas")
       .update({
         plano: p,
@@ -265,13 +292,31 @@ export async function liberarEmpresaPlanoAction(
         plano_bloqueio_motivo: null,
         plano_expira_em: expiresAt,
         billing_status: "active",
-        // Uma empresa liberada pelo Superadmin não pode continuar presa no
-        // gate de primeiro acesso/ativação comercial.
         onboarding_completed: true,
       })
       .eq("id", id)
       .select("id, plano, plano_bloqueado, plano_bloqueio_motivo, plano_expira_em, billing_status, onboarding_completed")
       .maybeSingle();
+
+    data = fullUpdate.data;
+    error = fullUpdate.error;
+
+    if (error && /billing_status|onboarding_completed|column .* does not exist/i.test(String(error.message || ""))) {
+      legacyCommercialSchema = true;
+      const legacyUpdate = await admin
+        .from("empresas")
+        .update({
+          plano: p,
+          plano_bloqueado: false,
+          plano_bloqueio_motivo: null,
+          plano_expira_em: expiresAt,
+        })
+        .eq("id", id)
+        .select("id, plano, plano_bloqueado, plano_bloqueio_motivo, plano_expira_em")
+        .maybeSingle();
+      data = legacyUpdate.data;
+      error = legacyUpdate.error;
+    }
 
     if (error) {
       return {
@@ -324,7 +369,7 @@ export async function liberarEmpresaPlanoAction(
       expiresAt: data.plano_expira_em,
       blocked: verifiedBlocked,
       billingStatus: verifiedBilling,
-      onboardingCompleted: !!(data as any).onboarding_completed,
+      onboardingCompleted: legacyCommercialSchema ? true : !!(data as any).onboarding_completed,
     };
   } catch (e: any) {
     return { ok: false, persisted: false, error: e?.message || "Falha." };
@@ -366,11 +411,27 @@ export async function trocarMeuPlanoAction(
 
     const now = new Date().toISOString();
 
-    const { data: empresa, error: empresaError } = await admin
+    let empresa: any = null;
+    let empresaError: any = null;
+
+    const commercialRead = await admin
       .from("empresas")
       .select("id, plano, billing_status")
       .eq("id", empresaId)
       .maybeSingle();
+
+    empresa = commercialRead.data;
+    empresaError = commercialRead.error;
+
+    if (empresaError && /billing_status|column .* does not exist/i.test(String(empresaError.message || ""))) {
+      const legacyRead = await admin
+        .from("empresas")
+        .select("id, plano")
+        .eq("id", empresaId)
+        .maybeSingle();
+      empresa = legacyRead.data;
+      empresaError = legacyRead.error;
+    }
 
     if (empresaError) return { ok: false as const, error: empresaError.message };
     if (!empresa) return { ok: false as const, error: "Empresa não encontrada." };
