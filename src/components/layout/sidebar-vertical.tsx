@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -91,6 +91,7 @@ export function SidebarVertical() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
 
   const allowed = (item: NavItem) => {
     if (item.superadmin && !isSuperAdmin) return false;
@@ -123,7 +124,7 @@ export function SidebarVertical() {
       })),
       isSuperAdmin ? "maximo" : plan,
     ).filter((item) => !q || `${item.label} ${item.href}`.toLowerCase().includes(q));
-  }, [query, role, isSupervisor, isSuperAdmin, plan]);
+  }, [query, role, isSupervisor, isSuperAdmin, canSeeCompany, plan]);
 
   const mobileExtraItems = useMemo(
     () =>
@@ -192,9 +193,44 @@ export function SidebarVertical() {
   const navigateMobile = (href: string) => {
     setMobileOpen(false);
     setToolsOpen(false);
-    if (pathname === href) return;
+    if (pathname === href) {
+      setNavigatingTo(null);
+      return;
+    }
+    setNavigatingTo(href);
     router.push(href);
   };
+
+  const openToolsMenu = () => {
+    setMobileOpen(false);
+    // Radix precisa encerrar o primeiro focus-lock antes de abrir o segundo Sheet.
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => setToolsOpen(true), 80);
+    } else {
+      setToolsOpen(true);
+    }
+  };
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setToolsOpen(false);
+    setNavigatingTo(null);
+    setQuery("");
+  }, [pathname]);
+
+  useEffect(() => {
+    const routes = ["/", "/cases", "/tarefas", "/whatsapp", "/settings", "/agenda"];
+    const id = window.setTimeout(() => {
+      for (const href of routes) router.prefetch(href);
+    }, 500);
+    return () => window.clearTimeout(id);
+  }, [router]);
+
+  useEffect(() => {
+    if (!navigatingTo) return;
+    const id = window.setTimeout(() => setNavigatingTo(null), 8000);
+    return () => window.clearTimeout(id);
+  }, [navigatingTo]);
 
   const active = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
@@ -250,7 +286,7 @@ export function SidebarVertical() {
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={false}
+               
                 onClick={() => setMobileOpen(false)}
                 className={cn(
                   "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold transition",
@@ -290,7 +326,7 @@ export function SidebarVertical() {
         <div className="mt-4 border-t border-white/10 pt-4">
           <button
             type="button"
-            onClick={() => setToolsOpen(true)}
+            onClick={openToolsMenu}
             className="flex h-10 w-full items-center gap-3 rounded-lg px-3.5 text-[12px] font-semibold text-[#9fb9d2] hover:bg-white/[.06] hover:text-white"
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -433,7 +469,7 @@ export function SidebarVertical() {
         <button
           type="button"
           data-mobile-nav-action
-          onClick={() => setToolsOpen(true)}
+          onClick={openToolsMenu}
           className="pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold text-[#6f8098] active:bg-[#eef5ff]"
         >
           <Menu className="h-5 w-5" />
@@ -489,6 +525,15 @@ export function SidebarVertical() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {navigatingTo ? (
+        <div
+          aria-live="polite"
+          className="pointer-events-none fixed bottom-[calc(var(--lexis-mobile-bottomnav,4.75rem)+0.5rem)] left-1/2 z-[120] -translate-x-1/2 rounded-full border border-[#d7e4f5] bg-white/95 px-3 py-1.5 text-[11px] font-bold text-[#25466f] shadow-lg backdrop-blur md:hidden"
+        >
+          Abrindo…
+        </div>
+      ) : null}
     </>
   );
 }
