@@ -985,7 +985,7 @@ export async function listAllEmpresasSystem() {
     return (legacy.data || []).map((row: any) => ({
       ...row,
       plano_expira_em: normalizePlanId(row.plano || 'essencial') === 'maximo' ? null : row.plano_expira_em,
-      billing_status: normalizePlanId(row.plano || 'essencial') === 'maximo' ? 'active' : null,
+      billing_status: 'active',
       plan_self_service_unlocked: false,
       onboarding_completed: true,
       nav_layout: 'vertical',
