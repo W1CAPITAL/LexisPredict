@@ -103,11 +103,11 @@ export function ClientChrome() {
       "requestIdleCallback" in window
         ? (window as any).requestIdleCallback(
             () => setDeferredReady(true),
-            { timeout: 5000 }
+            { timeout: 9000 }
           )
         : null;
 
-    const fallback = window.setTimeout(() => setDeferredReady(true), 3500);
+    const fallback = window.setTimeout(() => setDeferredReady(true), 7000);
 
     // Recursos exclusivamente de desktop não entram no bundle crítico do celular.
     const media = window.matchMedia("(min-width: 768px)");
@@ -139,10 +139,12 @@ export function ClientChrome() {
       {deferredReady ? (
         <>
           <AppUpdateBanner />
-          <ChatNotifPermission />
-          <ChatRealtimeNotify />
-          <HybridAutoSync />
-          <HybridSyncBadge compact />
+          {(pathname.startsWith("/chat") || pathname.startsWith("/whatsapp")) ? (
+            <>
+              <ChatNotifPermission />
+              <ChatRealtimeNotify />
+            </>
+          ) : null}
           {desktopExtras ? <LexisCommandPalette /> : null}
         </>
       ) : null}
