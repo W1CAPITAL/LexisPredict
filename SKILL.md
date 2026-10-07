@@ -6,7 +6,7 @@ description: >
   autoaprimoramento e Council X10.
 metadata:
   type: workflow
-  version: "4.1"
+  version: "4.2"
   unifies:
     - segundo-cerebro
     - lexis-autoimprove
@@ -55,6 +55,7 @@ Um ponto de entrada para o produto inteiro. O LexisPredict continua sendo um pro
 | agents | equipe de agentes, multiagente | agent-studio |
 | improve | autoaprimoramento | sinais → patch pequeno → eval |
 | gtm | copy, demo, campanha | gtm-agent + media |
+| bpmn | modelar/revisar fluxo, Camunda, swimlane, gateway, As-Is/To-Be | skills/bpmn + tooling determinístico |
 
 ## Hierarquia de custo
 
@@ -79,6 +80,12 @@ Inspirado em `mattpocock/skills`, Superpowers e ECC:
 - nao declarar concluido sem gate observavel.
 
 Para mudanca ampla: escrever criterio de pronto, arquivos tocados, riscos e como reverter.
+
+## BPMN 2.0
+
+Para modelagem de processos, ativar `skills/bpmn/SKILL.md`.
+A IA define a semântica; `skills/bpmn/scripts/bpmn-tool.mjs` é responsável por summarize/layout/validate/lint/diff/find.
+Em rotinas jurídicas, não automatizar ato, prazo ou decisão humana apenas porque o BPMN permite representar a etapa.
 
 ## Cognitive Platform v4
 
