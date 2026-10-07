@@ -102,7 +102,10 @@ export async function getMinhaAssinaturaAction(): Promise<MinhaAssinaturaResult>
       ok: true,
       empresaId,
       plan: normalizedPlan,
-      expiresAt: data.plano_expira_em ?? null,
+      expiresAt:
+        legacyCommercialSchema && normalizedPlan === "maximo"
+          ? null
+          : data.plano_expira_em ?? null,
       blocked: !!data.plano_bloqueado || blockedByBilling,
       blockedReason:
         data.plano_bloqueio_motivo ??
