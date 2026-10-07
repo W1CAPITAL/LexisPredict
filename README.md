@@ -321,3 +321,22 @@ KHOJ_ALWAYS=0
 ```
 
 Em perguntas jurídicas, documentos, PDFs, contratos, jurisprudência, pesquisa e memória, o chat consulta o Khoj quando ele estiver configurado. Falha ou ausência do Khoj não bloqueia o LexisPredict; o fluxo normal continua com DataJud/DJEN e a cascata de IA existente.
+
+## BPMN 2.0 — modelagem de processos
+
+O LexisPredict inclui uma skill BPMN 2.0 adaptada de `architawr/claude-bpmn-skill` (MIT). Ela é ativada no chat quando o pedido envolve modelagem/revisão de processos, Camunda, gateways, pools, lanes, swimlanes ou arquivos `.bpmn`.
+
+Casos de uso jurídicos incluem publicação → triagem → prazo → tarefa → conferência, atendimento → próximo retorno, documentos → validação → advogado e rotinas DataJud/DJEN.
+
+Tooling determinístico versionado em `skills/bpmn`:
+
+```bash
+npm install --prefix skills/bpmn
+node skills/bpmn/scripts/bpmn-tool.mjs summarize processo.bpmn
+node skills/bpmn/scripts/bpmn-tool.mjs layout entrada.bpmn saida.bpmn
+node skills/bpmn/scripts/bpmn-tool.mjs validate processo.bpmn
+node skills/bpmn/scripts/bpmn-tool.mjs lint processo.bpmn
+node skills/bpmn/scripts/bpmn-tool.mjs diff as-is.bpmn to-be.bpmn
+```
+
+O layout existente é preservado por padrão; `--rebuild` é explícito. A atribuição e licença do projeto upstream estão em `skills/bpmn/THIRD_PARTY_LICENSE.md`.
