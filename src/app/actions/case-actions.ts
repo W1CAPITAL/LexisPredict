@@ -1383,35 +1383,49 @@ export async function fetchCompanyProcessosAction() {
       "@/app/actions/ranking-atendentes-action"
     );
 
-    const [metrics, casesPage, audit, users] = await Promise.all([
+    const { fetchProcessosEmpresaKpisAction } = await import("@/app/actions/processos-kpis-action");
+
+    const [metrics, kpis, casesPage, audit, users] = await Promise.all([
       companyWide
         ? fetchRankingAtendentesEmpresaAction(5).catch((e: any) => {
             console.error("[company] metrics", e?.message);
             return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
           })
         : Promise.resolve({ ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 }),
-      getStoredCasesPageForEmpresa(empresa_id, 500, 0, true, { onlyAtivos: true }).catch((e: any) => {
+      fetchProcessosEmpresaKpisAction().catch((e: any) => {
+        console.error("[company] kpis", e?.message);
+        return { ok: false as const, total: 0, ativos: 0, vencidos: 0 };
+      }),
+      getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: true }).catch((e: any) => {
         console.error("[company] page ativos", e?.message);
         return [] as any[];
       }),
-      companyWide ? fetchAuditoriaLogsAction(empresa_id).catch(() => []) : Promise.resolve([]),
+      companyWide ? fetchAuditoriaLogsAction(empresa_id, 120).catch(() => []) : Promise.resolve([]),
       companyWide ? getEmpresaUsers().catch(() => []) : Promise.resolve([]),
     ]);
 
     let cases = Array.isArray(casesPage) ? casesPage : [];
     if (!cases.length) {
       try {
-        const again = await getStoredCasesPageForEmpresa(empresa_id, 500, 0, true, { onlyAtivos: false });
+        const again = await getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: false });
         cases = Array.isArray(again) ? again : [];
       } catch { /* retry sem onlyAtivos */ }
     }
     const totalCount =
-      metrics && typeof (metrics as any).total === "number" && (metrics as any).total > 0
-        ? (metrics as any).total
-        : cases.length;
+      kpis && (kpis as any).ok && typeof (kpis as any).total === "number"
+        ? (kpis as any).total
+        : metrics && typeof (metrics as any).total === "number" && (metrics as any).total > 0
+          ? (metrics as any).total
+          : cases.length;
     const ativosCount =
-      metrics && typeof (metrics as any).ativos === "number"
-        ? (metrics as any).ativos
+      kpis && (kpis as any).ok && typeof (kpis as any).ativos === "number"
+        ? (kpis as any).ativos
+        : metrics && typeof (metrics as any).ativos === "number"
+          ? (metrics as any).ativos
+          : 0;
+    const vencidosCount =
+      kpis && (kpis as any).ok && typeof (kpis as any).vencidos === "number"
+        ? (kpis as any).vencidos
         : 0;
     const atendidosSemana =
       metrics && typeof (metrics as any).atendidosSemana === "number"
@@ -1428,6 +1442,7 @@ export async function fetchCompanyProcessosAction() {
       users: Array.isArray(users) ? users : [],
       totalCount,
       ativosCount,
+      vencidosCount,
       atendidosSemana,
       ranking,
       error: null,
