@@ -346,7 +346,7 @@ export function SidebarVertical() {
           <ListTodo className="h-5 w-5" />
           <span>Tarefas</span>
         </Link>
-        <button type="button" onClick={() => setMobileOpen(true)} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold text-[#6f8098]">
+        <button type="button" onClick={() => setToolsOpen(true)} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold text-[#6f8098]">
           <MoreHorizontal className="h-5 w-5" />
           <span>Mais</span>
         </button>
