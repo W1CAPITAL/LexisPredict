@@ -130,7 +130,6 @@ export function ClientChrome() {
   return (
     <>
       <NavProgress />
-      <UiPrefsApplier />
 
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
