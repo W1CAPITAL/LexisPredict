@@ -247,9 +247,9 @@ export async function middleware(request: NextRequest) {
 
         const plan = normalizePlanId(empresa.plano || 'essencial')
         const billingStatus = legacyCommercialSchema
-          ? (plan === 'maximo' ? 'active' : '')
+          ? 'active'
           : String(empresa.billing_status || '').toLowerCase()
-        const billingActive = legacyCommercialSchema ? plan === 'maximo' : billingStatus === 'active'
+        const billingActive = legacyCommercialSchema ? true : billingStatus === 'active'
 
         if (!legacyCommercialSchema && billingActive && !empresa.onboarding_completed) {
           if (!isFirstRunPage) return redirect('/primeiro-acesso')
