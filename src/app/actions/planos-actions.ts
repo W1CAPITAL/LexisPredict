@@ -228,21 +228,6 @@ export async function bloquearEmpresaPlanoAction(empresaId: string, motivo?: str
       return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito." };
     }
 
-    const verifiedPlan = normalizePlanId((data as any).plano || "essencial");
-    const verifiedBilling = legacyCommercialSchema
-      ? (verifiedPlan === "maximo" ? "active" : "")
-      : String((data as any).billing_status || "").toLowerCase();
-    const verifiedBlocked = !!(data as any).plano_bloqueado;
-    if (verifiedPlan !== p || (p === "maximo" && verifiedBilling !== "active") || verifiedBlocked) {
-      return {
-        ok: false,
-        persisted: false,
-        error:
-          "O banco respondeu ao update, mas a assinatura não ficou ativa. " +
-          `plano=${verifiedPlan}, billing=${verifiedBilling || "vazio"}, bloqueado=${verifiedBlocked ? "sim" : "não"}.`,
-      };
-    }
-
     try {
       await admin.from("assinaturas").upsert(
         {
@@ -328,6 +313,22 @@ export async function liberarEmpresaPlanoAction(
     }
     if (!data) {
       return { ok: false, persisted: false, error: "Empresa não encontrada ou update sem efeito." };
+    }
+
+    const verifiedPlan = normalizePlanId((data as any).plano || "essencial");
+    const verifiedBilling = legacyCommercialSchema
+      ? (verifiedPlan === "maximo" ? "active" : "")
+      : String((data as any).billing_status || "").toLowerCase();
+    const verifiedBlocked = !!(data as any).plano_bloqueado;
+
+    if (verifiedPlan !== p || (p === "maximo" && verifiedBilling !== "active") || verifiedBlocked) {
+      return {
+        ok: false,
+        persisted: false,
+        error:
+          "O banco respondeu ao update, mas a assinatura não ficou ativa. " +
+          `plano=${verifiedPlan}, billing=${verifiedBilling || "vazio"}, bloqueado=${verifiedBlocked ? "sim" : "não"}.`,
+      };
     }
 
     try {
