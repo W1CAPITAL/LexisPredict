@@ -1,16 +1,25 @@
 import { Loader2 } from "lucide-react";
 
-/**
- * Placeholder de carregamento de rota (Next.js loading.tsx).
- * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- */
-export default function PageLoader({ label }: { label?: string }) {
+export default function PageLoader({ label = "Abrindo…" }: { label?: string }) {
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        {label ? <p className="text-xs text-muted-foreground">{label}</p> : null}
+    <div
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[240]"
+    >
+      <div className="h-[3px] overflow-hidden bg-primary/10">
+        <div className="h-full w-1/3 animate-[lexis-route-load_1s_ease-in-out_infinite] rounded-full bg-primary" />
       </div>
+      <div className="mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-bold text-muted-foreground shadow-md backdrop-blur">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+        {label}
+      </div>
+      <style>{`
+        @keyframes lexis-route-load {
+          0% { transform: translateX(-120%); }
+          55% { transform: translateX(160%); }
+          100% { transform: translateX(320%); }
+        }
+      `}</style>
     </div>
   );
 }
