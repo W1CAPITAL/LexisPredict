@@ -440,9 +440,12 @@ function WhatsAppTerminalInner() {
       }
       const list = res.chats || [];
       setEvoChats(list);
+      if (res.provider === "waauto" || res.provider === "evolution") {
+        setBridgeProvider(res.provider);
+      }
       const g = list.filter((c) => c.isGroup).length;
       toast({
-        title: bridgeProvider === "waauto" ? "Chats WA.Auto" : "Chats Evolution",
+        title: res.provider === "waauto" ? "Chats WA.Auto" : "Chats Evolution",
         description: only
           ? `${list.length} grupo(s) · clique para abrir`
           : `${list.length} chat(s) · ${g} grupo(s) · clique na linha`,
