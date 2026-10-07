@@ -254,7 +254,10 @@ export async function middleware(request: NextRequest) {
         }
 
         const awaitingActivation = billingStatus === 'pending'
-        if (awaitingActivation && !billingBypass) {
+        // Plano Máximo já representa entitlement completo. Um billing_status
+        // legado/pending não pode esconder todas as abas quando a empresa não
+        // está bloqueada nem expirada.
+        if (awaitingActivation && plan !== 'maximo' && !billingBypass) {
           return isApi
             ? json({ ok: false, error: 'subscription_pending' }, 402)
             : redirect('/settings')
