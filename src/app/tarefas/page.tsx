@@ -284,6 +284,7 @@ export default function TarefasPage() {
           if (source === 'cache') setLoading(false);
         },
         allowStaleKpiFallback: true,
+        onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha ao buscar dados do Supabase'),
       });
       const data = _pack.cases;
       try {

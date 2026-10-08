@@ -340,7 +340,7 @@ export async function getStoredCasesPageForEmpresa(
     return (result.data || []).map((item: any) => toLegalCase(item));
   } catch (error) {
     console.error("[getStoredCasesPageForEmpresa]", error);
-    return [];
+    throw error;
   }
 }
 

@@ -111,6 +111,7 @@ export async function loadCarteiraComCache(opts: {
   empresaId?: string | null;
   scope?: CarteiraScope;
   onShow: (cases: any[], source: CacheSource) => void;
+  onError?: (error: unknown) => void;
   onKpiSafe?: (cases: any[], source: "network" | "stale-fallback") => void;
   allowStaleKpiFallback?: boolean;
 }): Promise<{ cases: any[]; source: CacheSource }> {
@@ -133,7 +134,8 @@ export async function loadCarteiraComCache(opts: {
     }
     opts.onShow([], "empty");
     return { cases: [], source: "empty" };
-  } catch {
+  } catch (error) {
+    opts.onError?.(error);
     if (cached?.cases?.length) {
       if (opts.allowStaleKpiFallback) opts.onKpiSafe?.(cached.cases, "stale-fallback");
       return { cases: cached.cases, source: "cache" };
