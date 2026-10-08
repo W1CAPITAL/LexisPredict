@@ -77,6 +77,9 @@ type Props = {
   sortOps: boolean;
   onSortOpsChange: (value: boolean) => void;
   onRefresh: () => void | Promise<void>;
+  onLoadMore?: () => void | Promise<void>;
+  hasMore?: boolean;
+  loadingMore?: boolean;
   onScan?: () => void;
   canScan?: boolean;
   onEdit: (item: LegalCase) => void;
@@ -731,6 +734,13 @@ export function ProcessosCommandCenter(props: Props) {
               <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="grid h-7 w-7 place-items-center rounded-md border border-white/10 bg-white/5 disabled:opacity-30"><ChevronLeft size={12}/></button>
               <span className="px-2 text-[8px] text-slate-400">{page} / {pageCount}</span>
               <button disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} className="grid h-7 w-7 place-items-center rounded-md border border-white/10 bg-white/5 disabled:opacity-30"><ChevronRight size={12}/></button>
+              {props.hasMore && props.onLoadMore && <button type="button"
+                disabled={props.loadingMore}
+                onClick={() => void props.onLoadMore?.()}
+                className="ml-2 inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-400/25 bg-blue-500/15 px-3 text-[9px] font-semibold text-blue-100 disabled:opacity-40">
+                {props.loadingMore ? <Loader2 size={11} className="animate-spin" /> : <Download size={11}/>}
+                {props.loadingMore ? 'Carregando...' : 'Carregar mais processos'}
+              </button>}
             </div>
           </div>
 

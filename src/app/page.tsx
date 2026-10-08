@@ -16,7 +16,7 @@ import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashb
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
-import React, { useState, useEffect, useMemo, useCallback, memo, startTransition } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card'
@@ -64,7 +64,7 @@ import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
 import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
-import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
+import { fetchFastCarteira, type CarteiraSnapshot } from '@/lib/fast-carteira-client';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
@@ -96,11 +96,9 @@ export default function Dashboard() {
   const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
   const { profile } = useAdmin();
   const caseScope = resolveCaseScope(profile as any);
-  const empresaId = String((profile as any)?.empresa_id || '');
-  const authUserId = String((profile as any)?.auth_user_id || '');
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
-  const [syncingCases, setSyncingCases] = useState(false);
+  const [portfolioSummary, setPortfolioSummary] = useState<CarteiraSnapshot | null>(null);
   const [carteiraError, setCarteiraError] = useState('');
   const [mounted, setMounted] = useState(false);
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
@@ -118,49 +116,28 @@ export default function Dashboard() {
   }, []);
 
   const loadData = useCallback(async () => {
-    if (!empresaId || !authUserId) return;
+    const empId = (profile as any)?.empresa_id || null;
+    const uid = (profile as any)?.auth_user_id || null;
+    if (!empId || !uid) return;
     setLoading(true);
-    setSyncingCases(true);
     setCarteiraError('');
     try {
-      const cachedRun = await loadCarteiraComCache({
-        fetchNetwork: () => fetchCarteiraAllClient({
-          empresaId,
-          firstPageSize: 36,
-          pageSize: 160,
-          onPage: (partial, page) => {
-            // Unblock on the first 36 records; consolidate the remaining pages
-            // with transitions so UI interactions stay responsive.
-            if (page === 0) {
-              setCases(partial);
-              setLoading(false);
-            } else if (page % 2 === 0) {
-              startTransition(() => setCases(partial));
-            }
-          },
-          onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha parcial no Supabase'),
-        }),
-        empresaId,
-        scope: caseScope,
-        userId: authUserId,
-        onShow: (caseData, source) => {
-          if (Array.isArray(caseData)) startTransition(() => setCases(caseData));
-          if (source === 'cache') setLoading(false);
-        },
-        onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha ao consultar Supabase'),
-        allowStaleKpiFallback: true,
-      });
-      if (cachedRun.cases.length) updateLastSync();
-      // Noncritical tribunal badges must not delay first paint.
-      try {
-        const baRes = await fetchBaHitProtocolosAction();
-        if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
-      } catch { /* optional */ }
+      // Display the first 100 current cases quickly, without blocking the
+      // entire UI on 9 sequential Server Actions and large JSON downloads.
+      const res = await fetchFastCarteira(caseScope, 100, 0);
+      setCases(res.cases);
+      setPortfolioSummary(res.summary);
+      updateLastSync();
+      // Auxiliary signals must not block rendering of the portfolio.
+      void fetchBaHitProtocolosAction().then((extra) => {
+        if (extra?.success) setBaHitDigits(extra.protocolDigits || []);
+      }).catch(() => {});
+    } catch (error) {
+      setCarteiraError(error instanceof Error ? error.message : 'Não foi possível carregar a carteira');
     } finally {
       setLoading(false);
-      setSyncingCases(false);
     }
-  }, [setCases, updateLastSync, empresaId, authUserId, caseScope]);
+  }, [setCases, updateLastSync, (profile as any)?.empresa_id, (profile as any)?.auth_user_id, caseScope]);
 
   useEffect(() => {
     setMounted(true);
@@ -296,12 +273,6 @@ export default function Dashboard() {
   return (
     <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      {syncingCases && <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-xl border bg-background/95 px-3 py-2 text-xs font-semibold text-primary shadow-lg">
-        Sincronizando carteira · {cases.length} processos recebidos…
-      </div>}
-      {carteiraError && <div role="alert" className="fixed bottom-16 right-4 z-40 max-w-sm rounded-xl border border-destructive/30 bg-background px-3 py-2 text-xs text-destructive shadow">
-        Sincronização parcial: {carteiraError}
-      </div>}
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
         <header className="admin-page-header relative flex shrink-0 items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
           <div>
@@ -342,6 +313,21 @@ export default function Dashboard() {
 
           <ScrollArea className="flex-1 overflow-auto">
             <TabsContent value="overview" className="p-3 sm:p-5 space-y-5 m-0 max-w-[1600px] mx-auto w-full">
+            {carteiraError && (
+              <div role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+                Falha ao consultar a carteira no Supabase: {carteiraError}
+                <Button variant="outline" size="sm" onClick={loadData} className="ml-3">Tentar novamente</Button>
+              </div>
+            )}
+            {portfolioSummary && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-xs font-medium text-blue-900">
+                <strong>{portfolioSummary.total.toLocaleString('pt-BR')} processos no seu escopo.</strong>
+                {' '}O painel exibe {cases.length} processos recentes para abrir mais rápido.
+                Totais de ativos, vencidos, baixas, encerrados e procedentes vêm de uma única consulta agregada ao Supabase;
+                análises detalhadas e filas desta tela consideram os processos recentes exibidos.
+                {' '}<Link className="underline font-bold" href="/cases">Abrir minha carteira completa</Link>
+              </div>
+            )}
             {isEmpty && (
               <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-border/30 rounded-2xl space-y-6 text-center animate-in fade-in duration-500 bg-card/30">
                 <div className="w-20 h-20 rounded-2xl bg-black text-white flex items-center justify-center shadow-[10px_10px_0px_#00D1FF]">
@@ -379,13 +365,13 @@ export default function Dashboard() {
                   </nav>
                 </div>
                 <EfferdPanel
-                  totalProcessos={cases.length}
-                  ativos={metrics.activeTotal}
-                  pendentes={metrics.countNovoAndamento + metrics.countHoje}
-                  vencidos={metrics.countVencido}
-                  novidades={metrics.countNovoAndamento}
-                  baixas={metrics.countEncerradoTribunal}
-                  encerradosCarteira={metrics.countEncerradoCarteira}
+                  totalProcessos={portfolioSummary?.total ?? cases.length}
+                  ativos={portfolioSummary?.ativos ?? metrics.activeTotal}
+                  pendentes={(portfolioSummary?.novidades ?? metrics.countNovoAndamento) + metrics.countHoje}
+                  vencidos={portfolioSummary?.vencidos ?? metrics.countVencido}
+                  novidades={portfolioSummary?.novidades ?? metrics.countNovoAndamento}
+                  baixas={portfolioSummary?.baixas ?? metrics.countEncerradoTribunal}
+                  encerradosCarteira={portfolioSummary?.encerrados ?? metrics.countEncerradoCarteira}
                   hoje={metrics.countHoje}
                   riskScore={metrics.riskScore}
                   cases={cases}
@@ -398,10 +384,10 @@ export default function Dashboard() {
 
               <section className={ui.metrics5}>
                 <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} />
-                <StatCard title={t.statusVencido} value={loading ? "..." : metrics.countVencido} icon={<ShieldAlert />} color="destructive" />
-                <StatCard title="Andamentos" value={loading ? "..." : metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} />
-                <StatCard title="Baixas tribunal" value={loading ? "..." : metrics.countEncerradoTribunal} icon={<Gavel />} color="success" />
-                <StatCard title="Encerrados carteira" value={loading ? "..." : metrics.countEncerradoCarteira} icon={<Gavel />} color="success" />
+                <StatCard title={t.statusVencido} value={loading ? "..." : portfolioSummary?.vencidos ?? metrics.countVencido} icon={<ShieldAlert />} color="destructive" />
+                <StatCard title="Andamentos" value={loading ? "..." : portfolioSummary?.novidades ?? metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} />
+                <StatCard title="Baixas tribunal" value={loading ? "..." : portfolioSummary?.baixas ?? metrics.countEncerradoTribunal} icon={<Gavel />} color="success" />
+                <StatCard title="Encerrados carteira" value={loading ? "..." : portfolioSummary?.encerrados ?? metrics.countEncerradoCarteira} icon={<Gavel />} color="success" />
                 <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
               </section>
 
@@ -427,7 +413,7 @@ export default function Dashboard() {
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 p-5 flex items-center justify-between shadow-sm">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/80">Procedentes</p>
-                    <p className="text-3xl font-black tabular-nums text-emerald-700">{loading ? "..." : metrics.countProcedente}</p>
+                    <p className="text-3xl font-black tabular-nums text-emerald-700">{loading ? "..." : portfolioSummary?.procedentes ?? metrics.countProcedente}</p>
                   </div>
                   <Scale className="text-emerald-600/40" size={28} />
                 </div>
@@ -441,7 +427,7 @@ export default function Dashboard() {
                 <div className="rounded-2xl border border-blue-200 bg-blue-50/80 dark:bg-blue-950/30 p-5 flex items-center justify-between shadow-sm">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/80">Audiências · Cumprimento</p>
-                    <p className="text-3xl font-black tabular-nums text-blue-700">{loading ? "..." : `${metrics.countAudiencia} · ${metrics.countCumprimento}`}</p>
+                    <p className="text-3xl font-black tabular-nums text-blue-700">{loading ? "..." : `${metrics.countAudiencia} · ${portfolioSummary?.cumprimentos ?? metrics.countCumprimento}`}</p>
                   </div>
                   <Activity className="text-blue-600/40" size={28} />
                 </div>

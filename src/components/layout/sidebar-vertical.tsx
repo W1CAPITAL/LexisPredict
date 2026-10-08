@@ -53,8 +53,8 @@ type NavItem = {
 
 const core: NavItem[] = [
   { label: "Início", href: "/", icon: LayoutDashboard },
-  { label: "Processos", href: "/cases", icon: Briefcase },
-  { label: "Carteira da empresa", href: "/processos", icon: FolderOpen, company: true },
+  { label: "Meus Processos", href: "/cases", icon: Briefcase },
+  { label: "Processos da Empresa", href: "/processos", icon: FolderOpen, company: true },
   { label: "Hoje", href: "/tarefas", icon: ListTodo },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
@@ -129,7 +129,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/cases", "/whatsapp", "/dossies"]
+      ["/", "/tarefas", "/cases", "/processos", "/whatsapp", "/dossies"]
         .map((href) => mainItems.find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems],
@@ -297,9 +297,8 @@ export function SidebarVertical() {
     setQuery("");
   }, [pathname]);
 
-  // No eager route-prefetch storm: every prefetch also hits the Supabase
-  // middleware authentication gate, starving actual user navigation.
-  // The router fetches only the selected route on demand.
+  // Avoid eagerness: route prefetches pass through middleware and Supabase auth.
+  // Navigation uses the selected destination on demand.
 
   useEffect(() => {
     if (!navigatingTo) return;
