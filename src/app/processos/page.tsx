@@ -609,6 +609,9 @@ export default function ProcessosEmpresaPage() {
             sortOps={sortOps}
             onSortOpsChange={setSortOps}
             onRefresh={() => void load()}
+            hasMore={hasServerMore}
+            loadingMore={loadingMore}
+            onLoadMore={loadMoreFromServer}
             canScan={canRodarEmpresa}
             onScan={canRodarEmpresa ? openScanner : undefined}
             scannerLabel={
