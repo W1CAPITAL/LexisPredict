@@ -108,6 +108,10 @@ function toLegalCase(item: any): LegalCase {
     id: item.id.toString(),
     db_id: item.id.toString(),
     created_by: item.created_by,
+    cliente: item.cliente ?? dados.cliente ?? dados.CLIENTE ?? 'SEM NOME',
+    empresa_id: item.empresa_id,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
 
     situacao: resolveSituacaoFromRow(item, dados),
     statusManual: resolveStatusManualFromRow(item, dados),
@@ -296,7 +300,7 @@ export async function getStoredCasesPageForEmpresa(
   limit = 250,
   offset = 0,
   isAdmin = false,
-  opts?: { onlyAtivos?: boolean }
+  opts?: { onlyAtivos?: boolean; includeDetails?: boolean }
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
   try {
@@ -331,7 +335,9 @@ export async function getStoredCasesPageForEmpresa(
 
     // Caminho rápido: não transporta o JSON `dados` de milhares de processos.
     // Se o banco legado não tiver alguma coluna tipada, cai para "*" sem quebrar.
-    let result = await runPage(PROCESSOS_LIST_COLUMNS);
+    let result = await runPage(
+      opts?.includeDetails ? PROCESSOS_LIST_COLUMNS + ',dados' : PROCESSOS_LIST_COLUMNS
+    );
     if (result.error && /column .* does not exist|schema cache/i.test(String(result.error.message || ""))) {
       result = await runPage("*");
     }

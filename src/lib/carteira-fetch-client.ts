@@ -78,12 +78,13 @@ export async function fetchCarteiraPageClient(opts: {
   limit?: number;
   offset?: number;
   onlyAtivos?: boolean;
+  includeDetails?: boolean;
 }): Promise<LegalCase[]> {
   if (!opts.empresaId) return [];
   const limit = Math.max(1, Math.min(Number(opts.limit || 200), 500));
   const offset = Math.max(0, Number(opts.offset || 0));
   // Server verifies authenticated tenant and owner/company scope for each page.
-  const data = await fetchRepoCasesPageAction(limit, offset);
+  const data = await fetchRepoCasesPageAction(limit, offset, false, !!opts.includeDetails);
   if (!Array.isArray(data)) throw new Error('Falha ao consultar carteira no servidor');
   return data as LegalCase[];
 }

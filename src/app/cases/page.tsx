@@ -304,6 +304,7 @@ function CasesContent() {
             empresaId: empId,
             limit: REMOTE_PAGE_SIZE,
             offset: 0,
+            includeDetails: true,
           });
           setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
           return page;
@@ -330,6 +331,7 @@ function CasesContent() {
       const page = await fetchCarteiraPageClient({
         empresaId: empId,
         limit: REMOTE_PAGE_SIZE,
+        includeDetails: true,
         offset: current.length,
       });
       const merged = mergeCarteiraPages(current, page);
