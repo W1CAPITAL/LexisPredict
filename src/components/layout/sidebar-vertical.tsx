@@ -36,7 +36,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useAdmin } from "@/hooks/use-admin";
 import { usePlano } from "@/hooks/use-plano";
 import { filterNavByPlan } from "@/lib/planos-pacotes";
-import { operatorRouteAllowed } from "@/lib/roles";
+import { operatorRouteAllowed, canViewCompanyCaseList } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
@@ -96,7 +96,7 @@ export function SidebarVertical() {
   const allowed = (item: NavItem) => {
     if (item.superadmin && !isSuperAdmin) return false;
     if (item.supervisor && !isSupervisor) return false;
-    if (item.company && !canSeeCompany) return false;
+    if (item.company && !canViewCompanyCaseList(profile as any)) return false;
     if (role === "Operador" && !operatorRouteAllowed(item.href)) return false;
     return true;
   };
@@ -111,7 +111,7 @@ export function SidebarVertical() {
         })),
         isSuperAdmin ? "maximo" : plan,
       ),
-    [role, isSupervisor, isSuperAdmin, canSeeCompany, plan],
+    [role, isSupervisor, isSuperAdmin, canSeeCompany, profile, plan],
   );
 
   const extraItems = useMemo(
@@ -124,7 +124,7 @@ export function SidebarVertical() {
         })),
         isSuperAdmin ? "maximo" : plan,
       ),
-    [role, isSupervisor, isSuperAdmin, canSeeCompany, plan],
+    [role, isSupervisor, isSuperAdmin, canSeeCompany, profile, plan],
   );
 
   const primaryItems = useMemo(

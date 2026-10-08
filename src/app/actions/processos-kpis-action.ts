@@ -32,11 +32,11 @@ function rowAsCase(row: any) {
   };
 }
 
-export async function fetchProcessosEmpresaKpisAction(): Promise<ProcessosEmpresaKpis> {
+export async function fetchProcessosEmpresaKpisAction(companyView = false): Promise<ProcessosEmpresaKpis> {
   try {
     const { getUserContext, getSupabaseAdmin } = await import("@/lib/server-db");
     const ctx = await getUserContext();
-    if (!ctx?.empresa_id) {
+    if (!ctx?.empresa_id || !ctx?.auth_id) {
       return {
         ok: false,
         total: 0,
@@ -62,7 +62,8 @@ export async function fetchProcessosEmpresaKpisAction(): Promise<ProcessosEmpres
 
     const empresaId = String(ctx.empresa_id);
     const authId = String(ctx.auth_id || '');
-    const companyWide = ctx.caseScope === "empresa" || !!(ctx.isSupervisor || ctx.isSuperAdmin);
+    // CompanyView is only enabled by the dedicated company-read screen.
+    const companyWide = companyView || ctx.caseScope === "empresa" || !!(ctx.isSupervisor || ctx.isSuperAdmin);
     const pageSize = 1000;
     let offset = 0;
     let total = 0;

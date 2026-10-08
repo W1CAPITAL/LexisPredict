@@ -18,7 +18,7 @@ import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { operatorRouteAllowed } from "@/lib/roles";
+import { operatorRouteAllowed, canViewCompanyCaseList } from "@/lib/roles";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 
 const primary = [
@@ -83,14 +83,14 @@ export function SidebarDock() {
 
   const main = filterNavByPlan(
     primary.map(([label, href, icon]) => ({
-      label: href === "/processos" ? (canSeeCompany ? "Empresa" : "Processos") : label,
+      label: href === "/processos" ? (canViewCompanyCaseList(profile as any) ? "Empresa" : "Processos") : label,
       href,
       icon,
     })),
     isSuperAdmin ? "maximo" : plan,
   ).filter(
     (item) =>
-      (item.href !== "/processos" || canSeeCompany) &&
+      (item.href !== "/processos" || canViewCompanyCaseList(profile as any)) &&
       (role !== "Operador" || operatorRouteAllowed(item.href)),
   );
 

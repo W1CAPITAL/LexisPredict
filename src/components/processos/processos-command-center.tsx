@@ -80,6 +80,8 @@ type Props = {
   onScan?: () => void;
   canScan?: boolean;
   onEdit: (item: LegalCase) => void;
+  /** true only when the authenticated user owns the case or supervises */
+  canManageItem?: (item: LegalCase) => boolean;
   onAttend: (item: LegalCase) => void;
   onExportCsv: (items?: LegalCase[]) => void;
   ownerNameByAuth?: Map<string, string>;
@@ -781,7 +783,9 @@ export function ProcessosCommandCenter(props: Props) {
                     <p className="font-mono text-[10px] font-bold text-cyan-300">{fmtCnj(selected.protocolo)}</p>
                     <p className="mt-1 truncate text-[12px] font-black text-white">{selected.cliente}</p>
                   </div>
-                  <Button size="sm" onClick={() => props.onEdit(selected)} className="h-7 bg-blue-600 px-2 text-[8px]">Abrir processo</Button>
+                  {(!props.canManageItem || props.canManageItem(selected)) ?
+                    <Button size="sm" onClick={() => props.onEdit(selected)} className="h-7 bg-blue-600 px-2 text-[8px]">Editar processo</Button> :
+                    <span className="rounded-md border border-slate-700 px-2 py-1 text-[8px] text-slate-300">Somente consulta</span>}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold", statusColor(String(selected.status)))}>{selected.status}</span>
@@ -839,7 +843,7 @@ export function ProcessosCommandCenter(props: Props) {
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => props.onAttend(selected)} className="mt-2 w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / próximo retorno</button>
+                    {(!props.canManageItem || props.canManageItem(selected)) && <button onClick={() => props.onAttend(selected)} className="mt-2 w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / próximo retorno</button>}
                     <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[9px] font-bold text-violet-200 hover:bg-violet-500/15">Abrir publicação DJEN</button>
                     <Link href={"/tarefas?processo="+encodeURIComponent(selected.protocolo)} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/8 px-2 py-2 text-[9px] font-bold text-blue-200 hover:bg-blue-500/15">Abrir fila de tarefas</Link>
                   </Panel>
@@ -895,7 +899,7 @@ export function ProcessosCommandCenter(props: Props) {
                     <p className="mt-1">“Próximo retorno” é compromisso operacional da carteira. Um prazo judicial só deve ser tratado como tal quando vier de fonte/documento que sustente a data. O painel não transforma automaticamente publicação em prazo fatal.</p>
                   </div>
                   <Panel title="Ações">
-                    <button onClick={() => props.onAttend(selected)} className="w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / reagendar retorno</button>
+                    {(!props.canManageItem || props.canManageItem(selected)) && <button onClick={() => props.onAttend(selected)} className="w-full rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-left text-[9px] font-bold text-cyan-200 hover:bg-cyan-500/15">Registrar atendimento / reagendar retorno</button>}
                     <Link href={`/agenda?processo=${encodeURIComponent(selected.protocolo)}`} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-2 text-[9px] font-bold text-blue-200 hover:bg-blue-500/15">Abrir na agenda</Link>
                     <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[9px] font-bold text-violet-200 hover:bg-violet-500/15">Revisar última publicação DJEN</button>
                   </Panel>

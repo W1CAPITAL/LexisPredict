@@ -1372,13 +1372,11 @@ export async function fetchCompanyProcessosAction() {
   try {
     const ctx = await getUserContext();
     const empresa_id = ctx.empresa_id;
-    if (!empresa_id) return empty;
+    if (!empresa_id || !ctx.auth_id) return { ...empty, error: 'Sessão expirada.' };
     const companyWide = resolveCaseScope(ctx as any) === 'empresa';
-    if (!companyWide) {
-      return { ...empty, error: "supervisao_required" };
-    }
 
-    // /processos é a visão consolidada da empresa e exige escopo wide.
+    // /processos é a rota de consulta de toda a empresa para todos os cargos.
+    // Somente supervisor/superadmin vê auditorias/gestão; edição é validada à parte.
     const { fetchRankingAtendentesEmpresaAction } = await import(
       "@/app/actions/ranking-atendentes-action"
     );
@@ -1392,11 +1390,11 @@ export async function fetchCompanyProcessosAction() {
             return { ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 };
           })
         : Promise.resolve({ ok: false as const, ranking: [], total: 0, ativos: 0, atendidosSemana: 0 }),
-      fetchProcessosEmpresaKpisAction().catch((e: any) => {
+      fetchProcessosEmpresaKpisAction(true).catch((e: any) => {
         console.error("[company] kpis", e?.message);
         return { ok: false as const, total: 0, ativos: 0, vencidos: 0 };
       }),
-      getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: true }).catch((e: any) => {
+      getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: true, companyReadOnly: true }).catch((e: any) => {
         console.error("[company] page ativos", e?.message);
         return [] as any[];
       }),
@@ -1407,7 +1405,7 @@ export async function fetchCompanyProcessosAction() {
     let cases = Array.isArray(casesPage) ? casesPage : [];
     if (!cases.length) {
       try {
-        const again = await getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: false });
+        const again = await getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: false, companyReadOnly: true });
         cases = Array.isArray(again) ? again : [];
       } catch { /* retry sem onlyAtivos */ }
     }
@@ -2147,7 +2145,7 @@ export async function fetchCompanyProcessosPageAction(opts?: {
   try {
     const { getStoredCasesPageForEmpresa, getUserContext } = await import("@/lib/server-db");
     const ctx = await getUserContext();
-    if (!ctx.empresa_id) return { ok: false, cases: [] as any[] };
+    if (!ctx.empresa_id || !ctx.auth_id) return { ok: false, cases: [] as any[] };
     const limit = Math.min(Math.max(opts?.limit ?? 200, 50), 500);
     const offset = Math.max(opts?.offset ?? 0, 0);
     const onlyAtivos = opts?.onlyAtivos !== false;
@@ -2156,7 +2154,7 @@ export async function fetchCompanyProcessosPageAction(opts?: {
       limit,
       offset,
       true,
-      { onlyAtivos }
+      { onlyAtivos, companyReadOnly: true }
     );
     return { ok: true, cases: cases || [], offset, limit };
   } catch (e: any) {

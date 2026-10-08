@@ -8,7 +8,8 @@ import { ProcessosCommandCenter } from '@/components/processos/processos-command
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
- * Processos da Empresa — visão consolidada exclusiva de Supervisor/Superadmin.
+ * Processos da Empresa — leitura empresarial para todos os usuários autenticados.
+ * Escrita restrita ao responsável do processo ou supervisão.
  * Trilha separa atendimento de edição para preservar crédito operacional.
  */
 
@@ -17,6 +18,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
+import { resolveRole } from "@/lib/roles";
 import { fetchCompanyProcessosAction,
   fetchCompanyProcessosPageAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
@@ -144,6 +146,13 @@ function Kpi({ icon, label, value, hint, tone = "default" }: {
 export default function ProcessosEmpresaPage() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const canManageItem = (item: LegalCase): boolean => {
+    const role = resolveRole(profile as any);
+    if (role === 'Supervisor' || role === 'Superadmin') return true;
+    if (role === 'Visualizador' || role === 'Desconhecido') return false;
+    return !!(profile as any)?.auth_user_id &&
+      String((item as any).created_by || '') === String((profile as any).auth_user_id);
+  };
   /** Só o botão "Rodar empresa" (lote empresa) exige Supervisão/Superadmin. Resto da página é livre. */
   const canRodarEmpresa = canRodarEmpresaScan(profile as any);
   const canAssignOwner = canAssignOwnerRule(profile as any);
@@ -281,7 +290,10 @@ export default function ProcessosEmpresaPage() {
   };
 
   const saveEdit = async () => {
-    if (!editing) return;
+    if (!editing || !canManageItem(editing)) {
+      toast({ title: 'Acesso somente para consulta', description: 'Você só pode alterar os processos de sua carteira.', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
       const iso = formatDateToISO(editing.ultimoRetorno) || "";
@@ -326,6 +338,7 @@ export default function ProcessosEmpresaPage() {
   const todayBR = () => hojeBrasilYmd(); // YYYY-MM-DD Brasília
 
   const openAttendance = (c: LegalCase) => {
+    if (!canManageItem(c)) return;
     setAttending(c);
     setAttendanceForm({
       situacao: c.situacao || "EM ANDAMENTO",
@@ -337,7 +350,7 @@ export default function ProcessosEmpresaPage() {
   };
 
   const saveAttendance = async () => {
-    if (!attending || attendanceSaving) return;
+    if (!attending || attendanceSaving || !canManageItem(attending)) return;
     setAttendanceSaving(true);
     try {
       const situacao = attendanceForm.situacao === "ENCERRADO" ? "ENCERRADO" : "EM ANDAMENTO";
@@ -369,6 +382,7 @@ export default function ProcessosEmpresaPage() {
   };
 
   const handleEncerrar = async (c: LegalCase) => {
+    if (!canManageItem(c)) return;
     if (!confirm(`Marcar "${c.cliente}" como ENCERRADO?\nO processo sai da carteira ativa.`)) return;
     setSaving(true);
     try {
@@ -403,6 +417,7 @@ export default function ProcessosEmpresaPage() {
 
   /** Reabre ENCERRADO / falso AGUARD.PROTOCOLO — qualquer cargo, dono preservado. */
   const handleReabrir = async (c: LegalCase) => {
+    if (!canManageItem(c)) return;
     if (!confirm(`Reabrir "${c.cliente}" na carteira ativa?`)) return;
     setSaving(true);
     try {
@@ -641,7 +656,9 @@ export default function ProcessosEmpresaPage() {
                   ? "Scanner local em execução"
                   : "Atualizar DataJud"
             }
+            canManageItem={canManageItem}
             onEdit={(item) => {
+              if (!canManageItem(item)) return;
               setEditing(item);
               setEditOpen(true);
             }}
