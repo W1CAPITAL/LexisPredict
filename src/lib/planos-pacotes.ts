@@ -36,6 +36,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/",
     "/cases",
     "/tarefas",
+    "/dossies",
     "/processos",
     "/clients",
     "/import",

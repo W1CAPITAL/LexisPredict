@@ -181,6 +181,7 @@ const OPERATOR_ALLOWED_ROOTS = [
   '/tarefas',
   '/agenda',
   '/whatsapp',
+  '/dossies',
   '/documents',
   '/mensagens',
   '/notes',

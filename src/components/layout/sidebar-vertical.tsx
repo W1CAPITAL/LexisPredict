@@ -57,6 +57,7 @@ const core: NavItem[] = [
   { label: "Carteira da empresa", href: "/processos", icon: FolderOpen, company: true },
   { label: "Hoje", href: "/tarefas", icon: ListTodo },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
+  { label: "Dossiês", href: "/dossies", icon: BookOpen },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
   { label: "CRM", href: "/crm", icon: Users },
@@ -128,7 +129,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/cases", "/whatsapp"]
+      ["/", "/tarefas", "/cases", "/whatsapp", "/dossies"]
         .map((href) => mainItems.find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems],
@@ -142,6 +143,7 @@ export function SidebarVertical() {
       "/tarefas": "Veja quem precisa de atendimento agora.",
       "/cases": "Encontre cliente, CNJ e histórico.",
       "/whatsapp": "Converse e acompanhe mensagens.",
+      "/dossies": "Peça um dossiê por chat com PDF, planilha, processo, mensagens ou contexto.",
       "/agenda": "Veja prazos e compromissos.",
       "/report": "Gere relatórios quando precisar.",
       "/settings": "Conta, equipe e preferências.",
@@ -168,6 +170,7 @@ export function SidebarVertical() {
       "/tarefas",
       "/cases",
       "/whatsapp",
+      "/dossies",
       "/agenda",
       "/report",
       "/settings",
@@ -222,6 +225,7 @@ export function SidebarVertical() {
           "/processos",
           "/gerador-processos",
           "/documents",
+          "/dossies",
           "/veredito",
           "/chat",
           "/calculos",
@@ -294,7 +298,7 @@ export function SidebarVertical() {
   }, [pathname]);
 
   useEffect(() => {
-    const routes = ["/", "/cases", "/tarefas", "/whatsapp", "/settings", "/agenda"];
+    const routes = ["/", "/cases", "/tarefas", "/whatsapp", "/dossies", "/settings", "/agenda"];
     const id = window.setTimeout(() => {
       for (const href of routes) router.prefetch(href);
     }, 500);
@@ -559,6 +563,21 @@ export function SidebarVertical() {
             >
               <BookOpen className="h-4 w-4" />
               Aprender o app em 3 minutos
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateMobile("/dossies")}
+              className="mt-2 flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#b9d2ff] bg-[linear-gradient(135deg,#eef5ff,#f8fbff)] px-3 py-2 text-left text-[#174f9d] shadow-sm"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1769ff] text-white">
+                <BookOpen className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-black">Dossiês por IA</span>
+                <span className="mt-0.5 block text-[10px] font-semibold leading-snug text-[#5f7898]">
+                  PDF, Excel, processo, mensagens ou contexto em um único chat.
+                </span>
+              </span>
             </button>
             <label className="mt-3 flex h-10 items-center gap-2 rounded-xl border border-[#dce5f1] bg-[#f7f9fc] px-3">
               <Search className="h-4 w-4 text-[#6c7f9b]" />
