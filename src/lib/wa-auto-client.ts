@@ -4,6 +4,7 @@
  * Nenhuma chave privada do WA.Auto precisa existir no navegador ou no APK.
  */
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
 
 export type WaAutoHealth = {
   configured: boolean;
@@ -261,7 +262,22 @@ export async function getWaAutoConnection() {
   }
 }
 
+async function checkWaAutoSessionManagement(): Promise<string | null> {
+  const { getUserContext } = await import('@/lib/server-db');
+  const ctx = await getUserContext();
+  if (!ctx.auth_id) return 'Sessão LexisPredict expirada. Faça login novamente.';
+  const { canManage } = resolveWaAutoPermissions({ cargo: ctx.cargo });
+  if (!canManage) return 'Somente Supervisor, Administrador ou Superadmin pode gerenciar a sessão do WhatsApp.';
+  return null;
+}
+
 export async function connectWaAuto() {
+  try {
+    const denial = await checkWaAutoSessionManagement();
+    if (denial) return { ok: false as const, error: denial };
+  } catch {
+    return { ok: false as const, error: 'Não foi possível verificar seu cargo. Entre novamente.' };
+  }
   const { baseUrl } = getWaAutoConfig();
   try {
     const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/connect`, {
@@ -279,6 +295,12 @@ export async function connectWaAuto() {
 }
 
 export async function pairWaAuto(phone: string) {
+  try {
+    const denial = await checkWaAutoSessionManagement();
+    if (denial) return { ok: false as const, error: denial };
+  } catch {
+    return { ok: false as const, error: 'Não foi possível verificar seu cargo. Entre novamente.' };
+  }
   const { baseUrl } = getWaAutoConfig();
   try {
     const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/pair`, {
@@ -296,6 +318,12 @@ export async function pairWaAuto(phone: string) {
 }
 
 export async function logoutWaAuto() {
+  try {
+    const denial = await checkWaAutoSessionManagement();
+    if (denial) return { ok: false as const, error: denial };
+  } catch {
+    return { ok: false as const, error: 'Não foi possível verificar seu cargo. Entre novamente.' };
+  }
   const { baseUrl } = getWaAutoConfig();
   try {
     const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/logout`, {

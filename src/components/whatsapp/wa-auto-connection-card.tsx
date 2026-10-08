@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAdmin } from '@/hooks/use-admin';
 import {
   waAutoConnectAction,
   waAutoConnectionAction,
@@ -25,6 +26,7 @@ type ConnectionState = {
 
 export function WaAutoConnectionCard() {
   const { toast } = useToast();
+  const { isAdmin: canManageSession } = useAdmin();
   const [connection, setConnection] = useState<ConnectionState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -137,7 +139,7 @@ export function WaAutoConnectionCard() {
         </Button>
       </div>
 
-      {!ready && (
+      {!ready && canManageSession && (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,300px)_1fr]">
           <div className="space-y-3">
             <Button className="w-full" onClick={connect} disabled={busy}>
@@ -183,7 +185,13 @@ export function WaAutoConnectionCard() {
         </div>
       )}
 
-      {ready ? (
+      {!canManageSession && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          O status da conexão pode ser consultado aqui. Somente Supervisor, Administrador ou Superadmin
+          pode conectar, parear ou desconectar uma sessão.
+        </p>
+      )}
+      {ready && canManageSession ? (
         <div className="mt-3 flex justify-end">
           <Button type="button" variant="outline" size="sm" onClick={logout} disabled={busy}>
             <LogOut className="mr-2 h-4 w-4" />
