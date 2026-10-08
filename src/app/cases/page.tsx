@@ -684,6 +684,7 @@ function CasesContent() {
             empresaId: String((profile as any)?.empresa_id || ''),
             limit: REMOTE_PAGE_SIZE,
             offset: 0,
+            includeDetails: true,
           });
           if (Array.isArray(fresh) && fresh.length) {
             // mescla: não perde o retorno acabado de gravar se o fetch vier stale
