@@ -1,16 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { resolveWaAutoPermissions } from "@/lib/wa-auto-permissions";
 
 export const dynamic = "force-dynamic";
 
-function normalizeRole(value: unknown) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (raw === "superadmin") return "Superadmin";
-  if (raw === "supervisor") return "Supervisor";
-  if (raw === "administrador" || raw === "admin") return "Administrador";
-  if (raw === "visualizador" || raw === "viewer") return "Visualizador";
-  return "Operador";
-}
 
 export async function GET(request: Request) {
   const url = String(
@@ -109,11 +102,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const role = normalizeRole(profile.role || profile.cargo);
-  const canManage =
-    role === "Superadmin" ||
-    role === "Supervisor" ||
-    role === "Administrador";
+  // Cargo é autoritativo no Supabase W1. A coluna "role" é legado
+  // e está preenchida como "operador" até mesmo no perfil Superadmin.
+  // Nunca privilegie um role legado contraditório ao cargo verificado.
+  const { role, canManage } = resolveWaAutoPermissions(profile);
 
   return NextResponse.json(
     {
