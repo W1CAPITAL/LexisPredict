@@ -16,6 +16,43 @@ export type OmniReportInput = {
   detail?: 'normal' | 'profundo' | 'maximo';
 };
 
+export type OmniExecutiveMap = {
+  headline: string;
+  oneLine: string;
+  status: 'critico' | 'alto' | 'moderado' | 'baixo' | 'misto';
+  metrics: Array<{ label: string; value: string; note?: string }>;
+  offices: Array<{
+    name: string;
+    summary: string;
+    priority: string;
+    proof: string;
+    sources: string[];
+    lawyers: string[];
+    topIssues: string[];
+  }>;
+  lawyers: Array<{
+    name: string;
+    office?: string;
+    role?: string;
+    priority: string;
+    proof: string;
+    processes?: string;
+    attributions?: string;
+    confirmed?: string;
+    mainPattern?: string;
+    phase?: string;
+    sources: string[];
+    action?: string;
+  }>;
+  criticalFacts: Array<{
+    title: string;
+    why: string;
+    proof: string;
+    sources: string[];
+  }>;
+  cautions: string[];
+};
+
 export type OmniReportResult =
   | {
       success: true;
@@ -23,6 +60,7 @@ export type OmniReportResult =
       markdown: string;
       title: string;
       filenameBase: string;
+      executive: OmniExecutiveMap | null;
       sources: Array<{ id: string; name: string; kind: string; chars: number }>;
       stats: {
         inputChars: number;
@@ -173,18 +211,170 @@ function markdownToHtml(markdown: string) {
   return out.join('\n');
 }
 
+function parseJsonObject(value: string) {
+  const clean = String(value || '').trim().replace(/^\`\`\`(?:json)?/i, '').replace(/\`\`\`$/i, '').trim();
+  const start = clean.indexOf('{');
+  const end = clean.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(clean.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+function sourceBadges(values: unknown) {
+  const list = Array.isArray(values) ? values : [];
+  return list
+    .slice(0, 8)
+    .map((value) => '<span class="source-ref">' + escapeHtml(String(value || '')) + '</span>')
+    .join(' ');
+}
+
+function buildExecutiveHtml(executive?: OmniExecutiveMap | null) {
+  if (!executive) return '';
+
+  const metrics = (executive.metrics || [])
+    .slice(0, 8)
+    .map(
+      (item) =>
+        '<div class="exec-metric"><strong>' +
+        escapeHtml(item.value) +
+        '</strong><span>' +
+        escapeHtml(item.label) +
+        '</span>' +
+        (item.note ? '<small>' + escapeHtml(item.note) + '</small>' : '') +
+        '</div>'
+    )
+    .join('');
+
+  const offices = (executive.offices || [])
+    .slice(0, 12)
+    .map(
+      (office) =>
+        '<article class="exec-card"><div class="exec-card-top"><h3>' +
+        escapeHtml(office.name) +
+        '</h3><span class="priority">' +
+        escapeHtml(office.priority || 'revisar') +
+        '</span></div><p>' +
+        escapeHtml(office.summary) +
+        '</p><div class="exec-proof"><b>' +
+        escapeHtml(office.proof || 'N/D') +
+        '</b>' +
+        sourceBadges(office.sources) +
+        '</div>' +
+        ((office.lawyers || []).length
+          ? '<p class="micro"><b>Pessoas:</b> ' + escapeHtml(office.lawyers.slice(0, 10).join(' · ')) + '</p>'
+          : '') +
+        ((office.topIssues || []).length
+          ? '<ul class="compact">' +
+            office.topIssues.slice(0, 5).map((issue) => '<li>' + escapeHtml(issue) + '</li>').join('') +
+            '</ul>'
+          : '') +
+        '</article>'
+    )
+    .join('');
+
+  const lawyers = (executive.lawyers || [])
+    .slice(0, 30)
+    .map(
+      (lawyer) =>
+        '<tr><td><strong>' +
+        escapeHtml(lawyer.name) +
+        '</strong>' +
+        (lawyer.office ? '<br><small>' + escapeHtml(lawyer.office) + '</small>' : '') +
+        '</td><td>' +
+        escapeHtml(lawyer.role || lawyer.phase || '—') +
+        '</td><td>' +
+        escapeHtml(lawyer.attributions || lawyer.processes || '—') +
+        '</td><td>' +
+        escapeHtml(lawyer.mainPattern || '—') +
+        '</td><td><span class="priority">' +
+        escapeHtml(lawyer.priority || 'revisar') +
+        '</span><br><b class="proof-label">' +
+        escapeHtml(lawyer.proof || 'N/D') +
+        '</b></td><td>' +
+        sourceBadges(lawyer.sources) +
+        (lawyer.action ? '<div class="micro"><b>Próximo:</b> ' + escapeHtml(lawyer.action) + '</div>' : '') +
+        '</td></tr>'
+    )
+    .join('');
+
+  const critical = (executive.criticalFacts || [])
+    .slice(0, 8)
+    .map(
+      (fact, index) =>
+        '<div class="critical-item"><span>' +
+        String(index + 1).padStart(2, '0') +
+        '</span><div><h4>' +
+        escapeHtml(fact.title) +
+        '</h4><p>' +
+        escapeHtml(fact.why) +
+        '</p><div class="exec-proof"><b>' +
+        escapeHtml(fact.proof || 'N/D') +
+        '</b>' +
+        sourceBadges(fact.sources) +
+        '</div></div></div>'
+    )
+    .join('');
+
+  const cautions = (executive.cautions || [])
+    .slice(0, 6)
+    .map((item) => '<li>' + escapeHtml(item) + '</li>')
+    .join('');
+
+  return (
+    '<section id="executivo" class="executive-cover">' +
+    '<div class="exec-kicker">Leitura executiva · 30 segundos</div>' +
+    '<div class="exec-head"><div><h2>' +
+    escapeHtml(executive.headline || 'O que importa agora') +
+    '</h2><p>' +
+    escapeHtml(executive.oneLine || '') +
+    '</p></div><span class="exec-status ' +
+    escapeHtml(executive.status || 'misto') +
+    '">' +
+    escapeHtml(executive.status || 'misto') +
+    '</span></div>' +
+    (metrics ? '<div class="exec-metrics">' + metrics + '</div>' : '') +
+    (critical
+      ? '<div class="exec-block"><h3>O que você precisa saber primeiro</h3><div class="critical-list">' +
+        critical +
+        '</div></div>'
+      : '') +
+    (offices
+      ? '<div class="exec-block"><h3>Por escritório / organização</h3><div class="exec-grid">' +
+        offices +
+        '</div></div>'
+      : '') +
+    (lawyers
+      ? '<div class="exec-block"><h3>Por advogado / responsável</h3><div class="table-scroll"><table class="lawyer-exec"><thead><tr><th>Pessoa</th><th>Papel / fase</th><th>Volume</th><th>Padrão principal</th><th>Prioridade / prova</th><th>Fontes / ação</th></tr></thead><tbody>' +
+        lawyers +
+        '</tbody></table></div></div>'
+      : '') +
+    (cautions
+      ? '<div class="exec-caution"><strong>Não perder de vista</strong><ul>' + cautions + '</ul></div>'
+      : '') +
+    '<div class="drill-note"><b>Como usar:</b> esta capa resume; o relatório completo abaixo preserva cronologia, contraprovas, documentos, mensagens e raciocínio. Nenhum contador sozinho equivale a culpa.</div>' +
+    '</section>'
+  );
+}
+
 function buildHtml(input: {
   title: string;
   subtitle: string;
   instruction: string;
+  executive?: OmniExecutiveMap | null;
   sections: Array<{ number: string; title: string; body: string }>;
   sources: Array<{ id: string; name: string; kind: string; chars: number }>;
   generatedAt: string;
   statsLine: string;
 }) {
-  const nav = input.sections
-    .map((s, i) => '<a href="#sec-' + (i + 1) + '">' + escapeHtml(s.title) + '</a>')
-    .join('');
+  const nav =
+    (input.executive ? '<a href="#executivo"><strong>Visão em 30 segundos</strong></a>' : '') +
+    input.sections
+      .map((s, i) => '<a href="#sec-' + (i + 1) + '">' + escapeHtml(s.title) + '</a>')
+      .join('');
+  const executiveHtml = buildExecutiveHtml(input.executive);
   const sections = input.sections
     .map(
       (s, i) =>
@@ -233,7 +423,8 @@ function buildHtml(input: {
     'h2{font:400 29px/1.25 Georgia,serif;color:var(--navy);margin:0}h3{font:600 19px/1.35 Georgia,serif;color:var(--navy);margin:25px 0 8px}h4{font-size:14px;color:var(--navy);margin:20px 0 6px}p{margin:10px 0}ul,ol{padding-left:24px}li{margin:7px 0}blockquote{margin:16px 0;padding:14px 17px;border-left:3px solid var(--gold);background:#f6f3e9}' +
     '.source-ref{display:inline-block;background:#eef2f4;color:#35546d;border-radius:3px;padding:0 4px;font-size:.9em;font-weight:700}.sources{width:100%;border-collapse:collapse;font-size:12px}.sources th,.sources td{padding:9px;border-bottom:1px solid var(--line);text-align:left}.sources th{background:#edf0f0;color:var(--navy)}' +
     '.note{border-left:3px solid var(--gold);background:#f5f2e8;padding:16px 18px;margin:18px 0;font-size:13px}' +
-    '@media(max-width:850px){header input{display:none}.layout{display:block}aside{display:none}main{padding:0 14px 80px}.hero{padding-top:34px}h1{font-size:36px}section{padding:20px}}' +
+    '.executive-cover{border:2px solid #c9d5df;background:linear-gradient(180deg,#fff,#f8fafb);box-shadow:0 16px 45px #182e4310}.exec-kicker{font-size:10px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:var(--red)}.exec-head{display:flex;gap:18px;align-items:flex-start;justify-content:space-between;margin:8px 0 18px}.exec-head h2{font-size:34px}.exec-head p{max-width:900px;color:var(--muted);font-size:16px}.exec-status{white-space:nowrap;border-radius:999px;padding:6px 10px;font-size:10px;font-weight:900;text-transform:uppercase;background:#e7ecef;color:var(--navy)}.exec-status.critico{background:#f8e4e1;color:#8f2921}.exec-status.alto{background:#f8ecd8;color:#885800}.exec-status.baixo{background:#e3f3e9;color:#276749}.exec-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0 26px}.exec-metric{border:1px solid var(--line);border-radius:8px;padding:14px;background:#fff}.exec-metric strong{display:block;font:28px Georgia,serif;color:var(--navy);line-height:1}.exec-metric span{display:block;margin-top:7px;font-size:11px;font-weight:800}.exec-metric small{display:block;margin-top:4px;color:var(--muted);font-size:9px}.exec-block{margin-top:26px}.exec-block>h3{font-size:14px;text-transform:uppercase;letter-spacing:1.1px}.exec-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.exec-card{border:1px solid var(--line);border-radius:8px;padding:16px;background:#fff}.exec-card-top{display:flex;gap:8px;justify-content:space-between;align-items:start}.exec-card h3{margin:0;font-size:18px}.priority{display:inline-block;border-radius:999px;background:#f0f3f5;padding:3px 7px;font-size:9px;font-weight:900;text-transform:uppercase;color:#526573}.exec-proof{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:10px}.exec-proof>b,.proof-label{font-size:9px;text-transform:uppercase;color:var(--red)}.micro{font-size:10px;color:var(--muted);margin-top:9px}.compact{font-size:11px;padding-left:18px}.critical-list{display:grid;grid-template-columns:1fr 1fr;gap:10px}.critical-item{display:flex;gap:12px;border:1px solid var(--line);padding:13px;border-radius:8px;background:#fff}.critical-item>span{font:22px Georgia,serif;color:var(--red)}.critical-item h4{margin:0 0 4px}.critical-item p{font-size:11px;color:var(--muted);margin:0}.table-scroll{overflow:auto}.lawyer-exec{min-width:900px}.lawyer-exec td,.lawyer-exec th{padding:9px 10px}.lawyer-exec small{color:var(--muted)}.exec-caution{margin-top:22px;border-left:3px solid var(--gold);background:#f7f3e7;padding:14px 16px;font-size:11px}.exec-caution ul{margin-bottom:0}.drill-note{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}' +
+    '@media(max-width:850px){header input{display:none}.layout{display:block}aside{display:none}main{padding:0 14px 80px}.hero{padding-top:34px}h1{font-size:36px}section{padding:20px}.exec-head{display:block}.exec-status{display:inline-block;margin-top:8px}.exec-metrics{grid-template-columns:repeat(2,1fr)}.exec-grid,.critical-list{grid-template-columns:1fr}.exec-head h2{font-size:28px}}' +
     '@media print{header,aside{display:none!important}.layout{display:block}main{padding:0}.hero{padding:22mm 12mm 10mm}.hero h1{font-size:32pt}section{border:0;border-radius:0;padding:9mm 12mm;margin:0;break-inside:auto}section+section{break-before:page}.section-head{break-after:avoid}h2,h3,h4{break-after:avoid}p,li{orphans:3;widows:3}@page{size:A4;margin:12mm 10mm 14mm}}' +
     '</style></head><body><header><strong>LexisPredict · OmniReport</strong><input id="q" placeholder="Buscar no relatório"/></header>' +
     '<div class="layout"><aside><h3>Conteúdo</h3>' +
@@ -249,6 +440,7 @@ function buildHtml(input: {
     '</div><div class="note"><strong>Pedido do usuário:</strong> ' +
     escapeHtml(input.instruction) +
     '</div></div>' +
+    executiveHtml +
     sections +
     '<section id="fontes"><div class="section-head"><span>ANEXO</span><h2>Fontes e rastreabilidade</h2></div><p>Cada referência [Sxx] ou [Pxx] usada no texto aponta para uma fonte desta tabela. Ausência de referência deve ser tratada como interpretação ou síntese, não como prova autônoma.</p><table class="sources"><thead><tr><th>ID</th><th>Fonte</th><th>Tipo</th><th>Caracteres</th></tr></thead><tbody>' +
     sourceRows +
@@ -415,6 +607,91 @@ async function summarizeChunk(chunk: string, index: number, total: number) {
   });
   return {
     text: cleanText(result.text),
+    engine: result.engineId + (result.model ? '/' + result.model : ''),
+  };
+}
+
+async function generateExecutiveMap(
+  instruction: string,
+  ledger: string
+): Promise<{ executive: OmniExecutiveMap | null; engine: string }> {
+  const result = await runCascade({
+    preferred: 'auto',
+    noTokenSaver: true,
+    system:
+      'Você é o editor executivo forense do LexisPredict. Sua tarefa é criar uma capa de leitura em 30 segundos SEM enfraquecer a prova. Responda SOMENTE JSON válido. Não use markdown. Não transforme volume de atribuições em culpa. Separe escritório/organização de advogado/pessoa. Para cada conclusão preserve nível probatório e referências [Sxx]/[Pxx]. Se não houver escritórios ou advogados, retorne arrays vazios. Prioridade significa urgência de revisão, não culpabilidade. Use somente o ledger.',
+    messages: [
+      {
+        role: 'user',
+        content:
+          'PEDIDO ORIGINAL:\n' +
+          instruction +
+          '\n\nLEDGER:\n' +
+          ledger +
+          '\n\nRetorne exatamente este formato JSON, preenchido de forma concisa e factual:\n' +
+          '{"headline":"frase de impacto factual","oneLine":"síntese em até 280 caracteres","status":"critico|alto|moderado|baixo|misto","metrics":[{"label":"Processos","value":"1.791","note":"o que esse número significa"}],"offices":[{"name":"GM","summary":"papel e quadro em 2 frases","priority":"alta|média|baixa|revisar","proof":"N4|N3|N2|N1|misto","sources":["S01"],"lawyers":["Nome"],"topIssues":["questão 1"]}],"lawyers":[{"name":"Nome","office":"Escritório","role":"papel/fase","priority":"alta|média|baixa|revisar","proof":"N4|N3|N2|N1|misto","processes":"quantidade se sustentada","attributions":"quantidade se sustentada","confirmed":"o que é realmente confirmado","mainPattern":"padrão principal","phase":"fase","sources":["S01"],"action":"o que conferir/fazer"}],"criticalFacts":[{"title":"fato","why":"por que importa","proof":"N4","sources":["S09"]}],"cautions":["ressalva que impede leitura errada"]}',
+      },
+    ],
+    temperature: 0.05,
+    max_tokens: 4200,
+  });
+
+  const parsed = parseJsonObject(result.text);
+  if (!parsed || typeof parsed !== 'object') {
+    return {
+      executive: null,
+      engine: result.engineId + (result.model ? '/' + result.model : ''),
+    };
+  }
+
+  const arr = (value: unknown) => (Array.isArray(value) ? value : []);
+  const str = (value: unknown) => cleanText(value).slice(0, 900);
+
+  const executive: OmniExecutiveMap = {
+    headline: str(parsed.headline) || 'O que importa agora',
+    oneLine: str(parsed.oneLine),
+    status: ['critico', 'alto', 'moderado', 'baixo', 'misto'].includes(String(parsed.status))
+      ? parsed.status
+      : 'misto',
+    metrics: arr(parsed.metrics).slice(0, 8).map((item: any) => ({
+      label: str(item?.label),
+      value: str(item?.value),
+      note: str(item?.note),
+    })).filter((item: any) => item.label && item.value),
+    offices: arr(parsed.offices).slice(0, 12).map((item: any) => ({
+      name: str(item?.name),
+      summary: str(item?.summary),
+      priority: str(item?.priority) || 'revisar',
+      proof: str(item?.proof) || 'misto',
+      sources: arr(item?.sources).map(str).filter(Boolean).slice(0, 8),
+      lawyers: arr(item?.lawyers).map(str).filter(Boolean).slice(0, 12),
+      topIssues: arr(item?.topIssues).map(str).filter(Boolean).slice(0, 6),
+    })).filter((item: any) => item.name),
+    lawyers: arr(parsed.lawyers).slice(0, 30).map((item: any) => ({
+      name: str(item?.name),
+      office: str(item?.office),
+      role: str(item?.role),
+      priority: str(item?.priority) || 'revisar',
+      proof: str(item?.proof) || 'misto',
+      processes: str(item?.processes),
+      attributions: str(item?.attributions),
+      confirmed: str(item?.confirmed),
+      mainPattern: str(item?.mainPattern),
+      phase: str(item?.phase),
+      sources: arr(item?.sources).map(str).filter(Boolean).slice(0, 8),
+      action: str(item?.action),
+    })).filter((item: any) => item.name),
+    criticalFacts: arr(parsed.criticalFacts).slice(0, 8).map((item: any) => ({
+      title: str(item?.title),
+      why: str(item?.why),
+      proof: str(item?.proof) || 'misto',
+      sources: arr(item?.sources).map(str).filter(Boolean).slice(0, 8),
+    })).filter((item: any) => item.title),
+    cautions: arr(parsed.cautions).map(str).filter(Boolean).slice(0, 8),
+  };
+
+  return {
+    executive,
     engine: result.engineId + (result.model ? '/' + result.model : ''),
   };
 }
@@ -639,6 +916,13 @@ export async function generateOmniReportAction(
     const ledger = ledgerParts.join('\n\n---\n\n').slice(0, 90000);
     const detail = input.detail || 'maximo';
 
+    const executiveResult = await generateExecutiveMap(
+      instruction || 'Gere um dossiê completo a partir das fontes.',
+      ledger
+    ).catch(() => ({ executive: null, engine: 'executive-fallback' }));
+    const executive = executiveResult.executive;
+    engines.add(executiveResult.engine);
+
     const definitions =
       detail === 'normal'
         ? [
@@ -738,6 +1022,7 @@ export async function generateOmniReportAction(
       title,
       subtitle,
       instruction: instruction || 'Dossiê completo a partir das fontes fornecidas.',
+      executive,
       sections,
       sources: registered.map((s) => ({
         id: s.id,
@@ -753,9 +1038,24 @@ export async function generateOmniReportAction(
         ' bloco(s) de evidência',
     });
 
-    const markdown = sections
-      .map((section) => '# ' + section.number + ' · ' + section.title + '\n\n' + section.body)
-      .join('\n\n---\n\n');
+    const executiveMarkdown = executive
+      ? '# VISÃO EXECUTIVA EM 30 SEGUNDOS\n\n' +
+        executive.headline + '\n\n' +
+        executive.oneLine + '\n\n' +
+        (executive.criticalFacts || [])
+          .map((fact, index) =>
+            String(index + 1) + '. ' + fact.title + ' — ' + fact.why +
+            ' [' + fact.proof + '] ' + (fact.sources || []).join(' ')
+          )
+          .join('\n') +
+        '\n\n---\n\n'
+      : '';
+
+    const markdown =
+      executiveMarkdown +
+      sections
+        .map((section) => '# ' + section.number + ' · ' + section.title + '\n\n' + section.body)
+        .join('\n\n---\n\n');
 
     const safeBase = title
       .normalize('NFD')
@@ -770,6 +1070,7 @@ export async function generateOmniReportAction(
       markdown,
       title,
       filenameBase: safeBase || 'OmniReport_LexisPredict',
+      executive,
       sources: registered.map((s) => ({
         id: s.id,
         name: s.name,

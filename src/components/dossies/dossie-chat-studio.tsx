@@ -21,6 +21,7 @@ import {
   generateOmniReportAction,
   renderOmniReportPdfAction,
   type OmniReportSource,
+  type OmniExecutiveMap,
 } from "@/app/actions/omni-report-action";
 
 type ImageInput = {
@@ -34,6 +35,7 @@ type Result = {
   markdown: string;
   title: string;
   filenameBase: string;
+  executive: OmniExecutiveMap | null;
   sources: Array<{ id: string; name: string; kind: string; chars: number }>;
   stats: {
     inputChars: number;
@@ -202,6 +204,7 @@ export function DossieChatStudio() {
         markdown: res.markdown,
         title: res.title,
         filenameBase: res.filenameBase,
+        executive: res.executive,
         sources: res.sources,
         stats: res.stats,
       };
@@ -319,6 +322,59 @@ export function DossieChatStudio() {
                           {name}
                         </span>
                       ))}
+                    </div>
+                  ) : null}
+
+                  {!mine && turn.result?.executive ? (
+                    <div className="mt-4 rounded-xl border border-[#d7e3f2] bg-[#f7faff] p-3 text-[#203955]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-[.14em] text-[#1769ff]">
+                            Visão em 30 segundos
+                          </p>
+                          <p className="mt-1 text-sm font-black leading-snug">
+                            {turn.result.executive.headline}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[9px] font-black uppercase text-[#6b4d30] shadow-sm">
+                          {turn.result.executive.status}
+                        </span>
+                      </div>
+                      {turn.result.executive.oneLine ? (
+                        <p className="mt-2 text-[11px] leading-relaxed text-[#5d7088]">
+                          {turn.result.executive.oneLine}
+                        </p>
+                      ) : null}
+                      {turn.result.executive.metrics?.length ? (
+                        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                          {turn.result.executive.metrics.slice(0, 4).map((metric) => (
+                            <div key={metric.label} className="rounded-lg border border-[#e0e8f2] bg-white p-2">
+                              <p className="text-base font-black text-[#102447]">{metric.value}</p>
+                              <p className="text-[8px] font-bold uppercase leading-tight text-[#73849a]">{metric.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {turn.result.executive.offices?.length ? (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {turn.result.executive.offices.slice(0, 6).map((office) => (
+                            <span key={office.name} className="rounded-lg border border-[#dbe5ef] bg-white px-2 py-1 text-[9px] font-bold">
+                              {office.name} · {office.proof}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {turn.result.executive.lawyers?.length ? (
+                        <div className="mt-3 space-y-1">
+                          {turn.result.executive.lawyers.slice(0, 5).map((lawyer) => (
+                            <div key={lawyer.name} className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-[9px]">
+                              <span className="min-w-0 flex-1 truncate font-black">{lawyer.name}</span>
+                              {lawyer.office ? <span className="truncate text-[#7b8ba0]">{lawyer.office}</span> : null}
+                              <span className="rounded-full bg-[#eef3f8] px-1.5 py-0.5 font-black">{lawyer.proof}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 
