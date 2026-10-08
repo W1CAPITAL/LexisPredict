@@ -82,7 +82,10 @@ export function ThemeToggle({ className }: { className?: string }) {
   useEffect(() => {
     const onPick = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (typeof detail === "string" || detail === null) setPresetId(detail);
+      if (typeof detail === "string" || detail === null) {
+        setPresetId(detail);
+        setMode((localStorage.getItem("lexis_theme_mode") as LexisThemeMode) || "light");
+      }
     };
     window.addEventListener("lexis-theme-picked", onPick);
     return () => window.removeEventListener("lexis-theme-picked", onPick);
