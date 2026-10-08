@@ -187,6 +187,12 @@ export async function diagnoseWhatsAppStorageAction(phone?: string) {
     hint: '',
   };
   try {
+    const { getUserContext } = await import('@/lib/server-db');
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+      out.error = 'Sessão sem autorização.';
+      return out;
+    }
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
     out.serviceRole = Boolean(url && key);
@@ -198,7 +204,8 @@ export async function diagnoseWhatsAppStorageAction(phone?: string) {
     const sb = createClient(url!, key!, { auth: { persistSession: false } });
     const { count, error } = await sb
       .from('whatsapp_messages')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('empresa_id', ctx.empresa_id);
     if (error) {
       out.error = error.message;
       if (/relation|does not exist|schema cache/i.test(error.message)) {
@@ -216,6 +223,7 @@ export async function diagnoseWhatsAppStorageAction(phone?: string) {
       const { data } = await sb
         .from('whatsapp_messages')
         .select('id')
+        .eq('empresa_id', ctx.empresa_id)
         .or(`contact_number.eq.${n},phone.eq.${n},contact_number.ilike.%${n.slice(-8)}`)
         .limit(50);
       out.forPhone = data?.length ?? 0;
@@ -280,11 +288,11 @@ export async function logOutboundWhatsAppAction(to: string, message: string) {
   try {
     const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
     const { getUserContext } = await import('@/lib/server-db');
-    let empresaId: string | null = null;
-    try {
-      const ctx = await getUserContext();
-      empresaId = ctx.empresa_id || null;
-    } catch { /* */ }
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+      return { success: false, message: 'Sessão sem autorização.' };
+    }
+    const empresaId = ctx.empresa_id;
     const res = await persistWhatsAppMessage({
       contactNumber: normalizeBrPhone(to),
       messageText: message,
@@ -300,6 +308,11 @@ export async function logOutboundWhatsAppAction(to: string, message: string) {
 
 /** Insere mensagem de teste no Supabase e devolve o resultado (para depurar na UI). */
 export async function testSaveWhatsAppMessageAction(phone: string) {
+  const { getUserContext } = await import('@/lib/server-db');
+  const ctx = await getUserContext();
+  if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+    return { success: false, error: 'Sessão sem autorização.' };
+  }
   const { persistWhatsAppMessage, fetchMessagesByPhone } = await import('@/lib/whatsapp-persist');
   const n = normalizeBrPhone(phone);
   if (!n) return { success: false, error: 'Telefone vazio no cadastro do cliente' };
@@ -308,11 +321,12 @@ export async function testSaveWhatsAppMessageAction(phone: string) {
     messageText: `TESTE LEXIS ${new Date().toLocaleString('pt-BR')} — se você vê isto, o Supabase está gravando.`,
     fromMe: true,
     source: 'lexis-test-button',
+    empresaId: ctx.empresa_id,
   });
   if (!saved.ok) {
     return { success: false, error: saved.error, phone: n };
   }
-  const { messages, error } = await fetchMessagesByPhone(n);
+  const { messages, error } = await fetchMessagesByPhone(n, ctx.empresa_id);
   return {
     success: true,
     phone: n,
@@ -329,6 +343,11 @@ export async function testSaveWhatsAppMessageAction(phone: string) {
  */
 export async function importEvolutionHistoryAction(phone: string) {
   try {
+    const { getUserContext } = await import('@/lib/server-db');
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+      return { success: false, error: 'Sessão sem autorização.', imported: 0, found: 0 };
+    }
     const { fetchChatMessagesFromEvolution } = await import('@/lib/evolution-api');
     const { persistWhatsAppMessage, fetchMessagesByPhone } = await import(
       '@/lib/whatsapp-persist'
@@ -371,6 +390,7 @@ export async function importEvolutionHistoryAction(phone: string) {
         contactName: m.pushName,
         remoteJid: m.remoteJid,
         source: 'evolution-import',
+        empresaId: ctx.empresa_id,
         timestamp: m.timestamp,
         raw: m.raw,
       });
@@ -378,7 +398,7 @@ export async function importEvolutionHistoryAction(phone: string) {
       else if (saved.error) errors.push(saved.error);
     }
 
-    const { messages } = await fetchMessagesByPhone(n);
+    const { messages } = await fetchMessagesByPhone(n, ctx.empresa_id);
     const dropped = skippedWrong + skippedNoJid;
     return {
       success: imported > 0,
@@ -423,8 +443,8 @@ export async function importEvolutionHistoryBulkAction(opts?: {
     const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
 
     const ctx = await getUserContext();
-    if (!ctx.empresa_id) {
-      return { success: false, error: 'Sessão expirada', scanned: 0, imported: 0, skipped: 0 };
+    if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+      return { success: false, error: 'Sessão sem autorização.', scanned: 0, imported: 0, skipped: 0 };
     }
 
     const cases = await getStoredCasesForEmpresa(ctx.empresa_id, false);
@@ -479,6 +499,7 @@ export async function importEvolutionHistoryBulkAction(opts?: {
             contactName: m.pushName,
             remoteJid: jid,
             source: 'evolution-bulk',
+            empresaId: ctx.empresa_id,
             timestamp: m.timestamp,
             raw: m.raw,
           });
