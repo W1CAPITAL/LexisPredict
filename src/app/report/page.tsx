@@ -69,6 +69,7 @@ import {
   type HonorarioRow,
 } from "@/app/actions/financas-actions";
 import { FileDown } from "lucide-react";
+import { OmniReportStudio } from "@/components/report/omni-report-studio";
 
 export default function UnifiedReport() {
   const { canExport, isViewer } = useAdmin();
@@ -509,6 +510,8 @@ export default function UnifiedReport() {
       </div>
 
       <div className="max-w-5xl mx-auto py-10 print:py-0 space-y-12">
+
+        <OmniReportStudio />
 
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 sm:p-16 relative overflow-hidden break-inside-avoid shadow-[6px_6px_0px_rgba(0,0,0,0.08)]">
            <div className="absolute top-0 right-0 p-10 opacity-[0.04] rotate-12 scale-150 text-primary"><Layers size={300} /></div>
