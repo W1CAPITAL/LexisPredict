@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
 import { cn } from "@/lib/utils";
 
 /** Overlay leve — use enquanto a página carrega dados. */
@@ -24,11 +24,7 @@ export function PageLoading({
       role="status"
       aria-live="polite"
     >
-      <div className="relative h-12 w-12">
-        <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
-        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary animate-spin" />
-        <Loader2 className="absolute inset-0 m-auto h-5 w-5 text-primary/80 animate-pulse" />
-      </div>
+      <LexisThinkingOrb state="working" size={64} aria-label={label} />
       <p className="text-sm font-medium animate-pulse">{label}</p>
     </div>
   );
