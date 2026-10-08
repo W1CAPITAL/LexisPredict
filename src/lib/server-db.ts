@@ -1339,8 +1339,10 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
 
 export async function getWhatsAppHistory(phone: string) {
   try {
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) return [];
     const { fetchMessagesByPhone } = await import('@/lib/whatsapp-persist');
-    const { messages, error } = await fetchMessagesByPhone(phone);
+    const { messages, error } = await fetchMessagesByPhone(phone, ctx.empresa_id);
     if (error) {
       console.error('[getWhatsAppHistory]', error);
       return [];
