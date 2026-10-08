@@ -1331,10 +1331,8 @@ export async function getWhatsAppHistory(phone: string) {
   try {
     const { fetchMessagesByPhone } = await import('@/lib/whatsapp-persist');
     const { messages, error } = await fetchMessagesByPhone(phone);
-    if (error) {
-      console.error('[getWhatsAppHistory]', error);
-      return [];
-    }
+    if (error) console.warn('[getWhatsAppHistory]', error);
+    // Preserve available data if only one shard failed.
     return messages || [];
   } catch (e) {
     console.error('[getWhatsAppHistory]', e);

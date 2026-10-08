@@ -4,7 +4,8 @@
  * Histórico WhatsApp — limpar e importar com validação de número.
  */
 import { normalizeBrPhone } from '@/lib/evolution-api';
-import { createClient } from '@/lib/supabase/server';
+import { getWaReadClients } from '@/lib/dual-db-routing';
+import { getUserContext } from '@/lib/server-db';
 
 function digitsOnly(s: string) {
   return String(s || '').replace(/\D/g, '');
@@ -28,31 +29,32 @@ export async function clearWhatsAppHistoryAction(phone: string): Promise<{
       variants.add(`55${n}`);
     }
 
-    const supabase = await createClient();
-    // Prefer service role via persist admin if available
-    let client: any = supabase;
-    try {
-      const { getSupabaseAdmin } = await import('@/lib/server-db');
-      const admin = await getSupabaseAdmin();
-      if (admin) client = admin;
-    } catch {
-      /* use user client */
-    }
-
+    // Service-role deletes must be explicitly tenant scoped and authenticated.
+    const ctx = await getUserContext();
+    if (!ctx.empresa_id || !ctx.auth_id) return { success: false, error: 'Sessão ou empresa não autorizada' };
+    const clients = getWaReadClients();
     const list = Array.from(variants);
-    let deleted = 0;
-    for (const col of ['contact_number', 'phone'] as const) {
-      const { data, error } = await client
-        .from('whatsapp_messages')
-        .delete()
-        .in(col, list)
-        .select('id');
-      if (error && !String(error.message || '').includes('does not exist')) {
-        // tenta próximo
-        continue;
+    const perShard = await Promise.all(clients.map(async ({ client, shard }) => {
+      let removed = 0;
+      const errors: string[] = [];
+      for (const col of ['contact_number', 'phone'] as const) {
+        const { data, error } = await client
+          .from('whatsapp_messages')
+          .delete()
+          .eq('empresa_id', ctx.empresa_id)
+          .in(col, list)
+          .select('id');
+        if (error) {
+          if (!/column .* does not exist/i.test(error.message)) errors.push(shard + ': ' + error.message);
+        } else {
+          removed += data?.length || 0;
+        }
       }
-      deleted += Array.isArray(data) ? data.length : 0;
-    }
+      return { removed, errors };
+    }));
+    const deleted = perShard.reduce((sum, row) => sum + row.removed, 0);
+    const failures = perShard.flatMap(row => row.errors);
+    if (failures.length) return { success: false, deleted, error: failures.join('; '), phone: n };
 
     // fallback: delete by last 11 digits match only on contact_number eq exact variants
     return { success: true, deleted, phone: n };

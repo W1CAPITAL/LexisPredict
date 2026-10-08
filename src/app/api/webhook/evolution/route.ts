@@ -3,7 +3,7 @@
  * Headers aceitos: x-lexis-webhook-secret | Authorization: Bearer <secret>
  * Env: LEXIS_WEBHOOK_SECRET ou EVOLUTION_WEBHOOK_SECRET
  */
-import { createClient } from '@supabase/supabase-js';
+import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -59,13 +59,6 @@ export async function POST(request: Request) {
     }
     if (!assertWebhookAuth(request)) return unauthorized();
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: 'Config Error' }, { status: 500 });
-    }
-
     const payload = await request.json();
 
     const ev = String(payload.event || payload.type || '').toLowerCase().replace(/[.-]/g, '_');
@@ -91,25 +84,24 @@ export async function POST(request: Request) {
       message.videoMessage?.caption ||
       '';
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false },
+    if (!messageText.trim()) {
+      return NextResponse.json({ status: 'ignored_empty_text' });
+    }
+    const stored = await persistWhatsAppMessage({
+      instanceName: payload.instance || 'Lexis',
+      contactNumber,
+      contactName: data.pushName || 'Contato WhatsApp',
+      remoteJid,
+      messageId: data.key?.id || undefined,
+      messageText,
+      fromMe: !!data.key?.fromMe,
+      source: 'evolution-webhook',
+      timestamp: new Date(Number(data.messageTimestamp || Date.now() / 1000) * 1000).toISOString(),
+      raw: payload,
+      empresaId: payload.empresa_id || null,
     });
-
-    const { error } = await supabase.from('whatsapp_messages').insert({
-      instance_name: payload.instance || 'Lexis',
-      contact_number: contactNumber,
-      contact_name: data.pushName || 'Contato WhatsApp',
-      message_id: data.key?.id || '',
-      message_text: messageText,
-      from_me: data.key?.fromMe || false,
-      timestamp: new Date(
-        Number(data.messageTimestamp || Date.now() / 1000) * 1000
-      ).toISOString(),
-      raw_payload: payload,
-    });
-
-    if (error) {
-      console.error('[Webhook Error]', error.message);
+    if (!stored.ok) {
+      console.error('[Webhook Error]', stored.error);
       return NextResponse.json({ error: 'Insert failed' }, { status: 500 });
     }
 

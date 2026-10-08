@@ -1,7 +1,7 @@
 /**
  * Persistência WhatsApp → Supabase (tabela whatsapp_messages).
  */
-import { createClient } from '@supabase/supabase-js';
+import { getWaReadClients, getWaWriteClient, shouldStoreWhatsAppRaw } from '@/lib/dual-db-routing';
 import { normalizeBrPhone } from '@/lib/evolution-api';
 
 export type WaPersistInput = {
@@ -18,30 +18,11 @@ export type WaPersistInput = {
   raw?: any;
 };
 
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    '';
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
 export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
   ok: boolean;
   error?: string;
   id?: string;
 }> {
-  const sb = adminClient();
-  if (!sb) {
-    return {
-      ok: false,
-      error:
-        'Falta SUPABASE_SERVICE_ROLE_KEY na Vercel (Settings → API → service_role, não anon).',
-    };
-  }
-
   const num = normalizeBrPhone(input.contactNumber);
   if (!num || num.length < 10) {
     return { ok: false, error: 'Telefone inválido para gravar (confira DDD no cadastro).' };
@@ -68,7 +49,13 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
     timestamp: ts,
   };
   if (input.empresaId) full.empresa_id = input.empresaId;
-  if (input.raw) full.raw_payload = input.raw;
+  if (input.raw && shouldStoreWhatsAppRaw()) full.raw_payload = input.raw;
+  let sb;
+  try {
+    sb = getWaWriteClient(num).client;
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Erro de configuração dos bancos' };
+  }
 
   let { data, error } = await sb.from('whatsapp_messages').insert(full).select('id').maybeSingle();
 
@@ -122,8 +109,12 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   messages: any[];
   error?: string;
 }> {
-  const sb = adminClient();
-  if (!sb) return { messages: [], error: 'Sem service role' };
+  let clients;
+  try {
+    clients = getWaReadClients();
+  } catch (err: any) {
+    return { messages: [], error: err?.message || 'Bancos indisponíveis' };
+  }
   const num = normalizeBrPhone(phone);
   if (!num) return { messages: [], error: 'Telefone vazio' };
 
@@ -156,27 +147,35 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
     orParts.push(`remote_jid.ilike.%${last11}%`);
   }
 
-  // Busca ampla + filtro local (não perde histórico antigo com formato diferente)
-  let { data, error } = await sb
-    .from('whatsapp_messages')
-    .select('*')
-    .or(orParts.join(','))
-    .order('timestamp', { ascending: true })
-    .limit(800);
-
-  // Se timestamp null em msgs antigas, tenta created_at
-  if (error) {
-    const r = await sb
+  // Both shards queried concurrently, including historical primary rows during migration.
+  // A failed shard is reported, never silently interpreted as empty history.
+  const results = await Promise.all(clients.map(async ({ client, shard }) => {
+    let { data, error } = await client
       .from('whatsapp_messages')
       .select('*')
       .or(orParts.join(','))
-      .order('created_at', { ascending: true })
+      .order('timestamp', { ascending: false })
       .limit(800);
-    data = r.data;
-    error = r.error;
+    if (error && /timestamp|column/i.test(error.message)) {
+      const retry = await client
+        .from('whatsapp_messages')
+        .select('*')
+        .or(orParts.join(','))
+        .order('created_at', { ascending: false })
+        .limit(800);
+      data = retry.data;
+      error = retry.error;
+    }
+    return { shard, data: data || [], error };
+  }));
+  const failures = results.filter(r => r.error);
+  if (failures.length === results.length) {
+    return { messages: [], error: failures.map(r => r.shard + ': ' + r.error?.message).join('; ') };
   }
-
-  if (error) return { messages: [], error: error.message };
+  const data = results.flatMap(r => r.data);
+  const partialError = failures.length
+    ? 'Histórico parcial: ' + failures.map(r => r.shard + ': ' + r.error?.message).join('; ')
+    : undefined;
 
   const filtered = (data || []).filter((row: any) => {
     const candidates = [
@@ -189,11 +188,22 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   });
 
   // Ordena por data (timestamp ou created_at)
-  filtered.sort((a: any, b: any) => {
+  // A message can exist in both databases during a non-destructive migration.
+  const seen = new Set<string>();
+  const unique = filtered.filter((row: any) => {
+    const id = String(row.message_id || '');
+    const key = id
+      ? [row.empresa_id || '', row.instance_name || '', id].join('|')
+      : [row.empresa_id || '', row.contact_number || '', row.timestamp || '', row.message_text || row.body || '', row.from_me || false].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  unique.sort((a: any, b: any) => {
     const ta = new Date(a.timestamp || a.created_at || 0).getTime();
     const tb = new Date(b.timestamp || b.created_at || 0).getTime();
     return ta - tb;
   });
 
-  return { messages: filtered };
+  return { messages: unique.slice(-800), error: partialError };
 }
