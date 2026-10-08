@@ -427,8 +427,9 @@ export default function ProcessosEmpresaPage() {
         ...c,
         situacao: "EM ANDAMENTO",
         statusManual: "Automatico",
-        datajud_encerrado_tribunal: false,
-        datajud_encerrado_motivo: null,
+        // Reabertura é operacional: preservar evidência oficial de baixa no tribunal.
+        datajud_encerrado_tribunal: c.datajud_encerrado_tribunal,
+        datajud_encerrado_motivo: c.datajud_encerrado_motivo,
         tem_novo_andamento: false,
         djen_nova_comunicacao: false,
         tem_atualizacao_pos_retorno: false,
