@@ -40,7 +40,7 @@ export function isWaAutoConfigured() {
   return Boolean(getWaAutoConfig().baseUrl);
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+async function authHeaders(forceUserJwt = false): Promise<Record<string, string>> {
   // WA.Auto Cloud requires x-lexis-user-id when a shared integration token
   // is used; without it every status/connect/send call returns HTTP 400.
   // Resolve the identity from verified Supabase server auth, NEVER from an
@@ -52,7 +52,7 @@ async function authHeaders(): Promise<Record<string, string>> {
   }
 
   const { integrationToken } = getWaAutoConfig();
-  if (integrationToken) {
+  if (integrationToken && !forceUserJwt) {
     return {
       Authorization: `Bearer ${integrationToken}`,
       "x-wa-integration-token": integrationToken,
@@ -95,6 +95,19 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
+/**
+ * Primary service-token authentication is bound to a verified user ID.
+ * If WA.Auto reports HTTP 401 (e.g. integrations configured with different
+ * tokens), retry once with the verified Supabase JWT supported by WA.Auto.
+ * Never retry POSTs after a success or ambiguous network failure.
+ */
+async function waAutoFetch(url: string, init: RequestInit): Promise<Response> {
+  const first = await fetch(url, { ...init, headers: await authHeaders() });
+  if (first.status !== 401 || !getWaAutoConfig().integrationToken) return first;
+  const jwtHeaders = await authHeaders(true);
+  return fetch(url, { ...init, headers: jwtHeaders });
+}
+
 async function readJson(res: Response) {
   const text = await res.text().catch(() => "");
   try {
@@ -116,9 +129,8 @@ export async function waAutoHealth(): Promise<WaAutoHealth> {
   }
 
   try {
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/status`, {
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/status`, {
       method: "GET",
-      headers: await authHeaders(),
       cache: "no-store",
       signal: AbortSignal.timeout(16000),
     });
@@ -147,9 +159,8 @@ export async function sendViaWaAuto(to: string, message: string) {
     return { ok: false as const, configured: false, error: "WA.Auto indisponível" };
   }
   try {
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/send`, {
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/send`, {
       method: "POST",
-      headers: await authHeaders(),
       body: JSON.stringify({ to, message }),
       cache: "no-store",
       signal: AbortSignal.timeout(45000),
@@ -181,8 +192,7 @@ export async function listWaAutoChats(opts?: { onlyGroups?: boolean; limit?: num
     const qs = new URLSearchParams();
     qs.set("limit", String(Math.min(Math.max(opts?.limit || 100, 1), 100)));
     if (opts?.onlyGroups) qs.set("onlyGroups", "1");
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/chats?${qs.toString()}`, {
-      headers: await authHeaders(),
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/chats?${qs.toString()}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(12000),
     });
@@ -212,8 +222,7 @@ export async function fetchWaAutoChatByJid(jid: string, limit = 80) {
       jid,
       limit: String(Math.min(Math.max(limit, 1), 100)),
     });
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/messages?${qs.toString()}`, {
-      headers: await authHeaders(),
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/messages?${qs.toString()}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(12000),
     });
@@ -240,8 +249,7 @@ export async function fetchWaAutoChatByJid(jid: string, limit = 80) {
 export async function getWaAutoConnection() {
   const { baseUrl } = getWaAutoConfig();
   try {
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/status`, {
-      headers: await authHeaders(),
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/status`, {
       cache: "no-store",
       signal: AbortSignal.timeout(16000),
     });
@@ -256,9 +264,8 @@ export async function getWaAutoConnection() {
 export async function connectWaAuto() {
   const { baseUrl } = getWaAutoConfig();
   try {
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/connect`, {
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/connect`, {
       method: "POST",
-      headers: await authHeaders(),
       body: "{}",
       cache: "no-store",
       signal: AbortSignal.timeout(20000),
@@ -274,9 +281,8 @@ export async function connectWaAuto() {
 export async function pairWaAuto(phone: string) {
   const { baseUrl } = getWaAutoConfig();
   try {
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/pair`, {
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/pair`, {
       method: "POST",
-      headers: await authHeaders(),
       body: JSON.stringify({ phone }),
       cache: "no-store",
       signal: AbortSignal.timeout(40000),
@@ -292,9 +298,8 @@ export async function pairWaAuto(phone: string) {
 export async function logoutWaAuto() {
   const { baseUrl } = getWaAutoConfig();
   try {
-    const res = await fetch(`${baseUrl}/api/integrations/lexispredict/logout`, {
+    const res = await waAutoFetch(`${baseUrl}/api/integrations/lexispredict/logout`, {
       method: "POST",
-      headers: await authHeaders(),
       body: "{}",
       cache: "no-store",
       signal: AbortSignal.timeout(20000),
