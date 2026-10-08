@@ -69,7 +69,6 @@ import {
   sendWhatsAppAction,
   fetchWhatsAppHistoryAction,
   diagnoseWhatsAppStorageAction,
-  logOutboundWhatsAppAction,
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
   importEvolutionHistoryBulkAction,
@@ -164,6 +163,8 @@ function WhatsAppTerminalInner() {
 
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreCases, setLoadingMoreCases] = useState(false);
+  const [hasMoreCases, setHasMoreCases] = useState(false);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<LegalCase | null>(null);
   const [phoneDraft, setPhoneDraft] = useState("");
@@ -221,27 +222,37 @@ function WhatsAppTerminalInner() {
     [tribunalMovimentos, djenComunicacoes]
   );
 
+  const mapCases = (items: any[]): LegalCase[] =>
+    items.filter((item: any) => item != null).map((item: any) => {
+      try { return processarCaso({...item}) as LegalCase; }
+      catch { return item as LegalCase; }
+    });
   const loadCases = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchRepoCasesPageAction(350, 0, true);
-      const list = Array.isArray(data) ? data : [];
-      // Mesma base da aba Processos: processarCaso para status/prazo/flags
-      setCases(
-        list.filter((c: any) => c != null).map((c: any) => {
-          try {
-            return processarCaso({ ...c }) as LegalCase;
-          } catch {
-            return c as LegalCase;
-          }
-        })
-      );
+      const response = await fetchRepoCasesPageAction(350,0,true);
+      const page = Array.isArray(response) ? response : [];
+      setCases(mapCases(page));
+      setHasMoreCases(page.length===350);
     } catch {
-      toast({ title: "Falha ao carregar carteira", variant: "destructive" });
+      toast({title:"Falha ao carregar carteira",variant:"destructive"});
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  },[toast]);
+
+  const loadMoreCases = async () => {
+    if(loading||loadingMoreCases||!hasMoreCases)return;
+    setLoadingMoreCases(true);
+    try {
+      const response = await fetchRepoCasesPageAction(350,cases.length,true);
+      const page = Array.isArray(response) ? response : [];
+      setCases(prev=>[...prev,...mapCases(page)]);
+      setHasMoreCases(page.length===350);
+    } catch {
+      toast({title:"Falha ao carregar a próxima página",variant:"destructive"});
+    } finally {setLoadingMoreCases(false);}
+  };
 
   useEffect(() => {
     loadCases();
@@ -259,8 +270,17 @@ function WhatsAppTerminalInner() {
         if (!active) return;
         setEvolutionOk(false);
       });
+    const onWaStatus=(event:Event)=>{
+      const detail=(event as CustomEvent<{ready:boolean}>).detail;
+      if(detail?.ready){
+        setEvolutionOk(true);
+        setBridgeProvider('waauto');
+      }
+    };
+    window.addEventListener('lexis-waauto-status',onWaStatus);
     return () => {
       active = false;
+      window.removeEventListener('lexis-waauto-status',onWaStatus);
     };
   }, []);
 
@@ -1026,18 +1046,8 @@ function WhatsAppTerminalInner() {
       toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
       return;
     }
+    // Abrir wa.me não comprova a entrega: não criar mensagens fictícias no histórico.
     openWhatsAppClient({ phone: casePhone(selected), text: draft.trim() });
-    void logOutboundWhatsAppAction(casePhone(selected), draft.trim());
-    const msg: ChatMsg = {
-      id: `local-${Date.now()}`,
-      direction: "out",
-      body: draft.trim(),
-      at: new Date().toISOString(),
-      source: "wa.me",
-    };
-    const next = [...history.filter((h) => h.direction !== "system"), msg];
-    setHistory(next);
-    persistLocal(casePhone(selected) || selected.protocolo, next);
     toast({
       title: "WhatsApp aberto",
       description: "Revise e envie no app do celular/desktop.",
@@ -1353,6 +1363,13 @@ function WhatsAppTerminalInner() {
                         </button>
                       );
                     })}
+                  {listSource === "carteira" && !loading && hasMoreCases && (
+                    <Button type="button" variant="outline" size="sm" disabled={loadingMoreCases}
+                      className="w-full my-2" onClick={()=>void loadMoreCases()}>
+                      {loadingMoreCases ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <RefreshCcw size={14} className="mr-1.5" />}
+                      {loadingMoreCases ? "Carregando..." : "Carregar mais processos"}
+                    </Button>
+                  )}
                   {listSource === "evolution" && !evoLoading && evoChats.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
                       Nenhum chat/grupo. Clique em Atualizar (instância Evolution open).
@@ -1360,7 +1377,7 @@ function WhatsAppTerminalInner() {
                   )}
                   {listSource === "carteira" && !loading && contacts.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
-                      Nenhum processo com telefone na carteira.
+                      Nenhum processo encontrado na carteira autorizada.
                     </p>
                   )}
                 </div>
