@@ -21,77 +21,57 @@ import { getWhatsAppHistory } from '@/lib/server-db';
 import { suggestScripts } from '@/lib/script-processual/suggest';
 
 export async function sendWhatsAppAction(to: string, message: string) {
-  // WA.Auto é o transporte principal quando configurado. Evolution permanece
-  // como fallback para não interromper atendimento durante migração.
-  let provider: 'waauto' | 'evolution' = 'evolution';
-  let raw: any = null;
-  let firstError = '';
+  const { getUserContext } = await import('@/lib/server-db');
+  const ctx = await getUserContext();
+  if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+    return { success: false, message: 'Sessão sem autorização para enviar WhatsApp.' };
+  }
+  const recipient = String(to || '').trim();
+  const text = String(message || '').trim();
+  const isGroup = /^[\w-]+@g\.us$/i.test(recipient);
+  const phone = normalizeBrPhone(recipient);
+  if (!recipient || (!isGroup && !/^55\d{10,11}$/.test(phone))) {
+    return { success: false, message: 'Número inválido. Informe DDD e telefone corretos.' };
+  }
+  if (!text || text.length > 8000) return { success: false, message: 'Mensagem inválida (1 a 8.000 caracteres).' };
+  let provider: 'waauto' | 'evolution';
+  let raw: any;
 
   if (isWaAutoConfigured()) {
-    const wa = await sendViaWaAuto(to, message);
-    if (wa.ok) {
-      provider = 'waauto';
-      raw = wa.raw;
-    } else {
-      firstError = wa.error || 'WA.Auto indisponível';
-    }
-  }
-
-  if (!raw) {
-    const evolution = await sendTextMessageSafe(to, message);
-    if (!evolution.ok) {
-      return {
-        success: false,
-        message: firstError
-          ? `WA.Auto: ${firstError} | Evolution: ${evolution.error || 'falha'}`
-          : evolution.error || 'Falha no envio',
-        provider: isWaAutoConfigured() ? 'waauto+evolution' : 'evolution',
-      };
-    }
+    const wa = await sendViaWaAuto(recipient, text);
+    // Um timeout pode ocorrer depois da entrega. NÃO reenviar por Evolution.
+    if (!wa.ok) return {
+      success: false,
+      message: `WA.Auto: ${wa.error || 'resultado desconhecido'}. Confira a conversa antes de tentar novamente; não houve reenvio por outro provedor.`,
+      provider: 'waauto' as const,
+    };
+    provider = 'waauto';
+    raw = wa.raw;
+  } else {
+    const evo = await sendTextMessageSafe(recipient, text);
+    if (!evo.ok) return { success: false, message: evo.error || 'Falha no envio', provider: 'evolution' as const };
     provider = 'evolution';
-    raw = evolution.raw;
+    raw = evo.raw;
   }
-
-  const phone = normalizeBrPhone(to);
-  const ts = new Date().toISOString();
-  // Grava OUTBOUND no Supabase (independente do webhook Evolution)
+  const timestamp = new Date().toISOString();
+  if (isGroup) return {
+    success: true, timestamp, phone: recipient, data: raw, provider,
+    persisted: false, persistError: 'Histórico de grupos permanece na sessão do WA.Auto.',
+  };
   try {
     const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
-    const { getUserContext } = await import('@/lib/server-db');
-    let empresaId: string | null = null;
-    try {
-      const ctx = await getUserContext();
-      empresaId = ctx.empresa_id || null;
-    } catch { /* */ }
-    const saved = await persistWhatsAppMessage({
-      contactNumber: phone,
-      messageText: message,
-      fromMe: true,
+    const stored = await persistWhatsAppMessage({
+      contactNumber: phone, messageText: text, fromMe: true,
       source: provider === 'waauto' ? 'lexis-waauto' : 'lexis-evolution',
-      timestamp: ts,
-      empresaId,
-      raw,
+      timestamp, empresaId: ctx.empresa_id, raw,
     });
     return {
-      success: true,
-      data: raw,
-      timestamp: ts,
-      phone,
-      persisted: saved.ok,
-      persistError: saved.error || null,
-      provider,
+      success: true, timestamp, phone, data: raw, provider,
+      persisted: stored.ok, persistError: stored.error || null,
     };
   } catch (e: any) {
-    console.error('[whatsapp] falha ao persistir outbound', e);
-    return {
-      success: true,
-      data: raw,
-      timestamp: ts,
-      phone,
-      persisted: false,
-      persistError: e?.message || 'Falha ao gravar no Supabase',
-      provider,
-    };
+    return { success: true, timestamp, phone, data: raw, provider,
+      persisted: false, persistError: e?.message || 'Falha ao gravar no Supabase' };
   }
 }
 
@@ -139,9 +119,9 @@ export async function sendSuggestedReplyAction(input: {
     return { success: false, message: 'Índice de sugestão inválido', suggestions };
   }
 
-  const send = await sendTextMessageSafe(input.to, pick.texto);
-  if (!send.ok) {
-    return { success: false, message: send.error, suggestions, sent: false };
+  const send = await sendWhatsAppAction(input.to, pick.texto);
+  if (!send.success) {
+    return { success: false, message: send.message, suggestions, sent: false };
   }
 
   return {
