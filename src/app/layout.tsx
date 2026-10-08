@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './force-contrast.css';
+import './sheetspredict-themes.css';
 import '@/styles/lexis-responsive.css';
 import '@/styles/glass-liquid.css';
 import './lex-animations.css';
@@ -23,6 +24,7 @@ import { GuestModeBanner } from '@/components/auth/guest-mode-banner';
 const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
   id: p.id,
   radius: p.radius,
+  source: p.source,
   light: p.colors.light,
   dark: p.colors.dark,
 }));
@@ -172,8 +174,8 @@ export default function RootLayout({
                   setToken('--destructive', isDark ? '#F87171' : '#DC2626');
                   setToken('--success', isDark ? '#34D399' : '#059669');
                   setToken('--warning', isDark ? '#FBBF24' : '#D97706');
-                  setToken('--sidebar-background', C.bgSecondary);
-                  setToken('--sidebar-foreground', fg);
+                  setToken('--sidebar-background', C.nav || C.bgSecondary);
+                  setToken('--sidebar-foreground', C.nav ? (contrast(C.nav, '#FFFFFF') >= contrast(C.nav, '#000000') ? '#FFFFFF' : '#000000') : fg);
                   setToken('--sidebar-border', C.border);
                   setToken('--sidebar-primary', C.primary);
                   setToken('--sidebar-primary-foreground', onPrimary);
@@ -182,6 +184,7 @@ export default function RootLayout({
                   setToken('--sidebar-ring', C.primary);
                   root.style.setProperty('--radius', preset.radius + 'px');
                   root.setAttribute('data-lexis-preset', preset.id);
+                  if (preset.source === 'sheetspredict') root.setAttribute('data-sheetspredict-theme', preset.id.slice('sheetspredict-'.length));
                 } else if (!isDark) {
                   // Compat legado: cores manuais antigas só quando não escuro
                   var bg = localStorage.getItem('lexisPredict_bg_color');
