@@ -83,7 +83,7 @@ export function SidebarDock() {
 
   const main = filterNavByPlan(
     primary.map(([label, href, icon]) => ({
-      label: href === "/processos" ? (canViewCompanyCaseList(profile as any) ? "Empresa" : "Processos") : label,
+      label: href === "/processos" ? (canViewCompanyCaseList(profile as any) ? "Processos da Empresa" : "Processos") : label,
       href,
       icon,
     })),

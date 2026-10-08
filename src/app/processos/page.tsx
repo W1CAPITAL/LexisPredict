@@ -19,8 +19,8 @@ import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { resolveRole } from "@/lib/roles";
-import { fetchCompanyProcessosAction,
-  fetchCompanyProcessosPageAction, registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
+import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
+import { fetchFastCarteira } from '@/lib/fast-carteira-client';
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
 import { peekCarteiraCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
@@ -201,28 +201,23 @@ export default function ProcessosEmpresaPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetchCompanyProcessosAction();
-      const list = res?.cases || [];
-      setCases(list);
-      writeCarteiraCache(list, null, "empresa");
-      setListOffset(list.length);
-      setTotalCount(Number(res?.totalCount) || list.length);
-      const rankList = Array.isArray(res?.ranking) ? res.ranking : [];
-      setTopAtendentesSrv(rankList.slice(0, 5));
-      setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
-      if (Number(res?.ativosCount) >= 0) setAtivosCount(Number(res?.ativosCount) || 0);
-      if (Number((res as any)?.vencidosCount) >= 0) setVencidosCount(Number((res as any)?.vencidosCount) || 0);
-      setAudit(res?.audit || []);
-      setUsers(res?.users || []);
-      if ((res as any)?.error) {
-        console.error('[processos] action error', (res as any).error);
-      }
-    } catch (e) {
-      console.error('[processos] load failed', e);
-      setCases([]);
-      setAudit([]);
-      setUsers([]);
-      setTopAtendentesSrv([]);
+      // First render: one short HTTP request for 60 cases + one DB summary.
+      // Never wait for full ranking, DJEN audits or all case JSON.
+      const res = await fetchFastCarteira('empresa', 60, 0);
+      setCases(res.cases);
+      setListOffset(res.cases.length);
+      setTotalCount(res.totalCount);
+      setAtivosCount(res.summary.ativos);
+      setVencidosCount(res.summary.vencidos);
+      setHasServerMore(res.hasMore);
+      setOnlyAtivosList(false);
+    } catch (error) {
+      toast({
+        title: 'Erro ao carregar carteira da empresa',
+        description: error instanceof Error ? error.message : 'O servidor não respondeu.',
+        variant: 'destructive',
+      });
+      // Keep previously loaded data if a temporary network issue occurs.
     } finally {
       setLoading(false);
     }
@@ -549,53 +544,20 @@ export default function ProcessosEmpresaPage() {
     if (loadingMore || !hasServerMore) return;
     setLoadingMore(true);
     try {
-      const res = await fetchCompanyProcessosPageAction({
-        offset: listOffset,
-        limit: 300,
-        onlyAtivos: onlyAtivosList,
+      const res = await fetchFastCarteira('empresa', 100, listOffset);
+      const batch = res.cases;
+      setTotalCount(res.totalCount);
+      setCases((prev) => {
+        const seen = new Set(prev.map((c) => String(c.id || c.protocolo)));
+        return [...prev, ...batch.filter((c) => !seen.has(String(c.id || c.protocolo)))];
       });
-      const batch = res.ok ? res.cases || [] : [];
-      if (batch.length > 0) {
-        setCases((prev) => {
-          const seen = new Set(prev.map((c: any) => String(c.id || c.protocolo)));
-          const add = batch.filter((c: any) => !seen.has(String(c.id || c.protocolo)));
-          return [...prev, ...add];
-        });
-        setListOffset((o) => o + batch.length);
-        setVisibleCount((v) => v + Math.min(100, batch.length));
-        if (batch.length < 300) {
-          // página incompleta: se estava só ativos, passa a todos
-          if (onlyAtivosList) {
-            setOnlyAtivosList(false);
-            setListOffset(0);
-            setHasServerMore(true);
-          } else {
-            setHasServerMore(false);
-          }
-        }
-      } else if (onlyAtivosList) {
-        setOnlyAtivosList(false);
-        setListOffset(0);
-        const res2 = await fetchCompanyProcessosPageAction({
-          offset: 0,
-          limit: 300,
-          onlyAtivos: false,
-        });
-        const batch2 = res2.ok ? res2.cases || [] : [];
-        if (batch2.length > 0) {
-          setCases((prev) => {
-            const seen = new Set(prev.map((c: any) => String(c.id || c.protocolo)));
-            const add = batch2.filter((c: any) => !seen.has(String(c.id || c.protocolo)));
-            return [...prev, ...add];
-          });
-          setListOffset(batch2.length);
-          setVisibleCount((v) => v + Math.min(100, batch2.length));
-        } else {
-          setHasServerMore(false);
-        }
-      } else {
-        setHasServerMore(false);
-      }
+      setListOffset(listOffset + batch.length);
+      setVisibleCount((v) => v + batch.length);
+      setHasServerMore(res.hasMore);
+    } catch (error) {
+      toast({ title: 'Falha ao carregar mais processos',
+        description: error instanceof Error ? error.message : 'Tente novamente',
+        variant: 'destructive' });
     } finally {
       setLoadingMore(false);
     }
