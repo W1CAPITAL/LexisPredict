@@ -44,7 +44,7 @@ export async function updateCaseCnjAction(
     } else if (oldDigits.length === 20) {
       const { data: list } = await admin
         .from("processos")
-        .select("id, dados, protocolo_ref")
+        .select("id, empresa_id, created_by, dados, protocolo_ref")
         .eq("empresa_id", empresa_id)
         .limit(3000);
       dbItem =
