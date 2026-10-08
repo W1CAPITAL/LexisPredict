@@ -594,6 +594,7 @@ export function ProcessosCommandCenter(props: Props) {
             <div className="text-right"><b className="text-[11px] text-slate-800 dark:text-slate-200">{card.value}</b><p className="text-[7px] text-slate-600 dark:text-slate-400">{card.hint}</p></div>
           </div>)}
         </div>
+          </div>
         )}
       </div>
 
@@ -601,7 +602,7 @@ export function ProcessosCommandCenter(props: Props) {
         <div className="min-w-0 border-r border-slate-200 dark:border-white/8">
           <div className="border-b border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Filtrar carteira</span>
+              <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Filtrar carteira</span>
               <button type="button" aria-expanded={advancedFiltersOpen} onClick={() => setAdvancedFiltersOpen((v) => !v)}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                 <Filter size={12} className="mr-1 inline" />{advancedFiltersOpen ? "Menos filtros" : "Mais filtros"}
@@ -685,7 +686,7 @@ export function ProcessosCommandCenter(props: Props) {
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <div className="relative min-w-[220px] flex-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input value={props.query} onChange={(e) => props.onQueryChange(e.target.value)} placeholder="Buscar CNJ, cliente, advogado, tribunal, assunto…" className="h-9 w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] pl-9 pr-3 text-[10px] text-slate-900 dark:text-white outline-none placeholder:text-slate-600 dark:text-slate-400 focus:border-blue-400/50" />
+                <input value={props.query} onChange={(e) => props.onQueryChange(e.target.value)} placeholder="Buscar CNJ, cliente, advogado, tribunal, assunto…" className="h-9 w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] pl-9 pr-3 text-[10px] text-slate-900 dark:text-white outline-none placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-blue-400/50" />
               </div>
               <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[9px] font-bold", props.sortOps ? "border-blue-400/40 bg-blue-500/15 text-blue-800 dark:text-blue-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
                 <Filter size={12} className="mr-1 inline" />Prioridade ops
@@ -716,10 +717,6 @@ export function ProcessosCommandCenter(props: Props) {
                   const id = String(c.id || c.protocolo);
                   const selectedRow = id === selectedId;
                   const silence = caseSilenceDays(c);
-                  const classeValue = clean(pick(c, "classe_acao", "classeProcessual_nome", "classe")) || "—";
-                  const assunto = clean(pick(c, "assunto_nome", "assunto", "tipo")) || "—";
-                  const municipio = clean(pick(c, "orgaoJulgador_municipio", "municipio", "cidade")) || "—";
-                  const ajuizamento = pick(c, "dataDistribuicao", "dataAjuizamento", "data_ajuizamento");
                   const update = pick(c, "datajud_consultado_em", "evento_data", "djen_consultado_em");
                   const priority = riskLabel(c);
                   return (
