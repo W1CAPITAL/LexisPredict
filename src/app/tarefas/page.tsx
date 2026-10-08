@@ -153,6 +153,7 @@ export default function TarefasPage() {
   const LIST_PAGE_SIZE = 80;
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
+  const [carteiraError, setCarteiraError] = useState('');
   const [search, setSearch] = useState('');
   const searchDebounced = useDebouncedValue(search, 300);
   // filtros persistidos entre abas
@@ -173,7 +174,7 @@ export default function TarefasPage() {
     observacao: '',
     proximoRetorno: '',
     situacao: 'EM ANDAMENTO',
-    applyToAll: true,
+    applyToAll: false,
     /** normal | tratamento | blacklist */
     filaLista: 'normal' as FilaLista,
   });
@@ -265,6 +266,7 @@ export default function TarefasPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setCarteiraError('');
     try {
       const empId = (profile as any)?.empresa_id || null;
       if (!empId) return;
@@ -273,11 +275,7 @@ export default function TarefasPage() {
         fetchNetwork: async () =>
           await fetchCarteiraAllClient({
             empresaId: empId,
-            pageSize: 300,
-            onPage: (partial, page) => {
-              startTransition(() => setCases(partial));
-              if (page === 0) setLoading(false);
-            },
+            pageSize: 500,
           }),
         empresaId: empId,
         scope: resolveCaseScope(profile as any),
@@ -292,9 +290,13 @@ export default function TarefasPage() {
         const baRes = await fetchBaHitProtocolosAction();
         if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
       } catch { /* */ }
-      if (Array.isArray(data)) setCases(data);
+      if (Array.isArray(data)) startTransition(() => setCases(data));
+    } catch (error: any) {
+      const detail = error?.message || 'Não foi possível obter a carteira do Supabase.';
+      setCarteiraError(detail);
+      toast({ title: 'Não foi possível carregar os processos', description: detail, variant: 'destructive' });
     } finally { setLoading(false); }
-  }, [profile]);
+  }, [profile, toast]);
 
   useEffect(() => { if (mounted) loadData(); }, [loadData, mounted]);
 
@@ -472,9 +474,14 @@ export default function TarefasPage() {
 const handleSaveAttendance = async () => {
     if (!activeGroup || isSavingAttendance) return;
     setIsSavingAttendance(true);
-    const targets = cases.filter(c => attendanceForm.applyToAll
+    // One process per click by default; bulk changes must be opt-in and bounded
+    // so many sequential server actions cannot time out the browser/session.
+    const primary = activeGroup.cases[0]?.protocolo;
+    const matching = cases.filter(c => attendanceForm.applyToAll
       ? c.cliente === activeGroup.cliente
-      : activeGroup.cases.some(ac => ac.protocolo === c.protocolo));
+      : c.protocolo === primary);
+    const targets = matching.slice(0, 10);
+    const remaining = Math.max(0, matching.length - targets.length);
     const confirmed = new Map<string, LegalCase>();
     const pending: string[] = [];
     const failures: string[] = [];
@@ -497,7 +504,7 @@ const handleSaveAttendance = async () => {
       if (!failures.length && confirmed.size) { setIsAttendanceOpen(false); setActiveGroup(null); }
       toast({
         title: failures.length ? 'Atendimento parcialmente salvo' : 'Atendimento registrado',
-        description: `${confirmed.size}/${targets.length} processo(s) salvo(s). ${failures.length ? failures.slice(0, 2).join(' · ') : pending.length ? `${pending.length} aguardando confirmação da planilha.` : 'Retornos atualizados.'}`,
+        description: `${confirmed.size}/${targets.length} processo(s) salvo(s) no Supabase.${remaining ? ` Há ${remaining} processo(s) adicionais: registre em lotes de até 10.` : ''} ${failures.length ? failures.slice(0, 2).join(' · ') : ''}`,
         variant: failures.length ? 'destructive' : undefined,
         action: pending.length ? <AtendimentoSyncRetry protocolos={pending}/> : undefined,
       });
@@ -545,6 +552,7 @@ const handleSaveAttendance = async () => {
     )).map(([key]) => key));
     const today = startOfDay(new Date());
 
+    const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
     const activeCases = cases.filter(c => {
       if (!isCasoEncerrado(c)) return true;
       // Baixa no tribunal com valor residual: continua na fila de contato (prioridade)
@@ -570,7 +578,6 @@ const handleSaveAttendance = async () => {
       const g = groups[nome];
       g.totalAtivos++;
       g.cases.push(c);
-      const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
       if (temBaCarteira(c as any, baSet)) g.hasBA = true;
       if (isAtendidoNestaSemana(c.ultimoRetorno || (c as any).ultimo_retorno)) g.hasAttendedWeek = true;
       if (temNovidadeIdentificada(c as any)) g.hasUpdate = true;
@@ -945,13 +952,13 @@ const handleSaveAttendance = async () => {
             {!loading && taskData.focus.length === 0 && (
               <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-3">
                 <p className="text-sm font-black uppercase tracking-wide text-foreground">
-                  {cases.length === 0
+                  {carteiraError ? 'Falha ao consultar carteira' : cases.length === 0
                     ? 'Nenhum processo na carteira desta sessão'
                     : 'Nenhum caso na fila com os filtros atuais'}
                 </p>
                 <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
-                  {cases.length === 0
-                    ? 'No browser (fora do app instalado) a sessão usa o cookie do login. Recarregue, entre de novo ou limpe o cache da carteira.'
+                  {carteiraError ? carteiraError : cases.length === 0
+                    ? 'A carteira está vazia neste escopo de permissão. Verifique se sua conta está vinculada aos processos ou peça ao supervisor a redistribuição.'
                     : `Há ${cases.length} processo(s) carregados, mas filtros (escritório, advogado, fila, “meus hoje” ou contatados) esconderam todos.`}
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 pt-2">

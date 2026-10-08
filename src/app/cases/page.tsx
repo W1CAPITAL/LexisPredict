@@ -249,6 +249,8 @@ function CasesContent() {
   const REMOTE_PAGE_SIZE = 200;
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSavingCase, setIsSavingCase] = useState(false);
+  const saveCaseInFlight = React.useRef(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
   const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
   const [ownerAuthId, setOwnerAuthId] = useState<string>('self');
@@ -268,7 +270,7 @@ function CasesContent() {
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
   const [activeGroup, setActiveGroup] = useState<LegalCase | null>(null);
-  const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: true });
+  const [attendanceForm, setAttendanceForm] = useState({ observacao: '', proximoRetorno: '', situacao: 'EM ANDAMENTO', applyToAll: false });
 
   const {
     isOperador,
@@ -564,7 +566,7 @@ function CasesContent() {
 
   const handleLogReturn = (c: LegalCase) => {
     setActiveGroup(c);
-    setAttendanceForm({ observacao: c.observacao || '', proximoRetorno: c.proximoPrazo || '', situacao: c.situacao || 'EM ANDAMENTO', applyToAll: true });
+    setAttendanceForm({ observacao: c.observacao || '', proximoRetorno: c.proximoPrazo || '', situacao: c.situacao || 'EM ANDAMENTO', applyToAll: false });
     setIsAttendanceOpen(true);
   };
 
@@ -610,11 +612,13 @@ function CasesContent() {
     try {
       const todayStr = hojeBrasilYmd();
       const isEncerrado = String(attendanceForm.situacao || '').toUpperCase() === 'ENCERRADO';
-      const targets = cases.filter((c: LegalCase) =>
+      const matching = cases.filter((c: LegalCase) =>
         attendanceForm.applyToAll
           ? c.cliente === activeGroup.cliente
           : c.protocolo === activeGroup.protocolo
       );
+      const targets = matching.slice(0, 10);
+      const remaining = Math.max(0, matching.length - targets.length);
       const proximo = isEncerrado
         ? ''
         : attendanceForm.proximoRetorno;
@@ -669,7 +673,7 @@ function CasesContent() {
         if (!failures.length) { setIsAttendanceOpen(false); setActiveGroup(null); }
         toast({
           title: failures.length ? "Atendimento parcialmente salvo" : isEncerrado ? 'Encerrado e contabilizado' : 'Atendimento registrado',
-          description: `${ok}/${targets.length} processo(s) salvo(s). ${failures.length ? failures.slice(0, 2).join(' · ') : pending.length ? `${pending.length} aguardando confirmação da planilha.` : 'Retornos atualizados.'}`,
+          description: `${ok}/${targets.length} processo(s) salvo(s) no Supabase.${remaining ? ` Restam ${remaining} processo(s) a registrar em lotes de até 10.` : ''} ${failures.length ? failures.slice(0, 2).join(' · ') : ''}`,
           variant: failures.length ? 'destructive' : undefined,
           action: pending.length ? <AtendimentoSyncRetry protocolos={pending}/> : undefined,
         });
@@ -842,12 +846,16 @@ function CasesContent() {
 
   const handleSaveCase = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saveCaseInFlight.current) return;
     const cliente = (formState.cliente || '').trim();
     const protocolo = (formState.protocolo || '').trim();
     if (!cliente || !protocolo) {
       toast({ title: 'Campos obrigatórios', description: 'Informe cliente e protocolo (CNJ).', variant: 'destructive' });
       return;
     }
+    saveCaseInFlight.current = true;
+    setIsSavingCase(true);
+    try {
     // ENCERRADO ou último retorno hoje/semana = conta como atendimento
     const isoForm = formatDateToISO(formState.ultimoRetorno) || '';
     const isEncerrado = String(formState.situacao || '').toUpperCase() === 'ENCERRADO';
@@ -1018,7 +1026,13 @@ function CasesContent() {
       setOwnerAuthId('self');
       toast({ title: 'Processo adicionado', description: protocolo });
     } else {
-      toast({ title: 'Falha ao adicionar', description: (res as any).error || 'Tente novamente', variant: 'destructive' });
+      toast({ title: 'Falha ao adicionar', description: (res as any).message || (res as any).error || 'Tente novamente', variant: 'destructive' });
+    }
+    } catch (error: any) {
+      toast({ title: 'Falha ao salvar', description: error?.message || 'Erro inesperado.', variant: 'destructive' });
+    } finally {
+      saveCaseInFlight.current = false;
+      setIsSavingCase(false);
     }
   };
 
@@ -1470,7 +1484,7 @@ function CasesContent() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if (!open) setEditingCase(null); }}>
+        <Dialog open={isModalOpen} onOpenChange={(open) => { if (isSavingCase) return; setIsModalOpen(open); if (!open) setEditingCase(null); }}>
           <DialogContent className="sm:max-w-[600px] rounded-2xl border-none shadow-2xl p-0 h-[90vh] flex flex-col overflow-hidden">
             <form onSubmit={handleSaveCase} className="flex flex-col h-full">
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0">
@@ -1572,9 +1586,13 @@ function CasesContent() {
                 <div className="space-y-2"><Label className={ui.label}>Observações</Label><Textarea value={formState.observacao} onChange={e => setFormState({...formState, observacao: e.target.value.toUpperCase()})} className="rounded-xl bg-secondary/20 border-none font-bold uppercase text-xs min-h-[120px] resize-none" /></div>
               </div>
               <DialogFooter className="p-6 bg-secondary/10 border-t shrink-0">
-                <Button type="submit" className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl">
-                  {editingCase ? 'Salvar Alterações' : 'Adicionar Processo'}
-                </Button>
+                <div className="w-full space-y-2" aria-live="polite" aria-busy={isSavingCase}>
+                  {isSavingCase && <div className="h-1 overflow-hidden rounded-full bg-primary/15"><div className="h-full w-1/2 rounded-full bg-emerald-500 motion-safe:animate-pulse" /></div>}
+                  <Button type="submit" disabled={isSavingCase} className="w-full h-14 bg-black text-white font-black uppercase text-[11px] rounded-xl shadow-xl disabled:opacity-75">
+                    {isSavingCase ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CheckCircle2 size={16} className="mr-2" />}
+                    {isSavingCase ? 'Salvando no Supabase...' : editingCase ? 'Salvar Alterações' : 'Adicionar Processo'}
+                  </Button>
+                </div>
               </DialogFooter>
             </form>
           </DialogContent>
