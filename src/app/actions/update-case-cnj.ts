@@ -5,6 +5,7 @@
  * Upsert só por protocolo novo deixaria o registro antigo órfão.
  */
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
+import { canAccessExistingCase } from "@/lib/case-edit-access";
 import { LegalCase, processarCaso, extrairTribunal } from "@/lib/case-logic";
 
 export async function updateCaseCnjAction(
@@ -12,8 +13,9 @@ export async function updateCaseCnjAction(
   updated: LegalCase
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
-    const { empresa_id, auth_id } = await getUserContext();
-    if (!empresa_id) {
+    const ctx = await getUserContext();
+    const { empresa_id, auth_id } = ctx;
+    if (!empresa_id || !auth_id || ctx.isViewer) {
       return { success: false, error: "Sessão expirada." };
     }
 
@@ -28,11 +30,11 @@ export async function updateCaseCnjAction(
     const admin = await getSupabaseAdmin();
 
     // Localizar pelo protocolo antigo (várias formas de formatação)
-    let dbItem: { id: string; dados: any; protocolo_ref: string } | null = null;
+    let dbItem: { id: string; empresa_id: string; created_by: string | null; dados: any; protocolo_ref: string } | null = null;
 
     const { data: byExact } = await admin
       .from("processos")
-      .select("id, dados, protocolo_ref")
+      .select("id, empresa_id, created_by, dados, protocolo_ref")
       .eq("empresa_id", empresa_id)
       .eq("protocolo_ref", oldProtocolo)
       .maybeSingle();
@@ -55,6 +57,8 @@ export async function updateCaseCnjAction(
     if (!dbItem) {
       return { success: false, error: "Processo não encontrado para o CNJ anterior." };
     }
+
+    if (!(await canAccessExistingCase(ctx, dbItem))) return { success: false, error: 'Acesso negado à edição deste processo.' };
 
     // Conflito com outro registro
     const { data: conflict } = await admin
@@ -102,8 +106,8 @@ export async function updateCaseCnjAction(
       tribunal: merged.tribunal || "Outros",
       telefone: merged.telefone || "",
       observacoes: merged.observacao || "",
-      dados: { ...merged, protocolo: newProto },
-      created_by: (merged as any).created_by || auth_id,
+      dados: { ...merged, created_by: dbItem.created_by, protocolo: newProto },
+      created_by: dbItem.created_by,
     };
 
     const { error } = await admin
