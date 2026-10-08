@@ -15,7 +15,6 @@ import {
   type AssinaturaStatus,
 } from "@/lib/planos-assinatura";
 import { getMinhaAssinaturaAction } from "@/app/actions/planos-actions";
-import { supabase } from "@/lib/supabase";
 import { invalidateCarteiraCache, clearScanProgress } from "@/lib/session-carteira-cache";
 import { saveNavLayout, type NavLayoutMode } from "@/lib/nav-layout";
 
@@ -42,75 +41,9 @@ async function fetchCommercialState(empresaId: string): Promise<CommercialState>
 
   const request = (async (): Promise<CommercialState> => {
     try {
-      // Leitura direta com RLS: evita uma Server Action + auth.getUser para cada
-      // componente que usa usePlano(). O Supabase continua isolando o tenant.
-      if (supabase) {
-        let data: any = null;
-        let error: any = null;
-        let legacyCommercialSchema = false;
-
-        const full = await supabase
-          .from("empresas")
-          .select(
-            "id, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo, billing_status, plan_self_service_unlocked, onboarding_completed, nav_layout, sidebar_compact"
-          )
-          .eq("id", empresaId)
-          .maybeSingle();
-
-        data = full.data;
-        error = full.error;
-
-        if (
-          error &&
-          /billing_status|plan_self_service_unlocked|onboarding_completed|nav_layout|sidebar_compact|column .* does not exist/i.test(
-            String(error.message || "")
-          )
-        ) {
-          legacyCommercialSchema = true;
-          const legacy = await supabase
-            .from("empresas")
-            .select("id, plano, plano_expira_em, plano_bloqueado, plano_bloqueio_motivo")
-            .eq("id", empresaId)
-            .maybeSingle();
-          data = legacy.data;
-          error = legacy.error;
-        }
-
-        if (!error && data) {
-          const normalizedPlan = normalizePlanId(data.plano || "essencial");
-          const billingStatus = legacyCommercialSchema
-            ? "active"
-            : String(data.billing_status || "").trim().toLowerCase();
-          const blockedByBilling = ["past_due", "suspended", "canceled"].includes(billingStatus);
-          return {
-            ok: true,
-            empresaId,
-            plan: normalizedPlan,
-            expiresAt:
-              legacyCommercialSchema && normalizedPlan === "maximo"
-                ? null
-                : data.plano_expira_em ?? null,
-            blocked: !!data.plano_bloqueado || blockedByBilling,
-            blockedReason:
-              data.plano_bloqueio_motivo ??
-              (blockedByBilling ? billingStatus : null),
-            billingStatus: legacyCommercialSchema
-              ? "active"
-              : data.billing_status ?? null,
-            selfServiceUnlocked: legacyCommercialSchema ? false : !!data.plan_self_service_unlocked,
-            onboardingCompleted: legacyCommercialSchema ? true : !!data.onboarding_completed,
-            navLayout: legacyCommercialSchema
-              ? "vertical"
-              : data.nav_layout === "vertical"
-                ? "vertical"
-                : "dock",
-            sidebarCompact: legacyCommercialSchema ? false : !!data.sidebar_compact,
-            setupRequired: false,
-          } as CommercialState;
-        }
-      }
-
-      // Fallback raro: mantém compatibilidade se a leitura browser/RLS falhar.
+      // Do not probe every optional commercial column from the browser:
+      // older tenant databases reject the first SELECT with HTTP 400.
+      // The server action handles legacy schemas and owns billing authorization.
       return await getMinhaAssinaturaAction();
     } finally {
       planStateInflight.delete(empresaId);
