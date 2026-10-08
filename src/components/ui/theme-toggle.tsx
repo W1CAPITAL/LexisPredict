@@ -46,7 +46,9 @@ export function applyLexisThemeMode(mode: LexisThemeMode) {
 
 export function selectThemePreset(id: string | null) {
   if (id) {
-    applyPresetById(id, currentMode());
+    const selected = AUTHORITY_PRESETS.find((preset) => preset.id === id);
+    if (selected?.preferredMode) applyLexisThemeMode(selected.preferredMode);
+    applyPresetById(id, selected?.preferredMode || currentMode());
     localStorage.setItem("lexis_theme_preset", id);
   } else {
     localStorage.removeItem("lexis_theme_preset");
@@ -80,7 +82,10 @@ export function ThemeToggle({ className }: { className?: string }) {
   useEffect(() => {
     const onPick = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (typeof detail === "string" || detail === null) setPresetId(detail);
+      if (typeof detail === "string" || detail === null) {
+        setPresetId(detail);
+        setMode((localStorage.getItem("lexis_theme_mode") as LexisThemeMode) || "light");
+      }
     };
     window.addEventListener("lexis-theme-picked", onPick);
     return () => window.removeEventListener("lexis-theme-picked", onPick);
@@ -103,6 +108,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   function choosePreset(id: string | null) {
     selectThemePreset(id);
     setPresetId(id);
+    setDarkMode(currentMode() === "dark");
   }
 
   if (!mounted) {
@@ -167,7 +173,24 @@ export function ThemeToggle({ className }: { className?: string }) {
           {presetId === null && <Check size={14} className="text-primary" />}
         </DropdownMenuItem>
 
-        {AUTHORITY_PRESETS.map((p) => {
+        <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SheetsPredict — 10 temas e alto contraste</DropdownMenuLabel>
+        {AUTHORITY_PRESETS.filter((p) => p.source === "sheetspredict").map((p) => {
+          const active = p.id === presetId;
+          const light = getPresetColors(p, "light");
+          const dark = getPresetColors(p, "dark");
+          return (
+            <DropdownMenuItem key={p.id} onClick={() => choosePreset(p.id)} className="flex items-center gap-2 py-2">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border shadow-sm" style={{ background: light.primary }}>
+                <span className="h-2 w-2 rounded-full" style={{ background: dark.background }} />
+              </span>
+              <span className="flex-1 text-[11px] font-bold">{p.name}</span>
+              {active && <Check size={14} className="text-primary" />}
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Temas LexisPredict</DropdownMenuLabel>
+        {AUTHORITY_PRESETS.filter((p) => p.source !== "sheetspredict").map((p) => {
           const active = p.id === presetId;
           const light = getPresetColors(p, "light");
           const dark = getPresetColors(p, "dark");

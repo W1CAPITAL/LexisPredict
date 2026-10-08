@@ -1,0 +1,89 @@
+/*
+ * SheetsPredict 3.1.x — camada adaptada aos componentes React/Tailwind do LexisPredict.
+ * As 10 paletas originais residem em src/lib/theme.ts e alimentam tokens HSL.
+ * Evita seletores globais "button/input *" que apagariam cores de ação/alerta.
+ */
+html[data-sheetspredict-theme] {
+  color-scheme: light;
+  --sheet-page: hsl(var(--background));
+  --sheet-panel: hsl(var(--card));
+  --sheet-text: hsl(var(--foreground));
+  --sheet-muted: hsl(var(--muted-foreground));
+  --sheet-border: hsl(var(--border));
+  --sheet-on-primary: hsl(var(--primary-foreground));
+}
+html[data-sheetspredict-theme].dark { color-scheme: dark; }
+
+html[data-sheetspredict-theme] body,
+html[data-sheetspredict-theme] main {
+  color: var(--sheet-text);
+  background-color: var(--sheet-page);
+}
+
+html[data-sheetspredict-theme] :is(
+  [role="dialog"], [data-radix-dialog-content], [role="menu"], [role="listbox"],
+  .bg-card, .bg-popover
+) {
+  background-color: var(--sheet-panel) !important;
+  color: var(--sheet-text);
+  border-color: var(--sheet-border);
+}
+
+/* Componentes que usam brancos ou cinzas fixos fora da escala semântica. */
+html[data-sheetspredict-theme] :is(section, article, aside, header, div).bg-white,
+html[data-sheetspredict-theme] :is(section, article, aside, header, div).bg-slate-50,
+html[data-sheetspredict-theme] :is(section, article, aside, header, div).bg-gray-50 {
+  background-color: var(--sheet-panel) !important;
+  border-color: var(--sheet-border);
+}
+html[data-sheetspredict-theme] :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+  background-color: var(--sheet-panel);
+  color: var(--sheet-text);
+  border-color: var(--sheet-border);
+  caret-color: hsl(var(--primary));
+}
+html[data-sheetspredict-theme] :is(input, select, textarea)::placeholder {
+  color: var(--sheet-muted);
+  opacity: 1;
+}
+html[data-sheetspredict-theme] :is(input, select, textarea):disabled {
+  background-color: hsl(var(--muted));
+  color: var(--sheet-muted);
+}
+html[data-sheetspredict-theme] :is(th, .bg-muted, .bg-secondary) {
+  border-color: var(--sheet-border);
+}
+html[data-sheetspredict-theme] :is(.text-muted-foreground, .text-slate-500) {
+  color: var(--sheet-muted);
+}
+html[data-sheetspredict-theme] :is(input, select, textarea, button, a, [role="button"]):focus-visible {
+  outline: 2px solid hsl(var(--ring)) !important;
+  outline-offset: 2px;
+}
+html[data-sheetspredict-theme] ::selection {
+  background-color: hsl(var(--primary) / .23);
+  color: var(--sheet-text);
+}
+
+/* Ajustes fortes do SheetsPredict no preset Alto Contraste. */
+html[data-sheetspredict-theme="contrast"] {
+  --sheet-page: #000;
+  --sheet-panel: #0a0a0a;
+  --sheet-text: #fff;
+  --sheet-muted: #e5e5e5;
+  --sheet-border: #8a8a8a;
+}
+html[data-sheetspredict-theme="contrast"] :is(
+  [role="dialog"], [role="menu"], [role="listbox"],
+  .bg-card, .bg-popover, input, select, textarea
+) {
+  border-color: #8a8a8a !important;
+}
+html[data-sheetspredict-theme="contrast"] :is(input, select, textarea, button, a, [role="button"]):focus-visible {
+  outline: 3px solid #00e5ff !important;
+  outline-offset: 3px;
+}
+html[data-sheetspredict-theme="contrast"] a:not([class*="bg-"]) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

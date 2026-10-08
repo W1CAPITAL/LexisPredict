@@ -195,6 +195,45 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     }
   }
 
+  // Respostas simples: fallback leve e limitado para o modo automático.
+  // Colibri tem prioridade quando configurado. NUNCA usar isto no modo
+  // exclusivo Colibri, que permanece local/privado por escolha do usuário.
+  if (preferred === 'auto' && opts.surface === 'chat-fast' && !opts.images?.length) {
+    const groqKey = process.env.GROQ_API_KEY || process.env.GROQ_KEY;
+    if (groqKey) {
+      const start = Date.now();
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: process.env.GROQ_LIGHT_MODEL || 'llama-3.1-8b-instant',
+            messages: [
+              ...(system ? [{ role: 'system', content: system.slice(0, 2500) }] : []),
+              ...history.slice(-3).map((m) => ({ role: m.role, content: m.content.slice(0, 1000) })),
+              { role: 'user', content: String(user).slice(0, 2000) },
+            ],
+            max_tokens: Math.max(48, Math.min(256, opts.max_tokens ?? 128)),
+            temperature: opts.temperature ?? 0.5,
+          }),
+          cache: 'no-store',
+          signal: AbortSignal.timeout(9000),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const answer = String(json?.choices?.[0]?.message?.content || '').trim();
+          if (!isLowQualityAiText(answer)) {
+            return { text: answer, engineId: 'groq-light', model: String(json?.model || 'llama-3.1-8b-instant'), latencyMs: Date.now() - start };
+          }
+        } else {
+          errors.push('groq-light: HTTP ' + res.status);
+        }
+      } catch {
+        errors.push('groq-light: unreachable');
+      }
+    }
+  }
+
   // Um usuário que escolheu inferência PRÓPRIA não deve transmitir dados
   // confidenciais silenciosamente a serviços externos por fallback.
   if (preferred === 'colibri') {

@@ -202,7 +202,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     const r = await runCascade({
       preferred,
       forceEngineId: preferred === 'auto' ? undefined : preferred,
-      surface: 'chat',
+      surface: simple ? 'chat-fast' : 'chat',
       system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem,
       messages: history,
       images: input.images,
@@ -255,9 +255,11 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     };
   } catch (e: any) {
     return {
-      resposta: 'Assistente temporariamente indisponível: os motores configurados não responderam. Verifique os créditos, modelos e o servidor Colibri (se configurado).',
+      resposta: preferred === 'colibri'
+        ? 'O Colibri não está disponível. Configure um servidor HTTPS externo com um modelo carregado e a variável COLIBRI_BASE_URL na Vercel. Sua pergunta não foi enviada para provedores externos.'
+        : 'Os motores de IA configurados não responderam. Verifique as chaves e limites dos provedores; para usar Colibri, é necessário um servidor próprio HTTPS ativo.',
       thinking: null,
-      engineUtilizada: 'FALLBACK',
+      engineUtilizada: preferred === 'colibri' ? 'COLIBRI_INDISPONIVEL' : 'MOTORES_INDISPONIVEIS',
       latencia: 0,
       tokensConsumidos: 0,
       sucesso: false,
