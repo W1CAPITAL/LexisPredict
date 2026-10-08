@@ -299,11 +299,12 @@ export async function getStoredCasesPageForEmpresa(
   opts?: { onlyAtivos?: boolean }
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
-  const client = isAdmin ? await getSupabaseAdmin() : supabase;
-  if (!client) return [];
-
   try {
     const context = await getUserContext();
+    if (!context.auth_id || !context.empresa_id || String(context.empresa_id) !== String(empresaId)) return [];
+    // Server-side pagination through the trusted tenant-scoped admin client
+    // avoids anonymous-browser RLS ambiguity. Scope is STILL derived on server.
+    const client = await getSupabaseAdmin();
     const { auth_id } = context;
     const caseScope = resolveCaseScope(context as any);
     const onlyAtivos = opts?.onlyAtivos === true;

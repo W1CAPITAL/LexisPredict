@@ -44,20 +44,9 @@ export function readCarteiraCache(empresaId?: string | null, scope: CarteiraScop
   if (mem?.cases) {
     return { cases: mem.cases as any[], ageMs: Date.now() - (mem.at || 0), stale: Date.now() - (mem.at || 0) > TTL_MS };
   }
-  const s = storage();
-  if (!s) return null;
-  try {
-    const raw = s.getItem(`${CARTEIRA_KEY}:${scope}`) || s.getItem(CARTEIRA_KEY) || LEGACY_KEYS.map((x) => s.getItem(x)).find(Boolean);
-    if (!raw) return null;
-    const p = JSON.parse(raw) as CarteiraPayload;
-    if (!p || !Array.isArray(p.cases)) return null;
-    if (empresaId && p.empresaId && p.empresaId !== empresaId) return null;
-    if (p.scope && p.scope !== scope && scope === "empresa") return null;
-    memory.set(k, p);
-    return { cases: p.cases as any[], ageMs: Date.now() - (p.at || 0), stale: Date.now() - (p.at || 0) > TTL_MS };
-  } catch {
-    return null;
-  }
+  // Avoid parsing megabytes of legacy localStorage at every route change.
+  // Stale user/company snapshots can also mask current access permissions.
+  return null;
 }
 
 export function writeCarteiraCache(
@@ -73,13 +62,8 @@ export function writeCarteiraCache(
     cases: Array.isArray(cases) ? cases.slice(0, 5000) : [],
   };
   memory.set(memKey(empresaId, scope), payload);
-  const s = storage();
-  if (!s) return;
-  try {
-    s.setItem(`${CARTEIRA_KEY}:${scope}`, JSON.stringify(payload));
-  } catch {
-    /* quota */
-  }
+  // Keep large case collections in memory only. Never JSON.stringify thousands
+  // of full process records onto the browser main thread/localStorage.
 }
 
 export function invalidateCarteiraCache() {

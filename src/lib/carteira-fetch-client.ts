@@ -1,6 +1,6 @@
 "use client";
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
-import { supabase } from "@/lib/supabase";
+import { fetchRepoCasesPageAction } from "@/app/actions/case-actions";
 const KEY='lexis_carteira_client_v4';
 const TTL_MS=30*60*1000;
 type Box={at:number;empresaKey:string;cases:LegalCase[]};
@@ -79,30 +79,13 @@ export async function fetchCarteiraPageClient(opts: {
   offset?: number;
   onlyAtivos?: boolean;
 }): Promise<LegalCase[]> {
-  if (!supabase || !opts.empresaId) return [];
-
+  if (!opts.empresaId) return [];
   const limit = Math.max(1, Math.min(Number(opts.limit || 200), 500));
   const offset = Math.max(0, Number(opts.offset || 0));
-
-  let query = supabase
-    .from("processos")
-    .select("*")
-    .eq("empresa_id", opts.empresaId)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (opts.onlyAtivos) {
-    query = query.not(
-      "status",
-      "in",
-      '("Arquivado","ENCERRADO","Extinto","SUSPENSO")'
-    );
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  return (data || []).map(rowToLegalCase);
+  // Server verifies authenticated tenant and owner/company scope for each page.
+  const data = await fetchRepoCasesPageAction(limit, offset);
+  if (!Array.isArray(data)) throw new Error('Falha ao consultar carteira no servidor');
+  return data as LegalCase[];
 }
 
 export function mergeCarteiraPages(

@@ -7,6 +7,7 @@ import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
 import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
+import { canAccessExistingCase } from '@/lib/case-edit-access';
 
 function iso(v: unknown): string | null {
   if (v === undefined || v === null) return null;
@@ -77,17 +78,6 @@ async function loadProcessoRow(empresaId: string, protocolo: string): Promise<Re
     if (data?.[0]) return data[0];
   }
   return null;
-}
-
-function canAccessExistingCase(
-  ctx: Awaited<ReturnType<typeof getUserContext>>,
-  row: Record<string, any> | null
-): boolean {
-  if (!row) return true;
-  if (resolveCaseScope(ctx as any) === 'empresa') return true;
-  if (!ctx.auth_id) return false;
-  const owner = String(row.created_by || row.dados?.created_by || '').trim();
-  return !!owner && owner === String(ctx.auth_id);
 }
 
 async function persistToDatabase(
@@ -170,7 +160,7 @@ async function persistToDatabase(
       const safe = { ...payload };
       delete safe.updated_at;
       delete (safe as any).proximo_prazo;
-      result = await admin.from('processos').update(safe).eq('id', existing.id).select('id, protocolo_ref, ultimo_retorno, proximo_retorno').maybeSingle();
+      result = await admin.from('processos').update(safe).eq('empresa_id', empresaId).eq('id', existing.id).select('id, protocolo_ref, ultimo_retorno, proximo_retorno').maybeSingle();
     }
     if (result.error) return { success: false, message: result.error.message };
     if (!result.data) {
@@ -302,7 +292,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     }
 
     const existing = await loadProcessoRow(empresa_id, processed.protocolo);
-    if (existing && !canAccessExistingCase(ctx, existing)) {
+    if (existing && !(await canAccessExistingCase(ctx, existing))) {
       return { success: false, message: 'Você só pode editar processos da sua própria carteira.' };
     }
 
@@ -366,7 +356,6 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     processed.edited_by_name = actorName;
     processed.edited_at = new Date().toISOString();
 
-    const row = buildSheetRow(processed, empresa_id, auth_id || null, actorName, existing);
     const db = await persistToDatabase(empresa_id, processed, existing, auth_id || null, actorName);
     if (!db.success) return { success: false, message: db.message || 'Falha ao salvar.' };
 
@@ -387,30 +376,8 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       });
     } catch { /* auditoria não bloqueia o salvamento */ }
 
-    // Espelho incremental: aguarda a confirmação do webhook para que o runtime
-    // serverless não encerre a Server Action antes de enviar um processo novo.
-    // Falha no Sheets não desfaz a gravação no banco.
-    if (sheetsWebhookConfigured()) {
-      try {
-        await sheetsServerPost({
-          action: 'upsert_batch',
-          rows: [row],
-          source: 'LexisPredict',
-          actor: auth_id || 'sync',
-          actor_name: actorName,
-          perfil: 'superadmin',
-          audit: {
-            edited_by: auth_id,
-            edited_by_name: actorName,
-            edited_at: processed.edited_at,
-            atendido_por: processed.atendido_por,
-            atendido_em: processed.atendido_em,
-          },
-        });
-      } catch {
-
-      }
-    }
+    // PostgreSQL/Supabase is the sole source of truth for editing.
+    // No outbound Google Sheets network call in the critical save path.
 
     return { success: true, message: 'Salvo.', case: processed };
   } catch (e: any) {
@@ -441,7 +408,7 @@ export async function registrarAtendimentoCompletoAction(input: {
     let protocolo = String(input.protocolo).trim();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado na carteira.' };
-    if (!canAccessExistingCase(ctx, existing)) {
+    if (!(await canAccessExistingCase(ctx, existing))) {
       return { success: false, message: 'Você só pode atender processos da sua própria carteira.' };
     }
 
@@ -484,8 +451,7 @@ export async function registrarAtendimentoCompletoAction(input: {
       datajud_encerrado_tribunal: situacao === 'ENCERRADO' ? (base.datajud_encerrado_tribunal ?? existing.datajud_encerrado_tribunal ?? false) : (base.datajud_encerrado_tribunal ?? existing.datajud_encerrado_tribunal ?? false),
     };
 
-    const mirrorInput = { protocolo, empresaId: ctx.empresa_id, ultimoRetorno: hoje, proximoPrazo: proximo, observacao, situacao, actorId: ctx.auth_id, actorName, ownerId: existing.created_by, atendidoEm: now };
-    (dados as any).atendimento_sync = { id: operationId, state: sheetsWebhookConfigured() ? 'pending' : 'not_configured', input: mirrorInput };
+    (dados as any).atendimento_sync = { id: operationId, state: 'database_only' };
     const patch: Record<string, any> = pickProcessoPayload({
       dados,
       ultimo_retorno: hoje,
@@ -516,17 +482,13 @@ export async function registrarAtendimentoCompletoAction(input: {
     } catch { /* auditoria não desfaz o salvamento */ }
 
     const savedCase = processarCaso({ ...(previousDados as any), ...dados, ultimoRetorno: hoje, ultimo_retorno: hoje, proximoPrazo: proximo || '', proximo_retorno: proximo, situacao, status: patch.status } as any) as any;
-    let mirror: Awaited<ReturnType<typeof mirrorAtendimento>>;
-    try {
-      mirror = await mirrorAtendimento(mirrorInput);
-      if (mirror.ok) {
-        await admin.from('processos').update({ dados: { ...dados, atendimento_sync: { id: operationId, state: 'synced', input: mirrorInput } } })
-          .eq('empresa_id', ctx.empresa_id).eq('id', existing.id).eq('updated_at', patch.updated_at);
-      }
-    } catch (error: any) {
-      mirror = { ok: false, attempted: true, reason: error?.message || 'Falha inesperada no espelhamento.' };
-    }
-    return { success: true, message: mirror.attempted && !mirror.ok ? 'Atendimento salvo no app. A planilha ainda não confirmou a atualização.' : (situacao === 'ENCERRADO' ? 'Atendimento salvo e processo encerrado.' : 'Atendimento salvo.'), ultimoRetorno: hoje, proximoPrazo: proximo || '', case: savedCase, mirror };
+    return {
+      success: true,
+      message: situacao === 'ENCERRADO' ? 'Atendimento salvo e processo encerrado.' : 'Atendimento salvo no Supabase.',
+      ultimoRetorno: hoje,
+      proximoPrazo: proximo || '',
+      case: savedCase,
+    };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao registrar atendimento.' };
   }
@@ -553,7 +515,7 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
     const admin = await getSupabaseAdmin();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado.' };
-    if (!canAccessExistingCase(ctx, existing)) {
+    if (!(await canAccessExistingCase(ctx, existing))) {
       return { success: false, message: 'Você só pode excluir processos da sua própria carteira.' };
     }
 
@@ -647,7 +609,7 @@ export async function stampAndLogEdicaoAction(protocolo: string, extra: Record<s
     const admin = await getSupabaseAdmin();
     const { data: row } = await admin.from('processos').select('*').eq('empresa_id', ctx.empresa_id).eq('protocolo_ref', protocolo).maybeSingle();
     if (!row) return { success: false };
-    if (!canAccessExistingCase(ctx, row)) return { success: false };
+    if (!(await canAccessExistingCase(ctx, row))) return { success: false };
 
     const dados = { ...(row.dados || {}), ...extra, auditado_por: ctx.auth_id, auditado_em: now, edited_by: ctx.auth_id, edited_at: now };
     const { error } = await admin.from('processos').update({ dados, updated_at: now }).eq('id', row.id);
@@ -668,7 +630,7 @@ export async function retryAtendimentoMirrorAction(protocolo: string) {
   const row = await loadProcessoRow(ctx.empresa_id, protocolo);
   const pending = row?.dados?.atendimento_sync;
   if (!row || !pending?.input) return { success: false, message: 'Nenhum espelho pendente para este processo.' };
-  if (!canAccessExistingCase(ctx, row)) return { success: false, message: 'Acesso restrito à sua própria carteira.' };
+  if (!(await canAccessExistingCase(ctx, row))) return { success: false, message: 'Acesso restrito à sua própria carteira.' };
   if (pending.state === 'synced') return { success: true, message: 'Planilha já atualizada.' };
   const mirror = await mirrorAtendimento({ ...pending.input, empresaId: ctx.empresa_id, protocolo: row.protocolo_ref });
   if (!mirror.ok) return { success: false, message: mirror.reason || 'A planilha ainda não confirmou a atualização.' };
