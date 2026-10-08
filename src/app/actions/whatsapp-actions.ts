@@ -21,76 +21,81 @@ import { getWhatsAppHistory } from '@/lib/server-db';
 import { suggestScripts } from '@/lib/script-processual/suggest';
 
 export async function sendWhatsAppAction(to: string, message: string) {
-  // WA.Auto é o transporte principal quando configurado. Evolution permanece
-  // como fallback para não interromper atendimento durante migração.
-  let provider: 'waauto' | 'evolution' = 'evolution';
-  let raw: any = null;
-  let firstError = '';
-
-  if (isWaAutoConfigured()) {
-    const wa = await sendViaWaAuto(to, message);
-    if (wa.ok) {
-      provider = 'waauto';
-      raw = wa.raw;
-    } else {
-      firstError = wa.error || 'WA.Auto indisponível';
-    }
+  // Uma identidade e empresa verificadas são obrigatórias ANTES de qualquer envio.
+  const { getUserContext } = await import('@/lib/server-db');
+  const ctx = await getUserContext();
+  if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+    return { success: false, message: 'Sessão sem autorização para enviar WhatsApp.' };
   }
 
-  if (!raw) {
-    const evolution = await sendTextMessageSafe(to, message);
-    if (!evolution.ok) {
+  const recipient = String(to || '').trim();
+  const text = String(message || '').trim();
+  const isGroup = /^[0-9_-]+@g\.us$/i.test(recipient);
+  const phone = normalizeBrPhone(recipient);
+  if (!recipient || (!isGroup && !/^55\d{10,11}$/.test(phone))) {
+    return { success: false, message: 'Telefone inválido. Informe DDD e número corretos.' };
+  }
+  if (!text || text.length > 8000) {
+    return { success: false, message: 'A mensagem deve conter de 1 a 8.000 caracteres.' };
+  }
+
+  let provider: 'waauto' | 'evolution';
+  let raw: any;
+
+  // WA.Auto mantém uma sessão e um histórico próprios. Um timeout ou erro
+  // pode ocorrer DEPOIS do WhatsApp ter recebido a mensagem. Nesse cenário,
+  // disparar automaticamente pela Evolution provocaria mensagens duplicadas.
+  if (isWaAutoConfigured()) {
+    const wa = await sendViaWaAuto(recipient, text);
+    if (!wa.ok) {
       return {
         success: false,
-        message: firstError
-          ? `WA.Auto: ${firstError} | Evolution: ${evolution.error || 'falha'}`
-          : evolution.error || 'Falha no envio',
-        provider: isWaAutoConfigured() ? 'waauto+evolution' : 'evolution',
+        provider: 'waauto' as const,
+        message: `WA.Auto: ${wa.error || 'envio não confirmado'}. Confira a conversa antes de tentar novamente; não houve reenvio automático por outro provedor.`,
       };
+    }
+    provider = 'waauto';
+    raw = wa.raw;
+  } else {
+    // Evolution é compatibilidade para instalações SEM WA.Auto configurado.
+    const evolution = await sendTextMessageSafe(recipient, text);
+    if (!evolution.ok) {
+      return { success: false, provider: 'evolution' as const, message: evolution.error || 'Falha no envio' };
     }
     provider = 'evolution';
     raw = evolution.raw;
   }
 
-  const phone = normalizeBrPhone(to);
   const ts = new Date().toISOString();
-  // Grava OUTBOUND no Supabase (independente do webhook Evolution)
+  // JIDs de grupos não são telefones: não grave um número falso no histórico.
+  if (isGroup) {
+    return {
+      success: true, data: raw, timestamp: ts, phone: recipient,
+      persisted: false, persistError: 'Histórico de grupos mantido na sessão WA.Auto.',
+      provider,
+    };
+  }
+
   try {
     const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
-    const { getUserContext } = await import('@/lib/server-db');
-    let empresaId: string | null = null;
-    try {
-      const ctx = await getUserContext();
-      empresaId = ctx.empresa_id || null;
-    } catch { /* */ }
     const saved = await persistWhatsAppMessage({
       contactNumber: phone,
-      messageText: message,
+      messageText: text,
       fromMe: true,
       source: provider === 'waauto' ? 'lexis-waauto' : 'lexis-evolution',
       timestamp: ts,
-      empresaId,
+      empresaId: ctx.empresa_id,
       raw,
     });
     return {
-      success: true,
-      data: raw,
-      timestamp: ts,
-      phone,
-      persisted: saved.ok,
-      persistError: saved.error || null,
-      provider,
+      success: true, data: raw, timestamp: ts, phone,
+      persisted: saved.ok, persistError: saved.error || null, provider,
     };
   } catch (e: any) {
     console.error('[whatsapp] falha ao persistir outbound', e);
     return {
-      success: true,
-      data: raw,
-      timestamp: ts,
-      phone,
-      persisted: false,
-      persistError: e?.message || 'Falha ao gravar no Supabase',
-      provider,
+      success: true, data: raw, timestamp: ts, phone,
+      persisted: false, persistError: e?.message || 'Falha ao gravar no Supabase', provider,
     };
   }
 }
@@ -139,9 +144,11 @@ export async function sendSuggestedReplyAction(input: {
     return { success: false, message: 'Índice de sugestão inválido', suggestions };
   }
 
-  const send = await sendTextMessageSafe(input.to, pick.texto);
-  if (!send.ok) {
-    return { success: false, message: send.error, suggestions, sent: false };
+  // Uma sugestão enviada deve usar a MESMA sessão, auditoria e persistência
+  // do envio manual (não usar Evolution diretamente).
+  const send = await sendWhatsAppAction(input.to, pick.texto);
+  if (!send.success) {
+    return { success: false, message: send.message, suggestions, sent: false };
   }
 
   return {
