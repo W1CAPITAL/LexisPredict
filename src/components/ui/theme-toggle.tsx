@@ -108,6 +108,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   function choosePreset(id: string | null) {
     selectThemePreset(id);
     setPresetId(id);
+    setDarkMode(currentMode() === "dark");
   }
 
   if (!mounted) {
