@@ -18,8 +18,8 @@ type ScanProgress = { manualDone: number; manualTotal: number; mode?: string; at
 
 const memory = new Map<string, CarteiraPayload>();
 
-function memKey(empresaId?: string | null, scope: CarteiraScope = "mine") {
-  return `${scope}:${empresaId || "*"}`;
+function memKey(empresaId?: string | null, scope: CarteiraScope = "mine", userId?: string | null) {
+  return `${scope}:${empresaId || "*"}:${scope === 'mine' ? userId || 'unknown' : 'company'}`;
 }
 
 function canUse() {
@@ -31,15 +31,17 @@ function storage(): Storage | null {
   return localStorage;
 }
 
-export function peekCarteiraCache(empresaId?: string | null, scope: CarteiraScope = "mine") {
-  const k = memKey(empresaId, scope);
+export function peekCarteiraCache(empresaId?: string | null, scope: CarteiraScope = "mine", userId?: string | null) {
+  if (!empresaId || (scope === 'mine' && !userId)) return null;
+  const k = memKey(empresaId, scope, userId);
   const hit = memory.get(k);
   if (hit?.cases?.length) return { cases: hit.cases as any[], ageMs: Date.now() - (hit.at || 0), stale: false };
-  return readCarteiraCache(empresaId, scope);
+  return readCarteiraCache(empresaId, scope, userId);
 }
 
-export function readCarteiraCache(empresaId?: string | null, scope: CarteiraScope = "mine") {
-  const k = memKey(empresaId, scope);
+export function readCarteiraCache(empresaId?: string | null, scope: CarteiraScope = "mine", userId?: string | null) {
+  if (!empresaId || (scope === 'mine' && !userId)) return null;
+  const k = memKey(empresaId, scope, userId);
   const mem = memory.get(k);
   if (mem?.cases) {
     return { cases: mem.cases as any[], ageMs: Date.now() - (mem.at || 0), stale: Date.now() - (mem.at || 0) > TTL_MS };
@@ -52,8 +54,10 @@ export function readCarteiraCache(empresaId?: string | null, scope: CarteiraScop
 export function writeCarteiraCache(
   cases: unknown[],
   empresaId?: string | null,
-  scope: CarteiraScope = "mine"
+  scope: CarteiraScope = "mine",
+  userId?: string | null
 ) {
+  if (!empresaId || (scope === 'mine' && !userId)) return;
   const payload: CarteiraPayload = {
     v: 5,
     at: Date.now(),
@@ -61,7 +65,7 @@ export function writeCarteiraCache(
     scope,
     cases: Array.isArray(cases) ? cases.slice(0, 5000) : [],
   };
-  memory.set(memKey(empresaId, scope), payload);
+  memory.set(memKey(empresaId, scope, userId), payload);
   // Keep large case collections in memory only. Never JSON.stringify thousands
   // of full process records onto the browser main thread/localStorage.
 }
@@ -110,20 +114,21 @@ export async function loadCarteiraComCache(opts: {
   fetchNetwork: () => Promise<any[]>;
   empresaId?: string | null;
   scope?: CarteiraScope;
+  userId?: string | null;
   onShow: (cases: any[], source: CacheSource) => void;
   onError?: (error: unknown) => void;
   onKpiSafe?: (cases: any[], source: "network" | "stale-fallback") => void;
   allowStaleKpiFallback?: boolean;
 }): Promise<{ cases: any[]; source: CacheSource }> {
   const scope = opts.scope || "mine";
-  const cached = peekCarteiraCache(opts.empresaId, scope);
+  const cached = peekCarteiraCache(opts.empresaId, scope, opts.userId);
   if (cached?.cases?.length) opts.onShow(cached.cases, "cache");
 
   try {
     const remote = await opts.fetchNetwork();
     const list = Array.isArray(remote) ? remote : [];
     if (list.length) {
-      writeCarteiraCache(list, opts.empresaId, scope);
+      writeCarteiraCache(list, opts.empresaId, scope, opts.userId);
       opts.onShow(list, "network");
       opts.onKpiSafe?.(list, "network");
       return { cases: list, source: "network" };

@@ -127,6 +127,7 @@ export default function Dashboard() {
           }),
         empresaId: empId,
         scope: caseScope,
+        userId: (profile as any)?.auth_user_id || null,
         onShow: (caseData, source) => {
           if (Array.isArray(caseData)) setCases(caseData);
           if (source === 'cache') setLoading(false);

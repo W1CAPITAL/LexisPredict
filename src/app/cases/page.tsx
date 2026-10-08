@@ -311,6 +311,7 @@ function CasesContent() {
         },
         empresaId: empId,
         scope: resolveCaseScope(profile as any),
+        userId: (profile as any)?.auth_user_id || null,
         onShow: (data) => {
           if (Array.isArray(data)) setCases(data);
         },
@@ -339,7 +340,8 @@ function CasesContent() {
       writeCarteiraCache(
         merged,
         empId,
-        resolveCaseScope(profile as any)
+        resolveCaseScope(profile as any),
+        (profile as any)?.auth_user_id || null
       );
       setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
     } catch (e: any) {
