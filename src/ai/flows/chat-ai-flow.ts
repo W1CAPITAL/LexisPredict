@@ -13,6 +13,7 @@ import { runQualityGate } from '@/lib/cognitive/quality';
 import { revisionalBankContext } from '@/lib/legal/revisional-bank-skill';
 import { khojLegalContext } from '@/lib/ai/khoj-bridge';
 import { bpmnSkillContext } from '@/lib/bpmn-skill';
+import { lexisAgentGuidance } from '@/lib/ai/lexis-agent-router';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
 Hoje: ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
@@ -194,6 +195,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const bpmnSystem = bpmnHint ? `\n\n${bpmnHint}` : '';
   const khojContext = simple ? '' : await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000));
   const khojSystem = khojContext ? `\n\n${khojContext}` : '';
+  const skillSystem = lexisAgentGuidance(pergunta);
 
   try {
     const r = await runCascade({
@@ -205,7 +207,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
             ? undefined
             : preferred,
       surface: 'chat',
-      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem,
+      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem,
       messages: history,
       images: input.images,
       temperature: simple ? 0.5 : input.temperature ?? 0.35,
