@@ -195,6 +195,12 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     }
   }
 
+  // Um usuário que escolheu inferência PRÓPRIA não deve transmitir dados
+  // confidenciais silenciosamente a serviços externos por fallback.
+  if (preferred === 'colibri') {
+    throw new Error('COLIBRI_UNAVAILABLE_OR_NOT_CONFIGURED');
+  }
+
   // --- MiniMax (principal na cascata Omni) ---
   const wantMinimax =
     preferred === 'minimax' ||
