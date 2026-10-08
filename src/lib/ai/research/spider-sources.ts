@@ -36,7 +36,15 @@ export function explicitOfficialResearchUrls(instruction: string): string[] {
 export async function spiderPublicSources(instruction: string): Promise<SpiderSource[]> {
   const key = process.env.SPIDER_API_KEY;
   const urls = explicitOfficialResearchUrls(instruction);
-  if (!key || !urls.length) return [];
+  if (process.env.LEXIS_SPIDER_ENABLED !== 'true' || !key || !urls.length) return [];
+  // The caller can be a Server Action: authorize before any metered research.
+  try {
+    const { getUserContext } = await import('@/lib/server-db');
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) return [];
+  } catch {
+    return [];
+  }
 
   const requests = urls.map(async (url): Promise<SpiderSource | null> => {
     try {
