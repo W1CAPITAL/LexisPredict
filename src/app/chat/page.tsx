@@ -216,7 +216,7 @@ export default function AssistentePage() {
             <div>
               <h1 className="text-sm font-black uppercase tracking-widest">Assistente IA</h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                Claude · OmniRoute · PDF · Vision · Pensamento visível
+                Colibri · Cascata de IA · PDF · Vision · Análise assistida
               </p>
             </div>
           </div>

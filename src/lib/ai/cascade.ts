@@ -176,11 +176,29 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   }
   const errors: string[] = [];
 
+  // Colibri: servidor próprio configurado por COLIBRI_BASE_URL, nunca instanciado na Vercel.
+  // Em caso de falha, a seleção automática continua com os demais provedores.
+  if ((preferred === 'auto' || preferred === 'colibri') && !opts.images?.length) {
+    try {
+      const { colibriConfig, callColibri } = await import('@/lib/ai/colibri');
+      if (colibriConfig()) {
+        const msgs: ChatTurn[] = [];
+        if (system) msgs.push({ role: 'system', content: system });
+        msgs.push(...history, { role: 'user', content: String(user) });
+        const r = await callColibri(msgs, { maxTokens: opts.max_tokens, temperature: opts.temperature });
+        if (!isLowQualityAiText(r.text)) {
+          return { text: r.text, engineId: 'colibri', model: r.model, latencyMs: r.latencyMs, latency: r.latencyMs };
+        }
+      }
+    } catch (error: any) {
+      errors.push('colibri: ' + String(error?.message || 'unavailable').slice(0, 200));
+    }
+  }
+
   // --- MiniMax (principal na cascata Omni) ---
   const wantMinimax =
     preferred === 'minimax' ||
-    preferred.includes('minimax') ||
-    preferred === 'auto';
+    preferred.includes('minimax');
   if (wantMinimax) {
     try {
       const { isMinimaxConfigured, callMinimax } = await import('@/lib/ai/minimax');
@@ -255,7 +273,7 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     preferred === 'xai' ||
     preferred.includes('grok') ||
     preferred.includes('prestige');
-  if (wantXai || preferred === 'auto') {
+  if (wantXai) {
     try {
       const { isXaiConfigured, callXaiPrestige } = await import('@/lib/ai/xai-prestige');
       if (isXaiConfigured()) {
@@ -292,8 +310,7 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   const wantClaudeDirect =
     !!anthropicKey &&
     (preferred === 'claude' ||
-      preferred.includes('anthropic') ||
-      preferred === 'auto');
+      preferred.includes('anthropic'));
   if (wantClaudeDirect) {
     try {
       const { freeComplete } = await import('@/lib/ai/free-gateway');
@@ -416,9 +433,8 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     };
   } catch (e: any) {
     errors.push(e?.message || String(e));
-    throw new Error(
-      `Nenhum motor disponível para "${preferred}". ${errors.join(' | ')}`
-    );
+    console.warn('[lexis-ai] providers unavailable:', errors.map(x => String(x).slice(0, 150).replace(/(sk-|gsk_|nvapi-)[A-Za-z0-9_-]{12,}/g, '[redacted]')));
+    throw new Error('AI_PROVIDERS_UNAVAILABLE');
   }
 }
 
