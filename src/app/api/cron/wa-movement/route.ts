@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 function validSecret(value: string) {
-  const secret = String(process.env.CRON_SECRET || '');
+  const secret = String(process.env.WA_MOVEMENT_CRON_SECRET || '');
   const token = value.replace(/^Bearer\s+/i, '').trim();
   if (secret.length < 16 || token.length !== secret.length) return false;
   return timingSafeEqual(Buffer.from(secret), Buffer.from(token));
