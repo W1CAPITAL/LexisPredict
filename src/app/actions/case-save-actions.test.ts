@@ -62,12 +62,12 @@ describe('Gravação do atendimento', () => {
     expect(patch.atendido_por).toBe('supervisor-1');
     expect(patch).not.toHaveProperty('created_by');
     expect(patch.dados.created_by).toBe('operador-2');
-    expect(patch.dados.atendimento_sync.state).toBe('pending');
+    expect(patch.dados.atendimento_sync.state).toBe('database_only');
     expect(state.conditions).toContainEqual(['empresa_id', 'empresa-1']);
     expect(state.conditions).toContainEqual(['updated_at', state.row.updated_at]);
-    expect(state.mirror).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'supervisor-1', ownerId: 'operador-2', ultimoRetorno: patch.ultimo_retorno, proximoPrazo: '2026-09-22' }));
+    expect(state.mirror).not.toHaveBeenCalled();
     expect(state.audit).toHaveBeenCalledTimes(1);
-    expect(result.message).toContain('planilha ainda não confirmou');
+    expect(result.message).toContain('Supabase');
     expect(result.case?.proximoPrazo).toBe('2026-09-22');
   });
   it('permite remover o próximo retorno sem recuperar o valor antigo', async () => {

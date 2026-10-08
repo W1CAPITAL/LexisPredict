@@ -40,7 +40,7 @@ export function getDeviceId(): string {
 
 export function loadProviderConfig(): ProviderConfig {
   const defaults: ProviderConfig = {
-    kind: (process.env.NEXT_PUBLIC_DATA_PROVIDER as ProviderKind) || "supabase",
+    kind: (process.env.NEXT_PUBLIC_DATA_PROVIDER === "local" ? "local" : "supabase"),
     sheets: { webhookUrl: "", token: "w1-fase1-2026" },
     deviceId: getDeviceId(),
   };
@@ -50,7 +50,7 @@ export function loadProviderConfig(): ProviderConfig {
     if (!raw) return { ...defaults, deviceId: getDeviceId() };
     const parsed = JSON.parse(raw) as Partial<ProviderConfig>;
     return {
-      kind: parsed.kind || defaults.kind,
+      kind: defaults.kind === 'supabase' && parsed.kind === 'sheets' ? 'supabase' : (parsed.kind || defaults.kind),
       sheets: {
         webhookUrl: parsed.sheets?.webhookUrl || "",
         token: parsed.sheets?.token || "w1-fase1-2026",
