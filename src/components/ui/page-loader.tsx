@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
 
 export default function PageLoader({ label = "Abrindo…" }: { label?: string }) {
   return (
@@ -10,7 +10,7 @@ export default function PageLoader({ label = "Abrindo…" }: { label?: string })
         <div className="h-full w-1/3 animate-[lexis-route-load_1s_ease-in-out_infinite] rounded-full bg-primary" />
       </div>
       <div className="mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-bold text-muted-foreground shadow-md backdrop-blur">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+        <LexisThinkingOrb state="connecting" size={20} />
         {label}
       </div>
       <style>{`

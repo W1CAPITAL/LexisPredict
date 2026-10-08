@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
 import {
   extractOmniReportFileAction,
   generateOmniReportAction,
@@ -417,7 +418,7 @@ export function DossieChatStudio() {
                         className="h-9 rounded-xl text-[11px] font-black"
                       >
                         {pdfBusy === turn.result.filenameBase ? (
-                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                          <LexisThinkingOrb state="weaving" size={20} />
                         ) : (
                           <Download className="mr-2 h-3.5 w-3.5" />
                         )}
@@ -434,7 +435,7 @@ export function DossieChatStudio() {
             <div className="flex justify-start">
               <div className="rounded-2xl border border-[#dce6f3] bg-white px-4 py-3 shadow-sm">
                 <div className="flex items-center gap-3 text-[12px] font-bold text-[#3f5b7d]">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#1769ff]" />
+                  <LexisThinkingOrb state="composing" size={20} />
                   Lendo fontes, cruzando evidências e montando o dossiê…
                 </div>
               </div>
@@ -525,7 +526,7 @@ export function DossieChatStudio() {
               className="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
               aria-label="Anexar arquivos"
             >
-              {reading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+              {reading ? <LexisThinkingOrb state="searching" size={20} /> : <Paperclip className="h-4 w-4" />}
             </button>
             <input
               ref={inputRef}
@@ -557,7 +558,7 @@ export function DossieChatStudio() {
               className="h-10 w-10 shrink-0 rounded-xl p-0"
               aria-label="Enviar pedido"
             >
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {generating ? <LexisThinkingOrb state="composing" size={20} /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
           <p className="mt-1.5 px-1 text-[9px] leading-relaxed text-muted-foreground">

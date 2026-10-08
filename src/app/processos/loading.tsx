@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
 
 /**
  * Feedback imediato durante a navegação para /processos.
@@ -16,7 +16,7 @@ export default function LoadingProcessos() {
             <div className="h-4 w-40 rounded bg-muted" />
             <div className="h-3 w-64 rounded bg-muted" />
           </div>
-          <Loader2 className="ml-auto h-4 w-4 animate-spin text-muted-foreground" />
+          <div className="ml-auto"><LexisThinkingOrb state="searching" size={20} aria-label="Carregando processos" /></div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {Array.from({ length: 5 }).map((_, i) => (

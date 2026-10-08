@@ -23,6 +23,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
 import { perguntarChatbotIndependente } from "./actions";
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -162,7 +163,7 @@ export default function ChatbotSeparadoPage() {
                 ))}
                 {loading && (
                   <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold uppercase tracking-widest">
-                    <Loader2 className="animate-spin" size={14} />
+                    <LexisThinkingOrb state="solving" size={20} />
                     Processando…
                   </div>
                 )}
@@ -191,7 +192,7 @@ export default function ChatbotSeparadoPage() {
                   className="h-12 w-12 rounded-xl shrink-0"
                 >
                   {loading ? (
-                    <Loader2 className="animate-spin" size={18} />
+                    <LexisThinkingOrb state="composing" size={20} />
                   ) : (
                     <AnimatedIcon icon={Send} variant="float" size={18} />
                   )}
