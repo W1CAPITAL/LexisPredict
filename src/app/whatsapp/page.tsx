@@ -68,7 +68,6 @@ import {
   sendWhatsAppAction,
   fetchWhatsAppHistoryAction,
   diagnoseWhatsAppStorageAction,
-  logOutboundWhatsAppAction,
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
   importEvolutionHistoryBulkAction,
@@ -163,6 +162,8 @@ function WhatsAppTerminalInner() {
 
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreCases, setLoadingMoreCases] = useState(false);
+  const [hasMoreCases, setHasMoreCases] = useState(false);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<LegalCase | null>(null);
   const [phoneDraft, setPhoneDraft] = useState("");
@@ -220,27 +221,47 @@ function WhatsAppTerminalInner() {
     [tribunalMovimentos, djenComunicacoes]
   );
 
+  // Páginas leves evitam travar o navegador em carteiras grandes. O botão
+  // Carregar mais permite percorrer TODOS os processos autorizados, sem teto 350.
+  const pageSize = 350;
+  const mapWhatsAppCases = (items: any[]): LegalCase[] =>
+    items.filter((c: any) => c != null).map((c: any) => {
+      try {
+        return processarCaso({ ...c }) as LegalCase;
+      } catch {
+        return c as LegalCase;
+      }
+    });
+
   const loadCases = useCallback(async () => {
     setLoading(true);
+    setHasMoreCases(false);
     try {
-      const data = await fetchRepoCasesPageAction(350, 0, true);
+      const data = await fetchRepoCasesPageAction(pageSize, 0, true);
       const list = Array.isArray(data) ? data : [];
-      // Mesma base da aba Processos: processarCaso para status/prazo/flags
-      setCases(
-        list.filter((c: any) => c != null).map((c: any) => {
-          try {
-            return processarCaso({ ...c }) as LegalCase;
-          } catch {
-            return c as LegalCase;
-          }
-        })
-      );
+      setCases(mapWhatsAppCases(list));
+      setHasMoreCases(list.length === pageSize);
     } catch {
       toast({ title: "Falha ao carregar carteira", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   }, [toast]);
+
+  const loadMoreCases = async () => {
+    if (loading || loadingMoreCases || !hasMoreCases) return;
+    setLoadingMoreCases(true);
+    try {
+      const data = await fetchRepoCasesPageAction(pageSize, cases.length, true);
+      const list = Array.isArray(data) ? data : [];
+      setCases((prev) => [...prev, ...mapWhatsAppCases(list)]);
+      setHasMoreCases(list.length === pageSize);
+    } catch {
+      toast({ title: "Falha ao carregar próxima página da carteira", variant: "destructive" });
+    } finally {
+      setLoadingMoreCases(false);
+    }
+  };
 
   useEffect(() => {
     loadCases();
@@ -1025,21 +1046,12 @@ function WhatsAppTerminalInner() {
       toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
       return;
     }
+    // Abrir wa.me NÃO garante que o cliente recebeu a mensagem.
+    // Não criar uma mensagem falsa no histórico nem no Supabase.
     openWhatsAppClient({ phone: casePhone(selected), text: draft.trim() });
-    void logOutboundWhatsAppAction(casePhone(selected), draft.trim());
-    const msg: ChatMsg = {
-      id: `local-${Date.now()}`,
-      direction: "out",
-      body: draft.trim(),
-      at: new Date().toISOString(),
-      source: "wa.me",
-    };
-    const next = [...history.filter((h) => h.direction !== "system"), msg];
-    setHistory(next);
-    persistLocal(casePhone(selected) || selected.protocolo, next);
     toast({
       title: "WhatsApp aberto",
-      description: "Revise e envie no app do celular/desktop.",
+      description: "Envio ainda não confirmado. Revise e envie no app; o histórico será atualizado quando houver confirmação.",
     });
   };
 
@@ -1073,7 +1085,7 @@ function WhatsAppTerminalInner() {
               resolve({
                 success: false,
                 message:
-                  "Tempo esgotado (90s). Confira o WA.Auto; se ele estiver offline, o fallback Evolution também pode estar indisponível.",
+                  "Tempo esgotado (90s). Confira a conversa no WA.Auto antes de tentar novamente para evitar duplicidade.",
               }),
             90000
           )
@@ -1152,7 +1164,7 @@ function WhatsAppTerminalInner() {
                   Terminal WhatsApp
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium truncate">
-                  Andamentos · IA · histórico · WA.Auto com fallback
+                  Andamentos · IA · histórico · WA.Auto integrado
                 </p>
               </div>
             </div>
@@ -1351,6 +1363,23 @@ function WhatsAppTerminalInner() {
                         </button>
                       );
                     })}
+                  {listSource === "carteira" && !loading && hasMoreCases && (
+                    <div className="px-2 py-3 space-y-2">
+                      <p className="text-[10px] text-center text-muted-foreground">
+                        {cases.length.toLocaleString("pt-BR")} processos carregados. Continue para ver a carteira completa.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full rounded-xl text-xs"
+                        disabled={loadingMoreCases}
+                        onClick={() => void loadMoreCases()}
+                      >
+                        {loadingMoreCases ? <Loader2 size={14} className="animate-spin mr-2" /> : <RefreshCcw size={14} className="mr-2" />}
+                        {loadingMoreCases ? "Carregando próxima página..." : "Carregar mais processos"}
+                      </Button>
+                    </div>
+                  )}
                   {listSource === "evolution" && !evoLoading && evoChats.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
                       Nenhum chat/grupo. Clique em Atualizar (instância Evolution open).
@@ -1358,7 +1387,7 @@ function WhatsAppTerminalInner() {
                   )}
                   {listSource === "carteira" && !loading && contacts.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
-                      Nenhum processo com telefone na carteira.
+                      Nenhum processo encontrado na carteira autorizada.
                     </p>
                   )}
                 </div>

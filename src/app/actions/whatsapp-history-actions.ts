@@ -18,6 +18,11 @@ export async function clearWhatsAppHistoryAction(phone: string): Promise<{
   phone?: string;
 }> {
   try {
+    const { getUserContext } = await import('@/lib/server-db');
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
+      return { success: false, error: 'Sessão sem autorização para limpar o histórico.' };
+    }
     const n = normalizeBrPhone(phone);
     if (!n) return { success: false, error: 'Telefone vazio' };
 
@@ -45,6 +50,7 @@ export async function clearWhatsAppHistoryAction(phone: string): Promise<{
       const { data, error } = await client
         .from('whatsapp_messages')
         .delete()
+        .eq('empresa_id', ctx.empresa_id)
         .in(col, list)
         .select('id');
       if (error && !String(error.message || '').includes('does not exist')) {
