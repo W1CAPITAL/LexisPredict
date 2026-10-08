@@ -68,7 +68,6 @@ import {
   sendWhatsAppAction,
   fetchWhatsAppHistoryAction,
   diagnoseWhatsAppStorageAction,
-  logOutboundWhatsAppAction,
   testSaveWhatsAppMessageAction,
   importEvolutionHistoryAction,
   importEvolutionHistoryBulkAction,
@@ -1047,21 +1046,12 @@ function WhatsAppTerminalInner() {
       toast({ title: "Envio cancelado", description: "Mensagem idêntica à já enviada." });
       return;
     }
+    // Abrir wa.me NÃO garante que o cliente recebeu a mensagem.
+    // Não criar uma mensagem falsa no histórico nem no Supabase.
     openWhatsAppClient({ phone: casePhone(selected), text: draft.trim() });
-    void logOutboundWhatsAppAction(casePhone(selected), draft.trim());
-    const msg: ChatMsg = {
-      id: `local-${Date.now()}`,
-      direction: "out",
-      body: draft.trim(),
-      at: new Date().toISOString(),
-      source: "wa.me",
-    };
-    const next = [...history.filter((h) => h.direction !== "system"), msg];
-    setHistory(next);
-    persistLocal(casePhone(selected) || selected.protocolo, next);
     toast({
       title: "WhatsApp aberto",
-      description: "Revise e envie no app do celular/desktop.",
+      description: "Envio ainda não confirmado. Revise e envie no app; o histórico será atualizado quando houver confirmação.",
     });
   };
 
