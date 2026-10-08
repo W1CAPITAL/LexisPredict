@@ -4,7 +4,7 @@
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import { getIdealTextColor, getIdealMutedTextColor, getContrastRatio } from './utils';
+import { getIdealTextColor, getContrastRatio } from './utils';
 
 export type ThemeColors = {
   background: string;
