@@ -1,0 +1,217 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BellRing, CheckCircle2, Clock3, Loader2, Pause, Play, RefreshCcw, Send, ShieldCheck, Square, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { useAdmin } from "@/hooks/use-admin";
+import { resolveWaAutoPermissions } from "@/lib/wa-auto-permissions";
+import {
+  previewWhatsAppMovementCampaignAction,
+  startWhatsAppMovementCampaignAction,
+  getWhatsAppMovementCampaignAction,
+  changeWhatsAppMovementCampaignAction,
+  advanceWhatsAppMovementCampaignAction,
+} from "@/app/actions/whatsapp-movement-campaign-actions";
+
+type Sample = {client:string;cnj:string;source:string;date:string;message:string};
+type Preview = {
+  ok:boolean;error?:string;counts?:{
+    scanned:number;withoutPhone:number;withoutEvent:number;blocked:number;samePhone:number;
+    alreadyQueued:number;eligible:number;
+  }; samples?:Sample[];
+};
+type Campaign = {
+  id:string;status:'running'|'paused'|'completed'|'cancelled';total:number;
+  sent_count:number;failed_count:number;uncertain_count:number;
+  next_send_at:string;created_at:string;
+};
+
+export function MovementCampaignControl() {
+  const {profile}=useAdmin();
+  const allowed=resolveWaAutoPermissions(profile as any).canManage;
+  const {toast}=useToast();
+  const [open,setOpen]=useState(false);
+  const [loading,setLoading]=useState(false);
+  const [sending,setSending]=useState(false);
+  const [consent,setConsent]=useState(false);
+  const [preview,setPreview]=useState<Preview|null>(null);
+  const [campaign,setCampaign]=useState<Campaign|null>(null);
+  const busy=useRef(false);
+  const reload=useCallback(async()=>{
+    const result=await getWhatsAppMovementCampaignAction();
+    if(result.ok) setCampaign((result.campaign || null) as Campaign|null);
+  },[]);
+
+  useEffect(()=>{
+    if(!allowed)return;
+    void reload();
+    const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void reload();},15000);
+    return()=>window.clearInterval(timer);
+  },[allowed,reload]);
+
+  // Server claims are atomic; one message per 45+ seconds, and never retries unknown delivery.
+  // Unlike WA.Auto's dedicated server worker, this loop requires the terminal tab to stay open.
+  useEffect(()=>{
+    if(!allowed||!campaign||campaign.status!=='running')return;
+    let alive=true;let timer:number|undefined;
+    const tick=async()=>{
+      if(!alive)return;
+      if(document.visibilityState==='visible'&&!busy.current) {
+        busy.current=true;setSending(true);
+        try{
+          const result=await advanceWhatsAppMovementCampaignAction(campaign.id);
+          if(!alive)return;
+          if(!result.ok&&result.error) {
+            toast({title:"Fila de movimentações",description:result.error,variant:"destructive"});
+          }
+          await reload();
+        }catch{
+          if(alive)toast({title:"Falha de conexão com a fila",description:"Confira os envios antes de retomar.",variant:"destructive"});
+        }finally{
+          busy.current=false;
+          if(alive)setSending(false);
+        }
+      }
+      if(alive)timer=window.setTimeout(()=>void tick(),47000);
+    };
+    timer=window.setTimeout(()=>void tick(),900);
+    return()=>{alive=false;if(timer!==undefined)window.clearTimeout(timer);};
+  },[allowed,campaign?.id,campaign?.status,reload,toast]);
+
+  if(!allowed)return null;
+
+  const inspect=async()=>{
+    setOpen(true);setConsent(false);setLoading(true);setPreview(null);
+    try{
+      const result=await previewWhatsAppMovementCampaignAction();
+      setPreview(result as Preview);
+    }catch(e:any){setPreview({ok:false,error:e?.message||"Não foi possível consultar a carteira."});}
+    finally{setLoading(false);}
+  };
+
+  const start=async()=>{
+    if(!consent||!preview?.ok||!preview.counts?.eligible)return;
+    setLoading(true);
+    try{
+      const result=await startWhatsAppMovementCampaignAction(true);
+      if(!result.ok){
+        toast({title:"Campanha não iniciada",description:result.error,variant:"destructive"});
+        return;
+      }
+      setOpen(false);
+      toast({title:"Fila iniciada",description:`${result.total} avisos preparados. Envio gradual pela sessão WA.Auto conectada.`});
+      await reload();
+    }catch(e:any){
+      toast({title:"Erro ao iniciar fila",description:e?.message,variant:"destructive"});
+    }finally{setLoading(false);}
+  };
+
+  const change=async(action:'pause'|'resume'|'cancel')=>{
+    if(!campaign)return;
+    if(action==='cancel'&&!window.confirm("Cancelar todos os avisos ainda não enviados? Os já enviados permanecerão no histórico."))return;
+    setLoading(true);
+    try {
+      const result=await changeWhatsAppMovementCampaignAction(campaign.id,action);
+      if(!result.ok)toast({title:"Não foi possível atualizar a fila",description:result.error,variant:"destructive"});
+      await reload();
+    }finally{setLoading(false);}
+  };
+
+  const pending=campaign?Math.max(0,campaign.total-campaign.sent_count-campaign.failed_count-campaign.uncertain_count):0;
+  const hasActive=campaign&&(campaign.status==='running'||campaign.status==='paused');
+  return (
+    <>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <Button type="button" onClick={()=>void inspect()} size="sm"
+          className="h-9 gap-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-[11px] font-bold">
+          <BellRing size={14}/><span className="hidden sm:inline">Avisar última movimentação</span><span className="sm:hidden">Avisos</span>
+        </Button>
+        {campaign&&(
+          <div className="flex max-w-full items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1 text-[10px]">
+            <span className="truncate max-w-[170px]" title={campaign.status}>
+              {campaign.status==='running'?'Enviando':campaign.status==='paused'?'Pausado':campaign.status==='completed'?'Concluído':'Cancelado'}:
+              {" "}{campaign.sent_count}/{campaign.total}
+            </span>
+            {sending?<Loader2 size={12} className="animate-spin text-primary"/>:null}
+            {hasActive&&(
+              <>
+                <Button size="icon" variant="ghost" className="h-7 w-7" disabled={loading} title={campaign.status==='running'?'Pausar':'Continuar'} onClick={()=>void change(campaign.status==='running'?'pause':'resume')}>
+                  {campaign.status==='running'?<Pause size={13}/>:<Play size={13}/>}
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" disabled={loading} title="Cancelar pendentes" onClick={()=>void change('cancel')}><Square size={12}/></Button>
+              </>
+            )}
+            <Button size="icon" variant="ghost" className="h-7 w-7" title="Atualizar progresso" onClick={()=>void reload()}><RefreshCcw size={12}/></Button>
+          </div>
+        )}
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-[min(96vw,660px)] max-h-[min(90dvh,820px)] overflow-y-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base"><BellRing size={18}/> Avisar clientes — última movimentação</DialogTitle>
+            <DialogDescription>
+              Consulta a carteira inteira da sua empresa no Supabase, prepara um aviso por processo com movimentação datada e envia pela sua sessão WA.Auto, sem disparar mensagens antigas novamente.
+            </DialogDescription>
+          </DialogHeader>
+          {loading&&!preview?<div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="animate-spin" size={18}/> Conferindo todos os processos...</div>:null}
+          {preview&&!preview.ok?<p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{preview.error}</p>:null}
+          {preview?.ok&&preview.counts?(
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ["Processos",preview.counts.scanned],
+                  ["Aptos",preview.counts.eligible],
+                  ["Sem telefone",preview.counts.withoutPhone],
+                  ["Sem movimento",preview.counts.withoutEvent],
+                ].map(([title,value])=>(
+                  <div key={String(title)} className="rounded-xl border bg-muted/30 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">{title}</div>
+                    <strong className="text-lg tabular-nums">{value}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {preview.counts.blocked} bloqueados/não contatar; {preview.counts.alreadyQueued} já preparados ou enviados (não duplicar).
+              </div>
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="bg-muted/50 px-3 py-2 text-xs font-bold">Prévia dos avisos — até 5 exemplos</div>
+                <div className="max-h-[220px] overflow-y-auto divide-y divide-border">
+                  {(preview.samples||[]).map((item,i)=>(
+                    <div key={i} className="px-3 py-2">
+                      <div className="text-xs font-semibold">{item.client} · {item.cnj}</div>
+                      <div className="text-[11px] text-muted-foreground">{item.source} · {new Date(item.date).toLocaleDateString('pt-BR')}</div>
+                      <p className="mt-1 whitespace-pre-wrap text-xs line-clamp-4">{item.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                <Checkbox checked={consent} onCheckedChange={v=>setConsent(v===true)} className="mt-0.5"/>
+                <span className="text-xs leading-relaxed">
+                  <strong>Confirmo que os clientes desta carteira autorizaram contatos de acompanhamento processual por WhatsApp</strong> e que os números marcados como não contatar devem ser excluídos. Estou ciente de que mensagens serão efetivamente enviadas.
+                </span>
+              </label>
+              <p className="text-[11px] text-muted-foreground">
+                Envio espaçado: no mínimo 45 segundos por mensagem, com limite de 120 confirmadas por empresa/dia.
+                A fila fica gravada no Supabase. Enquanto não houver um agendador de servidor, <strong>mantenha esta aba aberta para continuar os envios</strong>.
+                Resultados incertos pausam a fila para conferência.
+              </p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" onClick={()=>setOpen(false)}>Cancelar</Button>
+                <Button onClick={()=>void start()} disabled={!consent||loading||!preview.counts.eligible||Boolean(hasActive)}>
+                  {loading?<Loader2 size={14} className="mr-2 animate-spin"/>:<Send size={14} className="mr-2"/>}
+                  Iniciar {preview.counts.eligible} avisos
+                </Button>
+              </div>
+              {hasActive&&<p className="text-xs text-amber-700 dark:text-amber-300">Pause ou conclua a fila em andamento antes de iniciar uma nova.</p>}
+            </div>
+          ):null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

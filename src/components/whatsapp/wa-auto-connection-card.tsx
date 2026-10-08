@@ -50,6 +50,9 @@ export function WaAutoConnectionCard() {
         return;
       }
       setConnection((res.connection || {}) as ConnectionState);
+      window.dispatchEvent(new CustomEvent("lexis-waauto-status", {
+        detail: { ready: String((res.connection as any)?.status || "").toLowerCase() === "ready" },
+      }));
     } catch (error: any) {
       setConnection({ status: 'offline', message: error?.message || 'Falha de comunicação com WA.Auto' });
     } finally {
@@ -126,9 +129,9 @@ export function WaAutoConnectionCard() {
   const ready = status === "ready";
 
   return (
-    <section className="mx-3 mt-3 rounded-2xl border border-border/60 bg-card p-4 shadow-sm sm:mx-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+    <section className={ready ? "mx-3 mt-2 rounded-xl border border-border/60 bg-card px-3 py-2 shadow-sm sm:mx-4" : "mx-3 mt-2 rounded-2xl border border-border/60 bg-card p-3 shadow-sm sm:mx-4"}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {ready ? <Wifi className="h-4 w-4 text-emerald-600" /> : <WifiOff className="h-4 w-4 text-amber-600" />}
             <h2 className="font-black text-sm">WA.Auto integrado</h2>
@@ -136,15 +139,22 @@ export function WaAutoConnectionCard() {
               {ready ? "Conectado" : status}
             </Badge>
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground truncate">
             {ready
               ? `${connection?.account?.name || "WhatsApp"} · ${connection?.account?.phone || "sessão ativa"}`
               : connection?.message || "Conecte o WhatsApp diretamente pelo LexisPredict."}
           </p>
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={() => void refresh()} disabled={loading || busy}>
-          <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        </Button>
+        <div className="flex items-center gap-1">
+          {ready && canManageSession && (
+            <Button type="button" variant="outline" size="sm" className="h-8 text-[11px]" onClick={logout} disabled={busy}>
+              <LogOut className="mr-1.5 h-3.5 w-3.5" /> Desconectar
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Atualizar conexão" onClick={() => void refresh()} disabled={loading || busy}>
+            <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
 
       {!ready && canManageSession && (
@@ -199,14 +209,7 @@ export function WaAutoConnectionCard() {
           pode conectar, parear ou desconectar uma sessão.
         </p>
       )}
-      {ready && canManageSession ? (
-        <div className="mt-3 flex justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={logout} disabled={busy}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Desconectar sessão
-          </Button>
-        </div>
-      ) : null}
+
     </section>
   );
 }
