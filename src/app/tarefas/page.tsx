@@ -148,11 +148,15 @@ interface TaskGroup {
 
 export default function TarefasPage() {
   const { canCopy, canExport, canScan, isViewer, profile } = useAdmin();
+  const empresaId = String((profile as any)?.empresa_id || '');
+  const authUserId = String((profile as any)?.auth_user_id || '');
+  const taskCaseScope = resolveCaseScope(profile as any);
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
   const LIST_PAGE_SIZE = 80;
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
+  const [syncingCases, setSyncingCases] = useState(false);
   const [carteiraError, setCarteiraError] = useState('');
   const [search, setSearch] = useState('');
   const searchDebounced = useDebouncedValue(search, 300);
@@ -265,21 +269,29 @@ export default function TarefasPage() {
   };
 
   const loadData = useCallback(async () => {
+    if (!empresaId || !authUserId) return;
     setLoading(true);
+    setSyncingCases(true);
     setCarteiraError('');
     try {
-      const empId = (profile as any)?.empresa_id || null;
-      if (!empId) return;
-
-      const _pack = await loadCarteiraComCache({
-        fetchNetwork: async () =>
-          await fetchCarteiraAllClient({
-            empresaId: empId,
-            pageSize: 500,
-          }),
-        empresaId: empId,
-        scope: resolveCaseScope(profile as any),
-        userId: (profile as any)?.auth_user_id || null,
+      await loadCarteiraComCache({
+        fetchNetwork: () => fetchCarteiraAllClient({
+          empresaId,
+          firstPageSize: 36,
+          pageSize: 160,
+          onPage: (partial, page) => {
+            if (page === 0) {
+              setCases(partial);
+              setLoading(false);
+            } else if (page % 2 === 0) {
+              startTransition(() => setCases(partial));
+            }
+          },
+          onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha parcial no Supabase'),
+        }),
+        empresaId,
+        scope: taskCaseScope,
+        userId: authUserId,
         onShow: (data, source) => {
           if (Array.isArray(data)) startTransition(() => setCases(data));
           if (source === 'cache') setLoading(false);
@@ -287,18 +299,15 @@ export default function TarefasPage() {
         allowStaleKpiFallback: true,
         onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha ao buscar dados do Supabase'),
       });
-      const data = _pack.cases;
       try {
         const baRes = await fetchBaHitProtocolosAction();
         if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
-      } catch { /* */ }
-      if (Array.isArray(data)) startTransition(() => setCases(data));
-    } catch (error: any) {
-      const detail = error?.message || 'Não foi possível obter a carteira do Supabase.';
-      setCarteiraError(detail);
-      toast({ title: 'Não foi possível carregar os processos', description: detail, variant: 'destructive' });
-    } finally { setLoading(false); }
-  }, [profile, toast]);
+      } catch { /* noncritical */ }
+    } finally {
+      setLoading(false);
+      setSyncingCases(false);
+    }
+  }, [empresaId, authUserId, taskCaseScope]);
 
   useEffect(() => { if (mounted) loadData(); }, [loadData, mounted]);
 
@@ -796,6 +805,9 @@ const handleSaveAttendance = async () => {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
+      {syncingCases && <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-xl border bg-background/95 px-3 py-2 text-xs font-semibold text-primary shadow-lg">
+        Carregando tarefas · {cases.length} processos disponíveis…
+      </div>}
       <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
         <header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
           <div>

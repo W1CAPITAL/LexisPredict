@@ -172,7 +172,7 @@ export default function ProcessosEmpresaPage() {
   const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState(0);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
-  const [loading, setLoading] = useState(() => !peekCarteiraCache(null, "empresa")?.cases?.length);
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const qDebounced = useDebouncedValue(q, 300);
   const [statusFilter, setStatusFilter] = useState("");
@@ -198,37 +198,91 @@ export default function ProcessosEmpresaPage() {
   const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 24;
 
+  const [carteiraError, setCarteiraError] = useState('');
+
   const load = async () => {
     setLoading(true);
+    setCarteiraError('');
     try {
+      // The company list must not wait on ranking, audits and full-table KPI
+      // scans. One small page is enough to render the navigation and first cards.
+      const first = await fetchCompanyProcessosPageAction({
+        offset: 0,
+        limit: 50,
+        onlyAtivos: false,
+      });
+      if (!first.ok) throw new Error(first.error || 'Não foi possível consultar processos da empresa');
+      const initial = first.cases || [];
+      setCases(initial);
+      setListOffset(initial.length);
+      setTotalCount(initial.length);
+      setOnlyAtivosList(false);
+      setHasServerMore(initial.length === 50);
+      setLoading(false);
+
+      // Progressive background fill, capped at 450 in the first pass.
+      // Additional rows are fetched on demand instead of monopolizing the UI.
+      let offset = initial.length;
+      if (initial.length === 50) {
+        setLoadingMore(true);
+        try {
+          for (let page = 0; page < 4; page++) {
+            const more = await fetchCompanyProcessosPageAction({
+              offset,
+              limit: 100,
+              onlyAtivos: false,
+            });
+            if (!more.ok) {
+              setCarteiraError(more.error || 'Falha parcial no carregamento da empresa');
+              break;
+            }
+            const batch = more.cases || [];
+            if (!batch.length) {
+              setHasServerMore(false);
+              break;
+            }
+            offset += batch.length;
+            setListOffset(offset);
+            React.startTransition(() => setCases((prev) => {
+              const seen = new Set(prev.map((c) => String(c.id || c.protocolo)));
+              return [...prev, ...batch.filter((c) => !seen.has(String(c.id || c.protocolo)))];
+            }));
+            if (batch.length < 100) {
+              setHasServerMore(false);
+              break;
+            }
+            await new Promise<void>((resolve) => window.setTimeout(resolve, 40));
+          }
+        } finally {
+          setLoadingMore(false);
+        }
+      }
+
+      // Noncritical business-wide KPIs/ranking/audit run after the first
+      // visible records, instead of gating first paint.
       const res = await fetchCompanyProcessosAction();
-      const list = res?.cases || [];
-      setCases(list);
-      writeCarteiraCache(list, null, "empresa");
-      setListOffset(list.length);
-      setTotalCount(Number(res?.totalCount) || list.length);
-      const rankList = Array.isArray(res?.ranking) ? res.ranking : [];
-      setTopAtendentesSrv(rankList.slice(0, 5));
+      if ((res as any)?.error) {
+        setCarteiraError(String((res as any).error));
+        return;
+      }
+      setTotalCount(Number(res?.totalCount) || offset);
+      setTopAtendentesSrv((Array.isArray(res?.ranking) ? res.ranking : []).slice(0, 5));
       setAtendidosSemanaSrv(Number(res?.atendidosSemana) || 0);
       if (Number(res?.ativosCount) >= 0) setAtivosCount(Number(res?.ativosCount) || 0);
       if (Number((res as any)?.vencidosCount) >= 0) setVencidosCount(Number((res as any)?.vencidosCount) || 0);
       setAudit(res?.audit || []);
       setUsers(res?.users || []);
-      if ((res as any)?.error) {
-        console.error('[processos] action error', (res as any).error);
-      }
-    } catch (e) {
-      console.error('[processos] load failed', e);
-      setCases([]);
-      setAudit([]);
-      setUsers([]);
-      setTopAtendentesSrv([]);
+    } catch (error: any) {
+      const message = error?.message || 'Falha ao carregar carteira empresarial';
+      setCarteiraError(message);
+      console.error('[processos] erro de carregamento:', message);
+      // Never erase already visible records after a secondary failure.
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   // Busca no banco (empresa inteira) quando há texto — a lista local só tem ~300
   useEffect(() => {
@@ -625,6 +679,12 @@ export default function ProcessosEmpresaPage() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden min-h-0">
       <Sidebar />
+      {(loading || loadingMore) && <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-xl border bg-background/95 px-3 py-2 text-xs font-semibold text-primary shadow-lg">
+        {cases.length ? `${cases.length} processos da empresa carregados…` : 'Consultando primeiros processos…'}
+      </div>}
+      {carteiraError && <div role="alert" className="fixed bottom-16 right-4 z-40 max-w-sm rounded-xl border border-destructive/30 bg-background px-3 py-2 text-xs text-destructive shadow">
+        {carteiraError}
+      </div>}
       <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
         <DataJudScannerPanel />
 
