@@ -5,10 +5,10 @@ type Reply = { text: string; model: string; engine: 'LOCAL_BROWSER' };
 
 let worker: Worker | null = null;
 let nextId = 0;
-let active: { id: number; reject: (error: Error) => void } | null = null;
+let active: { id: number; cancel: () => void } | null = null;
 
 export function stopBrowserLocalLLM() {
-  active?.reject(new Error('Geração local cancelada.'));
+  active?.cancel();
   active = null;
   worker?.terminate();
   worker = null;
@@ -56,7 +56,7 @@ export async function generateBrowserLocalLLM(
       worker?.terminate(); worker = null;
       reject(new Error('O modelo local excedeu o tempo de carregamento. Tente novamente em um navegador com WebGPU ou mais memória.'));
     }, 8 * 60_000);
-    active = { id, reject };
+    active = { id, cancel: () => { cleanup(); reject(new Error('Geração local cancelada.')); } };
     current.addEventListener('message', receive);
     current.addEventListener('error', onError);
     current.postMessage({ requestId: id, prompt, history, maxTokens: 200 });
