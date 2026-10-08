@@ -270,11 +270,11 @@ function KpiCard({ label, value, hint, kind = "blue", icon }: {
       kpiTone(kind)
     )}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[8px] font-bold uppercase tracking-[.11em] text-slate-600 dark:text-slate-400">{label}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[.11em] text-slate-600 dark:text-slate-400">{label}</p>
         <span className="opacity-80">{icon}</span>
       </div>
       <p className="mt-2 text-[22px] font-black tracking-tight tabular-nums text-slate-900 dark:text-white">{value}</p>
-      {hint ? <p className="mt-1 text-[8px] font-semibold text-slate-500">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-[10px] font-semibold text-slate-500">{hint}</p> : null}
     </div>
   );
 }
@@ -543,22 +543,22 @@ export function ProcessosCommandCenter(props: Props) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {props.canScan && props.onScan ? (
-              <Button onClick={props.onScan} size="sm" className="h-8 bg-blue-600 text-[9px] font-bold hover:bg-blue-500">
+              <Button onClick={props.onScan} size="sm" className="h-8 bg-blue-600 text-[11px] font-bold hover:bg-blue-500">
                 <RefreshCcw size={13} className="mr-1.5" />{props.scannerLabel || "Atualizar DataJud"}
               </Button>
             ) : null}
             {selected ? (
-              <Button onClick={() => void openDjen(selected)} disabled={busy === "djen"} variant="outline" size="sm" className="h-8 border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 text-[9px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10">
+              <Button onClick={() => void openDjen(selected)} disabled={busy === "djen"} variant="outline" size="sm" className="h-8 border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 text-[11px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10">
                 {busy === "djen" ? <Loader2 size={12} className="mr-1.5 animate-spin" /> : <FileClock size={12} className="mr-1.5" />}DJEN
               </Button>
             ) : null}
-            <Button onClick={() => void props.onRefresh()} variant="outline" size="sm" className="h-8 border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 px-2 text-[9px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" title="Recarregar carteira">
+            <Button onClick={() => void props.onRefresh()} variant="outline" size="sm" className="h-8 border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 px-2 text-[11px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" title="Recarregar carteira">
               <RefreshCcw size={12} />
             </Button>
-            <Button onClick={() => props.onExportCsv(rows)} variant="outline" size="sm" className="h-8 border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 text-[9px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10">
+            <Button onClick={() => props.onExportCsv(rows)} variant="outline" size="sm" className="h-8 border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 text-[11px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10">
               <Download size={12} className="mr-1.5" />Exportar CSV
             </Button>
-            <Button asChild size="sm" className="h-8 bg-violet-600 text-[9px] font-bold hover:bg-violet-500">
+            <Button asChild size="sm" className="h-8 bg-violet-600 text-[11px] font-bold hover:bg-violet-500">
               <Link href={selected ? `/report?processo=${encodeURIComponent(selected.protocolo)}` : "/report"}>
                 <Sparkles size={12} className="mr-1.5" />Gerar relatório IA
               </Link>
@@ -590,8 +590,8 @@ export function ProcessosCommandCenter(props: Props) {
             {icon:<Clock3 size={12}/>,label:"Fontes ≤7 dias",value:sourceCoverage.freshPct+"%",hint:sourceCoverage.fresh+" frescos"},
             {icon:<Radar size={12}/>,label:"Snapshot / hash",value:sourceCoverage.hashPct+"%",hint:sourceCoverage.hashed+" monitoráveis"},
           ].map(card=><div key={card.label} className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-[#081427]/75 px-3 py-2">
-            <div className="flex items-center gap-2 text-slate-500">{card.icon}<span className="text-[8px] font-bold uppercase tracking-[.08em]">{card.label}</span></div>
-            <div className="text-right"><b className="text-[11px] text-slate-800 dark:text-slate-200">{card.value}</b><p className="text-[7px] text-slate-600 dark:text-slate-400">{card.hint}</p></div>
+            <div className="flex items-center gap-2 text-slate-500">{card.icon}<span className="text-[10px] font-bold uppercase tracking-[.08em]">{card.label}</span></div>
+            <div className="text-right"><b className="text-[11px] text-slate-800 dark:text-slate-200">{card.value}</b><p className="text-[9px] text-slate-600 dark:text-slate-400">{card.hint}</p></div>
           </div>)}
         </div>
           </div>
@@ -619,66 +619,66 @@ export function ProcessosCommandCenter(props: Props) {
                 ["sources","Fontes incompletas",focusCounts.sources,Database],
                 ["ba","B.A.",focusCounts.ba,Scale],
               ] as const).filter(([value]) => advancedFiltersOpen || ["all", "urgent", "returns", "updates"].includes(value)).map(([value,label,count,Icon])=>(
-                <button key={value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[8px] font-bold transition",focusPreset===value?"border-blue-400/35 bg-blue-500/15 text-blue-800 dark:text-blue-100":"border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.025] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-800 dark:text-slate-200")}>
-                  <Icon size={11}/>{label}<span className="rounded bg-slate-200 dark:bg-black/20 px-1 text-[7px] tabular-nums">{count}</span>
+                <button key={value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[10px] font-bold transition",focusPreset===value?"border-blue-400/35 bg-blue-500/15 text-blue-800 dark:text-blue-100":"border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.025] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-800 dark:text-slate-200")}>
+                  <Icon size={11}/>{label}<span className="rounded bg-slate-200 dark:bg-black/20 px-1 text-[9px] tabular-nums">{count}</span>
                 </button>
               ))}
             </div>
             {advancedFiltersOpen && (
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
-              <select value={tribunal} onChange={(e) => setTribunal(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={tribunal} onChange={(e) => setTribunal(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Tribunal · todos</option>
                 {tribunais.map((x) => <option key={x}>{x}</option>)}
               </select>
-              <select value={classe} onChange={(e) => setClasse(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={classe} onChange={(e) => setClasse(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Classe · todas</option>
                 {classes.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={assunto} onChange={(e) => setAssunto(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={assunto} onChange={(e) => setAssunto(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Assunto · todos</option>
                 {assuntos.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={municipio} onChange={(e) => setMunicipio(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={municipio} onChange={(e) => setMunicipio(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Município · todos</option>
                 {municipios.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={grau} onChange={(e) => setGrau(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={grau} onChange={(e) => setGrau(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Grau · todos</option>
                 {graus.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={sistema} onChange={(e) => setSistema(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={sistema} onChange={(e) => setSistema(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Sistema · todos</option>
                 {sistemas.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Responsável · todos</option>
                 {responsaveis.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={novidade} onChange={(e) => setNovidade(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={novidade} onChange={(e) => setNovidade(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Novidade · qualquer</option>
                 <option value="novidade">Com novidade</option>
                 <option value="datajud">DataJud após retorno</option>
                 <option value="djen">Nova publicação DJEN</option>
                 <option value="sem">Sem novidade</option>
               </select>
-              <select value={props.statusFilter} onChange={(e) => props.onStatusFilterChange(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={props.statusFilter} onChange={(e) => props.onStatusFilterChange(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Situação · todas</option>
                 {[...new Set(props.items.map((c) => clean(c.status)).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
               </select>
-              <select value={risco} onChange={(e) => setRisco(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[9px] text-slate-800 dark:text-slate-200">
+              <select value={risco} onChange={(e) => setRisco(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Risco · todos</option>
                 <option>Alto</option><option>Médio</option><option>Baixo</option>
               </select>
-              <label className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[8px] text-slate-500">
-                De <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[8px] text-slate-700 dark:text-slate-300 outline-none"/>
+              <label className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[10px] text-slate-500">
+                De <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[10px] text-slate-700 dark:text-slate-300 outline-none"/>
               </label>
-              <label className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[8px] text-slate-500">
-                Até <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[8px] text-slate-700 dark:text-slate-300 outline-none"/>
+              <label className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[10px] text-slate-500">
+                Até <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[10px] text-slate-700 dark:text-slate-300 outline-none"/>
               </label>
-              <button onClick={() => props.onBaOnlyChange(!props.baOnly)} className={cn("h-9 rounded-lg border px-2 text-[9px] font-bold", props.baOnly ? "border-red-400/40 bg-red-500/15 text-red-800 dark:text-red-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
+              <button onClick={() => props.onBaOnlyChange(!props.baOnly)} className={cn("h-9 rounded-lg border px-2 text-[11px] font-bold", props.baOnly ? "border-red-400/40 bg-red-500/15 text-red-800 dark:text-red-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
                 B.A. real
               </button>
-              <button onClick={() => props.onSilencioOnlyChange(!props.silencioOnly)} className={cn("h-9 rounded-lg border px-2 text-[9px] font-bold", props.silencioOnly ? "border-amber-400/40 bg-amber-500/15 text-amber-800 dark:text-amber-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
+              <button onClick={() => props.onSilencioOnlyChange(!props.silencioOnly)} className={cn("h-9 rounded-lg border px-2 text-[11px] font-bold", props.silencioOnly ? "border-amber-400/40 bg-amber-500/15 text-amber-800 dark:text-amber-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
                 Silêncio ≥45d
               </button>
             </div>
@@ -688,11 +688,11 @@ export function ProcessosCommandCenter(props: Props) {
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input value={props.query} onChange={(e) => props.onQueryChange(e.target.value)} placeholder="Buscar CNJ, cliente, advogado, tribunal, assunto…" className="h-9 w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] pl-9 pr-3 text-[10px] text-slate-900 dark:text-white outline-none placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-blue-400/50" />
               </div>
-              <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[9px] font-bold", props.sortOps ? "border-blue-400/40 bg-blue-500/15 text-blue-800 dark:text-blue-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
+              <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[11px] font-bold", props.sortOps ? "border-blue-400/40 bg-blue-500/15 text-blue-800 dark:text-blue-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
                 <Filter size={12} className="mr-1 inline" />Prioridade ops
               </button>
               {(focusPreset!=="all" || props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || responsavel || novidade || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
-                <button onClick={() => { setFocusPreset("all"); props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setResponsavel(""); setNovidade(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-3 text-[9px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                <button onClick={() => { setFocusPreset("all"); props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setResponsavel(""); setNovidade(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-3 text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X size={12} className="mr-1 inline" />Limpar
                 </button>
               ) : null}
@@ -701,14 +701,14 @@ export function ProcessosCommandCenter(props: Props) {
 
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full border-collapse text-left">
-              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-[#081427] text-[8px] uppercase tracking-[.08em] text-slate-500">
+              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-[#081427] text-[10px] uppercase tracking-[.08em] text-slate-500">
                 <tr>
                   {["Número CNJ","Cliente","Tribunal","Última atualização","Último movimento","Dias","Situação","Risco","Responsável","Próximo retorno"].map((h) => (
                     <th key={h} className="border-b border-slate-200 dark:border-white/8 px-2 py-2.5 font-bold whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="text-[9px]">
+              <tbody className="text-[11px]">
                 {props.loading ? (
                   <tr><td colSpan={10} className="py-20 text-center text-slate-500"><Loader2 size={20} className="mx-auto mb-2 animate-spin"/>Carregando carteira…</td></tr>
                 ) : pageRows.length === 0 ? (
@@ -724,11 +724,11 @@ export function ProcessosCommandCenter(props: Props) {
                       <td className="px-2 py-2 font-mono font-bold text-cyan-700 dark:text-cyan-300">{fmtCnj(c.protocolo)}</td>
                       <td className="max-w-[150px] truncate px-2 py-2 font-semibold text-slate-800 dark:text-slate-200" title={c.cliente}>{c.cliente || "—"}</td>
                       <td className="px-2 py-2 text-slate-700 dark:text-slate-300">{c.tribunal || "—"}</td>
-                      <td className="px-2 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap"><span>{fmtDate(update)}</span><span className={cn("ml-1 rounded border px-1 py-0.5 text-[7px]",toneBadge(sourceFreshness(c).tone))}>{sourceFreshness(c).label}</span></td>
+                      <td className="px-2 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap"><span>{fmtDate(update)}</span><span className={cn("ml-1 rounded border px-1 py-0.5 text-[9px]",toneBadge(sourceFreshness(c).tone))}>{sourceFreshness(c).label}</span></td>
                       <td className="max-w-[170px] truncate px-2 py-2 text-sky-700 dark:text-sky-300" title={latestMovement(c)}>{latestMovement(c)}</td>
                       <td className={cn("px-2 py-2 font-black tabular-nums", (silence || 0) >= 45 ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300")}>{silence ?? "—"}</td>
-                      <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[8px] font-bold", statusColor(String(c.status)))}>{c.status || "—"}</span></td>
-                      <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[8px] font-bold", statusColor(priority))}>{priority}</span></td>
+                      <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[10px] font-bold", statusColor(String(c.status)))}>{c.status || "—"}</span></td>
+                      <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[10px] font-bold", statusColor(priority))}>{priority}</span></td>
                       <td className="max-w-[120px] truncate px-2 py-2 text-slate-700 dark:text-slate-300">{ownerName(c, props.ownerNameByAuth)}</td>
                       <td className={cn("px-2 py-2 font-semibold whitespace-nowrap", c.status === "Vencido" ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300")}>{fmtDate(c.proximoPrazo)}</td>
                     </tr>
@@ -739,15 +739,15 @@ export function ProcessosCommandCenter(props: Props) {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] px-3 py-2">
-            <p className="text-[8px] text-slate-500">Mostrando {pageRows.length} de {rows.length} processos carregados · {props.totalCount || loaded} na empresa</p>
+            <p className="text-[10px] text-slate-500">Mostrando {pageRows.length} de {rows.length} processos carregados · {props.totalCount || loaded} na empresa</p>
             <div className="flex items-center gap-1">
               <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 disabled:opacity-30"><ChevronLeft size={12}/></button>
-              <span className="px-2 text-[8px] text-slate-600 dark:text-slate-400">{page} / {pageCount}</span>
+              <span className="px-2 text-[10px] text-slate-600 dark:text-slate-400">{page} / {pageCount}</span>
               <button disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 disabled:opacity-30"><ChevronRight size={12}/></button>
               {props.hasMore && props.onLoadMore && <button type="button"
                 disabled={props.loadingMore}
                 onClick={() => void props.onLoadMore?.()}
-                className="ml-2 inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-400/25 bg-blue-500/15 px-3 text-[9px] font-semibold text-blue-800 dark:text-blue-100 disabled:opacity-40">
+                className="ml-2 inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-400/25 bg-blue-500/15 px-3 text-[11px] font-semibold text-blue-800 dark:text-blue-100 disabled:opacity-40">
                 {props.loadingMore ? <Loader2 size={11} className="animate-spin" /> : <Download size={11}/>}
                 {props.loadingMore ? 'Carregando...' : 'Carregar mais processos'}
               </button>}
@@ -761,27 +761,27 @@ export function ProcessosCommandCenter(props: Props) {
           {insightsOpen && (
           <div className="grid gap-2 bg-slate-50 dark:bg-[#050b18] p-2 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] p-3">
-              <p className="mb-2 text-[9px] font-bold text-slate-700 dark:text-slate-300">Distribuição por tribunal</p>
+              <p className="mb-2 text-[11px] font-bold text-slate-700 dark:text-slate-300">Distribuição por tribunal</p>
               <div className="h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart><Pie data={tribunalData} dataKey="value" nameKey="name" innerRadius={42} outerRadius={66} strokeWidth={0}>{tribunalData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]}/>)}</Pie><RechartsTooltip contentStyle={{background:"hsl(var(--card))",color:"hsl(var(--card-foreground))",border:"1px solid hsl(var(--border))",fontSize:10}}/></PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="grid grid-cols-2 gap-1 text-[8px] text-slate-500">{tribunalData.map((x,i)=><span key={x.name}><i className="mr-1 inline-block h-2 w-2 rounded-full" style={{background:COLORS[i%COLORS.length]}}/>{x.name}: {x.value}</span>)}</div>
+              <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-500">{tribunalData.map((x,i)=><span key={x.name}><i className="mr-1 inline-block h-2 w-2 rounded-full" style={{background:COLORS[i%COLORS.length]}}/>{x.name}: {x.value}</span>)}</div>
             </div>
 
             <div className="rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] p-3">
-              <p className="mb-2 text-[9px] font-bold text-slate-700 dark:text-slate-300">Situação dos processos</p>
+              <p className="mb-2 text-[11px] font-bold text-slate-700 dark:text-slate-300">Situação dos processos</p>
               <div className="h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart><Pie data={statusData} dataKey="value" nameKey="name" innerRadius={42} outerRadius={66} strokeWidth={0}>{statusData.map((_, i) => <Cell key={i} fill={COLORS[(i+2) % COLORS.length]}/>)}</Pie><RechartsTooltip contentStyle={{background:"hsl(var(--card))",color:"hsl(var(--card-foreground))",border:"1px solid hsl(var(--border))",fontSize:10}}/></PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="grid grid-cols-2 gap-1 text-[8px] text-slate-500">{statusData.map((x,i)=><span key={x.name}><i className="mr-1 inline-block h-2 w-2 rounded-full" style={{background:COLORS[(i+2)%COLORS.length]}}/>{x.name}: {x.value}</span>)}</div>
+              <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-500">{statusData.map((x,i)=><span key={x.name}><i className="mr-1 inline-block h-2 w-2 rounded-full" style={{background:COLORS[(i+2)%COLORS.length]}}/>{x.name}: {x.value}</span>)}</div>
             </div>
 
             <div className="rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] p-3">
-              <p className="mb-2 text-[9px] font-bold text-slate-700 dark:text-slate-300">Movimentos e publicações · 12 meses</p>
+              <p className="mb-2 text-[11px] font-bold text-slate-700 dark:text-slate-300">Movimentos e publicações · 12 meses</p>
               <div className="h-[210px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={monthlyData}>
@@ -816,16 +816,16 @@ export function ProcessosCommandCenter(props: Props) {
                       {isCasoEncerrado(selected) && props.onReopen ?
                         <Button size="sm" variant="outline" onClick={() => props.onReopen?.(selected)} className="h-8 px-2 text-[10px]">Reabrir</Button> : null}
                     </div> :
-                    <span className="rounded-md border border-slate-300 px-2 py-1 text-[9px] text-slate-600 dark:text-slate-400 dark:border-slate-700 dark:text-slate-300">Somente consulta</span>}
+                    <span className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 dark:text-slate-400 dark:border-slate-700 dark:text-slate-300">Somente consulta</span>}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
-                  <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold", statusColor(String(selected.status)))}>{selected.status}</span>
-                  <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold", statusColor(riskLabel(selected)))}>Risco {riskLabel(selected)}</span>
-                  {selectedSilence != null ? <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[8px] text-amber-800 dark:text-amber-200">{selectedSilence}d sem movimento</span> : null}
-                  <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold",toneBadge(returnState(selected).tone))}>{returnState(selected).label}</span>
-                  <span className={cn("rounded-full border px-2 py-1 text-[8px] font-bold",toneBadge(sourceFreshness(selected).tone))}>Fonte {sourceFreshness(selected).label}</span>
-                  <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[8px] font-bold text-blue-800 dark:text-blue-200">Cobertura {selectedCoverage}%</span>
-                  {selected.datajud_hash?<span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[8px] font-bold text-cyan-800 dark:text-cyan-200">Snapshot ativo</span>:null}
+                  <span className={cn("rounded-full border px-2 py-1 text-[10px] font-bold", statusColor(String(selected.status)))}>{selected.status}</span>
+                  <span className={cn("rounded-full border px-2 py-1 text-[10px] font-bold", statusColor(riskLabel(selected)))}>Risco {riskLabel(selected)}</span>
+                  {selectedSilence != null ? <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-800 dark:text-amber-200">{selectedSilence}d sem movimento</span> : null}
+                  <span className={cn("rounded-full border px-2 py-1 text-[10px] font-bold",toneBadge(returnState(selected).tone))}>{returnState(selected).label}</span>
+                  <span className={cn("rounded-full border px-2 py-1 text-[10px] font-bold",toneBadge(sourceFreshness(selected).tone))}>Fonte {sourceFreshness(selected).label}</span>
+                  <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[10px] font-bold text-blue-800 dark:text-blue-200">Cobertura {selectedCoverage}%</span>
+                  {selected.datajud_hash?<span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold text-cyan-800 dark:text-cyan-200">Snapshot ativo</span>:null}
                 </div>
               </div>
 
@@ -833,7 +833,7 @@ export function ProcessosCommandCenter(props: Props) {
                 {([
                   ["overview","Visão"],["movements","Mov."],["deadlines","Prazos"],["parties","Partes"],["documents","Docs"],["ai","IA"]
                 ] as [DetailTab,string][]).map(([value,label])=>(
-                  <button key={value} onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[8px] font-bold", tab===value?"bg-blue-600 text-white":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
+                  <button key={value} onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[10px] font-bold", tab===value?"bg-blue-600 text-white":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
                 ))}
               </div>
 
@@ -854,43 +854,43 @@ export function ProcessosCommandCenter(props: Props) {
                     {selected.djen_nova_comunicacao ? <AlertLine icon={<Gavel size={12}/>} text="Nova publicação DJEN não tratada"/> : null}
                     {djenCriticalLabel(selected) ? <AlertLine icon={<ShieldAlert size={12}/>} text={`Radar DJEN: ${djenCriticalLabel(selected)}`}/> : null}
                     {selected.tem_atualizacao_pos_retorno ? <AlertLine icon={<History size={12}/>} text="Tribunal atualizou após o último retorno"/> : null}
-                    {riskLabel(selected)==="Baixo" && !selected.djen_nova_comunicacao && !(selectedSilence && selectedSilence>=45) ? <p className="text-[9px] text-emerald-700 dark:text-emerald-300">Nenhum alerta crítico calculado.</p> : null}
+                    {riskLabel(selected)==="Baixo" && !selected.djen_nova_comunicacao && !(selectedSilence && selectedSilence>=45) ? <p className="text-[11px] text-emerald-700 dark:text-emerald-300">Nenhum alerta crítico calculado.</p> : null}
                   </Panel>
                   <Panel title="Próximos passos">
                     {selectedTask ? (
                       <div className="mb-2 rounded-lg border border-blue-400/15 bg-blue-500/8 p-2">
                         <div className="flex items-center justify-between gap-2">
-                          <b className="text-[9px] text-blue-800 dark:text-blue-100">{selectedTask.titulo}</b>
-                          <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[7px] font-bold text-blue-800 dark:text-blue-200">{selectedTask.faixa}</span>
+                          <b className="text-[11px] text-blue-800 dark:text-blue-100">{selectedTask.titulo}</b>
+                          <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-bold text-blue-800 dark:text-blue-200">{selectedTask.faixa}</span>
                         </div>
-                        <p className="mt-1 text-[8px] leading-relaxed text-slate-600 dark:text-slate-400">{selectedTask.detalhe}</p>
+                        <p className="mt-1 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">{selectedTask.detalhe}</p>
                       </div>
                     ) : null}
                     <div className="space-y-1.5">
                       {selectedActions.slice(0,3).map((action,index)=>(
                         <div key={action.title+index} className={cn("rounded-lg border px-2 py-2", action.tone==="red"?"border-red-400/15 bg-red-500/8":action.tone==="amber"?"border-amber-400/15 bg-amber-500/8":action.tone==="green"?"border-emerald-400/15 bg-emerald-500/8":"border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.025]")}>
-                          <p className="text-[8px] font-bold text-slate-800 dark:text-slate-200">{action.title}</p>
-                          <p className="mt-0.5 text-[7px] leading-relaxed text-slate-500">{action.detail}</p>
+                          <p className="text-[10px] font-bold text-slate-800 dark:text-slate-200">{action.title}</p>
+                          <p className="mt-0.5 text-[9px] leading-relaxed text-slate-500">{action.detail}</p>
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[9px] font-bold text-violet-800 dark:text-violet-200 hover:bg-violet-500/15">Abrir publicação DJEN</button>
-                    <Link href={"/tarefas?processo="+encodeURIComponent(selected.protocolo)} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/8 px-2 py-2 text-[9px] font-bold text-blue-800 dark:text-blue-200 hover:bg-blue-500/15">Abrir fila de tarefas</Link>
+                    <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[11px] font-bold text-violet-800 dark:text-violet-200 hover:bg-violet-500/15">Abrir publicação DJEN</button>
+                    <Link href={"/tarefas?processo="+encodeURIComponent(selected.protocolo)} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/8 px-2 py-2 text-[11px] font-bold text-blue-800 dark:text-blue-200 hover:bg-blue-500/15">Abrir fila de tarefas</Link>
                   </Panel>
                   <Panel title="Monitor de fontes">
                     <div className="mb-2 flex items-center justify-between rounded-lg border border-blue-400/15 bg-blue-500/8 px-2 py-2">
-                      <span className="text-[8px] font-bold text-blue-800 dark:text-blue-100">Cobertura operacional</span>
+                      <span className="text-[10px] font-bold text-blue-800 dark:text-blue-100">Cobertura operacional</span>
                       <b className="text-[12px] text-slate-900 dark:text-white">{selectedCoverage}%</b>
                     </div>
                     {selectedSources.map((source)=>(
                       <div key={source.id} className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-white/[.055] py-1.5 last:border-0">
                         <div>
-                          <p className="text-[8px] font-semibold text-slate-700 dark:text-slate-300">{source.label}</p>
-                          <p className="text-[7px] text-slate-600 dark:text-slate-400">{source.category}</p>
+                          <p className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">{source.label}</p>
+                          <p className="text-[9px] text-slate-600 dark:text-slate-400">{source.category}</p>
                         </div>
                         <div className="max-w-[160px] text-right">
-                          <span className={cn("rounded border px-1.5 py-0.5 text-[7px] font-bold",source.available?(source.fresh===false?"border-amber-400/20 bg-amber-500/8 text-amber-800 dark:text-amber-200":"border-emerald-400/20 bg-emerald-500/8 text-emerald-800 dark:text-emerald-200"):"border-red-400/20 bg-red-500/8 text-red-800 dark:text-red-200")}>{source.available?(source.fresh===false?"envelhecida":"disponível"):"ausente"}</span>
-                          <p className="mt-1 text-[7px] leading-relaxed text-slate-500">{source.detail}</p>
+                          <span className={cn("rounded border px-1.5 py-0.5 text-[9px] font-bold",source.available?(source.fresh===false?"border-amber-400/20 bg-amber-500/8 text-amber-800 dark:text-amber-200":"border-emerald-400/20 bg-emerald-500/8 text-emerald-800 dark:text-emerald-200"):"border-red-400/20 bg-red-500/8 text-red-800 dark:text-red-200")}>{source.available?(source.fresh===false?"envelhecida":"disponível"):"ausente"}</span>
+                          <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{source.detail}</p>
                         </div>
                       </div>
                     ))}
@@ -905,13 +905,13 @@ export function ProcessosCommandCenter(props: Props) {
                     <div key={index} className="relative border-l border-blue-500/30 pb-3 pl-4 last:pb-0">
                       <span className="absolute -left-[4px] top-1 h-2 w-2 rounded-full bg-blue-400 ring-2 ring-[#0a1729]"/>
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-[9px] font-bold text-slate-800 dark:text-slate-200">{item.label}</p>
-                        <span className="text-[7px] text-slate-600 dark:text-slate-400">{fmtDate(item.date,true)}</span>
+                        <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">{item.label}</p>
+                        <span className="text-[9px] text-slate-600 dark:text-slate-400">{fmtDate(item.date,true)}</span>
                       </div>
-                      {item.detail ? <p className="mt-1 line-clamp-3 text-[8px] leading-relaxed text-slate-500">{item.detail}</p> : null}
-                      <p className="mt-1 text-[7px] font-bold uppercase text-blue-400/70">{item.source}</p>
+                      {item.detail ? <p className="mt-1 line-clamp-3 text-[10px] leading-relaxed text-slate-500">{item.detail}</p> : null}
+                      <p className="mt-1 text-[9px] font-bold uppercase text-blue-400/70">{item.source}</p>
                     </div>
-                  )) : <p className="text-[9px] text-slate-500">Sem timeline em cache. Rode DataJud + DJEN.</p>}
+                  )) : <p className="text-[11px] text-slate-500">Sem timeline em cache. Rode DataJud + DJEN.</p>}
                 </Panel>
               ) : null}
 
@@ -924,13 +924,13 @@ export function ProcessosCommandCenter(props: Props) {
                     <Info label="Último retorno ao cliente" value={fmtDate(selected.ultimoRetorno)}/>
                     <Info label="Alerta DJEN" value={djenCriticalLabel(selected)||"sem termo crítico"}/>
                   </Panel>
-                  <div className="rounded-xl border border-amber-400/15 bg-amber-500/8 p-3 text-[8px] leading-relaxed text-amber-900 dark:text-amber-100/80">
+                  <div className="rounded-xl border border-amber-400/15 bg-amber-500/8 p-3 text-[10px] leading-relaxed text-amber-900 dark:text-amber-100/80">
                     <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-200"><Clock3 size={11}/>Separação de conceitos</div>
                     <p className="mt-1">“Próximo retorno” é compromisso operacional da carteira. Um prazo judicial só deve ser tratado como tal quando vier de fonte/documento que sustente a data. O painel não transforma automaticamente publicação em prazo fatal.</p>
                   </div>
                   <Panel title="Ações">
-                    <Link href={`/agenda?processo=${encodeURIComponent(selected.protocolo)}`} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-2 text-[9px] font-bold text-blue-800 dark:text-blue-200 hover:bg-blue-500/15">Abrir na agenda</Link>
-                    <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[9px] font-bold text-violet-800 dark:text-violet-200 hover:bg-violet-500/15">Revisar última publicação DJEN</button>
+                    <Link href={`/agenda?processo=${encodeURIComponent(selected.protocolo)}`} className="mt-1 block rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-2 text-[11px] font-bold text-blue-800 dark:text-blue-200 hover:bg-blue-500/15">Abrir na agenda</Link>
+                    <button onClick={() => void openDjen(selected)} className="mt-1 w-full rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-left text-[11px] font-bold text-violet-800 dark:text-violet-200 hover:bg-violet-500/15">Revisar última publicação DJEN</button>
                   </Panel>
                 </div>
               ) : null}
@@ -947,10 +947,10 @@ export function ProcessosCommandCenter(props: Props) {
                   </Panel>
                   {pick(selected,"oab","oab_numero","advogado_oab") ? (
                     <div className="space-y-2">
-                      <button disabled={busy==="oab"} onClick={()=>void validateOab(selected)} className="flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-500/8 px-2 py-2 text-[9px] font-bold text-emerald-800 dark:text-emerald-200 hover:bg-emerald-500/12">
+                      <button disabled={busy==="oab"} onClick={()=>void validateOab(selected)} className="flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-500/8 px-2 py-2 text-[11px] font-bold text-emerald-800 dark:text-emerald-200 hover:bg-emerald-500/12">
                         {busy==="oab"?<Loader2 size={12} className="animate-spin"/>:<ShieldCheck size={12}/>}Validar OAB no CNA
                       </button>
-                      {oabResult?<div className={cn("rounded-lg border p-2 text-[8px]",oabResult.success?"border-emerald-400/20 bg-emerald-500/8 text-emerald-100":"border-amber-400/20 bg-amber-500/8 text-amber-100")}>
+                      {oabResult?<div className={cn("rounded-lg border p-2 text-[10px]",oabResult.success?"border-emerald-400/20 bg-emerald-500/8 text-emerald-100":"border-amber-400/20 bg-amber-500/8 text-amber-100")}>
                         <b>{oabResult.success?"OAB localizada":"Validação automática indisponível"}</b>
                         {oabResult.nome?<p className="mt-1">{oabResult.nome}</p>:null}
                         {oabResult.situacao?<p>{oabResult.situacao}</p>:null}
@@ -965,11 +965,11 @@ export function ProcessosCommandCenter(props: Props) {
               {tab === "documents" ? (
                 <div className="space-y-2">
                   <Panel title="Documentos e fontes">
-                    <button disabled={busy==="dossie"} onClick={() => void downloadDossie(selected)} className="w-full rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-2 text-left text-[9px] font-bold text-blue-800 dark:text-blue-200">
+                    <button disabled={busy==="dossie"} onClick={() => void downloadDossie(selected)} className="w-full rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-2 text-left text-[11px] font-bold text-blue-800 dark:text-blue-200">
                       {busy==="dossie"?<Loader2 size={11} className="mr-1 inline animate-spin"/>:<FileDown size={11} className="mr-1 inline"/>}Gerar dossiê PDF
                     </button>
-                    {selected.djen_ultimo_link ? <a href={selected.djen_ultimo_link} target="_blank" rel="noreferrer" className="mt-1 block rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-[9px] font-bold text-violet-800 dark:text-violet-200"><ExternalLink size={11} className="mr-1 inline"/>Última publicação DJEN</a> : null}
-                    {selected.linkConsulta ? <a href={selected.linkConsulta} target="_blank" rel="noreferrer" className="mt-1 block rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-2 py-2 text-[9px] font-bold text-slate-700 dark:text-slate-300"><ExternalLink size={11} className="mr-1 inline"/>Consulta externa do processo</a> : null}
+                    {selected.djen_ultimo_link ? <a href={selected.djen_ultimo_link} target="_blank" rel="noreferrer" className="mt-1 block rounded-lg border border-violet-400/20 bg-violet-500/10 px-2 py-2 text-[11px] font-bold text-violet-800 dark:text-violet-200"><ExternalLink size={11} className="mr-1 inline"/>Última publicação DJEN</a> : null}
+                    {selected.linkConsulta ? <a href={selected.linkConsulta} target="_blank" rel="noreferrer" className="mt-1 block rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-2 py-2 text-[11px] font-bold text-slate-700 dark:text-slate-300"><ExternalLink size={11} className="mr-1 inline"/>Consulta externa do processo</a> : null}
                   </Panel>
                   <Panel title="Fonte e atualização">
                     <Info label="DataJud consultado" value={fmtDate(selected.datajud_consultado_em,true)}/>
@@ -984,13 +984,13 @@ export function ProcessosCommandCenter(props: Props) {
                     {selectedSources.map((source)=>(
                       <div key={source.id} className="mb-1 rounded-lg border border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.02] px-2 py-2 last:mb-0">
                         <div className="flex items-center justify-between gap-2">
-                          <b className="text-[8px] text-slate-800 dark:text-slate-200">{source.label}</b>
-                          <span className={cn("text-[7px] font-bold",source.available?"text-emerald-700 dark:text-emerald-300":"text-red-700 dark:text-red-300")}>{source.available?"OK":"LACUNA"}</span>
+                          <b className="text-[10px] text-slate-800 dark:text-slate-200">{source.label}</b>
+                          <span className={cn("text-[9px] font-bold",source.available?"text-emerald-700 dark:text-emerald-300":"text-red-700 dark:text-red-300")}>{source.available?"OK":"LACUNA"}</span>
                         </div>
-                        <p className="mt-1 text-[7px] text-slate-500">{source.category} · {source.detail}</p>
+                        <p className="mt-1 text-[9px] text-slate-500">{source.category} · {source.detail}</p>
                       </div>
                     ))}
-                    <p className="mt-2 text-[7px] leading-relaxed text-slate-600 dark:text-slate-400">DataJud/DJEN são fontes públicas oficiais; carteira/atendimento são dados operacionais internos; snapshot/hash apenas evidencia mudança entre consultas.</p>
+                    <p className="mt-2 text-[9px] leading-relaxed text-slate-600 dark:text-slate-400">DataJud/DJEN são fontes públicas oficiais; carteira/atendimento são dados operacionais internos; snapshot/hash apenas evidencia mudança entre consultas.</p>
                   </Panel>
                 </div>
               ) : null}
@@ -1005,16 +1005,16 @@ export function ProcessosCommandCenter(props: Props) {
                     <Info label="Fonte" value={sourceFreshness(selected).label}/>
                   </Panel>
                   <Panel title="Análise inteligente">
-                    {selected.parecerIA ? <p className="text-[9px] leading-relaxed text-slate-700 dark:text-slate-300">{selected.parecerIA}</p> : (
-                      <div className="space-y-2 text-[9px] leading-relaxed text-slate-600 dark:text-slate-400">
+                    {selected.parecerIA ? <p className="text-[11px] leading-relaxed text-slate-700 dark:text-slate-300">{selected.parecerIA}</p> : (
+                      <div className="space-y-2 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
                         <p><BrainCircuit size={12} className="mr-1 inline text-violet-400"/>Prioridade operacional: <b className="text-white">{riskLabel(selected)}</b>.</p>
                         <p>{selectedSilence != null && selectedSilence >= 45 ? `O processo está há ${selectedSilence} dias sem movimentação registrada no cache e merece revisão.` : "Não há silêncio processual crítico calculado nesta visão."}</p>
                         <p>{selected.tem_novo_andamento || selected.djen_nova_comunicacao ? "Há novidade de tribunal/publicação a tratar antes do próximo contato com o cliente." : "Nenhuma novidade não tratada foi sinalizada."}</p>
                       </div>
                     )}
                   </Panel>
-                  <Button asChild className="w-full bg-violet-600 text-[9px] hover:bg-violet-500"><Link href={`/veredito?processo=${encodeURIComponent(selected.protocolo)}`}><Sparkles size={12} className="mr-1"/>Abrir análise IA</Link></Button>
-                  <Button asChild variant="outline" className="w-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-[9px] text-slate-700 dark:text-slate-300"><Link href={`/report?processo=${encodeURIComponent(selected.protocolo)}`}><BarChart3 size={12} className="mr-1"/>Gerar relatório</Link></Button>
+                  <Button asChild className="w-full bg-violet-600 text-[11px] hover:bg-violet-500"><Link href={`/veredito?processo=${encodeURIComponent(selected.protocolo)}`}><Sparkles size={12} className="mr-1"/>Abrir análise IA</Link></Button>
+                  <Button asChild variant="outline" className="w-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-[11px] text-slate-700 dark:text-slate-300"><Link href={`/report?processo=${encodeURIComponent(selected.protocolo)}`}><BarChart3 size={12} className="mr-1"/>Gerar relatório</Link></Button>
                 </div>
               ) : null}
 
@@ -1022,7 +1022,7 @@ export function ProcessosCommandCenter(props: Props) {
                 <div className="space-y-2">
                   {silenceBuckets.map((b) => (
                     <div key={b.label}>
-                      <div className="flex justify-between text-[8px] text-slate-500"><span>{b.label}</span><span>{b.value}</span></div>
+                      <div className="flex justify-between text-[10px] text-slate-500"><span>{b.label}</span><span>{b.value}</span></div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/5"><div className={cn("h-full rounded-full", b.tone)} style={{width:`${Math.max(3,(b.value/maxSilence)*100)}%`}}/></div>
                     </div>
                   ))}
@@ -1043,7 +1043,7 @@ export function ProcessosCommandCenter(props: Props) {
 function Panel({ title, children, tone }: { title: string; children: React.ReactNode; tone?: "red" }) {
   return (
     <div className={cn("rounded-xl border bg-white dark:bg-[#0a1729] p-3", tone === "red" ? "border-red-400/15" : "border-slate-200 dark:border-white/8")}>
-      <p className="mb-2 text-[9px] font-black text-slate-700 dark:text-slate-300">{title}</p>
+      <p className="mb-2 text-[11px] font-black text-slate-700 dark:text-slate-300">{title}</p>
       {children}
     </div>
   );
@@ -1053,12 +1053,12 @@ function Info({ label, value }: { label: string; value: unknown }) {
   const v = clean(value);
   return (
     <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-white/[.055] py-1.5 last:border-0">
-      <span className="text-[8px] text-slate-600 dark:text-slate-400">{label}</span>
-      <span className="max-w-[190px] text-right text-[8px] font-semibold text-slate-700 dark:text-slate-300">{v || "—"}</span>
+      <span className="text-[10px] text-slate-600 dark:text-slate-400">{label}</span>
+      <span className="max-w-[190px] text-right text-[10px] font-semibold text-slate-700 dark:text-slate-300">{v || "—"}</span>
     </div>
   );
 }
 
 function AlertLine({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return <div className="mb-1 flex items-center gap-2 rounded-lg border border-red-400/15 bg-red-500/8 px-2 py-2 text-[8px] font-semibold text-red-800 dark:text-red-200 last:mb-0"><span className="text-red-400">{icon}</span>{text}</div>;
+  return <div className="mb-1 flex items-center gap-2 rounded-lg border border-red-400/15 bg-red-500/8 px-2 py-2 text-[10px] font-semibold text-red-800 dark:text-red-200 last:mb-0"><span className="text-red-400">{icon}</span>{text}</div>;
 }
