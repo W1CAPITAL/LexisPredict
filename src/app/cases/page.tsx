@@ -246,7 +246,9 @@ function CasesContent() {
   const [exporting, setExporting] = useState(false);
   const [remoteHasMore, setRemoteHasMore] = useState(false);
   const [loadingMoreRemote, setLoadingMoreRemote] = useState(false);
-  const REMOTE_PAGE_SIZE = 200;
+  const REMOTE_PAGE_SIZE = 100;
+  const INITIAL_PAGE_SIZE = 36;
+  const [carteiraError, setCarteiraError] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSavingCase, setIsSavingCase] = useState(false);
@@ -288,42 +290,46 @@ function CasesContent() {
     [cases, profile]
   );
   const canAssignOwner = canAssignOwnerRule(profile as any);
+  const empresaId = String((profile as any)?.empresa_id || '');
+  const authUserId = String((profile as any)?.auth_user_id || '');
+  const caseScope = resolveCaseScope(profile as any);
   const { toast } = useToast();
   
   const [formState, setFormState] = useState({ cliente: '', protocolo: '', advogado: '', proximoPrazo: '', situacao: 'EM ANDAMENTO', ultimoRetorno: '', statusManual: 'Automatico', observacao: '', telefone: '', escritorio: '', cpf: '', email: '', estado_civil: '', emprego: '', nacionalidade: 'BRASILEIRA', parte_passiva: '', parte_passiva_cnpj: '', classe_acao: '' });
 
   const loadData = useCallback(async () => {
-    const empId = (profile as any)?.empresa_id || null;
-    if (!empId) return;
-
+    if (!empresaId || !authUserId) return;
     setLoading(true);
+    setCarteiraError('');
     try {
       await loadCarteiraComCache({
         fetchNetwork: async () => {
           const page = await fetchCarteiraPageClient({
-            empresaId: empId,
-            limit: REMOTE_PAGE_SIZE,
+            empresaId,
+            limit: INITIAL_PAGE_SIZE,
             offset: 0,
             includeDetails: true,
           });
-          setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
+          setRemoteHasMore(page.length === INITIAL_PAGE_SIZE);
           return page;
         },
-        empresaId: empId,
-        scope: resolveCaseScope(profile as any),
-        userId: (profile as any)?.auth_user_id || null,
-        onShow: (data) => {
-          if (Array.isArray(data)) setCases(data);
+        empresaId,
+        scope: caseScope,
+        userId: authUserId,
+        onShow: (data, source) => {
+          // Prevent another route's cached projection from replacing editable
+          // full records before the first detailed page has arrived.
+          if (source === 'network' && Array.isArray(data)) setCases(data);
         },
-        allowStaleKpiFallback: true,
+        onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Não foi possível carregar os processos'),
       });
     } finally {
       setLoading(false);
     }
-  }, [setCases, profile]);
+  }, [setCases, empresaId, authUserId, caseScope]);
 
   const loadMoreFromSupabase = useCallback(async () => {
-    const empId = (profile as any)?.empresa_id || null;
+    const empId = empresaId;
     if (!empId || loadingMoreRemote || !remoteHasMore) return;
 
     setLoadingMoreRemote(true);
@@ -336,12 +342,12 @@ function CasesContent() {
         offset: current.length,
       });
       const merged = mergeCarteiraPages(current, page);
-      setCases(merged);
+      React.startTransition(() => setCases(merged));
       writeCarteiraCache(
         merged,
         empId,
-        resolveCaseScope(profile as any),
-        (profile as any)?.auth_user_id || null
+        caseScope,
+        authUserId
       );
       setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
     } catch (e: any) {
@@ -353,9 +359,17 @@ function CasesContent() {
     } finally {
       setLoadingMoreRemote(false);
     }
-  }, [profile, loadingMoreRemote, remoteHasMore, setCases, toast]);
+  }, [empresaId, authUserId, caseScope, loadingMoreRemote, remoteHasMore, setCases, toast]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { void loadData(); }, [loadData]);
+
+  // Fill the first few screens progressively, without forcing a transfer of
+  // the entire company's detailed JSON or blocking route navigation.
+  useEffect(() => {
+    if (loading || loadingMoreRemote || !remoteHasMore || cases.length >= 350 || !authUserId) return;
+    const id = window.setTimeout(() => void loadMoreFromSupabase(), 350);
+    return () => window.clearTimeout(id);
+  }, [loading, loadingMoreRemote, remoteHasMore, cases.length, authUserId, loadMoreFromSupabase]);
 
   useEffect(() => {
     if (searchParams.get('new') === '1' && isOperador) {
@@ -1123,6 +1137,12 @@ function CasesContent() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
+      {(loading || loadingMoreRemote) && <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-xl border bg-background/95 px-3 py-2 text-xs font-semibold text-primary shadow-lg">
+        {cases.length ? `${cases.length} processos disponíveis · carregando próximos…` : 'Buscando primeiros processos no Supabase…'}
+      </div>}
+      {carteiraError && <div role="alert" className="fixed bottom-16 right-4 z-40 max-w-sm rounded-xl border border-destructive/30 bg-background px-3 py-2 text-xs text-destructive shadow">
+        Falha na carteira: {carteiraError}
+      </div>}
       <main className={cn("lexis-main-pad flex-1 flex flex-col h-screen overflow-hidden", ui.main)}>
 <header className="flex shrink-0 flex-col gap-4 px-5 pb-4 pt-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
