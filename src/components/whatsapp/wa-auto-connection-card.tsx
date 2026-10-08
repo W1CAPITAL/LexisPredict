@@ -50,6 +50,9 @@ export function WaAutoConnectionCard() {
         return;
       }
       setConnection((res.connection || {}) as ConnectionState);
+      window.dispatchEvent(new CustomEvent("lexis-waauto-status", {
+        detail: { ready: String((res.connection as any)?.status || "").toLowerCase() === "ready" },
+      }));
     } catch (error: any) {
       setConnection({ status: 'offline', message: error?.message || 'Falha de comunicação com WA.Auto' });
     } finally {
