@@ -8,6 +8,7 @@ import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
 import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
 import { canAccessExistingCase } from '@/lib/case-edit-access';
+import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { resolveProcessoCliente } from '@/lib/processo-cliente';
 
 function iso(v: unknown): string | null {
@@ -424,7 +425,15 @@ export async function registrarAtendimentoCompletoAction(input: {
     const hoje = hojeBrasilYmd();
     const now = new Date().toISOString();
     const operationId = crypto.randomUUID();
-    const situacao = String(input.situacao || existing.dados?.situacao || existing.status_interno || 'EM ANDAMENTO').toUpperCase() === 'ENCERRADO' ? 'ENCERRADO' : 'EM ANDAMENTO';
+    const wasClosed = isCasoEncerrado(existing);
+    // Atendimento de processo encerrado NÃO é uma ação de reabertura.
+    // A reabertura só ocorre pela ação explícita 'Reabrir'.
+    const wantsClosed = String(input.situacao || existing.dados?.situacao || existing.status_interno || 'EM ANDAMENTO').toUpperCase() === 'ENCERRADO';
+    const situacao = (wasClosed || wantsClosed) ? 'ENCERRADO' : 'EM ANDAMENTO';
+    const originalStatus = String(existing.status || '').trim();
+    const preservedClosedStatus = wasClosed && isCasoEncerrado({ status: originalStatus })
+      ? originalStatus
+      : 'Encerrado';
     const prazoRaw = input.proximoPrazo !== undefined ? input.proximoPrazo : (existing.proximo_retorno ?? existing.dados?.proximoPrazo);
     const proximo = situacao === 'ENCERRADO' ? null : dateOrNull(prazoRaw);
     if (situacao !== 'ENCERRADO' && prazoRaw && !proximo) return { success: false, message: 'Informe uma data válida para o próximo retorno.' };
@@ -438,6 +447,7 @@ export async function registrarAtendimentoCompletoAction(input: {
       protocolo,
       situacao,
       statusManual: situacao === 'ENCERRADO' ? 'Encerrado' : 'Automatico',
+      status: situacao === 'ENCERRADO' ? preservedClosedStatus : (base.status || 'Sem Prazo'),
       ultimoRetorno: hoje,
       ultimo_retorno: hoje,
       proximoPrazo: proximo || '',
@@ -465,7 +475,7 @@ export async function registrarAtendimentoCompletoAction(input: {
       ultimo_retorno: hoje,
       proximo_retorno: proximo,
       observacoes: observacao,
-      status: situacao === 'ENCERRADO' ? 'Encerrado' : (base.status || existing.status || 'Sem Prazo'),
+      status: situacao === 'ENCERRADO' ? preservedClosedStatus : (base.status || 'Sem Prazo'),
       status_interno: situacao,
       atendido_por: ctx.auth_id || null,
       datajud_encerrado_tribunal: !!dados.datajud_encerrado_tribunal,

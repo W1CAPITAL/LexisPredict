@@ -150,6 +150,9 @@ export default function ProcessosEmpresaPage() {
     const role = resolveRole(profile as any);
     if (role === 'Supervisor' || role === 'Superadmin') return true;
     if (role === 'Visualizador' || role === 'Desconhecido') return false;
+    // Administrador pode regularizar encerrados da empresa, mesmo sem
+    // responsável em cadastros legados. O servidor verifica empresa e cargo.
+    if (role === 'Administrador' && isCasoEncerrado(item)) return true;
     return !!(profile as any)?.auth_user_id &&
       String((item as any).created_by || '') === String((profile as any).auth_user_id);
   };
@@ -299,7 +302,7 @@ export default function ProcessosEmpresaPage() {
       const updated: LegalCase = {
         ...editing,
         proximoPrazo: prazoIso,
-        statusManual: "Automatico" as any,
+        statusManual: (isCasoEncerrado(editing) ? "Encerrado" : "Automatico") as any,
         ultimoRetorno: iso || editing.ultimoRetorno,
         ...patchAuditoriaEdicao(
           (profile as any)?.auth_user_id || (profile as any)?.id
@@ -339,7 +342,8 @@ export default function ProcessosEmpresaPage() {
     if (!canManageItem(c)) return;
     setAttending(c);
     setAttendanceForm({
-      situacao: c.situacao || "EM ANDAMENTO",
+      // O contato em um caso encerrado não deve reabri-lo implicitamente.
+      situacao: isCasoEncerrado(c) ? "ENCERRADO" : (c.situacao || "EM ANDAMENTO"),
       observacao: c.observacao || "",
       proximoRetorno: c.proximoPrazo || "",
       filaLista: parseFilaListaFromObs(c.observacao),
@@ -423,8 +427,9 @@ export default function ProcessosEmpresaPage() {
         ...c,
         situacao: "EM ANDAMENTO",
         statusManual: "Automatico",
-        datajud_encerrado_tribunal: false,
-        datajud_encerrado_motivo: null,
+        // Reabertura é operacional: preservar evidência oficial de baixa no tribunal.
+        datajud_encerrado_tribunal: c.datajud_encerrado_tribunal,
+        datajud_encerrado_motivo: c.datajud_encerrado_motivo,
         tem_novo_andamento: false,
         djen_nova_comunicacao: false,
         tem_atualizacao_pos_retorno: false,
@@ -639,6 +644,7 @@ export default function ProcessosEmpresaPage() {
               setEditOpen(true);
             }}
             onAttend={(item) => openAttendance(item)}
+            onReopen={(item) => void handleReabrir(item)}
             onExportCsv={exportCsv}
             ownerNameByAuth={nomeByAuth}
           />
