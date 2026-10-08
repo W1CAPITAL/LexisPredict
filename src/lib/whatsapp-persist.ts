@@ -80,6 +80,7 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
       from_me: !!input.fromMe,
       timestamp: ts,
       message_id: mid,
+      ...(input.empresaId ? { empresa_id: input.empresaId } : {}),
     };
     const r2 = await sb.from('whatsapp_messages').insert(minimal).select('id').maybeSingle();
     if (r2.error) {
@@ -118,7 +119,7 @@ export function sameWhatsAppLine(stored: string, targetNormalized: string): bool
   return false;
 }
 
-export async function fetchMessagesByPhone(phone: string): Promise<{
+export async function fetchMessagesByPhone(phone: string, empresaId: string): Promise<{
   messages: any[];
   error?: string;
 }> {
@@ -126,6 +127,7 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   if (!sb) return { messages: [], error: 'Sem service role' };
   const num = normalizeBrPhone(phone);
   if (!num) return { messages: [], error: 'Telefone vazio' };
+  if (!empresaId) return { messages: [], error: 'Empresa não identificada.' };
 
   let variants: string[] = [num];
   try {
@@ -160,6 +162,7 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   let { data, error } = await sb
     .from('whatsapp_messages')
     .select('*')
+    .eq('empresa_id', empresaId)
     .or(orParts.join(','))
     .order('timestamp', { ascending: true })
     .limit(800);
@@ -169,6 +172,7 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
     const r = await sb
       .from('whatsapp_messages')
       .select('*')
+      .eq('empresa_id', empresaId)
       .or(orParts.join(','))
       .order('created_at', { ascending: true })
       .limit(800);
