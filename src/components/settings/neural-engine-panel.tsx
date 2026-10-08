@@ -64,6 +64,9 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
   const { toast } = useToast();
   const [iaModel, setIaModel] = useState("xai");
   const [scanWithFreeAi, setScanWithFreeAi] = useState(false);
+  const [colibriStatus, setColibriStatus] = useState<{
+    configured: boolean; reachable: boolean; model: string | null; reason: string | null;
+  } | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("lexisPredict_preferred_ia") || "xai";
@@ -71,6 +74,15 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
     setScanWithFreeAi(
       localStorage.getItem("lexisPredict_scan_puter_ai") === "1"
     );
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/ai/colibri-status", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data && !controller.signal.aborted) setColibriStatus(data); })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   const handleChangeModel = (val: string) => {
@@ -112,6 +124,26 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
               despacho é gerado em tom institucional neutro.
             </p>
           </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong className="text-sm text-foreground">Colibri · Servidor próprio</strong>
+            <Badge variant="outline" className="text-[10px]">
+              {colibriStatus?.reachable ? "Conectado" : colibriStatus?.configured ? "Sem conexão" : "Não configurado"}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {colibriStatus?.reachable
+              ? `Modelo ativo: ${colibriStatus.model}`
+              : colibriStatus?.reason || "Consultando status do servidor Colibri..."}
+          </p>
+          {!colibriStatus?.reachable && (
+            <p className="text-xs text-muted-foreground">
+              Configure COLIBRI_BASE_URL e COLIBRI_API_KEY na Vercel depois de iniciar o servidor HTTPS do Colibri.
+              A opção Colibri não encaminha documentos para provedores externos se estiver indisponível.
+            </p>
+          )}
         </div>
 
         <div className="space-y-3">
