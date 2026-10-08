@@ -10,10 +10,16 @@ export async function getDualDbHealthAction() {
   try {
     const results = await Promise.all(getWaReadClients().map(async ({ shard, client }) => {
       const started = Date.now();
-      const { count, error } = await client
-        .from('whatsapp_messages')
-        .select('id', { head: true, count: 'exact' });
-      return { shard, ok: !error, rows: count ?? null, latencyMs: Date.now() - started, error: error?.message || null };
+      // Independent count queries start together; a slow shard doesn't delay
+      // the launch of the other shard. Never expose credentials or row content.
+      const tableNames = ['whatsapp_messages', 'scan_metrics', 'alert_events'] as const;
+      const tables = await Promise.all(tableNames.map(async table => {
+        const t0 = Date.now();
+        const { count, error } = await client.from(table)
+          .select('id', { head: true, count: 'exact' });
+        return { table, rows: count ?? null, latencyMs: Date.now() - t0, ok: !error, error: error?.message || null };
+      }));
+      return { shard, ok: tables.every(t => t.ok), latencyMs: Date.now() - started, tables };
     }));
     return {
       ok: results.every(r => r.ok),

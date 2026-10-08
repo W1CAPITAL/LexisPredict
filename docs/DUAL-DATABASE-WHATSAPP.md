@@ -2,7 +2,7 @@
 
 ## Scope
 - **Primary Supabase:** authentication, companies, users, roles, legal cases, DJEN and all current business tables.
-- **Secondary Supabase:** a second independent PostgreSQL/Supabase project for part of the WhatsApp message history only.
+- **Secondary Supabase:** a second independent PostgreSQL/Supabase project for approximately half of new WhatsApp history and operational telemetry (`scan_metrics`, `alert_events`).
 - **Write placement:** stable FNV-1a hash over the final eight phone digits, approximately 50/50 **by distinct phone numbers** across both databases (not guaranteed equal message counts, disk bytes, query time or CPU).
 - **Read placement:** history searches both databases **in parallel**, merges by message ID and timestamp, returning partial data plus an explicit warning if a shard fails. Writes NEVER retry on the other shard, preventing silent divergence.
 - **Storage:** each new message is written to exactly one database. When sharding is active, provider raw JSON (often very large) is off by default. Enable `LEXIS_WA_STORE_RAW=true` only if required.
@@ -21,9 +21,16 @@
 6. Historical data is **not migrated or deleted automatically**. Export, verify, then migrate rows using a separate audited script with idempotency before reducing storage in primary.
 
 ## Limitations and required follow-up
-- This PR splits **WhatsApp message writes**, not `processos` or `auditoria_logs_app`. Those remain primarily on the original Supabase. It is not a 50/50 split of the whole application.
+- This branch also shards **new** `scan_metrics` and `alert_events` rows by per-event UUID hash. It does not move existing rows or split `processos` or legally significant `auditoria_logs_app`; those remain entirely on the original Supabase. This is not a 50/50 split of the whole application.
 - Exact 50/50 load is impossible with deterministic hashing alone: one active contact may generate thousands of messages. Observe per-shard CPU, IO, bytes, p95 latency, and active connections before expanding.
 - Main dashboard performance still requires query plans and targeted pagination; duplicating an entire DB for read balancing would **increase** storage and costs.
 - Webhook records without `empresa_id` need a trusted Evolution-instance→tenant mapping before sharing access across tenants. Historical deletion is intentionally tenant-scoped; null-tenant legacy entries require controlled admin cleanup.
 - A second Supabase project can increase total subscription/compute costs; compare plan limits before provisioning.
 - Never configure both URLs to the same Supabase project; the router rejects it.
+
+## Real W1CAPITAL database sizing and rollout (2026-10-08)
+The original W1 Supabase has roughly 55 MB in `auditoria_logs_app`, 29 MB in `processos`, 19 MB in `scan_metrics`, 18 MB in `alert_events`, but **zero rows** in `whatsapp_messages`. Thus WhatsApp-only sharding does not save meaningful space now. Event-per-row telemetry routing is chosen over stable-by-protocol routing to distribute frequent scanner writes across both services.
+
+Two independent databases can **increase total price and connections**. Parallel reads improve completeness and may reduce wall-clock time, but **cannot guarantee equal CPU, disk or latency**. This design performs no automatic cross-shard data migrations, deletions, replication or split of legal-case transactions. Older telemetry stays on primary until an independently reviewed, idempotent migration.
+
+**Do not enable** `LEXIS_DUAL_DB_MODE=sharded` before W1 confirms the second Supabase organization/project, deploys the schema, configures service-only credentials, validates tenant isolation and measures reads/writes in Preview. Never use W2CAPITAL API keys or projects as the second W1 database.

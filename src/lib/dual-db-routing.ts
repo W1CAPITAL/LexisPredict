@@ -71,3 +71,28 @@ export function getWaWriteClient(phone: string): ShardClient {
 export function shouldStoreWhatsAppRaw(): boolean {
   return !isDualDbEnabled() || process.env.LEXIS_WA_STORE_RAW === 'true';
 }
+
+/**
+ * Per-event telemetry placement. Unlike contact-affine WhatsApp messages,
+ * scans and alerts have no cross-event transactional requirement, so each
+ * independent event is hashed separately to reduce hot-contact skew.
+ */
+export function shardForTelemetryEvent(eventId: string): DatabaseShard {
+  const key = String(eventId || '').trim();
+  if (!key) throw new Error('Identificador de telemetria obrigatório');
+  let hash = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % 2 === 0 ? 'primary' : 'secondary';
+}
+
+export function getTelemetryWriteClient(eventId: string): ShardClient {
+  const clients = getWaReadClients();
+  if (clients.length === 1) return clients[0];
+  const target = shardForTelemetryEvent(eventId);
+  const selected = clients.find(c => c.shard === target);
+  if (!selected) throw new Error('Banco de telemetria indisponível');
+  return selected;
+}
