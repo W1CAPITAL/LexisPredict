@@ -5,8 +5,8 @@ const KEY='lexis_carteira_client_v4';
 const TTL_MS=30*60*1000;
 type Box={at:number;empresaKey:string;cases:LegalCase[]};
 let box:Box|null=null; let inflight:Promise<LegalCase[]>|null=null; let inflightKey='';
-function read(key:string):Box|null{try{const p=JSON.parse(localStorage.getItem(KEY)||'null');if(!p||p.empresaKey!==key||!Array.isArray(p.cases))return null;return p;}catch{return null;}}
-function write(v:Box){try{localStorage.setItem(KEY,JSON.stringify(v));}catch{}}
+function read(_key:string):Box|null{return null;}
+function write(_v:Box){/* Avoid blocking localStorage serialization of legal records. */}
 export function peekCarteiraClientCache(empresaKey='default'):LegalCase[]|null{const b=box&&box.empresaKey===empresaKey?box:read(empresaKey);if(!b)return null;box=b;return Date.now()-b.at<TTL_MS?b.cases:null;}
 export function seedCarteiraClientCache(cases:LegalCase[],empresaKey='default'){box={at:Date.now(),empresaKey,cases:Array.isArray(cases)?cases:[]};if(box.cases.length)write(box);}
 export function invalidateCarteiraClientCache(){box=null;inflight=null;inflightKey='';try{localStorage.removeItem(KEY);}catch{}}
@@ -116,35 +116,50 @@ export function mergeCarteiraPages(
  * Carteira completa com entrega progressiva.
  * A primeira página libera a UI; páginas seguintes continuam em background.
  */
+/**
+ * Progressive loading: small first response unlocks the screen. Remaining
+ * pages are yielded to React on each chunk, without sending full JSON fields.
+ * If an intermediate page fails, keep the already-loaded data on screen.
+ */
 export async function fetchCarteiraAllClient(opts: {
   empresaId: string;
   pageSize?: number;
+  firstPageSize?: number;
   onlyAtivos?: boolean;
+  maxRows?: number;
   onPage?: (cases: LegalCase[], page: number) => void;
+  onError?: (error: unknown) => void;
 }): Promise<LegalCase[]> {
   if (!opts.empresaId) return [];
-
-  const pageSize = Math.max(50, Math.min(Number(opts.pageSize || 300), 500));
+  const pageSize = Math.max(40, Math.min(Number(opts.pageSize || 160), 250));
+  const firstSize = Math.max(20, Math.min(Number(opts.firstPageSize || 36), pageSize));
+  const maxRows = Math.max(firstSize, Math.min(Number(opts.maxRows || 10000), 10000));
   let page = 0;
+  let offset = 0;
   let all: LegalCase[] = [];
 
-  while (true) {
-    const next = await fetchCarteiraPageClient({
-      empresaId: opts.empresaId,
-      limit: pageSize,
-      offset: page * pageSize,
-      onlyAtivos: opts.onlyAtivos,
-    });
-
+  while (offset < maxRows) {
+    const limit = Math.min(page === 0 ? firstSize : pageSize, maxRows - offset);
+    let next: LegalCase[];
+    try {
+      next = await fetchCarteiraPageClient({
+        empresaId: opts.empresaId,
+        limit,
+        offset,
+        onlyAtivos: opts.onlyAtivos,
+      });
+    } catch (error) {
+      opts.onError?.(error);
+      if (all.length) return all;
+      throw error;
+    }
+    offset += next.length;
     all = mergeCarteiraPages(all, next);
     opts.onPage?.(all, page);
-
-    if (next.length < pageSize) break;
+    if (next.length < limit) break;
     page += 1;
-
-    // Cede o event loop entre páginas para a UI permanecer responsiva.
+    // Break up work so navigation, clicks and paint are not starved.
     await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
   }
-
   return all;
 }

@@ -172,7 +172,8 @@ export default function ProcessosEmpresaPage() {
   const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState(0);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
-  const [loading, setLoading] = useState(() => !peekCarteiraCache(null, "empresa")?.cases?.length);
+  const [loading, setLoading] = useState(true);
+  const [carteiraError, setCarteiraError] = useState('');
   const [q, setQ] = useState("");
   const qDebounced = useDebouncedValue(q, 300);
   const [statusFilter, setStatusFilter] = useState("");
@@ -200,6 +201,7 @@ export default function ProcessosEmpresaPage() {
 
   const load = async () => {
     setLoading(true);
+    setCarteiraError('');
     try {
       // First render: one short HTTP request for 60 cases + one DB summary.
       // Never wait for full ranking, DJEN audits or all case JSON.
@@ -212,6 +214,7 @@ export default function ProcessosEmpresaPage() {
       setHasServerMore(res.hasMore);
       setOnlyAtivosList(false);
     } catch (error) {
+      setCarteiraError(error instanceof Error ? error.message : 'O servidor não respondeu.');
       toast({
         title: 'Erro ao carregar carteira da empresa',
         description: error instanceof Error ? error.message : 'O servidor não respondeu.',
@@ -587,6 +590,14 @@ export default function ProcessosEmpresaPage() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden min-h-0">
       <Sidebar />
+      {(loading || loadingMore) && <div role="status" aria-live="polite"
+        className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-xl border bg-background/95 px-3 py-2 text-xs font-semibold text-primary shadow-lg">
+        {cases.length ? `${cases.length} processos da empresa disponíveis` : 'Consultando Supabase…'}
+      </div>}
+      {carteiraError && <div role="alert"
+        className="fixed bottom-16 right-4 z-40 max-w-sm rounded-xl border border-destructive/30 bg-background px-3 py-2 text-xs text-destructive shadow">
+        {carteiraError}
+      </div>}
       <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
         <DataJudScannerPanel />
 

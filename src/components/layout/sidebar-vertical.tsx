@@ -297,13 +297,8 @@ export function SidebarVertical() {
     setQuery("");
   }, [pathname]);
 
-  useEffect(() => {
-    const routes = ["/", "/cases", "/tarefas", "/whatsapp", "/dossies", "/settings", "/agenda"];
-    const id = window.setTimeout(() => {
-      for (const href of routes) router.prefetch(href);
-    }, 500);
-    return () => window.clearTimeout(id);
-  }, [router]);
+  // Avoid eagerness: route prefetches pass through middleware and Supabase auth.
+  // Navigation uses the selected destination on demand.
 
   useEffect(() => {
     if (!navigatingTo) return;
