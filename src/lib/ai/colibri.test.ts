@@ -20,7 +20,7 @@ describe('Colibri integration', () => {
   });
   it('discovers the actual light model rather than sending the invalid identifier auto', async () => {
     const cfg = colibriConfig({ NODE_ENV: 'production', COLIBRI_BASE_URL: 'https://llm-qwen.example.com/v1', COLIBRI_MODEL: 'auto' })!;
-    const fake = vi.fn(async () => ({ ok: true, json: async () => ({ data: [{ id: 'qwen3-coder-30b-colibri' }] }) }));
+    const fake = vi.fn(async (_url: RequestInfo | URL) => ({ ok: true, json: async () => ({ data: [{ id: 'qwen3-coder-30b-colibri' }] }) }));
     vi.stubGlobal('fetch', fake);
     expect(await discoverColibriModel(cfg)).toBe('qwen3-coder-30b-colibri');
     expect(String(fake.mock.calls[0]?.[0])).toBe('https://llm-qwen.example.com/v1/models');
