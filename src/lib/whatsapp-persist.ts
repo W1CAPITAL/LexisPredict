@@ -3,6 +3,7 @@
  */
 import { getWaReadClients, getWaWriteClient, shouldStoreWhatsAppRaw } from '@/lib/dual-db-routing';
 import { normalizeBrPhone } from '@/lib/evolution-api';
+import { getUserContext } from '@/lib/server-db';
 
 export type WaPersistInput = {
   contactNumber: string;
@@ -48,7 +49,8 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
     instance_name: input.instanceName || process.env.EVOLUTION_INSTANCE || 'Lexis',
     timestamp: ts,
   };
-  if (input.empresaId) full.empresa_id = input.empresaId;
+  if (!input.empresaId) return { ok: false, error: 'Empresa obrigatória para gravar histórico.' };
+  full.empresa_id = input.empresaId;
   if (input.raw && shouldStoreWhatsAppRaw()) full.raw_payload = input.raw;
   let sb;
   try {
@@ -62,6 +64,7 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
   if (error) {
     // Tentativa 2: mínimo
     const minimal: Record<string, any> = {
+      empresa_id: input.empresaId,
       contact_number: num,
       message_text: text,
       from_me: !!input.fromMe,
@@ -109,6 +112,8 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   messages: any[];
   error?: string;
 }> {
+  const ctx = await getUserContext();
+  if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer) return { messages: [], error: 'Sessão não autorizada para ler mensagens.' };
   let clients;
   try {
     clients = getWaReadClients();
@@ -153,6 +158,7 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
     let { data, error } = await client
       .from('whatsapp_messages')
       .select('*')
+      .eq('empresa_id', ctx.empresa_id)
       .or(orParts.join(','))
       .order('timestamp', { ascending: false })
       .limit(800);
@@ -160,6 +166,7 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
       const retry = await client
         .from('whatsapp_messages')
         .select('*')
+        .eq('empresa_id', ctx.empresa_id)
         .or(orParts.join(','))
         .order('created_at', { ascending: false })
         .limit(800);

@@ -87,6 +87,10 @@ export async function POST(request: Request) {
     if (!messageText.trim()) {
       return NextResponse.json({ status: 'ignored_empty_text' });
     }
+    // Tenant ID from a webhook request is not trustworthy, even when a token
+    // is known. Set a server-controlled instance-to-tenant mapping for W1.
+    const trustedEmpresaId = String(process.env.LEXIS_WEBHOOK_EMPRESA_ID || process.env.LEXIS_HYBRID_EMPRESA_ID || '').trim();
+    if (!trustedEmpresaId) return NextResponse.json({ error: 'Empresa do webhook não configurada' }, { status: 503 });
     const stored = await persistWhatsAppMessage({
       instanceName: payload.instance || 'Lexis',
       contactNumber,
@@ -98,7 +102,7 @@ export async function POST(request: Request) {
       source: 'evolution-webhook',
       timestamp: new Date(Number(data.messageTimestamp || Date.now() / 1000) * 1000).toISOString(),
       raw: payload,
-      empresaId: payload.empresa_id || null,
+      empresaId: trustedEmpresaId,
     });
     if (!stored.ok) {
       console.error('[Webhook Error]', stored.error);

@@ -2,7 +2,7 @@
 -- Do not run on the current production database as a migration of existing data.
 create table if not exists public.whatsapp_messages (
   id uuid primary key default gen_random_uuid(),
-  empresa_id uuid null,
+  empresa_id uuid not null,
   instance_name text null,
   contact_number text not null,
   contact_name text null,

@@ -34,3 +34,9 @@ The original W1 Supabase has roughly 55 MB in `auditoria_logs_app`, 29 MB in `pr
 Two independent databases can **increase total price and connections**. Parallel reads improve completeness and may reduce wall-clock time, but **cannot guarantee equal CPU, disk or latency**. This design performs no automatic cross-shard data migrations, deletions, replication or split of legal-case transactions. Older telemetry stays on primary until an independently reviewed, idempotent migration.
 
 **Do not enable** `LEXIS_DUAL_DB_MODE=sharded` before W1 confirms the second Supabase organization/project, deploys the schema, configures service-only credentials, validates tenant isolation and measures reads/writes in Preview. Never use W2CAPITAL API keys or projects as the second W1 database.
+
+## Access control hardening
+- A trusted W1 `LEXIS_WEBHOOK_EMPRESA_ID` (or existing W1 `LEXIS_HYBRID_EMPRESA_ID`) must map Evolution webhook traffic to the correct W1 tenant. Never accept `payload.empresa_id` from a webhook as authority.
+- All history reads are scoped to the authenticated tenant even though shard clients use server-side service-role keys.
+- New WhatsApp history rows require `empresa_id`, including fallback inserts. The secondary schema makes it mandatory. Missing tenant mapping is an explicit failure, not a cross-tenant default.
+- No secondary credentials may be exposed to client bundles or `NEXT_PUBLIC_*` settings.

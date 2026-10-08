@@ -291,6 +291,9 @@ export async function logOutboundWhatsAppAction(to: string, message: string) {
 /** Insere mensagem de teste no Supabase e devolve o resultado (para depurar na UI). */
 export async function testSaveWhatsAppMessageAction(phone: string) {
   const { persistWhatsAppMessage, fetchMessagesByPhone } = await import('@/lib/whatsapp-persist');
+  const { getUserContext } = await import('@/lib/server-db');
+  const ctx = await getUserContext();
+  if (!ctx.auth_id || !ctx.empresa_id) return { success: false, error: 'Sessão expirada.' };
   const n = normalizeBrPhone(phone);
   if (!n) return { success: false, error: 'Telefone vazio no cadastro do cliente' };
   const saved = await persistWhatsAppMessage({
@@ -298,6 +301,7 @@ export async function testSaveWhatsAppMessageAction(phone: string) {
     messageText: `TESTE LEXIS ${new Date().toLocaleString('pt-BR')} — se você vê isto, o Supabase está gravando.`,
     fromMe: true,
     source: 'lexis-test-button',
+    empresaId: ctx.empresa_id,
   });
   if (!saved.ok) {
     return { success: false, error: saved.error, phone: n };
@@ -320,6 +324,9 @@ export async function testSaveWhatsAppMessageAction(phone: string) {
 export async function importEvolutionHistoryAction(phone: string) {
   try {
     const { fetchChatMessagesFromEvolution } = await import('@/lib/evolution-api');
+    const { getUserContext } = await import('@/lib/server-db');
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id) return { success: false, error: 'Sessão expirada', imported: 0, found: 0 };
     const { persistWhatsAppMessage, fetchMessagesByPhone } = await import(
       '@/lib/whatsapp-persist'
     );
@@ -361,6 +368,7 @@ export async function importEvolutionHistoryAction(phone: string) {
         contactName: m.pushName,
         remoteJid: m.remoteJid,
         source: 'evolution-import',
+        empresaId: ctx.empresa_id,
         timestamp: m.timestamp,
         raw: m.raw,
       });
@@ -413,7 +421,7 @@ export async function importEvolutionHistoryBulkAction(opts?: {
     const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
 
     const ctx = await getUserContext();
-    if (!ctx.empresa_id) {
+    if (!ctx.empresa_id || !ctx.auth_id) {
       return { success: false, error: 'Sessão expirada', scanned: 0, imported: 0, skipped: 0 };
     }
 
@@ -469,6 +477,7 @@ export async function importEvolutionHistoryBulkAction(opts?: {
             contactName: m.pushName,
             remoteJid: jid,
             source: 'evolution-bulk',
+            empresaId: ctx.empresa_id,
             timestamp: m.timestamp,
             raw: m.raw,
           });
