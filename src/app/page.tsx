@@ -123,11 +123,7 @@ export default function Dashboard() {
         fetchNetwork: async () =>
           await fetchCarteiraAllClient({
             empresaId: empId,
-            pageSize: 300,
-            onPage: (partial, page) => {
-              if (page === 0) setLoading(false);
-              setCases(partial);
-            },
+            pageSize: 500,
           }),
         empresaId: empId,
         scope: caseScope,

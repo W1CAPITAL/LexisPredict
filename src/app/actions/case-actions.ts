@@ -106,11 +106,11 @@ function getWeight(t: string | null | undefined): number {
   return weights[t] || 0;
 }
 
-export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminView = false) {
+export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminView = false, includeDetails = false) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [];
   // Híbrido: Postgres é fonte da verdade na UI. Planilha só espelha (write).
-  return await getStoredCasesPageForEmpresa(ctx.empresa_id, limit, offset, adminView);
+  return await getStoredCasesPageForEmpresa(ctx.empresa_id, limit, offset, adminView, { includeDetails });
 }
 
 export async function fetchRepoCases() {
