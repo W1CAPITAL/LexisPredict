@@ -27,6 +27,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -1255,12 +1256,12 @@ function WhatsAppTerminalInner() {
                 <div className="p-2 space-y-1 min-h-[200px]">
                   {listSource === "evolution" && evoLoading && (
                     <div className="flex justify-center py-10 text-muted-foreground">
-                      <Loader2 className="animate-spin" />
+                      <LexisThinkingOrb state="connecting" size={64} aria-label="Carregando conversas" />
                     </div>
                   )}
                   {listSource === "carteira" && loading && (
                     <div className="flex justify-center py-10 text-muted-foreground">
-                      <Loader2 className="animate-spin" />
+                      <LexisThinkingOrb state="searching" size={64} aria-label="Consultando carteira" />
                     </div>
                   )}
                   {listSource === "evolution" && !evoLoading &&

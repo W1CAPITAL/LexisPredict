@@ -4,6 +4,7 @@ import React from "react";
 import { Loader2, Sparkles, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
 
 /**
  * Botão "Sugerir resposta" com animação de pulso/scan neural.
@@ -37,7 +38,7 @@ export function SuggestReplyButton({
         <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-amber-300/30 to-transparent animate-[shimmer_1.2s_infinite]" />
       )}
       {loading ? (
-        <Loader2 size={14} className="animate-spin shrink-0" />
+        <LexisThinkingOrb state="composing" size={20} />
       ) : (
         <span className="relative flex items-center gap-1">
           <Sparkles size={14} className="shrink-0 animate-pulse" />
