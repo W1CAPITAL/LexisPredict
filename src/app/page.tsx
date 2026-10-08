@@ -16,7 +16,7 @@ import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashb
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo, startTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card'
@@ -96,8 +96,12 @@ export default function Dashboard() {
   const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
   const { profile } = useAdmin();
   const caseScope = resolveCaseScope(profile as any);
+  const empresaId = String((profile as any)?.empresa_id || '');
+  const authUserId = String((profile as any)?.auth_user_id || '');
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
+  const [syncingCases, setSyncingCases] = useState(false);
+  const [carteiraError, setCarteiraError] = useState('');
   const [mounted, setMounted] = useState(false);
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
@@ -114,39 +118,49 @@ export default function Dashboard() {
   }, []);
 
   const loadData = useCallback(async () => {
+    if (!empresaId || !authUserId) return;
     setLoading(true);
+    setSyncingCases(true);
+    setCarteiraError('');
     try {
-      const empId = (profile as any)?.empresa_id || null;
-      if (!empId) return;
-
       const cachedRun = await loadCarteiraComCache({
-        fetchNetwork: async () =>
-          await fetchCarteiraAllClient({
-            empresaId: empId,
-            pageSize: 500,
-          }),
-        empresaId: empId,
+        fetchNetwork: () => fetchCarteiraAllClient({
+          empresaId,
+          firstPageSize: 36,
+          pageSize: 160,
+          onPage: (partial, page) => {
+            // Unblock on the first 36 records; consolidate the remaining pages
+            // with transitions so UI interactions stay responsive.
+            if (page === 0) {
+              setCases(partial);
+              setLoading(false);
+            } else if (page % 2 === 0) {
+              startTransition(() => setCases(partial));
+            }
+          },
+          onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha parcial no Supabase'),
+        }),
+        empresaId,
         scope: caseScope,
-        userId: (profile as any)?.auth_user_id || null,
+        userId: authUserId,
         onShow: (caseData, source) => {
-          if (Array.isArray(caseData)) setCases(caseData);
+          if (Array.isArray(caseData)) startTransition(() => setCases(caseData));
           if (source === 'cache') setLoading(false);
         },
+        onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha ao consultar Supabase'),
         allowStaleKpiFallback: true,
       });
-      const caseData = cachedRun.cases;
-        try {
-          const baRes = await fetchBaHitProtocolosAction();
-          if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
-        } catch { /* */ }
-      if (Array.isArray(caseData)) {
-        setCases(caseData);
-        updateLastSync();
-      }
+      if (cachedRun.cases.length) updateLastSync();
+      // Noncritical tribunal badges must not delay first paint.
+      try {
+        const baRes = await fetchBaHitProtocolosAction();
+        if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
+      } catch { /* optional */ }
     } finally {
       setLoading(false);
+      setSyncingCases(false);
     }
-  }, [setCases, updateLastSync, profile, caseScope]);
+  }, [setCases, updateLastSync, empresaId, authUserId, caseScope]);
 
   useEffect(() => {
     setMounted(true);
@@ -282,6 +296,12 @@ export default function Dashboard() {
   return (
     <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
+      {syncingCases && <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-xl border bg-background/95 px-3 py-2 text-xs font-semibold text-primary shadow-lg">
+        Sincronizando carteira · {cases.length} processos recebidos…
+      </div>}
+      {carteiraError && <div role="alert" className="fixed bottom-16 right-4 z-40 max-w-sm rounded-xl border border-destructive/30 bg-background px-3 py-2 text-xs text-destructive shadow">
+        Sincronização parcial: {carteiraError}
+      </div>}
       <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
         <header className="admin-page-header relative flex shrink-0 items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
           <div>
