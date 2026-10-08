@@ -5,6 +5,7 @@
  * Helpers sincronos ficam em chat-parse.ts (sem use server).
  */
 import { runCascade, type ChatTurn, type VisionImage } from '@/lib/ai/cascade';
+import { normalizeAssistantMotorChoice } from '@/lib/ai/chat-preference';
 import { parseThinkingAnswer, isSimplePrompt } from '@/lib/ai/chat-parse';
 import { extractCnjFromText } from '@/lib/ai/motors';
 import { buildCognitivePlan } from '@/lib/cognitive/orchestrator';
@@ -115,7 +116,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   }
 
   const simple = isSimplePrompt(pergunta, hasImg || hasPdf);
-  const preferred = (input.preferred || input.preferredModel || 'omni').toLowerCase();
+  const preferred = normalizeAssistantMotorChoice(input.preferred || input.preferredModel);
   const cognitivePlan = buildCognitivePlan({
     text: pergunta || (hasPdf ? 'ler documento' : 'analisar imagem'),
     hasImage: hasImg,
@@ -200,12 +201,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   try {
     const r = await runCascade({
       preferred,
-      forceEngineId:
-        preferred.includes('claude') || preferred.includes('omni') || preferred.includes('anthropic')
-          ? 'claude'
-          : preferred === 'auto'
-            ? undefined
-            : preferred,
+      forceEngineId: preferred === 'auto' ? undefined : preferred,
       surface: 'chat',
       system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem,
       messages: history,
@@ -259,7 +255,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     };
   } catch (e: any) {
     return {
-      resposta: `IA indisponivel: ${e?.message || e}`,
+      resposta: 'Assistente temporariamente indisponível: os motores configurados não responderam. Verifique os créditos, modelos e o servidor Colibri (se configurado).',
       thinking: null,
       engineUtilizada: 'FALLBACK',
       latencia: 0,

@@ -9,6 +9,7 @@ import { extractCnjFromText as extractCnjFromTextImpl } from '@/lib/cnj-extract'
 export type MotorId =
   | 'omni'
   | 'minimax'
+  | 'colibri'
   | 'local_only'
   | 'claude'
   | 'xai'
@@ -38,7 +39,7 @@ export const MOTORS: MotorDef[] = [
     id: 'omni',
     label: 'Cascata automática',
     short: 'Cascata',
-    desc: 'MiniMax → Claude → Grok → Groq → NVIDIA → OpenRouter → Gemini. Token esgotado = próximo sem erro na tela.',
+    desc: 'Colibri (quando hospedado) → MiniMax → Claude → Groq → xAI → OpenRouter → Gemini. Se falhar, tenta o próximo.',
     scope: 'server',
   },
   {
@@ -48,6 +49,14 @@ export const MOTORS: MotorDef[] = [
     desc: 'MiniMax (Anthropic/OpenAI compatible). Principal na cascata quando MINIMAX_API_KEY está no Vercel.',
     scope: 'server',
     envKey: 'MINIMAX_API_KEY',
+  },
+  {
+    id: 'colibri',
+    label: 'Colibri próprio (servidor)',
+    short: 'Colibri',
+    desc: 'Motor de IA hospedado pela empresa, acessível via COLIBRI_BASE_URL (HTTPS).',
+    scope: 'server',
+    envKey: 'COLIBRI_BASE_URL',
   },
   {
     id: 'local_only',
@@ -141,6 +150,7 @@ export function resolveMotorId(id?: string | null): MotorId {
   if (s === 'local_only' || s === 'local' || s === 'lexis') return 'local_only';
   if (s === 'omni' || s === 'auto') return 'omni';
   if (s.includes('minimax')) return 'minimax';
+  if (s.includes('colibri')) return 'colibri';
   const known = MOTORS.find((m) => m.id === s);
   if (known) return known.id;
   if (s.includes('claude') || s.includes('anthropic')) return 'claude';
