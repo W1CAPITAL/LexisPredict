@@ -1394,7 +1394,7 @@ export async function fetchCompanyProcessosAction() {
         console.error("[company] kpis", e?.message);
         return { ok: false as const, total: 0, ativos: 0, vencidos: 0 };
       }),
-      getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: true, companyReadOnly: true }).catch((e: any) => {
+      getStoredCasesPageForEmpresa(empresa_id, 120, 0, true, { onlyAtivos: false, companyReadOnly: true }).catch((e: any) => {
         console.error("[company] page ativos", e?.message);
         return [] as any[];
       }),

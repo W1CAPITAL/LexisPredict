@@ -194,7 +194,7 @@ export default function ProcessosEmpresaPage() {
   const [visibleCount, setVisibleCount] = useState(24);
   const [listOffset, setListOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [onlyAtivosList, setOnlyAtivosList] = useState(true);
+  const [onlyAtivosList, setOnlyAtivosList] = useState(false);
   const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 24;
 
