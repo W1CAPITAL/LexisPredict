@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from '@/hooks/use-admin';
+import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
 import {
   waAutoConnectAction,
   waAutoConnectionAction,
@@ -26,7 +27,8 @@ type ConnectionState = {
 
 export function WaAutoConnectionCard() {
   const { toast } = useToast();
-  const { isAdmin: canManageSession } = useAdmin();
+  const { profile } = useAdmin();
+  const { canManage: canManageSession } = resolveWaAutoPermissions(profile as any);
   const [connection, setConnection] = useState<ConnectionState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -75,6 +77,8 @@ export function WaAutoConnectionCard() {
       }
       setConnection((res.connection || {}) as ConnectionState);
       window.setTimeout(() => void refresh(true), 1500);
+    } catch (error: any) {
+      toast({ title: "Falha ao conectar", description: error?.message || "O serviço não respondeu.", variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -95,6 +99,8 @@ export function WaAutoConnectionCard() {
       }
       setConnection((res.connection || {}) as ConnectionState);
       window.setTimeout(() => void refresh(true), 1500);
+    } catch (error: any) {
+      toast({ title: "Falha ao parear", description: error?.message || "O serviço não respondeu.", variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -109,6 +115,8 @@ export function WaAutoConnectionCard() {
         return;
       }
       setConnection((res.connection || {}) as ConnectionState);
+    } catch (error: any) {
+      toast({ title: "Falha ao desconectar", description: error?.message || "O serviço não respondeu.", variant: "destructive" });
     } finally {
       setBusy(false);
     }
