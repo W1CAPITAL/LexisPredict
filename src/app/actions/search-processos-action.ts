@@ -28,7 +28,7 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
     const { processarCaso } = await import("@/lib/case-logic");
 
     const ctx = await getUserContext();
-    if (!ctx?.empresa_id) return { ok: false, cases: [], error: "sem empresa" };
+    if (!ctx?.empresa_id || !ctx?.auth_id) return { ok: false, cases: [], error: "sem sessão ou empresa" };
 
     const admin = await getSupabaseAdmin();
     if (!admin) return { ok: false, cases: [], error: "admin" };

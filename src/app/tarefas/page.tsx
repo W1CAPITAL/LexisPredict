@@ -279,6 +279,7 @@ export default function TarefasPage() {
           }),
         empresaId: empId,
         scope: resolveCaseScope(profile as any),
+        userId: (profile as any)?.auth_user_id || null,
         onShow: (data, source) => {
           if (Array.isArray(data)) startTransition(() => setCases(data));
           if (source === 'cache') setLoading(false);

@@ -8,6 +8,7 @@ import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
 import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
 import { canAccessExistingCase } from '@/lib/case-edit-access';
+import { resolveProcessoCliente } from '@/lib/processo-cliente';
 
 function iso(v: unknown): string | null {
   if (v === undefined || v === null) return null;
@@ -123,6 +124,13 @@ async function persistToDatabase(
     protocolo_ref: protocolo,
     dados: mergedDados,
   });
+  // A fonte tipada precisa acompanhar o JSON para as listas rápidas.
+  // Nunca sobrescrever nome existente com o marcador "SEM NOME".
+  const nome = resolveProcessoCliente({ cliente: processed.cliente, dados: mergedDados });
+  if (nome !== 'SEM NOME') {
+    payload.cliente = nome;
+    mergedDados.cliente = nome;
+  }
   const ultimoCol = dateOrNull(
     processed.ultimo_retorno ?? processed.ultimoRetorno ?? processed.ULTIMO_RETORNO ?? mergedDados.ultimoRetorno
   );
