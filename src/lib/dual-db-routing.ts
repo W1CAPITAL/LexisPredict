@@ -3,9 +3,9 @@
  * Auth, tenant permissions, users and processes remain on the PRIMARY Supabase.
  * Every shard is accessed on the server with service-role credentials ONLY.
  */
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-type DatabaseClient = ReturnType<typeof createClient>;
+type DatabaseClient = SupabaseClient<any>;
 export type DatabaseShard = 'primary' | 'secondary';
 export type ShardClient = { shard: DatabaseShard; client: DatabaseClient };
 
