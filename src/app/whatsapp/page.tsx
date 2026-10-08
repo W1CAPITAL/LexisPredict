@@ -58,6 +58,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { WaAutoConnectionCard } from "@/components/whatsapp/wa-auto-connection-card";
+import { MovementCampaignControl } from "@/components/whatsapp/movement-campaign-control";
 import {
   fetchRepoCasesPageAction,
   registrarAtendimentoAction,
@@ -1073,7 +1074,7 @@ function WhatsAppTerminalInner() {
               resolve({
                 success: false,
                 message:
-                  "Tempo esgotado (90s). Confira o WA.Auto; se ele estiver offline, o fallback Evolution também pode estar indisponível.",
+                  "Tempo esgotado (90s). Confira a conversa no WA.Auto antes de tentar novamente para evitar duplicidade.",
               }),
             90000
           )
@@ -1139,24 +1140,25 @@ function WhatsAppTerminalInner() {
 
   return (
     <>
-      <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      <div className="flex h-[calc(100dvh-64px)] min-h-0 bg-background text-foreground overflow-hidden">
         <Sidebar />
-        <main className="lexis-main-pad flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-          <header className="shrink-0 border-b border-border/60 bg-card/80 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <main className="lexis-main-pad flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden pb-[82px] md:pb-[78px]">
+          <header className="shrink-0 border-b border-border/60 bg-card/80 backdrop-blur px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
                 <MessageCircle size={20} />
               </div>
               <div className="min-w-0">
-                <h1 className="font-black uppercase text-sm sm:text-base tracking-tight truncate">
+                <h1 className="font-black uppercase text-sm tracking-tight truncate">
                   Terminal WhatsApp
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium truncate">
-                  Andamentos · IA · histórico · WA.Auto com fallback
+                  Andamentos · IA · histórico · WA.Auto conectado
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end">
+            <div className="flex min-w-0 items-center gap-1.5 flex-wrap justify-end">
+              <MovementCampaignControl />
               <Button
                 type="button"
                 variant="outline"
@@ -1206,9 +1208,9 @@ function WhatsAppTerminalInner() {
 
           <WaAutoConnectionCard />
 
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12">
+          <div className="flex-1 min-h-0 grid grid-cols-1 grid-rows-[minmax(120px,25dvh)_minmax(0,1fr)] md:grid-cols-12 md:grid-rows-1 overflow-hidden">
             {/* Lista */}
-            <aside className="lg:col-span-4 xl:col-span-3 border-r border-border/50 flex flex-col min-h-0 bg-card/40">
+            <aside className="md:col-span-4 xl:col-span-3 border-r border-border/50 border-b md:border-b-0 flex flex-col min-h-0 bg-card/40 overflow-hidden">
               <div className="p-3 border-b border-border/40">
                 <div className="relative">
                   <Search
@@ -1366,7 +1368,7 @@ function WhatsAppTerminalInner() {
             </aside>
 
             {/* Chat + ações */}
-            <section className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-0">
+            <section className="md:col-span-8 xl:col-span-9 flex flex-col min-h-0 min-w-0 overflow-hidden">
               {!selected && !selectedEvoJid ? (
                 <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-6 text-center">
                   Selecione um cliente (Processos) ou um chat/grupo (WA / Grupos) à esquerda.
@@ -1388,7 +1390,7 @@ function WhatsAppTerminalInner() {
                     </div>
                   </div>
 
-                  <ScrollArea className="flex-1 px-4 py-3">
+                  <ScrollArea className="flex-1 min-h-[68px] px-3 py-2">
                     <div className="space-y-2 max-w-3xl mx-auto">
                       {histLoading && (
                         <div className="flex justify-center py-6">
@@ -1413,7 +1415,57 @@ function WhatsAppTerminalInner() {
                     </div>
                   </ScrollArea>
 
-                  <div className="shrink-0 border-t border-border/50 p-3 space-y-3 bg-card/30 max-h-[55vh] overflow-y-auto">
+                  <div className="shrink-0 border-t border-border/50 p-2 sm:p-3 space-y-2 bg-card/30 max-h-[min(40dvh,340px)] overflow-y-auto overscroll-contain">
+                    <div className="rounded-xl border border-border/60 bg-background p-2 space-y-2">
+                    <Textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      placeholder="Mensagem para o cliente…"
+                      className={
+                        duplicateOutbound
+                          ? "min-h-[90px] rounded-xl text-[13px] border-amber-500/50 ring-1 ring-amber-500/30"
+                          : "min-h-[90px] rounded-xl text-[13px]"
+                      }
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1.5"
+                        onClick={copyDraft}
+                        disabled={!draft.trim()}
+                      >
+                        <Copy size={14} /> Copiar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="rounded-xl gap-1.5"
+                        onClick={openWaMe}
+                        disabled={!draft.trim()}
+                      >
+                        <ExternalLink size={14} /> Abrir no WhatsApp
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
+                        onClick={sendViaEvolution}
+                        disabled={sending || !draft.trim() || !selected || casePhoneDigits(selected).length < 8}
+                        title={isGeneratingAIDraft ? "Você pode enviar o script local mesmo com a IA carregando" : undefined}
+                      >
+                        {sending ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Send size={14} />
+                        )}
+                        {duplicateOutbound ? "Enviar novamente" : "Enviar via WA.Auto"}
+                      </Button>
+                    </div>
+                    </div>
+
                     <div className="flex flex-wrap gap-2 items-center">
                       <Button
                         type="button"
@@ -1757,53 +1809,7 @@ function WhatsAppTerminalInner() {
                       </div>
                     ) : null}
 
-                    <Textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      placeholder="Mensagem para o cliente…"
-                      className={
-                        duplicateOutbound
-                          ? "min-h-[90px] rounded-xl text-[13px] border-amber-500/50 ring-1 ring-amber-500/30"
-                          : "min-h-[90px] rounded-xl text-[13px]"
-                      }
-                    />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl gap-1.5"
-                        onClick={copyDraft}
-                        disabled={!draft.trim()}
-                      >
-                        <Copy size={14} /> Copiar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-xl gap-1.5"
-                        onClick={openWaMe}
-                        disabled={!draft.trim()}
-                      >
-                        <ExternalLink size={14} /> Abrir no WhatsApp
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
-                        onClick={sendViaEvolution}
-                        disabled={sending || !draft.trim() || !selected || casePhoneDigits(selected).length < 8}
-                        title={isGeneratingAIDraft ? "Você pode enviar o script local mesmo com a IA carregando" : undefined}
-                      >
-                        {sending ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Send size={14} />
-                        )}
-                        {duplicateOutbound ? "Enviar mesmo assim" : "Enviar (Evolution)"}
-                      </Button>
-                    </div>
+
                   </div>
                 </>
               )}
