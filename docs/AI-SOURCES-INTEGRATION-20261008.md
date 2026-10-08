@@ -32,7 +32,7 @@ com privilégios. O modelo gera sugestões, nunca aprova ações jurídico-finan
 
 ## Instalação
 - thinking-orbs e VibeSec: fazem parte do código e não requerem env.
-- Spider Cloud: definir `SPIDER_API_KEY` APENAS no servidor Vercel (Production/Preview),
+- Spider Cloud: definir `SPIDER_API_KEY` e `LEXIS_SPIDER_ENABLED=true` APENAS no servidor Vercel (Production/Preview),
   comprar/ativar o serviço se desejar, validar orçamento; sem a chave as
   consultas opcionais são ignoradas (chat e dossiê seguem usando motores existentes).
 - Não criar segundo banco.
