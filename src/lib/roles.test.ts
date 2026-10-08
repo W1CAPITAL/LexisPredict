@@ -6,6 +6,7 @@ import {
   canExportOperationalData,
   canRunOperationalScanner,
   canSeeCompanyProcesses,
+  canViewCompanyCaseList,
   canSuperviseCompany,
   canUseAllOperationalFeatures,
   operatorRouteAllowed,
@@ -41,6 +42,14 @@ describe("commercial role contract", () => {
     expect(canSuperviseCompany("Administrador")).toBe(false);
   });
 
+  it("Todos os perfis logados podem consultar /processos sem ampliar a carteira pessoal", () => {
+    for (const cargo of ["Operador", "Administrador", "Supervisor", "Superadmin", "Visualizador"]) {
+      expect(canViewCompanyCaseList(cargo)).toBe(true);
+    }
+    expect(canViewCompanyCaseList(null)).toBe(false);
+    expect(resolveCaseScope("Operador")).toBe("mine");
+  });
+
   it("Supervisor tem visão consolidada da empresa", () => {
     expect(canSeeCompanyProcesses("Supervisor")).toBe(true);
     expect(canSuperviseCompany("Supervisor")).toBe(true);
@@ -56,10 +65,10 @@ describe("commercial role contract", () => {
   });
 
   it("Operador fica no conjunto reduzido de rotas", () => {
-    for (const path of ["/", "/cases", "/tarefas", "/agenda", "/whatsapp", "/documents", "/mensagens", "/notes", "/onboarding", "/settings"]) {
+    for (const path of ["/", "/cases", "/processos", "/tarefas", "/agenda", "/whatsapp", "/documents", "/mensagens", "/notes", "/onboarding", "/settings"]) {
       expect(operatorRouteAllowed(path)).toBe(true);
     }
-    for (const path of ["/processos", "/supervisao", "/team", "/auditoria", "/crm", "/financas", "/security", "/superadmin"]) {
+    for (const path of ["/supervisao", "/team", "/auditoria", "/crm", "/financas", "/security", "/superadmin"]) {
       expect(operatorRouteAllowed(path)).toBe(false);
     }
   });

@@ -11,6 +11,7 @@ import { canSupervisaoCarteira, isSuperAdminProfile } from './auth-supervisao';
 import { resolveCaseScope } from './roles';
 import { normalizePlanId } from './planos-pacotes';
 import { PROCESSOS_LIST_COLUMNS } from './carteira-select';
+import { resolveProcessoCliente } from './processo-cliente';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -108,7 +109,7 @@ function toLegalCase(item: any): LegalCase {
     id: item.id.toString(),
     db_id: item.id.toString(),
     created_by: item.created_by,
-    cliente: item.cliente ?? dados.cliente ?? dados.CLIENTE ?? 'SEM NOME',
+    cliente: resolveProcessoCliente(item),
     empresa_id: item.empresa_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
@@ -300,7 +301,7 @@ export async function getStoredCasesPageForEmpresa(
   limit = 250,
   offset = 0,
   isAdmin = false,
-  opts?: { onlyAtivos?: boolean; includeDetails?: boolean }
+  opts?: { onlyAtivos?: boolean; includeDetails?: boolean; companyReadOnly?: boolean }
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
   try {
@@ -325,7 +326,9 @@ export async function getStoredCasesPageForEmpresa(
         query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
       }
 
-      if (caseScope === 'mine') {
+      // Somente a ação explícita de Processos da Empresa usa esta exceção
+      // de consulta. Toda edição continua verificando o responsável real.
+      if (caseScope === 'mine' && opts?.companyReadOnly !== true) {
         if (!auth_id) return { data: [] as any[], error: null };
         query = query.eq("created_by", auth_id);
       }

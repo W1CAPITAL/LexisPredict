@@ -100,9 +100,18 @@ export function isMasterView(cargo?: RoleLike): boolean {
   return getCargoWeight(cargo) >= ROLE_WEIGHTS.Supervisor;
 }
 
-/** Somente Supervisor/Superadmin consultam a carteira consolidada da empresa. */
+/** Supervisor/Superadmin possuem visão ampla nas rotas de operação. */
 export function canSeeCompanyProcesses(cargo?: RoleLike): boolean {
   return getCargoWeight(cargo) >= ROLE_WEIGHTS.Supervisor;
+}
+
+/**
+ * Na rota /processos a consulta é empresarial para qualquer perfil
+ * autenticado da organização, inclusive Visualizador. Isso não dá
+ * permissão para editar, executar scanners ou supervisionar.
+ */
+export function canViewCompanyCaseList(cargo?: RoleLike): boolean {
+  return resolveRole(cargo) !== 'Desconhecido';
 }
 
 export type CaseScope = 'mine' | 'empresa';
@@ -178,6 +187,7 @@ export function canAccessSuperadmin(cargo?: RoleLike): boolean {
 const OPERATOR_ALLOWED_ROOTS = [
   '/',
   '/cases',
+  '/processos',
   '/tarefas',
   '/agenda',
   '/whatsapp',

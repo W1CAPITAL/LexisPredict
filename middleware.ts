@@ -15,7 +15,7 @@ const ROLE_WEIGHT: Record<string, number> = {
   Visualizador: 20,
 }
 
-const SUPERVISOR_ONLY = ['/processos', '/supervisao', '/auditoria', '/team']
+const SUPERVISOR_ONLY = ['/supervisao', '/auditoria', '/team']
 const SUPERADMIN_ONLY = ['/security', '/superadmin', '/ops']
 
 const PUBLIC_API = [
