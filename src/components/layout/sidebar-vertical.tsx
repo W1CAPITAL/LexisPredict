@@ -297,13 +297,9 @@ export function SidebarVertical() {
     setQuery("");
   }, [pathname]);
 
-  useEffect(() => {
-    const routes = ["/", "/cases", "/tarefas", "/whatsapp", "/dossies", "/settings", "/agenda"];
-    const id = window.setTimeout(() => {
-      for (const href of routes) router.prefetch(href);
-    }, 500);
-    return () => window.clearTimeout(id);
-  }, [router]);
+  // No eager route-prefetch storm: every prefetch also hits the Supabase
+  // middleware authentication gate, starving actual user navigation.
+  // The router fetches only the selected route on demand.
 
   useEffect(() => {
     if (!navigatingTo) return;

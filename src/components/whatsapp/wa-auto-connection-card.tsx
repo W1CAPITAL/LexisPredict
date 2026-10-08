@@ -35,6 +35,7 @@ export function WaAutoConnectionCard() {
     try {
       const res = await waAutoConnectionAction();
       if (!res.success) {
+        setConnection({ status: 'offline', message: res.error || 'Serviço WA.Auto indisponível' });
         if (!silent) {
           toast({
             title: "WA.Auto indisponível",
@@ -45,6 +46,8 @@ export function WaAutoConnectionCard() {
         return;
       }
       setConnection((res.connection || {}) as ConnectionState);
+    } catch (error: any) {
+      setConnection({ status: 'offline', message: error?.message || 'Falha de comunicação com WA.Auto' });
     } finally {
       if (!silent) setLoading(false);
     }
@@ -52,7 +55,11 @@ export function WaAutoConnectionCard() {
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(true), 5000);
+    // Avoid 12 remote requests/minute while WhatsApp/Render is cold or offline.
+    // The user can always trigger a refresh manually.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh(true);
+    }, 30000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
