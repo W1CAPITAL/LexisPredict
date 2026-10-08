@@ -14,6 +14,8 @@ export type ThemeColors = {
   primary: string;
   accent: string;
   border: string;
+  /** Cor de navegação separada das superfícies principais. */
+  nav?: string;
 };
 
 export type ThemeMode = 'light' | 'dark';
@@ -27,6 +29,8 @@ export type ThemePreset = {
   id: string;
   name: string;
   radius: number;
+  source?: 'sheetspredict';
+  preferredMode?: ThemeMode;
   /** dica curta na UI de settings */
   hint?: string;
   /** paletas por modo (claro/escuro) */
@@ -60,6 +64,307 @@ function blend(hexA: string, hexB: string, t: number): string {
  * Cada preset tem variante clara e escura com contraste WCAG-safe.
  */
 export const AUTHORITY_PRESETS: ThemePreset[] = [
+  // Paletas originais de W2CAPITAL/SheetsPredict: modo e contraste próprios.
+  {
+    "id": "sheetspredict-default",
+    "name": "SheetsPredict Original",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — claro",
+    "source": "sheetspredict",
+    "preferredMode": "light",
+    "colors": {
+      "light": {
+        "background": "#f5f8fb",
+        "bgSecondary": "#ffffff",
+        "foreground": "#111827",
+        "fontMuted": "#667085",
+        "primary": "#0876e8",
+        "accent": "#f8fafc",
+        "border": "#e4e7ec",
+        "nav": "#08182b"
+      },
+      "dark": {
+        "background": "#f5f8fb",
+        "bgSecondary": "#ffffff",
+        "foreground": "#111827",
+        "fontMuted": "#667085",
+        "primary": "#0876e8",
+        "accent": "#f8fafc",
+        "border": "#e4e7ec",
+        "nav": "#08182b"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-clean",
+    "name": "Clean",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — claro",
+    "source": "sheetspredict",
+    "preferredMode": "light",
+    "colors": {
+      "light": {
+        "background": "#f8fafc",
+        "bgSecondary": "#ffffff",
+        "foreground": "#0f172a",
+        "fontMuted": "#64748b",
+        "primary": "#2563eb",
+        "accent": "#f1f5f9",
+        "border": "#dfe5ec",
+        "nav": "#111827"
+      },
+      "dark": {
+        "background": "#f8fafc",
+        "bgSecondary": "#ffffff",
+        "foreground": "#0f172a",
+        "fontMuted": "#64748b",
+        "primary": "#2563eb",
+        "accent": "#f1f5f9",
+        "border": "#dfe5ec",
+        "nav": "#111827"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-dark",
+    "name": "Dark",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — escuro",
+    "source": "sheetspredict",
+    "preferredMode": "dark",
+    "colors": {
+      "light": {
+        "background": "#0d1117",
+        "bgSecondary": "#161b22",
+        "foreground": "#e6edf3",
+        "fontMuted": "#a6b0bf",
+        "primary": "#3b82f6",
+        "accent": "#1d2430",
+        "border": "#30363d",
+        "nav": "#090d13"
+      },
+      "dark": {
+        "background": "#0d1117",
+        "bgSecondary": "#161b22",
+        "foreground": "#e6edf3",
+        "fontMuted": "#a6b0bf",
+        "primary": "#3b82f6",
+        "accent": "#1d2430",
+        "border": "#30363d",
+        "nav": "#090d13"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-midnight",
+    "name": "Midnight",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — escuro",
+    "source": "sheetspredict",
+    "preferredMode": "dark",
+    "colors": {
+      "light": {
+        "background": "#07111f",
+        "bgSecondary": "#0d1b2a",
+        "foreground": "#e6f1ff",
+        "fontMuted": "#94a9bf",
+        "primary": "#0ea5e9",
+        "accent": "#11263a",
+        "border": "#20384f",
+        "nav": "#050b14"
+      },
+      "dark": {
+        "background": "#07111f",
+        "bgSecondary": "#0d1b2a",
+        "foreground": "#e6f1ff",
+        "fontMuted": "#94a9bf",
+        "primary": "#0ea5e9",
+        "accent": "#11263a",
+        "border": "#20384f",
+        "nav": "#050b14"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-graphite",
+    "name": "Graphite Sheets",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — escuro",
+    "source": "sheetspredict",
+    "preferredMode": "dark",
+    "colors": {
+      "light": {
+        "background": "#151515",
+        "bgSecondary": "#202020",
+        "foreground": "#f2f2f2",
+        "fontMuted": "#b3b3b3",
+        "primary": "#a3a3a3",
+        "accent": "#292929",
+        "border": "#383838",
+        "nav": "#0d0d0d"
+      },
+      "dark": {
+        "background": "#151515",
+        "bgSecondary": "#202020",
+        "foreground": "#f2f2f2",
+        "fontMuted": "#b3b3b3",
+        "primary": "#a3a3a3",
+        "accent": "#292929",
+        "border": "#383838",
+        "nav": "#0d0d0d"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-emerald",
+    "name": "Emerald Sheets",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — claro",
+    "source": "sheetspredict",
+    "preferredMode": "light",
+    "colors": {
+      "light": {
+        "background": "#f1f8f5",
+        "bgSecondary": "#ffffff",
+        "foreground": "#10241d",
+        "fontMuted": "#577066",
+        "primary": "#047857",
+        "accent": "#edf7f2",
+        "border": "#d3e4dc",
+        "nav": "#06281f"
+      },
+      "dark": {
+        "background": "#f1f8f5",
+        "bgSecondary": "#ffffff",
+        "foreground": "#10241d",
+        "fontMuted": "#577066",
+        "primary": "#047857",
+        "accent": "#edf7f2",
+        "border": "#d3e4dc",
+        "nav": "#06281f"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-wine",
+    "name": "Vinho Jurídico",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — claro",
+    "source": "sheetspredict",
+    "preferredMode": "light",
+    "colors": {
+      "light": {
+        "background": "#f7f2ef",
+        "bgSecondary": "#fffdf9",
+        "foreground": "#2b1720",
+        "fontMuted": "#755b65",
+        "primary": "#8b1e3f",
+        "accent": "#f3eae6",
+        "border": "#e4d5d9",
+        "nav": "#35111d"
+      },
+      "dark": {
+        "background": "#f7f2ef",
+        "bgSecondary": "#fffdf9",
+        "foreground": "#2b1720",
+        "fontMuted": "#755b65",
+        "primary": "#8b1e3f",
+        "accent": "#f3eae6",
+        "border": "#e4d5d9",
+        "nav": "#35111d"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-violet",
+    "name": "Executive Violet",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — escuro",
+    "source": "sheetspredict",
+    "preferredMode": "dark",
+    "colors": {
+      "light": {
+        "background": "#100d1c",
+        "bgSecondary": "#1a162b",
+        "foreground": "#f1edff",
+        "fontMuted": "#b6abd2",
+        "primary": "#a78bfa",
+        "accent": "#241e39",
+        "border": "#392f55",
+        "nav": "#0c0915"
+      },
+      "dark": {
+        "background": "#100d1c",
+        "bgSecondary": "#1a162b",
+        "foreground": "#f1edff",
+        "fontMuted": "#b6abd2",
+        "primary": "#a78bfa",
+        "accent": "#241e39",
+        "border": "#392f55",
+        "nav": "#0c0915"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-gold",
+    "name": "Imperial Gold",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — escuro",
+    "source": "sheetspredict",
+    "preferredMode": "dark",
+    "colors": {
+      "light": {
+        "background": "#11100d",
+        "bgSecondary": "#1b1913",
+        "foreground": "#f5eedc",
+        "fontMuted": "#c0b38f",
+        "primary": "#d4a72c",
+        "accent": "#252219",
+        "border": "#403a29",
+        "nav": "#080806"
+      },
+      "dark": {
+        "background": "#11100d",
+        "bgSecondary": "#1b1913",
+        "foreground": "#f5eedc",
+        "fontMuted": "#c0b38f",
+        "primary": "#d4a72c",
+        "accent": "#252219",
+        "border": "#403a29",
+        "nav": "#080806"
+      }
+    }
+  },
+  {
+    "id": "sheetspredict-contrast",
+    "name": "Alto Contraste",
+    "radius": 10,
+    "hint": "Tema original SheetsPredict — escuro",
+    "source": "sheetspredict",
+    "preferredMode": "dark",
+    "colors": {
+      "light": {
+        "background": "#000000",
+        "bgSecondary": "#0a0a0a",
+        "foreground": "#ffffff",
+        "fontMuted": "#e5e5e5",
+        "primary": "#00a8ff",
+        "accent": "#151515",
+        "border": "#666666",
+        "nav": "#000000"
+      },
+      "dark": {
+        "background": "#000000",
+        "bgSecondary": "#0a0a0a",
+        "foreground": "#ffffff",
+        "fontMuted": "#e5e5e5",
+        "primary": "#00a8ff",
+        "accent": "#151515",
+        "border": "#666666",
+        "nav": "#000000"
+      }
+    }
+  },
   {
     id: 'minimal-steel',
     name: 'Minimal Steel',
@@ -379,6 +684,7 @@ export function clearCustomTheme() {
   ];
   props.forEach((p) => root.style.removeProperty(p));
   root.removeAttribute('data-lexis-preset');
+  root.removeAttribute('data-sheetspredict-theme');
   window.dispatchEvent(new Event('lexis-theme-changed'));
 }
 
@@ -411,17 +717,17 @@ export function applyGlobalTheme(
 
   // Respeita cor escolhida pelo usuário; só corrige se contraste for catastrófico (<2.5)
   let finalForeground = colors.foreground;
-  if (getContrastRatio(colors.background, colors.foreground) < 2.5) {
+  if (Math.min(getContrastRatio(colors.background, colors.foreground), getContrastRatio(colors.bgSecondary, colors.foreground)) < 4.5) {
     finalForeground = getIdealTextColor(colors.background);
   }
 
   let finalMuted = colors.fontMuted;
-  if (getContrastRatio(colors.background, colors.fontMuted) < 2.0) {
-    finalMuted = getIdealMutedTextColor(colors.background);
+  if (Math.min(getContrastRatio(colors.background, colors.fontMuted), getContrastRatio(colors.bgSecondary, colors.fontMuted)) < 4.5) {
+    finalMuted = getContrastRatio(colors.bgSecondary, '#111827') >= 4.5 ? '#111827' : '#F1F5F9';
   }
 
   const primary = normalize(colors.primary);
-  const onPrimary = getContrastRatio(primary, '#FFFFFF') >= 3.0 ? '#FFFFFF' : '#0F172A';
+  const onPrimary = getContrastRatio(primary, '#FFFFFF') >= getContrastRatio(primary, '#000000') ? '#FFFFFF' : '#000000';
   const sem = CHART_HUES[m];
 
   localStorage.setItem('lexisPredict_bg_color', colors.background);
@@ -484,13 +790,15 @@ export function applyGlobalTheme(
   const charts = deriveCharts(primary, m);
   charts.forEach((c, i) => root.style.setProperty(`--chart-${i + 1}`, c));
 
-  root.style.setProperty('--sidebar-background', hexToHsl(colors.bgSecondary));
-  root.style.setProperty('--sidebar-foreground', hexToHsl(finalForeground));
+  const nav = colors.nav || colors.bgSecondary;
+  const navForeground = colors.nav ? (getContrastRatio(nav, '#FFFFFF') >= getContrastRatio(nav, '#000000') ? '#FFFFFF' : '#000000') : finalForeground;
+  root.style.setProperty('--sidebar-background', hexToHsl(nav));
+  root.style.setProperty('--sidebar-foreground', hexToHsl(navForeground));
   root.style.setProperty('--sidebar-border', hexToHsl(colors.border));
   root.style.setProperty('--sidebar-primary', hexToHsl(primary));
   root.style.setProperty('--sidebar-primary-foreground', hexToHsl(onPrimary));
-  root.style.setProperty('--sidebar-accent', hexToHsl(colors.accent));
-  root.style.setProperty('--sidebar-accent-foreground', hexToHsl(finalForeground));
+  root.style.setProperty('--sidebar-accent', hexToHsl(colors.nav ? blend(nav, navForeground, .12) : colors.accent));
+  root.style.setProperty('--sidebar-accent-foreground', hexToHsl(navForeground));
   root.style.setProperty('--sidebar-ring', hexToHsl(primary));
 
   if (bgOpacity !== undefined) root.style.setProperty('--bg-opacity', bgOpacity.toString());
@@ -499,6 +807,7 @@ export function applyGlobalTheme(
   if (glassBlur !== undefined) root.style.setProperty('--glass-blur', `${glassBlur}px`);
 
   root.setAttribute('data-lexis-preset', 'custom');
+  root.removeAttribute('data-sheetspredict-theme');
   window.dispatchEvent(new Event('lexis-theme-changed'));
 }
 
@@ -512,6 +821,8 @@ export function applyPresetById(id: string, mode?: ThemeMode) {
   }
   const m: ThemeMode = mode || getCurrentMode();
   applyGlobalTheme(getPresetColors(preset, m), preset.radius, undefined, undefined, undefined, m);
+  if (preset.source === 'sheetspredict') document.documentElement.setAttribute('data-sheetspredict-theme', preset.id.slice('sheetspredict-'.length));
+  else document.documentElement.removeAttribute('data-sheetspredict-theme');
   localStorage.setItem(PRESET_STORAGE_KEY, preset.id);
   localStorage.removeItem(CUSTOM_THEME_KEY);
   return preset;
