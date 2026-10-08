@@ -41,11 +41,22 @@ export function isWaAutoConfigured() {
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
+  // WA.Auto Cloud requires x-lexis-user-id when a shared integration token
+  // is used; without it every status/connect/send call returns HTTP 400.
+  // Resolve the identity from verified Supabase server auth, NEVER from an
+  // arbitrary client argument or a raw browser-provided header.
+  const { getUserContext } = await import('@/lib/server-db');
+  const ctx = await getUserContext();
+  if (!ctx.auth_id || (!ctx.empresa_id && !ctx.isSuperAdmin) || ctx.isViewer) {
+    throw new Error('Sessão LexisPredict sem permissão para conectar ao WA.Auto.');
+  }
+
   const { integrationToken } = getWaAutoConfig();
   if (integrationToken) {
     return {
       Authorization: `Bearer ${integrationToken}`,
       "x-wa-integration-token": integrationToken,
+      "x-lexis-user-id": String(ctx.auth_id),
       "Content-Type": "application/json",
     };
   }
@@ -109,7 +120,7 @@ export async function waAutoHealth(): Promise<WaAutoHealth> {
       method: "GET",
       headers: await authHeaders(),
       cache: "no-store",
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(16000),
     });
     const body = await readJson(res);
     const status = String(body?.connection?.status || body?.whatsapp || "").toLowerCase();
@@ -232,7 +243,7 @@ export async function getWaAutoConnection() {
     const res = await fetch(`${baseUrl}/api/integrations/lexispredict/status`, {
       headers: await authHeaders(),
       cache: "no-store",
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(16000),
     });
     const body = await readJson(res);
     if (!res.ok) return { ok: false as const, error: String(body?.error || `HTTP ${res.status}`) };
