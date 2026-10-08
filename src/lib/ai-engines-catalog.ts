@@ -35,6 +35,14 @@ export const AI_ENGINES: AiEngine[] = [
     requiresToken: true,
   },
   {
+    id: "colibri",
+    label: "Colibri próprio · LLM leve",
+    desc: "Inferência no seu servidor HTTPS; sem enviar dados a outras IAs quando selecionado.",
+    status: "OPCIONAL",
+    group: "local",
+    requiresToken: false,
+  },
+  {
     id: "lexis-scripts",
     label: "Motor Lexis (scripts)",
     desc: "Sugerir resposta sem API.",
